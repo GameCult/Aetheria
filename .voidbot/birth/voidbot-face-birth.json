@@ -1,0 +1,11 @@
+{
+  "status": "failed",
+  "identityId": "aetheria",
+  "repoPath": "E:\\Projects\\Aetheria",
+  "artifactDir": "E:\\Projects\\Aetheria\\.voidbot\\birth",
+  "logPath": "E:\\Projects\\Aetheria\\.voidbot\\logs\\voidbot-face-birth.log",
+  "error": "cargo exited with 1",
+  "startedAt": "2026-06-12T16:34:04.094Z",
+  "failedAt": "2026-06-12T16:34:41.865Z",
+  "updatedAt": "2026-06-12T16:34:41.865Z"
+}

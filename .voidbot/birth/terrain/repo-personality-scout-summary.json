@@ -1,0 +1,34 @@
+{
+  "artifactDir": "E:\\Projects\\Aetheria\\.voidbot\\birth\\terrain",
+  "mode": "scout",
+  "profileCount": 1,
+  "repoCount": 1,
+  "repos": [
+    {
+      "confidence": 0.85,
+      "dominantAxes": [
+        "runtime_proximity:1.00",
+        "temporal_pressure:0.87",
+        "actuation_risk:0.85",
+        "verification_environment_need:0.85",
+        "production_pressure:0.70"
+      ],
+      "families": [
+        "cult_protocol_storage",
+        "gamecult_web_lore_ops",
+        "unity_runtime_body",
+        "service_product_app"
+      ],
+      "name": "Aetheria",
+      "path": "\\\\?\\E:\\Projects\\Aetheria",
+      "repoId": "aetheria",
+      "warnings": [
+        "No AGENTS.md or instruction surface found."
+      ]
+    }
+  ],
+  "root": "E:\\Projects\\Aetheria",
+  "schemaVersion": "epiphany.repo_personality_artifacts.v0",
+  "store": "E:\\Projects\\Aetheria\\.voidbot\\birth\\terrain\\baseline.msgpack",
+  "trajectoryCount": 1
+}
