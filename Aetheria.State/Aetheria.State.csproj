@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Typed CultCache and CultMesh state spine for Aetheria.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\CultLib\src\GameCult.Caching\GameCult.Caching.csproj" />
+    <ProjectReference Include="..\..\CultLib\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
+    <ProjectReference Include="..\..\CultLib\src\GameCult.Mesh\GameCult.Mesh.csproj" />
+    <ProjectReference Include="..\..\CultLib\src\GameCult.Networking\GameCult.Networking.csproj" />
+  </ItemGroup>
+</Project>

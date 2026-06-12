@@ -97,6 +97,10 @@ Economy.Server/bin/
 Economy.Server/obj/
 Economy.Shared/bin/
 Economy.Shared/obj/
+Aetheria.State/bin/
+Aetheria.State/obj/
+Aetheria.State.Smoke/bin/
+Aetheria.State.Smoke/obj/
 
 # JetBrains Rider .idea folder
 .idea/
