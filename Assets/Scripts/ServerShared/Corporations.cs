@@ -8,8 +8,10 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 
 [Inspectable]
-public class Faction : RuntimeProjectionEntry, INamedEntry
+public class Faction : INamedEntry
 {
+    public Guid ID = Guid.NewGuid();
+
     [Inspectable]
     public string Name;
 
@@ -52,5 +54,15 @@ public class Faction : RuntimeProjectionEntry, INamedEntry
     {
         get => Name;
         set => Name = value;
+    }
+
+    public override int GetHashCode()
+    {
+        return ID.GetHashCode();
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is Faction faction && faction.ID == ID;
     }
 }

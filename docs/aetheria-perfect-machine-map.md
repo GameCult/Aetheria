@@ -46,8 +46,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared domain state is still partly built around `RuntimeProjectionEntry`, GUID
-  identity, runtime catalog metadata, and static projection references. Dead
+- Shared item domain state is still partly built around `RuntimeProjectionEntry`,
+  GUID identity, runtime catalog metadata, and static projection references. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -73,7 +73,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
   input screens mutate `RuntimePlayerSettings` in memory and queue typed Verse
   commits through the shared player-settings commit primitive; the in-memory
-  projection is not portable state authority.
+  projection is not portable state authority. Aetheria has its own remapping UI
+  that calls Unity's InputSystem at the binding/action layer; Unity's generated
+  `AetheriaInput` class is the edge consumer of typed binding overrides, not
+  the durable owner.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
@@ -308,6 +311,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `BodyData` and `OrbitData` have also been cut loose from
   `RuntimeProjectionEntry`; they keep local GUID fields for zone runtime lookup,
   but no longer inherit shared projection equality.
+- `Faction` has been cut loose from `RuntimeProjectionEntry`; it keeps local
+  GUID equality for galaxy dictionaries while typed corporation records remain
+  the durable catalog owner.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
   assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
   on MessagePackReader to open CultCache `.cc` records; that dependency belongs
@@ -367,9 +373,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
-  item records for the old simulation object model. `RuntimeProjectionEntry` is a
-  projection identity helper, not a persistence base, and behavior type
-  selection now uses an explicit runtime catalog map instead of
+  item records for the old simulation object model. `RuntimeProjectionEntry` is
+  an item projection identity helper, not a persistence base or corporation
+  owner, and behavior type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
@@ -731,8 +737,8 @@ First Aetheria surfaces to publish:
   `Assets/Scripts` now finds only `ItemManager` checking its own hydrated value.
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
   item instances use `RuntimeItemReference` and expose `Data.ItemId`.
-- Live Unity source has no `RuntimeCatalogEntry`; surviving DTOs inherit
-  `RuntimeProjectionEntry`.
+- Live Unity source has no `RuntimeCatalogEntry`; only surviving item DTOs
+  inherit `RuntimeProjectionEntry`.
 - Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
   `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`
