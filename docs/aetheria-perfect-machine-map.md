@@ -241,7 +241,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
   the registered Face MCP path.
 - The old IMGUI DB inspector has been deleted. `NameTools` can still
-  clean/generate names, but legacy NameFile `.msgpack` export is disabled. The
+  clean/generate names, but the legacy NameFile `.msgpack` export control has
+  been deleted instead of leaving a warning-only writer stub. The
   remaining Unity helper files formerly under `Assets/Scripts/CultCache` now
   live under `Assets/Scripts/UnitySupport` because they are color/curve helpers,
   not cache authority.
@@ -614,8 +615,9 @@ First Aetheria surfaces to publish:
    - Done: delete Newtonsoft dependencies and attributes from live code.
    - Done: delete old JSON backing stores.
    - Done: delete the broken `Economy.Shared` wrapper and tracked build output.
-   - Done: disable legacy local save, loadout, zone, player-settings, keyboard
-     layout, DB inspector, and NameFile export writers.
+   - Done: disable legacy local save, loadout, zone, player-settings, and
+     keyboard layout writers; delete the DB inspector and NameFile export
+     control instead of preserving warning-only editor surfaces.
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
    - Done: remove the stale Unity `SaveState`/`SaveZone` command names after
      their bespoke serializers were deleted.

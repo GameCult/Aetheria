@@ -1,8 +1,6 @@
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEditor;
@@ -10,7 +8,6 @@ using Random = Unity.Mathematics.Random;
 
 public class NameTools : EditorWindow
 {
-    public TextAsset[] NameFiles;
     public int NameGeneratorMinLength = 5;
     public int NameGeneratorMaxLength = 10;
     public int NameGeneratorOrder = 4;
@@ -36,18 +33,6 @@ public class NameTools : EditorWindow
 
     void OnGUI()
     {
-        ScriptableObject target = this;
-        SerializedObject so = new SerializedObject(target);
-        SerializedProperty stringsProperty = so.FindProperty("NameFiles");
-
-        EditorGUILayout.PropertyField(stringsProperty, true); // True means show children
-        so.ApplyModifiedProperties(); // Remember to apply modified properties
-
-        if (GUILayout.Button("Save Name Files"))
-        {
-            Debug.LogWarning("Name file persistence belongs to the Verse state spine. Legacy NameFile .msgpack export is disabled.");
-        }
-        
         nameFile = (TextAsset) EditorGUILayout.ObjectField("Name File", nameFile, typeof(TextAsset), false);
         minWordLength = EditorGUILayout.IntField("Minimum File Word Length", minWordLength);
         NameGeneratorMinLength = EditorGUILayout.IntField("Generated Minimum Word Length", NameGeneratorMinLength);
