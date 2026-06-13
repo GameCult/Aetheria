@@ -42,14 +42,19 @@ state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
 raw MessagePack union pass that maps stable catalog fields into typed
 item/faction/name-file documents without compiling Unity's legacy domain model
 into `Aetheria.State`. The current checked-in catalog maps to 115 item
-definitions, 12 factions, and 12 name files. Runtime object graphs, behaviors,
-Unity shapes, and simulation state remain legacy until dedicated typed
+definitions, 12 factions, and 12 name files. Typed item definitions include
+legacy manufacturer IDs, price, shape dimensions, and occupied cell counts.
+Typed corporation documents include the legacy short name, the true description
+field from key 3, name-file and boss-hull legacy IDs, influence distance,
+allegiance count, and music bank IDs. Runtime object graphs, behaviors, full
+Unity shape masks, and simulation state remain legacy until dedicated typed
 documents exist.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
 records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
-for one migrated record of each catalog kind. Use it after import when
+for one migrated record of each catalog kind and checks that expanded item and
+corporation catalog facts survived materialization. Use it after import when
 `GameData/aetheria-world.cc` changes.
 
 Current rebuild notes:

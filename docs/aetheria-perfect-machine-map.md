@@ -50,14 +50,19 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   MessagePack union fields into typed item/faction/name-file documents without
   compiling the old Unity domain model into `Aetheria.State`. The current
   checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
-  files. `Aetheria.State` now owns the canonical legacy-ID record key mapping
-  for migrated item, corporation, and name-file documents.
+  files. Item definitions now carry legacy manufacturer IDs, price, shape
+  dimensions, and occupied cell counts. Corporation documents now carry the
+  legacy short name, true description from key 3, name-file and boss-hull legacy
+  IDs, influence distance, allegiance count, and music bank IDs.
+  `Aetheria.State` now owns the canonical legacy-ID record key mapping for
+  migrated item, corporation, and name-file documents.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
   `Aetheria.State.Verify` opens the materialized file and checks that migration
-  ledger counts match actual typed catalog records and that the legacy-ID lookup
-  API resolves migrated item, corporation, and name-file documents.
+  ledger counts match actual typed catalog records, that the legacy-ID lookup
+  API resolves migrated item, corporation, and name-file documents, and that
+  the expanded typed catalog facts are present in the `.cc` store.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than

@@ -36,6 +36,37 @@ if (nameFiles.Length == 0)
     throw new InvalidOperationException("Typed state has no name files.");
 }
 
+var pricedItems = items.Count(item => item.Price > 0);
+var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
+var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
+var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
+var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
+
+if (pricedItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any prices.");
+}
+
+if (manufacturedItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any manufacturer legacy IDs.");
+}
+
+if (shapedItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any shape dimensions.");
+}
+
+if (describedCorporations == 0)
+{
+    throw new InvalidOperationException("Typed corporations did not import descriptions from legacy key 3.");
+}
+
+if (corporationNameLinks == 0)
+{
+    throw new InvalidOperationException("Typed corporations did not import geoname file legacy IDs.");
+}
+
 await RequireLegacyLookupAsync(
     items[0].LegacyId,
     () => node.GetItemDefinitionByLegacyIdAsync(items[0].LegacyId),
@@ -57,7 +88,9 @@ if (string.IsNullOrWhiteSpace(quarantine.CatalogFingerprint))
 Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
+Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
 Console.WriteLine($"Corporations: {corporations.Length}");
+Console.WriteLine($"Described/geoname-linked corporations: {describedCorporations}/{corporationNameLinks}");
 Console.WriteLine($"Name files: {nameFiles.Length}");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)

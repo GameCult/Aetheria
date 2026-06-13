@@ -30,4 +30,20 @@ public sealed class AetheriaItemDefinition
 
     [Key(6)]
     public string[] Tags { get; set; } = [];
+
+    [Key(7)]
+    [CultIndex("manufacturerLegacyId")]
+    public string ManufacturerLegacyId { get; set; } = "";
+
+    [Key(8)]
+    public int Price { get; set; }
+
+    [Key(9)]
+    public int ShapeWidth { get; set; }
+
+    [Key(10)]
+    public int ShapeHeight { get; set; }
+
+    [Key(11)]
+    public int OccupiedCells { get; set; }
 }

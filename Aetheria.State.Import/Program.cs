@@ -219,6 +219,7 @@ internal static class LegacyCatalogReader
         var legacyId = GetGuid(payload, 0);
         var name = GetString(payload, 1);
         var description = GetString(payload, 2);
+        var shape = ReadShape(payload, 5);
         var summary = new AetheriaLegacyCatalogEntrySummary
         {
             LegacyId = legacyId,
@@ -238,7 +239,12 @@ internal static class LegacyCatalogReader
                     LegacyId = legacyId,
                     Description = description,
                     Mass = GetDouble(payload, 4),
-                    Volume = GetArrayLength(payload, 5),
+                    Volume = shape.OccupiedCells,
+                    ManufacturerLegacyId = GetGuid(payload, 3),
+                    Price = GetInt(payload, 8),
+                    ShapeWidth = shape.Width,
+                    ShapeHeight = shape.Height,
+                    OccupiedCells = shape.OccupiedCells,
                     Tags = [unionName, "legacy-catalog"]
                 }
                 : null,
@@ -247,7 +253,15 @@ internal static class LegacyCatalogReader
                 {
                     Name = name,
                     LegacyId = legacyId,
-                    Description = description
+                    ShortName = GetString(payload, 2),
+                    Description = GetString(payload, 3),
+                    GeonameFileLegacyId = GetGuid(payload, 9),
+                    BossHullLegacyId = GetGuid(payload, 10),
+                    InfluenceDistance = GetInt(payload, 11),
+                    AllegianceCount = GetMapCount(payload, 12),
+                    OverworldMusic = GetUInt(payload, 13),
+                    CombatMusic = GetUInt(payload, 14),
+                    BossMusic = GetUInt(payload, 15)
                 }
                 : null,
             unionKey == 9
@@ -382,6 +396,45 @@ internal static class LegacyCatalogReader
         };
     }
 
+    private static int GetInt(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value == null)
+        {
+            return 0;
+        }
+
+        return value switch
+        {
+            long integerValue => checked((int) integerValue),
+            int integerValue => integerValue,
+            double doubleValue => checked((int) doubleValue),
+            float floatValue => checked((int) floatValue),
+            _ => 0
+        };
+    }
+
+    private static uint GetUInt(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value == null)
+        {
+            return 0;
+        }
+
+        return value switch
+        {
+            long integerValue when integerValue >= 0 => checked((uint) integerValue),
+            int integerValue when integerValue >= 0 => checked((uint) integerValue),
+            double doubleValue when doubleValue >= 0 => checked((uint) doubleValue),
+            float floatValue when floatValue >= 0 => checked((uint) floatValue),
+            _ => 0
+        };
+    }
+
+    private static int GetMapCount(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        return payload.TryGetValue(key, out var value) && value is Dictionary<string, object?> map ? map.Count : 0;
+    }
+
     private static int GetArrayLength(IReadOnlyDictionary<int, object?> payload, int key)
     {
         return payload.TryGetValue(key, out var value) && value is object?[] array ? array.Length : 0;
@@ -393,6 +446,50 @@ internal static class LegacyCatalogReader
             ? array.OfType<string>().Take(max).ToArray()
             : [];
     }
+
+    private static ShapeFacts ReadShape(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value == null)
+        {
+            return new ShapeFacts(0, 0, 0);
+        }
+
+        var matrix = UnwrapShapeMatrix(value);
+        if (matrix is not object?[] columns)
+        {
+            return new ShapeFacts(0, 0, 0);
+        }
+
+        var width = columns.Length;
+        var height = 0;
+        var occupied = 0;
+        foreach (var column in columns)
+        {
+            if (column is not object?[] cells)
+            {
+                if (column is bool occupiedCell)
+                {
+                    height = Math.Max(height, 1);
+                    if (occupiedCell)
+                    {
+                        occupied++;
+                    }
+                }
+
+                continue;
+            }
+
+            height = Math.Max(height, cells.Length);
+            occupied += cells.Count(cell => cell is true);
+        }
+
+        return new ShapeFacts(width, height, occupied);
+    }
+
+    private static object? UnwrapShapeMatrix(object? value)
+    {
+        return value is object?[] shapeObject && shapeObject.Length == 1 ? shapeObject[0] : value;
+    }
 }
 
 internal sealed record LegacyCatalogEntry(
@@ -400,3 +497,5 @@ internal sealed record LegacyCatalogEntry(
     AetheriaItemDefinition? ItemDefinition,
     AetheriaCorporation? Corporation,
     AetheriaNameFile? NameFile);
+
+internal readonly record struct ShapeFacts(int Width, int Height, int OccupiedCells);
