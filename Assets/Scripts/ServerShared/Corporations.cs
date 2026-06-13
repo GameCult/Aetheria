@@ -54,16 +54,3 @@ public class Faction : RuntimeProjectionEntry, INamedEntry
         set => Name = value;
     }
 }
-
-[Inspectable]
-public class NameFile : RuntimeProjectionEntry, INamedEntry
-{
-    public string Name;
-    public string[] Names;
-
-    public string EntryName
-    {
-        get => Name;
-        set => Name = value;
-    }
-}

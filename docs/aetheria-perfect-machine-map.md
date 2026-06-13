@@ -249,6 +249,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Galaxy generation no longer reads legacy `Faction` or `NameFile` entries
   through `ItemManager`; it requires the typed runtime catalog opened from
   `GameData/aetheria-world.cc`.
+- The dead Unity `NameFile` projection class has been deleted. Runtime name
+  generation reads `AetheriaRuntimeNameFile` records from the typed catalog
+  facade; legacy `GameData/NameFile/*.msgpack` remains migration input only.
 - Entity restore and loadout manufacturer-distance weighting no longer read
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
   over the typed corporation projection.
