@@ -37,6 +37,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   for the current Unity runtime, but this path cannot push or delete legacy
   files. The legacy backing-store write/realtime APIs and public cache mutation
   methods have been deleted; only backing-store pull hydration can populate it.
+  The backing-store serializer methods are also deleted, so the legacy cache
+  interface exposes deserialization only.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -51,9 +53,17 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
+- `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
+  not registered as a VoidBot Discord identity yet, so mutations use the
+  repo-local `void-self-state.mjs apply-operation` typed boundary rather than
+  the registered Face MCP path.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
   deleted. `NameTools` can still clean/generate names, but legacy NameFile
   `.msgpack` export is disabled.
+- MessagePack is no longer used as a runtime object-cloning shortcut for
+  `EntitySettings`, and UI/player-settings startup no longer registers the old
+  MessagePack resolver. Resolver registration is confined to legacy catalog
+  deserialization and non-state compute hashing.
 - Runtime UI is old Unity UI/uGUI prefabs plus `MonoBehaviour` scripts under
   `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`.
 - Aetheria already has Unity UIElements support available through
@@ -87,8 +97,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog reads emit in-memory domain objects only; the old local save and
   editor catalog write paths have been cut.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
-  serialized legacy payloads are projections or migration inputs, not durable
-  authority.
+  serialized legacy payloads are projections, migration inputs, or disabled
+  session-local DTOs, not durable authority.
 - Forbidden writers: old JSON backing stores, JsonKnownTypes converters,
   Rethink/LiteNet paths, IMGUI database editor exports, local save-file writes,
   generated keyboard layout caches, and server-side `DatabaseCache` paths.
