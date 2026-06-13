@@ -467,6 +467,22 @@ public class Galaxy
         return _containedFactions.Contains(factionID);
     }
 
+    public Faction ResolveFaction(Guid factionID)
+    {
+        if (factionID == Guid.Empty)
+        {
+            return null;
+        }
+
+        var faction = Factions.FirstOrDefault(f => f.ID == factionID);
+        if (faction != null)
+        {
+            return faction;
+        }
+
+        return _allFactions.FirstOrDefault(f => f.ID == factionID);
+    }
+
     class DijkstraVertex
     {
         public float Cost;

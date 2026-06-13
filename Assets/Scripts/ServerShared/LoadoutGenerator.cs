@@ -137,11 +137,24 @@ public class LoadoutGenerator
             .WeightedRandomElements(ref Random, item =>
                     Faction == null ? 1 : 
                         (item.Manufacturer == Faction.ID ? 1 : Faction.Allegiance.ContainsKey(item.Manufacturer) ? Faction.Allegiance[item.Manufacturer] : 0.0f / // Prioritize items from allied manufacturers
-                            (Galaxy?.ContainsFaction(item.Manufacturer) ?? false ? Zone?.Distance[Galaxy.HomeZones[ItemManager.GetCatalogEntry<Faction>(item.Manufacturer)]] ?? 1 : 1)) * // Penalize distance to manufacturer headquarters
+                            ManufacturerDistancePenalty(item.Manufacturer)) * // Penalize distance to manufacturer headquarters
                     pow(item.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
                     pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
                 count
             );
+    }
+
+    private float ManufacturerDistancePenalty(Guid manufacturer)
+    {
+        if (Galaxy == null || Zone == null || !Galaxy.ContainsFaction(manufacturer))
+        {
+            return 1;
+        }
+
+        var faction = Galaxy.ResolveFaction(manufacturer);
+        return faction != null && Galaxy.HomeZones.TryGetValue(faction, out var homeZone)
+            ? Zone.Distance[homeZone]
+            : 1;
     }
 
     public T RandomItem<T>(float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData

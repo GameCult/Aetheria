@@ -90,7 +90,7 @@ public static class EntitySerializer
     private static void Restore(ItemManager itemManager, Zone zone, EntityPack pack, Entity entity, bool instantiate = false)
     {
         entity.Name = pack.Name;
-        entity.Faction = itemManager.GetCatalogEntry<Faction>(pack.Faction);
+        entity.Faction = zone?.Galaxy?.ResolveFaction(pack.Faction);
         entity.Children = pack.Children.Select(c =>
         {
             var child = Unpack(itemManager, zone, c, instantiate);
