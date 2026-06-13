@@ -515,12 +515,14 @@ public class ActionGameManager : MonoBehaviour
                 var loadoutGenerator = IsTutorial ? new LoadoutGenerator(
                     ref ItemManager.Random,
                     ItemManager,
+                    RuntimeCatalog,
                     CurrentGalaxy,
                     Zone.GalaxyZone,
                     nearestFaction,
                     .5f) : new LoadoutGenerator(
                     ref ItemManager.Random,
                     ItemManager,
+                    RuntimeCatalog,
                     CurrentGalaxy, 
                     Zone.GalaxyZone,
                     nearestFaction,
@@ -647,6 +649,7 @@ public class ActionGameManager : MonoBehaviour
         {
             galaxyZone.PackedContents ??= ZoneGenerator.GenerateZone(
                 ItemManager,
+                RuntimeCatalog,
                 Settings.ZoneSettings,
                 CurrentGalaxy,
                 galaxyZone,
@@ -731,7 +734,7 @@ public class ActionGameManager : MonoBehaviour
         {
             SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
             PopulateLevel(CurrentGalaxy.Entrance);
-            var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
+            var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
             var ship = EntitySerializer.Unpack(
                 ItemManager,
                 Zone,

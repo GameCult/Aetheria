@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using MessagePack;
 using UniRx;
 using Unity.Mathematics;
@@ -37,6 +38,7 @@ public static class ZoneGenerator
 
 	public static ZonePack GenerateZone(
 		ItemManager itemManager,
+		AetheriaRuntimeCatalogSnapshot runtimeCatalog,
 		ZoneGenerationSettings zoneSettings,
 		Galaxy galaxy,
 		GalaxyZone galaxyZone,
@@ -245,7 +247,7 @@ public static class ZoneGenerator
         LoadoutGenerator GetLoadoutGenerator(Faction faction)
         {
 	        if (!loadoutGenerators.ContainsKey(faction))
-		        loadoutGenerators[faction] = new LoadoutGenerator(ref random, itemManager, galaxy, galaxyZone, faction, .5f);
+		        loadoutGenerators[faction] = new LoadoutGenerator(ref random, itemManager, runtimeCatalog, galaxy, galaxyZone, faction, .5f);
 	        return loadoutGenerators[faction];
         }
 

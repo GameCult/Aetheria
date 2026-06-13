@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using Random = Unity.Mathematics.Random;
@@ -10,6 +11,7 @@ public class LoadoutGenerator
 {
     public Random Random;
     public ItemManager ItemManager { get; }
+    public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; }
     public Galaxy Galaxy { get; }
     public GalaxyZone Zone { get; }
     public Faction Faction { get; }
@@ -18,6 +20,7 @@ public class LoadoutGenerator
     public LoadoutGenerator(
         ref Random random, 
         ItemManager itemManager, 
+        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         Galaxy galaxy, 
         GalaxyZone zone, 
         Faction faction, 
@@ -25,6 +28,7 @@ public class LoadoutGenerator
     {
         Random = random;
         ItemManager = itemManager;
+        RuntimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Loadout generation requires the typed Aetheria runtime catalog.");
         Galaxy = galaxy;
         Zone = zone;
         Faction = faction;
@@ -127,7 +131,16 @@ public class LoadoutGenerator
     
     public T[] RandomItems<T>(int count, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
     {
-        return ItemManager.GetCatalogEntries<T>()
+        return RuntimeCatalog.EquipmentItems
+            .Where(IsTypedCandidate<T>)
+            .Where(item =>
+                item.Price > 0 &&
+                Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer) &&
+                manufacturer != Guid.Empty &&
+                (Galaxy.IsPrelude || Galaxy.ContainsFaction(manufacturer) &&
+                    (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))))
+            .Select(HydrateLegacyItem<T>)
+            .Where(item => item != null)
             .Where(item => 
                 item.Price > 0 &&
                 item.Manufacturer != Guid.Empty &&
@@ -142,6 +155,34 @@ public class LoadoutGenerator
                     pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
                 count
             );
+    }
+
+    private static bool IsTypedCandidate<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
+    {
+        var requestedType = typeof(T);
+        if (requestedType == typeof(EquippableItemData))
+        {
+            return !string.IsNullOrWhiteSpace(item.HardpointType);
+        }
+
+        if (requestedType == typeof(GearData))
+        {
+            return item.Category is "GearData" or "WeaponItemData";
+        }
+
+        if (requestedType == typeof(CargoBayData))
+        {
+            return item.Category is "CargoBayData" or "DockingBayData";
+        }
+
+        return string.Equals(item.Category, requestedType.Name, StringComparison.Ordinal);
+    }
+
+    private T HydrateLegacyItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
+    {
+        return Guid.TryParse(item.LegacyId, out var legacyId)
+            ? ItemManager.GetCatalogEntry<T>(legacyId)
+            : null;
     }
 
     private float ManufacturerDistancePenalty(Guid manufacturer)
