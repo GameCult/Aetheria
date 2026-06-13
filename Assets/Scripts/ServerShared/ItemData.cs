@@ -260,7 +260,7 @@ public class Shape
 
 }
 
-public abstract class ItemData : RuntimeProjectionEntry, INamedEntry
+public abstract class ItemData : RuntimeItemProjectionEntry, INamedEntry
 {
     [Inspectable, LegacyPayloadKey(1)]
     public string Name;

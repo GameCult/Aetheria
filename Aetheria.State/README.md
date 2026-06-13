@@ -69,14 +69,14 @@ and inspection metadata for the typed runtime bridge.
 Item instances now carry `RuntimeItemReference`, a narrow item-id/value holder.
 The old generic `RuntimeCatalogLink<T>` abstraction has been deleted; item data
 projection is routed through `ItemManager` and the typed runtime catalog reader.
-Surviving item catalog Unity DTOs inherit `RuntimeProjectionEntry`; the old
+Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source. Temporary
 faction/corporation projections and zone body/orbit DTOs keep local GUID fields
 but no longer inherit the shared projection identity base.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 typed runtime projection still uses `LegacyPayloadKeyAttribute` only where the
 temporary mapper needs a deterministic field order.
-Agent task DTOs no longer inherit `RuntimeProjectionEntry`; they are local
+Agent task DTOs no longer inherit the item projection base; they are local
 runtime AI work orders until a typed Verse task document exists.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine

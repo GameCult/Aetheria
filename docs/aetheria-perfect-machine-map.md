@@ -46,7 +46,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared item domain state is still partly built around `RuntimeProjectionEntry`,
+- Shared item domain state is still partly built around `RuntimeItemProjectionEntry`,
   GUID identity, runtime catalog metadata, and static projection references. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
@@ -103,7 +103,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog resolver. The old `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
   deleted. The old `DatabaseEntry`/`RuntimeCatalogEntry` base has been demoted
-  to `RuntimeProjectionEntry` for surviving runtime DTOs, and the old generic
+  to `RuntimeItemProjectionEntry` for surviving item DTOs, and the old generic
   `DatabaseLink<T>`/`RuntimeCatalogLink<T>` path has collapsed into the
   item-specific runtime reference.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
@@ -308,13 +308,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Declaration-only personality fields on `Faction`/`Entity` and the unused
   production personality setting have also been cut; there is no surviving
   personality-state owner in live Unity source.
-- `AgentTask` has been cut loose from `RuntimeProjectionEntry`; AI tasks are
+- `AgentTask` has been cut loose from the item projection base; AI tasks are
   local runtime work orders and no longer participate in the shared projection
   identity base.
 - `BodyData` and `OrbitData` have also been cut loose from
-  `RuntimeProjectionEntry`; they keep local GUID fields for zone runtime lookup,
+  the item projection base; they keep local GUID fields for zone runtime lookup,
   but no longer inherit shared projection equality.
-- `Faction` has been cut loose from `RuntimeProjectionEntry`; it keeps local
+- `Faction` has been cut loose from the item projection base; it keeps local
   GUID equality for galaxy dictionaries while typed corporation records remain
   the durable catalog owner.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
@@ -376,7 +376,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
-  item records for the old simulation object model. `RuntimeProjectionEntry` is
+  item records for the old simulation object model. `RuntimeItemProjectionEntry` is
   an item projection identity helper, not a persistence base or corporation
   owner, and behavior type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection.
@@ -412,7 +412,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to old `ItemData` DTO
   metadata or MessagePack catalog paths except bounded migration readers and the
-  current typed item projection bridge. `RuntimeProjectionEntry` is not a
+  current typed item projection bridge. `RuntimeItemProjectionEntry` is not a
   persistence owner.
 
 ## Target Authority Map
@@ -429,7 +429,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `RuntimeCatalogEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: replace the remaining `RuntimeProjectionEntry`/`ItemData` runtime DTO
+- Deletion line: replace the remaining `RuntimeItemProjectionEntry`/`ItemData` runtime DTO
   projection with native typed item instances, then remove old MessagePack
   catalog metadata from live Unity source once import-only migration no longer
   needs it.
@@ -575,7 +575,7 @@ First Aetheria surfaces to publish:
      projection names, and move the old `ServerShared/CultCache` folder to
      `ServerShared/RuntimeProjection`.
    - Done: rename the surviving runtime DTO identity base from
-     `RuntimeCatalogEntry` to `RuntimeProjectionEntry`.
+     `RuntimeCatalogEntry` to `RuntimeItemProjectionEntry`.
    - Done: delete unused `InspectableRuntimeCatalogLinkAttribute` metadata from
      runtime DTOs; link inspection no longer masquerades as catalog authority.
    - Done: replace behavior union reflection with an explicit runtime catalog
@@ -741,7 +741,7 @@ First Aetheria surfaces to publish:
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
   item instances use `RuntimeItemReference` and expose `Data.ItemId`.
 - Live Unity source has no `RuntimeCatalogEntry`; only surviving item DTOs
-  inherit `RuntimeProjectionEntry`.
+  inherit `RuntimeItemProjectionEntry`.
 - Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
   `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`

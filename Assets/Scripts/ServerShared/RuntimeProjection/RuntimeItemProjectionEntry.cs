@@ -10,7 +10,7 @@ public interface INamedEntry
     string EntryName { get; set; }
 }
 
-public abstract class RuntimeProjectionEntry
+public abstract class RuntimeItemProjectionEntry
 {
     public Guid ID = Guid.NewGuid();
 
@@ -21,7 +21,7 @@ public abstract class RuntimeProjectionEntry
 
     public override bool Equals(object obj)
     {
-        if (obj is RuntimeProjectionEntry entry) return entry.ID == ID;
+        if (obj is RuntimeItemProjectionEntry entry) return entry.ID == ID;
         return false;
     }
 }
