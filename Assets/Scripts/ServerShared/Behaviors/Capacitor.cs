@@ -9,10 +9,10 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class CapacitorData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat Capacity = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(2), RuntimeInspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

@@ -12,16 +12,16 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class ReactorData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat Charge = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(2), RuntimeInspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(3), RuntimeInspectable]
     public PerformanceStat OverloadEfficiency = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(4), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(4), RuntimeInspectable]
     public PerformanceStat ThrottlingFactor = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

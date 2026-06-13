@@ -14,7 +14,7 @@ using int2 = Unity.Mathematics.int2;
 [Inspectable]
 public class Shape
 {
-    [RuntimeCatalogKey(0)] public bool[,] Cells;
+    [RuntimeProjectionKey(0)] public bool[,] Cells;
 
     private bool _dirty = true;
 
@@ -262,29 +262,29 @@ public class Shape
 
 public abstract class ItemData : RuntimeProjectionEntry, INamedEntry
 {
-    [Inspectable, RuntimeCatalogKey(1)]
+    [Inspectable, RuntimeProjectionKey(1)]
     public string Name;
 
-    [InspectableText, RuntimeCatalogKey(2)]
+    [InspectableText, RuntimeProjectionKey(2)]
     public string Description;
 
-    [RuntimeCatalogKey(3)]
+    [RuntimeProjectionKey(3)]
     public Guid Manufacturer;
 
-    [Inspectable, RuntimeCatalogKey(4)]
+    [Inspectable, RuntimeProjectionKey(4)]
     public float Mass;
 
-    [InspectableSchematicShape, RuntimeCatalogKey(5)]
+    [InspectableSchematicShape, RuntimeProjectionKey(5)]
     public Shape Shape;
 
     // Heat needed to change temperature of 1 gram by 1 degree
-    [Inspectable, RuntimeCatalogKey(6)]
+    [Inspectable, RuntimeProjectionKey(6)]
     public float SpecificHeat = 1;
 
-    [Inspectable, RuntimeCatalogKey(7)]
+    [Inspectable, RuntimeProjectionKey(7)]
     public float Conductivity = 1;
 
-    [Inspectable, RuntimeCatalogKey(8)]
+    [Inspectable, RuntimeProjectionKey(8)]
     public int Price = 0;
 
     public string EntryName
@@ -299,98 +299,98 @@ public abstract class ItemData : RuntimeProjectionEntry, INamedEntry
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
-    // [InspectableField, RuntimeCatalogKey(6)]
+    // [InspectableField, RuntimeProjectionKey(6)]
     // public BodyType ResourceBodyType;
     //
     // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, RuntimeCatalogKey(8)]
+    // [InspectableField, RuntimeProjectionKey(8)]
     // public ExponentialLerp Distribution;
     //
     // // Minimum amount of resources needed for presence to register
-    // [InspectableField, RuntimeCatalogKey(11)]
+    // [InspectableField, RuntimeProjectionKey(11)]
     // public float Floor = 5f;
 
-    [Inspectable, RuntimeCatalogKey(9)]
+    [Inspectable, RuntimeProjectionKey(9)]
     public int MaxStack = 10;
 
-    [Inspectable, RuntimeCatalogKey(10)]
+    [Inspectable, RuntimeProjectionKey(10)]
     public SimpleCommodityCategory Category;
 }
 
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, RuntimeCatalogKey(9)]
+    // [Inspectable, RuntimeProjectionKey(9)]
     // public float IngredientQualityWeight = .5f;
 }
 
 [Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
-    [RuntimeCatalogKey(10)]
+    [RuntimeProjectionKey(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
-    [Inspectable, RuntimeCatalogKey(11)]
+    [Inspectable, RuntimeProjectionKey(11)]
     public CompoundCommodityCategory Category;
 }
 
 [Inspectable]
 public class ConsumableItemData : CraftedItemData
 {
-    [Inspectable, RuntimeCatalogKey(10)]
+    [Inspectable, RuntimeProjectionKey(10)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, RuntimeCatalogKey(11)]
+    [Inspectable, RuntimeProjectionKey(11)]
     public bool Stackable;
 
-    [Inspectable, RuntimeCatalogKey(12)]
+    [Inspectable, RuntimeProjectionKey(12)]
     public float Duration;
 
-    [InspectableTexture, RuntimeCatalogKey(13)]
+    [InspectableTexture, RuntimeProjectionKey(13)]
     public string Icon;
 
-    [Inspectable, RuntimeCatalogKey(14)]
+    [Inspectable, RuntimeProjectionKey(14)]
     public BezierCurve Effectiveness;
 }
 
 public abstract class EquippableItemData : CraftedItemData
 {
-    [InspectableTexture, RuntimeCatalogKey(10)]
+    [InspectableTexture, RuntimeProjectionKey(10)]
     public string Schematic;
 
-    [Inspectable, RuntimeCatalogKey(11)]
+    [Inspectable, RuntimeProjectionKey(11)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, RuntimeCatalogKey(12)]
+    [Inspectable, RuntimeProjectionKey(12)]
     public float Durability;
 
-    [InspectableTemperature, RuntimeCatalogKey(13)]
+    [InspectableTemperature, RuntimeProjectionKey(13)]
     public float MinimumTemperature;
 
-    [InspectableTemperature, RuntimeCatalogKey(14)]
+    [InspectableTemperature, RuntimeProjectionKey(14)]
     public float MaximumTemperature;
 
-    // [InspectableField, RuntimeCatalogKey(15), SimplePerformanceStat]
+    // [InspectableField, RuntimeProjectionKey(15), SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
     //
-    // [InspectableField, RuntimeCatalogKey(16), SimplePerformanceStat]
+    // [InspectableField, RuntimeProjectionKey(16), SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
 
-    [InspectableAnimationCurve, RuntimeCatalogKey(17)]
+    [InspectableAnimationCurve, RuntimeProjectionKey(17)]
     public BezierCurve HeatPerformanceCurve;
 
-    [Inspectable, RuntimeCatalogKey(18)]
+    [Inspectable, RuntimeProjectionKey(18)]
     public float ThermalResilience = 1;
 
-    // [Inspectable, RuntimeCatalogKey(19)]
+    // [Inspectable, RuntimeProjectionKey(19)]
     // public string SoundEffectTrigger;
 
-    [InspectableTexture, RuntimeCatalogKey(20)]
+    [InspectableTexture, RuntimeProjectionKey(20)]
     public string ActionBarIcon;
 
-    [InspectableSoundBank, RuntimeCatalogKey(21)]
+    [InspectableSoundBank, RuntimeProjectionKey(21)]
     public uint SoundBank;
 
-    [Inspectable, RuntimeCatalogKey(22)]
+    [Inspectable, RuntimeProjectionKey(22)]
     public List<AudioStat> AudioStats = new List<AudioStat>();
 
     public abstract HardpointType HardpointType { get; }
@@ -432,17 +432,17 @@ public abstract class EquippableItemData : CraftedItemData
 [Inspectable]
 public class AudioStat
 {
-    [InspectableAudioParameter, RuntimeCatalogKey(0)]
+    [InspectableAudioParameter, RuntimeProjectionKey(0)]
     public uint Parameter;
 
-    [Inspectable, RuntimeCatalogKey(1)]
+    [Inspectable, RuntimeProjectionKey(1)]
     public PerformanceStat Stat = new PerformanceStat();
 }
 
 [Inspectable]
 public class GearData : EquippableItemData
 {
-    [Inspectable, RuntimeCatalogKey(23)]
+    [Inspectable, RuntimeProjectionKey(23)]
     public HardpointType Hardpoint;
 
     public override HardpointType HardpointType => Hardpoint;
@@ -451,7 +451,7 @@ public class GearData : EquippableItemData
 [Inspectable]
 public class CargoBayData : EquippableItemData
 {
-    [Inspectable, RuntimeCatalogKey(24)]
+    [Inspectable, RuntimeProjectionKey(24)]
     public Shape InteriorShape;
 
     public override HardpointType HardpointType => HardpointType.Tool;
@@ -460,51 +460,51 @@ public class CargoBayData : EquippableItemData
 [Inspectable]
 public class DockingBayData : CargoBayData
 {
-    [Inspectable, RuntimeCatalogKey(25)]
+    [Inspectable, RuntimeProjectionKey(25)]
     public int2 MaxSize;
 }
 
 
 public class WeaponItemData : GearData
 {
-    [Inspectable, RuntimeCatalogKey(24)]
+    [Inspectable, RuntimeProjectionKey(24)]
     public WeaponRange WeaponRange;
 
-    [Inspectable, RuntimeCatalogKey(25)]
+    [Inspectable, RuntimeProjectionKey(25)]
     public WeaponCaliber WeaponCaliber;
 
-    [Inspectable, RuntimeCatalogKey(26)]
+    [Inspectable, RuntimeProjectionKey(26)]
     public WeaponType WeaponType;
 
-    [Inspectable, RuntimeCatalogKey(27)]
+    [Inspectable, RuntimeProjectionKey(27)]
     public WeaponFireType WeaponFireTypes;
 
-    [Inspectable, RuntimeCatalogKey(28)]
+    [Inspectable, RuntimeProjectionKey(28)]
     public WeaponModifiers WeaponModifiers;
 }
 
 [Inspectable]
 public class HullData : EquippableItemData
 {
-    [Inspectable, RuntimeCatalogKey(23)]
+    [Inspectable, RuntimeProjectionKey(23)]
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [InspectablePrefab, RuntimeCatalogKey(24)]
+    [InspectablePrefab, RuntimeProjectionKey(24)]
     public string Prefab;
 
-    [Inspectable, RuntimeCatalogKey(25)]
+    [Inspectable, RuntimeProjectionKey(25)]
     public HullType HullType;
 
-    [Inspectable, RuntimeCatalogKey(26)]
+    [Inspectable, RuntimeProjectionKey(26)]
     public float GridOffset;
 
-    [Inspectable, RuntimeCatalogKey(27)]
+    [Inspectable, RuntimeProjectionKey(27)]
     public float Armor;
 
-    [Inspectable, RuntimeCatalogKey(28)]
+    [Inspectable, RuntimeProjectionKey(28)]
     public float Drag;
 
-    [Inspectable, RuntimeCatalogKey(29)]
+    [Inspectable, RuntimeProjectionKey(29)]
     public bool CanTow;
 
     public Shape InteriorCells
@@ -528,12 +528,12 @@ public class HullData : EquippableItemData
 [Inspectable]
 public class HardpointData : ITintInspector
 {
-    [Inspectable, RuntimeCatalogKey(0)] public HardpointType Type;
-    [Inspectable, RuntimeCatalogKey(1)] public int2 Position;
-    [Inspectable, RuntimeCatalogKey(2)] public Shape Shape = new Shape();
-    [Inspectable, RuntimeCatalogKey(3)] public string Transform;
-    [Inspectable, RuntimeCatalogKey(4)] public ItemRotation Rotation;
-    [Inspectable, RuntimeCatalogKey(5)] public float Armor;
+    [Inspectable, RuntimeProjectionKey(0)] public HardpointType Type;
+    [Inspectable, RuntimeProjectionKey(1)] public int2 Position;
+    [Inspectable, RuntimeProjectionKey(2)] public Shape Shape = new Shape();
+    [Inspectable, RuntimeProjectionKey(3)] public string Transform;
+    [Inspectable, RuntimeProjectionKey(4)] public ItemRotation Rotation;
+    [Inspectable, RuntimeProjectionKey(5)] public float Armor;
 
     public override string ToString()
     {
@@ -565,22 +565,22 @@ public class HardpointData : ITintInspector
 
 public class PerformanceStat
 {
-    [RuntimeCatalogKey(0)]  public float Min;
+    [RuntimeProjectionKey(0)]  public float Min;
 
-    [RuntimeCatalogKey(1)]  public float Max;
+    [RuntimeProjectionKey(1)]  public float Max;
 
-    [RuntimeCatalogKey(2)]
+    [RuntimeProjectionKey(2)]
     public float HeatExponentMultiplier;
 
-    [RuntimeCatalogKey(3)]
+    [RuntimeProjectionKey(3)]
     public float DurabilityExponentMultiplier;
 
-    [RuntimeCatalogKey(4)]
+    [RuntimeProjectionKey(4)]
     public float QualityExponent;
 
-    //[RuntimeCatalogKey(5)]  public Guid ID = Guid.NewGuid();
+    //[RuntimeProjectionKey(5)]  public Guid ID = Guid.NewGuid();
 
-    // [RuntimeCatalogKey(5)]  public Guid? Ingredient;
+    // [RuntimeProjectionKey(5)]  public Guid? Ingredient;
 
     private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
@@ -611,13 +611,13 @@ public class PerformanceStat
 [Inspectable]
 public class PersonalityAttribute : RuntimeProjectionEntry, INamedEntry
 {
-    [Inspectable, RuntimeCatalogKey(1)]
+    [Inspectable, RuntimeProjectionKey(1)]
     public string Name;
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public string LowName;
 
-    [Inspectable, RuntimeCatalogKey(3)]
+    [Inspectable, RuntimeProjectionKey(3)]
     public string HighName;
 
     public string EntryName

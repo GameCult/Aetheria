@@ -7,10 +7,10 @@ using System.Linq;
 [Inspectable, Order(-20), RuntimeInspectable]
 public class EnergyDrawData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat EnergyDraw = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public bool PerSecond;
 
     public override Behavior CreateInstance(EquippedItem item)

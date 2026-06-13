@@ -66,7 +66,7 @@ projection is routed through `ItemManager` and the typed runtime catalog reader.
 Surviving Unity DTOs inherit `RuntimeProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
-typed runtime projection still uses `RuntimeCatalogKeyAttribute` only where the
+typed runtime projection still uses `RuntimeProjectionKeyAttribute` only where the
 temporary mapper needs a deterministic field order.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine

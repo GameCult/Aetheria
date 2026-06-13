@@ -8,43 +8,43 @@ using static Unity.Mathematics.math;
 [Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class AetherDriveData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1)]
+    [Inspectable, RuntimeProjectionKey(1)]
     public float3 RotorDiameter;
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public float3 RotorMass;
 
-    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(3), RuntimeInspectable]
     public PerformanceStat MaximumRpm;
 
-    [Inspectable, RuntimeCatalogKey(4)]
+    [Inspectable, RuntimeProjectionKey(4)]
     public float3 CouplingLambda;
 
-    [Inspectable, RuntimeCatalogKey(5)]
+    [Inspectable, RuntimeProjectionKey(5)]
     public PerformanceStat LambdaMultiplier;
 
-    [Inspectable, RuntimeCatalogKey(6), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(6), RuntimeInspectable]
     public PerformanceStat CouplingEfficiency;
 
-    [Inspectable, RuntimeCatalogKey(7), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(7), RuntimeInspectable]
     public PerformanceStat Torque;
 
-    [Inspectable, RuntimeCatalogKey(8), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(8), RuntimeInspectable]
     public BezierCurve TorqueProfile;
 
-    [Inspectable, RuntimeCatalogKey(9), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(9), RuntimeInspectable]
     public PerformanceStat EnergyDraw;
 
-    [Inspectable, RuntimeCatalogKey(10), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(10), RuntimeInspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, RuntimeCatalogKey(11), RuntimeInspectable]
+    [InspectableAudioParameter, RuntimeProjectionKey(11), RuntimeInspectable]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, RuntimeCatalogKey(12), RuntimeInspectable]
+    [InspectableAudioParameter, RuntimeProjectionKey(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, RuntimeCatalogKey(13)]
+    [InspectablePrefab, RuntimeProjectionKey(13)]
     public string Particles;
 
     public override Behavior CreateInstance(EquippedItem item)

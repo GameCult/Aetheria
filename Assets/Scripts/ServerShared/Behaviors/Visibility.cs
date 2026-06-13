@@ -7,10 +7,10 @@ using System.Linq;
 [Inspectable, RuntimeInspectable]
 public class VisibilityData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public PerformanceStat VisibilityDecay = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

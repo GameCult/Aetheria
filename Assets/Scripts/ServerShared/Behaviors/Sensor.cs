@@ -10,31 +10,31 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class SensorData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(3), RuntimeInspectable]
     public PerformanceStat Sensitivity = new PerformanceStat();
 
-    [InspectableAnimationCurve, RuntimeCatalogKey(4), RuntimeInspectable]
+    [InspectableAnimationCurve, RuntimeProjectionKey(4), RuntimeInspectable]
     public BezierCurve SensitivityCurve;
 
-    [Inspectable, RuntimeCatalogKey(5), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(5), RuntimeInspectable]
     public PerformanceStat PingBoost;
 
-    [Inspectable, RuntimeCatalogKey(6), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(6), RuntimeInspectable]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, RuntimeCatalogKey(7), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(7), RuntimeInspectable]
     public PerformanceStat PingVisibility;
 
-    [Inspectable, RuntimeCatalogKey(8), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(8), RuntimeInspectable]
     public PerformanceStat PingRange;
 
-    [Inspectable, RuntimeCatalogKey(9), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(9), RuntimeInspectable]
     public PerformanceStat PingCooldown;
 
-    [Inspectable, RuntimeCatalogKey(10)]
+    [Inspectable, RuntimeProjectionKey(10)]
     public float PingDuration = 2;
 
-    [Inspectable, RuntimeCatalogKey(11)]
+    [Inspectable, RuntimeProjectionKey(11)]
     public float PingRadiusExponent = .5f;
 
     public override Behavior CreateInstance(EquippedItem item)

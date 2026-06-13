@@ -7,40 +7,40 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class ChargedWeaponData : InstantWeaponData
 {
-    [Inspectable, RuntimeCatalogKey(21), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(21), RuntimeInspectable]
     public PerformanceStat ChargeTime = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(22), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(22), RuntimeInspectable]
     public PerformanceStat ChargeEnergy = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(23), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(23), RuntimeInspectable]
     public PerformanceStat ChargeHeat = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(24)]
+    [Inspectable, RuntimeProjectionKey(24)]
     public bool CanFireEarly;
 
-    [Inspectable, RuntimeCatalogKey(25)]
+    [Inspectable, RuntimeProjectionKey(25)]
     public float FailureCharge;
 
-    [Inspectable, RuntimeCatalogKey(26)]
+    [Inspectable, RuntimeProjectionKey(26)]
     public float FailureDamage = 1;
 
-    [Inspectable, RuntimeCatalogKey(27)]
+    [Inspectable, RuntimeProjectionKey(27)]
     public float ChargeFiringDamageMultiplier = 1;
 
-    [Inspectable, RuntimeCatalogKey(28)]
+    [Inspectable, RuntimeProjectionKey(28)]
     public float ChargeFiringSpreadMultiplier = 1;
 
-    [Inspectable, RuntimeCatalogKey(29)]
+    [Inspectable, RuntimeProjectionKey(29)]
     public float ChargeFiringBurstCountMultiplier = 1;
 
-    [Inspectable, RuntimeCatalogKey(30)]
+    [Inspectable, RuntimeProjectionKey(30)]
     public float ChargeFiringVisibilityMultiplier = 1;
 
-    [Inspectable, RuntimeCatalogKey(31)]
+    [Inspectable, RuntimeProjectionKey(31)]
     public float ChargeFiringVelocityMultiplier = 1;
 
-    [Inspectable, RuntimeCatalogKey(32)]
+    [Inspectable, RuntimeProjectionKey(32)]
     public float ChargeFiringHeatMultiplier = 1;
 
     public override Behavior CreateInstance(EquippedItem item)

@@ -1,9 +1,9 @@
 using System;
 
 [AttributeUsage(AttributeTargets.Field)]
-public sealed class RuntimeCatalogKeyAttribute : Attribute
+public sealed class RuntimeProjectionKeyAttribute : Attribute
 {
-    public RuntimeCatalogKeyAttribute(int key)
+    public RuntimeProjectionKeyAttribute(int key)
     {
         Key = key;
     }

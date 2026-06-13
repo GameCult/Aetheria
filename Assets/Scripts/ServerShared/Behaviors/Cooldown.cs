@@ -10,7 +10,7 @@ using static Unity.Mathematics.math;
 [Inspectable, Order(-10), RuntimeInspectable]
 public class CooldownData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

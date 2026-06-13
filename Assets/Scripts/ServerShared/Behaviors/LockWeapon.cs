@@ -7,19 +7,19 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class LockWeaponData : InstantWeaponData
 {
-    [Inspectable, RuntimeCatalogKey(21), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(21), RuntimeInspectable]
     public PerformanceStat LockSpeed = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(22)]
+    [Inspectable, RuntimeProjectionKey(22)]
     public PerformanceStat SensorImpact = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(23), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(23), RuntimeInspectable]
     public PerformanceStat LockAngle = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(24)]
+    [Inspectable, RuntimeProjectionKey(24)]
     public PerformanceStat DirectionImpact = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(25)]
+    [Inspectable, RuntimeProjectionKey(25)]
     public PerformanceStat Decay = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

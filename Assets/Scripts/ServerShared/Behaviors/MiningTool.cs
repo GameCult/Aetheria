@@ -10,16 +10,16 @@ using static Unity.Mathematics.math;
 [Inspectable, Order(10)]
 public class MiningToolData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1)]
+    [Inspectable, RuntimeProjectionKey(1)]
     public PerformanceStat DamagePerSecond = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(3)]
+    [Inspectable, RuntimeProjectionKey(3)]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(4)]
+    [Inspectable, RuntimeProjectionKey(4)]
     public PerformanceStat Range = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

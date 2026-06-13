@@ -7,10 +7,10 @@ using System.Linq;
 [Inspectable, Order(10)]
 public class HeatData : BehaviorData
 {
-    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
+    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, RuntimeCatalogKey(2)]
+    [Inspectable, RuntimeProjectionKey(2)]
     public bool PerSecond;
 
     public override Behavior CreateInstance(EquippedItem item)
