@@ -205,7 +205,9 @@ public class TradeMenuDebug : MonoBehaviour
             data => () => $"{data.Shape.Width}x{data.Shape.Height}", 
             data => data.Shape.Width*data.Shape.Height));
         
-        var items = GameManager.ItemManager.GetCatalogEntries<ItemData>().Where(i=>i.Price!=0);
+        var items = ActionGameManager.RuntimeCatalog.TradeItems
+            .Select(HydrateLegacyItem)
+            .Where(i => i != null);
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
@@ -349,6 +351,13 @@ public class TradeMenuDebug : MonoBehaviour
                     }
                 }
             }));
+    }
+
+    private ItemData HydrateLegacyItem(GameCult.Aetheria.State.Unity.AetheriaRuntimeCatalogItem item)
+    {
+        return Guid.TryParse(item.LegacyId, out var legacyId)
+            ? GameManager.ItemManager.GetCatalogEntry<ItemData>(legacyId)
+            : null;
     }
 
     private void Buy(HullData data)

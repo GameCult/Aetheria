@@ -85,9 +85,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   deserialization only. UI code no longer reaches into
   `LegacyCatalogBoundary.GetCatalog` directly.
 - `ItemManager` no longer exposes the raw `ILegacyCatalogReader` as public
-  gameplay/UI API. Item instantiation and trade consumers
-  now go through narrow `ItemManager.GetCatalogEntry<T>` and
-  `GetCatalogEntries<T>` methods. This does not remove the legacy reader under
+  gameplay/UI API. Temporary item instantiation bridges now go through narrow
+  `ItemManager.GetCatalogEntry<T>` methods. This does not remove the legacy reader under
   the hood; it prevents old catalog authority from leaking into every caller
   that only needs a domain lookup. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
@@ -100,6 +99,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `LoadoutGenerator` also receives the typed runtime catalog and uses it to own
   item candidate selection before hydrating selected legacy item DTOs by ID for
   exact fitting checks and behavior construction.
+  `TradeMenuDebug` uses the typed trade catalog for rows and only hydrates
+  legacy `ItemData` by ID for its old inspect/buy UI callbacks.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader` or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
@@ -203,6 +204,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `LoadoutGenerator` no longer enumerates legacy item catalog entries for its
   candidate pool; typed catalog filtering owns the first item selection pass,
   with legacy DTO hydration kept as a fitting/instantiation bridge.
+- `TradeMenuDebug` no longer enumerates legacy item catalog entries for its
+  table rows; typed trade catalog records own the row set, with legacy DTO
+  hydration kept for the old debug UI callbacks.
 - MessagePack is no longer used as a runtime object-cloning shortcut for
   `EntitySettings`, and UI/player-settings startup no longer registers the old
   MessagePack resolver. Resolver registration is confined to legacy catalog
@@ -261,9 +265,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The legacy cache no longer has a public mutation surface, but
   it still materializes `ItemManager`. Item properties manufacturer display is
-  a typed snapshot consumer; the give console command and loadout generation
-  are typed-selection consumers with temporary legacy item instantiation; trade
-  debug still uses `ItemManager` legacy item-domain materialization.
+  a typed snapshot consumer; the give console command, loadout generation, and
+  trade debug are typed-selection consumers with temporary legacy item
+  instantiation or UI callback hydration.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -421,6 +425,8 @@ First Aetheria surfaces to publish:
    - Done: move `LoadoutGenerator` item candidate selection to the typed
      runtime catalog; legacy item DTO hydration remains only for exact fitting
      checks and behavior construction.
+   - Done: move `TradeMenuDebug` row selection to the typed trade catalog;
+     legacy item DTO hydration remains only for old inspect/buy callbacks.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
