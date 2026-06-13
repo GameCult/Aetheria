@@ -7,7 +7,6 @@ using MessagePack;
 public class PlayerSettings
 {
     [Key(0)] public string Name = "Anonymous";
-    [Key(1)] public SavedGame SavedRun;
     [Key(2)] public bool TutorialPassed;
     [Key(3)] public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
     [Key(4)] public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();

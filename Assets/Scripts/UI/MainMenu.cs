@@ -93,19 +93,7 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
         if (!InGame)
         {
-            if(ActionGameManager.PlayerSettings.SavedRun != null)
-                _nextMenu.panel.AddButton("Continue",
-                    () =>
-                    {
-                        ActionGameManager.IsTutorial = ActionGameManager.PlayerSettings.SavedRun.IsTutorial;
-                        ActionGameManager.CurrentGalaxy = new Galaxy(
-                            ActionGameManager.LegacyCultCache,
-                            ActionGameManager.PlayerSettings.SavedRun,
-                            Debug.Log);
-                        SceneManager.LoadScene("ARPG");
-                    });
-            else
-                _nextMenu.panel.AddButton("Continue", null);
+            _nextMenu.panel.AddButton("Continue", null);
         }
         _nextMenu.panel.AddButton("New Game",
             () =>
@@ -135,7 +123,6 @@ public class MainMenu : MonoBehaviour
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
                         {
-                            ActionGameManager.PlayerSettings.SavedRun = null;
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });
@@ -164,7 +151,6 @@ public class MainMenu : MonoBehaviour
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
                         {
-                            ActionGameManager.PlayerSettings.SavedRun = null;
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });

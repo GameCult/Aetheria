@@ -14,6 +14,13 @@ entity snapshots, item slots, weapon groups, action-bar bindings, and stat
 grids. Do not preserve `SavedGame` or `EntityPack` as opaque payloads in the
 new store; they are source shapes for migration, not portable state authority.
 
+The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
+`.zone` files. Until `Aetheria.State` is available to Unity as a runtime Verse
+package, player settings and loadout edits are session-local and run saving is
+disabled. That is intentional: the missing runtime package is the owner gap, and
+the old bespoke file formats must not keep acting as durable truth while the
+state spine is being rebuilt.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently

@@ -71,16 +71,13 @@ public class ActionGameManager : MonoBehaviour
         get
         {
             RegisterResolver.Register();
-            return _playerSettings ??= File.Exists(_playerSettingsFilePath)
-                ? MessagePackSerializer.Deserialize<PlayerSettings>(File.ReadAllBytes(_playerSettingsFilePath))
-                : GetDefaultPlayerSettings();
+            return _playerSettings ??= GetDefaultPlayerSettings();
         }
     }
 
-    private static string _playerSettingsFilePath => Path.Combine(GameDataDirectory.FullName, "PlayerSettings.msgpack");
     public static void SavePlayerSettings()
     {
-        File.WriteAllBytes(_playerSettingsFilePath, MessagePackSerializer.Serialize(_playerSettings));
+        Debug.LogWarning("Player settings persistence belongs to the Verse state spine. The Unity client keeps settings in memory until Aetheria.State is available as a runtime package.");
     }
 
     private static PlayerSettings GetDefaultPlayerSettings()
@@ -172,7 +169,6 @@ public class ActionGameManager : MonoBehaviour
     // private CinemachineFramingTransposer _transposer;
     // private CinemachineComposer _composer;
     
-    private DirectoryInfo _loadoutPath;
     private bool _paused;
     private float _time;
     private int _zoomLevelIndex;
@@ -237,20 +233,17 @@ public class ActionGameManager : MonoBehaviour
 
     public void SaveLoadout(EntityPack pack)
     {
-        File.WriteAllBytes(Path.Combine(_loadoutPath.FullName, $"{pack.Name}.loadout"), MessagePackSerializer.Serialize(pack));
+        Loadouts.RemoveAll(loadout => loadout.Name == pack.Name);
+        Loadouts.Add(pack);
+        Debug.LogWarning("Loadout persistence belongs to the Verse state spine. The Unity client keeps loadouts in memory until Aetheria.State is available as a runtime package.");
     }
 
     private void OnApplicationQuit() => SaveState();
 
     public void SaveState()
     {
-        PlayerSettings.SavedRun = CurrentGalaxy == null ? null : new SavedGame(CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity);
-        if(PlayerSettings.SavedRun != null)
-        {
-            PlayerSettings.SavedRun.IsTutorial = IsTutorial;
-            PlayerSettings.SavedRun.ActionBarBindings = _actionBarSlots.Select(slot => slot.Save()).ToArray();
-        }
-        SavePlayerSettings();
+        if (CurrentGalaxy != null)
+            Debug.LogWarning("Run persistence belongs to the Verse state spine. Legacy SavedGame serialization is disabled.");
     }
 
     private void OnDisable()
@@ -276,10 +269,6 @@ public class ActionGameManager : MonoBehaviour
             ZoneRenderer.ShowAsteroidUI = false;
         
         // TODO: Process Stories
-
-        // _loadoutPath = GameDataDirectory.CreateSubdirectory("Loadouts");
-        // Loadouts.AddRange(_loadoutPath.EnumerateFiles("*.loadout")
-        //     .Select(fi => MessagePackSerializer.Deserialize<EntityPack>(File.ReadAllBytes(fi.FullName))));
 
         #region Input Handling
 
@@ -751,47 +740,21 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            if (PlayerSettings.SavedRun == null)
-            {
-                SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
-                PopulateLevel(CurrentGalaxy.Entrance);
-                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-                var ship = EntitySerializer.Unpack(
-                    ItemManager, 
-                    Zone, 
-                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ), 
-                    true);
-                // EntitySerializer.Unpack(ItemManager, Zone, Loadouts.First(x => x.Name == StarterShipTemplate), true);
-                ((Ship) ship).IsPlayerShip = true;
-                ship.Position = float3.zero;
-                ship.Zone = Zone;
-                Zone.Entities.Add(ship);
-                ship.Activate();
-                BindToEntity(ship);
-            }
-            else
-            {
-                foreach(var group in CurrentGalaxy.DiscoveredZones
-                    .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
-                    SectorMap.QueueZoneReveal(group);
-                PopulateLevel(CurrentGalaxy.Zones[PlayerSettings.SavedRun.CurrentZone]);
-                var targetEntity = Zone.Entities[PlayerSettings.SavedRun.CurrentZoneEntity];
-                if (targetEntity is OrbitalEntity orbitalEntity)
-                {
-                    CurrentEntity = targetEntity.Children.First(c => c is Ship {IsPlayerShip: true});
-                    DoDock(orbitalEntity, orbitalEntity.DockingBays.First());
-                }
-                else
-                {
-                    //StartCoroutine(IntroCutscene(targetEntity as Ship));
-                    BindToEntity(targetEntity);
-                }
-        
-                for (var i = 0; i < _actionBarSlots.Count; i++)
-                {
-                    _actionBarSlots[i].Restore(PlayerSettings.SavedRun.ActionBarBindings[i], CurrentEntity);
-                }
-            }
+            SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
+            PopulateLevel(CurrentGalaxy.Entrance);
+            var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
+            var ship = EntitySerializer.Unpack(
+                ItemManager,
+                Zone,
+                loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),
+                true);
+            // EntitySerializer.Unpack(ItemManager, Zone, Loadouts.First(x => x.Name == StarterShipTemplate), true);
+            ((Ship) ship).IsPlayerShip = true;
+            ship.Position = float3.zero;
+            ship.Zone = Zone;
+            Zone.Entities.Add(ship);
+            ship.Activate();
+            BindToEntity(ship);
         }
     }
 
@@ -1139,8 +1102,10 @@ public class ActionGameManager : MonoBehaviour
                 });
     }
 
-    public void SaveZone(string name) => File.WriteAllBytes(
-        Path.Combine(_gameDataDirectory.FullName, $"{name}.zone"), MessagePackSerializer.Serialize(Zone.PackZone()));
+    public void SaveZone(string name)
+    {
+        Debug.LogWarning("Zone persistence belongs to the Verse state spine. Legacy .zone serialization is disabled.");
+    }
 
     // public void ToggleEditMode()
     // {
