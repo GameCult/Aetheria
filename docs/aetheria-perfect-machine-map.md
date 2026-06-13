@@ -189,6 +189,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `eve:surface:aetheria.catalog.operator` with summary, trade-catalog, and
   corporation views. This is a typed CultCache surface document, not a renderer
   dashboard or JSON status card.
+- The embedded Unity state package can now read `gamecult.eve.surface` records
+  directly from the CultCache `.cc` store into the shared Eve surface contract
+  DTOs. This gives Unity the same provider-owned retained tree that the
+  SDK-style state client reads, without JSON fixtures, HTTP dashboard
+  summaries, or renderer-owned state.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
@@ -271,7 +276,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Runtime UI is old Unity UI/uGUI prefabs plus `MonoBehaviour` scripts under
   `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`.
 - Aetheria already has Unity UIElements support available through
-  `com.unity.modules.uielements`, but no imported Eve Unity lowering package.
+  `com.unity.modules.uielements`. It now imports local staged
+  `org.gamecult.eve.surface` and `org.gamecult.eve.unity-uitoolkit` packages:
+  the first carries no-engine `gamecult.eve.surface.v1` contract DTOs, and the
+  second lowers those retained trees into UI Toolkit `VisualElement` trees.
+  These packages are renderer boundaries, not UI truth owners.
 
 ## Invariants
 
@@ -396,10 +405,16 @@ a bespoke Unity lowering. The existing CultLib Unity uGUI package remains useful
 as prior art for resolver-backed controls and inspector generation, but it is
 not the new portable UI authority.
 
-Until that shared Eve package exists, Aetheria publishes provider surfaces as
-typed CultCache documents using a local mirror of `gamecult.eve.surface.v1`.
-The mirror is not a new UI authority; it is the state provider contract that a
-future Eve package should replace or align with.
+Until the shared Eve package lands upstream, Aetheria carries a local staged
+Unity package pair:
+
+- `org.gamecult.eve.surface`: no-engine DTOs for `gamecult.eve.surface.v1`.
+- `org.gamecult.eve.unity-uitoolkit`: UI Toolkit lowering from those DTOs to
+  native `VisualElement` trees.
+
+These are import boundaries, not Aetheria UI authority. The provider-owned
+surface document in CultCache/CultMesh remains the truth, and the lowerer only
+projects it.
 
 First Aetheria surfaces to publish:
 
@@ -519,7 +534,14 @@ First Aetheria surfaces to publish:
 
 6. Eve UI
    - Done: publish the typed catalog operator surface from `Aetheria.State`.
-   - Build or import the Eve UI Toolkit lowering package from the Eve repo.
+   - Done: stage the Eve surface contract DTO package and UI Toolkit lowering
+     package as importable Unity packages in Aetheria while the neighboring Eve
+     repo is dirty on unrelated work.
+   - Done: teach the embedded Unity state package to read
+     `gamecult.eve.surface` records from the `.cc` store into that shared
+     contract.
+   - Move the staged packages into the Eve repo once its worktree is clean, then
+     import them back into Aetheria from Eve instead of carrying a local copy.
    - Replace the old IMGUI DB inspector first, because it is closest to state
      authority.
    - Then replace runtime HUD/menu/inventory/map screens.
@@ -587,9 +609,11 @@ First Aetheria surfaces to publish:
   package-owned runtime catalog read models without a MessagePack catalog cache,
   including typed item masks, interior masks, hardpoint definitions,
   corporation/name-file links, and typed behavior payloads. It also proves the
-  Unity runtime state commit log can queue player-settings and run snapshot
-  commands, the `Aetheria.State` node can apply them into canonical typed
-  settings/run/zone/entity state, and commands are cleared after application.
+  embedded package can read provider-owned Eve surface documents from the same
+  CultCache store. The smoke proves the Unity runtime state commit log can
+  queue player-settings and run snapshot commands, the `Aetheria.State` node
+  can apply them into canonical typed settings/run/zone/entity state, and
+  commands are cleared after application.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

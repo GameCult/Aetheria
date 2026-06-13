@@ -1,9 +1,8 @@
 {
-    "name": "GameCult.Aetheria.State.Unity",
-    "rootNamespace": "GameCult.Aetheria.State.Unity",
+    "name": "GameCult.Eve.UnityUIToolkit",
+    "rootNamespace": "GameCult.Eve.UnityUIToolkit",
     "references": [
-        "GameCult.Eve.Surface",
-        "MessagePack"
+        "GameCult.Eve.Surface"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -13,5 +12,5 @@
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
-    "noEngineReferences": true
+    "noEngineReferences": false
 }

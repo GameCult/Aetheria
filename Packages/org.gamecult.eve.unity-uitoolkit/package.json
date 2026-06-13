@@ -1,0 +1,18 @@
+{
+    "name": "org.gamecult.eve.unity-uitoolkit",
+    "displayName": "Eve UI Toolkit Lowering",
+    "version": "0.1.0",
+    "unity": "2021.3",
+    "description": "Unity UI Toolkit lowering for gamecult.eve.surface.v1 documents.",
+    "dependencies": {
+        "org.gamecult.eve.surface": "0.1.0"
+    },
+    "keywords": [
+        "Eve",
+        "CultUI",
+        "UI Toolkit",
+        "Unity"
+    ],
+    "license": "MPL-2.0",
+    "category": "Scripting"
+}

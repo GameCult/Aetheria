@@ -1,10 +1,7 @@
 {
-    "name": "GameCult.Aetheria.State.Unity",
-    "rootNamespace": "GameCult.Aetheria.State.Unity",
-    "references": [
-        "GameCult.Eve.Surface",
-        "MessagePack"
-    ],
+    "name": "GameCult.Eve.Surface",
+    "rootNamespace": "GameCult.Eve.Surface",
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

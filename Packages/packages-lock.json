@@ -1,5 +1,19 @@
 {
   "dependencies": {
+    "org.gamecult.eve.surface": {
+      "version": "file:org.gamecult.eve.surface",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "org.gamecult.eve.unity-uitoolkit": {
+      "version": "file:org.gamecult.eve.unity-uitoolkit",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "org.gamecult.eve.surface": "0.1.0"
+      }
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 0,
