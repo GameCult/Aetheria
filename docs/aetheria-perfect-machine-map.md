@@ -117,15 +117,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
   queries without touching `DatabaseEntry`.
-- `Aetheria.State.Unity` is the Unity-facing runtime read facade over typed
-  catalog state. It opens `aetheria-world.cc`, emits immutable catalog read
-  models for trade/equipment/behavior/hardpoint/manufacturer/corporation/name
-  queries, exposes typed item shape masks for layout/fitting consumers, and
-  exposes typed interior masks and hardpoints for future equipment/cargo
-  layout consumers, plus typed behavior payload read models for future
-  behavior factories. It reads the published Eve surface without deserializing
-  legacy `DatabaseEntry` objects. It is not a simulation owner and does not
-  write state.
+- The embedded `GameCult.Aetheria.State.Unity` package now owns the
+  Unity-visible immutable catalog read-model contract for
+  trade/equipment/behavior/hardpoint/manufacturer/corporation/name queries,
+  typed item shape masks, typed interior masks, hardpoints, and behavior
+  payloads. The SDK-style `Aetheria.State.Unity` facade includes that package
+  source and owns only the `.cc` opener plus mapper from `Aetheria.State`
+  documents into the package contract. It reads the published Eve surface
+  without deserializing legacy `DatabaseEntry` objects. It is not a simulation
+  owner and does not write state.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -213,9 +213,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   where gameplay only needs lookups. `ItemManager` still receives
   `ILegacyCatalogReader` until typed runtime catalog boot replaces it; `Galaxy`
   has been moved off the legacy reader and now consumes `ItemManager`.
-  `Aetheria.State.Unity` owns a read-only typed catalog facade for future Unity
-  consumers; it does not write state or own simulation. The legacy cache no
-  longer has a public mutation surface.
+  The embedded Unity state package owns the read-only runtime catalog model
+  contract for future Unity consumers; the SDK-style `Aetheria.State.Unity`
+  facade maps typed `.cc` documents into that contract for current .NET smokes.
+  Neither writes state or owns simulation. The legacy cache no longer has a
+  public mutation surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -423,7 +425,8 @@ First Aetheria surfaces to publish:
 - Migration smoke proves stable old catalog payload fields can be read once and
   converted without old readers remaining on the live runtime path.
 - Unity runtime catalog smoke proves read-only catalog consumers can open the
-  typed `.cc` store through `Aetheria.State.Unity` without `DatabaseEntry` or
+  typed `.cc` store through the SDK-style `Aetheria.State.Unity` opener and
+  receive package-owned runtime catalog read models without `DatabaseEntry` or
   `LegacyCatalogCache`, including typed item masks, interior masks, and
   hardpoint definitions, plus typed behavior payloads.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands

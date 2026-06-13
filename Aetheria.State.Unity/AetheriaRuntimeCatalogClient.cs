@@ -1,4 +1,5 @@
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State.Unity;
 
@@ -20,7 +21,7 @@ public sealed class AetheriaRuntimeCatalogClient : IAsyncDisposable, IDisposable
     public AetheriaRuntimeCatalogSnapshot ReadCatalog()
     {
         var catalog = _node.ReadCatalogSnapshot();
-        return AetheriaRuntimeCatalogSnapshot.FromCatalog(catalog);
+        return AetheriaRuntimeCatalogSnapshotMapper.FromCatalog(catalog);
     }
 
     public async Task<EveSurfaceState?> ReadCatalogSurfaceAsync()
