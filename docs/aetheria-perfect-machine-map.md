@@ -46,6 +46,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   compiling the old Unity domain model into `Aetheria.State`. The current
   checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
   files.
+- `GameData/aetheria-world.cc` is now materialized from the importer as the
+  project-local typed state file for the checked-in catalog. The importer stores
+  relative provenance in the state document, not machine-local absolute paths.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
   deleted. `NameTools` can still clean/generate names, but legacy NameFile
   `.msgpack` export is disabled.

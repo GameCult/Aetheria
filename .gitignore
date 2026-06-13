@@ -112,4 +112,5 @@ Aetheria.State.Smoke/obj/
 
 Packages/packages-lock.json
 GameData/PlayerSettings.msgpack
+GameData/*.cultmesh/
 Vault/Aetheria/.obsidian/plugins/copilot/data.json

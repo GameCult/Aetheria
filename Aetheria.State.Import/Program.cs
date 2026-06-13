@@ -9,6 +9,8 @@ var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDir
 var statePath = args.Length > 1
     ? Path.GetFullPath(args[1])
     : AetheriaStatePaths.ResolveDefaultStatePath(root);
+var sourceRoot = Path.GetRelativePath(Directory.GetCurrentDirectory(), root).Replace('\\', '/');
+var outputStatePath = Path.GetRelativePath(root, statePath).Replace('\\', '/');
 
 var gameData = Path.Combine(root, "GameData");
 var catalogPath = Path.Combine(gameData, "AetherDB.msgpack");
@@ -46,7 +48,7 @@ await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-le
 
 await node.PutLegacyCatalogQuarantineAsync(new AetheriaLegacyCatalogQuarantine
 {
-    RootPath = root,
+    RootPath = sourceRoot,
     CapturedAtUtc = capturedAtUtc,
     CatalogFile = catalog.RelativePath,
     CatalogFingerprint = catalog.Fingerprint,
@@ -102,7 +104,7 @@ await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
     [
         "Legacy catalog quarantine captured file fingerprints and mapped stable old MessagePack union payload fields into typed CultCache documents.",
         "The mapper intentionally reads only stable scalar/catalog fields. Runtime object graphs, behavior payloads, and Unity-specific shapes remain legacy until dedicated typed documents exist.",
-        $"State path: {statePath}"
+        $"State path: {outputStatePath}"
     ]
 });
 
