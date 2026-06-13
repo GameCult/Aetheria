@@ -50,8 +50,14 @@ instantiating those projections. They no longer carry save-file or serializer
 vocabulary, and they do not declare MessagePack persistence attributes.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
-The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout
-edits are runtime-only until Verse owns a typed layout/settings document.
+`InputDisplayLayout` parses that display geometry through Unity-side `SimpleJson`
+as a projection parser, not as durable Aetheria state. The generated
+`AetheriaInput` wrapper still calls Unity's `InputActionAsset.FromJson`; that is
+an engine-owned lowering boundary under Aetheria's remapping layer, not a save
+format or state owner. The old generated `GameData/KeyboardLayouts/*.msgpack`
+cache was deleted. Remapping and action-bar edits are owned by typed
+`AetheriaPlayerSettings` commits; keyboard display layout edits remain
+runtime-only until Verse owns a typed layout document.
 
 The old IMGUI CultCache database editor has been deleted, and `NameTools` no
 longer exports `NameFile/*.msgpack`. `AetherDB.msgpack` and existing name files

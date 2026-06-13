@@ -42,7 +42,6 @@ public class MainMenu : MonoBehaviour
         _nextMenu = (panel2, panel2.GetComponent<CanvasGroup>());
 
         _currentMenu.panel.gameObject.SetActive(false);
-        //_saveDirectory = ActionGameManager.GameDataDirectory.CreateSubdirectory("Saves");
         
         ShowMain();
         Fade(true);

@@ -727,9 +727,14 @@ First Aetheria surfaces to publish:
   source has no standalone `PlayerSettings` class/property/method symbols.
 - Input binding and action-bar edits now queue the same typed player-settings
   commit path as menu settings changes; the old `SaveLayout` runtime-only
-  warning is gone.
-- Keyboard display layout parsing is named as a runtime projection parser, and
-  the dead commented Ink `ToJson` write path has been removed from live source.
+  warning is gone. The generated `AetheriaInput` class still calls Unity's
+  `InputActionAsset.FromJson`, but that JSON belongs to Unity's generated input
+  action lowering under Aetheria's remapping system. It is not durable Aetheria
+  state and does not own remapping authority.
+- Keyboard display layout parsing is named as a runtime projection parser:
+  `InputDisplayLayout` uses Unity-side `SimpleJson` only to read checked-in
+  keyboard display geometry. The dead commented Ink `ToJson` write path has
+  been removed from live source.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes
