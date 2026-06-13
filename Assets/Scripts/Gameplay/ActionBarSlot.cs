@@ -1,6 +1,4 @@
-using System;
 using System.Linq;
-using MessagePack;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -39,48 +37,6 @@ public class ActionBarSlot : MonoBehaviour
         Binding?.Update();
     }
 
-    public SavedActionBarBinding Save()
-    {
-        return Binding switch
-        {
-            ActionBarConsumableBinding actionBarConsumableBinding => new SavedActionBarConsumableBinding
-            {
-                Target = new DatabaseLink<ConsumableItemData>{LinkID = actionBarConsumableBinding.Target.ID}
-            },
-            ActionBarGearBinding actionBarGearBinding => new SavedActionBarGearBinding
-            {
-                EquipmentIndex = actionBarGearBinding.Entity.Equipment.IndexOf(actionBarGearBinding.Item),
-                BehaviorIndex = Array.IndexOf(actionBarGearBinding.Item.Behaviors, actionBarGearBinding.Behavior)
-            },
-            ActionBarWeaponGroupBinding actionBarWeaponGroupBinding => new SavedActionBarWeaponGroupBinding
-            {
-                Group = actionBarWeaponGroupBinding.Group
-            },
-            _ => null
-        };
-    }
-
-    public void Restore(SavedActionBarBinding binding, Entity entity)
-    {
-        Binding = binding switch
-        {
-            SavedActionBarConsumableBinding savedActionBarConsumableBinding =>
-                new ActionBarConsumableBinding(
-                    entity,
-                    this,
-                    savedActionBarConsumableBinding.Target.Value),
-            SavedActionBarGearBinding savedActionBarGearBinding =>
-                new ActionBarGearBinding(
-                    entity,
-                    this,
-                    entity.Equipment[savedActionBarGearBinding.EquipmentIndex],
-                    entity.Equipment[savedActionBarGearBinding.EquipmentIndex]
-                        .Behaviors[savedActionBarGearBinding.BehaviorIndex] as IActivatedBehavior),
-            SavedActionBarWeaponGroupBinding savedActionBarWeaponGroupBinding =>
-                new ActionBarWeaponGroupBinding(entity, this, savedActionBarWeaponGroupBinding.Group),
-            _ => null
-        };
-    }
 }
 
 public abstract class ActionBarBinding
@@ -173,10 +129,9 @@ public class ActionBarGearBinding : ActionBarBinding
     }
 }
 
-[MessagePackObject]
 public class ActionBarWeaponGroupBinding : ActionBarBinding
 {
-    [Key(0)] public int Group;
+    public int Group;
 
     public ActionBarWeaponGroupBinding(Entity entity, ActionBarSlot slot, int group) : base(entity, slot)
     {

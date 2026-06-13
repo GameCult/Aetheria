@@ -29,6 +29,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   `GameData/NameFile/*.msgpack` as migration/catalog inputs. The old
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
+  The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
+  deleted.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
@@ -186,6 +188,7 @@ First Aetheria surfaces to publish:
    - Done: delete the broken `Economy.Shared` wrapper and tracked build output.
    - Done: disable legacy local save, loadout, zone, player-settings, keyboard
      layout, DB inspector, and NameFile export writers.
+   - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

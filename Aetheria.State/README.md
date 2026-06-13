@@ -20,6 +20,9 @@ package, player settings and loadout edits are session-local and run saving is
 disabled. That is intentional: the missing runtime package is the owner gap, and
 the old bespoke file formats must not keep acting as durable truth while the
 state spine is being rebuilt.
+The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
+been deleted; the only save model left is the typed `AetheriaSavedRun` document
+family in this project.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout

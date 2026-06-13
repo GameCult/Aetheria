@@ -243,7 +243,7 @@ public class ActionGameManager : MonoBehaviour
     public void SaveState()
     {
         if (CurrentGalaxy != null)
-            Debug.LogWarning("Run persistence belongs to the Verse state spine. Legacy SavedGame serialization is disabled.");
+            Debug.LogWarning("Run persistence belongs to the Verse state spine. Legacy run serialization is disabled.");
     }
 
     private void OnDisable()

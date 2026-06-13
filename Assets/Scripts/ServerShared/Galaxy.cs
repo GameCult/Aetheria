@@ -44,51 +44,6 @@ public class Galaxy
         }
     }
 
-    public Galaxy(CultCache cultCache, SavedGame savedGame, Action<string> log)
-    {
-        IsPrelude = savedGame.IsTutorial;
-        _cache = cultCache;
-        Log = log;
-        Background = savedGame.Background;
-        
-        Factions = savedGame.Factions.Select(cultCache.Get<Faction>).ToArray();
-        for (var i = 0; i < Factions.Length; i++)
-        {
-            FactionRelationships[Factions[i]] = savedGame.Relationships[i];
-        }
-        
-        Zones = savedGame.Zones.Select(zone =>
-        {
-            return new GalaxyZone
-            {
-                Name = zone.Name,
-                Position = zone.Position,
-                PackedContents = zone.Contents
-            };
-        }).ToArray();
-        foreach (var i in savedGame.DiscoveredZones) DiscoveredZones.Add(Zones[i]);
-        for (var i = 0; i < Zones.Length; i++)
-        {
-            Zones[i].AdjacentZones = savedGame.Zones[i].AdjacentZones.Select(azi => Zones[azi]).ToList();
-            Zones[i].Factions = savedGame.Zones[i].Factions.Select(mi => Factions[mi]).ToArray();
-            Zones[i].Owner = savedGame.Zones[i].Owner < 0 ? null : Factions[savedGame.Zones[i].Owner];
-        }
-
-        HomeZones = savedGame.HomeZones.ToDictionary(
-            x => Factions[x.Key], 
-            x => Zones[x.Value]);
-
-        BossZones = savedGame.BossZones.ToDictionary(
-            x => Factions[x.Key], 
-            x => Zones[x.Value]);
-
-        Entrance = Zones[savedGame.Entrance];
-        if(savedGame.Exit != -1)
-            Exit = Zones[savedGame.Exit];
-
-        CalculateDistanceMatrix();
-    }
-
     public Galaxy(
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
