@@ -33,8 +33,8 @@ public class Galaxy
     private HashSet<Guid> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
-    private readonly ItemManager _itemManager;
     private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
+    private readonly Faction[] _allFactions;
 
     public GalaxyZone[] ExitPath
     {
@@ -50,20 +50,18 @@ public class Galaxy
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
         NameGeneratorSettings nameGeneratorSettings, 
-        ItemManager itemManager,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _itemManager = itemManager;
         _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
+        _allFactions = ProjectFactions(_runtimeCatalog);
         IsPrelude = false;
         Background = background;
         Log = log;
-        var factions = itemManager.GetCatalogEntries<Faction>();
         var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
-        Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
+        Factions = _allFactions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
 
         Zones = GenerateZones(settings.ZoneCount, ref random, progressCallback);
@@ -93,14 +91,19 @@ public class Galaxy
     
     public Faction ResolveFaction(string name)
     {
-        return _itemManager.GetCatalogEntries<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
+        var faction = _allFactions.FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
+        if (faction == null)
+        {
+            throw new InvalidOperationException($"Typed catalog has no faction matching '{name}'.");
+        }
+
+        return faction;
     }
 
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
-        ItemManager itemManager,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
@@ -108,8 +111,8 @@ public class Galaxy
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _itemManager = itemManager;
         _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
+        _allFactions = ProjectFactions(_runtimeCatalog);
         IsPrelude = true;
 
         Background = background;
@@ -213,6 +216,48 @@ public class Galaxy
             v => (.2f - lengthsq(v - float2(.5f))) * 4,
             progressCallback);
         return outputSamples.Select(v => new GalaxyZone {Position = v}).ToArray();
+    }
+
+    private static Faction[] ProjectFactions(AetheriaRuntimeCatalogSnapshot runtimeCatalog)
+    {
+        var factions = runtimeCatalog.Corporations
+            .Select(ProjectFaction)
+            .ToArray();
+        if (factions.Length == 0)
+        {
+            throw new InvalidOperationException("Typed catalog has no factions for galaxy generation.");
+        }
+
+        return factions;
+    }
+
+    private static Faction ProjectFaction(AetheriaRuntimeCorporation corporation)
+    {
+        return new Faction
+        {
+            ID = ParseLegacyId(corporation.LegacyId, nameof(corporation.LegacyId), corporation.Name),
+            Name = corporation.Name,
+            ShortName = corporation.ShortName,
+            Description = corporation.Description,
+            GeonameFile = ParseLegacyId(corporation.GeonameFileLegacyId, nameof(corporation.GeonameFileLegacyId), corporation.Name),
+            BossHull = ParseOptionalLegacyId(corporation.BossHullLegacyId),
+            InfluenceDistance = corporation.InfluenceDistance,
+        };
+    }
+
+    private static Guid ParseLegacyId(string legacyId, string fieldName, string ownerName)
+    {
+        if (Guid.TryParse(legacyId, out var parsed) && parsed != Guid.Empty)
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException($"Typed catalog corporation {ownerName} has invalid {fieldName} '{legacyId}'.");
+    }
+
+    private static Guid ParseOptionalLegacyId(string legacyId)
+    {
+        return Guid.TryParse(legacyId, out var parsed) ? parsed : Guid.Empty;
     }
 
     private void PlaceFactionsMain(int bossCount, Action<string> progressCallback = null)

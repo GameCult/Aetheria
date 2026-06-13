@@ -117,7 +117,6 @@ public class MainMenu : MonoBehaviour
                             Settings.SectorGenerationSettings,
                             Settings.SectorBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.ItemManager,
                             ActionGameManager.RuntimeCatalog,
                             Debug.Log,
                             setState);
@@ -144,7 +143,6 @@ public class MainMenu : MonoBehaviour
                             Settings.TutorialGenerationSettings,
                             Settings.TutorialBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.ItemManager,
                             ActionGameManager.RuntimeCatalog,
                             ActionGameManager.PlayerSettings,
                             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
