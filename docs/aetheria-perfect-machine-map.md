@@ -289,7 +289,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   corporation/name-file/catalog documents own durable state; these classes are
   inspector/runtime projections only. Item and behavior DTO field layout for
   `AetheriaRuntimeItemCatalog` no longer depends on MessagePack attributes. The
-  temporary bridge uses `RuntimeProjectionKeyAttribute` while typed item instances
+  temporary bridge uses `LegacyPayloadKeyAttribute` while typed item instances
   and behavior factories are being built.
 - The dead `PersonalityAttribute` projection DTO and its unused property-panel
   hook have been deleted; no typed catalog import or runtime caller owned that
@@ -361,7 +361,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection.
   Item/behavior DTO field layout for the temporary projection bridge is now
-  marked with project-owned `RuntimeProjectionKeyAttribute`, not MessagePack
+  marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
   remaining runtime single-ID item lookup bridge. The old trade debug UI and
@@ -566,7 +566,7 @@ First Aetheria surfaces to publish:
      narrative helper DTOs from MessagePack metadata to plain runtime/inspector
      shapes.
    - Done: replace remaining item/behavior DTO MessagePack field metadata with
-     `RuntimeProjectionKeyAttribute`; no live `Assets/Scripts` source depends on
+     `LegacyPayloadKeyAttribute`; no live `Assets/Scripts` source depends on
      MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
    - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
      remove legacy catalog group/table annotations from surviving runtime DTOs.
@@ -723,7 +723,7 @@ First Aetheria surfaces to publish:
 - Live Unity source has no `RuntimeCatalogEntry`; surviving DTOs inherit
   `RuntimeProjectionEntry`.
 - Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
-  `RuntimeProjectionKeyAttribute` remains only as the temporary mapper key.
+  `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or

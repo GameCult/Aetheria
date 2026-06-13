@@ -8,10 +8,10 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class ReflectorData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
     public PerformanceStat CrossSection = new PerformanceStat();
 
-    // [InspectableAnimationCurve, RuntimeProjectionKey(1)]
+    // [InspectableAnimationCurve, LegacyPayloadKey(1)]
     // public float4[] VisibilityCurve;
 
     public override Behavior CreateInstance(EquippedItem item)

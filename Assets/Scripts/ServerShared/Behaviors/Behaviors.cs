@@ -146,7 +146,7 @@ public abstract class PersistentBehaviorData
 [Inspectable]
 public abstract class BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(0)]
+    [Inspectable, LegacyPayloadKey(0)]
     public int Group;
 
     public abstract Behavior CreateInstance(EquippedItem item);

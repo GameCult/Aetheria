@@ -7,7 +7,7 @@ using System.Linq;
 [Inspectable, Order(-5), RuntimeInspectable]
 public class ItemUsageData : BehaviorData
 {
-    [RuntimeProjectionKey(1), RuntimeInspectable]
+    [LegacyPayloadKey(1), RuntimeInspectable]
     public Guid Item;
 
     public override Behavior CreateInstance(EquippedItem item)

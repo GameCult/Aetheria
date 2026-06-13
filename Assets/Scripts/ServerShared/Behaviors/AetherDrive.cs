@@ -8,43 +8,43 @@ using static Unity.Mathematics.math;
 [Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class AetherDriveData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1)]
+    [Inspectable, LegacyPayloadKey(1)]
     public float3 RotorDiameter;
 
-    [Inspectable, RuntimeProjectionKey(2)]
+    [Inspectable, LegacyPayloadKey(2)]
     public float3 RotorMass;
 
-    [Inspectable, RuntimeProjectionKey(3), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(3), RuntimeInspectable]
     public PerformanceStat MaximumRpm;
 
-    [Inspectable, RuntimeProjectionKey(4)]
+    [Inspectable, LegacyPayloadKey(4)]
     public float3 CouplingLambda;
 
-    [Inspectable, RuntimeProjectionKey(5)]
+    [Inspectable, LegacyPayloadKey(5)]
     public PerformanceStat LambdaMultiplier;
 
-    [Inspectable, RuntimeProjectionKey(6), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(6), RuntimeInspectable]
     public PerformanceStat CouplingEfficiency;
 
-    [Inspectable, RuntimeProjectionKey(7), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(7), RuntimeInspectable]
     public PerformanceStat Torque;
 
-    [Inspectable, RuntimeProjectionKey(8), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(8), RuntimeInspectable]
     public BezierCurve TorqueProfile;
 
-    [Inspectable, RuntimeProjectionKey(9), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(9), RuntimeInspectable]
     public PerformanceStat EnergyDraw;
 
-    [Inspectable, RuntimeProjectionKey(10), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(10), RuntimeInspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, RuntimeProjectionKey(11), RuntimeInspectable]
+    [InspectableAudioParameter, LegacyPayloadKey(11), RuntimeInspectable]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, RuntimeProjectionKey(12), RuntimeInspectable]
+    [InspectableAudioParameter, LegacyPayloadKey(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, RuntimeProjectionKey(13)]
+    [InspectablePrefab, LegacyPayloadKey(13)]
     public string Particles;
 
     public override Behavior CreateInstance(EquippedItem item)

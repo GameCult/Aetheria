@@ -8,22 +8,22 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class RadiatorData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
     public PerformanceStat Emissivity = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
     public PerformanceStat PumpedHeat = new PerformanceStat();
 
-    [InspectableTemperature, RuntimeProjectionKey(3), RuntimeInspectable]
+    [InspectableTemperature, LegacyPayloadKey(3), RuntimeInspectable]
     public float TemperatureFloor;
 
-    [Inspectable, RuntimeProjectionKey(4), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(4), RuntimeInspectable]
     public PerformanceStat WasteHeat = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(5), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(5), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(6), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(6), RuntimeInspectable]
     public PerformanceStat ThermalMass = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

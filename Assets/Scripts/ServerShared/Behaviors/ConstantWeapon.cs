@@ -9,7 +9,7 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class ConstantWeaponData : WeaponData
 {
-    [InspectablePrefab, RuntimeProjectionKey(17)]
+    [InspectablePrefab, LegacyPayloadKey(17)]
     public float AmmoInterval = 1;
 
     public override Behavior CreateInstance(EquippedItem item)

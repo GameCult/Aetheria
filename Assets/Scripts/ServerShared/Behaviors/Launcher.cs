@@ -7,22 +7,22 @@ using Unity.Mathematics;
 [Inspectable]
 public class LauncherData : LockWeaponData
 {
-    [InspectableAnimationCurve, RuntimeProjectionKey(26)]
+    [InspectableAnimationCurve, LegacyPayloadKey(26)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, RuntimeProjectionKey(27)]
+    [InspectableAnimationCurve, LegacyPayloadKey(27)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, RuntimeProjectionKey(28)]
+    [InspectableAnimationCurve, LegacyPayloadKey(28)]
     public float4[] LiftCurve;
 
-    [Inspectable, RuntimeProjectionKey(29)]
+    [Inspectable, LegacyPayloadKey(29)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(30)]
+    [Inspectable, LegacyPayloadKey(30)]
     public float DodgeFrequency;
 
-    [Inspectable, RuntimeProjectionKey(31), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(31), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -34,22 +34,22 @@ public class LauncherData : LockWeaponData
 [Inspectable]
 public class GuidedWeaponData : InstantWeaponData
 {
-    [InspectableAnimationCurve, RuntimeProjectionKey(21)]
+    [InspectableAnimationCurve, LegacyPayloadKey(21)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, RuntimeProjectionKey(22)]
+    [InspectableAnimationCurve, LegacyPayloadKey(22)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, RuntimeProjectionKey(23)]
+    [InspectableAnimationCurve, LegacyPayloadKey(23)]
     public float4[] LiftCurve;
 
-    [Inspectable, RuntimeProjectionKey(24)]
+    [Inspectable, LegacyPayloadKey(24)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(25)]
+    [Inspectable, LegacyPayloadKey(25)]
     public float DodgeFrequency;
 
-    [Inspectable, RuntimeProjectionKey(26), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(26), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

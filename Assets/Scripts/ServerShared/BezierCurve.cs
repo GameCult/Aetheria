@@ -5,7 +5,7 @@ using static Unity.Mathematics.math;
 
 public class BezierCurve
 {
-    [RuntimeProjectionKey(0)] public float4[] Keys;
+    [LegacyPayloadKey(0)] public float4[] Keys;
 
     private int2 _cachedIndices;
 

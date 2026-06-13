@@ -8,7 +8,7 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public class VelocityLimitData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
     public PerformanceStat TopSpeed = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

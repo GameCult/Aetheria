@@ -222,7 +222,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
     {
         return type
             .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .Select(field => (attribute: field.GetCustomAttribute<RuntimeProjectionKeyAttribute>(), field))
+            .Select(field => (attribute: field.GetCustomAttribute<LegacyPayloadKeyAttribute>(), field))
             .Where(entry => entry.attribute != null)
             .Select(entry => (entry.attribute.Key, entry.field));
     }

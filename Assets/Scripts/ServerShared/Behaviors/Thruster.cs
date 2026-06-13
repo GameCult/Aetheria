@@ -8,19 +8,19 @@ using static Unity.Mathematics.math;
 [Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class ThrusterData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(3), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(3), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(4), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(4), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [InspectablePrefab, RuntimeProjectionKey(5)]
+    [InspectablePrefab, LegacyPayloadKey(5)]
     public string ParticlesPrefab;
 
     public override Behavior CreateInstance(EquippedItem item)

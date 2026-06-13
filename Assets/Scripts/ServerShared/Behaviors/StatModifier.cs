@@ -7,16 +7,16 @@ using System.Linq;
 [Inspectable]
 public class StatModifierData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1)]
+    [Inspectable, LegacyPayloadKey(1)]
     public StatReference Stat = new StatReference();
 
-    [Inspectable, RuntimeProjectionKey(2)]
+    [Inspectable, LegacyPayloadKey(2)]
     public PerformanceStat Modifier = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(3)]
+    [Inspectable, LegacyPayloadKey(3)]
     public StatModifierType Type;
 
-    [InspectableType(typeof(BehaviorData)), RuntimeProjectionKey(4)]
+    [InspectableType(typeof(BehaviorData)), LegacyPayloadKey(4)]
     public Type RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -130,9 +130,9 @@ public enum StatModifierType
 [Inspectable]
 public class StatReference
 {
-    [InspectableType(typeof(BehaviorData)), RuntimeProjectionKey(1)]
+    [InspectableType(typeof(BehaviorData)), LegacyPayloadKey(1)]
     public string Target;
 
-    [Inspectable, RuntimeProjectionKey(2)]
+    [Inspectable, LegacyPayloadKey(2)]
     public string Stat;
 }

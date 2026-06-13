@@ -11,52 +11,52 @@ using static Unity.Mathematics.math;
 [Inspectable, RuntimeInspectable]
 public abstract class WeaponData : BehaviorData
 {
-    [Inspectable, RuntimeProjectionKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
     public DamageType DamageType;
 
-    [Inspectable, RuntimeProjectionKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), RuntimeProjectionKey(3), RuntimeInspectable]
+    [InspectableRangedFloat(0,1), LegacyPayloadKey(3), RuntimeInspectable]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), RuntimeProjectionKey(4)]
+    [InspectableRangedFloat(0,1), LegacyPayloadKey(4)]
     public PerformanceStat DamageSpread = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(5)]
+    [Inspectable, LegacyPayloadKey(5)]
     public PerformanceStat MinRange = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(6)]
+    [Inspectable, LegacyPayloadKey(6)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, RuntimeProjectionKey(7)]
+    [InspectableAnimationCurve, LegacyPayloadKey(7)]
     public BezierCurve DamageCurve;
 
-    [InspectablePrefab, RuntimeProjectionKey(8)]
+    [InspectablePrefab, LegacyPayloadKey(8)]
     public string EffectPrefab;
 
-    [InspectablePrefab, RuntimeProjectionKey(9), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(9), RuntimeInspectable]
     public PerformanceStat Energy = new PerformanceStat();
 
-    [InspectablePrefab, RuntimeProjectionKey(10), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(10), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [InspectablePrefab, RuntimeProjectionKey(11), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(11), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [RuntimeProjectionKey(12), RuntimeInspectable]
+    [LegacyPayloadKey(12), RuntimeInspectable]
     public Guid AmmoType;
 
-    [InspectablePrefab, RuntimeProjectionKey(13)]
+    [InspectablePrefab, LegacyPayloadKey(13)]
     public int MagazineSize;
 
-    [InspectablePrefab, RuntimeProjectionKey(14)]
+    [InspectablePrefab, LegacyPayloadKey(14)]
     public float ReloadTime = 1;
 
-    [InspectablePrefab, RuntimeProjectionKey(15)]
+    [InspectablePrefab, LegacyPayloadKey(15)]
     public PerformanceStat Spread = new PerformanceStat();
 
-    [Inspectable, RuntimeProjectionKey(16)]
+    [Inspectable, LegacyPayloadKey(16)]
     public PerformanceStat Velocity = new PerformanceStat();
 }
 

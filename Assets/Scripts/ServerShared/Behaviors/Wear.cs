@@ -9,7 +9,7 @@ using static Unity.Mathematics.math;
 [Inspectable, Order(1000), RuntimeInspectable]
 public class WearData : BehaviorData
 {
-    [InspectableTemperature, RuntimeProjectionKey(1)]
+    [InspectableTemperature, LegacyPayloadKey(1)]
     public bool PerSecond = true;
 
     public override Behavior CreateInstance(EquippedItem item)
