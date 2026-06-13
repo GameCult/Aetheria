@@ -163,7 +163,6 @@ public abstract class MultiFileBackingStore : CacheBackingStore
     public DirectoryInfo DirectoryInfo { get; }
     protected Dictionary<Type, DirectoryInfo> _entryTypeDirectories = new Dictionary<Type, DirectoryInfo>();
     
-    public abstract byte[] Serialize(DatabaseEntry entry);
     public abstract DatabaseEntry Deserialize(byte[] data);
     public abstract string Extension { get; }
 
@@ -200,11 +199,6 @@ public class MultiFileMessagePackBackingStore : MultiFileBackingStore
         RegisterResolver.Register();
     }
 
-    public override byte[] Serialize(DatabaseEntry entry)
-    {
-        return MessagePackSerializer.Serialize(entry);
-    }
-
     public override DatabaseEntry Deserialize(byte[] data)
     {
         return MessagePackSerializer.Deserialize<DatabaseEntry>(data);
@@ -217,7 +211,6 @@ public abstract class SingleFileBackingStore : CacheBackingStore
 {
     public FileInfo FileInfo { get; }
 
-    public abstract byte[] Serialize(DatabaseEntry[] entries);
     public abstract DatabaseEntry[] Deserialize(byte[] data);
 
     public SingleFileBackingStore(string filePath)
@@ -243,11 +236,6 @@ public class SingleFileMessagePackBackingStore : SingleFileBackingStore
     public SingleFileMessagePackBackingStore(string filePath) : base(filePath)
     {
         RegisterResolver.Register();
-    }
-
-    public override byte[] Serialize(DatabaseEntry[] entries)
-    {
-        return MessagePackSerializer.Serialize(entries);
     }
 
     public override DatabaseEntry[] Deserialize(byte[] data)
