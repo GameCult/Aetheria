@@ -63,7 +63,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - MessagePack is no longer used as a runtime object-cloning shortcut for
   `EntitySettings`, and UI/player-settings startup no longer registers the old
   MessagePack resolver. Resolver registration is confined to legacy catalog
-  deserialization and non-state compute hashing.
+  deserialization. The slime compute settings path no longer serializes its
+  local parameter struct for change detection.
+- The dead story compiled-JSON cache sketch and its SHA helper are deleted;
+  story compilation currently reads Ink source directly until a typed Verse
+  story/cache document exists.
 - Runtime UI is old Unity UI/uGUI prefabs plus `MonoBehaviour` scripts under
   `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`.
 - Aetheria already has Unity UIElements support available through

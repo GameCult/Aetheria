@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using MessagePack;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
@@ -50,7 +49,8 @@ public class Slime : MonoBehaviour
     private int _particleKernel;
     private int _trailKernel;
     private int _geometryKernel;
-    private string _settingsHash;
+    private bool _settingsInitialized;
+    private SlimeSettings _currentSettings;
     private int _spawnBufferSize = 1;
 
     private int IndexBufferSize => ParticleCount * 6 * (TrailPoints - 1);
@@ -161,11 +161,10 @@ public class Slime : MonoBehaviour
 
     void UpdateSettings()
     {
-        RegisterResolver.Register();
-        var hash = MessagePackSerializer.Serialize(SlimeSettings).GetHashSHA1();
-        if(hash != _settingsHash)
+        if (!_settingsInitialized || !SlimeSettings.Equals(_currentSettings))
         {
-            _settingsHash = hash;
+            _settingsInitialized = true;
+            _currentSettings = SlimeSettings;
             _parameterBuffer.SetData(new[] {SlimeSettings});
         }
     }
@@ -278,8 +277,8 @@ public class Slime : MonoBehaviour
     }
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
-public struct SlimeSettings
+[Serializable]
+public struct SlimeSettings : IEquatable<SlimeSettings>
 {
     public SlimeParameter Deposition;
     public SlimeParameter Diffusion;
@@ -291,10 +290,47 @@ public struct SlimeSettings
     public SlimeParameter SensorSpread;
     public SlimeParameter TrailDamping;
     public SlimeParameter Intensity;
+
+    public bool Equals(SlimeSettings other)
+    {
+        return Deposition.Equals(other.Deposition)
+               && Diffusion.Equals(other.Diffusion)
+               && Decay.Equals(other.Decay)
+               && TurnSpeed.Equals(other.TurnSpeed)
+               && Speed.Equals(other.Speed)
+               && Drive.Equals(other.Drive)
+               && SensorDistance.Equals(other.SensorDistance)
+               && SensorSpread.Equals(other.SensorSpread)
+               && TrailDamping.Equals(other.TrailDamping)
+               && Intensity.Equals(other.Intensity);
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is SlimeSettings other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = Deposition.GetHashCode();
+            hashCode = (hashCode * 397) ^ Diffusion.GetHashCode();
+            hashCode = (hashCode * 397) ^ Decay.GetHashCode();
+            hashCode = (hashCode * 397) ^ TurnSpeed.GetHashCode();
+            hashCode = (hashCode * 397) ^ Speed.GetHashCode();
+            hashCode = (hashCode * 397) ^ Drive.GetHashCode();
+            hashCode = (hashCode * 397) ^ SensorDistance.GetHashCode();
+            hashCode = (hashCode * 397) ^ SensorSpread.GetHashCode();
+            hashCode = (hashCode * 397) ^ TrailDamping.GetHashCode();
+            hashCode = (hashCode * 397) ^ Intensity.GetHashCode();
+            return hashCode;
+        }
+    }
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
-public struct SlimeParameter
+[Serializable]
+public struct SlimeParameter : IEquatable<SlimeParameter>
 {
     public float SlopeThreshold;
     public float SlopeBlend;
@@ -305,5 +341,32 @@ public struct SlimeParameter
     public float Evaluate(float slope)
     {
         return lerp(LowValue, HighValue, pow(smoothstep(SlopeThreshold - SlopeBlend, SlopeThreshold + SlopeBlend, slope), Exponent));
+    }
+
+    public bool Equals(SlimeParameter other)
+    {
+        return SlopeThreshold.Equals(other.SlopeThreshold)
+               && SlopeBlend.Equals(other.SlopeBlend)
+               && HighValue.Equals(other.HighValue)
+               && LowValue.Equals(other.LowValue)
+               && Exponent.Equals(other.Exponent);
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is SlimeParameter other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = SlopeThreshold.GetHashCode();
+            hashCode = (hashCode * 397) ^ SlopeBlend.GetHashCode();
+            hashCode = (hashCode * 397) ^ HighValue.GetHashCode();
+            hashCode = (hashCode * 397) ^ LowValue.GetHashCode();
+            hashCode = (hashCode * 397) ^ Exponent.GetHashCode();
+            return hashCode;
+        }
     }
 }

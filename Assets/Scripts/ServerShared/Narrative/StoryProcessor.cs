@@ -106,20 +106,6 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
         // If the story has already been read / compiled, return it directly
         if (_processedStories.ContainsKey(fileName)) return _processedStories[fileName];
         
-        // var compiledFileName = Path.Combine(inkFile.Directory.FullName, $"{fileName}.json");
-        //
-        // // Calculate a hash of the ink file
-        // var hash = File.ReadAllBytes(inkFile.FullName).GetHashSHA1();
-        //
-        // if (File.Exists(compiledFileName) && // If a compiled version of the ink file exists
-        //     Settings.HashedStoryFiles.ContainsKey(fileName) && // And its hash has been saved
-        //     hash == Settings.HashedStoryFiles[fileName]) // And the saved hash matches the current hash
-        // {
-        //     // Load the story from the existing compiled JSON representation
-        //     return new Story(File.ReadAllText(compiledFileName));
-        // }
-        //
-        // Settings.HashedStoryFiles[fileName] = hash;
         var compiler = new Compiler(File.ReadAllText(inkFile.FullName), new Compiler.Options
         {
             countAllVisits = true,
