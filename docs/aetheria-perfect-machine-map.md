@@ -32,6 +32,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted.
+- `LegacyCatalogBoundary` opens the legacy `CultCache` in read-only mode. Old
+  MessagePack backing stores may hydrate in-memory domain objects for the
+  current Unity runtime, but this path cannot push or delete legacy files.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration

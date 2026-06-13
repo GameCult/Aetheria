@@ -49,9 +49,11 @@ public class CultCache
     // private readonly Dictionary<Guid, ExternalEntry> _externalEntries = new Dictionary<Guid, ExternalEntry>();
 
     public IEnumerable<DatabaseEntry> AllEntries => _entries.Values;
+    public bool ReadOnly { get; }
 
-    public CultCache()
+    public CultCache(bool readOnly = false)
     {
+        ReadOnly = readOnly;
         DatabaseLinkBase.Cache = this;
         
         foreach (var type in typeof(DatabaseEntry).GetAllChildClasses())
@@ -125,13 +127,19 @@ public class CultCache
                 {
                     var typeStore = _typeStores[type];
                     if(typeStore != source)
+                    {
+                        ThrowIfReadOnlyWrite();
                         typeStore.Push(entry);
+                    }
                 }
                 else
                 {
                     var masterStore = _backingStores.FirstOrDefault();
                     if(masterStore != null && masterStore!=source)
+                    {
+                        ThrowIfReadOnlyWrite();
                         masterStore.Push(entry);
+                    }
                 }
                 
                 _entries[entry.ID] = entry;
@@ -195,17 +203,33 @@ public class CultCache
         _entries.Remove(entry.ID);
         var type = entry.GetType();
         if(_typeStores.ContainsKey(type))
-            _typeStores[type].Delete(entry);
+        {
+            var typeStore = _typeStores[type];
+            if(typeStore != source)
+            {
+                ThrowIfReadOnlyWrite();
+                typeStore.Delete(entry);
+            }
+        }
         else foreach(var store in _backingStores)
         {
             if(store != source)
+            {
+                ThrowIfReadOnlyWrite();
                 store.Delete(entry);
+            }
         }
         foreach (var parentType in type.GetParentTypes())
         {
             if(_types.ContainsKey(parentType))
                 _types[parentType].Remove(entry);
         }
+    }
+
+    private void ThrowIfReadOnlyWrite()
+    {
+        if (ReadOnly)
+            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
     }
 }
 
@@ -256,7 +280,7 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
         DirectoryInfo = new DirectoryInfo(path);
         foreach (var type in typeof(DatabaseEntry).GetAllChildClasses())
         {
-            _entryTypeDirectories[type] = DirectoryInfo.CreateSubdirectory(type.Name);
+            _entryTypeDirectories[type] = new DirectoryInfo(Path.Combine(DirectoryInfo.FullName, type.Name));
         }
     }
     
@@ -283,6 +307,7 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
         var type = entry.GetType();
         Entries[entry.ID] = entry;
         var directory = _entryTypeDirectories[type];
+        directory.Create();
         File.WriteAllBytes(Path.Combine(directory.FullName, GetFileName(entry)), Serialize(entry));
     }
 
@@ -308,6 +333,7 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
     {
         foreach (var directory in _entryTypeDirectories.Values)
         {
+            if (!directory.Exists) continue;
             var watcher = new FileSystemWatcher(directory.FullName);
             watcher.Changed += (sender, args) =>
             {
