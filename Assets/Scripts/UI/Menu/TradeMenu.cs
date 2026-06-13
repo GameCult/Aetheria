@@ -289,7 +289,7 @@ public class TradeMenu : MonoBehaviour
             x => () =>
             {
                 if (x.data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == x.data.ID && s is Ship {IsPlayerShip: true}).ToString();
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.data.ID && s is Ship {IsPlayerShip: true}).ToString();
                 if(x.data is SimpleCommodityData)
                     return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
                 return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Count : 0).ToString();
@@ -297,7 +297,7 @@ public class TradeMenu : MonoBehaviour
             data =>
             {
                 if (data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == data.ID && s is Ship {IsPlayerShip: true});
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == data.ID && s is Ship {IsPlayerShip: true});
                 if(data is SimpleCommodityData)
                     return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
                 return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Count : 0;

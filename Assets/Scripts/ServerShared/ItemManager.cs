@@ -57,9 +57,9 @@ public class ItemManager
         return _itemData.Get<T>(id);
     }
 
-    public RuntimeCatalogLink<ItemData> CreateLink(ItemData item)
+    public RuntimeItemReference CreateReference(ItemData item)
     {
-        return new RuntimeCatalogLink<ItemData>(item);
+        return new RuntimeItemReference(item);
     }
 
     public ItemData GetData(ItemInstance item)
@@ -75,10 +75,10 @@ public class ItemManager
             return;
         }
 
-        var data = _itemData.Get(item.Data.LinkID);
+        var data = _itemData.Get(item.Data.ItemId);
         if (data == null)
         {
-            _logger($"Attempted to hydrate missing item id {item.Data.LinkID}");
+            _logger($"Attempted to hydrate missing item id {item.Data.ItemId}");
             return;
         }
 
@@ -155,7 +155,7 @@ public class ItemManager
         {
             var newItem = new SimpleCommodity
             {
-                Data = CreateLink(item),
+                Data = CreateReference(item),
                 Quantity = count
             };
             //ItemData.Add(newItem);
@@ -190,13 +190,13 @@ public class ItemManager
         {
             return new EquippableItem
             {
-                Data = CreateLink(item), Quality = quality, Durability = equippableItemData.Durability
+                Data = CreateReference(item), Quality = quality, Durability = equippableItemData.Durability
             };
         }
 
         var newCommodity = new CompoundCommodity
         {
-            Data = CreateLink(item),
+            Data = CreateReference(item),
             Quality = quality
         };
         return newCommodity;

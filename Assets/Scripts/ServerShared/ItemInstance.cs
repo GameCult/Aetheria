@@ -12,7 +12,7 @@ using static Unity.Mathematics.math;
 
 public abstract class ItemInstance
 {
-    public RuntimeCatalogLink<ItemData> Data;
+    public RuntimeItemReference Data;
     public ItemRotation Rotation;
 }
 

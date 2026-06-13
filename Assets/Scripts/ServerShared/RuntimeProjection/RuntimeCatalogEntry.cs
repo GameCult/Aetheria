@@ -26,29 +26,25 @@ public abstract class RuntimeCatalogEntry
     }
 }
 
-public class RuntimeCatalogLink<T> : RuntimeCatalogLinkBase where T : ItemData
+public class RuntimeItemReference
 {
-    public T Value { get; private set; }
+    public ItemData Value { get; private set; }
+    public Guid ItemId;
 
-    public RuntimeCatalogLink()
+    public RuntimeItemReference()
     {
     }
 
-    public RuntimeCatalogLink(T value)
+    public RuntimeItemReference(ItemData value)
     {
         SetValue(value);
     }
 
-    public void SetValue(T value)
+    public void SetValue(ItemData value)
     {
         Value = value;
-        LinkID = value?.ID ?? Guid.Empty;
+        ItemId = value?.ID ?? Guid.Empty;
     }
-}
-
-public class RuntimeCatalogLinkBase
-{
-    public Guid LinkID;
 }
 
 public interface ITintInspector

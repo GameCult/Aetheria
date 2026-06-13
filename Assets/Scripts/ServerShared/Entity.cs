@@ -377,7 +377,7 @@ public abstract class Entity
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.Data.LinkID)
+            .GroupBy(w => w.Item.EquippableItem.Data.ItemId)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {
@@ -1523,9 +1523,9 @@ public class EquippedCargoBay : EquippedItem
             }
             Cargo[item] = cargoCoord;
             
-            if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-                ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-            ItemsOfType[item.Data.LinkID].Add(item);
+            if(!ItemsOfType.ContainsKey(item.Data.ItemId))
+                ItemsOfType[item.Data.ItemId] = new List<ItemInstance>();
+            ItemsOfType[item.Data.ItemId].Add(item);
         }
         else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
         {
@@ -1567,9 +1567,9 @@ public class EquippedCargoBay : EquippedItem
         }
         Cargo[item] = cargoCoord;
         
-        if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-            ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-        ItemsOfType[item.Data.LinkID].Add(item);
+        if(!ItemsOfType.ContainsKey(item.Data.ItemId))
+            ItemsOfType[item.Data.ItemId] = new List<ItemInstance>();
+        ItemsOfType[item.Data.ItemId].Add(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -1592,9 +1592,9 @@ public class EquippedCargoBay : EquippedItem
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            ItemsOfType[item.Data.LinkID].Remove(item);
-            if (!ItemsOfType[item.Data.LinkID].Any())
-                ItemsOfType.Remove(item.Data.LinkID);
+            ItemsOfType[item.Data.ItemId].Remove(item);
+            if (!ItemsOfType[item.Data.ItemId].Any())
+                ItemsOfType.Remove(item.Data.ItemId);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1621,9 +1621,9 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        ItemsOfType[item.Data.LinkID].Remove(item);
-        if (!ItemsOfType[item.Data.LinkID].Any())
-            ItemsOfType.Remove(item.Data.LinkID);
+        ItemsOfType[item.Data.ItemId].Remove(item);
+        if (!ItemsOfType[item.Data.ItemId].Any())
+            ItemsOfType.Remove(item.Data.ItemId);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);

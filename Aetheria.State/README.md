@@ -60,6 +60,9 @@ Dead legacy catalog roots for user records and galaxy map-layer resources have
 been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
+Item instances now carry `RuntimeItemReference`, a narrow item-id/value holder.
+The old generic `RuntimeCatalogLink<T>` abstraction has been deleted; item data
+projection is routed through `ItemManager` and the typed runtime catalog reader.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine
 state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
