@@ -139,7 +139,7 @@ public class LoadoutGenerator
                 manufacturer != Guid.Empty &&
                 (Galaxy.IsPrelude || Galaxy.ContainsFaction(manufacturer) &&
                     (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))))
-            .Select(HydrateLegacyItem<T>)
+            .Select(ProjectRuntimeItem<T>)
             .Where(item => item != null)
             .Where(item => 
                 item.Price > 0 &&
@@ -178,7 +178,7 @@ public class LoadoutGenerator
         return string.Equals(item.Category, requestedType.Name, StringComparison.Ordinal);
     }
 
-    private T HydrateLegacyItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
+    private T ProjectRuntimeItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
     {
         return Guid.TryParse(item.LegacyId, out var legacyId)
             ? ItemManager.GetCatalogEntry<T>(legacyId)

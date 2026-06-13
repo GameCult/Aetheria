@@ -250,11 +250,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
   over the typed corporation projection.
 - The `give` command no longer enumerates legacy item catalog entries; typed
-  catalog selection owns the command match, with legacy item hydration kept as
-  an instantiation-only bridge.
+  catalog selection owns the command match, with runtime item projection kept
+  as an instantiation-only bridge.
 - `LoadoutGenerator` no longer enumerates legacy item catalog entries for its
   candidate pool; typed catalog filtering owns the first item selection pass,
-  with legacy DTO hydration kept as a fitting/instantiation bridge.
+  with runtime item projection kept as a fitting/instantiation bridge.
+- `LoadoutGenerator` names the post-selection bridge as runtime item
+  projection: typed catalog rows own candidate selection, and `ItemManager`
+  only projects the selected row into the temporary DTO shape needed by fitting
+  and instantiation.
 - `TradeMenuDebug` no longer enumerates legacy item catalog entries for its
   table rows; typed trade catalog records own the row set, with legacy DTO
   hydration kept for the old debug UI callbacks.
@@ -551,6 +555,9 @@ First Aetheria surfaces to publish:
      MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
    - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
      remove legacy catalog group/table annotations from surviving runtime DTOs.
+   - Done: rename loadout generation's selected-item bridge from legacy
+     hydration to runtime item projection; typed catalog filtering remains the
+     selection owner.
    - Done: remove the stale `MessagePack` assembly reference from
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.
