@@ -163,6 +163,16 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             Cache.GetAll<AetheriaNameFile>());
     }
 
+    public Task<CultRecordHandle<EveSurfaceState>> PutCatalogSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaCatalogSurfaceProjector.SurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetCatalogSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(new CultRecordKey(AetheriaCatalogSurfaceProjector.SurfaceKey));
+    }
+
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);

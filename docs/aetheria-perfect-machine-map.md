@@ -63,14 +63,20 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries without touching `DatabaseEntry`.
+- `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
+  surface from typed catalog state. The importer materializes a
+  `gamecult.eve.surface.v1` catalog operator document at
+  `eve:surface:aetheria.catalog.operator` with summary, trade-catalog, and
+  corporation views. This is a typed CultCache surface document, not a renderer
+  dashboard or JSON status card.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
   `Aetheria.State.Verify` opens the materialized file and checks that migration
   ledger counts match actual typed catalog records, that the legacy-ID lookup
   API resolves migrated item, corporation, and name-file documents, and that
-  the expanded typed catalog facts and typed catalog snapshot queries are
-  present in the `.cc` store.
+  the expanded typed catalog facts, typed catalog snapshot queries, and typed
+  Eve catalog surface are present in the `.cc` store.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
@@ -119,7 +125,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog reads emit in-memory domain objects only; the old local save and
   editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
-  methods, not importer-local string concatenation.
+  methods, not importer-local string concatenation. The catalog operator UI is
+  emitted as a typed Eve surface document derived from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
   serialized legacy payloads are projections, migration inputs, or disabled
   session-local DTOs, not durable authority.
@@ -183,6 +190,11 @@ a bespoke Unity lowering. The existing CultLib Unity uGUI package remains useful
 as prior art for resolver-backed controls and inspector generation, but it is
 not the new portable UI authority.
 
+Until that shared Eve package exists, Aetheria publishes provider surfaces as
+typed CultCache documents using a local mirror of `gamecult.eve.surface.v1`.
+The mirror is not a new UI authority; it is the state provider contract that a
+future Eve package should replace or align with.
+
 First Aetheria surfaces to publish:
 
 - runtime HUD
@@ -235,8 +247,8 @@ First Aetheria surfaces to publish:
    - Publish Verse descriptors and state subscriptions through CultMesh.
 
 6. Eve UI
+   - Done: publish the typed catalog operator surface from `Aetheria.State`.
    - Build or import the Eve UI Toolkit lowering package from the Eve repo.
-   - Publish Aetheria UI as Eve surfaces.
    - Replace the old IMGUI DB inspector first, because it is closest to state
      authority.
    - Then replace runtime HUD/menu/inventory/map screens.
@@ -267,6 +279,8 @@ First Aetheria surfaces to publish:
   resolution.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
+- Eve surface smoke proves provider-owned surface documents are generated from
+  typed state and survive `.cc` store reopen before any renderer owns them.
 - Quarantine import smoke proves old catalog file facts can be captured into
   typed state without old readers remaining on the live runtime path.
 - Migration smoke proves stable old catalog payload fields can be read once and

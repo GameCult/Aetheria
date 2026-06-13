@@ -12,11 +12,14 @@ var ledger = await node.GetMigrationLedgerAsync()
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
 var quarantine = await node.GetLegacyCatalogQuarantineAsync()
     ?? throw new InvalidOperationException("Missing legacy catalog quarantine document.");
+var publishedSurface = await node.GetCatalogSurfaceAsync()
+    ?? throw new InvalidOperationException("Missing Aetheria catalog Eve surface document.");
 
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
 var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
 var catalog = node.ReadCatalogSnapshot();
+var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
 RequireCount(ledger, "aetheria.corporation.v1", corporations.Length);
@@ -92,6 +95,20 @@ if (catalog.GetNameFile(corporationWithNames) == null)
         $"Typed catalog name-file lookup failed for corporation {corporationWithNames.Name}.");
 }
 
+if (surface.Schema != "gamecult.eve.surface.v1" ||
+    surface.Surface.Root.Kind != "surface" ||
+    surface.Surface.Root.Children.Length == 0)
+{
+    throw new InvalidOperationException("Aetheria catalog Eve surface projection is not renderable.");
+}
+
+if (publishedSurface.Schema != surface.Schema ||
+    publishedSurface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId ||
+    publishedSurface.Surface.Root.Kind != "surface")
+{
+    throw new InvalidOperationException("Published Aetheria catalog Eve surface is not the expected typed surface.");
+}
+
 await RequireLegacyLookupAsync(
     items[0].LegacyId,
     () => node.GetItemDefinitionByLegacyIdAsync(items[0].LegacyId),
@@ -115,6 +132,7 @@ Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
+Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");
 Console.WriteLine($"Described/geoname-linked corporations: {describedCorporations}/{corporationNameLinks}");
 Console.WriteLine($"Name files: {nameFiles.Length}");

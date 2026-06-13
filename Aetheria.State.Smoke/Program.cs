@@ -84,6 +84,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         SampleNames = ["Ada", "Grace"]
     });
 
+    await node.PutCatalogSurfaceAsync(
+        AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), now));
+
     await node.PutRunStateAsync(runKey, new AetheriaRunState
     {
         RunId = "smoke",
@@ -120,6 +123,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var faction = await reopened.GetCorporationByLegacyIdAsync(factionLegacyId);
     var nameFile = await reopened.GetNameFileByLegacyIdAsync(nameFileLegacyId);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
+    var catalogSurface = await reopened.GetCatalogSurfaceAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var runState = await reopened.GetRunStateAsync(runKey);
 
@@ -146,6 +150,12 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (quarantine?.CatalogFingerprint != "smoke" || quarantine.NameFiles.Length != 1)
     {
         throw new InvalidOperationException("Legacy catalog quarantine did not survive flush/reopen.");
+    }
+
+    if (catalogSurface?.Schema != "gamecult.eve.surface.v1" ||
+        catalogSurface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId)
+    {
+        throw new InvalidOperationException("Eve catalog surface did not survive flush/reopen.");
     }
 
     if (playerSettings?.ActiveRunKey != runKey.ToString())

@@ -35,7 +35,8 @@ public static class AetheriaDocumentRegistry
                 CultNetDocumentBinding.ForDocument<AetheriaPlayerSettings>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaRunState>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaZoneState>(registry),
-                CultNetDocumentBinding.ForDocument<AetheriaEntitySnapshot>(registry)
+                CultNetDocumentBinding.ForDocument<AetheriaEntitySnapshot>(registry),
+                CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)
             });
     }
 
@@ -52,6 +53,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaPlayerSettings),
         typeof(AetheriaRunState),
         typeof(AetheriaZoneState),
-        typeof(AetheriaEntitySnapshot)
+        typeof(AetheriaEntitySnapshot),
+        typeof(EveSurfaceState)
     ];
 }

@@ -60,13 +60,20 @@ documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
 corporation prefix lookup, and corporation name-file lookup without reading
 `DatabaseEntry` objects.
 
+`AetheriaCatalogSurfaceProjector` publishes the first Eve-compatible provider
+surface from typed catalog state. The importer materializes
+`gamecult.eve.surface.v1` at `eve:surface:aetheria.catalog.operator` with
+summary, trade-catalog, and corporation views. This is a typed CultCache
+provider document and a local mirror of the Eve contract until the shared Eve
+Unity UI Toolkit lowering package exists.
+
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
 records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
 for one migrated record of each catalog kind and checks that expanded item and
 corporation catalog facts survived materialization. The verifier also exercises
-the typed catalog snapshot query surface. Use it after import when
-`GameData/aetheria-world.cc` changes.
+the typed catalog snapshot query surface and the published Eve catalog surface.
+Use it after import when `GameData/aetheria-world.cc` changes.
 
 Current rebuild notes:
 

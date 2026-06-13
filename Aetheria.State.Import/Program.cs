@@ -122,6 +122,8 @@ foreach (var nameFile in parsedNameFiles)
     await node.PutLegacyNameFileAsync(nameFile);
 }
 
+await node.PutCatalogSurfaceAsync(AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), capturedAtUtc));
+
 await node.FlushAsync();
 
 Console.WriteLine($"Aetheria legacy catalog mapped into typed state: {statePath}");
