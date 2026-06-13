@@ -40,6 +40,28 @@ public sealed class AetheriaCatalogSnapshot
     public IEnumerable<AetheriaItemDefinition> TradeItems =>
         Items.Where(item => item.Price > 0).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
 
+    public IEnumerable<AetheriaItemDefinition> EquipmentItems =>
+        Items.Where(item => !string.IsNullOrWhiteSpace(item.HardpointType))
+            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+
+    public IEnumerable<AetheriaItemDefinition> FindItemsByBehavior(string behaviorKind)
+    {
+        return string.IsNullOrWhiteSpace(behaviorKind)
+            ? []
+            : Items
+                .Where(item => item.BehaviorKinds.Contains(behaviorKind, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public IEnumerable<AetheriaItemDefinition> FindItemsByHardpoint(string hardpointType)
+    {
+        return string.IsNullOrWhiteSpace(hardpointType)
+            ? []
+            : Items
+                .Where(item => string.Equals(item.HardpointType, hardpointType, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+    }
+
     public AetheriaItemDefinition? FindItemByLegacyId(string legacyId)
     {
         return TryGet(_itemsByLegacyId, legacyId);

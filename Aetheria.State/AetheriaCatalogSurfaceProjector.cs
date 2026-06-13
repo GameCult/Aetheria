@@ -46,9 +46,11 @@ public static class AetheriaCatalogSurfaceProjector
                     Node(
                         "aetheria.catalog.summary",
                         "grid",
-                        [("columns", "4")],
+                        [("columns", "6")],
                         Metric("summary.items", "Items", catalog.Items.Count.ToString()),
                         Metric("summary.trade", "Trade Items", catalog.TradeItems.Count().ToString()),
+                        Metric("summary.equipment", "Equipment", catalog.EquipmentItems.Count().ToString()),
+                        Metric("summary.behaviors", "Behavior Kinds", catalog.Items.SelectMany(item => item.BehaviorKinds).Distinct().Count().ToString()),
                         Metric("summary.corporations", "Corporations", catalog.Corporations.Count.ToString()),
                         Metric("summary.nameFiles", "Name Files", catalog.NameFiles.Count.ToString())),
                     Node(

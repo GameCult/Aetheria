@@ -46,7 +46,10 @@ raw MessagePack union pass that maps stable catalog fields into typed
 item/faction/name-file documents without compiling Unity's legacy domain model
 into `Aetheria.State`. The current checked-in catalog maps to 115 item
 definitions, 12 factions, and 12 name files. Typed item definitions include
-legacy manufacturer IDs, price, shape dimensions, and occupied cell counts.
+legacy manufacturer IDs, price, shape dimensions, occupied cell counts, and
+stable equipment facets: hardpoint type, hull type, behavior kind fingerprints,
+stack size, durability, and weapon range/caliber/type/fire/modifier
+classifications.
 Typed corporation documents include the legacy short name, the true description
 field from key 3, name-file and boss-hull legacy IDs, influence distance,
 allegiance count, and music bank IDs. Runtime object graphs, behaviors, full
@@ -57,8 +60,8 @@ not as resolvable catalog links.
 
 `AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
 documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
-corporation prefix lookup, and corporation name-file lookup without reading
-`DatabaseEntry` objects.
+corporation prefix lookup, corporation name-file lookup, equipment items,
+behavior lookup, and hardpoint lookup without reading `DatabaseEntry` objects.
 
 `AetheriaCatalogSurfaceProjector` publishes the first Eve-compatible provider
 surface from typed catalog state. The importer materializes

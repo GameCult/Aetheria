@@ -58,16 +58,19 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   compiling the old Unity domain model into `Aetheria.State`. The current
   checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
   files. Item definitions now carry legacy manufacturer IDs, price, shape
-  dimensions, and occupied cell counts. Corporation documents now carry the
-  legacy short name, true description from key 3, name-file and boss-hull legacy
-  IDs, influence distance, allegiance count, and music bank IDs. Empty legacy
-  GUID references are imported as absent links rather than as `Guid.Empty`
-  catalog IDs.
+  dimensions, occupied cell counts, hardpoint type, hull type, behavior kind
+  fingerprints, stack size, durability, and weapon range/caliber/type/fire/
+  modifier classifications. Corporation documents now carry the legacy short
+  name, true description from key 3, name-file and boss-hull legacy IDs,
+  influence distance, allegiance count, and music bank IDs. Empty legacy GUID
+  references are imported as absent links rather than as `Guid.Empty` catalog
+  IDs.
   `Aetheria.State` now owns the canonical legacy-ID record key mapping for
   migrated item, corporation, and name-file documents.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
-  corporation name-file queries without touching `DatabaseEntry`.
+  corporation name-file queries, plus equipment, hardpoint, and behavior
+  queries without touching `DatabaseEntry`.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -81,7 +84,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   ledger counts match actual typed catalog records, that the legacy-ID lookup
   API resolves migrated item, corporation, and name-file documents, and that
   the expanded typed catalog facts, typed catalog snapshot queries, and typed
-  Eve catalog surface are present in the `.cc` store.
+  Eve catalog surface are present in the `.cc` store. The current verifier sees
+  39 behavior-bearing item definitions, 51 hardpoint-tagged equipment items, 3
+  hull items, and 18 weapon-facet item definitions.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
@@ -238,9 +243,11 @@ First Aetheria surfaces to publish:
    - Done: implement a bounded raw payload mapper that converts stable old
      `DatabaseEntry` union fields into typed item/faction/name-file catalog
      documents without making `Aetheria.State` depend on Unity's legacy model.
+   - Done: expand the stable item mapper to include equipment facets and
+     behavior kind fingerprints needed by future Unity/Eve catalog consumers.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     behaviors, Unity shapes, simulation state, and any catalog fields not
-     covered by the stable scalar pass.
+     full behavior payloads, Unity shape masks, simulation state, and any
+     catalog fields not covered by the stable scalar/fingerprint pass.
 
 4. Runtime cutover
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.

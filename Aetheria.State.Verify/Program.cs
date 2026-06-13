@@ -43,6 +43,13 @@ if (nameFiles.Length == 0)
 var pricedItems = items.Count(item => item.Price > 0);
 var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
 var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
+var behaviorItems = items.Count(item => item.BehaviorCount > 0 && item.BehaviorKinds.Length > 0);
+var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
+var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
+var weaponItems = items.Count(item =>
+    !string.IsNullOrWhiteSpace(item.WeaponType) &&
+    !string.IsNullOrWhiteSpace(item.WeaponRange) &&
+    !string.IsNullOrWhiteSpace(item.WeaponCaliber));
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 
@@ -61,6 +68,26 @@ if (shapedItems == 0)
     throw new InvalidOperationException("Typed item definitions did not import any shape dimensions.");
 }
 
+if (behaviorItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any behavior fingerprints.");
+}
+
+if (hardpointItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any hardpoint types.");
+}
+
+if (hullItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any hull types.");
+}
+
+if (weaponItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any weapon facets.");
+}
+
 if (describedCorporations == 0)
 {
     throw new InvalidOperationException("Typed corporations did not import descriptions from legacy key 3.");
@@ -76,6 +103,27 @@ if (tradeItems.Length != pricedItems)
 {
     throw new InvalidOperationException(
         $"Typed catalog trade item query mismatch: query={tradeItems.Length}, priced={pricedItems}.");
+}
+
+var equipmentItems = catalog.EquipmentItems.ToArray();
+if (equipmentItems.Length != hardpointItems)
+{
+    throw new InvalidOperationException(
+        $"Typed catalog equipment item query mismatch: query={equipmentItems.Length}, hardpoint={hardpointItems}.");
+}
+
+var behaviorKind = items.SelectMany(item => item.BehaviorKinds).FirstOrDefault()
+    ?? throw new InvalidOperationException("Cannot verify typed catalog behavior query: no behavior kinds.");
+if (!catalog.FindItemsByBehavior(behaviorKind).Any())
+{
+    throw new InvalidOperationException($"Typed catalog behavior query failed for {behaviorKind}.");
+}
+
+var hardpointType = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.HardpointType))?.HardpointType
+    ?? throw new InvalidOperationException("Cannot verify typed catalog hardpoint query: no hardpoint types.");
+if (!catalog.FindItemsByHardpoint(hardpointType).Any())
+{
+    throw new InvalidOperationException($"Typed catalog hardpoint query failed for {hardpointType}.");
 }
 
 var manufacturedItem = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
@@ -131,6 +179,7 @@ Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
+Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");

@@ -180,6 +180,89 @@ internal static class LegacyCatalogReader
     };
 
     private static readonly HashSet<int> ItemUnionKeys = [0, 1, 2, 3, 29, 30, 31];
+    private static readonly Dictionary<int, string> HardpointTypes = CreateEnumMap([
+        "Hull",
+        "Tool",
+        "Thermal",
+        "Thruster",
+        "WarpDrive",
+        "Reactor",
+        "Radiator",
+        "Shield",
+        "Sensors",
+        "Energy",
+        "Ballistic",
+        "Launcher",
+        "ControlModule",
+        "AetherDrive"
+    ]);
+    private static readonly Dictionary<int, string> HullTypes = CreateEnumMap(["Ship", "Station", "Turret"]);
+    private static readonly Dictionary<int, string> WeaponRanges = CreateEnumMap(["Melee", "Short", "Medium", "Long"]);
+    private static readonly Dictionary<int, string> WeaponCalibers = CreateEnumMap(["Small", "Medium", "Large", "ExtraLarge"]);
+    private static readonly Dictionary<int, string> WeaponTypes = CreateEnumMap([
+        "ElectromagneticallyPropelled",
+        "ExplosivelyPropelled",
+        "Laser",
+        "Electrostatic",
+        "ParticleProjection",
+        "Missile",
+        "MicroMissile",
+        "SplitMissile",
+        "Mine",
+        "Jet"
+    ]);
+    private static readonly Dictionary<int, string> WeaponFireTypeFlags = new()
+    {
+        [1 << 0] = "Direct",
+        [1 << 1] = "Guided",
+        [1 << 2] = "Seeking",
+        [1 << 3] = "Continuous",
+        [1 << 4] = "Charged"
+    };
+    private static readonly Dictionary<int, string> WeaponModifierFlags = new()
+    {
+        [1 << 0] = "Airburst",
+        [1 << 1] = "Incendiary",
+        [1 << 2] = "ArmorPenetrating",
+        [1 << 3] = "NegativeEntropy",
+        [1 << 4] = "RapidFire",
+        [1 << 5] = "Burst",
+        [1 << 6] = "Cluster"
+    };
+    private static readonly Dictionary<int, string> BehaviorUnionNames = new()
+    {
+        [0] = "GuidedWeapon",
+        [1] = "Launcher",
+        [2] = "Reactor",
+        [3] = "Radiator",
+        [4] = "StatModifier",
+        [5] = "Sensor",
+        [6] = "Reflector",
+        [7] = "Shield",
+        [8] = "Thruster",
+        [9] = "Wear",
+        [10] = "VelocityConversion",
+        [11] = "VelocityLimit",
+        [12] = "AetherDrive",
+        [15] = "Cooldown",
+        [16] = "Heat",
+        [18] = "ItemUsage",
+        [20] = "Switch",
+        [21] = "Trigger",
+        [22] = "Visibility",
+        [23] = "Thermotoggle",
+        [24] = "EnergyDraw",
+        [26] = "MiningTool",
+        [28] = "ResourceScanner",
+        [31] = "Capacitor",
+        [32] = "Cockpit",
+        [33] = "HeatStorage",
+        [34] = "TurretController",
+        [35] = "InstantWeapon",
+        [36] = "ConstantWeapon",
+        [37] = "ChargedWeapon",
+        [38] = "AutoWeapon"
+    };
 
     public static IReadOnlyList<LegacyCatalogEntry> Read(string catalogPath)
     {
@@ -222,6 +305,7 @@ internal static class LegacyCatalogReader
         var name = GetString(payload, 1);
         var description = GetString(payload, 2);
         var shape = ReadShape(payload, 5);
+        var behaviorKinds = ReadBehaviorKinds(payload, unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10);
         var summary = new AetheriaLegacyCatalogEntrySummary
         {
             LegacyId = legacyId,
@@ -247,7 +331,20 @@ internal static class LegacyCatalogReader
                     ShapeWidth = shape.Width,
                     ShapeHeight = shape.Height,
                     OccupiedCells = shape.OccupiedCells,
-                    Tags = [unionName, "legacy-catalog"]
+                    HardpointType = GetHardpointType(unionKey, payload),
+                    HullType = unionKey == 3 ? GetEnumName(payload, 25, HullTypes) : "",
+                    BehaviorKinds = behaviorKinds,
+                    BehaviorCount = behaviorKinds.Length,
+                    MaxStack = unionKey == 0 ? GetInt(payload, 9) : 0,
+                    Stackable = false,
+                    Duration = 0,
+                    Durability = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 12) : 0,
+                    WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
+                    WeaponCaliber = unionKey == 31 ? GetEnumName(payload, 25, WeaponCalibers) : "",
+                    WeaponType = unionKey == 31 ? GetEnumName(payload, 26, WeaponTypes) : "",
+                    WeaponFireTypes = unionKey == 31 ? GetFlags(payload, 27, WeaponFireTypeFlags) : "",
+                    WeaponModifiers = unionKey == 31 ? GetFlags(payload, 28, WeaponModifierFlags) : "",
+                    Tags = [unionName, "legacy-catalog", .. behaviorKinds.Select(kind => $"behavior:{kind}")]
                 }
                 : null,
             unionKey == 13
@@ -421,6 +518,11 @@ internal static class LegacyCatalogReader
         };
     }
 
+    private static bool GetBool(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        return payload.TryGetValue(key, out var value) && value is true;
+    }
+
     private static uint GetUInt(IReadOnlyDictionary<int, object?> payload, int key)
     {
         if (!payload.TryGetValue(key, out var value) || value == null)
@@ -446,6 +548,82 @@ internal static class LegacyCatalogReader
     private static int GetArrayLength(IReadOnlyDictionary<int, object?> payload, int key)
     {
         return payload.TryGetValue(key, out var value) && value is object?[] array ? array.Length : 0;
+    }
+
+    private static string GetHardpointType(int unionKey, IReadOnlyDictionary<int, object?> payload)
+    {
+        return unionKey switch
+        {
+            3 => "Hull",
+            29 or 30 => "Tool",
+            2 or 31 => GetEnumName(payload, 23, HardpointTypes),
+            _ => ""
+        };
+    }
+
+    private static string GetEnumName(
+        IReadOnlyDictionary<int, object?> payload,
+        int key,
+        IReadOnlyDictionary<int, string> names)
+    {
+        var value = GetInt(payload, key);
+        return names.TryGetValue(value, out var name) ? name : "";
+    }
+
+    private static string GetFlags(
+        IReadOnlyDictionary<int, object?> payload,
+        int key,
+        IReadOnlyDictionary<int, string> names)
+    {
+        var value = GetInt(payload, key);
+        if (value == 0)
+        {
+            return "None";
+        }
+
+        var flags = names
+            .Where(entry => (value & entry.Key) == entry.Key)
+            .Select(entry => entry.Value)
+            .ToArray();
+        return flags.Length == 0 ? "" : string.Join("|", flags);
+    }
+
+    private static string[] ReadBehaviorKinds(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value is not object?[] behaviors)
+        {
+            return [];
+        }
+
+        return behaviors
+            .Select(ReadBehaviorKind)
+            .Where(kind => !string.IsNullOrWhiteSpace(kind))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string ReadBehaviorKind(object? value)
+    {
+        if (value is not object?[] union || union.Length < 1)
+        {
+            return "";
+        }
+
+        var unionKey = union[0] switch
+        {
+            long longValue => checked((int) longValue),
+            int intValue => intValue,
+            _ => -1
+        };
+        return BehaviorUnionNames.TryGetValue(unionKey, out var name) ? name : $"behavior:{unionKey}";
+    }
+
+    private static Dictionary<int, string> CreateEnumMap(string[] names)
+    {
+        return names
+            .Select((name, index) => new { name, index })
+            .ToDictionary(entry => entry.index, entry => entry.name);
     }
 
     private static string[] GetStringArraySample(IReadOnlyDictionary<int, object?> payload, int key, int max)
