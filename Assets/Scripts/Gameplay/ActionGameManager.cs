@@ -336,13 +336,84 @@ public class ActionGameManager : MonoBehaviour
                 .Select(ZoneIndex)
                 .Where(index => index >= 0)
                 .OrderBy(index => index)
-                .ToArray() ?? Array.Empty<int>()
+                .ToArray() ?? Array.Empty<int>(),
+            Zones = Zone == null ? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>() : new[] { ProjectZoneSnapshot(Zone) }
         };
+    }
+
+    private AetheriaRuntimeZoneSnapshotCommit ProjectZoneSnapshot(Zone zone)
+    {
+        var galaxyZone = zone.GalaxyZone;
+        return new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = ZoneIndex(galaxyZone),
+            Name = galaxyZone?.Name ?? "",
+            PositionX = galaxyZone?.Position.x ?? 0,
+            PositionY = galaxyZone?.Position.y ?? 0,
+            AdjacentZoneIndices = galaxyZone?.AdjacentZones
+                .Select(ZoneIndex)
+                .Where(index => index >= 0)
+                .OrderBy(index => index)
+                .ToArray() ?? Array.Empty<int>(),
+            FactionIndices = galaxyZone?.Factions?
+                .Select(FactionIndex)
+                .Where(index => index >= 0)
+                .OrderBy(index => index)
+                .ToArray() ?? Array.Empty<int>(),
+            OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
+            Entities = zone.Entities
+                .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
+                .ToArray()
+        };
+    }
+
+    private AetheriaRuntimeEntitySnapshotCommit ProjectEntitySnapshot(Zone zone, Entity entity, int entityIndex)
+    {
+        return new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = entityIndex,
+            Name = entity.Name ?? "",
+            Kind = entity is Ship ? "ship" : entity is OrbitalEntity ? "orbital" : "entity",
+            PositionX = entity.Position.x,
+            PositionY = entity.Position.y,
+            PositionZ = entity.Position.z,
+            DirectionX = entity.Direction.x,
+            DirectionY = entity.Direction.y,
+            FactionLegacyId = entity.Faction?.ID.ToString("D") ?? "",
+            HullItemLegacyId = entity.Hull?.Data?.LinkID.ToString("D") ?? "",
+            Equipment = ProjectEquippedSlots(entity.Equipment),
+            CargoBays = ProjectEquippedSlots(entity.CargoBays),
+            DockingBays = ProjectEquippedSlots(entity.DockingBays),
+            ChildEntityIndices = entity.Children?
+                .Select(child => zone.Entities.IndexOf(child))
+                .Where(index => index >= 0)
+                .ToArray() ?? Array.Empty<int>(),
+            WeaponGroups = entity.WeaponGroups?
+                .Select(group => (IReadOnlyList<int>)group.items.Select(item => entity.Equipment.IndexOf(item)).Where(index => index >= 0).ToArray())
+                .ToArray() ?? Array.Empty<IReadOnlyList<int>>()
+        };
+    }
+
+    private static AetheriaRuntimeLoadoutItemSlotCommit[] ProjectEquippedSlots(IEnumerable<EquippedItem> slots)
+    {
+        return slots?
+            .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = slot.Position.x,
+                Y = slot.Position.y,
+                Item = ProjectLoadoutItem(slot.EquippableItem)
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
     }
 
     private static int ZoneIndex(GalaxyZone zone)
     {
         return CurrentGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(CurrentGalaxy.Zones, zone);
+    }
+
+    private static int FactionIndex(Faction faction)
+    {
+        return CurrentGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(CurrentGalaxy.Factions, faction);
     }
 
     public void SaveLoadout(EntityPack pack)

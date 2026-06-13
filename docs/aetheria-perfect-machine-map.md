@@ -32,9 +32,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   from the `.cc` directory store before constructing the temporary legacy
   `ItemManager`. Player settings saves, loadout saves, shutdown checkpoints,
   and wormhole transition checkpoints now queue typed `.cc.pending` Verse
-  commit commands through the embedded runtime state package. `Aetheria.State`
-  owns applying those command envelopes into canonical `AetheriaPlayerSettings`,
-  `AetheriaLoadoutTemplate`, and `AetheriaRunState` documents through
+  commit commands through the embedded runtime state package. Run checkpoint
+  commands include the current zone plus its runtime entity snapshots.
+  `Aetheria.State` owns applying those command envelopes into canonical
+  `AetheriaPlayerSettings`, `AetheriaLoadoutTemplate`, `AetheriaRunState`,
+  `AetheriaZoneState`, and `AetheriaEntitySnapshot` documents through
   `AetheriaStateNode`. Local run saves, loadouts, player settings files, zone
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
@@ -67,9 +69,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
   position, direction, faction, hull, equipment slots, weapon groups, and a stat
-  grid. This proves the `.zone` replacement graph is durable typed state; Unity
-  `ZonePack` and `EntityPack` are still runtime construction projections until
-  the runtime package is wired.
+  grid. This proves the `.zone` replacement graph is durable typed state. Unity
+  now queues current-zone/current-entity-collection snapshots through the
+  runtime commit log during run checkpoints; `ZonePack` and `EntityPack` remain
+  runtime construction/loadout projections rather than durable file formats.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -157,7 +160,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   loadout-template, and run-checkpoint command envelopes under
   `aetheria-world.cc.pending`. This log is command-only: it cannot decide
   canonical state, and the `Aetheria.State` node applicator deletes applied
-  commands after writing typed documents.
+  commands after writing typed documents. Run checkpoint envelopes now carry
+  current-zone and entity snapshots so the old `.zone` file path has a live
+  typed runtime projection path.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -298,11 +303,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   local save and editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
   methods, not importer-local string concatenation. Player settings, loadout
-  templates, and lightweight run checkpoints have a shared Unity commit-log
-  primitive plus a typed state node applicator. Run, zone, and entity snapshot
-  state also have typed node put/get paths; full zone/entity runtime snapshot
-  projection still needs to move through the same command/apply spine. The old
-  `SaveState`/`SaveZone` command surface is gone.
+  templates, and run checkpoints have a shared Unity commit-log primitive plus
+  a typed state node applicator. Run checkpoints now carry the current zone and
+  its entity snapshots through that same command/apply spine. Whole-galaxy
+  unloaded-zone projection still needs to be added once lazy generation has a
+  typed state owner. The old `SaveState`/`SaveZone` command surface is gone.
   The catalog operator UI is emitted as a typed Eve surface document derived
   from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, typed
@@ -513,6 +518,9 @@ First Aetheria surfaces to publish:
    - Done: replace warning-only player settings, loadout, shutdown, and
      wormhole save paths with typed `.cc.pending` Verse commit commands and a
      state-node applicator that writes canonical typed documents.
+   - Done: extend run checkpoint commands to carry current-zone and entity
+     snapshots into canonical `AetheriaZoneState` and `AetheriaEntitySnapshot`
+     documents.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.
@@ -551,9 +559,9 @@ First Aetheria surfaces to publish:
   package-owned runtime catalog read models without a MessagePack catalog cache,
   including typed item masks, interior masks, hardpoint definitions,
   corporation/name-file links, and typed behavior payloads. It also proves the
-  Unity runtime state commit log can queue a player-settings command, the
-  `Aetheria.State` node can apply it into canonical typed state, and the
-  command is cleared after application.
+  Unity runtime state commit log can queue player-settings and run snapshot
+  commands, the `Aetheria.State` node can apply them into canonical typed
+  settings/run/zone/entity state, and commands are cleared after application.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

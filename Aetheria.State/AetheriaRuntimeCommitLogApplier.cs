@@ -50,6 +50,31 @@ public static class AetheriaRuntimeCommitLogApplier
                     break;
                 case "run_checkpoint":
                     var run = command.RunState ?? throw MissingPayload(command);
+                    var zoneKeys = new List<string>();
+                    foreach (var zone in command.ZoneSnapshots)
+                    {
+                        var zoneKey = ZoneKey(run.RunId, zone.ZoneIndex);
+                        var entityKeys = new List<string>();
+                        foreach (var entity in zone.Entities)
+                        {
+                            var entityKey = EntityKey(run.RunId, zone.ZoneIndex, entity.EntityIndex);
+                            entity.Snapshot.ChildEntityKeys = entity.Snapshot.ChildEntityKeys
+                                .Select(key => key.StartsWith("pending:entity:", StringComparison.Ordinal)
+                                    && int.TryParse(key["pending:entity:".Length..], out var childIndex)
+                                        ? EntityKey(run.RunId, zone.ZoneIndex, childIndex).ToString()
+                                        : key)
+                                .ToArray();
+                            await node.PutEntitySnapshotAsync(entityKey, entity.Snapshot).ConfigureAwait(false);
+                            entityKeys.Add(entityKey.ToString());
+                        }
+
+                        zone.State.EntityKeys = entityKeys.ToArray();
+                        await node.PutZoneStateAsync(zoneKey, zone.State).ConfigureAwait(false);
+                        zoneKeys.Add(zoneKey.ToString());
+                    }
+
+                    if (zoneKeys.Count > 0)
+                        run.ZoneKeys = zoneKeys.ToArray();
                     await node.PutRunStateAsync(RunKey(run.RunId), run).ConfigureAwait(false);
                     report.AppliedRunCheckpoints++;
                     break;
@@ -98,7 +123,8 @@ public static class AetheriaRuntimeCommitLogApplier
                     kind,
                     commandId,
                     createdAtUtc,
-                    ReadRunState(ref reader, createdAtUtc),
+                    ReadRunState(ref reader, createdAtUtc, out var zoneSnapshots),
+                    zoneSnapshots,
                     path),
                 _ => throw new InvalidDataException($"Unknown Aetheria runtime commit kind '{kind}' in {path}.")
             };
@@ -184,10 +210,13 @@ public static class AetheriaRuntimeCommitLogApplier
         };
     }
 
-    private static AetheriaRunState ReadRunState(ref MessagePackReader reader, string updatedAtUtc)
+    private static AetheriaRunState ReadRunState(
+        ref MessagePackReader reader,
+        string updatedAtUtc,
+        out AetheriaPendingZoneSnapshot[] zoneSnapshots)
     {
         var fields = reader.ReadArrayHeader();
-        return new AetheriaRunState
+        var run = new AetheriaRunState
         {
             RunId = ReadFieldString(ref reader, fields, 0),
             IsTutorial = ReadFieldBool(ref reader, fields, 1),
@@ -198,6 +227,97 @@ public static class AetheriaRuntimeCommitLogApplier
             DiscoveredZoneIndices = ReadIntArray(ref reader, fields, 6),
             UpdatedAtUtc = updatedAtUtc
         };
+        zoneSnapshots = ReadZoneSnapshots(ref reader, fields, 7);
+        return run;
+    }
+
+    private static AetheriaPendingZoneSnapshot[] ReadZoneSnapshots(ref MessagePackReader reader, int fields, int index)
+    {
+        if (index >= fields) return [];
+        var count = reader.ReadArrayHeader();
+        var zones = new AetheriaPendingZoneSnapshot[count];
+        for (var item = 0; item < count; item++)
+        {
+            var itemFields = reader.ReadArrayHeader();
+            var zoneIndex = ReadFieldInt32(ref reader, itemFields, 0);
+            var state = new AetheriaZoneState
+            {
+                Name = ReadFieldString(ref reader, itemFields, 1),
+                Position = new AetheriaVector2
+                {
+                    X = ReadFieldDouble(ref reader, itemFields, 2),
+                    Y = ReadFieldDouble(ref reader, itemFields, 3)
+                },
+                AdjacentZoneIndices = ReadIntArray(ref reader, itemFields, 4),
+                FactionIndices = ReadIntArray(ref reader, itemFields, 5),
+                OwnerFactionIndex = ReadFieldInt32(ref reader, itemFields, 6)
+            };
+            zones[item] = new AetheriaPendingZoneSnapshot(
+                zoneIndex,
+                state,
+                ReadEntitySnapshots(ref reader, itemFields, 7));
+        }
+
+        return zones;
+    }
+
+    private static AetheriaPendingEntitySnapshot[] ReadEntitySnapshots(ref MessagePackReader reader, int fields, int index)
+    {
+        if (index >= fields) return [];
+        var count = reader.ReadArrayHeader();
+        var entities = new AetheriaPendingEntitySnapshot[count];
+        for (var item = 0; item < count; item++)
+        {
+            var itemFields = reader.ReadArrayHeader();
+            var entityIndex = ReadFieldInt32(ref reader, itemFields, 0);
+            var snapshot = new AetheriaEntitySnapshot
+            {
+                Name = ReadFieldString(ref reader, itemFields, 1),
+                Kind = ReadFieldString(ref reader, itemFields, 2),
+                Position = new AetheriaVector3
+                {
+                    X = ReadFieldDouble(ref reader, itemFields, 3),
+                    Y = ReadFieldDouble(ref reader, itemFields, 4),
+                    Z = ReadFieldDouble(ref reader, itemFields, 5)
+                },
+                Direction = new AetheriaVector2
+                {
+                    X = ReadFieldDouble(ref reader, itemFields, 6),
+                    Y = ReadFieldDouble(ref reader, itemFields, 7)
+                },
+                FactionKey = ReferenceKey("aetheria.corporation", ReadFieldString(ref reader, itemFields, 8)),
+                HullItemKey = ReferenceKey("aetheria.item_definition", ReadFieldString(ref reader, itemFields, 9)),
+                Equipment = ReadEntityItemSlots(ref reader, itemFields, 10),
+                CargoBays = ReadEntityItemSlots(ref reader, itemFields, 11),
+                DockingBays = ReadEntityItemSlots(ref reader, itemFields, 12),
+                ChildEntityKeys = ReadIntArray(ref reader, itemFields, 13)
+                    .Select(childIndex => $"pending:entity:{childIndex}")
+                    .ToArray(),
+                WeaponGroups = ReadWeaponGroups(ref reader, itemFields, 14)
+            };
+            entities[item] = new AetheriaPendingEntitySnapshot(entityIndex, snapshot);
+        }
+
+        return entities;
+    }
+
+    private static AetheriaEntityItemSlot[] ReadEntityItemSlots(ref MessagePackReader reader, int fields, int index)
+    {
+        var slots = ReadItemSlots(ref reader, fields, index);
+        return slots
+            .Select(slot => new AetheriaEntityItemSlot
+            {
+                Position = slot.Position,
+                ItemKey = slot.Item.ItemKey
+            })
+            .ToArray();
+    }
+
+    private static AetheriaWeaponGroupSnapshot[] ReadWeaponGroups(ref MessagePackReader reader, int fields, int index)
+    {
+        return ReadIntArrayArray(ref reader, fields, index)
+            .Select(group => new AetheriaWeaponGroupSnapshot { EquipmentIndices = group })
+            .ToArray();
     }
 
     private static AetheriaStoryFileHash[] ReadStoryFileHashes(ref MessagePackReader reader, int fields, int index)
@@ -350,6 +470,16 @@ public static class AetheriaRuntimeCommitLogApplier
         return new CultRecordKey($"global:aetheria.run_state.{StableToken(runId)}.v1");
     }
 
+    private static CultRecordKey ZoneKey(string runId, int zoneIndex)
+    {
+        return new CultRecordKey($"global:aetheria.run_state.{StableToken(runId)}.zone.{zoneIndex}.v1");
+    }
+
+    private static CultRecordKey EntityKey(string runId, int zoneIndex, int entityIndex)
+    {
+        return new CultRecordKey($"global:aetheria.run_state.{StableToken(runId)}.zone.{zoneIndex}.entity.{entityIndex}.v1");
+    }
+
     private static string ReferenceKey(string documentName, string legacyId)
     {
         return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{documentName}:legacy:{legacyId}";
@@ -380,7 +510,8 @@ public static class AetheriaRuntimeCommitLogApplier
             string path,
             AetheriaPlayerSettings? playerSettings,
             AetheriaLoadoutTemplate? loadoutTemplate,
-            AetheriaRunState? runState)
+            AetheriaRunState? runState,
+            AetheriaPendingZoneSnapshot[] zoneSnapshots)
         {
             Kind = kind;
             CommandId = commandId;
@@ -389,11 +520,12 @@ public static class AetheriaRuntimeCommitLogApplier
             PlayerSettings = playerSettings;
             LoadoutTemplate = loadoutTemplate;
             RunState = runState;
+            ZoneSnapshots = zoneSnapshots;
         }
 
         public static PendingCommand Empty(string kind, string commandId, string createdAtUtc, string path)
         {
-            return new PendingCommand(kind, commandId, createdAtUtc, path, null, null, null);
+            return new PendingCommand(kind, commandId, createdAtUtc, path, null, null, null, []);
         }
 
         public static PendingCommand ForPlayerSettings(
@@ -403,7 +535,7 @@ public static class AetheriaRuntimeCommitLogApplier
             AetheriaPlayerSettings settings,
             string path)
         {
-            return new PendingCommand(kind, commandId, createdAtUtc, path, settings, null, null);
+            return new PendingCommand(kind, commandId, createdAtUtc, path, settings, null, null, []);
         }
 
         public static PendingCommand ForLoadoutTemplate(
@@ -413,7 +545,7 @@ public static class AetheriaRuntimeCommitLogApplier
             AetheriaLoadoutTemplate loadout,
             string path)
         {
-            return new PendingCommand(kind, commandId, createdAtUtc, path, null, loadout, null);
+            return new PendingCommand(kind, commandId, createdAtUtc, path, null, loadout, null, []);
         }
 
         public static PendingCommand ForRunState(
@@ -421,9 +553,10 @@ public static class AetheriaRuntimeCommitLogApplier
             string commandId,
             string createdAtUtc,
             AetheriaRunState run,
+            AetheriaPendingZoneSnapshot[] zoneSnapshots,
             string path)
         {
-            return new PendingCommand(kind, commandId, createdAtUtc, path, null, null, run);
+            return new PendingCommand(kind, commandId, createdAtUtc, path, null, null, run, zoneSnapshots);
         }
 
         public string Kind { get; }
@@ -433,5 +566,35 @@ public static class AetheriaRuntimeCommitLogApplier
         public AetheriaPlayerSettings? PlayerSettings { get; }
         public AetheriaLoadoutTemplate? LoadoutTemplate { get; }
         public AetheriaRunState? RunState { get; }
+        public AetheriaPendingZoneSnapshot[] ZoneSnapshots { get; }
+    }
+
+    private readonly struct AetheriaPendingZoneSnapshot
+    {
+        public AetheriaPendingZoneSnapshot(
+            int zoneIndex,
+            AetheriaZoneState state,
+            AetheriaPendingEntitySnapshot[] entities)
+        {
+            ZoneIndex = zoneIndex;
+            State = state;
+            Entities = entities;
+        }
+
+        public int ZoneIndex { get; }
+        public AetheriaZoneState State { get; }
+        public AetheriaPendingEntitySnapshot[] Entities { get; }
+    }
+
+    private readonly struct AetheriaPendingEntitySnapshot
+    {
+        public AetheriaPendingEntitySnapshot(int entityIndex, AetheriaEntitySnapshot snapshot)
+        {
+            EntityIndex = entityIndex;
+            Snapshot = snapshot;
+        }
+
+        public int EntityIndex { get; }
+        public AetheriaEntitySnapshot Snapshot { get; }
     }
 }

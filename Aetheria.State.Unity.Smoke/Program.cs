@@ -144,8 +144,59 @@ try
             TutorialPassed = true,
             ActionBarInputs = new[] { "<Keyboard>/1" }
         });
+    AetheriaRuntimeStateCommitLog.QueueRunCheckpoint(
+        commitSmokeStatePath,
+        new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "smoke-run",
+            CurrentZoneIndex = 0,
+            CurrentZoneEntityIndex = 0,
+            DiscoveredZoneIndices = new[] { 0 },
+            Zones = new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Name = "Unity Smoke Zone",
+                    PositionX = 12.0,
+                    PositionY = -4.0,
+                    AdjacentZoneIndices = new[] { 1 },
+                    OwnerFactionIndex = 0,
+                    Entities = new[]
+                    {
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 0,
+                            Name = "Unity Smoke Ship",
+                            Kind = "ship",
+                            PositionX = 1.0,
+                            PositionY = 2.0,
+                            PositionZ = 3.0,
+                            DirectionX = 0.0,
+                            DirectionY = 1.0,
+                            HullItemLegacyId = "smoke:hull",
+                            Equipment = new[]
+                            {
+                                new AetheriaRuntimeLoadoutItemSlotCommit
+                                {
+                                    X = 0,
+                                    Y = 0,
+                                    Item = new AetheriaRuntimeLoadoutItemCommit
+                                    {
+                                        ItemLegacyId = "smoke:weapon",
+                                        Quality = 0.9,
+                                        Durability = 0.8
+                                    }
+                                }
+                            },
+                            WeaponGroups = new[] { new[] { 0 } }
+                        }
+                    }
+                }
+            }
+        });
     var pending = AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath);
-    if (pending.Count != 1 ||
+    if (pending.Count != 2 ||
         pending[0].Kind != AetheriaRuntimeCommitKind.PlayerSettings ||
         pending[0].Schema != AetheriaRuntimeStateCommitLog.CommitSchema ||
         pending[0].Path != commit.Path)
@@ -156,12 +207,20 @@ try
     await using var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke");
     var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(commitNode);
     var settings = await commitNode.GetPlayerSettingsAsync();
+    var run = await commitNode.GetRunStateAsync(new("global:aetheria.run_state.smoke-run.v1"));
+    var zone = await commitNode.GetZoneStateAsync(new("global:aetheria.run_state.smoke-run.zone.0.v1"));
+    var entity = await commitNode.GetEntitySnapshotAsync(new("global:aetheria.run_state.smoke-run.zone.0.entity.0.v1"));
     if (report.AppliedPlayerSettings != 1 ||
+        report.AppliedRunCheckpoints != 1 ||
         settings?.PlayerName != "Unity smoke" ||
         settings.Input.ActionBarInputs.Length != 1 ||
+        run?.ZoneKeys.Length != 1 ||
+        zone?.EntityKeys.Length != 1 ||
+        entity?.Equipment.Length != 1 ||
+        entity.WeaponGroups.Length != 1 ||
         AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count != 0)
     {
-        throw new InvalidOperationException("Runtime state commit log did not apply queued settings through the typed state node.");
+        throw new InvalidOperationException("Runtime state commit log did not apply queued settings/run snapshots through the typed state node.");
     }
 }
 finally
@@ -176,4 +235,4 @@ Console.WriteLine($"Interior/hardpoint sample: {interior.Name} {interior.Interio
 Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayload.Kind}/{behaviorPayload.Fields.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
-Console.WriteLine("Runtime state commit log smoke: player settings command queued, applied, and cleared");
+Console.WriteLine("Runtime state commit log smoke: settings and run zone/entity snapshots queued, applied, and cleared");

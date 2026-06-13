@@ -117,6 +117,38 @@ namespace GameCult.Aetheria.State.Unity
         public int CurrentZoneIndex { get; set; } = -1;
         public int CurrentZoneEntityIndex { get; set; } = -1;
         public IReadOnlyList<int> DiscoveredZoneIndices { get; set; } = Array.Empty<int>();
+        public IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit> Zones { get; set; } = Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
+    }
+
+    public sealed class AetheriaRuntimeZoneSnapshotCommit
+    {
+        public int ZoneIndex { get; set; } = -1;
+        public string Name { get; set; } = "";
+        public double PositionX { get; set; }
+        public double PositionY { get; set; }
+        public IReadOnlyList<int> AdjacentZoneIndices { get; set; } = Array.Empty<int>();
+        public IReadOnlyList<int> FactionIndices { get; set; } = Array.Empty<int>();
+        public int OwnerFactionIndex { get; set; } = -1;
+        public IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> Entities { get; set; } = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+    }
+
+    public sealed class AetheriaRuntimeEntitySnapshotCommit
+    {
+        public int EntityIndex { get; set; } = -1;
+        public string Name { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public double PositionX { get; set; }
+        public double PositionY { get; set; }
+        public double PositionZ { get; set; }
+        public double DirectionX { get; set; }
+        public double DirectionY { get; set; }
+        public string FactionLegacyId { get; set; } = "";
+        public string HullItemLegacyId { get; set; } = "";
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> Equipment { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> CargoBays { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> DockingBays { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+        public IReadOnlyList<int> ChildEntityIndices { get; set; } = Array.Empty<int>();
+        public IReadOnlyList<IReadOnlyList<int>> WeaponGroups { get; set; } = Array.Empty<IReadOnlyList<int>>();
     }
 
     public static class AetheriaRuntimeStateCommitLog
@@ -321,7 +353,7 @@ namespace GameCult.Aetheria.State.Unity
 
         private static void WriteRunCheckpoint(ref MessagePackWriter writer, AetheriaRuntimeRunCheckpointCommit run)
         {
-            writer.WriteArrayHeader(7);
+            writer.WriteArrayHeader(8);
             writer.Write(run.RunId ?? "");
             writer.Write(run.IsTutorial);
             writer.Write(run.EntranceZoneIndex);
@@ -329,6 +361,50 @@ namespace GameCult.Aetheria.State.Unity
             writer.Write(run.CurrentZoneIndex);
             writer.Write(run.CurrentZoneEntityIndex);
             WriteInts(ref writer, run.DiscoveredZoneIndices);
+            WriteZoneSnapshots(ref writer, run.Zones);
+        }
+
+        private static void WriteZoneSnapshots(ref MessagePackWriter writer, IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit>? zones)
+        {
+            zones ??= Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
+            writer.WriteArrayHeader(zones.Count);
+            foreach (var zone in zones)
+            {
+                writer.WriteArrayHeader(8);
+                writer.Write(zone.ZoneIndex);
+                writer.Write(zone.Name ?? "");
+                writer.Write(zone.PositionX);
+                writer.Write(zone.PositionY);
+                WriteInts(ref writer, zone.AdjacentZoneIndices);
+                WriteInts(ref writer, zone.FactionIndices);
+                writer.Write(zone.OwnerFactionIndex);
+                WriteEntitySnapshots(ref writer, zone.Entities);
+            }
+        }
+
+        private static void WriteEntitySnapshots(ref MessagePackWriter writer, IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit>? entities)
+        {
+            entities ??= Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            writer.WriteArrayHeader(entities.Count);
+            foreach (var entity in entities)
+            {
+                writer.WriteArrayHeader(15);
+                writer.Write(entity.EntityIndex);
+                writer.Write(entity.Name ?? "");
+                writer.Write(entity.Kind ?? "");
+                writer.Write(entity.PositionX);
+                writer.Write(entity.PositionY);
+                writer.Write(entity.PositionZ);
+                writer.Write(entity.DirectionX);
+                writer.Write(entity.DirectionY);
+                writer.Write(entity.FactionLegacyId ?? "");
+                writer.Write(entity.HullItemLegacyId ?? "");
+                WriteItemSlots(ref writer, entity.Equipment);
+                WriteItemSlots(ref writer, entity.CargoBays);
+                WriteItemSlots(ref writer, entity.DockingBays);
+                WriteInts(ref writer, entity.ChildEntityIndices);
+                WriteIntLists(ref writer, entity.WeaponGroups);
+            }
         }
 
         private static void WriteStrings(ref MessagePackWriter writer, IReadOnlyList<string>? values)
