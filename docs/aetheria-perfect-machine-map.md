@@ -127,7 +127,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   prefilters now run against typed catalog rows before any DTO projection is hydrated. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
-  now comes from typed state, not `AetherDB.msgpack`.
+  now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
+  applies typed row prefilters for size, hardpoint type, and behavior kind before
+  hydrating `ItemData` projections for legacy commodity filters, columns, and
+  buy actions.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
@@ -396,7 +399,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   remaining runtime single-ID item projection bridge, but typed catalog rows own
   the loadout candidate prefilters for hull type, shape, category, hardpoint
   type, and behavior kind before that bridge is invoked. The old trade debug UI
-  and console `give` command have been deleted. No live caller can enumerate
+  and console `give` command have been deleted. The surviving trade menu also
+  uses typed catalog rows for first-pass size, hardpoint, and behavior filters
+  before hydrating row projections. No live caller can enumerate
   legacy catalog entries or request catalog-shaped single entries through
   `ItemManager`.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
@@ -570,6 +575,8 @@ First Aetheria surfaces to publish:
      typed catalog rows before hydrating `HullData`/`BehaviorData` projections.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
+   - Done: move surviving trade menu size, hardpoint, and behavior filters onto
+     typed catalog row prefilters before row-level `ItemData` hydration.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

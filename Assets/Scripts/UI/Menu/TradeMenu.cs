@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Remoting.Contexts;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -222,6 +223,7 @@ public class TradeMenu : MonoBehaviour
             data => data.Shape.Width*data.Shape.Height));
         
         var items = Inventory.Cargo.Keys
+            .Where(PassesTypedTradeFilters)
             .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
@@ -354,6 +356,48 @@ public class TradeMenu : MonoBehaviour
                     }
                 }
             }));
+    }
+
+    private bool PassesTypedTradeFilters(ItemInstance item)
+    {
+        var typedItem = FindTypedTradeItem(item);
+        if (typedItem == null)
+        {
+            return true;
+        }
+
+        if (MinimumSizeFilter.gameObject.activeSelf &&
+            (MinimumSizeFilter.Width.text.Length > 0 && typedItem.ShapeWidth < int.Parse(MinimumSizeFilter.Width.text) ||
+             MinimumSizeFilter.Height.text.Length > 0 && typedItem.ShapeHeight < int.Parse(MinimumSizeFilter.Height.text)))
+        {
+            return false;
+        }
+
+        if (MaximumSizeFilter.gameObject.activeSelf &&
+            (MaximumSizeFilter.Width.text.Length > 0 && typedItem.ShapeWidth > int.Parse(MaximumSizeFilter.Width.text) ||
+             MaximumSizeFilter.Height.text.Length > 0 && typedItem.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)))
+        {
+            return false;
+        }
+
+        if (_hardpointFilter.filter != null &&
+            !string.Equals(typedItem.HardpointType, _hardpointFilter.type.ToString(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return _behaviorFilters.All(filter =>
+            typedItem.BehaviorKinds.Contains(filter.type.Name, StringComparer.Ordinal));
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedTradeItem(ItemInstance item)
+    {
+        if (item?.Data == null || item.Data.ItemId == Guid.Empty)
+        {
+            return null;
+        }
+
+        return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(item.Data.ItemId.ToString("D"));
     }
     
     private void UpdateCreditsLabel()

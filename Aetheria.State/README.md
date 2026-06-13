@@ -76,6 +76,9 @@ not catalog entry access.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind before hydrating legacy
 `ItemData` projections for final simulation compatibility.
+The surviving trade menu also applies typed catalog prefilters for row size,
+hardpoint type, and behavior kind before hydrating `ItemData` projections for
+legacy commodity filters, columns, and buy actions.
 Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source. Temporary
 faction/corporation projections and zone body/orbit DTOs keep local GUID fields
