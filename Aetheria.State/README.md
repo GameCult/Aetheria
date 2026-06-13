@@ -33,6 +33,13 @@ longer exports `NameFile/*.msgpack`. `AetherDB.msgpack` and existing name files
 remain legacy catalog inputs only; typed catalog migration is the next owner
 move.
 
+`Aetheria.State.Import` captures the legacy catalog files into typed quarantine
+state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
+`NameFile/*.msgpack`, and a migration ledger update. It intentionally does not
+deserialize old `DatabaseEntry` payloads. The next catalog migration step must
+map the old union payloads into typed item/faction/name documents without making
+`Aetheria.State` depend on Unity's legacy model.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently

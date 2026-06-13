@@ -76,6 +76,18 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(new CultRecordKey("global:aetheria.migration_ledger.v1"), ledger);
     }
 
+    public Task<CultRecordHandle<AetheriaLegacyCatalogQuarantine>> PutLegacyCatalogQuarantineAsync(
+        AetheriaLegacyCatalogQuarantine quarantine)
+    {
+        return Database.PutAsync(new CultRecordKey("global:aetheria.legacy_catalog_quarantine.v1"), quarantine);
+    }
+
+    public Task<AetheriaLegacyCatalogQuarantine?> GetLegacyCatalogQuarantineAsync()
+    {
+        return Database.GetAsync<AetheriaLegacyCatalogQuarantine>(
+            new CultRecordKey("global:aetheria.legacy_catalog_quarantine.v1"));
+    }
+
     public Task<CultRecordHandle<AetheriaItemDefinition>> PutItemDefinitionAsync(
         CultRecordKey key,
         AetheriaItemDefinition item)

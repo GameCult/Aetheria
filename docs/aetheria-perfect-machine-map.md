@@ -33,6 +33,10 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   deleted.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
+- `Aetheria.State.Import` writes a typed quarantine manifest and migration
+  ledger for the legacy catalog files. It records file facts only; it does not
+  deserialize old `DatabaseEntry` payloads or grant the old files runtime
+  authority.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
   deleted. `NameTools` can still clean/generate names, but legacy NameFile
   `.msgpack` export is disabled.
@@ -155,10 +159,13 @@ First Aetheria surfaces to publish:
      CultCache `.cc` file.
 
 3. Legacy quarantine
-   - Move legacy readers into an explicit migration namespace/project.
-   - Read old `GameData/AetherDB.msgpack` and related files without granting
-     them runtime authority.
-   - Emit typed CultCache records plus a migration ledger.
+   - Done: capture old `GameData/AetherDB.msgpack` and related name files as a
+     typed quarantine manifest without granting them runtime authority.
+   - Done: emit typed CultCache records plus a migration ledger for the catalog
+     quarantine preflight.
+   - Remaining: implement a bounded payload mapper that converts old
+     `DatabaseEntry` union payloads into typed catalog documents without making
+     `Aetheria.State` depend on Unity's legacy model.
 
 4. Runtime cutover
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
@@ -204,8 +211,10 @@ First Aetheria surfaces to publish:
   resolution.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
-- Migration smoke proves old data can be read once and converted without old
-  readers remaining on the live runtime path.
+- Quarantine import smoke proves old catalog file facts can be captured into
+  typed state without old readers remaining on the live runtime path.
+- Migration smoke proves old catalog payloads can be read once and converted
+  without old readers remaining on the live runtime path.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

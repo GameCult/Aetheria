@@ -49,6 +49,25 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves the new state owner can write, flush, reopen, and read without old JSON/Rethink authority."]
     });
 
+    await node.PutLegacyCatalogQuarantineAsync(new AetheriaLegacyCatalogQuarantine
+    {
+        RootPath = root,
+        CapturedAtUtc = now,
+        CatalogFile = LegacyMigrationBoundary.LegacyGameDataFile,
+        CatalogFingerprint = "smoke",
+        CatalogBytes = 12,
+        NameFiles =
+        [
+            new AetheriaLegacyCatalogFile
+            {
+                RelativePath = "GameData/NameFile/smoke.msgpack",
+                Fingerprint = "smoke-name-file",
+                Bytes = 4
+            }
+        ],
+        Notes = ["Smoke proves legacy catalog quarantine state is typed and durable."]
+    });
+
     await node.PutSavedRunAsync(runKey, new AetheriaSavedRun
     {
         RunId = "smoke",
@@ -82,6 +101,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 {
     var world = await reopened.GetWorldAsync();
     var item = await reopened.GetItemDefinitionAsync(itemKey);
+    var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var savedRun = await reopened.GetSavedRunAsync(runKey);
 
@@ -93,6 +113,11 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (item?.Name != "Smoke Aether Drive")
     {
         throw new InvalidOperationException("Item definition did not survive flush/reopen.");
+    }
+
+    if (quarantine?.CatalogFingerprint != "smoke" || quarantine.NameFiles.Length != 1)
+    {
+        throw new InvalidOperationException("Legacy catalog quarantine did not survive flush/reopen.");
     }
 
     if (playerSettings?.ActiveRunKey != runKey.ToString())
