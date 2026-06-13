@@ -57,8 +57,7 @@ public static class EntitySerializer
 
     public static Entity Unpack(ItemManager itemManager, Zone zone, EntityPack pack, bool instantiate = false)
     {
-        pack.Settings ??= MessagePackSerializer.Deserialize<EntitySettings>(
-            MessagePackSerializer.Serialize(itemManager.GameplaySettings.DefaultEntitySettings));
+        pack.Settings ??= itemManager.GameplaySettings.DefaultEntitySettings.Copy();
         return pack switch
         {
             ShipPack shipPack => Unpack(itemManager, zone, shipPack, instantiate),

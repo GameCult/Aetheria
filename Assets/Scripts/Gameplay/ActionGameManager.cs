@@ -10,7 +10,6 @@ using System.Linq;
 using Cinemachine;
 using Ink;
 using Ink.Runtime;
-using MessagePack;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -202,7 +201,7 @@ public class ActionGameManager : MonoBehaviour
 
     public EntitySettings NewEntitySettings
     {
-        get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
+        get => Settings.GameplaySettings.DefaultEntitySettings.Copy();
     }
 
     public void SaveLoadout(EntityPack pack)
