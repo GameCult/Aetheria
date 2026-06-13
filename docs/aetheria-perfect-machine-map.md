@@ -69,7 +69,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
   input screens mutate `RuntimePlayerSettings` in memory and queue typed Verse
-  commits; the in-memory projection is not portable state authority.
+  commits through the shared player-settings commit primitive; the in-memory
+  projection is not portable state authority.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
@@ -640,6 +641,9 @@ First Aetheria surfaces to publish:
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
      queues typed player-settings commits.
+   - Done: route input-screen binding/action-bar edits through the typed
+     player-settings commit primitive now that the Unity state package is live;
+     the stale runtime-only keyboard layout warning is gone.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -688,6 +692,9 @@ First Aetheria surfaces to publish:
   `EntitySerializer.Unpack` hits.
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
+- Input binding and action-bar edits now queue the same typed player-settings
+  commit path as menu settings changes; the old `SaveLayout` runtime-only
+  warning is gone.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes

@@ -494,12 +494,12 @@ public class InputDisplayLayout : MonoBehaviour
         }
         keyPress.Disable();
 
-        SaveLayout();
+        QueueRuntimeInputSettingsCommit();
     }
 
-    private void SaveLayout()
+    private void QueueRuntimeInputSettingsCommit()
     {
-        Debug.LogWarning("Keyboard layout persistence belongs to the Verse state spine. Layout edits are runtime-only until Aetheria.State is available as a Unity runtime package.");
+        ActionGameManager.QueueRuntimePlayerSettingsCommit();
     }
 
     private void OnEnable()
@@ -558,6 +558,7 @@ public class InputDisplayLayout : MonoBehaviour
                 {
                     ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Remove(buttonMapping.Button.InputSystemPath);
                 }
+                QueueRuntimeInputSettingsCommit();
                 AssignColor(buttonMapping);
             });
 

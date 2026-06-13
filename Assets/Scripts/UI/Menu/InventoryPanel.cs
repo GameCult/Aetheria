@@ -170,7 +170,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 ContextMenu.AddOption("Save Loadout",
                     () =>
                     {
-                        GameManager.SaveLoadout(EntitySerializer.CaptureBlueprint(_displayedEntity));
+                        GameManager.QueueRuntimeLoadoutTemplateCommit(EntitySerializer.CaptureBlueprint(_displayedEntity));
                     });
 
                 if (GameManager.LoadoutBlueprints.Any())

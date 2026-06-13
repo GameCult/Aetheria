@@ -26,9 +26,10 @@ The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 replacement for bespoke loadout files, with structured hull/equipment/cargo/
 docking item slots, nested child-entity loadouts, and weapon groups.
 `RuntimePlayerSettings` is the Unity session projection for menus, formatting,
-and input binding edits; it queues typed `.cc.pending` player-settings commits
-and is not portable state authority. Unity settings, loadout saves, and run
-checkpoints now queue typed `.cc.pending` runtime commit envelopes beside
+and input binding edits; menu and input-screen changes queue typed
+`.cc.pending` player-settings commits and are not portable state authority.
+Unity settings, loadout templates, and run checkpoints now queue typed
+`.cc.pending` runtime commit envelopes beside
 `GameData/aetheria-world.cc`. `Aetheria.State` owns applying those envelopes
 into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
 Unity-side command log is command-only and cannot become durable truth by

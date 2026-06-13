@@ -416,7 +416,7 @@ public class ActionGameManager : MonoBehaviour
         return CurrentGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(CurrentGalaxy.Factions, faction);
     }
 
-    public void SaveLoadout(RuntimeEntityBlueprint blueprint)
+    public void QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprint blueprint)
     {
         LoadoutBlueprints.RemoveAll(loadout => loadout.Name == blueprint.Name);
         LoadoutBlueprints.Add(blueprint);
