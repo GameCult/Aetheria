@@ -268,7 +268,7 @@ public abstract class ItemData : RuntimeProjectionEntry, INamedEntry
     [InspectableText, RuntimeCatalogKey(2)]
     public string Description;
 
-    [InspectableRuntimeCatalogLink(typeof(Faction)), RuntimeCatalogKey(3)]
+    [RuntimeCatalogKey(3)]
     public Guid Manufacturer;
 
     [Inspectable, RuntimeCatalogKey(4)]
@@ -326,7 +326,7 @@ public abstract class CraftedItemData : ItemData
 [Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
-    [InspectableRuntimeCatalogLink(typeof(PersonalityAttribute)), RuntimeCatalogKey(10)]
+    [RuntimeCatalogKey(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
     [Inspectable, RuntimeCatalogKey(11)]

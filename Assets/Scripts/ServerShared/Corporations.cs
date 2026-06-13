@@ -21,8 +21,6 @@ public class Faction : RuntimeProjectionEntry, INamedEntry
 
     [InspectableTexture]
     public string Logo;
-
-    [InspectableRuntimeCatalogLink(typeof(PersonalityAttribute))]
     public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
 
     // [Inspectable]
@@ -33,17 +31,13 @@ public class Faction : RuntimeProjectionEntry, INamedEntry
 
     [InspectableColor]
     public float3 SecondaryColor;
-
-    [InspectableRuntimeCatalogLink(typeof(NameFile))]
     public Guid GeonameFile;
-
-    [InspectableRuntimeCatalogLink(typeof(HullData))]
     public Guid BossHull;
 
     [Inspectable]
     public int InfluenceDistance = 4;
 
-    [InspectableRuntimeCatalogLink(typeof(Faction)), RangedFloat(0, 1)]
+    [RangedFloat(0, 1)]
     public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
 
     [InspectableSoundBank]

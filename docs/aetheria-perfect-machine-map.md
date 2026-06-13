@@ -546,6 +546,8 @@ First Aetheria surfaces to publish:
      `ServerShared/RuntimeProjection`.
    - Done: rename the surviving runtime DTO identity base from
      `RuntimeCatalogEntry` to `RuntimeProjectionEntry`.
+   - Done: delete unused `InspectableRuntimeCatalogLinkAttribute` metadata from
+     runtime DTOs; link inspection no longer masquerades as catalog authority.
    - Done: replace behavior union reflection with an explicit runtime catalog
      behavior map and remove all live `Union(...)` annotations.
    - Done: demote agent task runtime shapes from MessagePack object/key/union
@@ -709,6 +711,8 @@ First Aetheria surfaces to publish:
   item instances use `RuntimeItemReference` and expose `Data.ItemId`.
 - Live Unity source has no `RuntimeCatalogEntry`; surviving DTOs inherit
   `RuntimeProjectionEntry`.
+- Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
+  `RuntimeCatalogKeyAttribute` remains only as the temporary mapper key.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or

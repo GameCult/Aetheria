@@ -7,7 +7,7 @@ using System.Linq;
 [Inspectable, Order(-5), RuntimeInspectable]
 public class ItemUsageData : BehaviorData
 {
-    [InspectableRuntimeCatalogLink(typeof(SimpleCommodityData)), RuntimeCatalogKey(1), RuntimeInspectable]
+    [RuntimeCatalogKey(1), RuntimeInspectable]
     public Guid Item;
 
     public override Behavior CreateInstance(EquippedItem item)

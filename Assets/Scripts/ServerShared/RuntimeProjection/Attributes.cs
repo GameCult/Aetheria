@@ -33,16 +33,6 @@ public class InspectableEnumValuesAttribute : PreferredInspectorAttribute
     }
 }
 
-public class InspectableRuntimeCatalogLinkAttribute : PreferredInspectorAttribute
-{
-    public readonly Type EntryType;
-
-    public InspectableRuntimeCatalogLinkAttribute(Type entryType)
-    {
-        EntryType = entryType;
-    }
-}
-
 public class InspectableRangedFloatAttribute : PreferredInspectorAttribute
 {
     public readonly float Min, Max;

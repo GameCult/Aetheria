@@ -44,7 +44,7 @@ public abstract class WeaponData : BehaviorData
     [InspectablePrefab, RuntimeCatalogKey(11), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [InspectableRuntimeCatalogLink(typeof(SimpleCommodityData)), RuntimeCatalogKey(12), RuntimeInspectable]
+    [RuntimeCatalogKey(12), RuntimeInspectable]
     public Guid AmmoType;
 
     [InspectablePrefab, RuntimeCatalogKey(13)]

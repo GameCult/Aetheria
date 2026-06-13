@@ -65,6 +65,9 @@ The old generic `RuntimeCatalogLink<T>` abstraction has been deleted; item data
 projection is routed through `ItemManager` and the typed runtime catalog reader.
 Surviving Unity DTOs inherit `RuntimeProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source.
+The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
+typed runtime projection still uses `RuntimeCatalogKeyAttribute` only where the
+temporary mapper needs a deterministic field order.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine
 state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
