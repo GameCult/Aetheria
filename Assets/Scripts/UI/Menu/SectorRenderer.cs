@@ -71,35 +71,35 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
             Properties.AddProperty("Mass", () => ActionGameManager.PlayerSettings.Format(mass));
             Properties.AddProperty("Radius", () => ActionGameManager.PlayerSettings.Format(radius));
-            if (zone.PackedContents == null)
+            if (zone.RuntimeBlueprint == null)
             {
                 Properties.AddProperty(() => "Has not been visited");
             }
             else
             {
-                var planetCount = zone.PackedContents.Planets.Count(body => body is PlanetData).ToString();
+                var planetCount = zone.RuntimeBlueprint.Planets.Count(body => body is PlanetData).ToString();
                 Properties.AddProperty("Planets", () => planetCount);
 
-                var beltCount = zone.PackedContents.Planets.Count(body => body is AsteroidBeltData).ToString();
+                var beltCount = zone.RuntimeBlueprint.Planets.Count(body => body is AsteroidBeltData).ToString();
                 Properties.AddProperty("Asteroid Belts", () => beltCount);
 
-                var giantCount = zone.PackedContents.Planets.Count(body => body is GasGiantData && !(body is SunData)).ToString();
+                var giantCount = zone.RuntimeBlueprint.Planets.Count(body => body is GasGiantData && !(body is SunData)).ToString();
                 Properties.AddProperty("Gas Giants", () => giantCount);
 
-                var starCount = zone.PackedContents.Planets.Count(body => body is SunData).ToString();
+                var starCount = zone.RuntimeBlueprint.Planets.Count(body => body is SunData).ToString();
                 Properties.AddProperty("Stars", () => starCount);
                 
-                var stationCount = zone.PackedContents.Entities
+                var stationCount = zone.RuntimeBlueprint.Entities
                     .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Station)
                     .ToString();
                 Properties.AddProperty("Stations", () => stationCount);
                 
-                var turretCount = zone.PackedContents.Entities
+                var turretCount = zone.RuntimeBlueprint.Entities
                     .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Turret)
                     .ToString();
                 Properties.AddProperty("Turrets", () => turretCount);
                 
-                var shipCount = zone.PackedContents.Entities
+                var shipCount = zone.RuntimeBlueprint.Entities
                     .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Ship)
                     .ToString();
                 Properties.AddProperty("Ships", () => shipCount);

@@ -35,7 +35,7 @@ public static class ZoneGenerator
 
 	private const int MaximumPlacementSamples = 32;
 
-	public static ZonePack GenerateZone(
+	public static RuntimeZoneBlueprint GenerateZone(
 		ItemManager itemManager,
 		AetheriaRuntimeCatalogSnapshot runtimeCatalog,
 		ZoneGenerationSettings zoneSettings,
@@ -43,13 +43,13 @@ public static class ZoneGenerator
 		GalaxyZone galaxyZone,
 		bool isTutorial = false)
 	{
-		var pack = new ZonePack();
+		var blueprint = new RuntimeZoneBlueprint();
 
 		var random = new Random(unchecked((uint) galaxyZone.Name.GetHashCode()) ^ hash(galaxyZone.Position));
 
 		var density = saturate(galaxy.Background.CloudDensity(galaxyZone.Position)/2);
-		pack.Radius = zoneSettings.ZoneRadius.Evaluate(density);
-		pack.Mass = zoneSettings.ZoneMass.Evaluate(density);
+		blueprint.Radius = zoneSettings.ZoneRadius.Evaluate(density);
+		blueprint.Mass = zoneSettings.ZoneMass.Evaluate(density);
 		var targetSubzoneCount = zoneSettings.SubZoneCount.Evaluate(density);
 
 		//Debug.Log($"Generating zone at position {zone.Position} with radius {zoneRadius} and mass {zoneMass}");
@@ -57,13 +57,13 @@ public static class ZoneGenerator
 		var planets = new List<GeneratorPlanet>();
 		if (targetSubzoneCount > 1)
 		{
-			var zoneBoundary = new Circle(float2.zero, pack.Radius * zoneSettings.ZoneBoundaryRadius);
+			var zoneBoundary = new Circle(float2.zero, blueprint.Radius * zoneSettings.ZoneBoundaryRadius);
 			float boundaryTangentRadius(float2 point) => -zoneBoundary.DistanceTo(point);
 
 			var occupiedAreas = new List<Circle>();
 			float tangentRadius(float2 point) => min(boundaryTangentRadius(point), occupiedAreas.Min(circle => circle.DistanceTo(point)));
 
-			var startPosition = random.NextFloat(pack.Radius * .25f, pack.Radius * .5f) * random.NextFloat2Direction();
+			var startPosition = random.NextFloat(blueprint.Radius * .25f, blueprint.Radius * .5f) * random.NextFloat2Direction();
 			occupiedAreas.Add(new Circle(startPosition, boundaryTangentRadius(startPosition)));
 
 			int samples = 0;
@@ -72,7 +72,7 @@ public static class ZoneGenerator
 				samples = 0;
 				for (int i = 0; i < MaximumPlacementSamples; i++)
 				{
-					var samplePos = random.NextFloat2(-pack.Radius, pack.Radius);
+					var samplePos = random.NextFloat2(-blueprint.Radius, blueprint.Radius);
 					var rad = tangentRadius(samplePos);
 					if (rad > 0)
 					{
@@ -87,18 +87,18 @@ public static class ZoneGenerator
 			var totalArea = occupiedAreas.Sum(c => c.Area);
 			foreach (var c in occupiedAreas)
 			{
-				planets.AddRange(GenerateEntities(zoneSettings, ref random, c.Area / totalArea * pack.Mass, c.Radius, c.Center));
+				planets.AddRange(GenerateEntities(zoneSettings, ref random, c.Area / totalArea * blueprint.Mass, c.Radius, c.Center));
 			}
 		}
 		else
-			planets.AddRange(GenerateEntities(zoneSettings, ref random, pack.Mass, pack.Radius, float2.zero));
+			planets.AddRange(GenerateEntities(zoneSettings, ref random, blueprint.Mass, blueprint.Radius, float2.zero));
 
         // Create collections to map between zone generator output and database entries
         var orbitMap = new Dictionary<GeneratorPlanet, OrbitData>();
         var orbitInverseMap = new Dictionary<OrbitData, GeneratorPlanet>();
 
         // Create orbit database entries
-        pack.Orbits = planets.Select(planet =>
+        blueprint.Orbits = planets.Select(planet =>
         {
             var data = new OrbitData
             {
@@ -113,7 +113,7 @@ public static class ZoneGenerator
         }).ToList();
 
         // Link OrbitData parents to database GUIDs
-        foreach (var data in pack.Orbits)
+        foreach (var data in blueprint.Orbits)
             data.Parent = orbitInverseMap[data].Parent != null
                 ? orbitMap[orbitInverseMap[data].Parent].ID
                 : Guid.Empty;
@@ -122,7 +122,7 @@ public static class ZoneGenerator
         // var resourceMaps = mapLayers.Values
 	       //  .ToDictionary(m => m.ID, m => m.Evaluate(zone.Position, settings.ShapeSettings));
 
-        pack.Planets = planets.Where(p=>!p.Empty).Select(planet =>
+        blueprint.Planets = planets.Where(p=>!p.Empty).Select(planet =>
         {
 	        // Dictionary<Guid, float> planetResources = new Dictionary<Guid, float>();
 	        BodyType bodyType = planet.Belt ? BodyType.Asteroid :
@@ -259,7 +259,7 @@ public static class ZoneGenerator
 		        Distance = baseOrbit.Distance,
 		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f)
 	        };
-	        pack.Orbits.Add(lagrangeOrbit);
+	        blueprint.Orbits.Add(lagrangeOrbit);
 	        return lagrangeOrbit;
         }
 
@@ -274,11 +274,11 @@ public static class ZoneGenerator
 		        Distance = orbit.Distance,
 		        Phase = orbit.Phase + phase
 	        };
-	        pack.Orbits.Add(turretOrbit);
+	        blueprint.Orbits.Add(turretOrbit);
 	        var turret = loadoutGenerator.GenerateTurretLoadout();
 	        if (turret == null) return;
 	        turret.Orbit = turretOrbit.ID;
-	        pack.Entities.Add(turret);
+	        blueprint.Entities.Add(turret);
         }
 
         void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count)
@@ -299,9 +299,9 @@ public static class ZoneGenerator
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
 	        station.Orbit = lagrangeOrbit.ID;
 	        station.SecurityLevel = story.Security;
-	        station.SecurityRadius = pack.Radius;
+	        station.SecurityRadius = blueprint.Radius;
 	        station.Story = i;
-	        pack.Entities.Add(station);
+	        blueprint.Entities.Add(station);
 
 	        PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets);
         }
@@ -316,8 +316,8 @@ public static class ZoneGenerator
 	        if (station == null) continue;
 	        station.Orbit = lagrangeOrbit.ID;
 	        station.SecurityLevel = security;
-	        station.SecurityRadius = pack.Radius;
-	        pack.Entities.Add(station);
+	        station.SecurityRadius = blueprint.Radius;
+	        blueprint.Entities.Add(station);
 
 	        PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
         }
@@ -327,10 +327,10 @@ public static class ZoneGenerator
         {
 	        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
 	        if (ship == null) continue;
-	        pack.Entities.Add(ship);
+	        blueprint.Entities.Add(ship);
         }
 
-        return pack;
+        return blueprint;
 	}
 
 	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)

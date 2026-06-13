@@ -40,26 +40,26 @@ public class Zone
     {
         get => (float) _time;
     }
-    public ZonePack Pack { get; }
+    public RuntimeZoneBlueprint Blueprint { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
 
-    public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
+    public Zone(ItemManager itemManager, PlanetSettings settings, RuntimeZoneBlueprint blueprint, GalaxyZone galaxyZone, Galaxy galaxy)
     {
-        _time = pack.Time;
+        _time = blueprint.Time;
         GalaxyZone = galaxyZone;
         Galaxy = galaxy;
-        Pack = pack;
+        Blueprint = blueprint;
         _itemManager = itemManager;
         Settings = settings;
         _random = new Random(Convert.ToUInt32(abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
         
-        foreach (var orbit in pack.Orbits)
+        foreach (var orbit in blueprint.Orbits)
         {
             Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
         }
         
-        foreach (var planet in pack.Planets)
+        foreach (var planet in blueprint.Planets)
         {
             Planets.Add(planet.ID, planet);
             switch (planet)
@@ -79,16 +79,16 @@ public class Zone
             }
         }
 
-        foreach (var entityPack in pack.Entities)
+        foreach (var entityBlueprint in blueprint.Entities)
         {
-            var entity = EntitySerializer.Unpack(_itemManager, this, entityPack);
+            var entity = EntitySerializer.InstantiateFromBlueprint(_itemManager, this, entityBlueprint);
             Entities.Add(entity);
             entity.Activate();
             if (entity is Ship {IsPlayerShip: false} ship)
             {
                 Agents.Add(CreateAgent(ship));
                 if (lengthsq(ship.Position) < 1)
-                    ship.Position = _itemManager.Random.NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
+                    ship.Position = _itemManager.Random.NextFloat3(float3(-blueprint.Radius * .5f), float3(blueprint.Radius * .5f));
             }
         }
 
@@ -104,13 +104,13 @@ public class Zone
         return agent;
     }
 
-    public ZonePack PackZone()
+    public RuntimeZoneBlueprint CaptureBlueprint()
     {
-        return new ZonePack
+        return new RuntimeZoneBlueprint
         {
-            Radius = Pack.Radius,
-            Mass = Pack.Mass,
-            Entities = Entities.Select(EntitySerializer.Pack).ToList(),
+            Radius = Blueprint.Radius,
+            Mass = Blueprint.Mass,
+            Entities = Entities.Select(EntitySerializer.CaptureBlueprint).ToList(),
             Orbits = Orbits.Values.Select(o=>o.Data).ToList(),
             Planets = Planets.Values.ToList(),
             Time = _time
@@ -325,7 +325,7 @@ public class Zone
     
     public float GetHeight(float2 position)
     {
-        var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var result = -PowerPulse(length(position)/(Blueprint.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
         foreach (var body in PlanetInstances.Values)
         {
             var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)

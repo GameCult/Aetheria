@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -170,19 +170,19 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 ContextMenu.AddOption("Save Loadout",
                     () =>
                     {
-                        GameManager.SaveLoadout(EntitySerializer.Pack(_displayedEntity));
+                        GameManager.SaveLoadout(EntitySerializer.CaptureBlueprint(_displayedEntity));
                     });
 
-                if (GameManager.Loadouts.Any())
+                if (GameManager.LoadoutBlueprints.Any())
                 {
-                    ContextMenu.AddDropdown("Restore Loadout", 
-                        GameManager.Loadouts.Select<EntityPack, (string text, Action action, bool enabled)>(pack => 
+                    ContextMenu.AddDropdown("Restore Loadout",
+                        GameManager.LoadoutBlueprints.Select<RuntimeEntityBlueprint, (string text, Action action, bool enabled)>(blueprint =>
                             (
-                                $"{pack.Name} - {pack.Price(GameManager.ItemManager):n0}", () =>
+                                $"{blueprint.Name} - {blueprint.Price(GameManager.ItemManager):n0}", () =>
                                 {
-                                    var entity = EntitySerializer.Unpack(GameManager.ItemManager, GameManager.Zone, pack, true);
+                                    var entity = EntitySerializer.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
                                     entity.SetParent(GameManager.DockedEntity);
-                                    GameManager.Credits -= pack.Price(GameManager.ItemManager);
+                                    GameManager.Credits -= blueprint.Price(GameManager.ItemManager);
                                     GameManager.CurrentEntity = entity;
                                     if(entity is Ship ship)
                                     {
@@ -190,7 +190,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                         GameManager.DockingBay.DockedShip = ship;
                                     }
                                     Display(entity);
-                                }, pack.Price(GameManager.ItemManager) < GameManager.Credits
+                                }, blueprint.Price(GameManager.ItemManager) < GameManager.Credits
                                 )));
                 }
 

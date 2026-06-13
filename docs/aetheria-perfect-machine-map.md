@@ -59,10 +59,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
-  deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack`, body/orbit
-  zone runtime data, item-instance runtime data, `Ship`, and `EntitySettings`
-  remain as runtime construction/loadout/session projections, but no longer
-  declare themselves as MessagePack persistence documents.
+  deleted. The dead `SavedStory` JSON DTO is deleted.
+  `RuntimeZoneBlueprint`, body/orbit zone runtime data, item-instance runtime
+  data, `Ship`, and `EntitySettings` remain as runtime
+  construction/loadout/session projections, but no longer use save-file
+  vocabulary or declare themselves as MessagePack persistence documents.
 - `Aetheria.State` now expands `AetheriaPlayerSettings` beyond an active-run
   pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
@@ -75,21 +76,23 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   position, direction, faction, hull, equipment slots, weapon groups, and a stat
   grid. This proves the `.zone` replacement graph is durable typed state. Unity
   now queues current-zone/current-entity-collection snapshots through the
-  runtime commit log during run checkpoints; `ZonePack` and `EntityPack` remain
-  runtime construction/loadout projections rather than durable file formats.
+  runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
+  `RuntimeEntityBlueprint` remain runtime construction/loadout projections
+  rather than durable file formats.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
   state through record-key references and typed value slots instead of opaque
-  `EntityPack` serialization. Unity's save/loadout UI now projects its
-  in-memory `EntityPack` into a typed Verse commit command; the in-memory list
-  remains a UI/session cache, not durable authority.
+  runtime blueprint serialization. Unity's save/loadout UI now projects its
+  in-memory `RuntimeEntityBlueprint` into a typed Verse commit command; the
+  in-memory list remains a UI/session cache, not durable authority.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
-  binds `RuntimeCatalogLinkBase` to that typed runtime item reader before gameplay
-  objects read `ItemInstance.Data.Value`. The old `LegacyItemCatalogBoundary`,
-  `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
-  deleted. The old `DatabaseEntry`/`DatabaseLink<T>` names have been demoted to
+  gives `ItemManager` explicit item lookup authority. `RuntimeCatalogLink<T>`
+  is now a hydrated identifier/value holder, not a process-global catalog
+  resolver. The old `LegacyItemCatalogBoundary`, `LegacyItemCatalogCache`, and
+  runtime MessagePack deserializer path have been deleted. The old
+  `DatabaseEntry`/`DatabaseLink<T>` names have been demoted to
   `RuntimeCatalogEntry`/`RuntimeCatalogLink<T>` runtime projection helpers, not
   MessagePack objects or a global union root.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
@@ -629,6 +632,10 @@ First Aetheria surfaces to publish:
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.
+   - Done: demote `ZonePack`/`EntityPack` runtime names to
+     `RuntimeZoneBlueprint`/`RuntimeEntityBlueprint`, and rename loadout
+     collections away from save-payload vocabulary. These are now explicitly
+     runtime construction projections, not portable state authority.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -671,6 +678,10 @@ First Aetheria surfaces to publish:
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or
   `IMessagePackFormatter` hits.
+- Unity batchmode compile returned cleanly after the runtime blueprint rename;
+  live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
+  `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
+  `EntitySerializer.Unpack` hits.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes

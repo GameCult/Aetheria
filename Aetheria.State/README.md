@@ -16,8 +16,8 @@ run state, zone state, entity snapshots, item slots, weapon groups, action-bar
 bindings, and stat grids. Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
 binding overrides, and action-bar inputs. Do not preserve `SavedGame`,
-`PlayerSettings`, or `EntityPack` as opaque payloads in the new store; they are
-source shapes for migration, not portable state authority.
+`PlayerSettings`, or runtime entity blueprints as opaque payloads in the new
+store; they are source shapes for projection, not portable state authority.
 
 The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 `.zone` files. `AetheriaPlayerSettings` is the typed Verse replacement for
@@ -38,9 +38,10 @@ or mutate game state locally.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
-The dead `SavedStory` JSON DTO is gone. `ZonePack` and `EntityPack` remain
-in-memory construction/loadout snapshots for Unity runtime code, but no longer
-carry MessagePack persistence attributes.
+The dead `SavedStory` JSON DTO is gone. `RuntimeZoneBlueprint` and
+`RuntimeEntityBlueprint` remain in-memory construction/loadout projections for
+Unity runtime code, but no longer carry save-file vocabulary or MessagePack
+persistence attributes.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout

@@ -11,11 +11,11 @@ using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 
-public class ZonePack
+public class RuntimeZoneBlueprint
 {
     public List<BodyData> Planets = new List<BodyData>();
     public List<OrbitData> Orbits = new List<OrbitData>();
-    public List<EntityPack> Entities = new List<EntityPack>();
+    public List<RuntimeEntityBlueprint> Entities = new List<RuntimeEntityBlueprint>();
     public float Radius = 2000;
     public float Mass = 10000;
     public double Time;

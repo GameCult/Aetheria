@@ -197,7 +197,7 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public List<EntityPack> Loadouts { get; } = new List<EntityPack>();
+    public List<RuntimeEntityBlueprint> LoadoutBlueprints { get; } = new List<RuntimeEntityBlueprint>();
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -250,32 +250,32 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(EntityPack pack)
+    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(RuntimeEntityBlueprint blueprint)
     {
         return new AetheriaRuntimeLoadoutTemplateCommit
         {
-            Name = pack.Name ?? "",
+            Name = blueprint.Name ?? "",
             OwnerPlayerKey = $"global:aetheria.player_settings.v1",
-            RootEntity = ProjectEntityLoadout(pack)
+            RootEntity = ProjectEntityLoadout(blueprint)
         };
     }
 
-    private AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(EntityPack pack)
+    private AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(RuntimeEntityBlueprint blueprint)
     {
         return new AetheriaRuntimeEntityLoadoutCommit
         {
-            Name = pack.Name ?? "",
-            Kind = pack is ShipPack ? "ship" : pack is OrbitalEntityPack ? "orbital" : "entity",
-            FactionLegacyId = pack.Faction == Guid.Empty ? "" : pack.Faction.ToString("D"),
-            Hull = ProjectLoadoutItem(pack.Hull),
-            Equipment = ProjectSlots(pack.Equipment),
-            CargoBays = ProjectSlots(pack.CargoBays),
-            DockingBays = ProjectSlots(pack.DockingBays),
-            CargoContents = ProjectCargoBays(pack.CargoContents),
-            DockingBayContents = ProjectCargoBays(pack.DockingBayContents),
-            DockingBayAssignments = pack.DockingBayAssignments ?? Array.Empty<int>(),
-            WeaponGroups = pack.WeaponGroups?.Select(group => (IReadOnlyList<int>)group).ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
-            Children = pack.Children?.Select(ProjectEntityLoadout).ToArray() ?? Array.Empty<AetheriaRuntimeEntityLoadoutCommit>()
+            Name = blueprint.Name ?? "",
+            Kind = blueprint is RuntimeShipBlueprint ? "ship" : blueprint is RuntimeOrbitalEntityBlueprint ? "orbital" : "entity",
+            FactionLegacyId = blueprint.Faction == Guid.Empty ? "" : blueprint.Faction.ToString("D"),
+            Hull = ProjectLoadoutItem(blueprint.Hull),
+            Equipment = ProjectSlots(blueprint.Equipment),
+            CargoBays = ProjectSlots(blueprint.CargoBays),
+            DockingBays = ProjectSlots(blueprint.DockingBays),
+            CargoContents = ProjectCargoBays(blueprint.CargoContents),
+            DockingBayContents = ProjectCargoBays(blueprint.DockingBayContents),
+            DockingBayAssignments = blueprint.DockingBayAssignments ?? Array.Empty<int>(),
+            WeaponGroups = blueprint.WeaponGroups?.Select(group => (IReadOnlyList<int>)group).ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
+            Children = blueprint.Children?.Select(ProjectEntityLoadout).ToArray() ?? Array.Empty<AetheriaRuntimeEntityLoadoutCommit>()
         };
     }
 
@@ -416,15 +416,15 @@ public class ActionGameManager : MonoBehaviour
         return CurrentGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(CurrentGalaxy.Factions, faction);
     }
 
-    public void SaveLoadout(EntityPack pack)
+    public void SaveLoadout(RuntimeEntityBlueprint blueprint)
     {
-        Loadouts.RemoveAll(loadout => loadout.Name == pack.Name);
-        Loadouts.Add(pack);
+        LoadoutBlueprints.RemoveAll(loadout => loadout.Name == blueprint.Name);
+        LoadoutBlueprints.Add(blueprint);
         try
         {
             var commit = AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate(
                 RuntimeStateFilePath,
-                ProjectLoadoutTemplate(pack));
+                ProjectLoadoutTemplate(blueprint));
             Debug.Log($"Queued Aetheria Verse loadout commit: {commit.Path}");
         }
         catch (Exception ex)
@@ -754,7 +754,7 @@ public class ActionGameManager : MonoBehaviour
                     nearestFaction,
                     .5f);
 
-                var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+                var turret = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 turret.Zone = Zone;
@@ -786,7 +786,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var ship = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
+        //                     var ship = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
         //                     ship.Position.xz = _currentEntity.Position.xz +
         //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     ship.Zone = Zone;
@@ -796,7 +796,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+        //                     var turret = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
         //                     turret.Position.xz = _currentEntity.Position.xz +
         //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     turret.Zone = Zone;
@@ -873,7 +873,7 @@ public class ActionGameManager : MonoBehaviour
         
         if (galaxyZone.Contents == null)
         {
-            galaxyZone.PackedContents ??= ZoneGenerator.GenerateZone(
+            galaxyZone.RuntimeBlueprint ??= ZoneGenerator.GenerateZone(
                 ItemManager,
                 RuntimeCatalog,
                 Settings.ZoneSettings,
@@ -881,7 +881,7 @@ public class ActionGameManager : MonoBehaviour
                 galaxyZone,
                 IsTutorial
             );
-            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
+            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.RuntimeBlueprint, galaxyZone, CurrentGalaxy);
         }
         Zone = galaxyZone.Contents;
         PlayMusic(MusicType.Overworld);
@@ -961,12 +961,12 @@ public class ActionGameManager : MonoBehaviour
             SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
             PopulateLevel(CurrentGalaxy.Entrance);
             var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-            var ship = EntitySerializer.Unpack(
+            var ship = EntitySerializer.InstantiateFromBlueprint(
                 ItemManager,
                 Zone,
                 loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),
                 true);
-            // EntitySerializer.Unpack(ItemManager, Zone, Loadouts.First(x => x.Name == StarterShipTemplate), true);
+            // EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, LoadoutBlueprints.First(x => x.Name == StarterShipTemplate), true);
             ((Ship) ship).IsPlayerShip = true;
             ship.Position = float3.zero;
             ship.Zone = Zone;

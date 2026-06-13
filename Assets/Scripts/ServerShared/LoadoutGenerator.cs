@@ -47,7 +47,7 @@ public class LoadoutGenerator
     //     PriceExponent = priceExponent;
     // }
     
-    public EntityPack GenerateShipLoadout(Predicate<HullData> hullFilter = null)
+    public RuntimeEntityBlueprint GenerateShipLoadout(Predicate<HullData> hullFilter = null)
     {
         var hullData = RandomHull(HullType.Ship, hullFilter);
         if(hullData==null)
@@ -61,10 +61,10 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntitySerializer.Pack(entity);
+        return EntitySerializer.CaptureBlueprint(entity);
     }
 
-    public OrbitalEntityPack GenerateTurretLoadout()
+    public RuntimeOrbitalEntityBlueprint GenerateTurretLoadout()
     {
         var hullData = RandomHull(HullType.Turret);
         if(hullData==null)
@@ -76,10 +76,10 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntitySerializer.Pack(entity) as OrbitalEntityPack;
+        return EntitySerializer.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
-    public OrbitalEntityPack GenerateStationLoadout()
+    public RuntimeOrbitalEntityBlueprint GenerateStationLoadout()
     {
         var hullData = RandomHull(HullType.Station);
         if(hullData==null)
@@ -119,7 +119,7 @@ public class LoadoutGenerator
 
         entity.CanTow = hullData.CanTow;
         
-        return EntitySerializer.Pack(entity) as OrbitalEntityPack;
+        return EntitySerializer.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
     public HullData RandomHull(HullType type, Predicate<HullData> hullFilter = null)

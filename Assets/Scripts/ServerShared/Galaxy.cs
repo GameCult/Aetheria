@@ -601,7 +601,7 @@ public class GalaxyZone
     public Faction[] Factions;
     public Faction Owner;
     public Zone Contents;
-    public ZonePack PackedContents;
+    public RuntimeZoneBlueprint RuntimeBlueprint;
     public bool NamedZone;
     public List<LocationStory> Locations = new List<LocationStory>();
 }
