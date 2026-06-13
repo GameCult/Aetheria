@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
@@ -27,7 +28,7 @@ public class InventoryMenu : MonoBehaviour
     private int2 _selectedPosition;
     private InventoryPanel _selectedPanel;
     private ItemInstance _selectedItem;
-    private ItemData _selectedItemData;
+    private int2[] _selectedCells;
     // private List<IDisposable> _backgroundSubscriptions;
 
     // private ItemInstance _dragItem;
@@ -100,29 +101,15 @@ public class InventoryMenu : MonoBehaviour
                         }
                         else
                         {
-                            if (_selectedPanel != null)
-                            {
-                                if (_selectedPanel.CellInstances.ContainsKey(_selectedPosition))
-                                {
-                                    foreach (var v in _selectedItemData.Shape.Coordinates)
-                                    {
-                                        var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;
-                                        _selectedPanel.CellInstances[v2].Icon.color = _selectedPanel.GetColor(v2);
-                                    }
-                                }
-                            }
+                            ClearSelectedCellHighlight();
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.Position;
                             PropertiesPanel.Inspect(item);
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.CargoBay.Cargo[item];
                             _selectedItem = item;
-                            _selectedItemData = GameManager.ItemManager.GetData(item);
-                            foreach (var v in _selectedItemData.Shape.Coordinates)
-                            {
-                                var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;
-                                _selectedPanel.CellInstances[v2].Icon.color = _selectedPanel.GetColor(v2, true);
-                            }
+                            _selectedCells = GetSelectedCells(item, _selectedPosition);
+                            ApplySelectedCellHighlight();
                             // TODO: SFX: Success
                         }
                     }
@@ -155,28 +142,14 @@ public class InventoryMenu : MonoBehaviour
                         }
                         else
                         {
-                            if (_selectedPanel != null)
-                            {
-                                if (_selectedPanel.CellInstances.ContainsKey(_selectedPosition))
-                                {
-                                    foreach (var v in _selectedItemData.Shape.Coordinates)
-                                    {
-                                        var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;
-                                        _selectedPanel.CellInstances[v2].Icon.color = _selectedPanel.GetColor(v2);
-                                    }
-                                }
-                            }
+                            ClearSelectedCellHighlight();
 
                             PropertiesPanel.Inspect(item);
                             _selectedPanel = panel;
                             _selectedPosition = item.Position;
                             _selectedItem = item.EquippableItem;
-                            _selectedItemData = GameManager.ItemManager.GetData(item.EquippableItem);
-                            foreach (var v in _selectedItemData.Shape.Coordinates)
-                            {
-                                var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;
-                                _selectedPanel.CellInstances[v2].Icon.color = _selectedPanel.GetColor(v2, true);
-                            }
+                            _selectedCells = GetSelectedCells(item.EquippableItem, _selectedPosition);
+                            ApplySelectedCellHighlight();
                             // TODO: SFX: Success
                         }
                     }
@@ -207,5 +180,65 @@ public class InventoryMenu : MonoBehaviour
         // {
         //     _dragItem.Rotation = (ItemRotation) (((int) _dragItem.Rotation + 3) % 4);
         // }
+    }
+
+    private void ClearSelectedCellHighlight()
+    {
+        if (_selectedPanel == null || _selectedCells == null) return;
+
+        foreach (var v in _selectedCells)
+        {
+            if (_selectedPanel.CellInstances.ContainsKey(v))
+                _selectedPanel.CellInstances[v].Icon.color = _selectedPanel.GetColor(v);
+        }
+    }
+
+    private void ApplySelectedCellHighlight()
+    {
+        if (_selectedPanel == null || _selectedCells == null) return;
+
+        foreach (var v in _selectedCells)
+        {
+            if (_selectedPanel.CellInstances.ContainsKey(v))
+                _selectedPanel.CellInstances[v].Icon.color = _selectedPanel.GetColor(v, true);
+        }
+    }
+
+    private int2[] GetSelectedCells(ItemInstance item, int2 position)
+    {
+        var typedItem = FindTypedInventoryItem(item);
+        if (typedItem != null && typedItem.ShapeCells.Count > 0)
+        {
+            return typedItem.ShapeCells
+                .Select(cell => RotateTypedShapeCell(cell, typedItem, item.Rotation) + position)
+                .ToArray();
+        }
+
+        var shape = GameManager.ItemManager.GetData(item).Shape;
+        return shape.Coordinates
+            .Select(cell => shape.Rotate(cell, item.Rotation) + position)
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+    }
+
+    private static int2 RotateTypedShapeCell(
+        AetheriaRuntimeShapeCell cell,
+        AetheriaRuntimeCatalogItem item,
+        ItemRotation rotation)
+    {
+        return rotation switch
+        {
+            ItemRotation.Clockwise => new int2(cell.Y, item.ShapeWidth - 1 - cell.X),
+            ItemRotation.Reversed => new int2(item.ShapeWidth - 1 - cell.X, item.ShapeHeight - 1 - cell.Y),
+            ItemRotation.CounterClockwise => new int2(item.ShapeHeight - 1 - cell.Y, cell.X),
+            _ => new int2(cell.X, cell.Y)
+        };
     }
 }
