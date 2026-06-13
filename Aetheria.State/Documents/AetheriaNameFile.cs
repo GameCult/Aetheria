@@ -1,0 +1,23 @@
+using GameCult.Caching;
+using MessagePack;
+
+namespace Aetheria.State.Documents;
+
+[CultDocument("aetheria.name_file", "aetheria.name_file.v1")]
+[MessagePackObject]
+public sealed class AetheriaNameFile
+{
+    [Key(0)]
+    [CultName]
+    public string Name { get; set; } = "";
+
+    [Key(1)]
+    [CultIndex("legacyId")]
+    public string LegacyId { get; set; } = "";
+
+    [Key(2)]
+    public int NameCount { get; set; }
+
+    [Key(3)]
+    public string[] SampleNames { get; set; } = [];
+}

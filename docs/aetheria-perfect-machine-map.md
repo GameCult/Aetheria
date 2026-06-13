@@ -34,9 +34,11 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
-  ledger for the legacy catalog files. It records file facts only; it does not
-  deserialize old `DatabaseEntry` payloads or grant the old files runtime
-  authority.
+  ledger for the legacy catalog files. It also raw-decodes stable old
+  MessagePack union fields into typed item/faction/name-file documents without
+  compiling the old Unity domain model into `Aetheria.State`. The current
+  checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
+  files.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
   deleted. `NameTools` can still clean/generate names, but legacy NameFile
   `.msgpack` export is disabled.
@@ -163,9 +165,12 @@ First Aetheria surfaces to publish:
      typed quarantine manifest without granting them runtime authority.
    - Done: emit typed CultCache records plus a migration ledger for the catalog
      quarantine preflight.
-   - Remaining: implement a bounded payload mapper that converts old
-     `DatabaseEntry` union payloads into typed catalog documents without making
-     `Aetheria.State` depend on Unity's legacy model.
+   - Done: implement a bounded raw payload mapper that converts stable old
+     `DatabaseEntry` union fields into typed item/faction/name-file catalog
+     documents without making `Aetheria.State` depend on Unity's legacy model.
+   - Remaining: add typed documents/mappers for runtime object graphs,
+     behaviors, Unity shapes, simulation state, and any catalog fields not
+     covered by the stable scalar pass.
 
 4. Runtime cutover
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
@@ -213,8 +218,8 @@ First Aetheria surfaces to publish:
   reopen.
 - Quarantine import smoke proves old catalog file facts can be captured into
   typed state without old readers remaining on the live runtime path.
-- Migration smoke proves old catalog payloads can be read once and converted
-  without old readers remaining on the live runtime path.
+- Migration smoke proves stable old catalog payload fields can be read once and
+  converted without old readers remaining on the live runtime path.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

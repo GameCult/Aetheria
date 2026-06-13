@@ -7,6 +7,8 @@ var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var statePath = AetheriaStatePaths.ResolveDefaultStatePath(root);
 var now = DateTimeOffset.UtcNow.ToString("O");
 var itemKey = new CultRecordKey("item:smoke-aether-drive");
+var factionKey = new CultRecordKey("faction:smoke");
+var nameFileKey = new CultRecordKey("name-file:smoke");
 var runKey = new CultRecordKey("run:smoke");
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
@@ -68,6 +70,21 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves legacy catalog quarantine state is typed and durable."]
     });
 
+    await node.PutCorporationAsync(factionKey, new AetheriaCorporation
+    {
+        Name = "Smoke Faction",
+        LegacyId = "smoke:faction",
+        Description = "Typed faction/corporation document for legacy catalog migration smoke."
+    });
+
+    await node.PutNameFileAsync(nameFileKey, new AetheriaNameFile
+    {
+        Name = "Smoke Names",
+        LegacyId = "smoke:name-file",
+        NameCount = 2,
+        SampleNames = ["Ada", "Grace"]
+    });
+
     await node.PutSavedRunAsync(runKey, new AetheriaSavedRun
     {
         RunId = "smoke",
@@ -101,6 +118,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 {
     var world = await reopened.GetWorldAsync();
     var item = await reopened.GetItemDefinitionAsync(itemKey);
+    var faction = await reopened.GetCorporationAsync(factionKey);
+    var nameFile = await reopened.GetNameFileAsync(nameFileKey);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var savedRun = await reopened.GetSavedRunAsync(runKey);
@@ -113,6 +132,16 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (item?.Name != "Smoke Aether Drive")
     {
         throw new InvalidOperationException("Item definition did not survive flush/reopen.");
+    }
+
+    if (faction?.LegacyId != "smoke:faction")
+    {
+        throw new InvalidOperationException("Faction/corporation document did not survive flush/reopen.");
+    }
+
+    if (nameFile?.NameCount != 2)
+    {
+        throw new InvalidOperationException("Name file document did not survive flush/reopen.");
     }
 
     if (quarantine?.CatalogFingerprint != "smoke" || quarantine.NameFiles.Length != 1)

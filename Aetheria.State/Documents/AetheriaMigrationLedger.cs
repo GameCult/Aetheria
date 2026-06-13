@@ -26,6 +26,9 @@ public sealed class AetheriaMigrationLedger
 
     [Key(5)]
     public string[] Notes { get; set; } = [];
+
+    [Key(6)]
+    public AetheriaLegacyCatalogEntrySummary[] LegacyCatalogEntries { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -36,4 +39,23 @@ public sealed class AetheriaMigrationCount
 
     [Key(1)]
     public int Count { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaLegacyCatalogEntrySummary
+{
+    [Key(0)]
+    public string LegacyId { get; set; } = "";
+
+    [Key(1)]
+    public int UnionKey { get; set; }
+
+    [Key(2)]
+    public string DocumentKind { get; set; } = "";
+
+    [Key(3)]
+    public string Name { get; set; } = "";
+
+    [Key(4)]
+    public string Note { get; set; } = "";
 }

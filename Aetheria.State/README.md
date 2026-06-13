@@ -35,10 +35,13 @@ move.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine
 state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
-`NameFile/*.msgpack`, and a migration ledger update. It intentionally does not
-deserialize old `DatabaseEntry` payloads. The next catalog migration step must
-map the old union payloads into typed item/faction/name documents without making
-`Aetheria.State` depend on Unity's legacy model.
+`NameFile/*.msgpack`, and a migration ledger update. It also performs a bounded
+raw MessagePack union pass that maps stable catalog fields into typed
+item/faction/name-file documents without compiling Unity's legacy domain model
+into `Aetheria.State`. The current checked-in catalog maps to 115 item
+definitions, 12 factions, and 12 name files. Runtime object graphs, behaviors,
+Unity shapes, and simulation state remain legacy until dedicated typed
+documents exist.
 
 Current rebuild notes:
 

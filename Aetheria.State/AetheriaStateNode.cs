@@ -100,6 +100,26 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<AetheriaItemDefinition>(key);
     }
 
+    public Task<CultRecordHandle<AetheriaCorporation>> PutCorporationAsync(CultRecordKey key, AetheriaCorporation corporation)
+    {
+        return Database.PutAsync(key, corporation);
+    }
+
+    public Task<AetheriaCorporation?> GetCorporationAsync(CultRecordKey key)
+    {
+        return Database.GetAsync<AetheriaCorporation>(key);
+    }
+
+    public Task<CultRecordHandle<AetheriaNameFile>> PutNameFileAsync(CultRecordKey key, AetheriaNameFile nameFile)
+    {
+        return Database.PutAsync(key, nameFile);
+    }
+
+    public Task<AetheriaNameFile?> GetNameFileAsync(CultRecordKey key)
+    {
+        return Database.GetAsync<AetheriaNameFile>(key);
+    }
+
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);
