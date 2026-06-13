@@ -60,7 +60,7 @@ namespace GameCult.Aetheria.EveRuntime
             }
 
             var lowerer = new EveUiToolkitSurfaceLowerer();
-            root.Add(lowerer.Lower(surface, EmitCommand));
+            root.Add(lowerer.Lower(surface, request => EmitCommand(statePath, request)));
         }
 
         private void OnEnable()
@@ -95,10 +95,11 @@ namespace GameCult.Aetheria.EveRuntime
             return container;
         }
 
-        private static void EmitCommand(EveSurfaceCommandRequest request)
+        private static void EmitCommand(string statePath, EveSurfaceCommandRequest request)
         {
-            Debug.LogWarning(
-                $"Eve command emitted without a CultMesh command bridge: {request.ProviderId}/{request.SurfaceId}/{request.Command}");
+            var envelope = AetheriaRuntimeEveCommandLog.QueueCommand(statePath, request);
+            Debug.Log(
+                $"Queued Eve command for CultMesh bridge: {envelope.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
         }
     }
 }

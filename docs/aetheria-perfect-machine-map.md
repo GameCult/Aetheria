@@ -196,8 +196,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   summaries, or renderer-owned state.
 - `AetheriaEveSurfacePresenter` is the first runtime UI Toolkit consumer of
   those typed surface documents. It owns mounting only: state file resolution,
-  surface lookup, lowering, and visible capability gaps for commands. Provider
-  command acceptance still belongs to the future CultMesh command bridge.
+  surface lookup, lowering, and command emission into a typed pending queue.
+  Provider command acceptance still belongs to the future CultMesh command
+  bridge.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
@@ -288,8 +289,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `org.gamecult.aetheria.eve-runtime` now adds the Aetheria-specific
   `UIDocument` presenter that reads provider-owned Eve surfaces from
   `GameData/aetheria-world.cc` and mounts them through the lowerer. Its command
-  path currently reports the missing CultMesh command bridge instead of
-  accepting renderer-local command effects.
+  path queues `gamecult.eve.command.v1` envelopes under
+  `aetheria-world.cc.eve.pending` for the future CultMesh command bridge
+  instead of accepting renderer-local command effects.
 
 ## Invariants
 
@@ -552,6 +554,13 @@ First Aetheria surfaces to publish:
    - Done: add `org.gamecult.aetheria.eve-runtime` with a `UIDocument`
      presenter that mounts typed Eve surfaces from `GameData/aetheria-world.cc`
      through UI Toolkit without giving the renderer state authority.
+   - Done: queue renderer-emitted Eve commands as typed
+     `gamecult.eve.command.v1` envelopes under `.eve.pending`, separate from
+     runtime state commits so the existing state applicator cannot accidentally
+     accept commands it does not own.
+   - Add the CultMesh command bridge that drains `.eve.pending`, validates
+     command templates, invokes provider-owned command handlers, and republishes
+     accepted state.
    - Wire the presenter into a Unity scene/prefab for the first runtime surface
      and replace a concrete uGUI screen.
    - Move the staged packages into the Eve repo once its worktree is clean, then
@@ -627,7 +636,8 @@ First Aetheria surfaces to publish:
   CultCache store. The smoke proves the Unity runtime state commit log can
   queue player-settings and run snapshot commands, the `Aetheria.State` node
   can apply them into canonical typed settings/run/zone/entity state, and
-  commands are cleared after application.
+  commands are cleared after application. It also proves renderer-emitted Eve
+  commands are queued as typed command envelopes separately from state commits.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

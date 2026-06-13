@@ -1,6 +1,7 @@
 using Aetheria.State;
 using Aetheria.State.Unity;
 using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -234,6 +235,28 @@ try
     {
         throw new InvalidOperationException("Runtime state commit log did not apply queued settings/run snapshots through the typed state node.");
     }
+
+    var eveCommand = AetheriaRuntimeEveCommandLog.QueueCommand(
+        commitSmokeStatePath,
+        new EveSurfaceCommandRequest(
+            "aetheria",
+            "aetheria.catalog.operator",
+            "aetheria.catalog.refresh",
+            new Dictionary<string, string> { ["source"] = "unity-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-unity-smoke"));
+    var evePending = AetheriaRuntimeEveCommandLog.ReadPending(commitSmokeStatePath);
+    if (evePending.Count != 1 ||
+        evePending[0].Schema != AetheriaRuntimeEveCommandLog.CommandSchema ||
+        evePending[0].CommandId != eveCommand.CommandId ||
+        evePending[0].ProviderId != "aetheria" ||
+        evePending[0].SurfaceId != "aetheria.catalog.operator" ||
+        evePending[0].Command != "aetheria.catalog.refresh" ||
+        evePending[0].Payload["source"] != "unity-smoke" ||
+        AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count != 0)
+    {
+        throw new InvalidOperationException("Runtime Eve command log did not preserve typed command envelopes separately from state commits.");
+    }
 }
 finally
 {
@@ -249,3 +272,4 @@ Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
 Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
 Console.WriteLine("Runtime state commit log smoke: settings and run zone/entity snapshots queued, applied, and cleared");
+Console.WriteLine("Runtime Eve command log smoke: surface command queued separately from state commits");
