@@ -103,6 +103,8 @@ Aetheria.State.Import/bin/
 Aetheria.State.Import/obj/
 Aetheria.State.Smoke/bin/
 Aetheria.State.Smoke/obj/
+Aetheria.State.Verify/bin/
+Aetheria.State.Verify/obj/
 
 # JetBrains Rider .idea folder
 .idea/
