@@ -21,7 +21,6 @@ public class Faction : RuntimeProjectionEntry, INamedEntry
 
     [InspectableTexture]
     public string Logo;
-    public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
 
     // [Inspectable]
     // public bool PlayerHostile;

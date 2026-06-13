@@ -291,6 +291,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The dead `PersonalityAttribute` projection DTO and its unused property-panel
   hook have been deleted; no typed catalog import or runtime caller owned that
   shape.
+- Declaration-only personality fields on `Faction`/`Entity` and the unused
+  production personality setting have also been cut; there is no surviving
+  personality-state owner in live Unity source.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
   assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
   on MessagePackReader to open CultCache `.cc` records; that dependency belongs

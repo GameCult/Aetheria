@@ -175,7 +175,6 @@ public class GameplaySettings
     public int WeaponGroupCount = 6;
     public float WarpDistance = 25;
     public float DockingDistance = 25;
-    public float ProductionPersonalityLerp = .05f;
     public float MessageDuration = 4f;
     public float TargetPersistenceDuration = 3;
     public ExponentialLerp StartingGearQuality;

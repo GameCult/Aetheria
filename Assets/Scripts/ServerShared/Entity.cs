@@ -43,7 +43,6 @@ public abstract class Entity
     public string Name;
     
     // public int Population;
-    // public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
