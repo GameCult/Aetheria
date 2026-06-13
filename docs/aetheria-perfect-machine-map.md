@@ -640,6 +640,8 @@ First Aetheria surfaces to publish:
 
 7. Purge
    - Done: delete vendored RethinkDB.
+   - Done: delete root-level RethinkDB operator query notes; no old Rethink
+     runbook remains as a live operational surface.
    - Done: delete JsonKnownTypes.
    - Done: delete Newtonsoft dependencies and attributes from live code.
    - Done: delete old JSON backing stores.
