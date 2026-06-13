@@ -9,11 +9,21 @@ var statePath = args.Length > 1
 
 await using var client = await AetheriaRuntimeCatalogClient.OpenAsync(statePath);
 var catalog = client.ReadCatalog();
+var packageCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(statePath);
 var surface = await client.ReadCatalogSurfaceAsync();
 
 if (catalog.Items.Count != 115)
 {
     throw new InvalidOperationException($"Expected 115 runtime catalog items, found {catalog.Items.Count}.");
+}
+
+if (packageCatalog.Items.Count != catalog.Items.Count ||
+    packageCatalog.Corporations.Count != catalog.Corporations.Count ||
+    packageCatalog.NameFiles.Count != catalog.NameFiles.Count)
+{
+    throw new InvalidOperationException(
+        $"Package catalog store mismatch: {packageCatalog.Items.Count}/{packageCatalog.Corporations.Count}/{packageCatalog.NameFiles.Count} " +
+        $"!= {catalog.Items.Count}/{catalog.Corporations.Count}/{catalog.NameFiles.Count}.");
 }
 
 if (catalog.TradeItems.Count == 0)
@@ -28,6 +38,14 @@ if (catalog.EquipmentItems.Count == 0)
 
 var shaped = catalog.Items.FirstOrDefault(item => item.ShapeCells.Count > 0)
     ?? throw new InvalidOperationException("Runtime catalog has no typed shape masks.");
+var packageShaped = packageCatalog.FindItemByLegacyId(shaped.LegacyId);
+if (packageShaped == null ||
+    packageShaped.Name != shaped.Name ||
+    packageShaped.ShapeCells.Count != shaped.ShapeCells.Count)
+{
+    throw new InvalidOperationException($"Package catalog store did not read the expected typed item payload for {shaped.Name}.");
+}
+
 if (shaped.ShapeCells.Count != shaped.OccupiedCells)
 {
     throw new InvalidOperationException(
@@ -88,6 +106,12 @@ var manufactured = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpa
 if (catalog.GetManufacturer(manufactured) == null)
 {
     throw new InvalidOperationException($"Runtime catalog manufacturer lookup failed for {manufactured.Name}.");
+}
+
+var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
+if (packageCorporation == null || packageCatalog.GetNameFile(packageCorporation) == null)
+{
+    throw new InvalidOperationException("Package catalog store did not read corporation/name-file links.");
 }
 
 if (surface?.Schema != "gamecult.eve.surface.v1" ||

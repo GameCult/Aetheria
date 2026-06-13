@@ -67,6 +67,7 @@ public class ActionGameManager : MonoBehaviour
 
     public static Galaxy CurrentGalaxy;
     public static bool IsTutorial;
+    public static AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; private set; }
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
@@ -235,7 +236,15 @@ public class ActionGameManager : MonoBehaviour
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
         Debug.Log($"Aetheria typed state file: {stateBoot.StateFilePath}");
         if (!stateBoot.StateFileExists)
+        {
             Debug.LogWarning("Aetheria typed state file is missing. Run the Aetheria.State importer before treating legacy catalog data as runtime state.");
+        }
+        else
+        {
+            RuntimeCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(stateBoot.StateFilePath);
+            Debug.Log($"Aetheria typed runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
+        }
+
         Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
         ItemManager = new ItemManager(
             LegacyCatalog,

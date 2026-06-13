@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogSnapshot.cs" Link="AetheriaRuntimeCatalogSnapshot.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogStore.cs" Link="AetheriaRuntimeCatalogStore.cs" />
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
   </ItemGroup>
 </Project>

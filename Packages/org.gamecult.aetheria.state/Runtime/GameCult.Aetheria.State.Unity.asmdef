@@ -1,7 +1,9 @@
 {
     "name": "GameCult.Aetheria.State.Unity",
     "rootNamespace": "GameCult.Aetheria.State.Unity",
-    "references": [],
+    "references": [
+        "MessagePack"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
