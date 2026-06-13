@@ -79,14 +79,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `ILegacyCatalogReader`, so old MessagePack backing stores may hydrate
   in-memory domain objects for the current Unity runtime, but this path cannot
   push or delete legacy files. The legacy backing-store
-  write/realtime APIs and public cache mutation methods have been deleted; only
-  backing-store pull hydration can populate it. The backing-store serializer
-  methods are also deleted, so the legacy cache implementation exposes
-  deserialization only. UI code no longer reaches into
+  write/realtime APIs, public cache mutation methods, enumeration methods, and
+  global-setting lookup methods have been deleted; only backing-store pull
+  hydration can populate it, and only single-ID reads can consume it. The
+  backing-store serializer methods are also deleted, so the legacy cache
+  implementation exposes deserialization only. UI code no longer reaches into
   `LegacyCatalogBoundary.GetCatalog` directly.
 - `ItemManager` no longer exposes the raw `ILegacyCatalogReader` as public
-  gameplay/UI API. Temporary item instantiation bridges now go through narrow
-  `ItemManager.GetCatalogEntry<T>` methods. This does not remove the legacy reader under
+  gameplay/UI API. Temporary item instantiation bridges now go through the
+  narrow `ItemManager.GetCatalogEntry<T>` method. `ItemManager` no longer
+  exposes a legacy catalog enumeration API. This does not remove the legacy reader under
   the hood; it prevents old catalog authority from leaking into every caller
   that only needs a domain lookup. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
@@ -267,7 +269,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   it still materializes `ItemManager`. Item properties manufacturer display is
   a typed snapshot consumer; the give console command, loadout generation, and
   trade debug are typed-selection consumers with temporary legacy item
-  instantiation or UI callback hydration.
+  instantiation or UI callback hydration. No live caller can enumerate legacy
+  catalog entries through `ItemManager` or `ILegacyCatalogReader`.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -427,6 +430,11 @@ First Aetheria surfaces to publish:
      checks and behavior construction.
    - Done: move `TradeMenuDebug` row selection to the typed trade catalog;
      legacy item DTO hydration remains only for old inspect/buy callbacks.
+   - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers
+     moved to typed catalog selection.
+   - Done: delete `ILegacyCatalogReader.GetAll<T>` and the type/global indexes
+     inside `LegacyCatalogCache`; the legacy cache is now only a pull-fed GUID
+     lookup bridge.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.

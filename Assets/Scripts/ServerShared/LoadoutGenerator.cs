@@ -167,12 +167,12 @@ public class LoadoutGenerator
 
         if (requestedType == typeof(GearData))
         {
-            return item.Category is "GearData" or "WeaponItemData";
+            return item.Category == "GearData" || item.Category == "WeaponItemData";
         }
 
         if (requestedType == typeof(CargoBayData))
         {
-            return item.Category is "CargoBayData" or "DockingBayData";
+            return item.Category == "CargoBayData" || item.Category == "DockingBayData";
         }
 
         return string.Equals(item.Category, requestedType.Name, StringComparison.Ordinal);
