@@ -91,8 +91,6 @@ public class DatabaseLinkBase
     public static void BindLegacyCatalog(CultCache cache)
     {
         if (cache == null) throw new ArgumentNullException(nameof(cache));
-        if (!cache.ReadOnly)
-            throw new InvalidOperationException("Legacy DatabaseLink resolution requires a read-only catalog cache.");
 
         LegacyCatalogCache = cache;
     }

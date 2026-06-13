@@ -26,11 +26,9 @@ public class CultCache
     private readonly Dictionary<Type, HashSet<DatabaseEntry>> _types = new Dictionary<Type, HashSet<DatabaseEntry>>();
 
     public IEnumerable<DatabaseEntry> AllEntries => _entries.Values;
-    public bool ReadOnly { get; }
 
-    public CultCache(bool readOnly = false)
+    public CultCache()
     {
-        ReadOnly = readOnly;
         foreach (var type in typeof(DatabaseEntry).GetAllChildClasses())
         {
             _types[type] = new HashSet<DatabaseEntry>();
@@ -66,14 +64,6 @@ public class CultCache
         foreach(var store in _storeTypes.Keys) store.PullAll();
     }
 
-    public void Add(DatabaseEntry entry, CacheBackingStore source = null)
-    {
-        if (ReadOnly && source == null)
-            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
-
-        AddInternal(entry, source);
-    }
-
     private void AddInternal(DatabaseEntry entry, CacheBackingStore source = null)
     {
         lock(addLock)
@@ -88,7 +78,7 @@ public class CultCache
                 {
                     if(_globals[type]!=null)
                     {
-                        Remove(_globals[type]);
+                        RemoveInternal(_globals[type]);
                         exists = true;
                     }
                     _globals[type] = entry;
@@ -107,17 +97,6 @@ public class CultCache
     }
 
     public bool IsGlobal(DatabaseEntry entry) => _globals.ContainsKey(entry.GetType());
-
-    public void AddAll(IEnumerable<DatabaseEntry> entries)
-    {
-        if (ReadOnly)
-            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
-
-        foreach (var entry in entries)
-        {
-            AddInternal(entry);
-        }
-    }
 
     public DatabaseEntry Get(Guid guid)
     {
@@ -153,11 +132,8 @@ public class CultCache
         return !_types.ContainsKey(type) ? Enumerable.Empty<T>() : _types[type].Cast<T>();
     }
 
-    public void Remove(DatabaseEntry entry, CacheBackingStore source = null)
+    private void RemoveInternal(DatabaseEntry entry)
     {
-        if (ReadOnly && source == null)
-            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
-
         _entries.Remove(entry.ID);
         var type = entry.GetType();
         foreach (var parentType in type.GetParentTypes())

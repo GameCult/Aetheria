@@ -32,13 +32,11 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted.
-- `LegacyCatalogBoundary` opens the legacy `CultCache` in read-only mode. Old
-  MessagePack backing stores may hydrate in-memory domain objects for the
-  current Unity runtime, but this path cannot push or delete legacy files. The
-  legacy backing-store abstraction is pull-only; its write and realtime
-  watcher APIs have been deleted. Public `Add`, `AddAll`, and `Remove` calls
-  against the read-only cache are rejected; only backing-store pull hydration
-  can populate it.
+- `LegacyCatalogBoundary` opens the legacy `CultCache` as a pull-only catalog
+  cache. Old MessagePack backing stores may hydrate in-memory domain objects
+  for the current Unity runtime, but this path cannot push or delete legacy
+  files. The legacy backing-store write/realtime APIs and public cache mutation
+  methods have been deleted; only backing-store pull hydration can populate it.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -81,7 +79,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
   reads and legacy `DatabaseLink<T>` resolution inside the Unity runtime until
-  catalog migration lands.
+  catalog migration lands. The legacy cache no longer has a public mutation
+  surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -219,6 +218,7 @@ First Aetheria surfaces to publish:
    - Done: stop legacy `CultCache` pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy `CultCache` backing-store write/realtime APIs.
+   - Done: delete public legacy `CultCache` mutation APIs.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

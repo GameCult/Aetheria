@@ -18,7 +18,7 @@ public static class LegacyCatalogBoundary
     {
         if (_catalogCache != null) return _catalogCache;
 
-        _catalogCache = new CultCache(readOnly: true);
+        _catalogCache = new CultCache();
         _catalogCache.AddBackingStore(new SingleFileMessagePackBackingStore(GetLegacyCatalogPath(gameDataDirectory)));
         _catalogCache.AddBackingStore(new MultiFileMessagePackBackingStore(gameDataDirectory.FullName), typeof(NameFile));
         _catalogCache.PullAllBackingStores();
