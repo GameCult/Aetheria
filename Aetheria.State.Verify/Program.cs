@@ -44,6 +44,9 @@ var pricedItems = items.Count(item => item.Price > 0);
 var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
 var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
 var shapedMaskItems = items.Count(item => item.ShapeCells.Length > 0);
+var interiorShapeItems = items.Count(item => item.InteriorShapeCells.Length > 0);
+var hardpointHostItems = items.Count(item => item.Hardpoints.Length > 0);
+var hardpointCount = items.Sum(item => item.Hardpoints.Length);
 var behaviorItems = items.Count(item => item.BehaviorCount > 0 && item.BehaviorKinds.Length > 0);
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
@@ -86,6 +89,57 @@ foreach (var item in items.Where(item => item.ShapeCells.Length > 0))
     if (item.ShapeCells.Any(cell => cell.X < 0 || cell.Y < 0 || cell.X >= item.ShapeWidth || cell.Y >= item.ShapeHeight))
     {
         throw new InvalidOperationException($"Typed item shape mask has out-of-bounds cells for {item.Name}.");
+    }
+}
+
+foreach (var item in items.Where(item => item.InteriorShapeCells.Length > 0))
+{
+    if (item.InteriorShapeCells.Length != item.InteriorOccupiedCells)
+    {
+        throw new InvalidOperationException(
+            $"Typed item interior shape mask count mismatch for {item.Name}: cells={item.InteriorShapeCells.Length}, occupied={item.InteriorOccupiedCells}.");
+    }
+
+    if (item.InteriorShapeCells.Any(cell =>
+            cell.X < 0 || cell.Y < 0 || cell.X >= item.InteriorShapeWidth || cell.Y >= item.InteriorShapeHeight))
+    {
+        throw new InvalidOperationException($"Typed item interior shape mask has out-of-bounds cells for {item.Name}.");
+    }
+}
+
+if (interiorShapeItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any interior shape masks.");
+}
+
+if (hardpointHostItems == 0 || hardpointCount == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any hull hardpoints.");
+}
+
+foreach (var item in items.Where(item => item.Hardpoints.Length > 0))
+{
+    foreach (var hardpoint in item.Hardpoints)
+    {
+        if (string.IsNullOrWhiteSpace(hardpoint.Type))
+        {
+            throw new InvalidOperationException($"Typed item hardpoint has no type for {item.Name}.");
+        }
+
+        if (hardpoint.ShapeCells.Length != hardpoint.OccupiedCells)
+        {
+            throw new InvalidOperationException(
+                $"Typed item hardpoint shape count mismatch for {item.Name}: cells={hardpoint.ShapeCells.Length}, occupied={hardpoint.OccupiedCells}.");
+        }
+
+        if (hardpoint.ShapeCells.Any(cell =>
+                cell.X < 0 || cell.Y < 0 || cell.X >= hardpoint.ShapeWidth || cell.Y >= hardpoint.ShapeHeight))
+        {
+            throw new InvalidOperationException($"Typed item hardpoint shape has out-of-bounds cells for {item.Name}.");
+        }
+
+        // Legacy content includes at least one overhanging hardpoint. Preserve the
+        // payload faithfully here; content repair belongs to a separate pass.
     }
 }
 
@@ -201,6 +255,7 @@ Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
+Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");

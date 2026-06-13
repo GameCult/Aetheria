@@ -90,6 +90,21 @@ public sealed class AetheriaItemDefinition
 
     [Key(25)]
     public AetheriaShapeCell[] ShapeCells { get; set; } = [];
+
+    [Key(26)]
+    public int InteriorShapeWidth { get; set; }
+
+    [Key(27)]
+    public int InteriorShapeHeight { get; set; }
+
+    [Key(28)]
+    public int InteriorOccupiedCells { get; set; }
+
+    [Key(29)]
+    public AetheriaShapeCell[] InteriorShapeCells { get; set; } = [];
+
+    [Key(30)]
+    public AetheriaItemHardpoint[] Hardpoints { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -100,4 +115,38 @@ public sealed class AetheriaShapeCell
 
     [Key(1)]
     public int Y { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaItemHardpoint
+{
+    [Key(0)]
+    public string Type { get; set; } = "";
+
+    [Key(1)]
+    public int PositionX { get; set; }
+
+    [Key(2)]
+    public int PositionY { get; set; }
+
+    [Key(3)]
+    public int ShapeWidth { get; set; }
+
+    [Key(4)]
+    public int ShapeHeight { get; set; }
+
+    [Key(5)]
+    public int OccupiedCells { get; set; }
+
+    [Key(6)]
+    public AetheriaShapeCell[] ShapeCells { get; set; } = [];
+
+    [Key(7)]
+    public string Transform { get; set; } = "";
+
+    [Key(8)]
+    public string Rotation { get; set; } = "";
+
+    [Key(9)]
+    public double Armor { get; set; }
 }

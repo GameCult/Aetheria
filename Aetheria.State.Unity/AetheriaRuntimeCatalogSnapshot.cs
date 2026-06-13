@@ -108,6 +108,11 @@ public sealed class AetheriaRuntimeCatalogItem
         int shapeHeight,
         int occupiedCells,
         IReadOnlyList<AetheriaRuntimeShapeCell> shapeCells,
+        int interiorShapeWidth,
+        int interiorShapeHeight,
+        int interiorOccupiedCells,
+        IReadOnlyList<AetheriaRuntimeShapeCell> interiorShapeCells,
+        IReadOnlyList<AetheriaRuntimeHardpoint> hardpoints,
         string hardpointType,
         string hullType,
         IReadOnlyList<string> behaviorKinds,
@@ -131,6 +136,11 @@ public sealed class AetheriaRuntimeCatalogItem
         ShapeHeight = shapeHeight;
         OccupiedCells = occupiedCells;
         ShapeCells = shapeCells;
+        InteriorShapeWidth = interiorShapeWidth;
+        InteriorShapeHeight = interiorShapeHeight;
+        InteriorOccupiedCells = interiorOccupiedCells;
+        InteriorShapeCells = interiorShapeCells;
+        Hardpoints = hardpoints;
         HardpointType = hardpointType;
         HullType = hullType;
         BehaviorKinds = behaviorKinds;
@@ -155,6 +165,11 @@ public sealed class AetheriaRuntimeCatalogItem
     public int ShapeHeight { get; }
     public int OccupiedCells { get; }
     public IReadOnlyList<AetheriaRuntimeShapeCell> ShapeCells { get; }
+    public int InteriorShapeWidth { get; }
+    public int InteriorShapeHeight { get; }
+    public int InteriorOccupiedCells { get; }
+    public IReadOnlyList<AetheriaRuntimeShapeCell> InteriorShapeCells { get; }
+    public IReadOnlyList<AetheriaRuntimeHardpoint> Hardpoints { get; }
     public string HardpointType { get; }
     public string HullType { get; }
     public IReadOnlyList<string> BehaviorKinds { get; }
@@ -181,6 +196,11 @@ public sealed class AetheriaRuntimeCatalogItem
             item.ShapeHeight,
             item.OccupiedCells,
             item.ShapeCells.Select(AetheriaRuntimeShapeCell.FromState).ToArray(),
+            item.InteriorShapeWidth,
+            item.InteriorShapeHeight,
+            item.InteriorOccupiedCells,
+            item.InteriorShapeCells.Select(AetheriaRuntimeShapeCell.FromState).ToArray(),
+            item.Hardpoints.Select(AetheriaRuntimeHardpoint.FromState).ToArray(),
             item.HardpointType,
             item.HullType,
             item.BehaviorKinds,
@@ -209,6 +229,68 @@ public sealed class AetheriaRuntimeShapeCell
     public static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)
     {
         return new AetheriaRuntimeShapeCell(cell.X, cell.Y);
+    }
+}
+
+public sealed class AetheriaRuntimeHardpoint
+{
+    public AetheriaRuntimeHardpoint(
+        string type,
+        int positionX,
+        int positionY,
+        int shapeWidth,
+        int shapeHeight,
+        int occupiedCells,
+        IReadOnlyList<AetheriaRuntimeShapeCell> shapeCells,
+        string transform,
+        string rotation,
+        double armor)
+    {
+        Type = type;
+        PositionX = positionX;
+        PositionY = positionY;
+        ShapeWidth = shapeWidth;
+        ShapeHeight = shapeHeight;
+        OccupiedCells = occupiedCells;
+        ShapeCells = shapeCells;
+        Transform = transform;
+        Rotation = rotation;
+        Armor = armor;
+    }
+
+    public string Type { get; }
+
+    public int PositionX { get; }
+
+    public int PositionY { get; }
+
+    public int ShapeWidth { get; }
+
+    public int ShapeHeight { get; }
+
+    public int OccupiedCells { get; }
+
+    public IReadOnlyList<AetheriaRuntimeShapeCell> ShapeCells { get; }
+
+    public string Transform { get; }
+
+    public string Rotation { get; }
+
+    public double Armor { get; }
+
+    public static AetheriaRuntimeHardpoint FromState(AetheriaItemHardpoint hardpoint)
+    {
+        return new AetheriaRuntimeHardpoint(
+            hardpoint.Type,
+            hardpoint.PositionX,
+            hardpoint.PositionY,
+            hardpoint.ShapeWidth,
+            hardpoint.ShapeHeight,
+            hardpoint.OccupiedCells,
+            hardpoint.ShapeCells.Select(AetheriaRuntimeShapeCell.FromState).ToArray(),
+            hardpoint.Transform,
+            hardpoint.Rotation,
+            hardpoint.Armor);
     }
 }
 

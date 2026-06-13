@@ -196,6 +196,12 @@ internal static class LegacyCatalogReader
         "ControlModule",
         "AetherDrive"
     ]);
+    private static readonly Dictionary<int, string> ItemRotations = CreateEnumMap([
+        "None",
+        "CounterClockwise",
+        "Reversed",
+        "Clockwise"
+    ]);
     private static readonly Dictionary<int, string> HullTypes = CreateEnumMap(["Ship", "Station", "Turret"]);
     private static readonly Dictionary<int, string> WeaponRanges = CreateEnumMap(["Melee", "Short", "Medium", "Long"]);
     private static readonly Dictionary<int, string> WeaponCalibers = CreateEnumMap(["Small", "Medium", "Large", "ExtraLarge"]);
@@ -305,6 +311,8 @@ internal static class LegacyCatalogReader
         var name = GetString(payload, 1);
         var description = GetString(payload, 2);
         var shape = ReadShape(payload, 5);
+        var interiorShape = ReadInteriorShape(unionKey, payload, shape);
+        var hardpoints = unionKey == 3 ? ReadHardpoints(payload, 23) : [];
         var behaviorKinds = ReadBehaviorKinds(payload, unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10);
         var summary = new AetheriaLegacyCatalogEntrySummary
         {
@@ -332,6 +340,11 @@ internal static class LegacyCatalogReader
                     ShapeHeight = shape.Height,
                     OccupiedCells = shape.OccupiedCells,
                     ShapeCells = shape.Cells,
+                    InteriorShapeWidth = interiorShape.Width,
+                    InteriorShapeHeight = interiorShape.Height,
+                    InteriorOccupiedCells = interiorShape.OccupiedCells,
+                    InteriorShapeCells = interiorShape.Cells,
+                    Hardpoints = hardpoints,
                     HardpointType = GetHardpointType(unionKey, payload),
                     HullType = unionKey == 3 ? GetEnumName(payload, 25, HullTypes) : "",
                     BehaviorKinds = behaviorKinds,
@@ -589,6 +602,44 @@ internal static class LegacyCatalogReader
         return flags.Length == 0 ? "" : string.Join("|", flags);
     }
 
+    private static AetheriaItemHardpoint[] ReadHardpoints(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value is not object?[] hardpoints)
+        {
+            return [];
+        }
+
+        return hardpoints
+            .Select(ReadHardpoint)
+            .Where(hardpoint => hardpoint != null)
+            .Cast<AetheriaItemHardpoint>()
+            .ToArray();
+    }
+
+    private static AetheriaItemHardpoint? ReadHardpoint(object? value)
+    {
+        if (value is not object?[] fields)
+        {
+            return null;
+        }
+
+        var position = ReadPoint(fields.ElementAtOrDefault(1));
+        var shape = ReadShapeValue(fields.ElementAtOrDefault(2));
+        return new AetheriaItemHardpoint
+        {
+            Type = ReadEnumName(fields.ElementAtOrDefault(0), HardpointTypes),
+            PositionX = position.X,
+            PositionY = position.Y,
+            ShapeWidth = shape.Width,
+            ShapeHeight = shape.Height,
+            OccupiedCells = shape.OccupiedCells,
+            ShapeCells = shape.Cells,
+            Transform = ReadStringValue(fields.ElementAtOrDefault(3)),
+            Rotation = ReadEnumName(fields.ElementAtOrDefault(4), ItemRotations),
+            Armor = ReadDoubleValue(fields.ElementAtOrDefault(5))
+        };
+    }
+
     private static string[] ReadBehaviorKinds(IReadOnlyDictionary<int, object?> payload, int key)
     {
         if (!payload.TryGetValue(key, out var value) || value is not object?[] behaviors)
@@ -637,6 +688,29 @@ internal static class LegacyCatalogReader
     private static ShapeFacts ReadShape(IReadOnlyDictionary<int, object?> payload, int key)
     {
         if (!payload.TryGetValue(key, out var value) || value == null)
+        {
+            return ShapeFacts.Empty;
+        }
+
+        return ReadShapeValue(value);
+    }
+
+    private static ShapeFacts ReadInteriorShape(
+        int unionKey,
+        IReadOnlyDictionary<int, object?> payload,
+        ShapeFacts itemShape)
+    {
+        return unionKey switch
+        {
+            3 => itemShape.Shrink(),
+            29 or 30 => ReadShape(payload, 24),
+            _ => ShapeFacts.Empty
+        };
+    }
+
+    private static ShapeFacts ReadShapeValue(object? value)
+    {
+        if (value == null)
         {
             return ShapeFacts.Empty;
         }
@@ -690,6 +764,53 @@ internal static class LegacyCatalogReader
     {
         return value is object?[] shapeObject && shapeObject.Length == 1 ? shapeObject[0] : value;
     }
+
+    private static PointFacts ReadPoint(object? value)
+    {
+        if (value is not object?[] coordinates)
+        {
+            return PointFacts.Empty;
+        }
+
+        return new PointFacts(
+            ReadIntValue(coordinates.ElementAtOrDefault(0)),
+            ReadIntValue(coordinates.ElementAtOrDefault(1)));
+    }
+
+    private static string ReadEnumName(object? value, IReadOnlyDictionary<int, string> names)
+    {
+        var index = ReadIntValue(value);
+        return names.TryGetValue(index, out var name) ? name : "";
+    }
+
+    private static int ReadIntValue(object? value)
+    {
+        return value switch
+        {
+            long integerValue => checked((int) integerValue),
+            int integerValue => integerValue,
+            double doubleValue => checked((int) doubleValue),
+            float floatValue => checked((int) floatValue),
+            _ => 0
+        };
+    }
+
+    private static double ReadDoubleValue(object? value)
+    {
+        return value switch
+        {
+            double doubleValue => doubleValue,
+            float floatValue => floatValue,
+            long integerValue => integerValue,
+            int integerValue => integerValue,
+            _ => 0
+        };
+    }
+
+    private static string ReadStringValue(object? value)
+    {
+        return value as string ?? "";
+    }
 }
 
 internal sealed record LegacyCatalogEntry(
@@ -703,4 +824,39 @@ internal readonly record struct ShapeFacts(int Width, int Height, AetheriaShapeC
     public static ShapeFacts Empty { get; } = new(0, 0, []);
 
     public int OccupiedCells => Cells.Length;
+
+    public ShapeFacts Shrink()
+    {
+        if (Width == 0 || Height == 0 || Cells.Length == 0)
+        {
+            return Empty;
+        }
+
+        var occupied = Cells
+            .Select(cell => (cell.X, cell.Y))
+            .ToHashSet();
+        var interior = Cells
+            .Where(cell =>
+                IsOccupied(occupied, cell.X - 1, cell.Y - 1) &&
+                IsOccupied(occupied, cell.X, cell.Y - 1) &&
+                IsOccupied(occupied, cell.X + 1, cell.Y - 1) &&
+                IsOccupied(occupied, cell.X - 1, cell.Y) &&
+                IsOccupied(occupied, cell.X + 1, cell.Y) &&
+                IsOccupied(occupied, cell.X - 1, cell.Y + 1) &&
+                IsOccupied(occupied, cell.X, cell.Y + 1) &&
+                IsOccupied(occupied, cell.X + 1, cell.Y + 1))
+            .Select(cell => new AetheriaShapeCell { X = cell.X, Y = cell.Y })
+            .ToArray();
+        return new ShapeFacts(Width, Height, interior);
+    }
+
+    private static bool IsOccupied(IReadOnlySet<(int X, int Y)> occupied, int x, int y)
+    {
+        return occupied.Contains((x, y));
+    }
+}
+
+internal readonly record struct PointFacts(int X, int Y)
+{
+    public static PointFacts Empty { get; } = new(0, 0);
 }

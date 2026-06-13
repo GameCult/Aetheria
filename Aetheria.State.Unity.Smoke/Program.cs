@@ -38,6 +38,23 @@ if (shaped.ShapeCells.Any(cell => cell.X < 0 || cell.Y < 0 || cell.X >= shaped.S
     throw new InvalidOperationException($"Runtime shape mask has out-of-bounds cells for {shaped.Name}.");
 }
 
+var interior = catalog.Items.FirstOrDefault(item => item.InteriorShapeCells.Count > 0)
+    ?? throw new InvalidOperationException("Runtime catalog has no typed interior shape masks.");
+if (interior.InteriorShapeCells.Count != interior.InteriorOccupiedCells)
+{
+    throw new InvalidOperationException(
+        $"Runtime interior shape mask count mismatch for {interior.Name}: cells={interior.InteriorShapeCells.Count}, occupied={interior.InteriorOccupiedCells}.");
+}
+
+var hardpointHost = catalog.Items.FirstOrDefault(item => item.Hardpoints.Count > 0)
+    ?? throw new InvalidOperationException("Runtime catalog has no typed hardpoints.");
+var hardpoint = hardpointHost.Hardpoints.First();
+if (hardpoint.ShapeCells.Count != hardpoint.OccupiedCells)
+{
+    throw new InvalidOperationException(
+        $"Runtime hardpoint shape count mismatch for {hardpointHost.Name}: cells={hardpoint.ShapeCells.Count}, occupied={hardpoint.OccupiedCells}.");
+}
+
 var behaviorKind = catalog.Items.SelectMany(item => item.BehaviorKinds).FirstOrDefault()
     ?? throw new InvalidOperationException("Runtime catalog has no behavior kind fingerprints.");
 if (!catalog.FindItemsByBehavior(behaviorKind).Any())
@@ -67,5 +84,6 @@ if (surface?.Schema != "gamecult.eve.surface.v1" ||
 Console.WriteLine($"Aetheria Unity runtime catalog smoke passed: {statePath}");
 Console.WriteLine($"Items/trade/equipment: {catalog.Items.Count}/{catalog.TradeItems.Count}/{catalog.EquipmentItems.Count}");
 Console.WriteLine($"Shape mask sample: {shaped.Name} {shaped.ShapeWidth}x{shaped.ShapeHeight}/{shaped.ShapeCells.Count}");
+Console.WriteLine($"Interior/hardpoint sample: {interior.Name} {interior.InteriorShapeCells.Count}; {hardpointHost.Name} {hardpoint.Type} {hardpoint.ShapeCells.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");

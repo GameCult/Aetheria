@@ -59,8 +59,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
   files. Item definitions now carry legacy manufacturer IDs, price, shape
   dimensions, occupied cell counts, full typed shape-cell masks, hardpoint
-  type, hull type, behavior kind fingerprints, stack size, durability, and
-  weapon range/caliber/type/fire/modifier classifications. Corporation
+  type, hull type, interior shape masks for hull/cargo equipment, hull
+  hardpoint definitions, behavior kind fingerprints, stack size, durability,
+  and weapon range/caliber/type/fire/modifier classifications. Corporation
   documents now carry the legacy short name, true description from key 3,
   name-file and boss-hull legacy IDs, influence distance, allegiance count, and
   music bank IDs. Empty legacy GUID references are imported as absent links
@@ -75,8 +76,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog state. It opens `aetheria-world.cc`, emits immutable catalog read
   models for trade/equipment/behavior/hardpoint/manufacturer/corporation/name
   queries, exposes typed item shape masks for layout/fitting consumers, and
-  reads the published Eve surface without deserializing legacy `DatabaseEntry`
-  objects. It is not a simulation owner and does not write state.
+  exposes typed interior masks and hardpoints for future equipment/cargo
+  layout consumers. It reads the published Eve surface without deserializing
+  legacy `DatabaseEntry` objects. It is not a simulation owner and does not
+  write state.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -91,9 +94,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   API resolves migrated item, corporation, and name-file documents, and that
   the expanded typed catalog facts, typed catalog snapshot queries, and typed
   Eve catalog surface are present in the `.cc` store. The current verifier sees
-  52 shaped item masks, 39 behavior-bearing item definitions, 51
-  hardpoint-tagged equipment items, 3 hull items, and 18 weapon-facet item
-  definitions.
+  52 shaped item masks, 5 interior masks, 3 hardpoint-host hulls, 22
+  hardpoints, 39 behavior-bearing item definitions, 51 hardpoint-tagged
+  equipment items, 3 hull items, and 18 weapon-facet item definitions. Legacy
+  content includes at least one overhanging hardpoint (`LonginusX`); migration
+  verification preserves that payload and does not convert content repair into
+  mapper authority.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
@@ -256,6 +262,8 @@ First Aetheria surfaces to publish:
      behavior kind fingerprints needed by future Unity/Eve catalog consumers.
    - Done: import full item shape-cell masks into typed catalog documents and
      expose them through the Unity-facing read facade.
+   - Done: import typed interior shape masks and hull hardpoint definitions
+     needed by future equipment/cargo layout and fitting consumers.
    - Remaining: add typed documents/mappers for runtime object graphs,
      full behavior payloads, simulation state, and any catalog fields not
      covered by the stable scalar/fingerprint pass.
@@ -324,7 +332,8 @@ First Aetheria surfaces to publish:
   converted without old readers remaining on the live runtime path.
 - Unity runtime catalog smoke proves read-only catalog consumers can open the
   typed `.cc` store through `Aetheria.State.Unity` without `DatabaseEntry` or
-  `LegacyCatalogCache`, including typed shape masks.
+  `LegacyCatalogCache`, including typed item masks, interior masks, and
+  hardpoint definitions.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser
