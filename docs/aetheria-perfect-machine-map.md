@@ -89,7 +89,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now go through narrow `ItemManager.GetCatalogEntry<T>` and
   `GetCatalogEntries<T>` methods. This does not remove the legacy reader under
   the hood; it prevents old catalog authority from leaking into every caller
-  that only needs a domain lookup.
+  that only needs a domain lookup. The item properties UI no longer uses
+  `ItemManager` for manufacturer display; it resolves the manufacturer through
+  the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader`. Sector and
   tutorial generation receive `ItemManager` and use the same narrow catalog
   lookup port for factions and name files. `ActionGameManager` now has a
@@ -224,7 +226,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.State.Unity` facade maps typed `.cc` documents into the same
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The legacy cache no longer has a public mutation surface, but
-  it still materializes `ItemManager`.
+  it still materializes `ItemManager`. Item properties manufacturer display is
+  a typed snapshot consumer; trade debug, galaxy generation, loadout generation,
+  entity restore, and the give console command still use `ItemManager` legacy
+  domain materialization.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
