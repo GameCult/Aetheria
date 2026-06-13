@@ -3,13 +3,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Buffers.Text;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using MessagePack;
 using UniRx;
 
@@ -17,11 +14,6 @@ public class CultCache
 {
 
     private readonly object addLock = new object();
-
-    //public Action<string> Logger = Console.WriteLine;
-    //private string _filePath;
-
-    public event Action<DatabaseEntry, DatabaseEntry> OnUpdate;
 
     private List<CacheBackingStore> _backingStores = new List<CacheBackingStore>();
     
@@ -32,21 +24,6 @@ public class CultCache
 
     private readonly Dictionary<Type, DatabaseEntry> _globals = new Dictionary<Type, DatabaseEntry>();
     private readonly Dictionary<Type, HashSet<DatabaseEntry>> _types = new Dictionary<Type, HashSet<DatabaseEntry>>();
-
-    // private readonly Dictionary<Type, (DirectoryInfo directory, List<Guid> entries)> _externalTypes = new Dictionary<Type, (DirectoryInfo directory, List<Guid> entries)>();
-
-    // private class ExternalEntry
-    // {
-    //     public string FilePath;
-    //     public DatabaseEntry Entry;
-    //
-    //     public ExternalEntry(string filePath, DatabaseEntry entry)
-    //     {
-    //         FilePath = filePath;
-    //         Entry = entry;
-    //     }
-    // }
-    // private readonly Dictionary<Guid, ExternalEntry> _externalEntries = new Dictionary<Guid, ExternalEntry>();
 
     public IEnumerable<DatabaseEntry> AllEntries => _entries.Values;
     public bool ReadOnly { get; }
@@ -75,23 +52,11 @@ public class CultCache
         }
         else
         {
-            foreach(var existingStore in _backingStores) store.SubscribeTo(existingStore);
             _backingStores.Add(store);
         }
         store.EntryAdded.Subscribe(entry =>
         {
             Add(entry, store);
-            OnUpdate?.Invoke(null, entry);
-        });
-        store.EntryUpdated.Subscribe(entry =>
-        {
-            Add(entry, store);
-            OnUpdate?.Invoke(entry, entry);
-        });
-        store.EntryDeleted.Subscribe(entry =>
-        {
-            Remove(entry, store);
-            OnUpdate?.Invoke(entry, null);
         });
     }
 
@@ -119,25 +84,6 @@ public class CultCache
                         exists = true;
                     }
                     _globals[type] = entry;
-                }
-                
-                if(_typeStores.ContainsKey(type))
-                {
-                    var typeStore = _typeStores[type];
-                    if(typeStore != source)
-                    {
-                        ThrowIfReadOnlyWrite();
-                        typeStore.Push(entry);
-                    }
-                }
-                else
-                {
-                    var masterStore = _backingStores.FirstOrDefault();
-                    if(masterStore != null && masterStore!=source)
-                    {
-                        ThrowIfReadOnlyWrite();
-                        masterStore.Push(entry);
-                    }
                 }
                 
                 _entries[entry.ID] = entry;
@@ -200,40 +146,12 @@ public class CultCache
     {
         _entries.Remove(entry.ID);
         var type = entry.GetType();
-        if(_typeStores.ContainsKey(type))
-        {
-            var typeStore = _typeStores[type];
-            if(typeStore != source)
-            {
-                ThrowIfReadOnlyWrite();
-                typeStore.Delete(entry);
-            }
-        }
-        else foreach(var store in _backingStores)
-        {
-            if(store != source)
-            {
-                ThrowIfReadOnlyWrite();
-                store.Delete(entry);
-            }
-        }
         foreach (var parentType in type.GetParentTypes())
         {
             if(_types.ContainsKey(parentType))
                 _types[parentType].Remove(entry);
         }
     }
-
-    private void ThrowIfReadOnlyWrite()
-    {
-        if (ReadOnly)
-            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
-    }
-}
-
-public interface RealtimeBackingStore
-{
-    public void ObserveChanges();
 }
 
 public abstract class CacheBackingStore
@@ -241,30 +159,16 @@ public abstract class CacheBackingStore
     protected CacheBackingStore()
     {
         EntryAdded = new Subject<DatabaseEntry>();
-        EntryDeleted = new Subject<DatabaseEntry>();
-        EntryUpdated = new Subject<DatabaseEntry>();
     }
 
     public abstract void PullAll();
-    public abstract void Push(DatabaseEntry entry);
-    public abstract void Delete(DatabaseEntry entry);
-    public abstract void PushAll(bool soft = false);
     
     public Subject<DatabaseEntry> EntryAdded { get; }
-    public Subject<DatabaseEntry> EntryDeleted { get; }
-    public Subject<DatabaseEntry> EntryUpdated { get; }
 
     protected Dictionary<Guid, DatabaseEntry> Entries = new Dictionary<Guid, DatabaseEntry>();
-
-    public void SubscribeTo(CacheBackingStore targetStore)
-    {
-        targetStore.EntryAdded.Subscribe(Push);
-        targetStore.EntryDeleted.Subscribe(Delete);
-        targetStore.EntryUpdated.Subscribe(Push);
-    }
 }
 
-public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBackingStore
+public abstract class MultiFileBackingStore : CacheBackingStore
 {
     public DirectoryInfo DirectoryInfo { get; }
     protected Dictionary<Type, DirectoryInfo> _entryTypeDirectories = new Dictionary<Type, DirectoryInfo>();
@@ -297,47 +201,6 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
         }
     }
 
-    public override void Push(DatabaseEntry entry)
-    {
-        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
-    }
-
-    public override void Delete(DatabaseEntry entry)
-    {
-        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
-    }
-
-    public override void PushAll(bool soft = false)
-    {
-        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
-    }
-
-    public void ObserveChanges()
-    {
-        foreach (var directory in _entryTypeDirectories.Values)
-        {
-            if (!directory.Exists) continue;
-            var watcher = new FileSystemWatcher(directory.FullName);
-            watcher.Changed += (sender, args) =>
-            {
-                var entry = Deserialize(File.ReadAllBytes(args.FullPath));
-                Entries[entry.ID] = entry;
-                EntryUpdated.OnNext(entry);
-            };
-            watcher.Created += (sender, args) =>
-            {
-                var entry = Deserialize(File.ReadAllBytes(args.FullPath));
-                Entries[entry.ID] = entry;
-                EntryAdded.OnNext(entry);
-            };
-            watcher.Deleted += (sender, args) =>
-            {
-                var entry = Deserialize(File.ReadAllBytes(args.FullPath));
-                Entries[entry.ID] = entry;
-                EntryDeleted.OnNext(entry);
-            };
-        }
-    }
 }
 
 public class MultiFileMessagePackBackingStore : MultiFileBackingStore
@@ -383,20 +246,6 @@ public abstract class SingleFileBackingStore : CacheBackingStore
         }
     }
 
-    public override void Push(DatabaseEntry entry)
-    {
-        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
-    }
-
-    public override void Delete(DatabaseEntry entry)
-    {
-        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
-    }
-
-    public override void PushAll(bool soft = false)
-    {
-        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
-    }
 }
 
 public class SingleFileMessagePackBackingStore : SingleFileBackingStore

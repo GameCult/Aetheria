@@ -34,9 +34,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   deleted.
 - `LegacyCatalogBoundary` opens the legacy `CultCache` in read-only mode. Old
   MessagePack backing stores may hydrate in-memory domain objects for the
-  current Unity runtime, but this path cannot push or delete legacy files.
-  `SingleFileMessagePackBackingStore` and `MultiFileMessagePackBackingStore`
-  now throw on `Push`, `Delete`, and `PushAll`.
+  current Unity runtime, but this path cannot push or delete legacy files. The
+  legacy backing-store abstraction is pull-only; its write and realtime
+  watcher APIs have been deleted.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -216,6 +216,7 @@ First Aetheria surfaces to publish:
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
    - Done: stop legacy `CultCache` pull/read paths from writing entries back to
      their source backing store.
+   - Done: delete legacy `CultCache` backing-store write/realtime APIs.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
