@@ -331,6 +331,7 @@ internal static class LegacyCatalogReader
                     ShapeWidth = shape.Width,
                     ShapeHeight = shape.Height,
                     OccupiedCells = shape.OccupiedCells,
+                    ShapeCells = shape.Cells,
                     HardpointType = GetHardpointType(unionKey, payload),
                     HullType = unionKey == 3 ? GetEnumName(payload, 25, HullTypes) : "",
                     BehaviorKinds = behaviorKinds,
@@ -637,20 +638,21 @@ internal static class LegacyCatalogReader
     {
         if (!payload.TryGetValue(key, out var value) || value == null)
         {
-            return new ShapeFacts(0, 0, 0);
+            return ShapeFacts.Empty;
         }
 
         var matrix = UnwrapShapeMatrix(value);
         if (matrix is not object?[] columns)
         {
-            return new ShapeFacts(0, 0, 0);
+            return ShapeFacts.Empty;
         }
 
         var width = columns.Length;
         var height = 0;
-        var occupied = 0;
-        foreach (var column in columns)
+        var cellsByRow = new List<AetheriaShapeCell>();
+        for (var x = 0; x < columns.Length; x++)
         {
+            var column = columns[x];
             if (column is not object?[] cells)
             {
                 if (column is bool occupiedCell)
@@ -658,7 +660,7 @@ internal static class LegacyCatalogReader
                     height = Math.Max(height, 1);
                     if (occupiedCell)
                     {
-                        occupied++;
+                        cellsByRow.Add(new AetheriaShapeCell { X = x, Y = 0 });
                     }
                 }
 
@@ -666,10 +668,22 @@ internal static class LegacyCatalogReader
             }
 
             height = Math.Max(height, cells.Length);
-            occupied += cells.Count(cell => cell is true);
+            for (var y = 0; y < cells.Length; y++)
+            {
+                if (cells[y] is true)
+                {
+                    cellsByRow.Add(new AetheriaShapeCell { X = x, Y = y });
+                }
+            }
         }
 
-        return new ShapeFacts(width, height, occupied);
+        return new ShapeFacts(
+            width,
+            height,
+            cellsByRow
+                .OrderBy(cell => cell.Y)
+                .ThenBy(cell => cell.X)
+                .ToArray());
     }
 
     private static object? UnwrapShapeMatrix(object? value)
@@ -684,4 +698,9 @@ internal sealed record LegacyCatalogEntry(
     AetheriaCorporation? Corporation,
     AetheriaNameFile? NameFile);
 
-internal readonly record struct ShapeFacts(int Width, int Height, int OccupiedCells);
+internal readonly record struct ShapeFacts(int Width, int Height, AetheriaShapeCell[] Cells)
+{
+    public static ShapeFacts Empty { get; } = new(0, 0, []);
+
+    public int OccupiedCells => Cells.Length;
+}

@@ -107,6 +107,7 @@ public sealed class AetheriaRuntimeCatalogItem
         int shapeWidth,
         int shapeHeight,
         int occupiedCells,
+        IReadOnlyList<AetheriaRuntimeShapeCell> shapeCells,
         string hardpointType,
         string hullType,
         IReadOnlyList<string> behaviorKinds,
@@ -129,6 +130,7 @@ public sealed class AetheriaRuntimeCatalogItem
         ShapeWidth = shapeWidth;
         ShapeHeight = shapeHeight;
         OccupiedCells = occupiedCells;
+        ShapeCells = shapeCells;
         HardpointType = hardpointType;
         HullType = hullType;
         BehaviorKinds = behaviorKinds;
@@ -152,6 +154,7 @@ public sealed class AetheriaRuntimeCatalogItem
     public int ShapeWidth { get; }
     public int ShapeHeight { get; }
     public int OccupiedCells { get; }
+    public IReadOnlyList<AetheriaRuntimeShapeCell> ShapeCells { get; }
     public string HardpointType { get; }
     public string HullType { get; }
     public IReadOnlyList<string> BehaviorKinds { get; }
@@ -177,6 +180,7 @@ public sealed class AetheriaRuntimeCatalogItem
             item.ShapeWidth,
             item.ShapeHeight,
             item.OccupiedCells,
+            item.ShapeCells.Select(AetheriaRuntimeShapeCell.FromState).ToArray(),
             item.HardpointType,
             item.HullType,
             item.BehaviorKinds,
@@ -187,6 +191,24 @@ public sealed class AetheriaRuntimeCatalogItem
             item.WeaponType,
             item.WeaponFireTypes,
             item.WeaponModifiers);
+    }
+}
+
+public sealed class AetheriaRuntimeShapeCell
+{
+    public AetheriaRuntimeShapeCell(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+
+    public int X { get; }
+
+    public int Y { get; }
+
+    public static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)
+    {
+        return new AetheriaRuntimeShapeCell(cell.X, cell.Y);
     }
 }
 

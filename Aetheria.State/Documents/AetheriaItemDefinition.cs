@@ -87,4 +87,17 @@ public sealed class AetheriaItemDefinition
 
     [Key(24)]
     public string WeaponModifiers { get; set; } = "";
+
+    [Key(25)]
+    public AetheriaShapeCell[] ShapeCells { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaShapeCell
+{
+    [Key(0)]
+    public int X { get; set; }
+
+    [Key(1)]
+    public int Y { get; set; }
 }

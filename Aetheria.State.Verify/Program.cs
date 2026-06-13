@@ -43,6 +43,7 @@ if (nameFiles.Length == 0)
 var pricedItems = items.Count(item => item.Price > 0);
 var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
 var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
+var shapedMaskItems = items.Count(item => item.ShapeCells.Length > 0);
 var behaviorItems = items.Count(item => item.BehaviorCount > 0 && item.BehaviorKinds.Length > 0);
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
@@ -66,6 +67,26 @@ if (manufacturedItems == 0)
 if (shapedItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any shape dimensions.");
+}
+
+if (shapedMaskItems != shapedItems)
+{
+    throw new InvalidOperationException(
+        $"Typed item shape mask import mismatch: masks={shapedMaskItems}, shaped={shapedItems}.");
+}
+
+foreach (var item in items.Where(item => item.ShapeCells.Length > 0))
+{
+    if (item.ShapeCells.Length != item.OccupiedCells)
+    {
+        throw new InvalidOperationException(
+            $"Typed item shape mask cell count mismatch for {item.Name}: cells={item.ShapeCells.Length}, occupied={item.OccupiedCells}.");
+    }
+
+    if (item.ShapeCells.Any(cell => cell.X < 0 || cell.Y < 0 || cell.X >= item.ShapeWidth || cell.Y >= item.ShapeHeight))
+    {
+        throw new InvalidOperationException($"Typed item shape mask has out-of-bounds cells for {item.Name}.");
+    }
 }
 
 if (behaviorItems == 0)
@@ -179,6 +200,7 @@ Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
+Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");

@@ -25,6 +25,19 @@ if (catalog.EquipmentItems.Count == 0)
     throw new InvalidOperationException("Runtime catalog has no equipment items.");
 }
 
+var shaped = catalog.Items.FirstOrDefault(item => item.ShapeCells.Count > 0)
+    ?? throw new InvalidOperationException("Runtime catalog has no typed shape masks.");
+if (shaped.ShapeCells.Count != shaped.OccupiedCells)
+{
+    throw new InvalidOperationException(
+        $"Runtime shape mask count mismatch for {shaped.Name}: cells={shaped.ShapeCells.Count}, occupied={shaped.OccupiedCells}.");
+}
+
+if (shaped.ShapeCells.Any(cell => cell.X < 0 || cell.Y < 0 || cell.X >= shaped.ShapeWidth || cell.Y >= shaped.ShapeHeight))
+{
+    throw new InvalidOperationException($"Runtime shape mask has out-of-bounds cells for {shaped.Name}.");
+}
+
 var behaviorKind = catalog.Items.SelectMany(item => item.BehaviorKinds).FirstOrDefault()
     ?? throw new InvalidOperationException("Runtime catalog has no behavior kind fingerprints.");
 if (!catalog.FindItemsByBehavior(behaviorKind).Any())
@@ -53,5 +66,6 @@ if (surface?.Schema != "gamecult.eve.surface.v1" ||
 
 Console.WriteLine($"Aetheria Unity runtime catalog smoke passed: {statePath}");
 Console.WriteLine($"Items/trade/equipment: {catalog.Items.Count}/{catalog.TradeItems.Count}/{catalog.EquipmentItems.Count}");
+Console.WriteLine($"Shape mask sample: {shaped.Name} {shaped.ShapeWidth}x{shaped.ShapeHeight}/{shaped.ShapeCells.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
