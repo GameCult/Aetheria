@@ -66,9 +66,11 @@ Dead legacy catalog roots for user records and galaxy map-layer resources have
 been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
-Item instances now carry `RuntimeItemReference`, a narrow item-id/value holder.
-The old generic `RuntimeCatalogLink<T>` abstraction has been deleted; item data
-projection is routed through `ItemManager` and the typed runtime catalog reader.
+Item instances now carry `RuntimeItemReference`, a narrow item-definition id plus
+optional hydrated projection cache. The old generic `RuntimeCatalogLink<T>`
+abstraction has been deleted; item data projection is routed through
+`ItemManager` and the typed runtime catalog reader. `Projection` is not durable
+state; it is a bridge for surviving simulation and UI code.
 Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source. Temporary
 faction/corporation projections and zone body/orbit DTOs keep local GUID fields

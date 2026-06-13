@@ -65,12 +65,12 @@ public class ItemManager
     public ItemData GetData(ItemInstance item)
     {
         Hydrate(item);
-        return item?.Data?.Value;
+        return item?.Data?.Projection;
     }
 
     public void Hydrate(ItemInstance item)
     {
-        if (item?.Data == null || item.Data.Value != null)
+        if (item?.Data == null || item.Data.Projection != null)
         {
             return;
         }
@@ -82,7 +82,7 @@ public class ItemManager
             return;
         }
 
-        item.Data.SetValue(data);
+        item.Data.SetProjection(data);
     }
 
     public void Log(string s)
