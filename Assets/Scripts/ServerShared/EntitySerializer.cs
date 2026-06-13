@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 
 public static class EntitySerializer
@@ -147,44 +146,39 @@ public static class EntitySerializer
     }
 }
 
-[MessagePackObject]
 public class ShipPack : EntityPack
 {
-    [Key(17)] public float3 Position;
-    [Key(18)] public float2 Direction;
-    [Key(19)] public bool IsPlayerShip;
+    public float3 Position;
+    public float2 Direction;
+    public bool IsPlayerShip;
 }
 
-[MessagePackObject]
 public class OrbitalEntityPack : EntityPack
 {
-    [Key(17)] public Guid Orbit;
-    [Key(18)] public int Story = -1;
-    [Key(19)] public SecurityLevel SecurityLevel;
-    [Key(20)] public float SecurityRadius;
+    public Guid Orbit;
+    public int Story = -1;
+    public SecurityLevel SecurityLevel;
+    public float SecurityRadius;
 }
 
-[MessagePackObject, 
- Union(0, typeof(OrbitalEntityPack)),
- Union(1, typeof(ShipPack))]
 public abstract class EntityPack
 {
-    [Key(0)] public string Name;
-    [Key(1)] public EquippableItem Hull;
-    [Key(2)] public (int2 position, EquippableItem item)[] Equipment;
-    [Key(3)] public (int2 position, EquippableItem item)[] CargoBays;
-    [Key(4)] public (int2 position, EquippableItem item)[] DockingBays;
-    [Key(5)] public Dictionary<int2, PersistentBehaviorData[]> PersistedBehaviors;
-    [Key(6)] public float[,] Temperature;
-    [Key(7)] public float[,] Armor;
-    [Key(8)] public bool2[,] Conductivity;
-    [Key(10)] public int[] DockingBayAssignments;
-    [Key(11)] public (int2 position, ItemInstance item)[][] CargoContents;
-    [Key(12)] public (int2 position, ItemInstance item)[][] DockingBayContents;
-    [Key(13)] public EntityPack[] Children;
-    [Key(14)] public EntitySettings Settings;
-    [Key(15)] public Guid Faction;
-    [Key(16)] public int[][] WeaponGroups;
+    public string Name;
+    public EquippableItem Hull;
+    public (int2 position, EquippableItem item)[] Equipment;
+    public (int2 position, EquippableItem item)[] CargoBays;
+    public (int2 position, EquippableItem item)[] DockingBays;
+    public Dictionary<int2, PersistentBehaviorData[]> PersistedBehaviors;
+    public float[,] Temperature;
+    public float[,] Armor;
+    public bool2[,] Conductivity;
+    public int[] DockingBayAssignments;
+    public (int2 position, ItemInstance item)[][] CargoContents;
+    public (int2 position, ItemInstance item)[][] DockingBayContents;
+    public EntityPack[] Children;
+    public EntitySettings Settings;
+    public Guid Faction;
+    public int[][] WeaponGroups;
 
     private int _price;
 

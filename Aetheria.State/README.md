@@ -26,9 +26,9 @@ state spine is being rebuilt.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
-The dead `SavedStory` JSON DTO is gone. `ZonePack` remains an in-memory zone
-construction snapshot for Unity runtime code, but no longer carries MessagePack
-persistence attributes.
+The dead `SavedStory` JSON DTO is gone. `ZonePack` and `EntityPack` remain
+in-memory construction/loadout snapshots for Unity runtime code, but no longer
+carry MessagePack persistence attributes.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout

@@ -22,38 +22,6 @@ public class ZonePack
     public double Time;
 }
 
-// [LegacyCatalogGroup("Galaxy"), MessagePackObject]
-// public class StationData : DatabaseEntry, INamedEntry
-// {
-//     [Key(1)]
-//     public string Name;
-//
-//     // Can be Planet or Orbit
-//     [Key(2)]
-//     public Guid Parent;
-//
-//     [Key(3)]
-//     public Guid Owner;
-//
-//     [Key(4)]
-//     public List<ItemInstance> Inventory = new List<ItemInstance>();
-//
-//     [Key(5)]
-//     public Dictionary<Guid, float> BuyPrices = new Dictionary<Guid, float>();
-//
-//     [Key(6)]
-//     public Dictionary<Guid, float> SellPrices = new Dictionary<Guid, float>();
-//
-//     [Key(7)]
-//     public Guid Zone;
-//
-//     [IgnoreMember] public string EntryName
-//     {
-//         get => Name;
-//         set => Name = value;
-//     }
-// }
-
 [MessagePackObject,
  Union(0, typeof(PlanetData)),
  Union(1, typeof(AsteroidBeltData)),

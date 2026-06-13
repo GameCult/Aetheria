@@ -31,9 +31,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
-  deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack` remains as a
-  runtime zone construction snapshot, but no longer declares itself as a
-  MessagePack persistence document.
+  deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack` and
+  `EntityPack` remain as runtime construction/loadout snapshots, but no longer
+  declare themselves as MessagePack persistence documents.
 - `LegacyCatalogBoundary` opens `LegacyCatalogCache` as the only concrete
   pull-only catalog cache. Runtime consumers receive `ILegacyCatalogReader`,
   so old MessagePack backing stores may hydrate in-memory domain objects for
