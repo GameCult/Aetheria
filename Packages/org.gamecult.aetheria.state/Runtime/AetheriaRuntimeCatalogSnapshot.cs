@@ -394,4 +394,65 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<string> SampleNames { get; }
         public IReadOnlyList<string> Names { get; }
     }
+
+    public sealed class AetheriaRuntimePlayerSettingsSnapshot
+    {
+        public AetheriaRuntimePlayerSettingsSnapshot(
+            string playerName,
+            bool tutorialPassed,
+            IReadOnlyList<AetheriaRuntimeStoryFileHash> storyFileHashes,
+            string temperatureUnit,
+            int significantDigits,
+            string nebulaQuality,
+            bool showAsteroidsInMinimap,
+            IReadOnlyList<AetheriaRuntimeInputBindingOverride> bindingOverrides,
+            IReadOnlyList<string> actionBarInputs)
+        {
+            PlayerName = playerName;
+            TutorialPassed = tutorialPassed;
+            StoryFileHashes = storyFileHashes;
+            TemperatureUnit = temperatureUnit;
+            SignificantDigits = significantDigits;
+            NebulaQuality = nebulaQuality;
+            ShowAsteroidsInMinimap = showAsteroidsInMinimap;
+            BindingOverrides = bindingOverrides;
+            ActionBarInputs = actionBarInputs;
+        }
+
+        public string PlayerName { get; }
+        public bool TutorialPassed { get; }
+        public IReadOnlyList<AetheriaRuntimeStoryFileHash> StoryFileHashes { get; }
+        public string TemperatureUnit { get; }
+        public int SignificantDigits { get; }
+        public string NebulaQuality { get; }
+        public bool ShowAsteroidsInMinimap { get; }
+        public IReadOnlyList<AetheriaRuntimeInputBindingOverride> BindingOverrides { get; }
+        public IReadOnlyList<string> ActionBarInputs { get; }
+    }
+
+    public sealed class AetheriaRuntimeStoryFileHash
+    {
+        public AetheriaRuntimeStoryFileHash(string storyPath, string hash)
+        {
+            StoryPath = storyPath;
+            Hash = hash;
+        }
+
+        public string StoryPath { get; }
+        public string Hash { get; }
+    }
+
+    public sealed class AetheriaRuntimeInputBindingOverride
+    {
+        public AetheriaRuntimeInputBindingOverride(string actionName, int bindingIndex, string bindingPath)
+        {
+            ActionName = actionName;
+            BindingIndex = bindingIndex;
+            BindingPath = bindingPath;
+        }
+
+        public string ActionName { get; }
+        public int BindingIndex { get; }
+        public string BindingPath { get; }
+    }
 }

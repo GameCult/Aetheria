@@ -45,7 +45,7 @@ public class ActionGameManager : MonoBehaviour
     {
         get
         {
-            return _runtimePlayerSettings ??= CreateDefaultRuntimePlayerSettings();
+            return _runtimePlayerSettings ??= LoadRuntimePlayerSettings();
         }
     }
 
@@ -74,6 +74,70 @@ public class ActionGameManager : MonoBehaviour
         settings.InputSettings.ActionBarInputs.Add("<Mouse>/middleButton");
         for (int i = 1; i < 6; i++) settings.InputSettings.ActionBarInputs.Add($"<Keyboard>/{i}");
         return settings;
+    }
+
+    private static RuntimePlayerSettings LoadRuntimePlayerSettings()
+    {
+        var settings = CreateDefaultRuntimePlayerSettings();
+        try
+        {
+            var stored = AetheriaRuntimeCatalogStore.ReadPlayerSettings(RuntimeStateFilePath);
+            if (stored == null)
+                return settings;
+
+            ApplyRuntimePlayerSettings(settings, stored);
+            Debug.Log("Loaded Aetheria Verse player settings from typed state.");
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to load Aetheria Verse player settings from typed state; using defaults: {ex}");
+        }
+
+        return settings;
+    }
+
+    private static void ApplyRuntimePlayerSettings(
+        RuntimePlayerSettings settings,
+        AetheriaRuntimePlayerSettingsSnapshot stored)
+    {
+        if (!string.IsNullOrWhiteSpace(stored.PlayerName))
+            settings.Name = stored.PlayerName;
+
+        settings.TutorialPassed = stored.TutorialPassed;
+
+        settings.HashedStoryFiles.Clear();
+        foreach (var storyFileHash in stored.StoryFileHashes)
+        {
+            if (!string.IsNullOrWhiteSpace(storyFileHash.StoryPath))
+                settings.HashedStoryFiles[storyFileHash.StoryPath] = storyFileHash.Hash;
+        }
+
+        if (Enum.TryParse(stored.TemperatureUnit, out TemperatureUnit temperatureUnit))
+            settings.GameplaySettings.TemperatureUnit = temperatureUnit;
+        settings.GameplaySettings.SignificantDigits = Math.Max(0, stored.SignificantDigits);
+
+        if (Enum.TryParse(stored.NebulaQuality, out Quality nebulaQuality))
+            settings.GraphicsSettings.NebulaQuality = nebulaQuality;
+        settings.GraphicsSettings.ShowAsteroidsInMinimap = stored.ShowAsteroidsInMinimap;
+
+        settings.InputSettings.InputActionMap.Clear();
+        foreach (var binding in stored.BindingOverrides)
+        {
+            if (string.IsNullOrWhiteSpace(binding.ActionName) || string.IsNullOrWhiteSpace(binding.BindingPath) || binding.BindingIndex < 0)
+                continue;
+
+            settings.InputSettings.InputActionMap[(binding.ActionName, binding.BindingIndex)] = binding.BindingPath;
+        }
+
+        settings.InputSettings.ActionBarInputs.Clear();
+        foreach (var input in stored.ActionBarInputs)
+        {
+            if (!string.IsNullOrWhiteSpace(input) && !settings.InputSettings.ActionBarInputs.Contains(input))
+                settings.InputSettings.ActionBarInputs.Add(input);
+        }
     }
 
     public static Galaxy CurrentGalaxy;

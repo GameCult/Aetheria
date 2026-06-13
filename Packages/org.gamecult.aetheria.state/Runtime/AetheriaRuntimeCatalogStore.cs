@@ -16,6 +16,8 @@ namespace GameCult.Aetheria.State.Unity
         private const string CorporationSchema = "aetheria.corporation";
         private const string NameFileSchema = "aetheria.name_file";
         private const string EveSurfaceSchema = "gamecult.eve.surface";
+        private const string PlayerSettingsSchema = "aetheria.player_settings";
+        private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
 
         public static AetheriaRuntimeCatalogSnapshot OpenReadOnly(string stateFilePath)
         {
@@ -62,6 +64,26 @@ namespace GameCult.Aetheria.State.Unity
             }
 
             return surfaces;
+        }
+
+        public static AetheriaRuntimePlayerSettingsSnapshot? ReadPlayerSettings(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            AetheriaRuntimePlayerSettingsSnapshot? settings = null;
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (record.Key != PlayerSettingsKey ||
+                    !catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != PlayerSettingsSchema)
+                    continue;
+
+                settings = ReadPlayerSettingsPayload(record.Payload);
+            }
+
+            return settings;
         }
 
         private static Dictionary<string, string> ReadSchemaCatalog(string stateFilePath)
@@ -122,7 +144,7 @@ namespace GameCult.Aetheria.State.Unity
         private static PersistedRecord ReadPersistedRecord(ref MessagePackReader reader)
         {
             var fieldCount = reader.ReadArrayHeader();
-            if (fieldCount > 0) reader.Skip();
+            var key = fieldCount > 0 ? ReadString(ref reader) : "";
             var schemaId = fieldCount > 1 ? ReadString(ref reader) : "";
             if (fieldCount > 2) reader.Skip();
             var payload = Array.Empty<byte>();
@@ -134,7 +156,7 @@ namespace GameCult.Aetheria.State.Unity
             }
             for (var field = 4; field < fieldCount; field++)
                 reader.Skip();
-            return new PersistedRecord(schemaId, payload);
+            return new PersistedRecord(key, schemaId, payload);
         }
 
         private static AetheriaRuntimeCatalogItem ReadItem(byte[] payload)
@@ -263,6 +285,30 @@ namespace GameCult.Aetheria.State.Unity
             return new EveSurfaceDocument(type, schema, providerId, providerKind, title, version, updatedAtUtc, surface, commands);
         }
 
+        private static AetheriaRuntimePlayerSettingsSnapshot ReadPlayerSettingsPayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            SkipFields(ref reader, fields, 0, 3);
+            var playerName = ReadFieldString(ref reader, fields, 3);
+            var tutorialPassed = ReadFieldBool(ref reader, fields, 4);
+            var storyFileHashes = ReadFieldStoryFileHashes(ref reader, fields, 5);
+            var gameplay = ReadFieldPlayerGameplaySettings(ref reader, fields, 6);
+            var graphics = ReadFieldPlayerGraphicsSettings(ref reader, fields, 7);
+            var input = ReadFieldPlayerInputSettings(ref reader, fields, 8);
+            SkipRemaining(ref reader, fields, 9);
+            return new AetheriaRuntimePlayerSettingsSnapshot(
+                playerName,
+                tutorialPassed,
+                storyFileHashes,
+                gameplay.TemperatureUnit,
+                gameplay.SignificantDigits,
+                graphics.NebulaQuality,
+                graphics.ShowAsteroidsInMinimap,
+                input.BindingOverrides,
+                input.ActionBarInputs);
+        }
+
         private static string ReadFieldString(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? "" : ReadString(ref reader);
@@ -271,6 +317,11 @@ namespace GameCult.Aetheria.State.Unity
         private static int ReadFieldInt32(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? 0 : reader.ReadInt32();
+        }
+
+        private static bool ReadFieldBool(ref MessagePackReader reader, int fields, int index)
+        {
+            return index < fields && reader.ReadBoolean();
         }
 
         private static long ReadFieldInt64(ref MessagePackReader reader, int fields, int index)
@@ -291,6 +342,71 @@ namespace GameCult.Aetheria.State.Unity
             for (var item = 0; item < count; item++)
                 values[item] = ReadString(ref reader);
             return values;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeStoryFileHash> ReadFieldStoryFileHashes(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeStoryFileHash>();
+            var count = reader.ReadArrayHeader();
+            var hashes = new AetheriaRuntimeStoryFileHash[count];
+            for (var hash = 0; hash < count; hash++)
+            {
+                var hashFields = reader.ReadArrayHeader();
+                var storyPath = ReadFieldString(ref reader, hashFields, 0);
+                var value = ReadFieldString(ref reader, hashFields, 1);
+                SkipRemaining(ref reader, hashFields, 2);
+                hashes[hash] = new AetheriaRuntimeStoryFileHash(storyPath, value);
+            }
+
+            return hashes;
+        }
+
+        private static PlayerGameplaySettings ReadFieldPlayerGameplaySettings(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new PlayerGameplaySettings("Celsius", 3);
+            var gameplayFields = reader.ReadArrayHeader();
+            var temperatureUnit = ReadFieldString(ref reader, gameplayFields, 0);
+            var significantDigits = ReadFieldInt32(ref reader, gameplayFields, 1);
+            SkipRemaining(ref reader, gameplayFields, 2);
+            return new PlayerGameplaySettings(temperatureUnit, significantDigits);
+        }
+
+        private static PlayerGraphicsSettings ReadFieldPlayerGraphicsSettings(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new PlayerGraphicsSettings("Normal", false);
+            var graphicsFields = reader.ReadArrayHeader();
+            var nebulaQuality = ReadFieldString(ref reader, graphicsFields, 0);
+            var showAsteroidsInMinimap = ReadFieldBool(ref reader, graphicsFields, 1);
+            SkipRemaining(ref reader, graphicsFields, 2);
+            return new PlayerGraphicsSettings(nebulaQuality, showAsteroidsInMinimap);
+        }
+
+        private static PlayerInputSettings ReadFieldPlayerInputSettings(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new PlayerInputSettings(Array.Empty<AetheriaRuntimeInputBindingOverride>(), Array.Empty<string>());
+            var inputFields = reader.ReadArrayHeader();
+            var bindings = ReadFieldInputBindings(ref reader, inputFields, 0);
+            var actionBarInputs = ReadFieldStringArray(ref reader, inputFields, 1);
+            SkipRemaining(ref reader, inputFields, 2);
+            return new PlayerInputSettings(bindings, actionBarInputs);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeInputBindingOverride> ReadFieldInputBindings(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeInputBindingOverride>();
+            var count = reader.ReadArrayHeader();
+            var bindings = new AetheriaRuntimeInputBindingOverride[count];
+            for (var binding = 0; binding < count; binding++)
+            {
+                var bindingFields = reader.ReadArrayHeader();
+                var actionName = ReadFieldString(ref reader, bindingFields, 0);
+                var bindingIndex = ReadFieldInt32(ref reader, bindingFields, 1);
+                var bindingPath = ReadFieldString(ref reader, bindingFields, 2);
+                SkipRemaining(ref reader, bindingFields, 3);
+                bindings[binding] = new AetheriaRuntimeInputBindingOverride(actionName, bindingIndex, bindingPath);
+            }
+
+            return bindings;
         }
 
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadFieldShapeCells(ref MessagePackReader reader, int fields, int index)
@@ -582,15 +698,59 @@ namespace GameCult.Aetheria.State.Unity
 
         private readonly struct PersistedRecord
         {
-            public PersistedRecord(string schemaId, byte[] payload)
+            public PersistedRecord(string key, string schemaId, byte[] payload)
             {
+                Key = key;
                 SchemaId = schemaId;
                 Payload = payload;
             }
 
+            public string Key { get; }
+
             public string SchemaId { get; }
 
             public byte[] Payload { get; }
+        }
+
+        private readonly struct PlayerGameplaySettings
+        {
+            public PlayerGameplaySettings(string temperatureUnit, int significantDigits)
+            {
+                TemperatureUnit = temperatureUnit;
+                SignificantDigits = significantDigits;
+            }
+
+            public string TemperatureUnit { get; }
+
+            public int SignificantDigits { get; }
+        }
+
+        private readonly struct PlayerGraphicsSettings
+        {
+            public PlayerGraphicsSettings(string nebulaQuality, bool showAsteroidsInMinimap)
+            {
+                NebulaQuality = nebulaQuality;
+                ShowAsteroidsInMinimap = showAsteroidsInMinimap;
+            }
+
+            public string NebulaQuality { get; }
+
+            public bool ShowAsteroidsInMinimap { get; }
+        }
+
+        private readonly struct PlayerInputSettings
+        {
+            public PlayerInputSettings(
+                IReadOnlyList<AetheriaRuntimeInputBindingOverride> bindingOverrides,
+                IReadOnlyList<string> actionBarInputs)
+            {
+                BindingOverrides = bindingOverrides;
+                ActionBarInputs = actionBarInputs;
+            }
+
+            public IReadOnlyList<AetheriaRuntimeInputBindingOverride> BindingOverrides { get; }
+
+            public IReadOnlyList<string> ActionBarInputs { get; }
         }
     }
 }

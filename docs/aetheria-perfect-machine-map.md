@@ -78,6 +78,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
   the durable owner. Binding drag/drop and action-bar remapping both queue the
   same typed player-settings commit after mutating the runtime projection.
+  Unity boot reads typed player settings back through the package-owned
+  CultCache reader before falling back to defaults.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying

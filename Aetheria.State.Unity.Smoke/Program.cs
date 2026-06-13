@@ -217,23 +217,34 @@ try
         throw new InvalidOperationException("Runtime state commit log did not read the queued player settings command.");
     }
 
-    await using var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke");
-    var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(commitNode);
-    var settings = await commitNode.GetPlayerSettingsAsync();
-    var run = await commitNode.GetRunStateAsync(new("global:aetheria.run_state.smoke-run.v1"));
-    var zone = await commitNode.GetZoneStateAsync(new("global:aetheria.run_state.smoke-run.zone.0.v1"));
-    var entity = await commitNode.GetEntitySnapshotAsync(new("global:aetheria.run_state.smoke-run.zone.0.entity.0.v1"));
-    if (report.AppliedPlayerSettings != 1 ||
-        report.AppliedRunCheckpoints != 1 ||
-        settings?.PlayerName != "Unity smoke" ||
-        settings.Input.ActionBarInputs.Length != 1 ||
-        run?.ZoneKeys.Length != 1 ||
-        zone?.EntityKeys.Length != 1 ||
-        entity?.Equipment.Length != 1 ||
-        entity.WeaponGroups.Length != 1 ||
-        AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count != 0)
+    var typedNodeApplied = false;
+    await using (var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke"))
     {
-        throw new InvalidOperationException("Runtime state commit log did not apply queued settings/run snapshots through the typed state node.");
+        var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(commitNode);
+        var settings = await commitNode.GetPlayerSettingsAsync();
+        var run = await commitNode.GetRunStateAsync(new("global:aetheria.run_state.smoke-run.v1"));
+        var zone = await commitNode.GetZoneStateAsync(new("global:aetheria.run_state.smoke-run.zone.0.v1"));
+        var entity = await commitNode.GetEntitySnapshotAsync(new("global:aetheria.run_state.smoke-run.zone.0.entity.0.v1"));
+        typedNodeApplied = report.AppliedPlayerSettings == 1 &&
+            report.AppliedRunCheckpoints == 1 &&
+            settings?.PlayerName == "Unity smoke" &&
+            settings.Input.ActionBarInputs.Length == 1 &&
+            run?.ZoneKeys.Length == 1 &&
+            zone?.EntityKeys.Length == 1 &&
+            entity?.Equipment.Length == 1 &&
+            entity.WeaponGroups.Length == 1 &&
+            AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count == 0;
+    }
+
+    var packageSettings = AetheriaRuntimeCatalogStore.ReadPlayerSettings(commitSmokeStatePath);
+    if (!typedNodeApplied ||
+        packageSettings?.PlayerName != "Unity smoke" ||
+        packageSettings.TutorialPassed != true ||
+        packageSettings.ActionBarInputs.Count != 1)
+    {
+        throw new InvalidOperationException(
+            "Runtime state commit log did not apply queued settings/run snapshots through the typed state node. " +
+            $"typedNodeApplied={typedNodeApplied}, packageSettings={(packageSettings == null ? "null" : $"{packageSettings.PlayerName}/{packageSettings.TutorialPassed}/{packageSettings.ActionBarInputs.Count}")}");
     }
 
     var eveCommand = AetheriaRuntimeEveCommandLog.QueueCommand(
@@ -260,7 +271,10 @@ try
 }
 finally
 {
-    Directory.Delete(commitSmokeDirectory, true);
+    if (Environment.GetEnvironmentVariable("AETHERIA_KEEP_SMOKE_STATE") == "1")
+        Console.Error.WriteLine($"Kept smoke state: {commitSmokeDirectory}");
+    else
+        Directory.Delete(commitSmokeDirectory, true);
 }
 
 Console.WriteLine($"Aetheria Unity runtime catalog smoke passed: {statePath}");

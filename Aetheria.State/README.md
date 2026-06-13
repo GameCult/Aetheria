@@ -126,10 +126,11 @@ It opens `aetheria-world.cc`, emits immutable catalog read models for trade,
 equipment, behavior, hardpoint, manufacturer, corporation, and name-file
 queries, exposes typed item shape masks for layout and fitting consumers, and
 exposes typed interior masks and hardpoints for equipment/cargo layout
-consumers, exposes typed behavior payload read models, and can read the
-published Eve catalog surface. It does not deserialize legacy runtime projection
-objects and does not write state. Unity can use this as the first package
-boundary once CultLib/Eve runtime packaging is available.
+consumers, exposes typed behavior payload read models, can read typed player
+settings for Unity boot, and can read the published Eve catalog surface. It
+does not deserialize legacy runtime projection objects and does not write state.
+Unity can use this as the first package boundary once CultLib/Eve runtime
+packaging is available.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection
 and name generation, so generated sectors use typed corporation v2 and
 `aetheria.name_file.v2` records instead of legacy `Faction`/`NameFile`
