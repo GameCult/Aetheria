@@ -6,8 +6,6 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using LiteNetLib;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using Random = Unity.Mathematics.Random;
@@ -22,11 +20,6 @@ public static class Extensions
     public static bool IsImplementationOf(this Type baseType, Type interfaceType)
     {
         return baseType.GetInterfaces().Any(interfaceType.Equals);
-    }
-
-    public static void Send<T>(this NetPeer peer, T message, DeliveryMethod method = DeliveryMethod.ReliableOrdered) where T : Message
-    {
-        peer.Send(MessagePackSerializer.Serialize(message as Message), method);
     }
 
     public static T[] WeightedRandomElements<T>(this IEnumerable<T> collection, ref Random random, Func<T, float> weightFunction, int count)
