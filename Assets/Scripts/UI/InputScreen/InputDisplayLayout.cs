@@ -82,7 +82,7 @@ public class InputDisplayLayout : MonoBehaviour
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
-        _inputLayout = ParseJson(LayoutFile.text);
+        _inputLayout = ParseKeyboardLayoutProjection(LayoutFile.text);
         DisplayLayout(_inputLayout);
 
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));
@@ -376,7 +376,7 @@ public class InputDisplayLayout : MonoBehaviour
         }
     }
 
-    public InputLayout ParseJson(string layout)
+    public InputLayout ParseKeyboardLayoutProjection(string layout)
     {
         var rows = new List<InputLayoutRow>();
         var nextWidth = 1f;

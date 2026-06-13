@@ -113,7 +113,6 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
         var story = compiler.Compile();
         var knots = compiler.parsedStory.FindAll<Knot>().Select(k=>k.runtimePath.ToString()).ToArray();
         _storyKnotPaths[story] = knots;
-        //File.WriteAllText(compiledFileName, story.ToJson());
         _processedStories[fileName] = story;
         return story;
     }

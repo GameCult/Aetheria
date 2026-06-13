@@ -701,6 +701,8 @@ First Aetheria surfaces to publish:
 - Input binding and action-bar edits now queue the same typed player-settings
   commit path as menu settings changes; the old `SaveLayout` runtime-only
   warning is gone.
+- Keyboard display layout parsing is named as a runtime projection parser, and
+  the dead commented Ink `ToJson` write path has been removed from live source.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes
