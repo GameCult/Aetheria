@@ -85,7 +85,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         SampleNames = ["Ada", "Grace"]
     });
 
-    await node.PutSavedRunAsync(runKey, new AetheriaSavedRun
+    await node.PutRunStateAsync(runKey, new AetheriaRunState
     {
         RunId = "smoke",
         IsTutorial = false,
@@ -122,7 +122,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var nameFile = await reopened.GetNameFileAsync(nameFileKey);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
-    var savedRun = await reopened.GetSavedRunAsync(runKey);
+    var runState = await reopened.GetRunStateAsync(runKey);
 
     if (world?.WorldId != "aetheria")
     {
@@ -154,9 +154,9 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Player settings did not survive flush/reopen.");
     }
 
-    if (savedRun?.RunId != "smoke" || savedRun.ActionBarBindings.Length != 1)
+    if (runState?.RunId != "smoke" || runState.ActionBarBindings.Length != 1)
     {
-        throw new InvalidOperationException("Saved run did not survive flush/reopen.");
+        throw new InvalidOperationException("Run state did not survive flush/reopen.");
     }
 }
 

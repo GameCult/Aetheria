@@ -13,16 +13,16 @@ public sealed class AetheriaPlayerSettings
     public string Name { get; set; } = "Aetheria player settings";
 
     [Key(1)]
-    [CultReference(typeof(AetheriaSavedRun))]
+    [CultReference(typeof(AetheriaRunState))]
     public string ActiveRunKey { get; set; } = "";
 
     [Key(2)]
     public string LastUpdatedAtUtc { get; set; } = "";
 }
 
-[CultDocument("aetheria.saved_run", "aetheria.saved_run.v1")]
+[CultDocument("aetheria.run_state", "aetheria.run_state.v1")]
 [MessagePackObject]
-public sealed class AetheriaSavedRun
+public sealed class AetheriaRunState
 {
     [Key(0)]
     [CultName]
@@ -47,7 +47,7 @@ public sealed class AetheriaSavedRun
     public int[] DiscoveredZoneIndices { get; set; } = [];
 
     [Key(7)]
-    [CultReference(typeof(AetheriaSavedZone), many: true)]
+    [CultReference(typeof(AetheriaZoneState), many: true)]
     public string[] ZoneKeys { get; set; } = [];
 
     [Key(8)]
@@ -60,9 +60,9 @@ public sealed class AetheriaSavedRun
     public string UpdatedAtUtc { get; set; } = "";
 }
 
-[CultDocument("aetheria.saved_zone", "aetheria.saved_zone.v1")]
+[CultDocument("aetheria.zone_state", "aetheria.zone_state.v1")]
 [MessagePackObject]
-public sealed class AetheriaSavedZone
+public sealed class AetheriaZoneState
 {
     [Key(0)]
     [CultName]

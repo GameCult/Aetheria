@@ -9,10 +9,11 @@ tree, RethinkDB, JsonKnownTypes, or Newtonsoft.Json.
 The first live state file is `GameData/aetheria-world.cc`. Legacy files such as
 `GameData/AetherDB.msgpack` are migration inputs only.
 
-The typed save model is split into player settings, saved runs, saved zones,
-entity snapshots, item slots, weapon groups, action-bar bindings, and stat
-grids. Do not preserve `SavedGame` or `EntityPack` as opaque payloads in the
-new store; they are source shapes for migration, not portable state authority.
+The typed runtime state model is split into player settings, run state, zone
+state, entity snapshots, item slots, weapon groups, action-bar bindings, and
+stat grids. Do not preserve `SavedGame` or `EntityPack` as opaque payloads in
+the new store; they are source shapes for migration, not portable state
+authority.
 
 The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 `.zone` files. Until `Aetheria.State` is available to Unity as a runtime Verse
@@ -21,8 +22,8 @@ disabled. That is intentional: the missing runtime package is the owner gap, and
 the old bespoke file formats must not keep acting as durable truth while the
 state spine is being rebuilt.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
-been deleted; the only save model left is the typed `AetheriaSavedRun` document
-family in this project.
+been deleted; the new document family is live Verse run/zone state, not a
+bespoke save-file format.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout
