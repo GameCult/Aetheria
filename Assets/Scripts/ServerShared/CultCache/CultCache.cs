@@ -38,7 +38,7 @@ public class CultCache
             if (type.GetCustomAttribute<GlobalSettingsAttribute>() != null)
             {
                 _globals[type] = null;
-                Add(Activator.CreateInstance(type) as DatabaseEntry);
+                AddInternal(Activator.CreateInstance(type) as DatabaseEntry);
             }
         }
     }
@@ -56,7 +56,7 @@ public class CultCache
         }
         store.EntryAdded.Subscribe(entry =>
         {
-            Add(entry, store);
+            AddInternal(entry, store);
         });
     }
 
@@ -67,6 +67,14 @@ public class CultCache
     }
 
     public void Add(DatabaseEntry entry, CacheBackingStore source = null)
+    {
+        if (ReadOnly && source == null)
+            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
+
+        AddInternal(entry, source);
+    }
+
+    private void AddInternal(DatabaseEntry entry, CacheBackingStore source = null)
     {
         lock(addLock)
         {
@@ -102,9 +110,12 @@ public class CultCache
 
     public void AddAll(IEnumerable<DatabaseEntry> entries)
     {
+        if (ReadOnly)
+            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
+
         foreach (var entry in entries)
         {
-            Add(entry);
+            AddInternal(entry);
         }
     }
 
@@ -144,6 +155,9 @@ public class CultCache
 
     public void Remove(DatabaseEntry entry, CacheBackingStore source = null)
     {
+        if (ReadOnly && source == null)
+            throw new InvalidOperationException("Legacy CultCache is read-only. Durable state belongs to the Verse state spine.");
+
         _entries.Remove(entry.ID);
         var type = entry.GetType();
         foreach (var parentType in type.GetParentTypes())

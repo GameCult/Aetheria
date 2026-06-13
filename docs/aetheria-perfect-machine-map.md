@@ -36,7 +36,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   MessagePack backing stores may hydrate in-memory domain objects for the
   current Unity runtime, but this path cannot push or delete legacy files. The
   legacy backing-store abstraction is pull-only; its write and realtime
-  watcher APIs have been deleted.
+  watcher APIs have been deleted. Public `Add`, `AddAll`, and `Remove` calls
+  against the read-only cache are rejected; only backing-store pull hydration
+  can populate it.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
   construction no longer grabs global `DatabaseLinkBase` authority.
