@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -90,17 +92,17 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
                 Properties.AddProperty("Stars", () => starCount);
                 
                 var stationCount = zone.RuntimeBlueprint.Entities
-                    .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Station)
+                    .Count(entity => HasHullType(entity, HullType.Station))
                     .ToString();
                 Properties.AddProperty("Stations", () => stationCount);
                 
                 var turretCount = zone.RuntimeBlueprint.Entities
-                    .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Turret)
+                    .Count(entity => HasHullType(entity, HullType.Turret))
                     .ToString();
                 Properties.AddProperty("Turrets", () => turretCount);
                 
                 var shipCount = zone.RuntimeBlueprint.Entities
-                    .Count(entity => (GameManager.ItemManager.GetData(entity.Hull) as HullData).HullType == HullType.Ship)
+                    .Count(entity => HasHullType(entity, HullType.Ship))
                     .ToString();
                 Properties.AddProperty("Ships", () => shipCount);
             }
@@ -110,6 +112,24 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         // {
         //     Map.StartCoroutine(AnimatePath());
         // });
+    }
+
+    private bool HasHullType(RuntimeEntityBlueprint entity, HullType hullType)
+    {
+        var typedItem = FindTypedHull(entity);
+        if (typedItem != null)
+            return string.Equals(typedItem.HullType, hullType.ToString(), StringComparison.Ordinal);
+
+        return GameManager.ItemManager.GetData(entity.Hull) is HullData hullData &&
+               hullData.HullType == hullType;
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedHull(RuntimeEntityBlueprint entity)
+    {
+        var itemId = entity?.Hull?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 
     // private IEnumerator AnimatePath()

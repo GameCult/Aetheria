@@ -130,7 +130,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
   applies typed row prefilters for size, hardpoint type, and behavior kind before
   hydrating `ItemData` projections for legacy commodity filters, columns, and
-  buy actions.
+  buy actions. The sector properties UI also resolves station/turret/ship
+  counts through typed hull classifications from the runtime catalog before
+  falling back to legacy `HullData` projection for missing rows.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
