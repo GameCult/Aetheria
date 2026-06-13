@@ -205,7 +205,7 @@ public class TradeMenuDebug : MonoBehaviour
             data => () => $"{data.Shape.Width}x{data.Shape.Height}", 
             data => data.Shape.Width*data.Shape.Height));
         
-        var items = GameManager.ItemManager.ItemData.GetAll<ItemData>().Where(i=>i.Price!=0);
+        var items = GameManager.ItemManager.GetCatalogEntries<ItemData>().Where(i=>i.Price!=0);
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>

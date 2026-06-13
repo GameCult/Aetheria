@@ -30,8 +30,8 @@ public class ItemManager
 
     // private Guid _forceLoadZone;
     
-    // public GlobalData GlobalData => _globalData ?? (_globalData = ItemData.GetAll<GlobalData>().FirstOrDefault());
-    public ILegacyCatalogReader ItemData { get; }
+    // public GlobalData GlobalData => _globalData ?? (_globalData = GetCatalogEntries<GlobalData>().FirstOrDefault());
+    private readonly ILegacyCatalogReader _itemData;
     public GameplaySettings GameplaySettings { get; }
 
     // public double Time
@@ -49,9 +49,19 @@ public class ItemManager
 
     public ItemManager(ILegacyCatalogReader itemData, GameplaySettings settings, Action<string> logger)
     {
-        ItemData = itemData;
+        _itemData = itemData;
         GameplaySettings = settings;
         _logger = logger;
+    }
+
+    public T GetCatalogEntry<T>(Guid id) where T : DatabaseEntry
+    {
+        return _itemData.Get<T>(id);
+    }
+
+    public IEnumerable<T> GetCatalogEntries<T>() where T : DatabaseEntry
+    {
+        return _itemData.GetAll<T>();
     }
 
     public void Log(string s)

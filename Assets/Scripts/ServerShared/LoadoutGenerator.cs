@@ -127,7 +127,7 @@ public class LoadoutGenerator
     
     public T[] RandomItems<T>(int count, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
     {
-        return ItemManager.ItemData.GetAll<T>()
+        return ItemManager.GetCatalogEntries<T>()
             .Where(item => 
                 item.Price > 0 &&
                 item.Manufacturer != Guid.Empty &&
@@ -137,7 +137,7 @@ public class LoadoutGenerator
             .WeightedRandomElements(ref Random, item =>
                     Faction == null ? 1 : 
                         (item.Manufacturer == Faction.ID ? 1 : Faction.Allegiance.ContainsKey(item.Manufacturer) ? Faction.Allegiance[item.Manufacturer] : 0.0f / // Prioritize items from allied manufacturers
-                            (Galaxy?.ContainsFaction(item.Manufacturer) ?? false ? Zone?.Distance[Galaxy.HomeZones[ItemManager.ItemData.Get<Faction>(item.Manufacturer)]] ?? 1 : 1)) * // Penalize distance to manufacturer headquarters
+                            (Galaxy?.ContainsFaction(item.Manufacturer) ?? false ? Zone?.Distance[Galaxy.HomeZones[ItemManager.GetCatalogEntry<Faction>(item.Manufacturer)]] ?? 1 : 1)) * // Penalize distance to manufacturer headquarters
                     pow(item.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
                     pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
                 count

@@ -390,7 +390,7 @@ public class PropertiesPanel : MonoBehaviour
 			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		var manufacturer = GameManager.ItemManager.ItemData.Get<Faction>(data.Manufacturer);
+		var manufacturer = GameManager.ItemManager.GetCatalogEntry<Faction>(data.Manufacturer);
 		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
 		sheet.AddStat("Mass", () => ActionGameManager.PlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
 		

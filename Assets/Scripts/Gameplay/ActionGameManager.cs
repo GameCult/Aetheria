@@ -468,7 +468,7 @@ public class ActionGameManager : MonoBehaviour
             args =>
             {
                 var itemName = string.Join(" ", args);
-                var item = ItemManager.ItemData.GetAll<EquippableItemData>()
+                var item = ItemManager.GetCatalogEntries<EquippableItemData>()
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
                 if (item != null)
                 {

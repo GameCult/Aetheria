@@ -71,6 +71,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   methods are also deleted, so the legacy cache implementation exposes
   deserialization only. UI code no longer reaches into
   `LegacyCatalogBoundary.GetCatalog` directly.
+- `ItemManager` no longer exposes the raw `ILegacyCatalogReader` as public
+  gameplay/UI API. Item, faction, loadout, trade, and entity restore consumers
+  now go through narrow `ItemManager.GetCatalogEntry<T>` and
+  `GetCatalogEntries<T>` methods. This does not remove the legacy reader under
+  the hood; it prevents old catalog authority from leaking into every caller
+  that only needs a domain lookup.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -176,11 +182,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `ActionGameManager.LegacyCatalog` is the only Unity runtime access point for
   old MessagePack catalog reads, and `LegacyCatalogBoundary` is the only named
   owner for opening the old catalog and binding legacy `DatabaseLink<T>`
-  resolution until catalog migration lands. Runtime code receives
-  `ILegacyCatalogReader`, not the concrete cache. `Aetheria.State.Unity` owns a
-  read-only typed catalog facade for future Unity consumers; it does not write
-  state or own simulation. The legacy cache no longer has a public mutation
-  surface.
+  resolution until catalog migration lands. Runtime code receives narrow
+  `ItemManager` catalog methods where gameplay only needs lookups; `ItemManager`
+  and `Galaxy` still receive `ILegacyCatalogReader` until typed runtime catalog
+  boot replaces them. `Aetheria.State.Unity` owns a read-only typed catalog
+  facade for future Unity consumers; it does not write state or own simulation.
+  The legacy cache no longer has a public mutation surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -221,8 +228,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
 - Deletion line: after catalog migration smokes pass, replace
-  `ActionGameManager.LegacyCatalog`/`ItemManager` boot with the typed runtime
-  catalog package, then delete or quarantine the remaining
+  `ActionGameManager.LegacyCatalog`/`ItemManager`/`Galaxy` boot with the typed
+  runtime catalog package, then delete or quarantine the remaining
   `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and remove old
   MessagePack backing store classes from live Unity source.
 
