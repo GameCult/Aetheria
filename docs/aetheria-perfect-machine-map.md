@@ -55,16 +55,22 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   files. Item definitions now carry legacy manufacturer IDs, price, shape
   dimensions, and occupied cell counts. Corporation documents now carry the
   legacy short name, true description from key 3, name-file and boss-hull legacy
-  IDs, influence distance, allegiance count, and music bank IDs.
+  IDs, influence distance, allegiance count, and music bank IDs. Empty legacy
+  GUID references are imported as absent links rather than as `Guid.Empty`
+  catalog IDs.
   `Aetheria.State` now owns the canonical legacy-ID record key mapping for
   migrated item, corporation, and name-file documents.
+- `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
+  `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
+  corporation name-file queries without touching `DatabaseEntry`.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
   `Aetheria.State.Verify` opens the materialized file and checks that migration
   ledger counts match actual typed catalog records, that the legacy-ID lookup
   API resolves migrated item, corporation, and name-file documents, and that
-  the expanded typed catalog facts are present in the `.cc` store.
+  the expanded typed catalog facts and typed catalog snapshot queries are
+  present in the `.cc` store.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than

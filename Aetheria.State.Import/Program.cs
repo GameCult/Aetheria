@@ -240,7 +240,7 @@ internal static class LegacyCatalogReader
                     Description = description,
                     Mass = GetDouble(payload, 4),
                     Volume = shape.OccupiedCells,
-                    ManufacturerLegacyId = GetGuid(payload, 3),
+                    ManufacturerLegacyId = GetOptionalGuid(payload, 3),
                     Price = GetInt(payload, 8),
                     ShapeWidth = shape.Width,
                     ShapeHeight = shape.Height,
@@ -255,8 +255,8 @@ internal static class LegacyCatalogReader
                     LegacyId = legacyId,
                     ShortName = GetString(payload, 2),
                     Description = GetString(payload, 3),
-                    GeonameFileLegacyId = GetGuid(payload, 9),
-                    BossHullLegacyId = GetGuid(payload, 10),
+                    GeonameFileLegacyId = GetOptionalGuid(payload, 9),
+                    BossHullLegacyId = GetOptionalGuid(payload, 10),
                     InfluenceDistance = GetInt(payload, 11),
                     AllegianceCount = GetMapCount(payload, 12),
                     OverworldMusic = GetUInt(payload, 13),
@@ -372,6 +372,12 @@ internal static class LegacyCatalogReader
         return payload.TryGetValue(key, out var value) && value is byte[] bytes && bytes.Length == 16
             ? new Guid(bytes).ToString("D")
             : "";
+    }
+
+    private static string GetOptionalGuid(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        var legacyId = GetGuid(payload, key);
+        return Guid.TryParse(legacyId, out var guid) && guid == Guid.Empty ? "" : legacyId;
     }
 
     private static string GetString(IReadOnlyDictionary<int, object?> payload, int key)

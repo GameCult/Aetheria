@@ -155,6 +155,14 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return GetNameFileAsync(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
     }
 
+    public AetheriaCatalogSnapshot ReadCatalogSnapshot()
+    {
+        return new AetheriaCatalogSnapshot(
+            Cache.GetAll<AetheriaItemDefinition>(),
+            Cache.GetAll<AetheriaCorporation>(),
+            Cache.GetAll<AetheriaNameFile>());
+    }
+
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);

@@ -16,6 +16,7 @@ var quarantine = await node.GetLegacyCatalogQuarantineAsync()
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
 var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
+var catalog = node.ReadCatalogSnapshot();
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
 RequireCount(ledger, "aetheria.corporation.v1", corporations.Length);
@@ -67,6 +68,30 @@ if (corporationNameLinks == 0)
     throw new InvalidOperationException("Typed corporations did not import geoname file legacy IDs.");
 }
 
+var tradeItems = catalog.TradeItems.ToArray();
+if (tradeItems.Length != pricedItems)
+{
+    throw new InvalidOperationException(
+        $"Typed catalog trade item query mismatch: query={tradeItems.Length}, priced={pricedItems}.");
+}
+
+var manufacturedItem = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
+    ?? throw new InvalidOperationException("Cannot verify typed catalog manufacturer lookup: no manufactured item.");
+if (catalog.GetManufacturer(manufacturedItem) == null)
+{
+    throw new InvalidOperationException(
+        $"Typed catalog manufacturer lookup failed for item {manufacturedItem.Name}.");
+}
+
+var corporationWithNames = corporations.FirstOrDefault(corporation =>
+    !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId))
+    ?? throw new InvalidOperationException("Cannot verify typed catalog name-file lookup: no linked corporation.");
+if (catalog.GetNameFile(corporationWithNames) == null)
+{
+    throw new InvalidOperationException(
+        $"Typed catalog name-file lookup failed for corporation {corporationWithNames.Name}.");
+}
+
 await RequireLegacyLookupAsync(
     items[0].LegacyId,
     () => node.GetItemDefinitionByLegacyIdAsync(items[0].LegacyId),
@@ -89,6 +114,7 @@ Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
+Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Corporations: {corporations.Length}");
 Console.WriteLine($"Described/geoname-linked corporations: {describedCorporations}/{corporationNameLinks}");
 Console.WriteLine($"Name files: {nameFiles.Length}");

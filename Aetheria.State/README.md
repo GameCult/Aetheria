@@ -52,12 +52,20 @@ field from key 3, name-file and boss-hull legacy IDs, influence distance,
 allegiance count, and music bank IDs. Runtime object graphs, behaviors, full
 Unity shape masks, and simulation state remain legacy until dedicated typed
 documents exist.
+Legacy GUID references that are `Guid.Empty` are imported as absent references,
+not as resolvable catalog links.
+
+`AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
+documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
+corporation prefix lookup, and corporation name-file lookup without reading
+`DatabaseEntry` objects.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
 records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
 for one migrated record of each catalog kind and checks that expanded item and
-corporation catalog facts survived materialization. Use it after import when
+corporation catalog facts survived materialization. The verifier also exercises
+the typed catalog snapshot query surface. Use it after import when
 `GameData/aetheria-world.cc` changes.
 
 Current rebuild notes:
