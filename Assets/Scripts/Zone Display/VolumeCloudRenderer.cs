@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -78,7 +78,7 @@ public class VolumeCloudRenderer : EffectBase
     private void Start() {
         this.EnsureMaterial(true);
         if (Application.isPlaying)
-            quality = ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality;
+            quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
     }
 
     [ImageEffectOpaque]

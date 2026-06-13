@@ -40,8 +40,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `AetheriaStateNode`. Local run saves, loadouts, player settings files, zone
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
-  `PlayerSettings` runtime object is no longer decorated as a MessagePack
-  persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
+  `RuntimePlayerSettings` runtime object is no longer named or decorated as a
+  MessagePack persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
   into canonical typed state and drains `aetheria-world.cc.eve.pending` through
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
@@ -68,8 +68,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
-  input screens still mutate the old `PlayerSettings` runtime object in memory
-  until the runtime Verse package is wired.
+  input screens mutate `RuntimePlayerSettings` in memory and queue typed Verse
+  commits; the in-memory projection is not portable state authority.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
@@ -636,6 +636,10 @@ First Aetheria surfaces to publish:
      `RuntimeZoneBlueprint`/`RuntimeEntityBlueprint`, and rename loadout
      collections away from save-payload vocabulary. These are now explicitly
      runtime construction projections, not portable state authority.
+   - Done: demote Unity's live `PlayerSettings` runtime object to
+     `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
+     state document owner, while Unity only keeps a session projection and
+     queues typed player-settings commits.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -682,6 +686,8 @@ First Aetheria surfaces to publish:
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
   `EntitySerializer.Unpack` hits.
+- Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
+  source has no standalone `PlayerSettings` class/property/method symbols.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes

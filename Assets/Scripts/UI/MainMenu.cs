@@ -107,7 +107,7 @@ public class MainMenu : MonoBehaviour
                 Dialog.AddProperty(() => generatorState);
                 Dialog.Show();
 
-                if (ActionGameManager.PlayerSettings.TutorialPassed)
+                if (ActionGameManager.RuntimePlayerSettings.TutorialPassed)
                 {
                     Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
                     ActionGameManager.IsTutorial = false;
@@ -144,7 +144,7 @@ public class MainMenu : MonoBehaviour
                             Settings.TutorialBackgroundSettings,
                             Settings.NameGeneratorSettings,
                             ActionGameManager.RuntimeCatalog,
-                            ActionGameManager.PlayerSettings,
+                            ActionGameManager.RuntimePlayerSettings,
                             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
                             Debug.Log,
                             setState);
@@ -206,19 +206,19 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("gameplay", "settings");
         _nextMenu.panel.AddField("Name", 
-            () => ActionGameManager.PlayerSettings.Name,
-            s => ActionGameManager.PlayerSettings.Name = s);
+            () => ActionGameManager.RuntimePlayerSettings.Name,
+            s => ActionGameManager.RuntimePlayerSettings.Name = s);
         _nextMenu.panel.AddField("Temperature Unit", 
-            () => (int) ActionGameManager.PlayerSettings.GameplaySettings.TemperatureUnit,
-            i => ActionGameManager.PlayerSettings.GameplaySettings.TemperatureUnit = (TemperatureUnit) i,
+            () => (int) ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit,
+            i => ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit = (TemperatureUnit) i,
             Enum.GetNames(typeof(TemperatureUnit)));
         _nextMenu.panel.AddField("Significant Digits", 
-            () => ActionGameManager.PlayerSettings.GameplaySettings.SignificantDigits,
-            i => ActionGameManager.PlayerSettings.GameplaySettings.SignificantDigits = i);
+            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits,
+            i => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits = i);
         _nextMenu.panel.AddButton("Back",
             () =>
             {
-                ActionGameManager.SavePlayerSettings();
+                ActionGameManager.QueueRuntimePlayerSettingsCommit();
                 ShowSettings();
                 Fade(false);
             });
@@ -229,16 +229,16 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("graphics", "settings");
         _nextMenu.panel.AddField("Nebula Quality",
-            () => (int)ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality,
+            () => (int)ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality,
             i =>
             {
-                ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality = (Quality)i;
-                CloudRenderer.quality = ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality;
+                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality = (Quality)i;
+                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
             },
             Enum.GetNames(typeof(Quality)));
         _nextMenu.panel.AddField("Show Asteroids in Minimap",
-            () => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
-            b => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
+            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
+            b => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
         _nextMenu.panel.AddButton("Back",
             () =>
             {

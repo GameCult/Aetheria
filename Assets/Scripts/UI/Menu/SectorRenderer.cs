@@ -69,8 +69,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             var density = saturate(ActionGameManager.CurrentGalaxy.Background.CloudDensity(zone.Position)/2);
             var radius = GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(density);
             var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
-            Properties.AddProperty("Mass", () => ActionGameManager.PlayerSettings.Format(mass));
-            Properties.AddProperty("Radius", () => ActionGameManager.PlayerSettings.Format(radius));
+            Properties.AddProperty("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(mass));
+            Properties.AddProperty("Radius", () => ActionGameManager.RuntimePlayerSettings.Format(radius));
             if (zone.RuntimeBlueprint == null)
             {
                 Properties.AddProperty(() => "Has not been visited");

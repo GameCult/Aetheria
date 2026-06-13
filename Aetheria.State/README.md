@@ -15,20 +15,24 @@ The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
 bindings, and stat grids. Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
-binding overrides, and action-bar inputs. Do not preserve `SavedGame`,
-`PlayerSettings`, or runtime entity blueprints as opaque payloads in the new
-store; they are source shapes for projection, not portable state authority.
+binding overrides, and action-bar inputs. Do not preserve `SavedGame`, Unity
+runtime settings projections, or runtime entity blueprints as opaque payloads in
+the new store; they are source shapes for projection, not portable state
+authority.
 
 The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 `.zone` files. `AetheriaPlayerSettings` is the typed Verse replacement for
 `PlayerSettings.msgpack`, and `AetheriaLoadoutTemplate` is the typed Verse
 replacement for bespoke loadout files, with structured hull/equipment/cargo/
-docking item slots, nested child-entity loadouts, and weapon groups. Unity
-settings, loadout saves, and run checkpoints now queue typed `.cc.pending`
-runtime commit envelopes beside `GameData/aetheria-world.cc`. `Aetheria.State`
-owns applying those envelopes into canonical typed state through
-`AetheriaRuntimeCommitLogApplier`; the Unity-side command log is command-only
-and cannot become durable truth by itself.
+docking item slots, nested child-entity loadouts, and weapon groups.
+`RuntimePlayerSettings` is the Unity session projection for menus, formatting,
+and input binding edits; it queues typed `.cc.pending` player-settings commits
+and is not portable state authority. Unity settings, loadout saves, and run
+checkpoints now queue typed `.cc.pending` runtime commit envelopes beside
+`GameData/aetheria-world.cc`. `Aetheria.State` owns applying those envelopes
+into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
+Unity-side command log is command-only and cannot become durable truth by
+itself.
 Unity Eve surfaces also emit `gamecult.eve.command.v1` envelopes under
 `GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
 provider-owned acceptance organ for those commands: it validates the provider,

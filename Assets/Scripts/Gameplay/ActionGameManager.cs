@@ -40,22 +40,22 @@ public class ActionGameManager : MonoBehaviour
     private static string RuntimeStateFilePath =>
         _runtimeStateFilePath ??= AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
 
-    private static PlayerSettings _playerSettings;
-    public static PlayerSettings PlayerSettings
+    private static RuntimePlayerSettings _runtimePlayerSettings;
+    public static RuntimePlayerSettings RuntimePlayerSettings
     {
         get
         {
-            return _playerSettings ??= GetDefaultPlayerSettings();
+            return _runtimePlayerSettings ??= CreateDefaultRuntimePlayerSettings();
         }
     }
 
-    public static void SavePlayerSettings()
+    public static void QueueRuntimePlayerSettingsCommit()
     {
         try
         {
             var commit = AetheriaRuntimeStateCommitLog.QueuePlayerSettings(
                 RuntimeStateFilePath,
-                ProjectPlayerSettings(PlayerSettings));
+                ProjectRuntimePlayerSettings(RuntimePlayerSettings));
             Debug.Log($"Queued Aetheria Verse player settings commit: {commit.Path}");
         }
         catch (Exception ex)
@@ -64,9 +64,9 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private static PlayerSettings GetDefaultPlayerSettings()
+    private static RuntimePlayerSettings CreateDefaultRuntimePlayerSettings()
     {
-        var settings = new PlayerSettings();
+        var settings = new RuntimePlayerSettings();
         settings.Name = Environment.UserName;
         settings.InputSettings.ActionBarInputs.Add("<Keyboard>/leftShift");
         settings.InputSettings.ActionBarInputs.Add("<Mouse>/leftButton");
@@ -216,7 +216,7 @@ public class ActionGameManager : MonoBehaviour
         get => Settings.GameplaySettings.DefaultEntitySettings.Copy();
     }
 
-    private static AetheriaRuntimePlayerSettingsCommit ProjectPlayerSettings(PlayerSettings settings)
+    private static AetheriaRuntimePlayerSettingsCommit ProjectRuntimePlayerSettings(RuntimePlayerSettings settings)
     {
         return new AetheriaRuntimePlayerSettingsCommit
         {
@@ -492,7 +492,7 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
-        if (!PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
+        if (!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
             ZoneRenderer.ShowAsteroidUI = false;
         
         // TODO: Process Stories
@@ -500,7 +500,7 @@ public class ActionGameManager : MonoBehaviour
         #region Input Handling
 
         Input = new AetheriaInput();
-        foreach (var x in PlayerSettings.InputSettings.InputActionMap) Input.asset[x.Key.action].ApplyBindingOverride(x.Key.binding, x.Value);
+        foreach (var x in RuntimePlayerSettings.InputSettings.InputActionMap) Input.asset[x.Key.action].ApplyBindingOverride(x.Key.binding, x.Value);
 
         InputDisplayLayout.Input = Input.asset;
         Input.Global.Enable();
@@ -684,7 +684,7 @@ public class ActionGameManager : MonoBehaviour
             return slot;
         }
 
-        var bindings = PlayerSettings.InputSettings.ActionBarInputs.OrderBy(i => i)
+        var bindings = RuntimePlayerSettings.InputSettings.ActionBarInputs.OrderBy(i => i)
             .Select(createBinding).ToList();
 
         #endregion
@@ -693,7 +693,7 @@ public class ActionGameManager : MonoBehaviour
         
         StartGame();
         
-        //if (!PlayerSettings.InputSettings.ActionBarInputs.Any())
+        //if (!RuntimePlayerSettings.InputSettings.ActionBarInputs.Any())
         {
             var newbinds = Enumerable.Range(0, 64)//CurrentEntity.WeaponGroups
                 .Zip(
@@ -1292,7 +1292,7 @@ public class ActionGameManager : MonoBehaviour
         MainMenu.gameObject.SetActive(true);
         Menu.gameObject.SetActive(false);
         CurrentGalaxy = null;
-        SavePlayerSettings();
+        QueueRuntimePlayerSettingsCommit();
         Observable.EveryUpdate()
             .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
             .Subscribe(_ =>

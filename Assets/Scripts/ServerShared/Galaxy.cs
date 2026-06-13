@@ -105,7 +105,7 @@ public class Galaxy
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        PlayerSettings playerSettings, 
+        RuntimePlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
         Action<string> progressCallback = null,

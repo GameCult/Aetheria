@@ -1,4 +1,4 @@
-ï»¿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -139,30 +139,30 @@ public class SchematicDisplay : MonoBehaviour
                 OverrideIcon.SetActive(_entity.OverrideShutdown && cos(Time.time * OverrideIconBlinkSpeed) > 0);
                 ShieldIcon.SetActive(_entity.Shield!=null && _entity.Shield.Item.Active.Value);
                 if (_radiators.Length == 1)
-                    RadiatorTemperatureLabel.text = $"{((int)(_radiators[0].RadiatorTemperature - 273.15f)).ToString()}Â°C";
+                    RadiatorTemperatureLabel.text = $"{((int)(_radiators[0].RadiatorTemperature - 273.15f)).ToString()}°C";
                 else if (_radiators.Length > 1)
                     RadiatorTemperatureLabel.text =
                         $"{((int)(_radiators.Min(r => r.RadiatorTemperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_radiators.Max(r => r.RadiatorTemperature) - 273.15f)).ToString()}Â°C";
+                        $"{((int)(_radiators.Max(r => r.RadiatorTemperature) - 273.15f)).ToString()}°C";
                 HeatsinkBackground.color = _entity.HeatsinksEnabled ? HeaderElementEnabledColor : HeaderElementDisabledColor;
 
                 if (_heatStorages.Length == 1)
-                    HeatStorageTemperatureLabel.text = $"{((int)(_heatStorages[0].Item.Temperature - 273.15f)).ToString()}Â°C";
+                    HeatStorageTemperatureLabel.text = $"{((int)(_heatStorages[0].Item.Temperature - 273.15f)).ToString()}°C";
                 else if (_heatStorages.Length > 1)
                     HeatStorageTemperatureLabel.text =
                         $"{((int)(_heatStorages.Min(r => r.Item.Temperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_heatStorages.Max(r => r.Item.Temperature) - 273.15f)).ToString()}Â°C";
+                        $"{((int)(_heatStorages.Max(r => r.Item.Temperature) - 273.15f)).ToString()}°C";
 
                 if (_cargoBays.Length == 1)
-                    CargoTemperatureLabel.text = $"{((int)(_cargoBays[0].Temperature - 273.15f)).ToString()}Â°C";
+                    CargoTemperatureLabel.text = $"{((int)(_cargoBays[0].Temperature - 273.15f)).ToString()}°C";
                 else if (_cargoBays.Length > 1)
                     CargoTemperatureLabel.text =
                         $"{((int)(_cargoBays.Min(r => r.Temperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_cargoBays.Max(r => r.Temperature) - 273.15f)).ToString()}Â°C";
+                        $"{((int)(_cargoBays.Max(r => r.Temperature) - 273.15f)).ToString()}°C";
 
                 if(_cockpit != null)
                 {
-                    CockpitTemperatureLabel.text = $"{((int) (_cockpit.Item.Temperature - 273.15f)).ToString()}Â°C";
+                    CockpitTemperatureLabel.text = $"{((int) (_cockpit.Item.Temperature - 273.15f)).ToString()}°C";
 
                     HeatstrokeMeterFill.anchorMax = new Vector2(_entity.Heatstroke, 1);
                     HypothermiaMeterFill.anchorMax = new Vector2(_entity.Hypothermia, 1);
@@ -174,7 +174,7 @@ public class SchematicDisplay : MonoBehaviour
                 if (_capacitors.Length == 0)
                 {
                     EnergyFill.anchorMax = Vector2.up;
-                    EnergyLabel.text = ActionGameManager.PlayerSettings.Format(_reactor.Draw);
+                    EnergyLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_reactor.Draw);
                 }
                 else
                 {
@@ -186,13 +186,13 @@ public class SchematicDisplay : MonoBehaviour
 
                 if (_aetherDrive != null)
                 {
-                    ForwardRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.x);
+                    ForwardRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.x);
                     ForwardRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.x / _aetherDrive.MaximumRpm, 1);
                     
-                    StrafeRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.y);
+                    StrafeRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.y);
                     StrafeRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.y / _aetherDrive.MaximumRpm, 1);
                     
-                    TurnRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.z);
+                    TurnRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.z);
                     TurnRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.z / _aetherDrive.MaximumRpm, 1);
                 }
             }
@@ -210,7 +210,7 @@ public class SchematicDisplay : MonoBehaviour
                 var hullData = _entity.ItemManager.GetData(_hull);
                 var dur = _hull.Durability / hullData.Durability;
                 HullDurabilityFill.anchorMax = new Vector2(dur, 1);
-                HullDurabilityLabel.text = $"{ActionGameManager.PlayerSettings.Format(dur * 100)}%";
+                HullDurabilityLabel.text = $"{ActionGameManager.RuntimePlayerSettings.Format(dur * 100)}%";
             }
 
             foreach (var x in _schematicItems)

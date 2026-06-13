@@ -111,7 +111,7 @@ public class InputDisplayLayout : MonoBehaviour
             buttonMapping.TestAction.Enable();
         }
 
-        foreach(var actionBarInput in ActionGameManager.PlayerSettings.InputSettings.ActionBarInputs)
+        foreach(var actionBarInput in ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs)
         {
             if (!_bindButtons.ContainsKey(actionBarInput)) Debug.LogError($"Unable to find input button for \"{actionBarInput}\"");
             else
@@ -527,7 +527,7 @@ public class InputDisplayLayout : MonoBehaviour
             {
                 _dragAction.Binding.overridePath = _previewButton.Button.InputSystemPath;
                 _dragAction.Action.ApplyBindingOverride(_dragAction.Binding);
-                ActionGameManager.PlayerSettings.InputSettings.InputActionMap[(_dragAction.Action.name,
+                ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap[(_dragAction.Action.name,
                     _dragAction.Action.GetBindingIndex(_dragAction.Binding))] = _previewButton.Button.InputSystemPath;
                 // TODO: Assign New Binding
             }
@@ -550,13 +550,13 @@ public class InputDisplayLayout : MonoBehaviour
                 buttonMapping.IsActionBarButton = !buttonMapping.IsActionBarButton;
                 if (buttonMapping.IsActionBarButton)
                 {
-                    ActionGameManager.PlayerSettings.InputSettings.ActionBarInputs.Add(buttonMapping.Button.InputSystemPath);
+                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Add(buttonMapping.Button.InputSystemPath);
                     foreach(var overlap in OverlappingLabels(buttonMapping.ButtonRect))
                         PlaceLabel(overlap);
                 }
                 else
                 {
-                    ActionGameManager.PlayerSettings.InputSettings.ActionBarInputs.Remove(buttonMapping.Button.InputSystemPath);
+                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Remove(buttonMapping.Button.InputSystemPath);
                 }
                 AssignColor(buttonMapping);
             });

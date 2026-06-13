@@ -33,11 +33,11 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
     public DirectoryInfo NarrativeDirectory { get; }
     private Random _random;
     public Galaxy Galaxy { get; }
-    public PlayerSettings Settings { get; }
+    public RuntimePlayerSettings Settings { get; }
 
     private Action<string> Log { get; }
     
-    public StoryProcessor(PlayerSettings settings, DirectoryInfo narrativeDirectory, Galaxy galaxy, ref Random random, Action<string> log)
+    public StoryProcessor(RuntimePlayerSettings settings, DirectoryInfo narrativeDirectory, Galaxy galaxy, ref Random random, Action<string> log)
     {
         NarrativeDirectory = narrativeDirectory;
         Galaxy = galaxy;

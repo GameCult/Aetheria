@@ -212,7 +212,7 @@ public class TradeMenu : MonoBehaviour
                     return 0;
                 }));
         columns.Add(("Mass", 1,
-            x => () => ActionGameManager.PlayerSettings.Format(x.data.Mass), 
+            x => () => ActionGameManager.RuntimePlayerSettings.Format(x.data.Mass), 
             data => data.Mass));
         columns.Add(("Price", 1,
             x => () => (x.item is CraftedItemInstance craftedItemInstance ? GameManager.ItemManager.GetPrice(craftedItemInstance) : x.data.Price).ToString("N0"),
@@ -254,7 +254,7 @@ public class TradeMenu : MonoBehaviour
                     columns.Add((field.Name, 1, x =>
                     {
                         var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return () => ActionGameManager.PlayerSettings.Format((float) field.GetValue(behavior));
+                        return () => ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior));
                     }, data =>
                     {
                         var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
@@ -275,7 +275,7 @@ public class TradeMenu : MonoBehaviour
                     columns.Add((field.Name, 1, x =>
                     {
                         var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return () => ActionGameManager.PlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
+                        return () => ActionGameManager.RuntimePlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
                     }, data =>
                     {
                         var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));

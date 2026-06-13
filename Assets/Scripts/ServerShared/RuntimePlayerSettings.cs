@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-public class PlayerSettings
+public class RuntimePlayerSettings
 {
     public string Name = "Anonymous";
     public bool TutorialPassed;
     public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
-    public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();
-    public PlayerInputSettings InputSettings = new PlayerInputSettings();
-    public PlayerGraphicsSettings GraphicsSettings = new PlayerGraphicsSettings();
+    public RuntimePlayerGameplaySettings GameplaySettings = new RuntimePlayerGameplaySettings();
+    public RuntimePlayerInputSettings InputSettings = new RuntimePlayerInputSettings();
+    public RuntimePlayerGraphicsSettings GraphicsSettings = new RuntimePlayerGraphicsSettings();
 
     public string FormatTemperature(float t)
     {
@@ -47,19 +47,19 @@ public class PlayerSettings
     }
 }
 
-public class PlayerGameplaySettings
+public class RuntimePlayerGameplaySettings
 {
     public TemperatureUnit TemperatureUnit = TemperatureUnit.Celsius;
     public int SignificantDigits = 3;
 }
 
-public class PlayerGraphicsSettings
+public class RuntimePlayerGraphicsSettings
 {
     public Quality NebulaQuality = Quality.Normal;
     public bool ShowAsteroidsInMinimap;
 }
 
-public class PlayerInputSettings
+public class RuntimePlayerInputSettings
 {
     public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
     public List<string> ActionBarInputs = new List<string>();

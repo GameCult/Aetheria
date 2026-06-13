@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -392,7 +392,7 @@ public class PropertiesPanel : MonoBehaviour
 		var sheet = AddStatSheet();
 		var manufacturer = ActionGameManager.RuntimeCatalog?.FindCorporationByLegacyId(data.Manufacturer.ToString());
 		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
-		sheet.AddStat("Mass", () => ActionGameManager.PlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
+		sheet.AddStat("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
 		
 		//AddProperty("Thermal Mass", () => Context.GetThermalMass(item).SignificantDigits(Context.GameplaySettings.SignificantDigits));
 	}
@@ -411,7 +411,7 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			if (behavior is StatModifierData statMod)
 			{
-				sheet.AddStat($"{statMod.Stat.Target.SplitCamelCase()}:{statMod.Stat.Stat.SplitCamelCase()}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.PlayerSettings.Format(statValueFunction(statMod.Modifier))}");
+				sheet.AddStat($"{statMod.Stat.Target.SplitCamelCase()}:{statMod.Stat.Stat.SplitCamelCase()}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(statMod.Modifier))}");
 			}
 			else
 			{
@@ -421,13 +421,13 @@ public class PropertiesPanel : MonoBehaviour
 				{
 					var fieldType = field.FieldType;
 					if (fieldType == typeof(float))
-						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.PlayerSettings.Format((float) field.GetValue(behavior))}");
+						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior))}");
 					else if (fieldType == typeof(int))
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{(int) field.GetValue(behavior)}");
 					else if (fieldType == typeof(PerformanceStat))
 					{
 						var stat = (PerformanceStat) field.GetValue(behavior);
-						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.PlayerSettings.Format(statValueFunction(stat))}");
+						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(stat))}");
 					}
 				}
 			}
@@ -436,7 +436,7 @@ public class PropertiesPanel : MonoBehaviour
 		if (gearData.Behaviors.FirstOrDefault(b => b is WeaponData) is WeaponData weapon)
 		{
 			var range = AddCurveField();
-			range.Show("Damage Range", weapon.DamageCurve, t => ActionGameManager.PlayerSettings.Format(lerp(statValueFunction(weapon.MinRange), statValueFunction(weapon.Range), t)));
+			range.Show("Damage Range", weapon.DamageCurve, t => ActionGameManager.RuntimePlayerSettings.Format(lerp(statValueFunction(weapon.MinRange), statValueFunction(weapon.Range), t)));
 		}
 	}
 
@@ -490,13 +490,13 @@ public class PropertiesPanel : MonoBehaviour
 		if (item.EquippableItem.Durability < .01f)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
 		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / gearData.Durability * 100)}%");
-		statusSheet.AddStat("Temperature", () => ActionGameManager.PlayerSettings.FormatTemperature(item.Temperature));
+		statusSheet.AddStat("Temperature", () => ActionGameManager.RuntimePlayerSettings.FormatTemperature(item.Temperature));
 		
 		var heatCurve = AddCurveField();
 		heatCurve.Show(
 			"Thermal Performance", 
 			gearData.HeatPerformanceCurve, 
-			t => ActionGameManager.PlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
+			t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
 			true);
 		RefreshPropertyValues += () => heatCurve.SetCurrent(unlerp(gearData.MinimumTemperature, gearData.MaximumTemperature, item.Temperature));
 		AddEquippableItemProperties(item.EquippableItem, item.Evaluate);
@@ -536,7 +536,7 @@ public class PropertiesPanel : MonoBehaviour
 			heatCurve.Show(
 				"Thermal Performance", 
 				gearData.HeatPerformanceCurve, 
-				t => ActionGameManager.PlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
+				t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
 				true);
 			AddEquippableItemProperties(gear, stat => GameManager.ItemManager.Evaluate(stat, gear));
 		}
@@ -550,16 +550,16 @@ public class PropertiesPanel : MonoBehaviour
 		AddProperty(data.Description).Label.fontStyle = FontStyles.Normal;
 		if (data is EquippableItemData gearData)
 		{
-			AddProperty("Durability", () => ActionGameManager.PlayerSettings.Format(gearData.Durability));
+			AddProperty("Durability", () => ActionGameManager.RuntimePlayerSettings.Format(gearData.Durability));
 			var sheet = AddStatSheet();
 			foreach (var behavior in gearData.Behaviors)
 			{
 				if (behavior is StatModifierData statMod)
 				{
 					if(Math.Abs(statMod.Modifier.Min - statMod.Modifier.Max) < .001f)
-						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.PlayerSettings.Format(statMod.Modifier.Min)}");
+						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Min)}");
 					else
-						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.PlayerSettings.Format(statMod.Modifier.Min)}-{ActionGameManager.PlayerSettings.Format(statMod.Modifier.Max)}");
+						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Min)}-{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Max)}");
 				}
 				var type = behavior.GetType();
 				if (type.GetCustomAttribute(typeof(RuntimeInspectable)) != null)
@@ -568,16 +568,16 @@ public class PropertiesPanel : MonoBehaviour
 					{
 						var fieldType = field.FieldType;
 						if (fieldType == typeof(float))
-							sheet.AddStat(field.Name, () => $"{ActionGameManager.PlayerSettings.Format((float) field.GetValue(behavior))}");
+							sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior))}");
 						else if (fieldType == typeof(int))
 							sheet.AddStat(field.Name, () => $"{(int) field.GetValue(behavior)}");
 						else if (fieldType == typeof(PerformanceStat))
 						{
 							var stat = (PerformanceStat) field.GetValue(behavior);
 							if(Math.Abs(stat.Min - stat.Max) < .001f)
-								sheet.AddStat(field.Name, () => $"{ActionGameManager.PlayerSettings.Format(stat.Min)}");
+								sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format(stat.Min)}");
 							else
-								sheet.AddStat(field.Name, () => $"{ActionGameManager.PlayerSettings.Format(stat.Min)}-{ActionGameManager.PlayerSettings.Format(stat.Max)}");
+								sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format(stat.Min)}-{ActionGameManager.RuntimePlayerSettings.Format(stat.Max)}");
 						}
 					}
 				}

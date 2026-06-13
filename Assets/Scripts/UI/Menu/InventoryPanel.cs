@@ -207,8 +207,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             var opacity = smoothstep(0, MinTempRange, tempRange);
             if(MinTempLabel)
             {
-                MinTempLabel.text = ActionGameManager.PlayerSettings.FormatTemperature(_displayedEntity.MinTemp);
-                MaxTempLabel.text = ActionGameManager.PlayerSettings.FormatTemperature(_displayedEntity.MaxTemp);
+                MinTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MinTemp);
+                MaxTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MaxTemp);
             }
             var hullData = GameManager.ItemManager.GetData(_displayedEntity.Hull) as HullData;
             for(var x = 0; x < _temperatureTexture.width; x++)
