@@ -7,21 +7,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using MessagePack;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using quaternion = Unity.Mathematics.quaternion;
 
-[MessagePackObject]
 public class Ship : Entity
 {
-
-    // [Key("bindings")]   public Dictionary<KeyCode,Guid>    Bindings = new Dictionary<KeyCode,Guid>();
-    //[IgnoreMember] public int HullHardpointCount;
-
-    // [IgnoreMember] public Dictionary<Targetable, float> Contacts = new Dictionary<Targetable, float>();
-    // [IgnoreMember] public Targetable Target;
     public Entity HomeEntity;
     public float2 MovementDirection;
     public bool IsPlayerShip;

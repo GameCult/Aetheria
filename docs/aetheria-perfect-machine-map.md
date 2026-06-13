@@ -18,8 +18,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 ## Current Mechanism
 
 - Unity client/runtime lives under `Assets/`. Gameplay still reads the legacy
-  item/name catalog through `ActionGameManager.LegacyCatalog`, which is now the
-  only runtime entrypoint that calls `LegacyCatalogBoundary.GetCatalog`.
+  item/name catalog through a private `ActionGameManager` boot helper, which is
+  now the only runtime entrypoint that calls `LegacyCatalogBoundary.GetCatalog`.
   `ActionGameManager` no longer owns a global legacy cache. Local run saves,
   loadouts, player settings files, zone files, and generated keyboard layout
   caches no longer write bespoke durable files. The legacy `PlayerSettings`
@@ -37,8 +37,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
-  deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack` and
-  `EntityPack` remain as runtime construction/loadout snapshots, but no longer
+  deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack`, body/orbit
+  zone runtime data, item-instance runtime data, `Ship`, and `EntitySettings`
+  remain as runtime construction/loadout/session projections, but no longer
   declare themselves as MessagePack persistence documents.
 - `Aetheria.State` now expands `AetheriaPlayerSettings` beyond an active-run
   pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
@@ -60,12 +61,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EntityPack` serialization. Unity has not wired its save/loadout UI to this
   document yet, so the old in-memory `EntityPack` path is still a runtime
   construction helper, not durable authority.
-- `ActionGameManager.LegacyCatalog` is the Unity runtime's single public legacy
-  catalog access point. It delegates to `LegacyCatalogBoundary`, which opens
-  `LegacyCatalogCache` as the only concrete pull-only catalog cache. Runtime
-  consumers receive `ILegacyCatalogReader`, so old MessagePack backing stores
-  may hydrate in-memory domain objects for the current Unity runtime, but this
-  path cannot push or delete legacy files. The legacy backing-store
+- The private `ActionGameManager` catalog boot helper delegates to
+  `LegacyCatalogBoundary`, which opens `LegacyCatalogCache` as the only
+  concrete pull-only catalog cache. Runtime consumers receive
+  `ILegacyCatalogReader`, so old MessagePack backing stores may hydrate
+  in-memory domain objects for the current Unity runtime, but this path cannot
+  push or delete legacy files. The legacy backing-store
   write/realtime APIs and public cache mutation methods have been deleted; only
   backing-store pull hydration can populate it. The backing-store serializer
   methods are also deleted, so the legacy cache implementation exposes
@@ -155,9 +156,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Sprite, and Texture2D are deleted. Keyboard layout DTOs are plain runtime
   parse/display models, not MessagePack save shapes. `PlayerSettings` is a
   plain session-local runtime object until typed Verse settings are imported
-  into Unity. The global scene-load MessagePack resolver hook is deleted. The
-  slime compute settings path no longer serializes its local parameter struct
-  for change detection.
+  into Unity. `ZoneData` body/orbit DTOs, `ItemInstance` DTOs,
+  `EntitySettings`, and `Ship` are also plain runtime/session projections now,
+  not MessagePack persistence shapes. The global scene-load MessagePack
+  resolver hook is deleted. The slime compute settings path no longer
+  serializes its local parameter struct for change detection.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.

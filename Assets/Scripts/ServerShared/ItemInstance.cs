@@ -7,55 +7,33 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-//using JM.LinqFaster;
-using MessagePack;
-using MessagePack.Formatters;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Union(0, typeof(SimpleCommodity)),
- Union(1, typeof(CompoundCommodity)),
- Union(2, typeof(EquippableItem)),
- Union(3, typeof(ConsumableItem))]
 public abstract class ItemInstance
 {
-    [Key(0)] public DatabaseLink<ItemData> Data;
-    [Key(1)] public ItemRotation Rotation;
+    public DatabaseLink<ItemData> Data;
+    public ItemRotation Rotation;
 }
 
-[Union(0, typeof(CompoundCommodity)),
- Union(1, typeof(EquippableItem)),
- Union(2, typeof(ConsumableItem))]
 public abstract class CraftedItemInstance : ItemInstance
 {
-    [Key(2)]  public float Quality;
-
-    //[Key(3)]  public List<ItemInstance> Ingredients = new List<ItemInstance>();
-
-    //[Key(4)]  public Guid Blueprint;
-
-    //[Key(3)]  public string Name;
-
-    //[Key(4)]  public Guid SourceEntity;
+    public float Quality;
 }
 
-[MessagePackObject]
 public class CompoundCommodity : CraftedItemInstance { }
 
-[MessagePackObject]
 public class SimpleCommodity : ItemInstance
 {
-    [Key(2)]  public int Quantity;
+    public int Quantity;
 }
 
-[MessagePackObject]
 public class EquippableItem : CraftedItemInstance
 {
-    [Key(7)] public float Durability;
-    [Key(8)] public bool OverrideShutdown;
+    public float Durability;
+    public bool OverrideShutdown;
 }
 
-[MessagePackObject]
 public class ConsumableItem : CraftedItemInstance
 {
 }
