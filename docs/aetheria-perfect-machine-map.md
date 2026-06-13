@@ -80,9 +80,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   that only needs a domain lookup.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader`. Sector and
   tutorial generation receive `ItemManager` and use the same narrow catalog
-  lookup port for factions and name files. `ActionGameManager.LegacyCatalog` is
-  now a private boot helper that feeds only `ItemManager`; menu/generation paths
-  no longer receive the legacy reader directly.
+  lookup port for factions and name files. `ActionGameManager` now has a
+  private legacy catalog boot helper that feeds only `ItemManager`;
+  menu/generation paths no longer receive the legacy reader directly.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -237,10 +237,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
 - Deletion line: after catalog migration smokes pass, replace
-  `ActionGameManager.LegacyCatalog`/`ItemManager` boot with the typed runtime
-  catalog package, then delete or quarantine the remaining
-  `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and remove old
-  MessagePack backing store classes from live Unity source.
+  `ActionGameManager`'s private legacy catalog boot helper and `ItemManager`
+  boot with the typed runtime catalog package, then delete or quarantine the
+  remaining `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and
+  remove old MessagePack backing store classes from live Unity source.
 
 ## Intended Change
 
