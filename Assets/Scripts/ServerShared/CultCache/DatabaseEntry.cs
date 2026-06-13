@@ -68,7 +68,7 @@ public abstract class DatabaseEntry
 public class DatabaseLink<T> : DatabaseLinkBase where T : ItemData
 {
     [IgnoreMember]
-    public T Value => ResolveLegacyItemCatalog<T>(LinkID);
+    public T Value => ResolveRuntimeItemCatalog<T>(LinkID);
 }
 
 [MessagePackObject]
@@ -78,17 +78,17 @@ public class DatabaseLinkBase
     public Guid LinkID;
 
     [IgnoreMember]
-    private static ILegacyItemCatalogReader Catalog { get; set; }
+    private static IRuntimeItemCatalogReader Catalog { get; set; }
 
-    protected static T ResolveLegacyItemCatalog<T>(Guid linkId) where T : ItemData
+    protected static T ResolveRuntimeItemCatalog<T>(Guid linkId) where T : ItemData
     {
         if (Catalog == null)
-            throw new InvalidOperationException("Legacy item link resolution is not bound. Open LegacyItemCatalogBoundary before reading legacy item object graphs.");
+            throw new InvalidOperationException("Runtime item catalog resolution is not bound. Open typed Aetheria runtime state before reading item object graphs.");
 
         return Catalog.Get<T>(linkId);
     }
 
-    public static void BindLegacyItemCatalog(ILegacyItemCatalogReader catalog)
+    public static void BindRuntimeItemCatalog(IRuntimeItemCatalogReader catalog)
     {
         if (catalog == null) throw new ArgumentNullException(nameof(catalog));
 

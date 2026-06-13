@@ -17,21 +17,20 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Mechanism
 
-- Unity client/runtime lives under `Assets/`. Gameplay still reads the legacy
-  item/name catalog through a private `ActionGameManager` boot helper, which is
-  now the only runtime entrypoint that calls `LegacyItemCatalogBoundary.GetCatalog`.
-  `ActionGameManager` no longer owns a global legacy cache.
+- Unity client/runtime lives under `Assets/`. Gameplay now opens the typed
+  runtime catalog from `GameData/aetheria-world.cc` and projects current
+  `ItemData` DTOs through `AetheriaRuntimeItemCatalog`. `ActionGameManager` no
+  longer owns or opens a legacy catalog cache.
   `GameCult.Aetheria.State.Unity`, the embedded Unity package under
   `Packages/org.gamecult.aetheria.state`, owns the Unity runtime path to
   `GameData/aetheria-world.cc` through `AetheriaRuntimeStateBoundary` and owns
   the Unity boot-time state-file existence probe through
   `AetheriaRuntimeStateBoot`. `ActionGameManager` consumes that package-owned
-  boot report and warns when `aetheria-world.cc` is missing before treating
-  legacy catalog data as runtime state. When the typed state file exists,
+  boot report and throws if `aetheria-world.cc` is missing before gameplay
+  boot. When the typed state file exists,
   `ActionGameManager` opens a package-owned read-only runtime catalog snapshot
   from the `.cc` directory store before constructing the temporary legacy
-  `ItemManager`. `LegacyItemCatalogBoundary` no longer names or owns typed state
-  paths. Local run saves, loadouts, player settings files, zone files, and
+  `ItemManager`. Local run saves, loadouts, player settings files, zone files, and
   generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
@@ -42,12 +41,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Economy.Shared` wrapper have been removed from live source. The stale
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
   formatter classes have also been deleted, so the remaining direct
-  `MessagePackSerializer` calls are the two legacy catalog deserializers and
-  their resolver setup.
+  `MessagePackSerializer` calls are no longer present in live runtime source.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
-  `GameData/NameFile/*.msgpack` as migration inputs. The Unity runtime legacy
-  catalog bridge opens only `GameData/AetherDB.msgpack`; `NameFile/*.msgpack`
-  is no longer a runtime backing store. The old
+  `GameData/NameFile/*.msgpack` as migration inputs only. Unity gameplay no
+  longer opens those MessagePack files at runtime. The old
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
@@ -75,26 +72,17 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EntityPack` serialization. Unity has not wired its save/loadout UI to this
   document yet, so the old in-memory `EntityPack` path is still a runtime
   construction helper, not durable authority.
-- The private `ActionGameManager` catalog boot helper delegates to
-  `LegacyItemCatalogBoundary`, which opens `LegacyItemCatalogCache` as the only
-  concrete pull-only catalog cache. Runtime consumers receive
-  `ILegacyItemCatalogReader`, so the old `AetherDB.msgpack` backing store may hydrate
-  in-memory item domain objects for the current Unity runtime, but the cache now
-  admits only `ItemData` entries and cannot resolve generic `DatabaseEntry`
-  object graphs. This path cannot
-  push or delete legacy files. The legacy backing-store
-  write/realtime APIs, public cache mutation methods, enumeration methods, and
-  global-setting lookup methods have been deleted; only backing-store pull
-  hydration can populate it, and only single-ID reads can consume it. The
-  backing-store serializer methods are also deleted, so the legacy cache
-  implementation exposes deserialization only. UI code no longer reaches into
-  `LegacyItemCatalogBoundary.GetCatalog` directly.
-- `ItemManager` no longer exposes the raw `ILegacyItemCatalogReader` as public
+- `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
+  `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
+  binds `DatabaseLinkBase` to that typed runtime item reader before gameplay
+  objects read `ItemInstance.Data.Value`. The old `LegacyItemCatalogBoundary`,
+  `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
+  deleted.
+- `ItemManager` no longer exposes the raw runtime item catalog reader as public
   gameplay/UI API. Temporary item instantiation bridges now go through the
   narrow `ItemManager.GetCatalogEntry<T>` method. `ItemManager` no longer
-  exposes a legacy catalog enumeration API. This does not remove the legacy reader under
-  the hood; it prevents old catalog authority from leaking into every caller
-  that only needs a domain lookup. The item properties UI no longer uses
+  exposes a legacy catalog enumeration API. This prevents catalog authority from
+  leaking into every caller that only needs a domain lookup. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot. Entity
   restore and loadout manufacturer-distance weighting no longer use `ItemManager`
@@ -106,20 +94,18 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   item candidate selection before hydrating selected legacy item DTOs by ID for
   exact fitting checks and behavior construction. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
-  turned typed trade rows back into legacy `ItemData` objects.
-- `Galaxy` generation no longer accepts `ILegacyItemCatalogReader` or `ItemManager`.
+  turned typed trade rows back into legacy `ItemData` objects. That hydration
+  now comes from typed state, not `AetherDB.msgpack`.
+- `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
   `Faction` DTOs, including allegiance edges, for the existing simulation shape
   and resolves full name arrays from `aetheria.name_file.v2` records. The
-  legacy catalog runtime no longer opens the old `GameData/NameFile/*.msgpack`
-  directory.
-  `ActionGameManager` still has a
-  private legacy catalog boot helper that feeds `ItemManager` for item/entity
-  systems; menu/generation paths no longer receive the legacy reader directly.
+  runtime no longer opens the old `GameData/NameFile/*.msgpack` directory.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
-  `LegacyItemCatalogBoundary` binds the pull-only item catalog cache. Legacy catalog
-  construction no longer grabs global `DatabaseLinkBase` authority.
+  `ActionGameManager` binds the typed runtime item catalog projected from
+  `aetheria-world.cc`. MessagePack catalog construction no longer grabs global
+  `DatabaseLinkBase` authority.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
@@ -154,8 +140,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed item shape masks, typed interior masks, hardpoints, and behavior
   payloads. It also owns a read-only Unity-compatible CultCache directory-store
   opener for the known Aetheria catalog schemas, so Unity runtime code can read
-  `aetheria-world.cc` catalog records without `DatabaseEntry` or
-  `LegacyItemCatalogCache`. The SDK-style `Aetheria.State.Unity` facade includes
+  `aetheria-world.cc` catalog records without `DatabaseEntry` or a MessagePack
+  catalog cache. The SDK-style `Aetheria.State.Unity` facade includes
   that package source and owns the full `Aetheria.State` mapper plus Eve surface
   read path for .NET smokes. Neither is a simulation owner and neither writes
   state.
@@ -258,33 +244,28 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing
   zone for future typed catalog boot.
-  `LegacyItemCatalogBoundary` is the only named owner for opening the old item catalog
-  and binding legacy `DatabaseLink<T>` resolution until catalog migration lands.
-  `ActionGameManager` has a private boot helper that calls it only to construct
-  `ItemManager`. Runtime code receives narrow `ItemManager` catalog methods
-  where gameplay only needs lookups. `ItemManager` still receives
-  `ILegacyItemCatalogReader` until typed runtime catalog boot replaces it; `Galaxy`,
-  entity restore, and faction-distance loadout weighting have been moved off
-  legacy faction catalog reads.
+  `ActionGameManager` opens the package-owned typed runtime catalog snapshot
+  and binds `DatabaseLink<T>` resolution through `AetheriaRuntimeItemCatalog`.
+  Runtime code receives narrow `ItemManager` catalog methods where gameplay
+  only needs item lookups. `Galaxy`, entity restore, and faction-distance
+  loadout weighting have been moved off legacy faction catalog reads.
   The embedded Unity state package owns the read-only runtime catalog model
   contract and the read-only known-schema `.cc` catalog opener. `ActionGameManager`
   now exposes that typed package snapshot at boot. The SDK-style
   `Aetheria.State.Unity` facade maps typed `.cc` documents into the same
   contract for full .NET smokes and Eve surface reads. Neither writes state or
-  owns simulation. The legacy cache no longer has a public mutation surface, but
-  it still materializes `ItemManager`. The legacy cache is item-only; old
-  `Faction`, `NameFile`, global, zone, player, task, and body entries are no
-  longer accepted as runtime catalog entries. Item properties manufacturer display is
-  a typed snapshot consumer; loadout generation is the remaining runtime
-  single-ID item hydration bridge. The old trade debug UI and console `give`
-  command have been deleted. No live
-  caller can enumerate legacy catalog entries through `ItemManager` or
-  `ILegacyItemCatalogReader`.
+  owns simulation. The runtime no longer has a MessagePack catalog cache.
+  `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
+  item records for the old simulation object model. Item properties
+  manufacturer display is a typed snapshot consumer; loadout generation is the
+  remaining runtime single-ID item lookup bridge. The old trade debug UI and
+  console `give` command have been deleted. No live caller can enumerate legacy
+  catalog entries through `ItemManager`.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
-- Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
-  catalog reads emit in-memory domain objects only; the old local save and
-  editor catalog write paths have been cut. Migrated catalog documents are
+- Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Runtime
+  typed item catalog projection emits in-memory domain objects only; the old
+  local save and editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
   methods, not importer-local string concatenation. Player settings and loadout
   templates have typed state documents and node put/get paths; Unity's menu,
@@ -303,9 +284,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   generated keyboard layout caches, and server-side `DatabaseCache` paths.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
-- Deletion line: no new behavior should be added to `LegacyItemCatalogBoundary`, the
-  old `DatabaseEntry`, `LegacyItemCatalogCache`, or MessagePack catalog paths
-  except bounded migration readers that emit typed `Aetheria.State` documents.
+- Deletion line: no new behavior should be added to old `DatabaseEntry` or
+  MessagePack catalog paths except bounded migration readers that emit typed
+  `Aetheria.State` documents.
 
 ## Target Authority Map
 
@@ -321,11 +302,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `DatabaseEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: after catalog migration smokes pass, replace
-  `ActionGameManager`'s private legacy catalog boot helper and `ItemManager`
-  boot with the typed runtime catalog package, then delete or quarantine the
-  remaining `LegacyItemCatalogCache`/`DatabaseEntry` runtime catalog dependency and
-  remove old MessagePack backing store classes from live Unity source.
+- Deletion line: replace the remaining `DatabaseEntry`/`ItemData` runtime DTO
+  projection with native typed item instances, then remove old MessagePack
+  catalog metadata from live Unity source once import-only migration no longer
+  needs it.
 
 ## Intended Change
 
@@ -451,11 +431,14 @@ First Aetheria surfaces to publish:
      remain migration inputs only.
    - Done: narrow `ILegacyItemCatalogReader` and `DatabaseLink<T>` to `ItemData`;
      `LegacyItemCatalogCache` ignores non-item entries from `AetherDB.msgpack`.
-   - Replace `ActionGameManager` cache bootstrap with the new state runtime.
+   - Done: replace `ActionGameManager` cache bootstrap with
+     `AetheriaRuntimeItemCatalog`, a typed-state-backed projection from
+     `AetheriaRuntimeCatalogSnapshot`; delete `LegacyItemCatalogBoundary`,
+     `LegacyItemCatalogCache`, and the runtime MessagePack deserializer path.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
-   - Remove runtime dependency on `LegacyItemCatalogCache` and `DatabaseEntry` as
-     owners.
+   - Remove runtime dependency on `DatabaseEntry`/`ItemData` DTOs as item
+     instance owners.
 
 5. Mesh host
    - Replace `Economy.Server` RethinkDB and LiteNetLib database authority with a
@@ -518,9 +501,9 @@ First Aetheria surfaces to publish:
 - Unity runtime catalog smoke proves read-only catalog consumers can open the
   typed `.cc` store through both the SDK-style `Aetheria.State.Unity` opener and
   the embedded package-owned read-only catalog opener, receiving the same
-  package-owned runtime catalog read models without `DatabaseEntry` or
-  `LegacyItemCatalogCache`, including typed item masks, interior masks, hardpoint
-  definitions, corporation/name-file links, and typed behavior payloads.
+  package-owned runtime catalog read models without a MessagePack catalog cache,
+  including typed item masks, interior masks, hardpoint definitions,
+  corporation/name-file links, and typed behavior payloads.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

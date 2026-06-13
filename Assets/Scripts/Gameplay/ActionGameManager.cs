@@ -36,8 +36,6 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    private static string LegacyAetherDatabasePath => LegacyItemCatalogBoundary.GetLegacyItemCatalogPath(GameDataDirectory);
-    private static ILegacyItemCatalogReader LegacyCatalog => LegacyItemCatalogBoundary.GetCatalog(GameDataDirectory);
 
     private static PlayerSettings _playerSettings;
     public static PlayerSettings PlayerSettings
@@ -245,9 +243,15 @@ public class ActionGameManager : MonoBehaviour
             Debug.Log($"Aetheria typed runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
         }
 
-        Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
+        if (RuntimeCatalog == null)
+        {
+            throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
+        }
+
+        var runtimeItemCatalog = new AetheriaRuntimeItemCatalog(RuntimeCatalog);
+        DatabaseLinkBase.BindRuntimeItemCatalog(runtimeItemCatalog);
         ItemManager = new ItemManager(
-            LegacyCatalog,
+            runtimeItemCatalog,
             Settings.GameplaySettings,
             Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
