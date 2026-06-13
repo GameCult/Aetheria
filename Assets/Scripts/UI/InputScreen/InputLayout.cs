@@ -1,9 +1,8 @@
 using System.Collections.Generic;
-using MessagePack;
-[MessagePackObject]
+
 public class InputLayout
 {
-    [Key(0)] public InputLayoutRow[] Rows;
+    public InputLayoutRow[] Rows;
 
     public IEnumerable<InputLayoutBindableKey> GetBindableKeys()
     {
@@ -22,49 +21,33 @@ public class InputLayout
     }
 }
 
-[MessagePackObject,
- Union(0, typeof(InputLayoutRowSpacer)),
- Union(1, typeof(InputLayoutKeyRow))
-]
 public abstract class InputLayoutRow { }
 
-[MessagePackObject]
 public class InputLayoutRowSpacer : InputLayoutRow
 {
-    [Key(0)] public float Height;
+    public float Height;
 }
 
-[MessagePackObject]
 public class InputLayoutKeyRow : InputLayoutRow
 {
-    [Key(0)] public InputLayoutColumn[] Columns;
+    public InputLayoutColumn[] Columns;
 }
 
-[MessagePackObject,
- Union(0, typeof(InputLayoutColumnSpacer)),
- Union(1, typeof(InputLayoutKey)),
- Union(2, typeof(InputLayoutBindableKey)),
- Union(3, typeof(InputLayoutMultiRowKey))
-]
 public abstract class InputLayoutColumn
 {
-    [Key(0)] public float Width;
+    public float Width;
 }
 
-[MessagePackObject]
 public class InputLayoutColumnSpacer : InputLayoutColumn { }
 
-[MessagePackObject]
 public class InputLayoutKey : InputLayoutColumn { }
 
-[MessagePackObject]
 public class InputLayoutBindableKey : InputLayoutKey, IBindableButton
 {
-    [Key(1)] public string MainLabel;
-    [Key(2)] public string AltLabel;
-    [Key(3)] public string ShortPath;
+    public string MainLabel;
+    public string AltLabel;
+    public string ShortPath;
 
-    [IgnoreMember]
     public string InputSystemPath
     {
         get
@@ -80,7 +63,7 @@ public class InputLayoutBindableKey : InputLayoutKey, IBindableButton
 
 public class InputLayoutMultiRowKey : InputLayoutBindableKey
 {
-    [Key(4)] public int Height;
+    public int Height;
 }
 
 public class InputLayoutMouseButton : IBindableButton

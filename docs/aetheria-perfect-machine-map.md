@@ -28,7 +28,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Economy.Shared` wrapper have been removed from live source. The stale
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
   formatter classes have also been deleted, so the remaining direct
-  `MessagePackSerializer` calls are the two legacy catalog deserializers.
+  `MessagePackSerializer` calls are the two legacy catalog deserializers and
+  their resolver setup.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
   `GameData/NameFile/*.msgpack` as migration/catalog inputs. The old
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
@@ -91,8 +92,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EntitySettings`, and UI/player-settings startup no longer registers the old
   MessagePack resolver. Resolver registration is confined to legacy catalog
   deserialization. Unused Unity asset formatters for GameObject, Material,
-  Sprite, and Texture2D are deleted. The slime compute settings path no longer
-  serializes its local parameter struct for change detection.
+  Sprite, and Texture2D are deleted. Keyboard layout DTOs are plain runtime
+  parse/display models, not MessagePack save shapes. The global scene-load
+  MessagePack resolver hook is deleted. The slime compute settings path no
+  longer serializes its local parameter struct for change detection.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -272,6 +275,8 @@ First Aetheria surfaces to publish:
    - Done: delete public legacy catalog cache mutation APIs.
    - Done: delete the stale `StrategyGameManager.csbak` backup source and
      unused Unity asset MessagePack formatters.
+   - Done: demote keyboard layout DTOs from MessagePack shapes and delete the
+     global scene-load MessagePack resolver hook.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
