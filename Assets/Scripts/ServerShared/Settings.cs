@@ -5,12 +5,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class PlanetSettings
 {
     public float ZoneDepthExponent;
@@ -35,7 +34,7 @@ public class PlanetSettings
     public ExponentialCurve OrbitPeriod;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class GalaxyShapeSettings
 {
     public int Arms = 4;
@@ -43,7 +42,7 @@ public class GalaxyShapeSettings
     public float TwistExponent = 2;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class NameGeneratorSettings
 {
     public int NameGeneratorMinLength = 5;
@@ -51,7 +50,7 @@ public class NameGeneratorSettings
     public int NameGeneratorOrder = 4;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class SectorBackgroundSettings
 {
     public float NoiseAmplitude;
@@ -85,7 +84,7 @@ public class SectorBackgroundSettings
     }
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class SectorGenerationSettings
 {
     public float LinkDensity = .5f;
@@ -94,7 +93,7 @@ public class SectorGenerationSettings
     public int BossCount;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class TutorialGenerationSettings
 {
     public string ProtagonistFaction;
@@ -106,7 +105,7 @@ public class TutorialGenerationSettings
     public int ZoneCount = 32;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true)]
+[Serializable]
 public class ZoneGenerationSettings
 {
     public ExponentialCurve PlanetSafetyRadius;
@@ -151,7 +150,7 @@ public class ZoneGenerationSettings
     public string[] NameData;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName: true)]
+[Serializable]
 public class GameplaySettings
 {
     public EntitySettings DefaultEntitySettings;
@@ -213,7 +212,7 @@ public class GameplaySettings
     public float AgentFiringMinDot = .99f;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName: true)]
+[Serializable]
 public class RarityTier
 {
     public string Name;

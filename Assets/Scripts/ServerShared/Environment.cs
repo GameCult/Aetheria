@@ -1,84 +1,80 @@
 using System;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using float2 = Unity.Mathematics.float2;
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class ZoneEnvironment
 {
-    [Key(0)] public NebulaSettings Nebula;
-    [Key(1)] public FlowSettings Flow;
-    [Key(2)] public NoiseSettings Noise;
-    [Key(3)] public AmbientLightingSettings Lighting;
-    [Key(4)] public GridSettings Grid;
+    public NebulaSettings Nebula;
+    public FlowSettings Flow;
+    public NoiseSettings Noise;
+    public AmbientLightingSettings Lighting;
+    public GridSettings Grid;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class NebulaSettings
 {
-    [Key(0)] public float FillDensity;
-    [Key(1)] public float FillDistance;
-    [Key(2)] public float FillExponent;
-    [Key(12)] public float FillOffset;
-    [Key(3)] public float PatchDensity;
-    [Key(4)] public float FloorOffset;
-    [Key(5)] public float FloorBlend;
-    [Key(6)] public float PatchBlend;
-    [Key(7)] public float Luminance;
-    [Key(13)] public float Extinction;
-    //[Key(8)] public float TintExponent;
-    [Key(9)] public float TintLodExponent;
-    [Key(10)] public float SafetyDistance;
+    public float FillDensity;
+    public float FillDistance;
+    public float FillExponent;
+    public float FillOffset;
+    public float PatchDensity;
+    public float FloorOffset;
+    public float FloorBlend;
+    public float PatchBlend;
+    public float Luminance;
+    public float Extinction;
+    public float TintLodExponent;
+    public float SafetyDistance;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class GridSettings
 {
-    [Key(0)] public bool Enabled;
-    [Key(1)] public float Offset;
+    public bool Enabled;
+    public float Offset;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class AmbientLightingSettings
 {
-    [Key(0)] public float DynamicSkyBoost;
-    [Key(1)] public float DynamicLodHigh;
-    [Key(2)] public float DynamicLodLow;
-    [Key(3)] public float DynamicIntensity;
+    public float DynamicSkyBoost;
+    public float DynamicLodHigh;
+    public float DynamicLodLow;
+    public float DynamicIntensity;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class FlowSettings
 {
-    [Key(0)] public float GlobalScale;
-    [Key(1)] public float GlobalAmplitude;
-    [Key(2)] public float GlobalScrollSpeed;
-    [Key(3)] public float Period;
-    [Key(4)] public float SlopeAmplitude;
-    [Key(5)] public float SwirlAmplitude;
+    public float GlobalScale;
+    public float GlobalAmplitude;
+    public float GlobalScrollSpeed;
+    public float Period;
+    public float SlopeAmplitude;
+    public float SwirlAmplitude;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class NoiseSettings
 {
-    [Key(0)] public float Scale;
-    [Key(1)] public float Amplitude;
-    [Key(2)] public float Exponent;
-    [Key(3)] public float Speed;
-    [Key(4)] public float SlopeExponent;
+    public float Scale;
+    public float Amplitude;
+    public float Exponent;
+    public float Speed;
+    public float SlopeExponent;
 }
 
-[Union(0, typeof(PowerBrush)),
- Union(1, typeof(SimplexBrush)),
- Serializable, MessagePackObject]
+[Serializable]
 public abstract class Brush
 {
-    [Key(0)] public BrushLayer LayerMask;
-    [Key(1)] public float Cutoff;
-    [Key(2)] public float Depth;
-    [Key(3)] public float EnvelopeExponent;
+    public BrushLayer LayerMask;
+    public float Cutoff;
+    public float Depth;
+    public float EnvelopeExponent;
 
     float powerPulse( float x, float power )
     {
@@ -97,7 +93,7 @@ public abstract class Brush
     }
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class PowerBrush : Brush
 {
     protected override float Evaluate(float2 world, float2 uv)
@@ -106,26 +102,25 @@ public class PowerBrush : Brush
     }
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public abstract class TextureBrush : Brush
 {
-    [Key(4)] public float2 Frequency;
-    [Key(5)] public float2 Phase;
+    public float2 Frequency;
+    public float2 Phase;
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public abstract class AnimatedBrush : TextureBrush
 {
-    [Key(6)] public float AnimationSpeed;
+    public float AnimationSpeed;
 
-    [IgnoreMember]
     public float Time { get; set; }
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class SimplexBrush : TextureBrush
 {
-    [Key(6)] public bool AbsoluteValue;
+    public bool AbsoluteValue;
 
     protected override float Evaluate(float2 world, float2 uv)
     {
@@ -134,10 +129,10 @@ public class SimplexBrush : TextureBrush
     }
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class AnimatedSimplexBrush : AnimatedBrush
 {
-    [Key(7)] public bool AbsoluteValue;
+    public bool AbsoluteValue;
 
     protected override float Evaluate(float2 world, float2 uv)
     {
@@ -146,10 +141,10 @@ public class AnimatedSimplexBrush : AnimatedBrush
     }
 }
 
-[Serializable, MessagePackObject]
+[Serializable]
 public class RadialWaveBrush : TextureBrush
 {
-    [Key(7)] public float WaveExponent;
+    public float WaveExponent;
 
     protected override float Evaluate(float2 world, float2 uv)
     {

@@ -157,10 +157,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   parse/display models, not MessagePack save shapes. `PlayerSettings` is a
   plain session-local runtime object until typed Verse settings are imported
   into Unity. `ZoneData` body/orbit DTOs, `ItemInstance` DTOs,
-  `EntitySettings`, and `Ship` are also plain runtime/session projections now,
-  not MessagePack persistence shapes. The global scene-load MessagePack
-  resolver hook is deleted. The slime compute settings path no longer
-  serializes its local parameter struct for change detection.
+  `EntitySettings`, `Ship`, Unity inspector game settings, environment/volume
+  settings, exponential curves, Wwise bindings, and enum dictionaries are also
+  plain runtime/session/config projections now, not MessagePack persistence
+  shapes. The global scene-load MessagePack resolver hook is deleted. The slime
+  compute settings path no longer serializes its local parameter struct for
+  change detection.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
