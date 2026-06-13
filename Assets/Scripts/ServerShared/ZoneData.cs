@@ -21,7 +21,7 @@ public class ZonePack
     public double Time;
 }
 
-public abstract class BodyData : DatabaseEntry, INamedEntry
+public abstract class BodyData : RuntimeCatalogEntry, INamedEntry
 {
     public string Name = "";
 
@@ -101,7 +101,7 @@ public class Asteroid
     public float RotationSpeed;
 }
 
-public class OrbitData : DatabaseEntry
+public class OrbitData : RuntimeCatalogEntry
 {
     public Guid Parent;
 

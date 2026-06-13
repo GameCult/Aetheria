@@ -10,7 +10,7 @@ public interface INamedEntry
     string EntryName { get; set; }
 }
 
-public abstract class DatabaseEntry
+public abstract class RuntimeCatalogEntry
 {
     public Guid ID = Guid.NewGuid();
 
@@ -21,17 +21,17 @@ public abstract class DatabaseEntry
 
     public override bool Equals(object obj)
     {
-        if (obj is DatabaseEntry entry) return entry.ID == ID;
+        if (obj is RuntimeCatalogEntry entry) return entry.ID == ID;
         return false;
     }
 }
 
-public class DatabaseLink<T> : DatabaseLinkBase where T : ItemData
+public class RuntimeCatalogLink<T> : RuntimeCatalogLinkBase where T : ItemData
 {
     public T Value => ResolveRuntimeItemCatalog<T>(LinkID);
 }
 
-public class DatabaseLinkBase
+public class RuntimeCatalogLinkBase
 {
     public Guid LinkID;
 

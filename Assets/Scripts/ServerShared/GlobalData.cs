@@ -11,7 +11,7 @@ using static Unity.Mathematics.noise;
 using static NoiseFbm;
 
 [Inspectable, Serializable, LegacyCatalogGroup("Galaxy")]
-public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
+public class GalaxyMapLayerData : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable]
     public float CoreBoost = 1.05f;

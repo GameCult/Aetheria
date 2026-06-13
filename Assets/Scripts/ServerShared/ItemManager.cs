@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -128,7 +128,7 @@ public class ItemManager
         {
             var newItem = new SimpleCommodity
             {
-                Data = new DatabaseLink<ItemData>{LinkID = item.ID},
+                Data = new RuntimeCatalogLink<ItemData>{LinkID = item.ID},
                 Quantity = count
             };
             //ItemData.Add(newItem);
@@ -163,13 +163,13 @@ public class ItemManager
         {
             return new EquippableItem
             {
-                Data = new DatabaseLink<ItemData> {LinkID = item.ID}, Quality = quality, Durability = equippableItemData.Durability
+                Data = new RuntimeCatalogLink<ItemData> {LinkID = item.ID}, Quality = quality, Durability = equippableItemData.Durability
             };
         }
 
         var newCommodity = new CompoundCommodity
         {
-            Data = new DatabaseLink<ItemData>{LinkID = item.ID},
+            Data = new RuntimeCatalogLink<ItemData>{LinkID = item.ID},
             Quality = quality
         };
         return newCommodity;

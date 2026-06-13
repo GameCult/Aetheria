@@ -83,7 +83,7 @@ rebuild the typed artifact instead of failing on a stale embedded schema catalog
 `AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
 documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
 corporation prefix lookup, corporation name-file lookup, equipment items,
-behavior lookup, and hardpoint lookup without reading `DatabaseEntry` objects.
+behavior lookup, and hardpoint lookup without reading runtime projection DTOs.
 
 `AetheriaCatalogSurfaceProjector` publishes the first Eve-compatible provider
 surface from typed catalog state. The importer materializes
@@ -98,7 +98,7 @@ equipment, behavior, hardpoint, manufacturer, corporation, and name-file
 queries, exposes typed item shape masks for layout and fitting consumers, and
 exposes typed interior masks and hardpoints for equipment/cargo layout
 consumers, exposes typed behavior payload read models, and can read the
-published Eve catalog surface. It does not deserialize legacy `DatabaseEntry`
+published Eve catalog surface. It does not deserialize legacy runtime projection
 objects and does not write state. Unity can use this as the first package
 boundary once CultLib/Eve runtime packaging is available.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection

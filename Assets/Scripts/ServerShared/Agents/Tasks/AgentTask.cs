@@ -4,7 +4,7 @@
 
 using System;
 
-public abstract class AgentTask : DatabaseEntry
+public abstract class AgentTask : RuntimeCatalogEntry
 {
     public int Priority;
 

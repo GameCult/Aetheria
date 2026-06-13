@@ -46,8 +46,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared domain state is still partly built around `DatabaseEntry`, GUID
-  identity, MessagePack attributes, and static cache references. Newtonsoft,
+- Shared domain state is still partly built around `RuntimeCatalogEntry`, GUID
+  identity, runtime catalog metadata, and static projection references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
   `Economy.Shared` wrapper have been removed from live source. The stale
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
@@ -86,11 +86,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   remains a UI/session cache, not durable authority.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
-  binds `DatabaseLinkBase` to that typed runtime item reader before gameplay
+  binds `RuntimeCatalogLinkBase` to that typed runtime item reader before gameplay
   objects read `ItemInstance.Data.Value`. The old `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
-  deleted. `DatabaseEntry` and `DatabaseLink<T>` are plain runtime identity/link
-  helpers now, not MessagePack objects or a global union root.
+  deleted. The old `DatabaseEntry`/`DatabaseLink<T>` names have been demoted to
+  `RuntimeCatalogEntry`/`RuntimeCatalogLink<T>` runtime projection helpers, not
+  MessagePack objects or a global union root.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
   gameplay/UI API. Temporary item instantiation bridges now go through the
   narrow `ItemManager.GetCatalogEntry<T>` method. `ItemManager` no longer
@@ -115,10 +116,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Faction` DTOs, including allegiance edges, for the existing simulation shape
   and resolves full name arrays from `aetheria.name_file.v2` records. The
   runtime no longer opens the old `GameData/NameFile/*.msgpack` directory.
-- `DatabaseLink<T>.Value` can resolve legacy links only after
+- `RuntimeCatalogLink<T>.Value` can resolve legacy links only after
   `ActionGameManager` binds the typed runtime item catalog projected from
   `aetheria-world.cc`. MessagePack catalog construction no longer grabs global
-  `DatabaseLinkBase` authority.
+  link-resolution authority.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node, drains
   pending Unity runtime commits through the typed state applicator, and no
   longer owns RethinkDB/LiteNetLib state.
@@ -147,14 +148,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
-  queries without touching `DatabaseEntry`.
+  queries without touching runtime projection DTOs.
 - The embedded `GameCult.Aetheria.State.Unity` package now owns the
   Unity-visible immutable catalog read-model contract for
   trade/equipment/behavior/hardpoint/manufacturer/corporation/name queries,
   typed item shape masks, typed interior masks, hardpoints, and behavior
   payloads. It also owns a read-only Unity-compatible CultCache directory-store
   opener for the known Aetheria catalog schemas, so Unity runtime code can read
-  `aetheria-world.cc` catalog records without `DatabaseEntry` or a MessagePack
+  `aetheria-world.cc` catalog records without runtime projection DTOs or a MessagePack
   catalog cache. The SDK-style `Aetheria.State.Unity` facade includes
   that package source and owns the full `Aetheria.State` mapper plus Eve surface
   read path for .NET smokes. Neither is a simulation owner and neither writes
@@ -230,9 +231,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
   the registered Face MCP path.
-- The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
-  deleted. `NameTools` can still clean/generate names, but legacy NameFile
-  `.msgpack` export is disabled.
+- The old IMGUI DB inspector has been deleted. `NameTools` can still
+  clean/generate names, but legacy NameFile `.msgpack` export is disabled. The
+  remaining Unity helper files formerly under `Assets/Scripts/CultCache` now
+  live under `Assets/Scripts/UnitySupport` because they are color/curve helpers,
+  not cache authority.
 - Galaxy generation no longer reads legacy `Faction` or `NameFile` entries
   through `ItemManager`; it requires the typed runtime catalog opened from
   `GameData/aetheria-world.cc`.
@@ -319,7 +322,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed state file path plus the boot-time state-file probe, and is the landing
   zone for future typed catalog boot.
   `ActionGameManager` opens the package-owned typed runtime catalog snapshot
-  and binds `DatabaseLink<T>` resolution through `AetheriaRuntimeItemCatalog`.
+  and binds `RuntimeCatalogLink<T>` resolution through `AetheriaRuntimeItemCatalog`.
   Runtime code receives narrow `ItemManager` catalog methods where gameplay
   only needs item lookups. `Galaxy`, entity restore, and faction-distance
   loadout weighting have been moved off legacy faction catalog reads.
@@ -330,9 +333,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
-  item records for the old simulation object model. `DatabaseEntry` no longer
-  carries MessagePack union metadata, and behavior type selection now uses an
-  explicit runtime catalog map instead of `UnionAttribute` reflection.
+  item records for the old simulation object model. `RuntimeCatalogEntry` is a
+  projection identity helper, not a persistence base, and behavior type
+  selection now uses an explicit runtime catalog map instead of
+  `UnionAttribute` reflection.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `RuntimeCatalogKeyAttribute`, not MessagePack
   metadata. Item properties
@@ -365,7 +369,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to old `ItemData` DTO
   metadata or MessagePack catalog paths except bounded migration readers and the
-  current typed item projection bridge. `DatabaseEntry` is no longer a
+  current typed item projection bridge. `RuntimeCatalogEntry` is no longer a
   persistence owner.
 
 ## Target Authority Map
@@ -379,10 +383,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Derived state: Unity scene objects, HUD panels, editor inspectors, debug
   views, server dashboards, and compatibility DTOs.
 - Forbidden writers: Unity UI components, RethinkDB, legacy JSON stores,
-  `DatabaseEntry.ID`, global cache statics, and any compatibility reader.
+  `RuntimeCatalogEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: replace the remaining `DatabaseEntry`/`ItemData` runtime DTO
+- Deletion line: replace the remaining `RuntimeCatalogEntry`/`ItemData` runtime DTO
   projection with native typed item instances, then remove old MessagePack
   catalog metadata from live Unity source once import-only migration no longer
   needs it.
@@ -523,6 +527,11 @@ First Aetheria surfaces to publish:
      `LegacyItemCatalogCache`, and the runtime MessagePack deserializer path.
    - Done: demote `DatabaseEntry` and `DatabaseLink<T>` from MessagePack
      union/object shapes to plain runtime identity/link helpers.
+   - Done: rename live Unity projection helpers from `DatabaseEntry`,
+     `DatabaseLink<T>`, and `InspectableDatabaseLinkAttribute` to
+     `RuntimeCatalogEntry`, `RuntimeCatalogLink<T>`, and
+     `InspectableRuntimeCatalogLinkAttribute`, and move the old
+     `ServerShared/CultCache` folder to `ServerShared/RuntimeProjection`.
    - Done: replace behavior union reflection with an explicit runtime catalog
      behavior map and remove all live `Union(...)` annotations.
    - Done: demote agent task runtime shapes from MessagePack object/key/union
@@ -620,7 +629,7 @@ First Aetheria surfaces to publish:
 ## Verification
 
 - `rg "Newtonsoft|JsonObject|JsonProperty|JsonConvert|JsonKnownTypes|RethinkDb|RethinkTable|DatabaseCache"` is zero outside migration quarantine and docs.
-- `rg "DatabaseEntry" Assets Economy.*` shows no live runtime ownership path.
+- `rg "DatabaseEntry|DatabaseLink|InspectableDatabaseLink|ServerShared\\\\CultCache" Assets Economy.*` shows no live runtime ownership path.
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference

@@ -5,7 +5,7 @@
 using System;
 
 [LegacyCatalogGroup("Users")]
-public class PlayerData : DatabaseEntry, INamedEntry
+public class PlayerData : RuntimeCatalogEntry, INamedEntry
 {
     public string Email;
 

@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 
 [LegacyCatalogGroup("Galaxy"), Inspectable]
-public class Faction : DatabaseEntry, INamedEntry
+public class Faction : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable]
     public string Name;
@@ -22,7 +22,7 @@ public class Faction : DatabaseEntry, INamedEntry
     [InspectableTexture]
     public string Logo;
 
-    [InspectableDatabaseLink(typeof(PersonalityAttribute))]
+    [InspectableRuntimeCatalogLink(typeof(PersonalityAttribute))]
     public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
 
     // [Inspectable]
@@ -34,16 +34,16 @@ public class Faction : DatabaseEntry, INamedEntry
     [InspectableColor]
     public float3 SecondaryColor;
 
-    [InspectableDatabaseLink(typeof(NameFile))]
+    [InspectableRuntimeCatalogLink(typeof(NameFile))]
     public Guid GeonameFile;
 
-    [InspectableDatabaseLink(typeof(HullData))]
+    [InspectableRuntimeCatalogLink(typeof(HullData))]
     public Guid BossHull;
 
     [Inspectable]
     public int InfluenceDistance = 4;
 
-    [InspectableDatabaseLink(typeof(Faction)), RangedFloat(0, 1)]
+    [InspectableRuntimeCatalogLink(typeof(Faction)), RangedFloat(0, 1)]
     public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
 
     [InspectableSoundBank]
@@ -63,7 +63,7 @@ public class Faction : DatabaseEntry, INamedEntry
 }
 
 [Inspectable]
-public class NameFile : DatabaseEntry, INamedEntry
+public class NameFile : RuntimeCatalogEntry, INamedEntry
 {
     public string Name;
     public string[] Names;

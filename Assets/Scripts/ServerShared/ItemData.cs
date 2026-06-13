@@ -260,7 +260,7 @@ public class Shape
 
 }
 
-public abstract class ItemData : DatabaseEntry, INamedEntry
+public abstract class ItemData : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable, RuntimeCatalogKey(1)]
     public string Name;
@@ -268,7 +268,7 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
     [InspectableText, RuntimeCatalogKey(2)]
     public string Description;
 
-    [InspectableDatabaseLink(typeof(Faction)), RuntimeCatalogKey(3)]
+    [InspectableRuntimeCatalogLink(typeof(Faction)), RuntimeCatalogKey(3)]
     public Guid Manufacturer;
 
     [Inspectable, RuntimeCatalogKey(4)]
@@ -303,7 +303,7 @@ public class SimpleCommodityData : ItemData
     // public BodyType ResourceBodyType;
     //
     // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), RuntimeCatalogKey(7)]
+    // [InspectableRuntimeCatalogLink(typeof(GalaxyMapLayerData)), RuntimeCatalogKey(7)]
     // public List<Guid> ResourceDensity = new List<Guid>();
     //
     // // Controls the lowest value in the resource distribution curve
@@ -330,7 +330,7 @@ public abstract class CraftedItemData : ItemData
 [LegacyCatalogGroup("Items"), Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
-    [InspectableDatabaseLink(typeof(PersonalityAttribute)), RuntimeCatalogKey(10)]
+    [InspectableRuntimeCatalogLink(typeof(PersonalityAttribute)), RuntimeCatalogKey(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
     [Inspectable, RuntimeCatalogKey(11)]
@@ -613,7 +613,7 @@ public class PerformanceStat
 }
 
 [LegacyCatalogGroup("Items"), Inspectable]
-public class PersonalityAttribute : DatabaseEntry, INamedEntry
+public class PersonalityAttribute : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable, RuntimeCatalogKey(1)]
     public string Name;

@@ -33,11 +33,11 @@ public class InspectableEnumValuesAttribute : PreferredInspectorAttribute
     }
 }
 
-public class InspectableDatabaseLinkAttribute : PreferredInspectorAttribute
+public class InspectableRuntimeCatalogLinkAttribute : PreferredInspectorAttribute
 {
     public readonly Type EntryType;
 
-    public InspectableDatabaseLinkAttribute(Type entryType)
+    public InspectableRuntimeCatalogLinkAttribute(Type entryType)
     {
         EntryType = entryType;
     }
