@@ -1,0 +1,1138 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GameCult.Caching</name>
+    </assembly>
+    <members>
+        <member name="T:GameCult.Caching.CultSchemaCatalogEntry">
+            <summary>
+            Persisted schema metadata embedded in a CultCache backing store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.SchemaId">
+            <summary>
+            Gets or sets the content-derived schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.SchemaName">
+            <summary>
+            Gets or sets the stable schema name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.SchemaVersion">
+            <summary>
+            Gets or sets the schema version string.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.ContentHash">
+            <summary>
+            Gets or sets the canonical schema content hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.CanonicalSchemaJson">
+            <summary>
+            Gets or sets the canonical schema description.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.CompatibleSchemaIds">
+            <summary>
+            Gets or sets schema identifiers compatible with this entry.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaCatalogEntry.Members">
+            <summary>
+            Gets or sets the persisted member descriptors used for compatibility checks.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSchemaMemberCatalogEntry">
+            <summary>
+            Persisted catalog entry describing one schema member.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.Slot">
+            <summary>
+            Gets or sets the persisted slot number.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.MemberName">
+            <summary>
+            Gets or sets the member name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.TypeName">
+            <summary>
+            Gets or sets the persisted type name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.IsReference">
+            <summary>
+            Gets or sets whether the member is a reference.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.IsMany">
+            <summary>
+            Gets or sets whether the member stores many values.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.TargetSchemaName">
+            <summary>
+            Gets or sets the referenced schema name, when the member is a reference.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.IsName">
+            <summary>
+            Gets or sets whether the member provides the name lookup.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMemberCatalogEntry.IndexAlias">
+            <summary>
+            Gets or sets the index alias, when the member participates in lookups.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultPersistedRecord">
+            <summary>
+            Persisted serialized document record.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedRecord.Key">
+            <summary>
+            Gets or sets the persisted record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedRecord.SchemaId">
+            <summary>
+            Gets or sets the schema identifier used to deserialize the payload.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedRecord.StoredAt">
+            <summary>
+            Gets or sets the storage timestamp.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedRecord.Payload">
+            <summary>
+            Gets or sets the serialized document payload.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultPersistedStoreSnapshot">
+            <summary>
+            Complete snapshot persisted by a single-file CultCache backing store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedStoreSnapshot.FormatVersion">
+            <summary>
+            Gets or sets the backing store format version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedStoreSnapshot.SchemaCatalog">
+            <summary>
+            Gets or sets the embedded schema catalog.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultPersistedStoreSnapshot.Records">
+            <summary>
+            Gets or sets the persisted records.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSchemaMigrationKind">
+            <summary>
+            Classifies how a persisted schema mapped onto the local document registry.
+            </summary>
+        </member>
+        <member name="F:GameCult.Caching.CultSchemaMigrationKind.Exact">
+            <summary>
+            The persisted schema matched the local schema exactly.
+            </summary>
+        </member>
+        <member name="F:GameCult.Caching.CultSchemaMigrationKind.CompatibleDrift">
+            <summary>
+            The persisted schema required a compatible soft-migration path.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSchemaMigrationWarning">
+            <summary>
+            Describes one schema-resolution warning emitted during load.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationWarning.Code">
+            <summary>
+            Gets or sets the stable warning code.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationWarning.Message">
+            <summary>
+            Gets or sets the human-readable warning text.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSchemaMigrationReport">
+            <summary>
+            Reports how one persisted schema entry resolved against the local schema catalog.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.PersistedSchemaId">
+            <summary>
+            Gets or sets the persisted schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.LocalSchemaId">
+            <summary>
+            Gets or sets the local schema identifier selected for reading.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.PersistedSchemaName">
+            <summary>
+            Gets or sets the persisted schema name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.LocalSchemaName">
+            <summary>
+            Gets or sets the local schema name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.Kind">
+            <summary>
+            Gets or sets how the persisted schema matched locally.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.IgnoredExtraSlots">
+            <summary>
+            Gets or sets the persisted member slots ignored by the local reader.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.DefaultedMissingSlots">
+            <summary>
+            Gets or sets the local member slots defaulted because the persisted record did not contain them.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSchemaMigrationReport.Warnings">
+            <summary>
+            Gets or sets emitted migration warnings.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultDocumentDescriptor">
+            <summary>
+            Runtime descriptor for a CultCache document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.DocumentType">
+            <summary>
+            Gets the CLR document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.SchemaName">
+            <summary>
+            Gets the stable schema name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.SchemaVersion">
+            <summary>
+            Gets the schema version string.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.SchemaId">
+            <summary>
+            Gets the content-derived schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.ContentHash">
+            <summary>
+            Gets the canonical schema content hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.CanonicalSchemaJson">
+            <summary>
+            Gets the canonical schema description.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.IsGlobal">
+            <summary>
+            Gets whether this document type stores one global record.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.NameMember">
+            <summary>
+            Gets the document name member, if any.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.GeneratedPayloadSerializer">
+            <summary>
+            Gets the generated payload serializer, if one is available.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentDescriptor.GeneratedPayloadDeserializer">
+            <summary>
+            Gets the generated payload deserializer, if one is available.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentDescriptor.ToCatalogEntry">
+            <summary>
+            Converts this descriptor into a persisted schema catalog entry.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultStoredDocument">
+            <summary>
+            Stores a resolved document together with its descriptor and key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultStoredDocument.#ctor(GameCult.Caching.CultRecordKey,System.String,GameCult.Caching.CultDocumentDescriptor,System.Object)">
+            <summary>
+            Creates a stored document wrapper.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultStoredDocument.Key">
+            <summary>
+            Gets the record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultStoredDocument.StoredAt">
+            <summary>
+            Gets the storage timestamp.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultStoredDocument.Descriptor">
+            <summary>
+            Gets the document descriptor.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultStoredDocument.Document">
+            <summary>
+            Gets the document instance.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultDocumentRegistry">
+            <summary>
+            Discovers, indexes, and resolves CultCache document descriptors.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentRegistry.Shared">
+            <summary>
+            Gets the shared process-wide document registry.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.#ctor">
+            <summary>
+            Creates a registry and discovers currently loaded document metadata.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentRegistry.AllDescriptors">
+            <summary>
+            Gets all known document descriptors.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.Refresh">
+            <summary>
+            Rebuilds the registry from generated metadata and reflected document attributes.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.GetRequired(System.Type)">
+            <summary>
+            Gets the descriptor for a document type, building it when needed.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.GetRequired``1">
+            <summary>
+            Gets the descriptor for a document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.GetRequiredBySchemaId(System.String)">
+            <summary>
+            Gets a descriptor by its schema identifier.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.ResolvePersistedSchema(System.String,System.Collections.Generic.IReadOnlyCollection{GameCult.Caching.CultSchemaCatalogEntry})">
+            <summary>
+            Resolves a persisted schema identifier against the local registry and embedded catalog.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentRegistry.ResolvePersistedSchemaReport(System.String,System.Collections.Generic.IReadOnlyCollection{GameCult.Caching.CultSchemaCatalogEntry})">
+            <summary>
+            Resolves a persisted schema identifier and returns the selected descriptor with migration diagnostics.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultCache">
+            <summary>
+            In-memory document cache with pluggable persisted backing stores.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.#ctor(GameCult.Caching.CultDocumentRegistry)">
+            <summary>
+            Creates a cache using the supplied document registry or the shared registry.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.Logger">
+            <summary>
+            Gets or sets the cache logger.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.IsDirty">
+            <summary>
+            Gets whether the cache currently holds unflushed mutations in any attached backing store or only in memory.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.LastSuccessfulFlushAtUtc">
+            <summary>
+            Gets the UTC timestamp of the last successful flush across all attached backing stores.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.FlushAttachedStoresOnDispose">
+            <summary>
+            Gets or sets whether disposing the cache should flush attached dirty backing stores first.
+            </summary>
+        </member>
+        <member name="E:GameCult.Caching.CultCache.OnUpdate">
+            <summary>
+            Raised when a backing store adds, updates, or removes a document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.BackingStores">
+            <summary>
+            Gets attached backing stores in registration order.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.AllEntries">
+            <summary>
+            Gets all document instances currently held by the cache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.AllStoredDocuments">
+            <summary>
+            Gets all stored document records currently held by the cache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCache.Registry">
+            <summary>
+            Gets the document registry used by this cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Document``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Opens a reactive POCO presentation for one cache-managed document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Watch``1">
+            <summary>
+            Watches all local cache changes assignable to the requested document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.WatchRecord``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Watches one local cache record.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Soa``1">
+            <summary>
+            Gets the cache-owned structure-of-arrays table for a document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.AddBackingStore(GameCult.Caching.CacheBackingStore)">
+            <summary>
+            Attaches a backing store to this cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.PullAllBackingStoresAsync">
+            <summary>
+            Pulls all documents from every attached backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.FlushAllBackingStores(System.Boolean)">
+            <summary>
+            Flushes all attached backing stores.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.FlushAsync(System.Boolean)">
+            <summary>
+            Flushes all attached backing stores.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.FlushBackingStore(GameCult.Caching.CacheBackingStore,System.Boolean)">
+            <summary>
+            Flushes one attached backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.PrepareForReloadOrShutdown(System.Boolean)">
+            <summary>
+            Flushes attached backing stores at a lifecycle boundary such as shutdown or assembly reload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.PrepareForReloadOrShutdownAsync(System.Boolean)">
+            <summary>
+            Flushes attached backing stores at a lifecycle boundary such as shutdown or assembly reload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.AddAsync``1(``0,System.Nullable{GameCult.Caching.CultRecordHandle{``0}})">
+            <summary>
+            Adds or replaces a typed document and returns its record handle.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.UpsertAsync``1(``0,System.Nullable{GameCult.Caching.CultRecordHandle{``0}})">
+            <summary>
+            Adds or replaces a typed document and returns its record handle.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.UpsertAsync(System.Type,System.Object,System.Nullable{GameCult.Caching.CultRecordKey})">
+            <summary>
+            Adds or replaces a document whose concrete type is known at runtime.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.TryGetHandle``1(``0)">
+            <summary>
+            Gets the record handle for a document instance, if it is tracked.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Get(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Gets a document by record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Get``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Gets a typed document by record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.TryGet``1(GameCult.Caching.CultRecordKey,``0@)">
+            <summary>
+            Tries to get a typed document by record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.GetAll``1">
+            <summary>
+            Gets all cached documents assignable to the requested type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.GetGlobal``1">
+            <summary>
+            Gets the global document for the requested type, if one exists.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.GetByName``1(System.String)">
+            <summary>
+            Gets a typed document by its CultName value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.TryGetByName``1(System.String,``0@)">
+            <summary>
+            Tries to get a typed document by its CultName value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.GetByIndex``1(System.String,System.String)">
+            <summary>
+            Gets a typed document by an indexed value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.TryGetByIndex``1(System.String,System.String,``0@)">
+            <summary>
+            Tries to get a typed document by an indexed value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Resolve``1(GameCult.Caching.CultRecordRef{``0})">
+            <summary>
+            Resolves a typed document reference against this cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Remove``1(GameCult.Caching.CultRecordHandle{``0})">
+            <summary>
+            Removes a document by typed handle.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Remove(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Removes a document by cache-owned record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.DeleteAsync``1(GameCult.Caching.CultRecordHandle{``0})">
+            <summary>
+            Removes a document by typed handle.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCache.Dispose">
+            <summary>
+            Disposes attached disposable backing stores.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CacheBackingStore">
+            <summary>
+            Base class for CultCache persistence adapters.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.Registry">
+            <summary>
+            Gets the attached document registry.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.Entries">
+            <summary>
+            Gets the backing store entries by record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.Logger">
+            <summary>
+            Gets or sets the backing store logger.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.IsDirty">
+            <summary>
+            Gets whether the backing store holds staged mutations not yet durably flushed.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.LastSuccessfulFlushAtUtc">
+            <summary>
+            Gets the UTC timestamp of the last successful durable flush.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.FlushOnDispose">
+            <summary>
+            Gets or sets whether disposing the backing store should flush staged mutations first.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.LastSchemaMigrationReports">
+            <summary>
+            Gets schema migration reports emitted during the most recent pull.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.EntryAdded">
+            <summary>
+            Publishes documents added by the backing store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.EntryUpdated">
+            <summary>
+            Publishes documents updated by the backing store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CacheBackingStore.EntryDeleted">
+            <summary>
+            Publishes documents deleted by the backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.PullAll">
+            <summary>
+            Pulls all persisted records into the backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.Push(GameCult.Caching.CultStoredDocument)">
+            <summary>
+            Pushes one stored document into the backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.Delete(GameCult.Caching.CultStoredDocument)">
+            <summary>
+            Deletes one stored document from the backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.PushAll(System.Boolean)">
+            <summary>
+            Persists all current backing store entries.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.Dispose">
+            <summary>
+            Releases backing store event subjects.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.ToPersistedRecord(GameCult.Caching.CultStoredDocument,System.Func{System.Object,System.Byte[]})">
+            <summary>
+            Converts a stored document into a persisted record.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.ToStoredDocument(GameCult.Caching.CultPersistedRecord,System.Collections.Generic.IReadOnlyCollection{GameCult.Caching.CultSchemaCatalogEntry},System.Func{System.Type,System.Byte[],System.Object})">
+            <summary>
+            Converts a persisted record into a stored document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.SetLastSchemaMigrationReports(System.Collections.Generic.IEnumerable{GameCult.Caching.CultSchemaMigrationReport})">
+            <summary>
+            Records schema migration reports captured during a pull.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CacheBackingStore.MarkFlushSucceeded">
+            <summary>
+            Marks the backing store as durably flushed.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.SingleFileBackingStore">
+            <summary>
+            Base class for backing stores that persist a complete snapshot to one file.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.#ctor(System.String)">
+            <summary>
+            Creates a single-file backing store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.SingleFileBackingStore.FileInfo">
+            <summary>
+            Gets the file used by this backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.SerializeSnapshot(GameCult.Caching.CultPersistedStoreSnapshot)">
+            <summary>
+            Serializes a full store snapshot.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.DeserializeSnapshot(System.Byte[])">
+            <summary>
+            Deserializes a full store snapshot.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.SerializePayload(System.Object)">
+            <summary>
+            Serializes one document payload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.DeserializePayload(System.Type,System.Byte[])">
+            <summary>
+            Deserializes one document payload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.PullAll">
+            <summary>
+            Loads every persisted record from disk.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.Push(GameCult.Caching.CultStoredDocument)">
+            <summary>
+            Stages one stored document in memory.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.Delete(GameCult.Caching.CultStoredDocument)">
+            <summary>
+            Removes one staged document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.SingleFileBackingStore.PushAll(System.Boolean)">
+            <summary>
+            Writes the staged snapshot to disk.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultDocumentAttribute">
+            <summary>
+            Marks a type as a CultCache document with a stable schema name and version.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultDocumentAttribute.#ctor(System.String,System.String)">
+            <summary>
+            Creates a document marker for the supplied schema identity.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentAttribute.SchemaName">
+            <summary>
+            Gets the stable schema name used by CultCache and CultNet.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultDocumentAttribute.SchemaVersion">
+            <summary>
+            Gets the semantic schema version string for this document shape.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultGlobalAttribute">
+            <summary>
+            Marks a document type as having one global record in a cache.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultNameAttribute">
+            <summary>
+            Marks the member that supplies the human-readable document name.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultIndexAttribute">
+            <summary>
+            Marks a member as an indexed lookup value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultIndexAttribute.#ctor(System.String)">
+            <summary>
+            Creates an index marker with an optional alias.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultIndexAttribute.Alias">
+            <summary>
+            Gets the external index alias, or null to use the member name.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultReferenceAttribute">
+            <summary>
+            Marks a member as a reference to another CultCache document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultReferenceAttribute.#ctor(System.Type,System.Boolean)">
+            <summary>
+            Creates a document reference marker.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultReferenceAttribute.TargetType">
+            <summary>
+            Gets the explicit referenced document type, when one is required.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultReferenceAttribute.Many">
+            <summary>
+            Gets whether this member stores many references rather than one reference.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultRecordKey">
+            <summary>
+            Identifies a record inside a CultCache backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordKey.#ctor(System.String)">
+            <summary>
+            Creates a record key from its persisted string value.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultRecordKey.Value">
+            <summary>
+            Gets the persisted key value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordKey.ToString">
+            <summary>
+            Returns the persisted key value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordKey.Equals(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Returns whether this key and another key contain the same persisted value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordKey.Equals(System.Object)">
+            <summary>
+            Returns whether this key and another object contain the same persisted value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordKey.GetHashCode">
+            <summary>
+            Returns a hash code for the persisted key value.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultRecordHandle`1">
+            <summary>
+            Carries the persisted record key for a typed document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordHandle`1.#ctor(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Creates a typed document handle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultRecordHandle`1.Key">
+            <summary>
+            Gets the persisted record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordHandle`1.ToString">
+            <summary>
+            Returns the persisted key value.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultRecordRef`1">
+            <summary>
+            Stores a typed reference to a CultCache document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordRef`1.#ctor(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Creates a typed document reference.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultRecordRef`1.Key">
+            <summary>
+            Gets the referenced record key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordRef`1.Resolve(GameCult.Caching.CultCache)">
+            <summary>
+            Resolves the referenced record against the provided cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultRecordRef`1.ToString">
+            <summary>
+            Returns the referenced key value.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultGeneratedDocumentMetadataProviderAttribute">
+            <summary>
+            Registers a generated CultCache document metadata provider with an assembly.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultGeneratedDocumentMetadataProviderAttribute.#ctor(System.Type)">
+            <summary>
+            Creates an assembly metadata provider registration.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMetadataProviderAttribute.ProviderType">
+            <summary>
+            Gets the provider type that can create generated document definitions.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.ICultGeneratedDocumentMetadataProvider">
+            <summary>
+            Supplies generated CultCache document metadata for an assembly.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.ICultGeneratedDocumentMetadataProvider.GetDocumentDefinitions">
+            <summary>
+            Gets the generated document definitions exposed by the provider.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultGeneratedDocumentDefinition">
+            <summary>
+            Describes one generated CultCache document contract.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultGeneratedDocumentDefinition.#ctor(System.Type,System.String,System.String,System.Boolean,System.String,System.Func{System.Object,System.String},System.Func{System.Object,System.Byte[]},System.Func{System.Byte[],System.Object},System.Collections.Generic.IReadOnlyList{GameCult.Caching.CultGeneratedDocumentIndexAccessor},System.Collections.Generic.IReadOnlyList{GameCult.Caching.CultGeneratedDocumentMemberDefinition})">
+            <summary>
+            Creates a generated document contract definition.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.DocumentType">
+            <summary>
+            Gets the CLR document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.SchemaName">
+            <summary>
+            Gets the stable CultCache schema name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.SchemaVersion">
+            <summary>
+            Gets the schema version string.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.IsGlobal">
+            <summary>
+            Gets whether this document type stores one global record.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.NameMember">
+            <summary>
+            Gets the member used as the document name, if any.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.NameAccessor">
+            <summary>
+            Gets the generated name accessor, if any.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.SerializePayload">
+            <summary>
+            Gets the generated payload serializer, if one was emitted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.DeserializePayload">
+            <summary>
+            Gets the generated payload deserializer, if one was emitted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.IndexAccessors">
+            <summary>
+            Gets the generated index accessors.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentDefinition.Members">
+            <summary>
+            Gets the generated persisted member definitions.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultGeneratedDocumentIndexAccessor">
+            <summary>
+            Describes a generated accessor for one CultCache index.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultGeneratedDocumentIndexAccessor.#ctor(System.String,System.Func{System.Object,System.String})">
+            <summary>
+            Creates a generated index accessor.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentIndexAccessor.Alias">
+            <summary>
+            Gets the index alias.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentIndexAccessor.Accessor">
+            <summary>
+            Gets the function that extracts the index value.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultGeneratedDocumentMemberDefinition">
+            <summary>
+            Describes one generated persisted document member.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultGeneratedDocumentMemberDefinition.#ctor(System.String,System.Int32,System.String,System.Boolean,System.Boolean,System.String,System.Boolean,System.String)">
+            <summary>
+            Creates a generated persisted member definition.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.MemberName">
+            <summary>
+            Gets the CLR member name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.Slot">
+            <summary>
+            Gets the persisted slot number.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.TypeName">
+            <summary>
+            Gets the persisted type name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.IsReference">
+            <summary>
+            Gets whether this member stores a document reference.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.IsMany">
+            <summary>
+            Gets whether this member stores many references.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.TargetSchemaName">
+            <summary>
+            Gets the target schema name for reference members.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.IsName">
+            <summary>
+            Gets whether this member is the document name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultGeneratedDocumentMemberDefinition.IndexAlias">
+            <summary>
+            Gets the index alias for indexed members.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultCacheDocumentChangeKind">
+            <summary>
+            Describes how a CultCache-managed document changed.
+            </summary>
+        </member>
+        <member name="F:GameCult.Caching.CultCacheDocumentChangeKind.Added">
+            <summary>
+            A document was added.
+            </summary>
+        </member>
+        <member name="F:GameCult.Caching.CultCacheDocumentChangeKind.Updated">
+            <summary>
+            A document was updated.
+            </summary>
+        </member>
+        <member name="F:GameCult.Caching.CultCacheDocumentChangeKind.Removed">
+            <summary>
+            A document was removed.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultCacheDocumentChange`1">
+            <summary>
+            One reactive CultCache document change.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultCacheDocumentChange`1.#ctor(GameCult.Caching.CultCacheDocumentChangeKind,GameCult.Caching.CultRecordKey,`0,`0)">
+            <summary>
+            Creates a document change.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCacheDocumentChange`1.Kind">
+            <summary>
+            Gets the change kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCacheDocumentChange`1.Key">
+            <summary>
+            Gets the document record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCacheDocumentChange`1.Document">
+            <summary>
+            Gets the current POCO presentation, when present.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultCacheDocumentChange`1.PreviousDocument">
+            <summary>
+            Gets the previous POCO presentation, when present.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultManagedDocument`1">
+            <summary>
+            Reactive POCO presentation for one CultCache-managed document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultManagedDocument`1.#ctor(GameCult.Caching.CultRecordKey,System.Func{`0},System.Func{`0,System.Threading.Tasks.Task},R3.Observable{`0})">
+            <summary>
+            Creates a managed document presentation.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultManagedDocument`1.Key">
+            <summary>
+            Gets the document record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultManagedDocument`1.Value">
+            <summary>
+            Gets the current POCO presentation.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultManagedDocument`1.Watch">
+            <summary>
+            Watches committed values for this document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultManagedDocument`1.CommitAsync">
+            <summary>
+            Commits the current POCO value through the owner-supplied commit path.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultManagedDocument`1.ReplaceAsync(`0)">
+            <summary>
+            Replaces the current value through the owner-supplied commit path.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSoaTable`1">
+            <summary>
+            CPU-local structure-of-arrays table owned by CultCache for one document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaTable`1.Keys">
+            <summary>
+            Gets record keys in row order.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaTable`1.Documents">
+            <summary>
+            Gets POCO presentations in row order.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaTable`1.Count">
+            <summary>
+            Gets the row count.
+            </summary>
+        </member>
+        <member name="M:GameCult.Caching.CultSoaTable`1.Column``1(System.String)">
+            <summary>
+            Gets a contiguous unmanaged field/property column.
+            </summary>
+        </member>
+        <member name="T:GameCult.Caching.CultSoaColumn`1">
+            <summary>
+            Contiguous typed SoA column.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaColumn`1.Name">
+            <summary>
+            Gets the column name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaColumn`1.Values">
+            <summary>
+            Gets the backing array.
+            </summary>
+        </member>
+        <member name="P:GameCult.Caching.CultSoaColumn`1.Span">
+            <summary>
+            Gets the backing array as a span.
+            </summary>
+        </member>
+    </members>
+</doc>

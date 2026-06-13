@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GameCult.Caching.MessagePack.Analyzers</name>
+    </assembly>
+    <members>
+        <member name="T:GameCult.Caching.MessagePack.Analyzer.Class1">
+            <summary>
+            Placeholder type for the analyzer packaging project.
+            </summary>
+        </member>
+    </members>
+</doc>

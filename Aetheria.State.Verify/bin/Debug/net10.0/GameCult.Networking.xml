@@ -1,0 +1,3737 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GameCult.Networking</name>
+    </assembly>
+    <members>
+        <member name="T:GameCult.Networking.ClientReconnectState">
+            <summary>
+            Describes the client's reconnect posture.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ClientReconnectState.Idle">
+            <summary>
+            The client is connected or otherwise not trying to reconnect.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ClientReconnectState.WaitingToReconnect">
+            <summary>
+            The client is waiting for the next reconnect attempt.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ClientReconnectState.Reconnecting">
+            <summary>
+            The client is actively attempting a reconnect.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.Client">
+            <summary>
+            Provides client-side connection, authentication, and message dispatch logic.
+            </summary>
+        </member>
+        <member name="E:GameCult.Networking.Client.OnError">
+            <summary>
+            Raised when the client encounters a user-visible error.
+            </summary>
+        </member>
+        <member name="E:GameCult.Networking.Client.OnReconnectStateChanged">
+            <summary>
+            Raised when reconnect state changes.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.Logger">
+            <summary>
+            Gets or sets the logger used by the client.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.Ping">
+            <summary>
+            Gets the last reported round-trip latency in milliseconds.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.ReconnectState">
+            <summary>
+            Gets the current reconnect posture exposed to consumers.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.LogSensitivePayloads">
+            <summary>
+            Gets or sets whether raw payload bodies may be logged for diagnostics.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.AllowUnverifiedCultNetMessages">
+            <summary>
+            Gets or sets whether CultNet schema-v0 messages may be sent before user session verification.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.Verified">
+            <summary>
+            Gets a value indicating whether the client currently has a verified session.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Client.Connected">
+            <summary>
+            Gets a value indicating whether the network manager has been created.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.#ctor(GameCult.Networking.ClientSecurityOptions)">
+            <summary>
+            Initializes a new client instance.
+            </summary>
+            <param name="security">Validated client security configuration. This must be provided explicitly by the caller.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.Send``1(``0)">
+            <summary>
+            Sends a message when the client is connected and authorized to do so.
+            </summary>
+            <typeparam name="T">The message type.</typeparam>
+            <param name="m">The message to send.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.SendCultNet``1(``0)">
+            <summary>
+            Sends a modern CultNet schema-v0 message when the client is connected and authorized.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.ClearMessageListeners">
+            <summary>
+            Removes all registered message listeners.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.AddMessageListener``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a specific message type.
+            </summary>
+            <typeparam name="T">The message type to subscribe to.</typeparam>
+            <param name="callback">The callback to invoke when the message is received.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.On``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a specific message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.AddCultNetMessageListener``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.OnCultNet``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.RemoveMessageListener``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered listener for a specific message type.
+            </summary>
+            <typeparam name="T">The message type to unsubscribe from.</typeparam>
+            <param name="callback">The callback to remove.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.Off``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered listener for a specific message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.RemoveCultNetMessageListener``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered modern CultNet schema-v0 listener.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.OffCultNet``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered modern CultNet schema-v0 listener.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.Login(System.String,System.String)">
+            <summary>
+            Sends a login request.
+            </summary>
+            <param name="auth">The email address or username.</param>
+            <param name="password">The plaintext password.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.Register(System.String,System.String,System.String)">
+            <summary>
+            Sends a registration request.
+            </summary>
+            <param name="email">The email address for the new account.</param>
+            <param name="username">The requested username.</param>
+            <param name="password">The plaintext password.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.Connect(System.String,System.Int32)">
+            <summary>
+            Connects the client to a server and starts polling LiteNetLib events.
+            </summary>
+            <param name="host">The remote host name or IP address.</param>
+            <param name="port">The remote server port.</param>
+        </member>
+        <member name="M:GameCult.Networking.Client.Disconnect">
+            <summary>
+            Disconnects the client and suppresses automatic reconnect.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Client.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.ClientSecurityOptions">
+            <summary>
+            Carries the client-side networking configuration required to talk to a server.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.ClientSecurityOptions.ConnectionKey">
+            <summary>
+            Shared LiteNetLib connection key and encryption seed.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ClientSecurityOptions.#ctor(System.String)">
+            <summary>
+            Initializes a new client security configuration.
+            </summary>
+            <param name="connectionKey">The shared connection key used by both client and server.</param>
+        </member>
+        <member name="M:GameCult.Networking.ClientSecurityOptions.Development">
+            <summary>
+            Creates a deterministic development-only configuration.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseChangeKind">
+            <summary>
+            Describes the kind of domain change observed through a distributed CultCache surface.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Added">
+            <summary>
+            A document was added.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Updated">
+            <summary>
+            A document was updated.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Removed">
+            <summary>
+            A document was removed.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.SchemaMigrated">
+            <summary>
+            A document was accepted through compatible schema migration.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Rejected">
+            <summary>
+            A document change was rejected.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Predicted">
+            <summary>
+            A document was applied locally before authoritative commit.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetDatabaseChangeKind.Reconciled">
+            <summary>
+            A predicted document was replaced by the authoritative committed state.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetClientAuthorityScope">
+            <summary>
+            Declares which documents this runtime may predict locally before authoritative commit.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetClientAuthorityScope.#ctor(System.String,System.Collections.Generic.IEnumerable{System.String},System.String)">
+            <summary>
+            Creates a client authority scope.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetClientAuthorityScope.OwnerRuntimeId">
+            <summary>
+            Gets the runtime that owns authoring for this scope.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetClientAuthorityScope.SchemaIds">
+            <summary>
+            Gets the schema ids governed by this scope. Empty means all schemas.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetClientAuthorityScope.KeyPrefix">
+            <summary>
+            Gets the optional record-key prefix governed by this scope.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardDescriptor">
+            <summary>
+            Describes one shard owned or observed by a CultNet database surface.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardDescriptor.#ctor(System.String,System.String,System.Int64,System.Boolean,System.Collections.Generic.IEnumerable{System.String},System.String,System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{System.String},System.String)">
+            <summary>
+            Creates a shard descriptor.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.ShardId">
+            <summary>
+            Gets the stable shard identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.OwnerRuntimeId">
+            <summary>
+            Gets the runtime that currently owns writes for this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.Epoch">
+            <summary>
+            Gets the monotonic shard authority epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.IsPrimary">
+            <summary>
+            Gets whether the local database instance is authoritative for writes to this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.SchemaIds">
+            <summary>
+            Gets the schema ids governed by this shard. Empty means all schemas.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.KeyPrefix">
+            <summary>
+            Gets the optional record-key prefix governed by this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.PrimaryEndpoints">
+            <summary>
+            Gets endpoints that can accept authoritative writes for this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.ReplicaEndpoints">
+            <summary>
+            Gets endpoints that replicate authoritative shard mutations.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.ReadReplicaEndpoints">
+            <summary>
+            Gets endpoints intended for low-latency read and subscription traffic.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptor.Region">
+            <summary>
+            Gets an optional locality label for this shard owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardDescriptor.PrimaryAll(System.String,System.String)">
+            <summary>
+            Creates a primary shard that accepts every schema and key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardDescriptor.ReadOnly(System.String,System.String,System.Int64,System.Collections.Generic.IEnumerable{System.String},System.String)">
+            <summary>
+            Creates a read-only shard descriptor.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseOptions">
+            <summary>
+            Options for creating a distributed CultCache database surface.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseOptions.RuntimeId">
+            <summary>
+            Gets or sets the local runtime id advertised as shard owner for default primary shards.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseOptions.Shards">
+            <summary>
+            Gets or sets explicit shard descriptors. When omitted, this instance owns one primary shard for all records.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseOptions.ClientAuthorityScopes">
+            <summary>
+            Gets or sets document scopes this runtime may predict before authoritative commit.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseOptions.DocumentRegistry">
+            <summary>
+            Gets or sets the document registry used to create and apply raw CultNet document messages.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseOptions.MutationLogStore">
+            <summary>
+            Gets or sets the durable store for accepted shard mutation logs.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseChange`1">
+            <summary>
+            A typed domain change emitted by a CultNet database surface.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseChange`1.#ctor(GameCult.Networking.CultNetDatabaseChangeKind,GameCult.Caching.CultRecordKey,System.String,GameCult.Networking.CultNetShardDescriptor,`0,`0,System.String)">
+            <summary>
+            Creates a database change.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.Kind">
+            <summary>
+            Gets the change kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.Key">
+            <summary>
+            Gets the changed record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.SchemaId">
+            <summary>
+            Gets the schema id of the changed document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.Shard">
+            <summary>
+            Gets the shard that accepted or rejected the change.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.Document">
+            <summary>
+            Gets the current document for added and updated events.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.PreviousDocument">
+            <summary>
+            Gets the previous document for updated and removed events.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChange`1.Message">
+            <summary>
+            Gets an optional diagnostic message.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardMutationLogEntry">
+            <summary>
+            One ordered mutation accepted for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardMutationLogEntry.#ctor(System.String,System.Int64,System.Int64,System.String,GameCult.Networking.CultNetDatabaseChangeKind,System.String,GameCult.Caching.CultRecordKey,System.Object,System.Object)">
+            <summary>
+            Creates a shard mutation log entry.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.ShardId">
+            <summary>
+            Gets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.ShardEpoch">
+            <summary>
+            Gets the shard epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.Sequence">
+            <summary>
+            Gets the per-shard mutation sequence.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.CommittedAt">
+            <summary>
+            Gets the commit timestamp.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.Kind">
+            <summary>
+            Gets the mutation kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.SchemaId">
+            <summary>
+            Gets the schema id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.Key">
+            <summary>
+            Gets the record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.Document">
+            <summary>
+            Gets the current document, when present.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardMutationLogEntry.PreviousDocument">
+            <summary>
+            Gets the previous document, when present.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardAuthorityException">
+            <summary>
+            Raised when a database write targets a shard this node does not own.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardAuthorityException.#ctor(GameCult.Networking.CultNetShardDescriptor,System.String,System.String)">
+            <summary>
+            Creates a shard authority exception.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardAuthorityException.Shard">
+            <summary>
+            Gets the shard that rejected the write.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardAuthorityException.Reason">
+            <summary>
+            Gets the machine-readable authority rejection reason.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabase">
+            <summary>
+            Database-style CultNet facade over a CultCache shard set.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.#ctor(GameCult.Caching.CultCache,GameCult.Networking.CultNetDatabaseOptions)">
+            <summary>
+            Creates a database surface over a CultCache instance.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabase.Cache">
+            <summary>
+            Gets the local cache backing this database surface.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabase.Documents">
+            <summary>
+            Gets the document registry used by the raw CultNet lane.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabase.Shards">
+            <summary>
+            Gets the shard map known to this database surface.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabase.ClientAuthorityScopes">
+            <summary>
+            Gets the document scopes this runtime may predict before authoritative commit.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetMutationLog(System.String,System.Int64,System.Nullable{System.Int32})">
+            <summary>
+            Gets mutation log entries for a shard after the supplied sequence.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetMutationLogMessages(System.String,System.Int64,System.Nullable{System.Int32})">
+            <summary>
+            Gets replica catch-up log entries for a shard after the supplied sequence.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetCompactedMutationLogSequence(System.String)">
+            <summary>
+            Gets the highest retained-log sequence that has been compacted away for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetLatestMutationLogSequence(System.String)">
+            <summary>
+            Gets the latest known shard-log sequence for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.CreateShardSnapshotResponse(GameCult.Networking.CultNetShardDescriptor,System.String,GameCult.Networking.CultNetSnapshotRequestMessage)">
+            <summary>
+            Creates a raw document snapshot bounded to one shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.ApplyShardSnapshotResponseAsync(GameCult.Networking.CultNetShardDescriptor,GameCult.Networking.CultNetSnapshotResponseRawMessage)">
+            <summary>
+            Applies a shard-bounded snapshot and advances the replica cursor to its represented sequence.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetAppliedShardSequence(System.String)">
+            <summary>
+            Gets the last replicated sequence applied for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.CreateShardCatalogResponse(GameCult.Networking.CultNetShardCatalogRequestMessage)">
+            <summary>
+            Creates a shard catalog response for optional schema/key filters.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.ResolveShard(System.String,GameCult.Caching.CultRecordKey)">
+            <summary>
+            Resolves the shard that governs the supplied schema and key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.GetAsync``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Gets a document by key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.Document``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Opens a reactive POCO presentation for one distributed CultCache document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.PutAsync``1(GameCult.Caching.CultRecordKey,``0)">
+            <summary>
+            Adds or replaces a document at a specific key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.PutPredictedAsync``1(GameCult.Caching.CultRecordKey,``0)">
+            <summary>
+            Applies a locally predicted document for a client-owned input scope.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.DeleteAsync``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Deletes a document by key.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.ApplyPutAsync(GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Applies a raw document mutation after checking shard authority.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.ApplyDeleteAsync(GameCult.Networking.CultNetDocumentDeleteMessage)">
+            <summary>
+            Applies a raw document delete after checking shard authority.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.ApplyShardLogResponseAsync(GameCult.Networking.CultNetShardLogResponseMessage)">
+            <summary>
+            Applies committed shard-log entries from an authoritative peer.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.Watch``1">
+            <summary>
+            Watches all changes assignable to the requested document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.WatchAllChanges">
+            <summary>
+            Watches all typed domain changes as boxed change objects.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.WatchRecord``1(GameCult.Caching.CultRecordKey)">
+            <summary>
+            Watches one record.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.WatchGlobal``1">
+            <summary>
+            Watches the global record for a document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.WatchByName``1(System.String)">
+            <summary>
+            Watches changes for a named document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.WatchByIndex``1(System.String,System.String)">
+            <summary>
+            Watches changes for the current document mapped by an indexed value.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabase.Dispose">
+            <summary>
+            Releases database subscriptions.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseServer">
+            <summary>
+            Routes CultNet schema-v0 document messages through a <see cref="T:GameCult.Networking.CultNetDatabase"/>.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.#ctor(GameCult.Networking.Server,GameCult.Networking.CultNetDatabase,GameCult.Networking.CultNetDatabaseServerOptions)">
+            <summary>
+            Creates and attaches a database message bridge to a server.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseServer.Database">
+            <summary>
+            Gets the database used by this bridge.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.ApplyPutAsync(GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Applies a raw put message through the database shard policy.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.ApplyDeleteAsync(GameCult.Networking.CultNetDocumentDeleteMessage)">
+            <summary>
+            Applies a raw delete message through the database shard policy.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.CreateSnapshotResponse(GameCult.Networking.CultNetSnapshotRequestMessage)">
+            <summary>
+            Creates a raw snapshot response from the database cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.CreateShardCatalogResponse(GameCult.Networking.CultNetShardCatalogRequestMessage)">
+            <summary>
+            Creates a shard catalog response from the database shard map.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.CreateShardLogResponse(GameCult.Networking.CultNetShardLogRequestMessage)">
+            <summary>
+            Creates a shard mutation-log response from the database log.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.Dispose">
+            <summary>
+            Detaches handlers from the server.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.TryForwardPutAsync(GameCult.Networking.CultNetShardAuthorityException,GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Attempts to forward a rejected raw put to the shard owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDatabaseServer.TryForwardDeleteAsync(GameCult.Networking.CultNetShardAuthorityException,GameCult.Networking.CultNetDocumentDeleteMessage)">
+            <summary>
+            Attempts to forward a rejected raw delete to the shard owner.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentMessageOptions">
+            <summary>
+            Optional metadata applied when creating CultNet document messages.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMessageOptions.StoredAt">
+            <summary>
+            Gets or sets an explicit storage timestamp.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMessageOptions.SourceRuntimeId">
+            <summary>
+            Gets or sets the runtime that produced the document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMessageOptions.SourceAgentId">
+            <summary>
+            Gets or sets the agent that produced the document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMessageOptions.SourceRole">
+            <summary>
+            Gets or sets the role that produced the document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMessageOptions.Tags">
+            <summary>
+            Gets or sets optional document tags.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentBinding">
+            <summary>
+            Binds a CultCache document type to CultNet payload serialization.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentBinding.DocumentType">
+            <summary>
+            Gets the bound document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentBinding.SchemaId">
+            <summary>
+            Gets the bound schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentBinding.PayloadSerializer">
+            <summary>
+            Gets the payload serializer.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentBinding.PayloadDeserializer">
+            <summary>
+            Gets the payload deserializer.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentBinding.ForDocument``1(GameCult.Caching.CultDocumentRegistry,System.String,System.Func{``0,System.Byte[]},System.Func{System.Byte[],``0})">
+            <summary>
+            Creates a document binding for a typed CultCache document.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentRegistry">
+            <summary>
+            Creates and applies CultNet messages that replicate CultCache documents.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.#ctor(GameCult.Caching.CultDocumentRegistry,System.Collections.Generic.IEnumerable{GameCult.Networking.CultNetDocumentBinding})">
+            <summary>
+            Creates a document registry with optional bindings.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.Register(GameCult.Networking.CultNetDocumentBinding)">
+            <summary>
+            Registers a document binding.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.GetBySchemaId(System.String)">
+            <summary>
+            Gets a binding by schema identifier.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.GetByDocumentType(System.Type)">
+            <summary>
+            Gets a binding by CLR document type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.CreateDocumentDeleteMessage(System.String,System.String,System.String)">
+            <summary>
+            Creates a document delete message.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.CreateRawDocumentPutMessage``1(System.String,GameCult.Caching.CultRecordHandle{``0},``0,GameCult.Networking.CultNetDocumentMessageOptions)">
+            <summary>
+            Creates a raw document put message for a typed document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.CreateSnapshotRequest(System.String,System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Creates a snapshot request message.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.CreateRawSnapshotResponse(GameCult.Caching.CultCache,System.String,GameCult.Networking.CultNetSnapshotRequestMessage,GameCult.Networking.CultNetDocumentMessageOptions)">
+            <summary>
+            Creates a raw snapshot response from the cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.ApplyRawDocumentPutMessageAsync(GameCult.Caching.CultCache,GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Applies a raw document put message to a cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.ApplyRawDocumentPutMessageAsync``1(GameCult.Caching.CultCache,GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Applies a raw document put message and returns the typed document.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.ApplyRawSnapshotResponseAsync(GameCult.Caching.CultCache,GameCult.Networking.CultNetSnapshotResponseRawMessage)">
+            <summary>
+            Applies all documents from a raw snapshot response.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetDocumentRegistry.ApplyRawSnapshotResponseAsync``1(GameCult.Caching.CultCache,GameCult.Networking.CultNetSnapshotResponseRawMessage)">
+            <summary>
+            Applies all typed documents from a raw snapshot response.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetHostOptions">
+            <summary>
+            Options for creating a local CultNet host over CultCache and the canonical MessagePack store.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.CacheOptions">
+            <summary>
+            Gets or sets the cache-open options used for the underlying CultCache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.Security">
+            <summary>
+            Gets or sets the server security configuration. When omitted, development defaults are used.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.StartServer">
+            <summary>
+            Gets or sets whether the server should start immediately after creation.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.DatabaseOptions">
+            <summary>
+            Gets or sets the database sharding options used for the hosted CultCache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.DatabaseServerOptions">
+            <summary>
+            Gets or sets the database server bridge options used for shard routing and forwarding.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHostOptions.ConfigureServer">
+            <summary>
+            Gets or sets an optional callback used to customize the server before start.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetHost">
+            <summary>
+            Convenience wrapper for a locally hosted CultNet server over a durable CultCache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHost.Cache">
+            <summary>
+            Gets the durable cache used by the host.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHost.Store">
+            <summary>
+            Gets the canonical single-file MessagePack store, when one is attached.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHost.Server">
+            <summary>
+            Gets the underlying CultNet server.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHost.Database">
+            <summary>
+            Gets the distributed database facade over the hosted cache.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHost.DatabaseServer">
+            <summary>
+            Gets the schema-v0 server bridge for distributed database messages.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetHost.Start">
+            <summary>
+            Starts the server.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetHost.FlushAsync(System.Boolean)">
+            <summary>
+            Flushes the durable cache.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetHost.Dispose">
+            <summary>
+            Stops the server and disposes the host resources.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetLocal">
+            <summary>
+            Friendly local entrypoints for CultNet host/client creation.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetLocal.CreateHostAsync(System.String,GameCult.Networking.CultNetHostOptions)">
+            <summary>
+            Creates a local host with a durable CultCache and the canonical MessagePack backing store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetLocal.StartHostAsync(System.String,GameCult.Networking.CultNetHostOptions)">
+            <summary>
+            Creates and starts a local host with development-friendly defaults.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetLocal.CreateClient(GameCult.Networking.ClientSecurityOptions,System.Action{GameCult.Networking.Client})">
+            <summary>
+            Creates a client configured for local CultNet use.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetLocal.ConnectClient(System.String,System.Int32,GameCult.Networking.ClientSecurityOptions,System.Action{GameCult.Networking.Client})">
+            <summary>
+            Creates and connects a client to the specified host.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetLocal.ConnectLocal(GameCult.Networking.ClientSecurityOptions,System.Action{GameCult.Networking.Client})">
+            <summary>
+            Creates and connects a client to a local development host.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetWireContracts">
+            <summary>
+            Shared wire-contract identifiers understood by the CultNet family.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetWireContracts.SchemaV0">
+            <summary>
+            schema v0 contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetWireContracts.GameCultNetworkingV0">
+            <summary>
+            game cult networking v0 contract identifier.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaVersions">
+            <summary>
+            Canonical schema-version strings for the modern CultNet message family.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.Hello">
+            <summary>
+            hello contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.Login">
+            <summary>
+            login contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.Register">
+            <summary>
+            register contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.Verify">
+            <summary>
+            verify contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.LoginSuccess">
+            <summary>
+            login success contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.Error">
+            <summary>
+            error contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SampleChangeName">
+            <summary>
+            sample change name contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SampleChat">
+            <summary>
+            sample chat contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.DocumentDelete">
+            <summary>
+            document delete contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.DocumentPutRaw">
+            <summary>
+            document put raw contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SnapshotRequest">
+            <summary>
+            snapshot request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SnapshotResponseRaw">
+            <summary>
+            snapshot response raw contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SchemaCatalogRequest">
+            <summary>
+            schema catalog request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SchemaCatalogResponse">
+            <summary>
+            schema catalog response contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.DatabaseSubscribe">
+            <summary>
+            database subscription request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.DatabaseUnsubscribe">
+            <summary>
+            database subscription cancel contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.DatabaseChangeRaw">
+            <summary>
+            database subscription change contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.ShardCatalogRequest">
+            <summary>
+            shard catalog request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.ShardCatalogResponse">
+            <summary>
+            shard catalog response contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.ShardLogRequest">
+            <summary>
+            shard mutation log request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.ShardLogResponse">
+            <summary>
+            shard mutation log response contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SimulationObservation">
+            <summary>
+            simulation observation gossip contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.SimulationConsensusCandidate">
+            <summary>
+            simulation consensus candidate gossip contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.WitnessArtifactBundle">
+            <summary>
+            witness artifact bundle document contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.VerseCatalogRequest">
+            <summary>
+            CultMesh Verse catalog request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.VerseCatalogResponse">
+            <summary>
+            CultMesh Verse catalog response contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.PeerExchangeRequest">
+            <summary>
+            CultMesh peer exchange request contract identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaVersions.PeerExchangeResponse">
+            <summary>
+            CultMesh peer exchange response contract identifier.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetMutationAuthorities">
+            <summary>
+            Mutation authority owner identifiers advertised through CultNet mutation contracts.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetMutationAuthorities.ReadOnly">
+            <summary>
+            The document is inspectable but not writable through CultNet.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetMutationAuthorities.LocalUser">
+            <summary>
+            The local human operator may submit the corresponding mutation intent.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetMutationAuthorities.Coordinator">
+            <summary>
+            A coordinator-owned Epiphany control surface owns the mutation path.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetMutationAuthorities.Runtime">
+            <summary>
+            The runtime itself may write this document directly.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetMutationAuthorities.Denied">
+            <summary>
+            The document should not be mutated through CultNet.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentMutationContract">
+            <summary>
+            Declares how a document or surface may be inspected and mutated over CultNet.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.DocumentType">
+            <summary>
+            Gets or sets the stable document type governed by this contract.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.PayloadSchemaVersion">
+            <summary>
+            Gets or sets the payload schema version when the contract governs a versioned document payload.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.Operations">
+            <summary>
+            Gets or sets the CultNet operations this document accepts.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.Authority">
+            <summary>
+            Gets or sets which actor is allowed to drive those operations.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.IntentDocumentTypes">
+            <summary>
+            Gets or sets the intent document types a client may submit to request mutation.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.ReceiptDocumentTypes">
+            <summary>
+            Gets or sets the receipt document types emitted after a successful mutation path.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentMutationContract.Notes">
+            <summary>
+            Gets or sets freeform notes that explain local mutation guardrails or posture.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ICultNetSchemaMessage">
+            <summary>
+            Marker interface for the explicit modern CultNet schema-v0 message family.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.ICultNetSchemaMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version carried by this message.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetHelloMessage">
+            <summary>
+            CultNet hello message used to announce a runtime and its supported contracts.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.RuntimeId">
+            <summary>
+            Gets or sets the runtime id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.RuntimeKind">
+            <summary>
+            Gets or sets the runtime kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.AgentId">
+            <summary>
+            Gets or sets the agent id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.Role">
+            <summary>
+            Gets or sets the role.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.DisplayName">
+            <summary>
+            Gets or sets the display name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.SupportedDocumentTypes">
+            <summary>
+            Gets or sets the supported document types.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.SupportedMutationContracts">
+            <summary>
+            Gets or sets the supported mutation contracts.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.SupportedMessageVersions">
+            <summary>
+            Gets or sets the supported message versions.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetHelloMessage.SupportsSchemaCatalog">
+            <summary>
+            Gets or sets the supports schema catalog.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetLoginMessage">
+            <summary>
+            CultNet login request message.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginMessage.Nonce">
+            <summary>
+            Gets or sets the nonce.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginMessage.Auth">
+            <summary>
+            Gets or sets the auth.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginMessage.Password">
+            <summary>
+            Gets or sets the password.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetRegisterMessage">
+            <summary>
+            CultNet registration request message.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRegisterMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRegisterMessage.Nonce">
+            <summary>
+            Gets or sets the nonce.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRegisterMessage.Email">
+            <summary>
+            Gets or sets the email.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRegisterMessage.Password">
+            <summary>
+            Gets or sets the password.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRegisterMessage.Name">
+            <summary>
+            Gets or sets the name.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetVerifyMessage">
+            <summary>
+            CultNet session verification request message.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetVerifyMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetVerifyMessage.Nonce">
+            <summary>
+            Gets or sets the nonce.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetVerifyMessage.Session">
+            <summary>
+            Gets or sets the session.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetLoginSuccessMessage">
+            <summary>
+            CultNet message returned after successful session verification.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginSuccessMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginSuccessMessage.Nonce">
+            <summary>
+            Gets or sets the nonce.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetLoginSuccessMessage.Session">
+            <summary>
+            Gets or sets the session.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetErrorMessage">
+            <summary>
+            CultNet error response message.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetErrorMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetErrorMessage.Error">
+            <summary>
+            Gets or sets the error.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetErrorMessage.RoutingHint">
+            <summary>
+            Gets or sets optional shard routing details for authority failures.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardRoutingHint">
+            <summary>
+            Describes where a shard write should be routed.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardRoutingHint.Shard">
+            <summary>
+            Gets or sets the shard descriptor.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardRoutingHint.Reason">
+            <summary>
+            Gets or sets a machine-readable routing reason.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSampleChangeNameMessage">
+            <summary>
+            Sample CultNet message used by development clients to change a display name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSampleChangeNameMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSampleChangeNameMessage.Name">
+            <summary>
+            Gets or sets the name.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSampleChatMessage">
+            <summary>
+            Sample CultNet chat message used by development clients.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSampleChatMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSampleChatMessage.Text">
+            <summary>
+            Gets or sets the text.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetRawDocumentRecord">
+            <summary>
+            Raw document record carried over CultNet.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.SchemaId">
+            <summary>
+            Gets or sets the schema id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.RecordKey">
+            <summary>
+            Gets or sets the record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.StoredAt">
+            <summary>
+            Gets or sets the stored at.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.PayloadEncoding">
+            <summary>
+            Gets or sets the payload encoding.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.Payload">
+            <summary>
+            Gets or sets the payload.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.SourceRuntimeId">
+            <summary>
+            Gets or sets the source runtime id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.SourceAgentId">
+            <summary>
+            Gets or sets the source agent id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.SourceRole">
+            <summary>
+            Gets or sets the source role.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetRawDocumentRecord.Tags">
+            <summary>
+            Gets or sets the tags.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentDeleteMessage">
+            <summary>
+            CultNet message requesting deletion of a document record.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.SchemaId">
+            <summary>
+            Gets or sets the schema id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.RecordKey">
+            <summary>
+            Gets or sets the record key.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.ShardId">
+            <summary>
+            Gets or sets the shard id the sender targeted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentDeleteMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch the sender targeted.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDocumentPutRawMessage">
+            <summary>
+            CultNet message carrying one raw document record.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentPutRawMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentPutRawMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentPutRawMessage.Document">
+            <summary>
+            Gets or sets the document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentPutRawMessage.ShardId">
+            <summary>
+            Gets or sets the shard id the sender targeted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDocumentPutRawMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch the sender targeted.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSnapshotRequestMessage">
+            <summary>
+            CultNet message requesting a document snapshot.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.SchemaIds">
+            <summary>
+            Gets or sets the schema ids.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.RecordKeys">
+            <summary>
+            Gets or sets the record keys.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.ShardId">
+            <summary>
+            Gets or sets the shard id requested for a shard-bounded snapshot.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotRequestMessage.ShardEpoch">
+            <summary>
+            Gets or sets the expected shard epoch.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSnapshotResponseRawMessage">
+            <summary>
+            CultNet message returning raw document records from a snapshot request.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.Documents">
+            <summary>
+            Gets or sets the documents.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.ShardId">
+            <summary>
+            Gets or sets the shard id represented by this snapshot.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch represented by this snapshot.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSnapshotResponseRawMessage.ShardLogSequence">
+            <summary>
+            Gets or sets the shard-log sequence represented by this snapshot.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseSubscribeMessage">
+            <summary>
+            Requests a live database subscription.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.SubscriptionId">
+            <summary>
+            Gets or sets the live subscription id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.SchemaIds">
+            <summary>
+            Gets or sets optional schema ids to watch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.RecordKeys">
+            <summary>
+            Gets or sets optional record keys to watch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseSubscribeMessage.IncludeSnapshot">
+            <summary>
+            Gets or sets whether the server should send a matching snapshot before live changes.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseUnsubscribeMessage">
+            <summary>
+            Cancels a live database subscription.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseUnsubscribeMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseUnsubscribeMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseUnsubscribeMessage.SubscriptionId">
+            <summary>
+            Gets or sets the live subscription id.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseChangeRawMessage">
+            <summary>
+            Streams one raw document change for a live database subscription.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.SubscriptionId">
+            <summary>
+            Gets or sets the live subscription id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.ChangeKind">
+            <summary>
+            Gets or sets the change kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.Document">
+            <summary>
+            Gets or sets the current document for added or updated changes.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.RecordKey">
+            <summary>
+            Gets or sets the deleted record key for removed changes.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseChangeRawMessage.SchemaId">
+            <summary>
+            Gets or sets the deleted schema id for removed changes.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardDescriptorMessage">
+            <summary>
+            Describes one shard advertised by a CultNet database node.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.ShardId">
+            <summary>
+            Gets or sets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.OwnerRuntimeId">
+            <summary>
+            Gets or sets the owner runtime id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.Epoch">
+            <summary>
+            Gets or sets the shard authority epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.IsPrimary">
+            <summary>
+            Gets or sets whether the responding node is primary for this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.SchemaIds">
+            <summary>
+            Gets or sets schema ids governed by this shard. Empty means all schemas.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.KeyPrefix">
+            <summary>
+            Gets or sets the record-key prefix governed by this shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.PrimaryEndpoints">
+            <summary>
+            Gets or sets endpoints that accept authoritative writes.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.ReplicaEndpoints">
+            <summary>
+            Gets or sets authoritative replica endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.ReadReplicaEndpoints">
+            <summary>
+            Gets or sets low-latency read replica endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardDescriptorMessage.Region">
+            <summary>
+            Gets or sets an optional locality label.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardCatalogRequestMessage">
+            <summary>
+            Requests shard ownership and routing metadata.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogRequestMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogRequestMessage.SchemaIds">
+            <summary>
+            Gets or sets optional schema filters.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogRequestMessage.RecordKeys">
+            <summary>
+            Gets or sets optional record-key filters.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardCatalogResponseMessage">
+            <summary>
+            Returns shard ownership and routing metadata.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogResponseMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogResponseMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardCatalogResponseMessage.Shards">
+            <summary>
+            Gets or sets shard descriptors.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardLogRequestMessage">
+            <summary>
+            Requests accepted mutation log entries for a shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.ShardId">
+            <summary>
+            Gets or sets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch expected by the requester.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.AfterSequence">
+            <summary>
+            Gets or sets the last sequence already held by the requester.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogRequestMessage.Limit">
+            <summary>
+            Gets or sets the maximum number of entries to return.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardLogResponseMessage">
+            <summary>
+            Returns accepted mutation log entries for a shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.ShardId">
+            <summary>
+            Gets or sets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.Entries">
+            <summary>
+            Gets or sets mutation log entries.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.ResyncRequired">
+            <summary>
+            Gets or sets whether the requester must fall back to a shard snapshot.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.Reason">
+            <summary>
+            Gets or sets a machine-readable resync reason.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogResponseMessage.CompactedThrough">
+            <summary>
+            Gets or sets the highest sequence compacted out of the retained log.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardLogEntryMessage">
+            <summary>
+            Describes one accepted shard mutation for replica catch-up.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogEntryMessage.Sequence">
+            <summary>
+            Gets or sets the per-shard sequence.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogEntryMessage.CommittedAt">
+            <summary>
+            Gets or sets the commit timestamp.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogEntryMessage.ChangeKind">
+            <summary>
+            Gets or sets the mutation kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogEntryMessage.Put">
+            <summary>
+            Gets or sets a raw put message for added/updated entries.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardLogEntryMessage.Delete">
+            <summary>
+            Gets or sets a raw delete message for removed entries.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationObservationMessage">
+            <summary>
+            Carries one witness observation about a simulation fact.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservationMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservationMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservationMessage.Observation">
+            <summary>
+            Gets or sets the observation.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationConsensusCandidateMessage">
+            <summary>
+            Carries one deterministic consensus candidate derived from witness observations.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.ShardId">
+            <summary>
+            Gets or sets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.Frame">
+            <summary>
+            Gets or sets the simulation frame.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.SubjectId">
+            <summary>
+            Gets or sets the subject id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.ClaimKind">
+            <summary>
+            Gets or sets the claim kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.ClaimHash">
+            <summary>
+            Gets or sets the selected claim hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.ClaimSummary">
+            <summary>
+            Gets or sets optional claim detail.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.WitnessCount">
+            <summary>
+            Gets or sets distinct supporting witnesses.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.SupportWeight">
+            <summary>
+            Gets or sets supporting witness weight.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.TotalWeight">
+            <summary>
+            Gets or sets total observed witness weight.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.HasQuorum">
+            <summary>
+            Gets or sets whether the candidate crossed quorum.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.Confidence">
+            <summary>
+            Gets or sets support divided by total observed weight.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationConsensusCandidateMessage.FromCandidate(System.String,GameCult.Networking.CultNetSimulationConsensusCandidate)">
+            <summary>
+            Creates a wire candidate message from a local candidate.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshVerseCatalogRequestMessage">
+            <summary>
+            Requests known CultMesh Verses from a peer.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogRequestMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogRequestMessage.VerseIds">
+            <summary>
+            Gets or sets optional Verse ids to request.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogRequestMessage.TransportVersion">
+            <summary>
+            Gets or sets an optional transport compatibility filter.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshVerseCatalogResponseMessage">
+            <summary>
+            Returns known CultMesh Verses.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogResponseMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogResponseMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCatalogResponseMessage.Verses">
+            <summary>
+            Gets or sets discovered Verses.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshVerseDescriptorMessage">
+            <summary>
+            Wire representation of a CultMesh Verse.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.VerseId">
+            <summary>
+            Gets or sets the stable Verse id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.DisplayName">
+            <summary>
+            Gets or sets the display name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.AuthorityModel">
+            <summary>
+            Gets or sets the authority model name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.Compatibility">
+            <summary>
+            Gets or sets compatibility metadata.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.DiscoveryEndpoints">
+            <summary>
+            Gets or sets endpoints that can answer discovery for this Verse.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.AuthorityRuntimeIds">
+            <summary>
+            Gets or sets known authoritative runtime ids.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.ParentVerseId">
+            <summary>
+            Gets or sets the parent Verse id for overlays or branches.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseDescriptorMessage.Description">
+            <summary>
+            Gets or sets an optional public description.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshVerseCompatibilityMessage">
+            <summary>
+            Wire representation of CultMesh Verse compatibility.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCompatibilityMessage.TransportVersion">
+            <summary>
+            Gets or sets the CultMesh transport compatibility version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCompatibilityMessage.RulesHash">
+            <summary>
+            Gets or sets the stable rules hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCompatibilityMessage.CompatibleVerseIds">
+            <summary>
+            Gets or sets Verse ids this Verse can transfer from or subscribe to.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCompatibilityMessage.RequiredPluginIds">
+            <summary>
+            Gets or sets required plugin ids.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshVerseCompatibilityMessage.OptionalPluginIds">
+            <summary>
+            Gets or sets optional plugin ids.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshPeerExchangeRequestMessage">
+            <summary>
+            Requests known peers for a CultMesh Verse.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.VerseId">
+            <summary>
+            Gets or sets the Verse id to discover peers for.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.Roles">
+            <summary>
+            Gets or sets optional role filters.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.KnownPeerIds">
+            <summary>
+            Gets or sets peer ids the requester already knows.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeRequestMessage.Limit">
+            <summary>
+            Gets or sets the maximum number of peer cards to return.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshPeerExchangeResponseMessage">
+            <summary>
+            Returns known peers for a CultMesh Verse.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeResponseMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeResponseMessage.MessageId">
+            <summary>
+            Gets or sets the request id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerExchangeResponseMessage.Peers">
+            <summary>
+            Gets or sets peer cards.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultMeshPeerCardMessage">
+            <summary>
+            Wire representation of a CultMesh peer candidate.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.PeerId">
+            <summary>
+            Gets or sets the stable peer id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.VerseId">
+            <summary>
+            Gets or sets the Verse id this peer participates in.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.Endpoints">
+            <summary>
+            Gets or sets reachable endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.Roles">
+            <summary>
+            Gets or sets advertised peer roles.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.ShardIds">
+            <summary>
+            Gets or sets shard ids this peer can serve or observe.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.Region">
+            <summary>
+            Gets or sets an optional region/locality label.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.AuthorityLeaseId">
+            <summary>
+            Gets or sets the authority lease id, when the card advertises authority.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.ExpiresAt">
+            <summary>
+            Gets or sets the expiry timestamp for this card.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultMeshPeerCardMessage.Signature">
+            <summary>
+            Gets or sets an optional signature over the card.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaDescriptor">
+            <summary>
+            Describes one schema exposed through the CultNet schema catalog.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.SchemaId">
+            <summary>
+            Gets or sets the schema id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.Kind">
+            <summary>
+            Gets or sets the kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.DocumentType">
+            <summary>
+            Gets or sets the document type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.Title">
+            <summary>
+            Gets or sets the title.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.WireContracts">
+            <summary>
+            Gets or sets the wire contracts.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.ContentHash">
+            <summary>
+            Gets or sets the content hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaDescriptor.SchemaJson">
+            <summary>
+            Gets or sets the schema json.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaCatalogRequestMessage">
+            <summary>
+            CultNet message requesting schema catalog entries.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogRequestMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogRequestMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogRequestMessage.IncludeSchemaJson">
+            <summary>
+            Gets or sets the include schema json.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogRequestMessage.SchemaIds">
+            <summary>
+            Gets or sets the schema ids.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogRequestMessage.Kinds">
+            <summary>
+            Gets or sets the kinds.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaCatalogResponseMessage">
+            <summary>
+            CultNet message returning schema catalog entries.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogResponseMessage.SchemaVersion">
+            <summary>
+            Gets or sets the schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogResponseMessage.MessageId">
+            <summary>
+            Gets or sets the message id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaCatalogResponseMessage.Schemas">
+            <summary>
+            Gets or sets the schemas.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaMessageSerialization">
+            <summary>
+            Serializes and deserializes the explicit modern CultNet schema-v0 message family.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.CultNetSchemaMessageSerialization.Options">
+            <summary>
+            Gets the serializer options used for CultNet schema-v0 messages.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaMessageSerialization.Serialize``1(``0)">
+            <summary>
+            Serializes a typed CultNet schema message.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaMessageSerialization.Deserialize``1(System.Byte[])">
+            <summary>
+            Deserializes a typed CultNet schema message.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaMessageSerialization.Deserialize(System.Byte[])">
+            <summary>
+            Deserializes a CultNet schema message by inspecting its schema version.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaRegistry">
+            <summary>
+            Registers exchange-safe schema metadata and produces discovery responses.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.#ctor(System.Collections.Generic.IEnumerable{GameCult.Networking.CultNetSchemaRegistration})">
+            <summary>
+            Creates a schema registry with optional initial entries.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.Register(GameCult.Networking.CultNetSchemaRegistration)">
+            <summary>
+            Adds or replaces one schema registration.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.Get(System.String,System.Boolean)">
+            <summary>
+            Gets one schema descriptor by schema identifier.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.List(System.Boolean,System.Collections.Generic.IEnumerable{System.String},System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Lists schema descriptors, optionally filtered by identifier or kind.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.CreateCatalogResponse(GameCult.Networking.CultNetSchemaCatalogRequestMessage)">
+            <summary>
+            Creates a schema catalog response for a request.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaRegistry.CreateBuiltIn">
+            <summary>
+            Creates a registry populated from embedded CultNet schema resources.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistry.BuiltIn">
+            <summary>
+            Gets the lazily initialized built-in schema registry.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaRegistration">
+            <summary>
+            One exchange-safe schema registration.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.SchemaId">
+            <summary>
+            Gets or sets the schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.Kind">
+            <summary>
+            Gets or sets the schema kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.WireContracts">
+            <summary>
+            Gets or sets the wire contracts implemented by the schema.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.SchemaJson">
+            <summary>
+            Gets or sets the schema document.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.SchemaVersion">
+            <summary>
+            Gets or sets the message or document schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.DocumentType">
+            <summary>
+            Gets or sets the document type associated with the schema.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaRegistration.Title">
+            <summary>
+            Gets or sets the display title.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ICultNetShardMutationLogStore">
+            <summary>
+            Stores accepted shard-log entries in their replica catch-up wire shape.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardMutationLogStore.Read(System.String,System.Int64,System.Nullable{System.Int32})">
+            <summary>
+            Reads accepted log entries for a shard after the supplied sequence.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardMutationLogStore.Append(System.String,GameCult.Networking.CultNetShardLogEntryMessage)">
+            <summary>
+            Appends or replaces one accepted log entry for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardMutationLogStore.GetCompactedThrough(System.String)">
+            <summary>
+            Gets the highest sequence that has been compacted out of the retained log.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardMutationLogStore.CompactThrough(System.String,System.Int64)">
+            <summary>
+            Removes retained entries at or before the supplied sequence.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetFileShardMutationLogStore">
+            <summary>
+            Persists shard-log entries as one MessagePack file per shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardMutationLogStore.#ctor(System.String)">
+            <summary>
+            Creates a file-backed shard mutation log store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardMutationLogStore.Read(System.String,System.Int64,System.Nullable{System.Int32})">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardMutationLogStore.Append(System.String,GameCult.Networking.CultNetShardLogEntryMessage)">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardMutationLogStore.GetCompactedThrough(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardMutationLogStore.CompactThrough(System.String,System.Int64)">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.ICultNetShardLogFetcher">
+            <summary>
+            Fetches committed shard-log entries from an authoritative shard owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardLogFetcher.FetchAsync(GameCult.Networking.CultNetShardDescriptor,System.Int64,System.Nullable{System.Int32})">
+            <summary>
+            Fetches shard-log entries after the supplied sequence.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ICultNetShardSnapshotFetcher">
+            <summary>
+            Fetches shard-bounded snapshots from an authoritative shard owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardSnapshotFetcher.FetchAsync(GameCult.Networking.CultNetShardDescriptor)">
+            <summary>
+            Fetches a shard snapshot.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardReplicaCursor">
+            <summary>
+            Persisted replica cursor for one shard.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicaCursor.ShardId">
+            <summary>
+            Gets or sets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicaCursor.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicaCursor.LastAppliedSequence">
+            <summary>
+            Gets or sets the last applied shard-log sequence.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicaCursor.UpdatedAt">
+            <summary>
+            Gets or sets the cursor update timestamp.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ICultNetShardReplicaCursorStore">
+            <summary>
+            Stores restart-safe replica cursors.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardReplicaCursorStore.ReadAsync(System.String)">
+            <summary>
+            Reads the cursor for a shard, if one exists.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardReplicaCursorStore.WriteAsync(GameCult.Networking.CultNetShardReplicaCursor)">
+            <summary>
+            Writes the cursor for a shard.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardReplicatorOptions">
+            <summary>
+            Options for background shard-log replication.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.PollInterval">
+            <summary>
+            Gets or sets the interval used by the background pull loop.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.BatchSize">
+            <summary>
+            Gets or sets the maximum number of log entries requested per pull.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.Fetcher">
+            <summary>
+            Gets or sets the fetcher used to read from shard primaries.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.SnapshotFetcher">
+            <summary>
+            Gets or sets the fetcher used when log history has been compacted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.OnError">
+            <summary>
+            Gets or sets a callback for background pull failures.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetShardReplicatorOptions.CursorStore">
+            <summary>
+            Gets or sets optional restart-safe cursor storage.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetShardReplicator">
+            <summary>
+            Pulls committed shard logs from primaries and applies them to a local replica database.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardReplicator.#ctor(GameCult.Networking.CultNetDatabase,GameCult.Networking.CultNetShardReplicatorOptions)">
+            <summary>
+            Creates a shard replicator.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardReplicator.Start">
+            <summary>
+            Starts background pull loops for non-primary shards with advertised primaries.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardReplicator.PullOnceAsync(System.String)">
+            <summary>
+            Pulls and applies one batch for a shard id.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardReplicator.PullOnceAsync(GameCult.Networking.CultNetShardDescriptor)">
+            <summary>
+            Pulls and applies one batch for a shard.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetShardReplicator.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.CultNetFileShardReplicaCursorStore">
+            <summary>
+            Stores replica cursors in one local MessagePack file.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardReplicaCursorStore.#ctor(System.String)">
+            <summary>
+            Creates a file-backed cursor store.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardReplicaCursorStore.ReadAsync(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetFileShardReplicaCursorStore.WriteAsync(GameCult.Networking.CultNetShardReplicaCursor)">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaShardLogFetcherOptions">
+            <summary>
+            Options for the schema-v0 client-based shard-log fetcher.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardLogFetcherOptions.Security">
+            <summary>
+            Gets or sets client security options used to connect to primary endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardLogFetcherOptions.ConnectTimeout">
+            <summary>
+            Gets or sets how long to wait for a connection before failing.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardLogFetcherOptions.ResponseTimeout">
+            <summary>
+            Gets or sets how long to wait for a log response before failing.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardLogFetcherOptions.ConfigureClient">
+            <summary>
+            Gets or sets a callback used to customize each ephemeral fetch client.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaShardLogFetcher">
+            <summary>
+            Fetches shard-log batches over the CultNet schema-v0 client transport.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaShardLogFetcher.#ctor(GameCult.Networking.CultNetSchemaShardLogFetcherOptions)">
+            <summary>
+            Creates a schema-v0 shard-log fetcher.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaShardLogFetcher.FetchAsync(GameCult.Networking.CultNetShardDescriptor,System.Int64,System.Nullable{System.Int32})">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions">
+            <summary>
+            Options for the schema-v0 client-based shard snapshot fetcher.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions.Security">
+            <summary>
+            Gets or sets client security options used to connect to primary endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions.ConnectTimeout">
+            <summary>
+            Gets or sets how long to wait for a connection before failing.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions.ResponseTimeout">
+            <summary>
+            Gets or sets how long to wait for a snapshot response before failing.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions.ConfigureClient">
+            <summary>
+            Gets or sets a callback used to customize each ephemeral fetch client.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaShardSnapshotFetcher">
+            <summary>
+            Fetches shard snapshots over the CultNet schema-v0 client transport.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaShardSnapshotFetcher.#ctor(GameCult.Networking.CultNetSchemaShardSnapshotFetcherOptions)">
+            <summary>
+            Creates a schema-v0 shard snapshot fetcher.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaShardSnapshotFetcher.FetchAsync(GameCult.Networking.CultNetShardDescriptor)">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.ICultNetShardWriteForwarder">
+            <summary>
+            Forwards shard writes to an authoritative owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardWriteForwarder.ForwardPutAsync(GameCult.Networking.CultNetShardDescriptor,GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <summary>
+            Forwards a raw document put to the shard owner.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ICultNetShardWriteForwarder.ForwardDeleteAsync(GameCult.Networking.CultNetShardDescriptor,GameCult.Networking.CultNetDocumentDeleteMessage)">
+            <summary>
+            Forwards a raw document delete to the shard owner.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetDatabaseServerOptions">
+            <summary>
+            Options controlling shard write forwarding from a database server bridge.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseServerOptions.ForwardNonPrimaryWrites">
+            <summary>
+            Gets or sets whether non-primary writes may be forwarded to shard owners.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetDatabaseServerOptions.WriteForwarder">
+            <summary>
+            Gets or sets the forwarder used when non-primary write forwarding is enabled.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaWriteForwarderOptions">
+            <summary>
+            Options for the schema-v0 client-based shard write forwarder.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaWriteForwarderOptions.Security">
+            <summary>
+            Gets or sets client security options used to connect to primary endpoints.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaWriteForwarderOptions.ConnectTimeout">
+            <summary>
+            Gets or sets how long to wait for a connection before failing the forwarded write.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSchemaWriteForwarderOptions.ConfigureClient">
+            <summary>
+            Gets or sets a callback used to customize each ephemeral forwarding client.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSchemaWriteForwarder">
+            <summary>
+            Forwards shard writes over the CultNet schema-v0 client transport.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaWriteForwarder.#ctor(GameCult.Networking.CultNetSchemaWriteForwarderOptions)">
+            <summary>
+            Creates a schema-v0 write forwarder.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaWriteForwarder.ForwardPutAsync(GameCult.Networking.CultNetShardDescriptor,GameCult.Networking.CultNetDocumentPutRawMessage)">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaWriteForwarder.ForwardDeleteAsync(GameCult.Networking.CultNetShardDescriptor,GameCult.Networking.CultNetDocumentDeleteMessage)">
+            <inheritdoc />
+        </member>
+        <member name="M:GameCult.Networking.CultNetSchemaWriteForwarder.ParseEndpoint(System.String)">
+            <summary>
+            Parses a CultNet endpoint URI into host and port.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationObservation">
+            <summary>
+            One witness report about a deterministic simulation fact.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.WitnessRuntimeId">
+            <summary>
+            Gets or sets the observing runtime id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ShardId">
+            <summary>
+            Gets or sets the shard id containing the observed simulation.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ShardEpoch">
+            <summary>
+            Gets or sets the shard epoch observed by the witness.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.Frame">
+            <summary>
+            Gets or sets the simulation frame or tick.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.SubjectId">
+            <summary>
+            Gets or sets the subject this observation is about.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ClaimKind">
+            <summary>
+            Gets or sets the kind of claim, such as hit, input, collision, or ownership.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ClaimHash">
+            <summary>
+            Gets or sets the content hash of the witness claim.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ClaimSummary">
+            <summary>
+            Gets or sets optional human-readable or app-specific claim detail.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.Weight">
+            <summary>
+            Gets or sets the witness weight. Normal clients should use 1.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservation.ObservedAt">
+            <summary>
+            Gets or sets the observation timestamp.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservation.ComputeClaimHash(System.String[])">
+            <summary>
+            Computes a stable claim hash from ordered claim parts.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationConsensusOptions">
+            <summary>
+            Controls deterministic witness aggregation.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusOptions.MinimumWitnesses">
+            <summary>
+            Gets or sets the minimum distinct witnesses required before a claim can be accepted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusOptions.MinimumWeight">
+            <summary>
+            Gets or sets the minimum weight required before a claim can be accepted.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusOptions.QuorumRatio">
+            <summary>
+            Gets or sets the fraction of observed weight required for quorum.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationConsensusCandidate">
+            <summary>
+            A deterministic consensus candidate derived from witness observations.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationConsensusCandidate.#ctor(System.String,System.Int64,System.Int64,System.String,System.String,System.String,System.String,System.Int32,System.Double,System.Double,System.Boolean)">
+            <summary>
+            Creates a consensus candidate.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.ShardId">
+            <summary>
+            Gets the shard id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.ShardEpoch">
+            <summary>
+            Gets the shard epoch.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.Frame">
+            <summary>
+            Gets the simulation frame.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.SubjectId">
+            <summary>
+            Gets the subject id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.ClaimKind">
+            <summary>
+            Gets the claim kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.ClaimHash">
+            <summary>
+            Gets the claim hash.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.ClaimSummary">
+            <summary>
+            Gets optional claim detail.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.WitnessCount">
+            <summary>
+            Gets the distinct witness count supporting this candidate.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.SupportWeight">
+            <summary>
+            Gets supporting witness weight.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.TotalWeight">
+            <summary>
+            Gets total observed witness weight for the same subject/frame/kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.HasQuorum">
+            <summary>
+            Gets whether the candidate crossed the configured quorum.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationConsensusCandidate.Confidence">
+            <summary>
+            Gets support divided by total observed weight.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationConsensus">
+            <summary>
+            Aggregates simulation observations into deterministic consensus candidates.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationConsensus.#ctor(GameCult.Networking.CultNetSimulationConsensusOptions)">
+            <summary>
+            Creates a consensus aggregator.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationConsensus.BuildCandidates(System.Collections.Generic.IEnumerable{GameCult.Networking.CultNetSimulationObservation})">
+            <summary>
+            Returns the strongest candidate for each observed shard/frame/subject/claim kind.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationObservationHub">
+            <summary>
+            Collects witness observations and publishes updated consensus candidates.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.#ctor(GameCult.Networking.CultNetSimulationConsensusOptions)">
+            <summary>
+            Creates an observation hub.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservationHub.Observations">
+            <summary>
+            Gets all observations currently held by the hub.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.WatchObservations">
+            <summary>
+            Watches accepted witness observations.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.WatchCandidates">
+            <summary>
+            Watches consensus candidate updates.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.Submit(GameCult.Networking.CultNetSimulationObservation)">
+            <summary>
+            Adds an observation and returns current candidates for the same observed subject.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.Submit(GameCult.Networking.CultNetSimulationObservationMessage)">
+            <summary>
+            Adds an observation message and returns current candidates for the same observed subject.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationHub.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.CultNetSimulationObservationServer">
+            <summary>
+            Bridges schema-v0 simulation observation messages into a local observation hub.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationServer.#ctor(GameCult.Networking.Server,GameCult.Networking.CultNetSimulationObservationHub)">
+            <summary>
+            Creates and attaches a simulation observation bridge.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultNetSimulationObservationServer.Hub">
+            <summary>
+            Gets the observation hub used by this bridge.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationServer.CreateCandidateMessages(GameCult.Networking.CultNetSimulationObservationMessage)">
+            <summary>
+            Applies an observation message and returns current candidate messages for the same subject.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.CultNetSimulationObservationServer.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessArtifactBundle">
+            <summary>
+            Portable manifest for one inspectable pipeline witness bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.BundleId">
+            <summary>
+            Gets or sets the stable bundle identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.WitnessKind">
+            <summary>
+            Gets or sets the witness family or pipeline kind.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.CapturedAt">
+            <summary>
+            Gets or sets when the manifest was captured.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.Subject">
+            <summary>
+            Gets or sets the pinned subject this witness bundle describes.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.Contracts">
+            <summary>
+            Gets or sets the schema and contract pins required to interpret the witness.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.Artifacts">
+            <summary>
+            Gets or sets the inspectable artifact pointers carried by the bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.TimingWitnesses">
+            <summary>
+            Gets or sets stage timing witnesses associated with the bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactBundle.Provenance">
+            <summary>
+            Gets or sets provenance metadata for the bundle producer.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessSubjectPin">
+            <summary>
+            Pins the document or payload instance the witness is about.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessSubjectPin.DocumentType">
+            <summary>
+            Gets or sets the subject document type or domain identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessSubjectPin.SubjectId">
+            <summary>
+            Gets or sets the persisted record key or equivalent stable subject id.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessSubjectPin.SchemaVersion">
+            <summary>
+            Gets or sets the pinned subject schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessSubjectPin.SchemaId">
+            <summary>
+            Gets or sets the pinned subject schema identifier when one exists.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessSubjectPin.ContentHash">
+            <summary>
+            Gets or sets the pinned subject content hash when one exists.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessContractPin">
+            <summary>
+            Pins one schema or contract dependency for the witness bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessContractPin.Role">
+            <summary>
+            Gets or sets the contract role inside the bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessContractPin.SchemaId">
+            <summary>
+            Gets or sets the stable schema identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessContractPin.SchemaVersion">
+            <summary>
+            Gets or sets the pinned schema version.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessContractPin.ContentHash">
+            <summary>
+            Gets or sets the canonical schema content hash when one exists.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessArtifactEntry">
+            <summary>
+            Points at one inspectable artifact emitted by the witnessed pipeline.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.Role">
+            <summary>
+            Gets or sets the artifact role inside the witness bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.Uri">
+            <summary>
+            Gets or sets the portable URI for the artifact.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.MediaType">
+            <summary>
+            Gets or sets the artifact media type.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.ContentHash">
+            <summary>
+            Gets or sets the artifact content hash when one exists.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.ByteLength">
+            <summary>
+            Gets or sets the artifact size in bytes when known.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessArtifactEntry.ProducedAt">
+            <summary>
+            Gets or sets when the artifact was produced.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessTimingEntry">
+            <summary>
+            Records timestamp and latency evidence for one stage in the witnessed pipeline.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessTimingEntry.Stage">
+            <summary>
+            Gets or sets the pipeline stage name.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessTimingEntry.StartedAt">
+            <summary>
+            Gets or sets when the stage started.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessTimingEntry.CompletedAt">
+            <summary>
+            Gets or sets when the stage completed.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessTimingEntry.LatencyMs">
+            <summary>
+            Gets or sets the observed stage latency in milliseconds.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessTimingEntry.WitnessArtifactUri">
+            <summary>
+            Gets or sets the URI for the timing witness artifact when one exists.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.CultWitnessProvenance">
+            <summary>
+            Carries provenance metadata for the witness bundle producer.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.PipelineId">
+            <summary>
+            Gets or sets the stable pipeline identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.RunId">
+            <summary>
+            Gets or sets the pipeline run identifier.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.RuntimeId">
+            <summary>
+            Gets or sets the runtime identifier that produced the bundle.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.AgentId">
+            <summary>
+            Gets or sets the producing agent identifier when one exists.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.AgentRole">
+            <summary>
+            Gets or sets the producing agent role when one exists.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.CultWitnessProvenance.ToolVersion">
+            <summary>
+            Gets or sets the pipeline or tool version when one exists.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.Message">
+            <summary>
+            Base type for all network messages exchanged by the client and server.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Message.Peer">
+            <summary>
+            Gets or sets the peer associated with the received message.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.EncryptedMessage">
+            <summary>
+            Base type for encrypted messages that carry a nonce.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.EncryptedMessage.Nonce">
+            <summary>
+            Nonce used for AES-GCM encryption of the message payload.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.LoginMessage">
+            <summary>
+            Requests authentication with an email or username and password.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.LoginMessage.Auth">
+            <summary>
+            Encrypted email address or username.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.LoginMessage.Password">
+            <summary>
+            Encrypted password payload.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.RegisterMessage">
+            <summary>
+            Requests registration of a new player account.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.RegisterMessage.Email">
+            <summary>
+            Encrypted email address.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.RegisterMessage.Password">
+            <summary>
+            Encrypted password payload.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.RegisterMessage.Name">
+            <summary>
+            Encrypted display name payload.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.VerifyMessage">
+            <summary>
+            Attempts to restore a previously issued session.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.VerifyMessage.Session">
+            <summary>
+            Encrypted session identifier.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.LoginSuccessMessage">
+            <summary>
+            Indicates successful authentication or verification.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.LoginSuccessMessage.Session">
+            <summary>
+            Encrypted session identifier.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ErrorMessage">
+            <summary>
+            Sends a non-success error back to the client.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ErrorMessage.Error">
+            <summary>
+            Human-readable error text.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.SchemaCatalogRequestMessage">
+            <summary>
+            Requests a catalog of schemas that the remote runtime can safely exchange.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogRequestMessage.MessageId">
+            <summary>
+            Correlation identifier for the discovery request.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogRequestMessage.IncludeSchemaJson">
+            <summary>
+            Whether the remote runtime should include inline JSON schema bodies.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogRequestMessage.SchemaIds">
+            <summary>
+            Optional schema-id filter.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogRequestMessage.Kinds">
+            <summary>
+            Optional schema-kind filter.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.SchemaDescriptorMessage">
+            <summary>
+            Describes one schema that the runtime knows how to exchange safely.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.SchemaId">
+            <summary>
+            Stable canonical schema identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.Kind">
+            <summary>
+            Discovery kind such as wire_message, document_payload, or shared_contract.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.SchemaVersion">
+            <summary>
+            Optional runtime message schema version.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.DocumentType">
+            <summary>
+            Optional CultCache/CultNet document type name.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.Title">
+            <summary>
+            Human-facing schema title.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.WireContracts">
+            <summary>
+            Wire contracts that can transport this schema safely.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.ContentHash">
+            <summary>
+            SHA-256 hash of the canonical schema JSON.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaDescriptorMessage.SchemaJson">
+            <summary>
+            Optional canonical JSON Schema body as a string.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.SchemaCatalogResponseMessage">
+            <summary>
+            Returns the remote runtime's schema catalog for safe exchange planning.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogResponseMessage.MessageId">
+            <summary>
+            Correlation identifier matching the request.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.SchemaCatalogResponseMessage.Schemas">
+            <summary>
+            Discovered schemas available for safe exchange.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.NetPeerExtensions">
+            <summary>
+            Adds MessagePack-based send helpers for <see cref="T:LiteNetLib.NetPeer"/>.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.NetPeerExtensions.Send``1(LiteNetLib.NetPeer,``0)">
+            <summary>
+            Serializes and sends a message using reliable ordered delivery.
+            </summary>
+            <typeparam name="T">The concrete message type.</typeparam>
+            <param name="peer">The peer to send through.</param>
+            <param name="message">The message to serialize and send.</param>
+        </member>
+        <member name="M:GameCult.Networking.NetPeerExtensions.SendCultNet``1(LiteNetLib.NetPeer,``0)">
+            <summary>
+            Serializes and sends a modern CultNet schema-v0 message using reliable ordered delivery.
+            </summary>
+            <typeparam name="T">The concrete schema-v0 message type.</typeparam>
+            <param name="peer">The peer to send through.</param>
+            <param name="message">The schema-v0 message to serialize and send.</param>
+        </member>
+        <member name="T:GameCult.Networking.PlayerData">
+            <summary>
+            Basic player account document used by the sample networking stack.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.PlayerData.PlayerId">
+            <summary>
+            Unique player identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.PlayerData.Email">
+            <summary>
+            Player email address.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.PlayerData.PasswordHash">
+            <summary>
+            Stored password hash.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.PlayerData.Username">
+            <summary>
+            Player display name.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.PlayerData.SessionVersion">
+            <summary>
+            Monotonic session version used to supersede older issued tokens.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ChangeNameMessage">
+            <summary>
+            Sample authenticated payload for changing a player-visible name.
+            </summary>
+            <remarks>
+            This is example application payload riding the shared networking contract,
+            not a claim that CultNet itself is spiritually about chat lobbies forever.
+            Keep the wire tag stable if other runtimes depend on it.
+            </remarks>
+        </member>
+        <member name="F:GameCult.Networking.ChangeNameMessage.Name">
+            <summary>
+            Requested new username.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ChatMessage">
+            <summary>
+            Sample plain chat payload.
+            </summary>
+            <remarks>
+            This exists as a dead-simple reference payload for message extension and
+            cross-runtime compatibility tests. Real applications should define their
+            own domain messages and keep those contracts in sync across languages.
+            </remarks>
+        </member>
+        <member name="F:GameCult.Networking.ChatMessage.Text">
+            <summary>
+            Chat text content.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.Secret">
+            <summary>
+            Provides shared encryption helpers and connection secrets for the networking layer.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.ConfigureDefault(GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Configures the default server security options used by overloads that do not take an explicit options instance.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Secret.ConnectionKey">
+            <summary>
+            Shared LiteNetLib connection key from the configured default options.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Secret.NewNonce">
+            <summary>
+            Gets a newly generated nonce suitable for AES-GCM operations.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptString(System.String,System.Byte[])">
+            <summary>
+            Encrypts a string using AES-GCM.
+            </summary>
+            <param name="input">The plaintext string to encrypt.</param>
+            <param name="nonce">The nonce to use for the operation.</param>
+            <returns>The encrypted payload, or <c>null</c> when <paramref name="input"/> is null or empty.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptString(System.String,System.Byte[],GameCult.Networking.ClientSecurityOptions)">
+            <summary>
+            Encrypts a string using AES-GCM.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptString(System.String,System.Byte[],GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Encrypts a string using AES-GCM.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptBytes(System.Byte[],System.Byte[])">
+            <summary>
+            Encrypts a byte array using AES-GCM.
+            </summary>
+            <param name="input">The plaintext bytes to encrypt.</param>
+            <param name="nonce">The nonce to use for the operation.</param>
+            <returns>The authentication tag followed by the ciphertext.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptBytes(System.Byte[],System.Byte[],GameCult.Networking.ClientSecurityOptions)">
+            <summary>
+            Encrypts a byte array using AES-GCM.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.EncryptBytes(System.Byte[],System.Byte[],GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Encrypts a byte array using AES-GCM.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptString(System.Byte[],System.Byte[])">
+            <summary>
+            Decrypts an encrypted UTF-8 string payload.
+            </summary>
+            <param name="encrypted">The encrypted bytes produced by the corresponding string or byte encryption overloads.</param>
+            <param name="nonce">The nonce used during encryption.</param>
+            <returns>The decrypted string, or <c>null</c> when the inputs are invalid.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptString(System.Byte[],System.Byte[],GameCult.Networking.ClientSecurityOptions)">
+            <summary>
+            Decrypts an encrypted UTF-8 string payload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptString(System.Byte[],System.Byte[],GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Decrypts an encrypted UTF-8 string payload.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptBytes(System.Byte[],System.Byte[])">
+            <summary>
+            Decrypts an AES-GCM payload into raw bytes.
+            </summary>
+            <param name="encrypted">The encrypted bytes containing the authentication tag prefix.</param>
+            <param name="nonce">The nonce used during encryption.</param>
+            <returns>The decrypted plaintext bytes.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptBytes(System.Byte[],System.Byte[],GameCult.Networking.ClientSecurityOptions)">
+            <summary>
+            Decrypts an AES-GCM payload into raw bytes.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.DecryptBytes(System.Byte[],System.Byte[],GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Decrypts an AES-GCM payload into raw bytes.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.CreateSessionToken(System.Guid,System.DateTimeOffset)">
+            <summary>
+            Creates a signed session token for the supplied user.
+            </summary>
+            <param name="userId">The authenticated user identifier.</param>
+            <param name="expiresAtUtc">The UTC expiration time for the token.</param>
+            <returns>A tamper-evident session token.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.CreateSessionToken(System.Guid,System.DateTimeOffset,GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Creates a signed session token for the supplied user.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.CreateSessionToken(System.Guid,System.DateTimeOffset,System.Int64,GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Creates a signed session token for the supplied user and session version.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.TryValidateSessionToken(System.String,System.Guid@,System.DateTimeOffset@)">
+            <summary>
+            Validates and parses a signed session token.
+            </summary>
+            <param name="token">The token to validate.</param>
+            <param name="userId">The extracted user identifier.</param>
+            <param name="expiresAtUtc">The extracted UTC expiration time.</param>
+            <returns><c>true</c> when the token is valid and unexpired.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Secret.TryValidateSessionToken(System.String,System.Guid@,System.DateTimeOffset@,System.Int64@)">
+            <summary>
+            Validates and parses a signed session token.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.TryValidateSessionToken(System.String,GameCult.Networking.ServerSecurityOptions,System.Guid@,System.DateTimeOffset@)">
+            <summary>
+            Validates and parses a signed session token.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Secret.TryValidateSessionToken(System.String,GameCult.Networking.ServerSecurityOptions,System.Guid@,System.DateTimeOffset@,System.Int64@)">
+            <summary>
+            Validates and parses a signed session token.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.Server">
+            <summary>
+            Hosts the server-side authentication, session, and message dispatch pipeline.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Server.Logger">
+            <summary>
+            Gets or sets the logger used by the server.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.Server.LogSensitivePayloads">
+            <summary>
+            Gets or sets whether raw payload bodies may be logged for diagnostics.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.#ctor(GameCult.Caching.CultCache,GameCult.Networking.ServerSecurityOptions)">
+            <summary>
+            Initializes a new server instance over the supplied cache.
+            </summary>
+            <param name="cache">The backing cache used for player persistence.</param>
+            <param name="security">Optional validated server security options. When omitted, strict environment-based configuration is used.</param>
+        </member>
+        <member name="M:GameCult.Networking.Server.IsValidEmail(System.String)">
+            <summary>
+            Validates an email address against the server's accepted pattern.
+            </summary>
+            <param name="email">The email address to validate.</param>
+            <returns><c>true</c> when the address matches the expected format.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Server.IsValidUsername(System.String)">
+            <summary>
+            Validates a username against the server's accepted pattern.
+            </summary>
+            <param name="name">The username to validate.</param>
+            <returns><c>true</c> when the username matches the expected format.</returns>
+        </member>
+        <member name="M:GameCult.Networking.Server.ClearMessageListeners">
+            <summary>
+            Removes all registered message listeners.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.AddMessageListener``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a specific authenticated message type.
+            </summary>
+            <typeparam name="T">The message type to subscribe to.</typeparam>
+            <param name="callback">The callback to invoke when the message is received.</param>
+        </member>
+        <member name="M:GameCult.Networking.Server.On``1(System.Action{``0})">
+            <summary>
+            Adds a listener for a specific authenticated message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.AddCultNetMessageListener``1(System.Func{``0,LiteNetLib.NetPeer,System.Threading.Tasks.Task})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.AddCultNetMessageListener``1(System.Action{``0,LiteNetLib.NetPeer})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.OnCultNet``1(System.Func{``0,LiteNetLib.NetPeer,System.Threading.Tasks.Task})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.OnCultNet``1(System.Action{``0,LiteNetLib.NetPeer})">
+            <summary>
+            Adds a listener for a modern CultNet schema-v0 message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.RemoveMessageListener``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered listener for a specific message type.
+            </summary>
+            <typeparam name="T">The message type to unsubscribe from.</typeparam>
+            <param name="callback">The callback to remove.</param>
+        </member>
+        <member name="M:GameCult.Networking.Server.Off``1(System.Action{``0})">
+            <summary>
+            Removes a previously registered listener for a specific authenticated message type.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.RemoveCultNetMessageListener``1(System.Delegate)">
+            <summary>
+            Removes a previously registered modern CultNet schema-v0 listener.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.Stop">
+            <summary>
+            Stops the underlying LiteNetLib server.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.Start">
+            <summary>
+            Starts listening for connections and configures message handlers.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.Server.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="T:GameCult.Networking.Session">
+            <summary>
+            Represents an active authenticated session.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.Session.LastUpdate">
+            <summary>
+            The last time the session was observed as active.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.Session.Data">
+            <summary>
+            Player data associated with the session.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.User">
+            <summary>
+            Tracks connection state for a connected peer.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.Peer">
+            <summary>
+            The connected network peer.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.Latency">
+            <summary>
+            The last reported latency for the peer.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.PlayerId">
+            <summary>
+            The authenticated player identifier.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.SessionExpiresAt">
+            <summary>
+            The current session expiration timestamp in UTC.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.SessionToken">
+            <summary>
+            The latest signed session token issued to the peer.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.User.SessionVersion">
+            <summary>
+            The session version associated with the latest issued token.
+            </summary>
+        </member>
+        <member name="T:GameCult.Networking.ServerSecurityOptions">
+            <summary>
+            Carries the server-side networking configuration and server-only signing secret.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ServerSecurityOptions.ConnectionKeyEnvironmentVariable">
+            <summary>
+            Environment variable name for the LiteNetLib connection key.
+            </summary>
+        </member>
+        <member name="F:GameCult.Networking.ServerSecurityOptions.SessionSigningSecretEnvironmentVariable">
+            <summary>
+            Environment variable name for the session-token signing secret.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.ServerSecurityOptions.ConnectionKey">
+            <summary>
+            Shared LiteNetLib connection key and encryption seed.
+            </summary>
+        </member>
+        <member name="P:GameCult.Networking.ServerSecurityOptions.IsDevelopment">
+            <summary>
+            Gets a value indicating whether the options were created for explicit development use.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ServerSecurityOptions.#ctor(System.String,System.String,System.Boolean)">
+            <summary>
+            Initializes a new server security configuration.
+            </summary>
+        </member>
+        <member name="M:GameCult.Networking.ServerSecurityOptions.FromEnvironment(System.Boolean)">
+            <summary>
+            Creates a strict production-style configuration from environment variables.
+            </summary>
+            <param name="allowDevelopmentDefaults">
+            When <c>true</c>, returns <see cref="M:GameCult.Networking.ServerSecurityOptions.Development"/> if both environment variables are absent.
+            </param>
+        </member>
+        <member name="M:GameCult.Networking.ServerSecurityOptions.Development">
+            <summary>
+            Creates a deterministic development-only configuration.
+            </summary>
+        </member>
+        <member name="T:MessagePack.GeneratedMessagePackResolver">
+            <summary>A MessagePack resolver that uses generated formatters for types in this assembly.</summary>
+        </member>
+        <member name="F:MessagePack.GeneratedMessagePackResolver.Instance">
+            <summary>An instance of this resolver that only returns formatters specifically generated for types in this assembly.</summary>
+        </member>
+    </members>
+</doc>

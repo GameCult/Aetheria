@@ -46,6 +46,12 @@ definitions, 12 factions, and 12 name files. Runtime object graphs, behaviors,
 Unity shapes, and simulation state remain legacy until dedicated typed
 documents exist.
 
+`Aetheria.State.Verify` opens a materialized state file and checks that the
+typed migration ledger matches the actual item, corporation, and name-file
+records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
+for one migrated record of each catalog kind. Use it after import when
+`GameData/aetheria-world.cc` changes.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently

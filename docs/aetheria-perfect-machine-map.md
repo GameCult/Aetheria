@@ -55,6 +55,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
+  `Aetheria.State.Verify` opens the materialized file and checks that migration
+  ledger counts match actual typed catalog records and that the legacy-ID lookup
+  API resolves migrated item, corporation, and name-file documents.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
