@@ -608,21 +608,3 @@ public class PerformanceStat
     }
 }
 
-[Inspectable]
-public class PersonalityAttribute : RuntimeProjectionEntry, INamedEntry
-{
-    [Inspectable, RuntimeProjectionKey(1)]
-    public string Name;
-
-    [Inspectable, RuntimeProjectionKey(2)]
-    public string LowName;
-
-    [Inspectable, RuntimeProjectionKey(3)]
-    public string HighName;
-
-    public string EntryName
-    {
-        get => Name;
-        set => Name = value;
-    }
-}

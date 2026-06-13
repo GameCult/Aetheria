@@ -288,6 +288,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `AetheriaRuntimeItemCatalog` no longer depends on MessagePack attributes. The
   temporary bridge uses `RuntimeProjectionKeyAttribute` while typed item instances
   and behavior factories are being built.
+- The dead `PersonalityAttribute` projection DTO and its unused property-panel
+  hook have been deleted; no typed catalog import or runtime caller owned that
+  shape.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
   assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
   on MessagePackReader to open CultCache `.cc` records; that dependency belongs

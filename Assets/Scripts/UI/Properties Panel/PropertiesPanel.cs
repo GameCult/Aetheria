@@ -159,18 +159,6 @@ public class PropertiesPanel : MonoBehaviour
         return list;
     }
 
-    public AttributeProperty AddPersonalityProperty(PersonalityAttribute attribute, Func<float> read)
-    {
-        var attributeInstance = Instantiate(Attribute, Content ?? transform);
-        attributeInstance.Title.text = attribute.Name;
-        attributeInstance.HighLabel.text = attribute.HighName;
-        attributeInstance.LowLabel.text = attribute.LowName;
-        RefreshPropertyValues += () => attributeInstance.Slider.value = read();
-        Properties.Add(attributeInstance.gameObject);
-        OnPropertyAdded?.Invoke(attributeInstance.gameObject);
-        return attributeInstance;
-    }
-
     public CurveField AddCurveField()
     {
 	    var curveInstance = Instantiate(CurveField, Content ?? transform);
