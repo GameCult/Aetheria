@@ -18,11 +18,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 ## Current Mechanism
 
 - Unity client/runtime lives under `Assets/`. Gameplay still reads the legacy
-  item/name catalog through `LegacyCatalogBoundary`, but `ActionGameManager` no
-  longer owns a global legacy cache. Local run saves, loadouts, player settings
-  files, zone files, and generated keyboard layout caches no longer write
-  bespoke durable files. The legacy `PlayerSettings` runtime object is no
-  longer decorated as a MessagePack persistence shape.
+  item/name catalog through `ActionGameManager.LegacyCatalog`, which is now the
+  only runtime entrypoint that calls `LegacyCatalogBoundary.GetCatalog`.
+  `ActionGameManager` no longer owns a global legacy cache. Local run saves,
+  loadouts, player settings files, zone files, and generated keyboard layout
+  caches no longer write bespoke durable files. The legacy `PlayerSettings`
+  runtime object is no longer decorated as a MessagePack persistence shape.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -59,14 +60,17 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EntityPack` serialization. Unity has not wired its save/loadout UI to this
   document yet, so the old in-memory `EntityPack` path is still a runtime
   construction helper, not durable authority.
-- `LegacyCatalogBoundary` opens `LegacyCatalogCache` as the only concrete
-  pull-only catalog cache. Runtime consumers receive `ILegacyCatalogReader`,
-  so old MessagePack backing stores may hydrate in-memory domain objects for
-  the current Unity runtime, but this path cannot push or delete legacy files.
-  The legacy backing-store write/realtime APIs and public cache mutation methods
-  have been deleted; only backing-store pull hydration can populate it. The
-  backing-store serializer methods are also deleted, so the legacy cache
-  implementation exposes deserialization only.
+- `ActionGameManager.LegacyCatalog` is the Unity runtime's single public legacy
+  catalog access point. It delegates to `LegacyCatalogBoundary`, which opens
+  `LegacyCatalogCache` as the only concrete pull-only catalog cache. Runtime
+  consumers receive `ILegacyCatalogReader`, so old MessagePack backing stores
+  may hydrate in-memory domain objects for the current Unity runtime, but this
+  path cannot push or delete legacy files. The legacy backing-store
+  write/realtime APIs and public cache mutation methods have been deleted; only
+  backing-store pull hydration can populate it. The backing-store serializer
+  methods are also deleted, so the legacy cache implementation exposes
+  deserialization only. UI code no longer reaches into
+  `LegacyCatalogBoundary.GetCatalog` directly.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -169,12 +173,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 ## Current Authority Map
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
-  `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
-  reads and legacy `DatabaseLink<T>` resolution inside the Unity runtime until
-  catalog migration lands. Runtime code receives `ILegacyCatalogReader`, not the
-  concrete cache. `Aetheria.State.Unity` owns a read-only typed catalog facade
-  for future Unity consumers; it does not write state or own simulation. The
-  legacy cache no longer has a public mutation surface.
+  `ActionGameManager.LegacyCatalog` is the only Unity runtime access point for
+  old MessagePack catalog reads, and `LegacyCatalogBoundary` is the only named
+  owner for opening the old catalog and binding legacy `DatabaseLink<T>`
+  resolution until catalog migration lands. Runtime code receives
+  `ILegacyCatalogReader`, not the concrete cache. `Aetheria.State.Unity` owns a
+  read-only typed catalog facade for future Unity consumers; it does not write
+  state or own simulation. The legacy cache no longer has a public mutation
+  surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -214,9 +220,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `DatabaseEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: after catalog migration smokes pass, delete or quarantine the
-  remaining `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and
-  remove old MessagePack backing store classes from live Unity source.
+- Deletion line: after catalog migration smokes pass, replace
+  `ActionGameManager.LegacyCatalog`/`ItemManager` boot with the typed runtime
+  catalog package, then delete or quarantine the remaining
+  `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and remove old
+  MessagePack backing store classes from live Unity source.
 
 ## Intended Change
 
