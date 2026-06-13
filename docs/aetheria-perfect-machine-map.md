@@ -226,9 +226,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   templates have typed state documents and node put/get paths; Unity's menu,
   input screens, and save button still need to call them through the runtime
   Verse package. Run, zone, and entity snapshot state also have typed node
-  put/get paths; Unity `SaveState`/`SaveZone` still need to commit through those
-  ports. The catalog operator UI is emitted as a typed Eve surface document
-  derived from the catalog snapshot.
+  put/get paths; Unity transition and shutdown paths still need to commit
+  through those ports. The old `SaveState`/`SaveZone` command surface is gone.
+  The catalog operator UI is emitted as a typed Eve surface document derived
+  from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, typed
   state boot warnings, and serialized legacy payloads are projections,
   migration inputs, diagnostics, or disabled session-local DTOs, not durable
@@ -386,6 +387,10 @@ First Aetheria surfaces to publish:
    - Done: disable legacy local save, loadout, zone, player-settings, keyboard
      layout, DB inspector, and NameFile export writers.
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
+   - Done: remove the stale Unity `SaveState`/`SaveZone` command names after
+     their bespoke serializers were deleted; shutdown and wormhole transitions
+     now emit only a Verse-persistence-pending warning until typed runtime
+     commit ports are wired.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.

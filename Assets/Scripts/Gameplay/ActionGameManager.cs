@@ -211,9 +211,9 @@ public class ActionGameManager : MonoBehaviour
         Debug.LogWarning("Loadout persistence belongs to the Verse state spine. The Unity client keeps loadouts in memory until Aetheria.State is available as a runtime package.");
     }
 
-    private void OnApplicationQuit() => SaveState();
+    private void OnApplicationQuit() => WarnRunStatePersistencePending();
 
-    public void SaveState()
+    private void WarnRunStatePersistencePending()
     {
         if (CurrentGalaxy != null)
             Debug.LogWarning("Run persistence belongs to the Verse state spine. Legacy run serialization is disabled.");
@@ -625,7 +625,7 @@ public class ActionGameManager : MonoBehaviour
             ship.ExitWormhole(ZoneRenderer.WormholeInstances.Keys.First(w => w.Target == oldZone.GalaxyZone).Position,
                 Settings.GameplaySettings.WormholeExitVelocity * ItemManager.Random.NextFloat2Direction());
             CurrentEntity.Zone = Zone;
-            SaveState();
+            WarnRunStatePersistencePending();
         };
     }
 
@@ -1079,11 +1079,6 @@ public class ActionGameManager : MonoBehaviour
                     SevereHypothermiaPost.weight = 0;
                     DeathPost.weight = 1;
                 });
-    }
-
-    public void SaveZone(string name)
-    {
-        Debug.LogWarning("Zone persistence belongs to the Verse state spine. Legacy .zone serialization is disabled.");
     }
 
     // public void ToggleEditMode()
