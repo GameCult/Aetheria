@@ -4,20 +4,19 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class StatModifierData : BehaviorData
 {
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public StatReference Stat = new StatReference();
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public PerformanceStat Modifier = new PerformanceStat();
 
-    [Inspectable, Key(3)]
+    [Inspectable, RuntimeCatalogKey(3)]
     public StatModifierType Type;
 
-    [InspectableType(typeof(BehaviorData)), Key(4)]
+    [InspectableType(typeof(BehaviorData)), RuntimeCatalogKey(4)]
     public Type RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -128,12 +127,12 @@ public enum StatModifierType
     Multiplier
 }
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class StatReference
 {
-    [InspectableType(typeof(BehaviorData)), Key(1)]
+    [InspectableType(typeof(BehaviorData)), RuntimeCatalogKey(1)]
     public string Target;
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public string Stat;
 }

@@ -4,20 +4,19 @@
 
 using System;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class ResourceScannerData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Range = new PerformanceStat();
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat MinimumDensity = new PerformanceStat();
 
-    [Inspectable, Key(3), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat ScanDuration = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

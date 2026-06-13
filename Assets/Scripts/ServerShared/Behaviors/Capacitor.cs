@@ -3,17 +3,16 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class CapacitorData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Capacity = new PerformanceStat();
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

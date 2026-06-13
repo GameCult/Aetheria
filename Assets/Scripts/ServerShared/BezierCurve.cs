@@ -1,21 +1,18 @@
 using System;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[MessagePackObject]
 public class BezierCurve
 {
-    [Key(0)] public float4[] Keys;
+    [RuntimeCatalogKey(0)] public float4[] Keys;
 
-    [IgnoreMember] private int2 _cachedIndices;
+    private int2 _cachedIndices;
 
-    [IgnoreMember] private const int STEPS = 64;
+    private const int STEPS = 64;
 
-    [IgnoreMember] private float? _maximum;
+    private float? _maximum;
 
-    [IgnoreMember]
     public float Maximum
     {
         get

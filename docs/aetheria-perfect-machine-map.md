@@ -221,7 +221,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Legacy player, faction, name-file, galaxy-map-layer, and narrative helper
   DTOs no longer carry MessagePack object/key/ignore metadata. Typed
   corporation/name-file/catalog documents own durable state; these classes are
-  inspector/runtime projections only.
+  inspector/runtime projections only. Item and behavior DTO field layout for
+  `AetheriaRuntimeItemCatalog` no longer depends on MessagePack attributes. The
+  temporary bridge uses `RuntimeCatalogKeyAttribute` while typed item instances
+  and behavior factories are being built.
+- `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
+  assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
+  on MessagePackReader to open CultCache `.cc` records; that dependency belongs
+  to the typed state package boundary until it can move to a modern CultLib
+  Unity package.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -266,8 +274,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   item records for the old simulation object model. `DatabaseEntry` no longer
   carries MessagePack union metadata, and behavior type selection now uses an
   explicit runtime catalog map instead of `UnionAttribute` reflection.
-  Remaining item/behavior DTO MessagePack keys are temporary projection metadata
-  until typed behavior factories replace reflection. Item properties
+  Item/behavior DTO field layout for the temporary projection bridge is now
+  marked with project-owned `RuntimeCatalogKeyAttribute`, not MessagePack
+  metadata. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
   remaining runtime single-ID item lookup bridge. The old trade debug UI and
   console `give` command have been deleted. No live caller can enumerate legacy
@@ -456,6 +465,12 @@ First Aetheria surfaces to publish:
    - Done: demote legacy player, faction, name-file, galaxy-map-layer, and
      narrative helper DTOs from MessagePack metadata to plain runtime/inspector
      shapes.
+   - Done: replace remaining item/behavior DTO MessagePack field metadata with
+     `RuntimeCatalogKeyAttribute`; no live `Assets/Scripts` source depends on
+     MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
+   - Done: remove the stale `MessagePack` assembly reference from
+     `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
+     in the typed state package's `.cc` reader.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.

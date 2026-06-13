@@ -1,23 +1,22 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class InstantWeaponData : WeaponData
 {
-    [Inspectable, Key(17)]
+    [Inspectable, RuntimeCatalogKey(17)]
     public PerformanceStat Count = new PerformanceStat();
 
-    [Inspectable, Key(18)]
+    [Inspectable, RuntimeCatalogKey(18)]
     public PerformanceStat BurstTime = new PerformanceStat();
 
-    [Inspectable, Key(19), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(19), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
 
-    [InspectablePrefab, Key(20)]
+    [InspectablePrefab, RuntimeCatalogKey(20)]
     public bool SingleAmmoBurst;
 
     public override Behavior CreateInstance(EquippedItem item)

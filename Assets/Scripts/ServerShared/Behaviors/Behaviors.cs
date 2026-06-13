@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
@@ -28,7 +27,7 @@ public abstract class Behavior
             if(Item != null)
             {
                 var hardpoint = Entity.Hardpoints[Item.Position.x, Item.Position.y];
-                if (hardpoint != null && Entity.HardpointTransforms.ContainsKey(hardpoint))
+                if (hardpoint != null && Entity.HardpointTransforms.ContainsRuntimeCatalogKey(hardpoint))
                 {
                     return normalize(Entity.HardpointTransforms[hardpoint].direction);
                 }
@@ -140,7 +139,6 @@ public interface IPopulationAssignment
     int AssignedPopulation { get; set; }
 }
 
-[MessagePackObject]
 public abstract class PersistentBehaviorData
 {
 }
@@ -148,7 +146,7 @@ public abstract class PersistentBehaviorData
 [Inspectable]
 public abstract class BehaviorData
 {
-    [Inspectable, Key(0)]
+    [Inspectable, RuntimeCatalogKey(0)]
     public int Group;
 
     public abstract Behavior CreateInstance(EquippedItem item);

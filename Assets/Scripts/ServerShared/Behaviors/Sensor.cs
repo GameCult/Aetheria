@@ -4,38 +4,37 @@
 
 using System;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class SensorData : BehaviorData
 {
-    [Inspectable, Key(3), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat Sensitivity = new PerformanceStat();
 
-    [InspectableAnimationCurve, Key(4), RuntimeInspectable]
+    [InspectableAnimationCurve, RuntimeCatalogKey(4), RuntimeInspectable]
     public BezierCurve SensitivityCurve;
 
-    [Inspectable, Key(5), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(5), RuntimeInspectable]
     public PerformanceStat PingBoost;
 
-    [Inspectable, Key(6), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(6), RuntimeInspectable]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, Key(7), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(7), RuntimeInspectable]
     public PerformanceStat PingVisibility;
 
-    [Inspectable, Key(8), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(8), RuntimeInspectable]
     public PerformanceStat PingRange;
 
-    [Inspectable, Key(9), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(9), RuntimeInspectable]
     public PerformanceStat PingCooldown;
 
-    [Inspectable, Key(10)]
+    [Inspectable, RuntimeCatalogKey(10)]
     public float PingDuration = 2;
 
-    [Inspectable, Key(11)]
+    [Inspectable, RuntimeCatalogKey(11)]
     public float PingRadiusExponent = .5f;
 
     public override Behavior CreateInstance(EquippedItem item)

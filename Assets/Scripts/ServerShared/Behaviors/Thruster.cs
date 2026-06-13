@@ -2,26 +2,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
+[Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class ThrusterData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [Inspectable, Key(3), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, Key(4), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(4), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [InspectablePrefab, Key(5)]
+    [InspectablePrefab, RuntimeCatalogKey(5)]
     public string ParticlesPrefab;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -80,7 +79,7 @@ public class Thruster : Behavior, IAnalogBehavior
                 Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
-            if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])
+            if (!Entity.VisibilitySources.ContainsRuntimeCatalogKey(this) || vis > Entity.VisibilitySources[this])
                 Entity.VisibilitySources[this] = vis;
             return true;
         }

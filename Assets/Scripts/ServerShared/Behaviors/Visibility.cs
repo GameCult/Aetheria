@@ -4,14 +4,13 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class VisibilityData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public PerformanceStat VisibilityDecay = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

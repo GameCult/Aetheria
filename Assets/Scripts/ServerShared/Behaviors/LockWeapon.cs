@@ -1,26 +1,25 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class LockWeaponData : InstantWeaponData
 {
-    [Inspectable, Key(21), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(21), RuntimeInspectable]
     public PerformanceStat LockSpeed = new PerformanceStat();
 
-    [Inspectable, Key(22)]
+    [Inspectable, RuntimeCatalogKey(22)]
     public PerformanceStat SensorImpact = new PerformanceStat();
 
-    [Inspectable, Key(23), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(23), RuntimeInspectable]
     public PerformanceStat LockAngle = new PerformanceStat();
 
-    [Inspectable, Key(24)]
+    [Inspectable, RuntimeCatalogKey(24)]
     public PerformanceStat DirectionImpact = new PerformanceStat();
 
-    [Inspectable, Key(25)]
+    [Inspectable, RuntimeCatalogKey(25)]
     public PerformanceStat Decay = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

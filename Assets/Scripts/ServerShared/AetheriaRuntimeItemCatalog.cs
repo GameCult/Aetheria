@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using GameCult.Aetheria.State.Unity;
-using MessagePack;
 using Unity.Mathematics;
 
 public interface IRuntimeItemCatalogReader
@@ -223,9 +222,9 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
     {
         return type
             .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .Select(field => (attribute: field.GetCustomAttribute<KeyAttribute>(), field))
-            .Where(entry => entry.attribute?.IntKey != null)
-            .Select(entry => (entry.attribute.IntKey.GetValueOrDefault(), entry.field));
+            .Select(field => (attribute: field.GetCustomAttribute<RuntimeCatalogKeyAttribute>(), field))
+            .Where(entry => entry.attribute != null)
+            .Select(entry => (entry.attribute.Key, entry.field));
     }
 
     private static object ConvertValue(AetheriaRuntimeBehaviorValue value, Type targetType)
@@ -253,7 +252,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
             return ConvertList(value, targetType);
         }
 
-        if (targetType.GetCustomAttribute<MessagePackObjectAttribute>() != null)
+        if (GetKeyedFields(targetType).Any())
         {
             return ConvertKeyedObject(value, targetType);
         }

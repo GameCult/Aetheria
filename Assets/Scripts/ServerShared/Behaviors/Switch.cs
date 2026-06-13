@@ -4,8 +4,7 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(-25)]
+[Inspectable, Order(-25)]
 public class SwitchData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

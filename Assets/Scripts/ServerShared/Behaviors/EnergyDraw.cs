@@ -4,14 +4,13 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(-20), RuntimeInspectable]
+[Inspectable, Order(-20), RuntimeInspectable]
 public class EnergyDrawData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat EnergyDraw = new PerformanceStat();
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public bool PerSecond;
 
     public override Behavior CreateInstance(EquippedItem item)

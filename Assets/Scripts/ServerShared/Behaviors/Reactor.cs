@@ -5,24 +5,23 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MessagePack;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class ReactorData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Charge = new PerformanceStat();
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, Key(3), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat OverloadEfficiency = new PerformanceStat();
 
-    [Inspectable, Key(4), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(4), RuntimeInspectable]
     public PerformanceStat ThrottlingFactor = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

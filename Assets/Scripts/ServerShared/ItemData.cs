@@ -6,16 +6,15 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using int2 = Unity.Mathematics.int2;
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class Shape
 {
-    [Key(0)] public bool[,] Cells;
+    [RuntimeCatalogKey(0)] public bool[,] Cells;
 
     private bool _dirty = true;
 
@@ -30,14 +29,12 @@ public class Shape
         Cells = new bool[width, height];
     }
 
-    [IgnoreMember]
     public int Width
     {
         get { return Cells.GetLength(0); }
         set { Resize(value, Height); }
     }
 
-    [IgnoreMember]
     public int Height
     {
         get { return Cells.GetLength(1); }
@@ -77,7 +74,6 @@ public class Shape
 
     private int2[] _cachedShapeCoordinates;
 
-    [IgnoreMember]
     public int2[] Coordinates
     {
         get
@@ -104,7 +100,6 @@ public class Shape
 
     private int2[] _cachedAllShapeCoordinates;
 
-    [IgnoreMember]
     public int2[] AllCoordinates => _cachedAllShapeCoordinates ?? (_cachedAllShapeCoordinates = EnumerateAllShapeCoordinates().ToArray());
 
     private IEnumerable<int2> EnumerateAllShapeCoordinates()
@@ -120,7 +115,6 @@ public class Shape
 
     private float2? _centerOfMass;
 
-    [IgnoreMember]
     public float2 CenterOfMass => _centerOfMass ?? (_centerOfMass = Coordinates
         .Aggregate(float2.zero, (total, coord) => total + coord) / Coordinates.Length).Value;
 
@@ -266,35 +260,34 @@ public class Shape
 
 }
 
-[MessagePackObject]
 public abstract class ItemData : DatabaseEntry, INamedEntry
 {
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public string Name;
 
-    [InspectableText, Key(2)]
+    [InspectableText, RuntimeCatalogKey(2)]
     public string Description;
 
-    [InspectableDatabaseLink(typeof(Faction)), Key(3)]
+    [InspectableDatabaseLink(typeof(Faction)), RuntimeCatalogKey(3)]
     public Guid Manufacturer;
 
-    [Inspectable, Key(4)]
+    [Inspectable, RuntimeCatalogKey(4)]
     public float Mass;
 
-    [InspectableSchematicShape, Key(5)]
+    [InspectableSchematicShape, RuntimeCatalogKey(5)]
     public Shape Shape;
 
     // Heat needed to change temperature of 1 gram by 1 degree
-    [Inspectable, Key(6)]
+    [Inspectable, RuntimeCatalogKey(6)]
     public float SpecificHeat = 1;
 
-    [Inspectable, Key(7)]
+    [Inspectable, RuntimeCatalogKey(7)]
     public float Conductivity = 1;
 
-    [Inspectable, Key(8)]
+    [Inspectable, RuntimeCatalogKey(8)]
     public int Price = 0;
 
-    [IgnoreMember] public string EntryName
+    public string EntryName
     {
         get => Name;
         set => Name = value;
@@ -302,117 +295,114 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
 
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
-    // [InspectableField, Key(6)]
+    // [InspectableField, RuntimeCatalogKey(6)]
     // public BodyType ResourceBodyType;
     //
     // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), Key(7)]
+    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), RuntimeCatalogKey(7)]
     // public List<Guid> ResourceDensity = new List<Guid>();
     //
     // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, Key(8)]
+    // [InspectableField, RuntimeCatalogKey(8)]
     // public ExponentialLerp Distribution;
     //
     // // Minimum amount of resources needed for presence to register
-    // [InspectableField, Key(11)]
+    // [InspectableField, RuntimeCatalogKey(11)]
     // public float Floor = 5f;
 
-    [Inspectable, Key(9)]
+    [Inspectable, RuntimeCatalogKey(9)]
     public int MaxStack = 10;
 
-    [Inspectable, Key(10)]
+    [Inspectable, RuntimeCatalogKey(10)]
     public SimpleCommodityCategory Category;
 }
 
-[MessagePackObject]
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, Key(9)]
+    // [Inspectable, RuntimeCatalogKey(9)]
     // public float IngredientQualityWeight = .5f;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
-    [InspectableDatabaseLink(typeof(PersonalityAttribute)), Key(10)]
+    [InspectableDatabaseLink(typeof(PersonalityAttribute)), RuntimeCatalogKey(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
-    [Inspectable, Key(11)]
+    [Inspectable, RuntimeCatalogKey(11)]
     public CompoundCommodityCategory Category;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class ConsumableItemData : CraftedItemData
 {
-    [Inspectable, Key(10)]
+    [Inspectable, RuntimeCatalogKey(10)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, Key(11)]
+    [Inspectable, RuntimeCatalogKey(11)]
     public bool Stackable;
 
-    [Inspectable, Key(12)]
+    [Inspectable, RuntimeCatalogKey(12)]
     public float Duration;
 
-    [InspectableTexture, Key(13)]
+    [InspectableTexture, RuntimeCatalogKey(13)]
     public string Icon;
 
-    [Inspectable, Key(14)]
+    [Inspectable, RuntimeCatalogKey(14)]
     public BezierCurve Effectiveness;
 }
 
 public abstract class EquippableItemData : CraftedItemData
 {
-    [InspectableTexture, Key(10)]
+    [InspectableTexture, RuntimeCatalogKey(10)]
     public string Schematic;
 
-    [Inspectable, Key(11)]
+    [Inspectable, RuntimeCatalogKey(11)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, Key(12)]
+    [Inspectable, RuntimeCatalogKey(12)]
     public float Durability;
 
-    [InspectableTemperature, Key(13)]
+    [InspectableTemperature, RuntimeCatalogKey(13)]
     public float MinimumTemperature;
 
-    [InspectableTemperature, Key(14)]
+    [InspectableTemperature, RuntimeCatalogKey(14)]
     public float MaximumTemperature;
 
-    // [InspectableField, Key(15), SimplePerformanceStat]
+    // [InspectableField, RuntimeCatalogKey(15), SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
     //
-    // [InspectableField, Key(16), SimplePerformanceStat]
+    // [InspectableField, RuntimeCatalogKey(16), SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
 
-    [InspectableAnimationCurve, Key(17)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(17)]
     public BezierCurve HeatPerformanceCurve;
 
-    [Inspectable, Key(18)]
+    [Inspectable, RuntimeCatalogKey(18)]
     public float ThermalResilience = 1;
 
-    // [Inspectable, Key(19)]
+    // [Inspectable, RuntimeCatalogKey(19)]
     // public string SoundEffectTrigger;
 
-    [InspectableTexture, Key(20)]
+    [InspectableTexture, RuntimeCatalogKey(20)]
     public string ActionBarIcon;
 
-    [InspectableSoundBank, Key(21)]
+    [InspectableSoundBank, RuntimeCatalogKey(21)]
     public uint SoundBank;
 
-    [Inspectable, Key(22)]
+    [Inspectable, RuntimeCatalogKey(22)]
     public List<AudioStat> AudioStats = new List<AudioStat>();
 
-    [IgnoreMember]
     public abstract HardpointType HardpointType { get; }
 
-    [IgnoreMember] private const int STEPS = 64;
+    private const int STEPS = 64;
 
-    [IgnoreMember] private float? _optimum;
+    private float? _optimum;
 
-    [IgnoreMember]
     public float OptimalTemperature
     {
         get
@@ -443,85 +433,84 @@ public abstract class EquippableItemData : CraftedItemData
     }
 }
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class AudioStat
 {
-    [InspectableAudioParameter, Key(0)]
+    [InspectableAudioParameter, RuntimeCatalogKey(0)]
     public uint Parameter;
 
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public PerformanceStat Stat = new PerformanceStat();
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class GearData : EquippableItemData
 {
-    [Inspectable, Key(23)]
+    [Inspectable, RuntimeCatalogKey(23)]
     public HardpointType Hardpoint;
 
-    [IgnoreMember] public override HardpointType HardpointType => Hardpoint;
+    public override HardpointType HardpointType => Hardpoint;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class CargoBayData : EquippableItemData
 {
-    [Inspectable, Key(24)]
+    [Inspectable, RuntimeCatalogKey(24)]
     public Shape InteriorShape;
 
-    [IgnoreMember] public override HardpointType HardpointType => HardpointType.Tool;
+    public override HardpointType HardpointType => HardpointType.Tool;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class DockingBayData : CargoBayData
 {
-    [Inspectable, Key(25)]
+    [Inspectable, RuntimeCatalogKey(25)]
     public int2 MaxSize;
 }
 
-[LegacyCatalogGroup("Items"), MessagePackObject]
+[LegacyCatalogGroup("Items")]
 public class WeaponItemData : GearData
 {
-    [Inspectable, Key(24)]
+    [Inspectable, RuntimeCatalogKey(24)]
     public WeaponRange WeaponRange;
 
-    [Inspectable, Key(25)]
+    [Inspectable, RuntimeCatalogKey(25)]
     public WeaponCaliber WeaponCaliber;
 
-    [Inspectable, Key(26)]
+    [Inspectable, RuntimeCatalogKey(26)]
     public WeaponType WeaponType;
 
-    [Inspectable, Key(27)]
+    [Inspectable, RuntimeCatalogKey(27)]
     public WeaponFireType WeaponFireTypes;
 
-    [Inspectable, Key(28)]
+    [Inspectable, RuntimeCatalogKey(28)]
     public WeaponModifiers WeaponModifiers;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class HullData : EquippableItemData
 {
-    [Inspectable, Key(23)]
+    [Inspectable, RuntimeCatalogKey(23)]
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [InspectablePrefab, Key(24)]
+    [InspectablePrefab, RuntimeCatalogKey(24)]
     public string Prefab;
 
-    [Inspectable, Key(25)]
+    [Inspectable, RuntimeCatalogKey(25)]
     public HullType HullType;
 
-    [Inspectable, Key(26)]
+    [Inspectable, RuntimeCatalogKey(26)]
     public float GridOffset;
 
-    [Inspectable, Key(27)]
+    [Inspectable, RuntimeCatalogKey(27)]
     public float Armor;
 
-    [Inspectable, Key(28)]
+    [Inspectable, RuntimeCatalogKey(28)]
     public float Drag;
 
-    [Inspectable, Key(29)]
+    [Inspectable, RuntimeCatalogKey(29)]
     public bool CanTow;
 
-    [IgnoreMember]
     public Shape InteriorCells
     {
         get
@@ -537,25 +526,24 @@ public class HullData : EquippableItemData
 
     private Shape _interiorCells;
 
-    [IgnoreMember] public override HardpointType HardpointType => HardpointType.Hull;
+    public override HardpointType HardpointType => HardpointType.Hull;
 }
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class HardpointData : ITintInspector
 {
-    [Inspectable, Key(0)] public HardpointType Type;
-    [Inspectable, Key(1)] public int2 Position;
-    [Inspectable, Key(2)] public Shape Shape = new Shape();
-    [Inspectable, Key(3)] public string Transform;
-    [Inspectable, Key(4)] public ItemRotation Rotation;
-    [Inspectable, Key(5)] public float Armor;
+    [Inspectable, RuntimeCatalogKey(0)] public HardpointType Type;
+    [Inspectable, RuntimeCatalogKey(1)] public int2 Position;
+    [Inspectable, RuntimeCatalogKey(2)] public Shape Shape = new Shape();
+    [Inspectable, RuntimeCatalogKey(3)] public string Transform;
+    [Inspectable, RuntimeCatalogKey(4)] public ItemRotation Rotation;
+    [Inspectable, RuntimeCatalogKey(5)] public float Armor;
 
     public override string ToString()
     {
         return $"{Enum.GetName(typeof(HardpointType), Type)} Hardpoint {Rotation.Arrow()}";
     }
 
-    [IgnoreMember]
     public float3 TintColor
     {
         get
@@ -573,46 +561,43 @@ public class HardpointData : ITintInspector
                 x => ColorMath.HsvToRgb(float3(frac((float)(int)x/hardpointTypes.Length + .25f), 1, 1)));
         }
 
-        return _tintColors.ContainsKey(type) ? _tintColors[type] : _tintColors[HardpointType.Hull];
+        return _tintColors.ContainsRuntimeCatalogKey(type) ? _tintColors[type] : _tintColors[HardpointType.Hull];
     }
 
     private static Dictionary<HardpointType, float3> _tintColors;
 }
 
-[MessagePackObject]
 public class PerformanceStat
 {
-    [Key(0)]  public float Min;
+    [RuntimeCatalogKey(0)]  public float Min;
 
-    [Key(1)]  public float Max;
+    [RuntimeCatalogKey(1)]  public float Max;
 
-    [Key(2)]
+    [RuntimeCatalogKey(2)]
     public float HeatExponentMultiplier;
 
-    [Key(3)]
+    [RuntimeCatalogKey(3)]
     public float DurabilityExponentMultiplier;
 
-    [Key(4)]
+    [RuntimeCatalogKey(4)]
     public float QualityExponent;
 
-    //[Key(5)]  public Guid ID = Guid.NewGuid();
+    //[RuntimeCatalogKey(5)]  public Guid ID = Guid.NewGuid();
 
-    // [Key(5)]  public Guid? Ingredient;
+    // [RuntimeCatalogKey(5)]  public Guid? Ingredient;
 
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
+    private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
+    private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
 
-    [IgnoreMember]
     private Dictionary<Entity, Dictionary<Behavior, float>> ScaleModifiers =>
         _scaleModifiers = _scaleModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
 
-    [IgnoreMember]
     private Dictionary<Entity, Dictionary<Behavior, float>> ConstantModifiers =>
         _constantModifiers = _constantModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
 
     public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
     {
-        if(!ScaleModifiers.ContainsKey(entity))
+        if(!ScaleModifiers.ContainsRuntimeCatalogKey(entity))
             ScaleModifiers[entity] = new Dictionary<Behavior, float>();
 
         return ScaleModifiers[entity];
@@ -620,26 +605,26 @@ public class PerformanceStat
 
     public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
     {
-        if(!ConstantModifiers.ContainsKey(entity))
+        if(!ConstantModifiers.ContainsRuntimeCatalogKey(entity))
             ConstantModifiers[entity] = new Dictionary<Behavior, float>();
 
         return ConstantModifiers[entity];
     }
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable]
 public class PersonalityAttribute : DatabaseEntry, INamedEntry
 {
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public string Name;
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public string LowName;
 
-    [Inspectable, Key(3)]
+    [Inspectable, RuntimeCatalogKey(3)]
     public string HighName;
 
-    [IgnoreMember] public string EntryName
+    public string EntryName
     {
         get => Name;
         set => Name = value;

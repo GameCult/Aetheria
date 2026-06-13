@@ -3,14 +3,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class ConstantWeaponData : WeaponData
 {
-    [InspectablePrefab, Key(17)]
+    [InspectablePrefab, RuntimeCatalogKey(17)]
     public float AmmoInterval = 1;
 
     public override Behavior CreateInstance(EquippedItem item)

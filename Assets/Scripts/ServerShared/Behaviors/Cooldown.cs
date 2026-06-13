@@ -4,14 +4,13 @@
 
 using System;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, Order(-10), RuntimeInspectable]
+[Inspectable, Order(-10), RuntimeInspectable]
 public class CooldownData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

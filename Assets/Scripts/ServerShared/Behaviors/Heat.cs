@@ -4,14 +4,13 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(10)]
+[Inspectable, Order(10)]
 public class HeatData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public bool PerSecond;
 
     public override Behavior CreateInstance(EquippedItem item)

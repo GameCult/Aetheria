@@ -5,59 +5,58 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, RuntimeInspectable]
 public abstract class WeaponData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public DamageType DamageType;
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), Key(3), RuntimeInspectable]
+    [InspectableRangedFloat(0,1), RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), Key(4)]
+    [InspectableRangedFloat(0,1), RuntimeCatalogKey(4)]
     public PerformanceStat DamageSpread = new PerformanceStat();
 
-    [Inspectable, Key(5)]
+    [Inspectable, RuntimeCatalogKey(5)]
     public PerformanceStat MinRange = new PerformanceStat();
 
-    [Inspectable, Key(6)]
+    [Inspectable, RuntimeCatalogKey(6)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, Key(7)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(7)]
     public BezierCurve DamageCurve;
 
-    [InspectablePrefab, Key(8)]
+    [InspectablePrefab, RuntimeCatalogKey(8)]
     public string EffectPrefab;
 
-    [InspectablePrefab, Key(9), RuntimeInspectable]
+    [InspectablePrefab, RuntimeCatalogKey(9), RuntimeInspectable]
     public PerformanceStat Energy = new PerformanceStat();
 
-    [InspectablePrefab, Key(10), RuntimeInspectable]
+    [InspectablePrefab, RuntimeCatalogKey(10), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [InspectablePrefab, Key(11), RuntimeInspectable]
+    [InspectablePrefab, RuntimeCatalogKey(11), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [InspectableDatabaseLink(typeof(SimpleCommodityData)), Key(12), RuntimeInspectable]
+    [InspectableDatabaseLink(typeof(SimpleCommodityData)), RuntimeCatalogKey(12), RuntimeInspectable]
     public Guid AmmoType;
 
-    [InspectablePrefab, Key(13)]
+    [InspectablePrefab, RuntimeCatalogKey(13)]
     public int MagazineSize;
 
-    [InspectablePrefab, Key(14)]
+    [InspectablePrefab, RuntimeCatalogKey(14)]
     public float ReloadTime = 1;
 
-    [InspectablePrefab, Key(15)]
+    [InspectablePrefab, RuntimeCatalogKey(15)]
     public PerformanceStat Spread = new PerformanceStat();
 
-    [Inspectable, Key(16)]
+    [Inspectable, RuntimeCatalogKey(16)]
     public PerformanceStat Velocity = new PerformanceStat();
 }
 

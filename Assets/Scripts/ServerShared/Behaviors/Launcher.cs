@@ -2,28 +2,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using MessagePack;
 using Unity.Mathematics;
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class LauncherData : LockWeaponData
 {
-    [InspectableAnimationCurve, Key(26)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(26)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, Key(27)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(27)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, Key(28)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(28)]
     public float4[] LiftCurve;
 
-    [Inspectable, Key(29)]
+    [Inspectable, RuntimeCatalogKey(29)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, Key(30)]
+    [Inspectable, RuntimeCatalogKey(30)]
     public float DodgeFrequency;
 
-    [Inspectable, Key(31), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(31), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -32,25 +31,25 @@ public class LauncherData : LockWeaponData
     }
 }
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class GuidedWeaponData : InstantWeaponData
 {
-    [InspectableAnimationCurve, Key(21)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(21)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, Key(22)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(22)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, Key(23)]
+    [InspectableAnimationCurve, RuntimeCatalogKey(23)]
     public float4[] LiftCurve;
 
-    [Inspectable, Key(24)]
+    [Inspectable, RuntimeCatalogKey(24)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, Key(25)]
+    [Inspectable, RuntimeCatalogKey(25)]
     public float DodgeFrequency;
 
-    [Inspectable, Key(26), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(26), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

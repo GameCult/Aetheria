@@ -4,17 +4,16 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(-22)]
+[Inspectable, Order(-22)]
 public class ThermotoggleData : BehaviorData
 {
-    [InspectableTemperature, Key(1)]
+    [InspectableTemperature, RuntimeCatalogKey(1)]
     public float TargetTemperature;
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public bool HighPass;
 
-    [Inspectable, Key(3)]
+    [Inspectable, RuntimeCatalogKey(3)]
     public bool Adjustable;
 
     public override Behavior CreateInstance(EquippedItem item)

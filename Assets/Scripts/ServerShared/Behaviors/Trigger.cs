@@ -4,8 +4,7 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(-20)]
+[Inspectable, Order(-20)]
 public class TriggerData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

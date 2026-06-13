@@ -4,11 +4,10 @@
 
 using System;
 using System.Linq;
-using MessagePack;
-[Inspectable, MessagePackObject, Order(-5), RuntimeInspectable]
+[Inspectable, Order(-5), RuntimeInspectable]
 public class ItemUsageData : BehaviorData
 {
-    [InspectableDatabaseLink(typeof(SimpleCommodityData)), Key(1), RuntimeInspectable]
+    [InspectableDatabaseLink(typeof(SimpleCommodityData)), RuntimeCatalogKey(1), RuntimeInspectable]
     public Guid Item;
 
     public override Behavior CreateInstance(EquippedItem item)

@@ -2,29 +2,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public class RadiatorData : BehaviorData
 {
-    [Inspectable, Key(1), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(1), RuntimeInspectable]
     public PerformanceStat Emissivity = new PerformanceStat();
 
-    [Inspectable, Key(2), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(2), RuntimeInspectable]
     public PerformanceStat PumpedHeat = new PerformanceStat();
 
-    [InspectableTemperature, Key(3), RuntimeInspectable]
+    [InspectableTemperature, RuntimeCatalogKey(3), RuntimeInspectable]
     public float TemperatureFloor;
 
-    [Inspectable, Key(4), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(4), RuntimeInspectable]
     public PerformanceStat WasteHeat = new PerformanceStat();
 
-    [Inspectable, Key(5), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(5), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [Inspectable, Key(6), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(6), RuntimeInspectable]
     public PerformanceStat ThermalMass = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

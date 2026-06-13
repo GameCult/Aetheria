@@ -4,23 +4,22 @@
 
 using System;
 using System.Linq;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, Order(10)]
+[Inspectable, Order(10)]
 public class MiningToolData : BehaviorData
 {
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public PerformanceStat DamagePerSecond = new PerformanceStat();
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, Key(3)]
+    [Inspectable, RuntimeCatalogKey(3)]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [Inspectable, Key(4)]
+    [Inspectable, RuntimeCatalogKey(4)]
     public PerformanceStat Range = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

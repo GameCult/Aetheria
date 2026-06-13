@@ -2,50 +2,49 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
+[Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class AetherDriveData : BehaviorData
 {
-    [Inspectable, Key(1)]
+    [Inspectable, RuntimeCatalogKey(1)]
     public float3 RotorDiameter;
 
-    [Inspectable, Key(2)]
+    [Inspectable, RuntimeCatalogKey(2)]
     public float3 RotorMass;
 
-    [Inspectable, Key(3), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(3), RuntimeInspectable]
     public PerformanceStat MaximumRpm;
 
-    [Inspectable, Key(4)]
+    [Inspectable, RuntimeCatalogKey(4)]
     public float3 CouplingLambda;
 
-    [Inspectable, Key(5)]
+    [Inspectable, RuntimeCatalogKey(5)]
     public PerformanceStat LambdaMultiplier;
 
-    [Inspectable, Key(6), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(6), RuntimeInspectable]
     public PerformanceStat CouplingEfficiency;
 
-    [Inspectable, Key(7), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(7), RuntimeInspectable]
     public PerformanceStat Torque;
 
-    [Inspectable, Key(8), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(8), RuntimeInspectable]
     public BezierCurve TorqueProfile;
 
-    [Inspectable, Key(9), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(9), RuntimeInspectable]
     public PerformanceStat EnergyDraw;
 
-    [Inspectable, Key(10), RuntimeInspectable]
+    [Inspectable, RuntimeCatalogKey(10), RuntimeInspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, Key(11), RuntimeInspectable]
+    [InspectableAudioParameter, RuntimeCatalogKey(11), RuntimeInspectable]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, Key(12), RuntimeInspectable]
+    [InspectableAudioParameter, RuntimeCatalogKey(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, Key(13)]
+    [InspectablePrefab, RuntimeCatalogKey(13)]
     public string Particles;
 
     public override Behavior CreateInstance(EquippedItem item)

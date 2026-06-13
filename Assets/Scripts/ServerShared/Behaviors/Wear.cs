@@ -3,14 +3,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, Order(1000), RuntimeInspectable]
+[Inspectable, Order(1000), RuntimeInspectable]
 public class WearData : BehaviorData
 {
-    [InspectableTemperature, Key(1)]
+    [InspectableTemperature, RuntimeCatalogKey(1)]
     public bool PerSecond = true;
 
     public override Behavior CreateInstance(EquippedItem item)
