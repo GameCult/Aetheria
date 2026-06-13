@@ -30,8 +30,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   boot. When the typed state file exists,
   `ActionGameManager` opens a package-owned read-only runtime catalog snapshot
   from the `.cc` directory store before constructing the temporary legacy
-  `ItemManager`. Local run saves, loadouts, player settings files, zone files, and
-  generated keyboard layout caches no longer write bespoke durable files. The
+  `ItemManager`. Player settings saves, loadout saves, shutdown checkpoints,
+  and wormhole transition checkpoints now queue typed `.cc.pending` Verse
+  commit commands through the embedded runtime state package. `Aetheria.State`
+  owns applying those command envelopes into canonical `AetheriaPlayerSettings`,
+  `AetheriaLoadoutTemplate`, and `AetheriaRunState` documents through
+  `AetheriaStateNode`. Local run saves, loadouts, player settings files, zone
+  files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
   persistence shape.
@@ -69,9 +74,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
   state through record-key references and typed value slots instead of opaque
-  `EntityPack` serialization. Unity has not wired its save/loadout UI to this
-  document yet, so the old in-memory `EntityPack` path is still a runtime
-  construction helper, not durable authority.
+  `EntityPack` serialization. Unity's save/loadout UI now projects its
+  in-memory `EntityPack` into a typed Verse commit command; the in-memory list
+  remains a UI/session cache, not durable authority.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
   binds `DatabaseLinkBase` to that typed runtime item reader before gameplay
@@ -147,7 +152,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   read path for .NET smokes. Neither is a simulation owner and neither writes
   state.
   `Aetheria.Shared.Unity` references this package directly so `Galaxy` can
-  consume typed name files without loading legacy `NameFile` documents.
+  consume typed name files without loading legacy `NameFile` documents. The
+  package also owns Unity's typed runtime commit log writer for settings,
+  loadout-template, and run-checkpoint command envelopes under
+  `aetheria-world.cc.pending`. This log is command-only: it cannot decide
+  canonical state, and the `Aetheria.State` node applicator deletes applied
+  commands after writing typed documents.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -287,12 +297,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed item catalog projection emits in-memory domain objects only; the old
   local save and editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
-  methods, not importer-local string concatenation. Player settings and loadout
-  templates have typed state documents and node put/get paths; Unity's menu,
-  input screens, and save button still need to call them through the runtime
-  Verse package. Run, zone, and entity snapshot state also have typed node
-  put/get paths; Unity transition and shutdown paths still need to commit
-  through those ports. The old `SaveState`/`SaveZone` command surface is gone.
+  methods, not importer-local string concatenation. Player settings, loadout
+  templates, and lightweight run checkpoints have a shared Unity commit-log
+  primitive plus a typed state node applicator. Run, zone, and entity snapshot
+  state also have typed node put/get paths; full zone/entity runtime snapshot
+  projection still needs to move through the same command/apply spine. The old
+  `SaveState`/`SaveZone` command surface is gone.
   The catalog operator UI is emitted as a typed Eve surface document derived
   from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, typed
@@ -499,9 +509,10 @@ First Aetheria surfaces to publish:
      layout, DB inspector, and NameFile export writers.
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
    - Done: remove the stale Unity `SaveState`/`SaveZone` command names after
-     their bespoke serializers were deleted; shutdown and wormhole transitions
-     now emit only a Verse-persistence-pending warning until typed runtime
-     commit ports are wired.
+     their bespoke serializers were deleted.
+   - Done: replace warning-only player settings, loadout, shutdown, and
+     wormhole save paths with typed `.cc.pending` Verse commit commands and a
+     state-node applicator that writes canonical typed documents.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.
@@ -539,7 +550,10 @@ First Aetheria surfaces to publish:
   the embedded package-owned read-only catalog opener, receiving the same
   package-owned runtime catalog read models without a MessagePack catalog cache,
   including typed item masks, interior masks, hardpoint definitions,
-  corporation/name-file links, and typed behavior payloads.
+  corporation/name-file links, and typed behavior payloads. It also proves the
+  Unity runtime state commit log can queue a player-settings command, the
+  `Aetheria.State` node can apply it into canonical typed state, and the
+  command is cleared after application.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

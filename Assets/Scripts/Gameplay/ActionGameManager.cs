@@ -36,6 +36,9 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
+    private static string _runtimeStateFilePath;
+    private static string RuntimeStateFilePath =>
+        _runtimeStateFilePath ??= AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
 
     private static PlayerSettings _playerSettings;
     public static PlayerSettings PlayerSettings
@@ -48,7 +51,17 @@ public class ActionGameManager : MonoBehaviour
 
     public static void SavePlayerSettings()
     {
-        Debug.LogWarning("Player settings persistence belongs to the Verse state spine. The Unity client keeps settings in memory until Aetheria.State is available as a runtime package.");
+        try
+        {
+            var commit = AetheriaRuntimeStateCommitLog.QueuePlayerSettings(
+                RuntimeStateFilePath,
+                ProjectPlayerSettings(PlayerSettings));
+            Debug.Log($"Queued Aetheria Verse player settings commit: {commit.Path}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to queue Aetheria Verse player settings commit: {ex}");
+        }
     }
 
     private static PlayerSettings GetDefaultPlayerSettings()
@@ -203,19 +216,170 @@ public class ActionGameManager : MonoBehaviour
         get => Settings.GameplaySettings.DefaultEntitySettings.Copy();
     }
 
+    private static AetheriaRuntimePlayerSettingsCommit ProjectPlayerSettings(PlayerSettings settings)
+    {
+        return new AetheriaRuntimePlayerSettingsCommit
+        {
+            PlayerName = settings.Name,
+            TutorialPassed = settings.TutorialPassed,
+            StoryFileHashes = settings.HashedStoryFiles
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new AetheriaRuntimeStoryFileHashCommit
+                {
+                    StoryPath = pair.Key,
+                    Hash = pair.Value
+                })
+                .ToArray(),
+            TemperatureUnit = Enum.GetName(typeof(TemperatureUnit), settings.GameplaySettings.TemperatureUnit),
+            SignificantDigits = settings.GameplaySettings.SignificantDigits,
+            NebulaQuality = Enum.GetName(typeof(Quality), settings.GraphicsSettings.NebulaQuality),
+            ShowAsteroidsInMinimap = settings.GraphicsSettings.ShowAsteroidsInMinimap,
+            BindingOverrides = settings.InputSettings.InputActionMap
+                .OrderBy(pair => pair.Key.action, StringComparer.Ordinal)
+                .ThenBy(pair => pair.Key.binding)
+                .Select(pair => new AetheriaRuntimeInputBindingCommit
+                {
+                    ActionName = pair.Key.action,
+                    BindingIndex = pair.Key.binding,
+                    BindingPath = pair.Value
+                })
+                .ToArray(),
+            ActionBarInputs = settings.InputSettings.ActionBarInputs
+                .OrderBy(input => input, StringComparer.Ordinal)
+                .ToArray()
+        };
+    }
+
+    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(EntityPack pack)
+    {
+        return new AetheriaRuntimeLoadoutTemplateCommit
+        {
+            Name = pack.Name ?? "",
+            OwnerPlayerKey = $"global:aetheria.player_settings.v1",
+            RootEntity = ProjectEntityLoadout(pack)
+        };
+    }
+
+    private AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(EntityPack pack)
+    {
+        return new AetheriaRuntimeEntityLoadoutCommit
+        {
+            Name = pack.Name ?? "",
+            Kind = pack is ShipPack ? "ship" : pack is OrbitalEntityPack ? "orbital" : "entity",
+            FactionLegacyId = pack.Faction == Guid.Empty ? "" : pack.Faction.ToString("D"),
+            Hull = ProjectLoadoutItem(pack.Hull),
+            Equipment = ProjectSlots(pack.Equipment),
+            CargoBays = ProjectSlots(pack.CargoBays),
+            DockingBays = ProjectSlots(pack.DockingBays),
+            CargoContents = ProjectCargoBays(pack.CargoContents),
+            DockingBayContents = ProjectCargoBays(pack.DockingBayContents),
+            DockingBayAssignments = pack.DockingBayAssignments ?? Array.Empty<int>(),
+            WeaponGroups = pack.WeaponGroups?.Select(group => (IReadOnlyList<int>)group).ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
+            Children = pack.Children?.Select(ProjectEntityLoadout).ToArray() ?? Array.Empty<AetheriaRuntimeEntityLoadoutCommit>()
+        };
+    }
+
+    private static AetheriaRuntimeLoadoutItemSlotCommit[] ProjectSlots((int2 position, EquippableItem item)[] slots)
+    {
+        return slots?
+            .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = slot.position.x,
+                Y = slot.position.y,
+                Item = ProjectLoadoutItem(slot.item)
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+    }
+
+    private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectCargoBays((int2 position, ItemInstance item)[][] bays)
+    {
+        return bays?
+            .Select(bay => new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = bay?
+                    .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = slot.position.x,
+                        Y = slot.position.y,
+                        Item = ProjectLoadoutItem(slot.item)
+                    })
+                    .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+    }
+
+    private static AetheriaRuntimeLoadoutItemCommit ProjectLoadoutItem(ItemInstance item)
+    {
+        if (item == null)
+            return new AetheriaRuntimeLoadoutItemCommit();
+
+        return new AetheriaRuntimeLoadoutItemCommit
+        {
+            ItemLegacyId = item.Data?.LinkID.ToString("D") ?? "",
+            Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
+            Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
+            Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1
+        };
+    }
+
+    private AetheriaRuntimeRunCheckpointCommit ProjectRunCheckpoint()
+    {
+        return new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = IsTutorial ? "tutorial" : "local",
+            IsTutorial = IsTutorial,
+            EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
+            ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
+            CurrentZoneIndex = ZoneIndex(Zone?.GalaxyZone),
+            CurrentZoneEntityIndex = Zone?.Entities?.IndexOf(CurrentEntity) ?? -1,
+            DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
+                .Select(ZoneIndex)
+                .Where(index => index >= 0)
+                .OrderBy(index => index)
+                .ToArray() ?? Array.Empty<int>()
+        };
+    }
+
+    private static int ZoneIndex(GalaxyZone zone)
+    {
+        return CurrentGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(CurrentGalaxy.Zones, zone);
+    }
+
     public void SaveLoadout(EntityPack pack)
     {
         Loadouts.RemoveAll(loadout => loadout.Name == pack.Name);
         Loadouts.Add(pack);
-        Debug.LogWarning("Loadout persistence belongs to the Verse state spine. The Unity client keeps loadouts in memory until Aetheria.State is available as a runtime package.");
+        try
+        {
+            var commit = AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate(
+                RuntimeStateFilePath,
+                ProjectLoadoutTemplate(pack));
+            Debug.Log($"Queued Aetheria Verse loadout commit: {commit.Path}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to queue Aetheria Verse loadout commit: {ex}");
+        }
     }
 
-    private void OnApplicationQuit() => WarnRunStatePersistencePending();
+    private void OnApplicationQuit() => QueueRunCheckpoint("application-quit");
 
-    private void WarnRunStatePersistencePending()
+    private void QueueRunCheckpoint(string reason)
     {
-        if (CurrentGalaxy != null)
-            Debug.LogWarning("Run persistence belongs to the Verse state spine. Legacy run serialization is disabled.");
+        if (CurrentGalaxy == null)
+            return;
+
+        try
+        {
+            var commit = AetheriaRuntimeStateCommitLog.QueueRunCheckpoint(
+                RuntimeStateFilePath,
+                ProjectRunCheckpoint());
+            Debug.Log($"Queued Aetheria Verse run checkpoint ({reason}): {commit.Path}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to queue Aetheria Verse run checkpoint ({reason}): {ex}");
+        }
     }
 
     private void OnDisable()
@@ -232,6 +396,7 @@ public class ActionGameManager : MonoBehaviour
         ConsoleController.MessageReceiver = this;
 
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
+        _runtimeStateFilePath = stateBoot.StateFilePath;
         Debug.Log($"Aetheria typed state file: {stateBoot.StateFilePath}");
         if (!stateBoot.StateFileExists)
         {
@@ -628,7 +793,7 @@ public class ActionGameManager : MonoBehaviour
             ship.ExitWormhole(ZoneRenderer.WormholeInstances.Keys.First(w => w.Target == oldZone.GalaxyZone).Position,
                 Settings.GameplaySettings.WormholeExitVelocity * ItemManager.Random.NextFloat2Direction());
             CurrentEntity.Zone = Zone;
-            WarnRunStatePersistencePending();
+            QueueRunCheckpoint("wormhole-transition");
         };
     }
 

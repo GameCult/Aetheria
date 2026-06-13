@@ -11,6 +11,9 @@ await using var client = await AetheriaRuntimeCatalogClient.OpenAsync(statePath)
 var catalog = client.ReadCatalog();
 var packageCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(statePath);
 var surface = await client.ReadCatalogSurfaceAsync();
+var commitSmokeDirectory = Path.Combine(Path.GetTempPath(), "aetheria-state-unity-smoke", Guid.NewGuid().ToString("N"));
+var commitSmokeStatePath = Path.Combine(commitSmokeDirectory, "aetheria-world.cc");
+Directory.CreateDirectory(commitSmokeDirectory);
 
 if (catalog.Items.Count != 115)
 {
@@ -131,6 +134,41 @@ if (surface?.Schema != "gamecult.eve.surface.v1" ||
     throw new InvalidOperationException("Runtime catalog client did not read the typed Eve surface.");
 }
 
+try
+{
+    var commit = AetheriaRuntimeStateCommitLog.QueuePlayerSettings(
+        commitSmokeStatePath,
+        new AetheriaRuntimePlayerSettingsCommit
+        {
+            PlayerName = "Unity smoke",
+            TutorialPassed = true,
+            ActionBarInputs = new[] { "<Keyboard>/1" }
+        });
+    var pending = AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath);
+    if (pending.Count != 1 ||
+        pending[0].Kind != AetheriaRuntimeCommitKind.PlayerSettings ||
+        pending[0].Schema != AetheriaRuntimeStateCommitLog.CommitSchema ||
+        pending[0].Path != commit.Path)
+    {
+        throw new InvalidOperationException("Runtime state commit log did not read the queued player settings command.");
+    }
+
+    await using var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke");
+    var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(commitNode);
+    var settings = await commitNode.GetPlayerSettingsAsync();
+    if (report.AppliedPlayerSettings != 1 ||
+        settings?.PlayerName != "Unity smoke" ||
+        settings.Input.ActionBarInputs.Length != 1 ||
+        AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count != 0)
+    {
+        throw new InvalidOperationException("Runtime state commit log did not apply queued settings through the typed state node.");
+    }
+}
+finally
+{
+    Directory.Delete(commitSmokeDirectory, true);
+}
+
 Console.WriteLine($"Aetheria Unity runtime catalog smoke passed: {statePath}");
 Console.WriteLine($"Items/trade/equipment: {catalog.Items.Count}/{catalog.TradeItems.Count}/{catalog.EquipmentItems.Count}");
 Console.WriteLine($"Shape mask sample: {shaped.Name} {shaped.ShapeWidth}x{shaped.ShapeHeight}/{shaped.ShapeCells.Count}");
@@ -138,3 +176,4 @@ Console.WriteLine($"Interior/hardpoint sample: {interior.Name} {interior.Interio
 Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayload.Kind}/{behaviorPayload.Fields.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
+Console.WriteLine("Runtime state commit log smoke: player settings command queued, applied, and cleared");
