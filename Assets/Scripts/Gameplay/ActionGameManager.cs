@@ -315,7 +315,7 @@ public class ActionGameManager : MonoBehaviour
 
         return new AetheriaRuntimeLoadoutItemCommit
         {
-            ItemLegacyId = item.Data?.LinkID.ToString("D") ?? "",
+            ItemLegacyId = item.Data?.ItemId.ToString("D") ?? "",
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1
@@ -380,7 +380,7 @@ public class ActionGameManager : MonoBehaviour
             DirectionX = entity.Direction.x,
             DirectionY = entity.Direction.y,
             FactionLegacyId = entity.Faction?.ID.ToString("D") ?? "",
-            HullItemLegacyId = entity.Hull?.Data?.LinkID.ToString("D") ?? "",
+            HullItemLegacyId = entity.Hull?.Data?.ItemId.ToString("D") ?? "",
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
             DockingBays = ProjectEquippedSlots(entity.DockingBays),
