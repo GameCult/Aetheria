@@ -4,7 +4,7 @@
 
 using System;
 
-public abstract class AgentTask : RuntimeProjectionEntry
+public abstract class AgentTask
 {
     public int Priority;
 

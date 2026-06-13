@@ -286,8 +286,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   shapes. The global scene-load MessagePack resolver hook is deleted. The slime
   compute settings path no longer serializes its local parameter struct for
   change detection. Agent task runtime shapes no longer carry MessagePack
-  object, union, key, or ignore metadata. They remain plain in-memory AI task
-  DTOs until a typed Verse task document exists.
+  object, union, key, or ignore metadata. `AgentTask` no longer inherits the
+  shared runtime projection identity base; task objects are plain in-memory AI
+  work orders until a typed Verse task document exists.
 - Legacy player, faction, name-file, galaxy-map-layer, and narrative helper
   DTOs no longer carry MessagePack object/key/ignore metadata. Typed
   corporation/name-file/catalog documents own durable state; these classes are
@@ -301,6 +302,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Declaration-only personality fields on `Faction`/`Entity` and the unused
   production personality setting have also been cut; there is no surviving
   personality-state owner in live Unity source.
+- `AgentTask` has been cut loose from `RuntimeProjectionEntry`; AI tasks are
+  local runtime work orders and no longer participate in the shared projection
+  identity base.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
   assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
   on MessagePackReader to open CultCache `.cc` records; that dependency belongs
