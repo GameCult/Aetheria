@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -7,9 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using JsonKnownTypes;
-using RethinkDb.Driver;
-using RethinkDb.Driver.Net;
 using UnityEditor;
 using UnityEngine;
 using static UnityEditor.EditorGUILayout;
@@ -22,16 +19,12 @@ public abstract class DatabaseListView : EditorWindow
     public Guid SelectedItem;
     public GUIStyle SelectedStyle;
 
-    public static RethinkDB R = RethinkDB.R;
-    
     protected CultCache cultCache;
     private static DatabaseInspector _inspector;
     private Dictionary<string, (bool foldout, (Type entryType, bool foldout)[] types)> _tables;
     //private Type[] _entryTypes;
     private Type[] _globalTypes;
-    private string _connectionString;
     private Vector2 _view;
-    private RethinkQueryStatus _queryStatus;
 
     private HashSet<int> _groupFoldouts = new HashSet<int>(); 
     
@@ -97,7 +90,6 @@ public abstract class DatabaseListView : EditorWindow
 
     private bool _listItemStyle;
     private SingleFileMessagePackBackingStore _msgPackStore;
-    private MultiFileJsonBackingStore _jsonStore;
     public GUIStyle ListItemStyle => (_listItemStyle = !_listItemStyle) ? ListStyleEven : ListStyleOdd;
     
     void OnEnable()
@@ -113,10 +105,8 @@ public abstract class DatabaseListView : EditorWindow
             margin = new RectOffset(0, 0, 0, 0)
         };
 
-        //_jsonStore = new MultiFileJsonBackingStore(FilePath);
         _msgPackStore = new SingleFileMessagePackBackingStore(Path.Combine(FilePath, "AetherDB.msgpack"));
         cultCache = new CultCache();
-        //cultCache.AddBackingStore(_jsonStore);
         cultCache.AddBackingStore(_msgPackStore);
         cultCache.AddBackingStore(new MultiFileMessagePackBackingStore(FilePath), typeof(NameFile));
         cultCache.PullAllBackingStores();
@@ -130,14 +120,8 @@ public abstract class DatabaseListView : EditorWindow
             .Where(t => t.GetCustomAttribute<InspectableAttribute>() != null && t.GetCustomAttribute<GlobalSettingsAttribute>() != null).ToArray();
         _tables = typeof(DatabaseEntry).GetAllChildClasses()
             .Where(t => t.GetCustomAttribute<InspectableAttribute>() != null && t.GetCustomAttribute<GlobalSettingsAttribute>() == null)
-            .GroupBy(t=>t.GetCustomAttribute<RethinkTableAttribute>()?.TableName ?? "Default")
+            .GroupBy(t=>t.GetCustomAttribute<LegacyCatalogGroupAttribute>()?.TableName ?? "Default")
             .ToDictionary(group=>group.Key, group=> (false, group.Select(t=>(t, false)).ToArray()));
-
-        if (EditorPrefs.HasKey("RethinkDB.URL"))
-            _connectionString = EditorPrefs.GetString("RethinkDB.URL");
-        else
-            _connectionString = "Enter DB URL";
-        
         InitStyles();
     }
 
@@ -161,24 +145,7 @@ public abstract class DatabaseListView : EditorWindow
 
         using (new HorizontalScope())
         {
-            _connectionString = TextField(_connectionString);
-            if (GUILayout.Button("Connect"))
-            {
-                EditorPrefs.SetString("RethinkDB.URL", _connectionString);
-                JsonKnownTypesSettingsManager.RegisterTypeAssembly<ItemData>();
-                _queryStatus = RethinkConnection.RethinkConnect(cultCache, _connectionString, DatabaseName);
-            }
-        }
-        using (new HorizontalScope())
-        {
             GUILayout.Label("Export");
-            //_fileName = TextField(_fileName);
-            if (GUILayout.Button("JSON"))
-            {
-                _jsonStore.PushAll();
-                Debug.Log("Exported DB to JSON!");
-            }
-
             if (GUILayout.Button("MsgPack"))
             {
                 _msgPackStore.PushAll();
@@ -186,11 +153,6 @@ public abstract class DatabaseListView : EditorWindow
             }
         }
 
-        if (_queryStatus != null && _queryStatus.RetrievedEntries < _queryStatus.TotalEntries)
-        {
-            var progressRect = GetControlRect(false, 20);
-            EditorGUI.ProgressBar(progressRect, (float)_queryStatus.RetrievedEntries/_queryStatus.TotalEntries, "Sync Progress");
-        }
         GUILayout.Space(5);
         
         _view = BeginScrollView(

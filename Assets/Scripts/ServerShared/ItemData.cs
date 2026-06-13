@@ -304,7 +304,7 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
 
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
@@ -337,7 +337,7 @@ public abstract class CraftedItemData : ItemData
     // public float IngredientQualityWeight = .5f;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class CompoundCommodityData : CraftedItemData
 {
     [InspectableDatabaseLink(typeof(PersonalityAttribute)), JsonProperty("demandProfile"), Key(10)]
@@ -347,7 +347,7 @@ public class CompoundCommodityData : CraftedItemData
     public CompoundCommodityCategory Category;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class ConsumableItemData : CraftedItemData
 {
     [Inspectable, JsonProperty("behaviors"), Key(10)]
@@ -456,7 +456,7 @@ public class AudioStat
     public PerformanceStat Stat = new PerformanceStat();
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class GearData : EquippableItemData
 {
     [Inspectable, JsonProperty("hardpointType"), Key(23)]
@@ -465,7 +465,7 @@ public class GearData : EquippableItemData
     [IgnoreMember] public override HardpointType HardpointType => Hardpoint;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class CargoBayData : EquippableItemData
 {
     [Inspectable, JsonProperty("interiorShape"), Key(24)]
@@ -474,14 +474,14 @@ public class CargoBayData : EquippableItemData
     [IgnoreMember] public override HardpointType HardpointType => HardpointType.Tool;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class DockingBayData : CargoBayData
 {
     [Inspectable, JsonProperty("maxSize"), Key(25)]
     public int2 MaxSize;
 }
 
-[RethinkTable("Items"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class WeaponItemData : GearData
 {
     [Inspectable, JsonProperty("range"), Key(24)]
@@ -500,7 +500,7 @@ public class WeaponItemData : GearData
     public WeaponModifiers WeaponModifiers;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class HullData : EquippableItemData
 {
     [Inspectable, JsonProperty("hardpoints"), Key(23)]  
@@ -630,7 +630,7 @@ public class PerformanceStat
     }
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class PersonalityAttribute : DatabaseEntry, INamedEntry
 {
     [Inspectable, JsonProperty("name"), Key(1)]

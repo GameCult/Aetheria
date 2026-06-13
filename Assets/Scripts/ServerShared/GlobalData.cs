@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -12,7 +12,7 @@ using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using static NoiseFbm;
 
-[Inspectable, Serializable, RethinkTable("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, Serializable, LegacyCatalogGroup("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
 {
     [Inspectable, JsonProperty("coreBoost"), Key(1)]  

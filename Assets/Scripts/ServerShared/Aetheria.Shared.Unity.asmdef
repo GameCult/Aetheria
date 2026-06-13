@@ -5,7 +5,6 @@
         "MessagePack",
         "Unity.Mathematics",
         "UniRx",
-        "RethinkDB",
         "Ink"
     ],
     "includePlatforms": [],

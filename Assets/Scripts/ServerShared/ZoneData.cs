@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -37,7 +37,7 @@ public class ZonePack
     
 }
 
-// [RethinkTable("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+// [LegacyCatalogGroup("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 // public class StationData : DatabaseEntry, INamedEntry
 // {
 //     [JsonProperty("name"), Key(1)]

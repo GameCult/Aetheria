@@ -9,12 +9,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using MessagePack;
-using Newtonsoft.Json;
-using RethinkDb.Driver;
-using RethinkDb.Driver.Net;
 using UniRx;
 
 public class CultCache
@@ -331,26 +327,6 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
     }
 }
 
-public class MultiFileJsonBackingStore : MultiFileBackingStore
-{
-    public MultiFileJsonBackingStore(string path) : base(path)
-    {
-        RegisterResolver.Register();
-    }
-
-    public override byte[] Serialize(DatabaseEntry entry)
-    {
-        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entry));
-    }
-
-    public override DatabaseEntry Deserialize(byte[] data)
-    {
-        return JsonConvert.DeserializeObject<DatabaseEntry>(Encoding.UTF8.GetString(data));
-    }
-
-    public override string Extension => "json";
-}
-
 public class MultiFileMessagePackBackingStore : MultiFileBackingStore
 {
     public MultiFileMessagePackBackingStore(string path) : base(path)
@@ -435,140 +411,3 @@ public class SingleFileMessagePackBackingStore : SingleFileBackingStore
     }
 }
 
-public class SingleFileJsonBackingStore : SingleFileBackingStore
-{
-    public SingleFileJsonBackingStore(string filePath) : base(filePath)
-    {
-        RegisterResolver.Register();
-    }
-
-    public override byte[] Serialize(DatabaseEntry[] entries)
-    {
-        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entries));
-    }
-
-    public override DatabaseEntry[] Deserialize(byte[] data)
-    {
-        return JsonConvert.DeserializeObject<DatabaseEntry[]>(Encoding.UTF8.GetString(data));
-    }
-}
-
-public class RethinkBackingStore : CacheBackingStore, RealtimeBackingStore
-{
-    public const string DEFAULT_TABLE = "Default";
-    public static RethinkDB R = RethinkDB.R;
-    public string DatabaseName { get; }
-    public string ConnectionString { get; }
-    
-    private string[] _syncTables;
-    private Connection _connection;
-    private Dictionary<DatabaseEntry, string> _entryHashes = new Dictionary<DatabaseEntry, string>();
-    
-    public void ObserveChanges()
-    {
-        foreach (var table in _syncTables)
-        {
-            // Subscribe to changes from RethinkDB
-            Task.Run(async () =>
-            {
-                var result = await R
-                    .Db(DatabaseName)
-                    .Table(table)
-                    .Changes()
-                    .RunChangesAsync<DatabaseEntry>(_connection);
-                while (await result.MoveNextAsync())
-                {
-                    var change = result.Current;
-                    if(change.NewValue==null)
-                        EntryDeleted.OnNext(change.OldValue);
-                    else if(change.OldValue==null)
-                        EntryAdded.OnNext(change.NewValue);
-                    else EntryUpdated.OnNext(change.NewValue);
-                }
-            }).WrapAwait();
-        }
-    }
-
-    public RethinkBackingStore(string databaseName, string connectionString)
-    {
-        DatabaseName = databaseName;
-        ConnectionString = connectionString;
-        
-        RegisterResolver.Register();
-
-        var connectionStringDomainLength = connectionString.IndexOf(':');
-        if (connectionStringDomainLength < 1)
-            throw new ArgumentException("Illegal Connection String: must include port!");
-        
-        var portString = connectionString.Substring(connectionStringDomainLength + 1);
-        if (!int.TryParse(portString, out var port))
-            throw new ArgumentException($"Illegal connection string! \"{portString}\" is not a valid port number!");
-        
-        _connection = R.Connection()
-            .Hostname(connectionString.Substring(0,connectionStringDomainLength))
-            .Port(port).Timeout(60).Connect();
-
-        var tables = R.Db(DatabaseName).TableList().RunAtom<string[]>(_connection);
-
-        _syncTables = typeof(DatabaseEntry).GetAllChildClasses()
-            .Select(t => t.GetCustomAttribute<RethinkTableAttribute>()?.TableName ?? DEFAULT_TABLE).Distinct().ToArray();
-
-        foreach (var st in _syncTables.Where(st => !tables.Contains(st)))
-            R.Db(DatabaseName).TableCreate(st).RunNoReply(_connection);
-    }
-    
-    public override void PullAll()
-    {
-        foreach (var table in _syncTables)
-        {
-            // Get entries from RethinkDB
-            Task.Run(async () =>
-            {
-                var result = await R
-                    .Db(DatabaseName)
-                    .Table(table)
-                    .RunCursorAsync<DatabaseEntry>(_connection);
-                
-                while (await result.MoveNextAsync())
-                {
-                    var entry = result.Current;
-                    EntryAdded.OnNext(entry);
-                }
-            }).WrapAwait();
-        }
-    }
-
-    public override async void Push(DatabaseEntry entry)
-    {
-        var type = entry.GetType();
-        //(Entries.ContainsKey(entry.ID) ? EntryUpdated : EntryAdded).OnNext(entry);
-        var table = type.GetCustomAttribute<RethinkTableAttribute>()?.TableName ?? DEFAULT_TABLE;
-        var result = await R
-            .Db(DatabaseName)
-            .Table(table)
-            .Get(entry.ID)
-            .Replace(entry)
-            .RunAsync(_connection);
-    }
-
-    public override async void Delete(DatabaseEntry entry)
-    {
-        if(Entries.ContainsKey(entry.ID))
-        {
-            var type = entry.GetType();
-            var table = type.GetCustomAttribute<RethinkTableAttribute>()?.TableName ?? DEFAULT_TABLE;
-            var result = await R
-                .Db(DatabaseName)
-                .Table(table)
-                .Get(entry.ID)
-                .Delete()
-                .RunAsync(_connection);
-        }
-    }
-
-    public override void PushAll(bool soft = false)
-    {
-        foreach(var entry in Entries.Values)
-            Push(entry);
-    }
-}

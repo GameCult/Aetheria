@@ -107,11 +107,11 @@ public class TooltipAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Class)]
-public class RethinkTableAttribute : Attribute
+public class LegacyCatalogGroupAttribute : Attribute
 {
     public string TableName;
 
-    public RethinkTableAttribute(string tableName)
+    public LegacyCatalogGroupAttribute(string tableName)
     {
         TableName = tableName;
     }
