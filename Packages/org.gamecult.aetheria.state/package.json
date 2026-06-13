@@ -1,0 +1,15 @@
+{
+    "name": "org.gamecult.aetheria.state",
+    "displayName": "Aetheria State Runtime",
+    "version": "0.1.0",
+    "unity": "2021.3",
+    "description": "Unity runtime boundary for Aetheria typed CultCache state and future CultMesh catalog boot.",
+    "keywords": [
+        "Aetheria",
+        "CultCache",
+        "CultMesh",
+        "State"
+    ],
+    "license": "MPL-2.0",
+    "category": "Scripting"
+}

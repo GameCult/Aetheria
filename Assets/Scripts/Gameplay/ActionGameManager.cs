@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Cinemachine;
+using GameCult.Aetheria.State.Unity;
 using Ink;
 using Ink.Runtime;
 using TMPro;
@@ -35,7 +36,7 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    public static string AetheriaStateFilePath => AetheriaStateBoundary.GetStateFilePath(GameDataDirectory);
+    public static string AetheriaStateFilePath => AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
     private static string LegacyAetherDatabasePath => LegacyCatalogBoundary.GetLegacyCatalogPath(GameDataDirectory);
     private static ILegacyCatalogReader LegacyCatalog => LegacyCatalogBoundary.GetCatalog(GameDataDirectory);
 
