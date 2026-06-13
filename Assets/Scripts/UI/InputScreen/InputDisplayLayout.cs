@@ -1,9 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using MessagePack;
+using Ink.Runtime;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -83,11 +82,7 @@ public class InputDisplayLayout : MonoBehaviour
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
-        var path = Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack");
-        // _inputLayout = ParseJson(LayoutFile.text);
-        RegisterResolver.Register();
-        _inputLayout = MessagePackSerializer.Deserialize<InputLayout>(File.ReadAllBytes(path));
-        // SaveLayout();
+        _inputLayout = ParseJson(LayoutFile.text);
         DisplayLayout(_inputLayout);
 
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));
@@ -386,65 +381,27 @@ public class InputDisplayLayout : MonoBehaviour
         var rows = new List<InputLayoutRow>();
         var nextWidth = 1f;
         var nextHeight = 1;
-        var reader = new JsonTextReader(new StringReader(layout));
 
-        reader.Read();
-        if (reader.TokenType != JsonToken.StartArray)
-            throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}, expected: StartArray, received: {Enum.GetName(typeof(JsonToken), reader.TokenType)}");
-
-        while(reader.Read() && reader.TokenType != JsonToken.EndArray)
+        foreach (var rowValue in SimpleJson.TextToArray(layout))
         {
-            if (reader.TokenType != JsonToken.StartArray)
-                throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}, expected: StartArray, received: {Enum.GetName(typeof(JsonToken), reader.TokenType)}");
+            if (!(rowValue is List<object> parsedRow))
+                throw new FormatException("Unexpected keyboard layout JSON format: expected a row array.");
 
             var row = new InputLayoutKeyRow();
             var columns = new List<InputLayoutColumn>();
 
-            while (reader.Read() && reader.TokenType != JsonToken.EndArray)
+            foreach (var columnValue in parsedRow)
             {
-                switch (reader.TokenType)
+                switch (columnValue)
                 {
-                    case JsonToken.StartObject:
-                        while(reader.Read() && reader.TokenType != JsonToken.EndObject)
-                        {
-                            switch (reader.Value.ToString())
-                            {
-                                case "a": break;
-                                case "w":
-                                    nextWidth = (float) (reader.ReadAsDouble() ?? 1.0);
-                                    break;
-                                case "h":
-                                    nextHeight = reader.ReadAsInt32() ?? 1;
-                                    break;
-                                case "y":
-                                    rows.Add(new InputLayoutRowSpacer{Height = (float) (reader.ReadAsDouble() ?? 0.0)});
-                                    break;
-                                case "x":
-                                    columns.Add(new InputLayoutColumnSpacer{Width = (float) (reader.ReadAsDouble() ?? 0.0)});
-                                    break;
-                            }
-                        }
+                    case Dictionary<string, object> options:
+                        ApplyLayoutOptions(options, rows, columns, ref nextWidth, ref nextHeight);
                         break;
-                    case JsonToken.String:
-                        InputLayoutKey key;
-                        var v = reader.Value.ToString().Trim();
-                        if (!string.IsNullOrEmpty(v))
-                        {
-                            var labels = v.Split('\n');
-                            key = nextHeight != 1 ? new InputLayoutMultiRowKey {Height = nextHeight} : new InputLayoutBindableKey();
-                            nextHeight = 1;
-                            ((InputLayoutBindableKey) key).MainLabel = labels.Length == 2 ? labels[1] : v;
-                            ((InputLayoutBindableKey) key).AltLabel = labels.Length == 2 ? labels[0] : "";
-                        }
-                        else
-                            key = new InputLayoutKey();
-
-                        key.Width = nextWidth;
-                        columns.Add(key);
-                        nextWidth = 1f;
+                    case string label:
+                        columns.Add(CreateLayoutKey(label, ref nextWidth, ref nextHeight));
                         break;
                     default:
-                        throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}");
+                        throw new FormatException("Unexpected keyboard layout JSON format: expected a key label or options object.");
                 }
             }
 
@@ -453,6 +410,57 @@ public class InputDisplayLayout : MonoBehaviour
         }
 
         return new InputLayout {Rows = rows.ToArray()};
+    }
+
+    private static void ApplyLayoutOptions(
+        Dictionary<string, object> options,
+        ICollection<InputLayoutRow> rows,
+        ICollection<InputLayoutColumn> columns,
+        ref float nextWidth,
+        ref int nextHeight)
+    {
+        foreach (var option in options)
+        {
+            switch (option.Key)
+            {
+                case "a":
+                    break;
+                case "w":
+                    nextWidth = Convert.ToSingle(option.Value);
+                    break;
+                case "h":
+                    nextHeight = Convert.ToInt32(option.Value);
+                    break;
+                case "y":
+                    rows.Add(new InputLayoutRowSpacer {Height = Convert.ToSingle(option.Value)});
+                    break;
+                case "x":
+                    columns.Add(new InputLayoutColumnSpacer {Width = Convert.ToSingle(option.Value)});
+                    break;
+            }
+        }
+    }
+
+    private static InputLayoutKey CreateLayoutKey(string label, ref float nextWidth, ref int nextHeight)
+    {
+        InputLayoutKey key;
+        var trimmedLabel = label.Trim();
+        if (!string.IsNullOrEmpty(trimmedLabel))
+        {
+            var labels = trimmedLabel.Split('\n');
+            key = nextHeight != 1 ? new InputLayoutMultiRowKey {Height = nextHeight} : new InputLayoutBindableKey();
+            nextHeight = 1;
+            ((InputLayoutBindableKey) key).MainLabel = labels.Length == 2 ? labels[1] : trimmedLabel;
+            ((InputLayoutBindableKey) key).AltLabel = labels.Length == 2 ? labels[0] : "";
+        }
+        else
+        {
+            key = new InputLayoutKey();
+        }
+
+        key.Width = nextWidth;
+        nextWidth = 1f;
+        return key;
     }
 
     private IEnumerator AssociateInputKeys()
@@ -491,10 +499,7 @@ public class InputDisplayLayout : MonoBehaviour
 
     private void SaveLayout()
     {
-        RegisterResolver.Register();
-        File.WriteAllBytes(
-            Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack"),
-            MessagePackSerializer.Serialize(_inputLayout));
+        Debug.LogWarning("Keyboard layout persistence belongs to the Verse state spine. Layout edits are runtime-only until Aetheria.State is available as a Unity runtime package.");
     }
 
     private void OnEnable()

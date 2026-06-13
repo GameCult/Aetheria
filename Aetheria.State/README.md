@@ -21,6 +21,10 @@ disabled. That is intentional: the missing runtime package is the owner gap, and
 the old bespoke file formats must not keep acting as durable truth while the
 state spine is being rebuilt.
 
+Keyboard layout rendering now reads the checked-in Unity text asset directly.
+The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout
+edits are runtime-only until Verse owns a typed layout/settings document.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently
