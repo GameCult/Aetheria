@@ -21,7 +21,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   item/name catalog through `LegacyCatalogBoundary`, but `ActionGameManager` no
   longer owns a global legacy cache. Local run saves, loadouts, player settings
   files, zone files, and generated keyboard layout caches no longer write
-  bespoke durable files.
+  bespoke durable files. The legacy `PlayerSettings` runtime object is no
+  longer decorated as a MessagePack persistence shape.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -93,9 +94,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   MessagePack resolver. Resolver registration is confined to legacy catalog
   deserialization. Unused Unity asset formatters for GameObject, Material,
   Sprite, and Texture2D are deleted. Keyboard layout DTOs are plain runtime
-  parse/display models, not MessagePack save shapes. The global scene-load
-  MessagePack resolver hook is deleted. The slime compute settings path no
-  longer serializes its local parameter struct for change detection.
+  parse/display models, not MessagePack save shapes. `PlayerSettings` is a
+  plain session-local runtime object until typed Verse settings are imported
+  into Unity. The global scene-load MessagePack resolver hook is deleted. The
+  slime compute settings path no longer serializes its local parameter struct
+  for change detection.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -277,6 +280,8 @@ First Aetheria surfaces to publish:
      unused Unity asset MessagePack formatters.
    - Done: demote keyboard layout DTOs from MessagePack shapes and delete the
      global scene-load MessagePack resolver hook.
+   - Done: demote `PlayerSettings` and nested settings from MessagePack shapes
+     after the legacy settings writer was disabled.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

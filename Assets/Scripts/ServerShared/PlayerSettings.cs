@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using MessagePack;
 
-[MessagePackObject]
 public class PlayerSettings
 {
-    [Key(0)] public string Name = "Anonymous";
-    [Key(2)] public bool TutorialPassed;
-    [Key(3)] public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
-    [Key(4)] public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();
-    [Key(5)] public PlayerInputSettings InputSettings = new PlayerInputSettings();
-    [Key(6)] public PlayerGraphicsSettings GraphicsSettings = new PlayerGraphicsSettings();
+    public string Name = "Anonymous";
+    public bool TutorialPassed;
+    public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
+    public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();
+    public PlayerInputSettings InputSettings = new PlayerInputSettings();
+    public PlayerGraphicsSettings GraphicsSettings = new PlayerGraphicsSettings();
 
     public string FormatTemperature(float t)
     {
@@ -49,25 +47,22 @@ public class PlayerSettings
     }
 }
 
-[MessagePackObject]
 public class PlayerGameplaySettings
 {
-    [Key(0)] public TemperatureUnit TemperatureUnit = TemperatureUnit.Celsius;
-    [Key(1)] public int SignificantDigits = 3;
+    public TemperatureUnit TemperatureUnit = TemperatureUnit.Celsius;
+    public int SignificantDigits = 3;
 }
 
-[MessagePackObject]
 public class PlayerGraphicsSettings
 {
-    [Key(0)] public Quality NebulaQuality = Quality.Normal;
-    [Key(1)] public bool ShowAsteroidsInMinimap;
+    public Quality NebulaQuality = Quality.Normal;
+    public bool ShowAsteroidsInMinimap;
 }
 
-[MessagePackObject]
 public class PlayerInputSettings
 {
-    [Key(0)] public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
-    [Key(1)] public List<string> ActionBarInputs = new List<string>();
+    public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
+    public List<string> ActionBarInputs = new List<string>();
 }
 
 public enum Quality
