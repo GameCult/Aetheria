@@ -148,13 +148,6 @@ public static class EntitySerializer
 }
 
 [MessagePackObject]
-public class SavedStory
-{
-    [Key(0)] public string StoryJson;
-    [Key(1)] public string StateJson;
-}
-
-[MessagePackObject]
 public class ShipPack : EntityPack
 {
     [Key(17)] public float3 Position;

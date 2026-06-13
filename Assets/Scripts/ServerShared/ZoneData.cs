@@ -12,28 +12,14 @@ using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 
-[MessagePackObject]
 public class ZonePack
 {
-    [Key(0)]
     public List<BodyData> Planets = new List<BodyData>();
-
-    [Key(1)]
     public List<OrbitData> Orbits = new List<OrbitData>();
-
-    [Key(2)]
     public List<EntityPack> Entities = new List<EntityPack>();
-
-    [Key(3)]
     public float Radius = 2000;
-
-    [Key(4)]
     public float Mass = 10000;
-
-    [Key(5)]
     public double Time;
-
-
 }
 
 // [LegacyCatalogGroup("Galaxy"), MessagePackObject]
