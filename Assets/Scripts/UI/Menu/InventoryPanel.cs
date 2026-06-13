@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
@@ -851,7 +852,9 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 return Color.white * .25f;
 
             var c = float3(1);
-            if (GameManager.ItemManager.GetData(item) is EquippableItemData equippable)
+            if (TryGetTypedHardpointType(item, out var typedHardpoint))
+                c = HardpointData.GetColor(typedHardpoint);
+            else if (GameManager.ItemManager.GetData(item) is EquippableItemData equippable)
                 c = HardpointData.GetColor(equippable.HardpointType);
             
             if(!highlight)
@@ -859,6 +862,23 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
             return c.ToColor();
         }
+    }
+
+    private static bool TryGetTypedHardpointType(ItemInstance item, out HardpointType hardpointType)
+    {
+        hardpointType = HardpointType.Hull;
+        var typedItem = FindTypedInventoryItem(item);
+        return typedItem != null &&
+               !string.IsNullOrWhiteSpace(typedItem.HardpointType) &&
+               Enum.TryParse(typedItem.HardpointType, true, out hardpointType);
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 
     public bool CanDropItem(ItemInstance item)

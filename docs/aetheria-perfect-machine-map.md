@@ -150,6 +150,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   reflection, thermal curves, and durability math that have not yet moved to
   typed behavior surfaces. Inventory selection highlighting now uses typed item
   shape cells for UI tint geometry before falling back to legacy `ItemData.Shape`.
+  Inventory cargo cell tint now uses typed hardpoint facets before falling back
+  to legacy `EquippableItemData.HardpointType`.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
