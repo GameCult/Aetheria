@@ -35,7 +35,7 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    public static string AetheriaStateFilePath => LegacyCatalogBoundary.GetStateFilePath(GameDataDirectory);
+    public static string AetheriaStateFilePath => AetheriaStateBoundary.GetStateFilePath(GameDataDirectory);
     private static string LegacyAetherDatabasePath => LegacyCatalogBoundary.GetLegacyCatalogPath(GameDataDirectory);
     private static ILegacyCatalogReader LegacyCatalog => LegacyCatalogBoundary.GetCatalog(GameDataDirectory);
 

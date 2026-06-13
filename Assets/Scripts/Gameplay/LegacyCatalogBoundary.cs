@@ -4,11 +4,6 @@ public static class LegacyCatalogBoundary
 {
     private static LegacyCatalogCache _catalogCache;
 
-    public static string GetStateFilePath(DirectoryInfo gameDataDirectory)
-    {
-        return Path.Combine(gameDataDirectory.FullName, "aetheria-world.cc");
-    }
-
     public static string GetLegacyCatalogPath(DirectoryInfo gameDataDirectory)
     {
         return Path.Combine(gameDataDirectory.FullName, "AetherDB.msgpack");
