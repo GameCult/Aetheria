@@ -118,7 +118,7 @@ public class MainMenu : MonoBehaviour
                             Settings.SectorGenerationSettings,
                             Settings.SectorBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.LegacyCultCache,
+                            LegacyCatalogBoundary.GetCatalogCache(ActionGameManager.GameDataDirectory),
                             Debug.Log,
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
@@ -144,7 +144,7 @@ public class MainMenu : MonoBehaviour
                             Settings.TutorialGenerationSettings,
                             Settings.TutorialBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.LegacyCultCache,
+                            LegacyCatalogBoundary.GetCatalogCache(ActionGameManager.GameDataDirectory),
                             ActionGameManager.PlayerSettings,
                             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
                             Debug.Log,

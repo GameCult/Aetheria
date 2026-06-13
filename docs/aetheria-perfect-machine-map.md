@@ -18,9 +18,10 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 ## Current Mechanism
 
 - Unity client/runtime lives under `Assets/`. Gameplay still reads the legacy
-  item/name catalog through `ActionGameManager.LegacyCultCache`, but local run
-  saves, loadouts, player settings files, zone files, and generated keyboard
-  layout caches no longer write bespoke durable files.
+  item/name catalog through `LegacyCatalogBoundary`, but `ActionGameManager` no
+  longer owns a global legacy cache. Local run saves, loadouts, player settings
+  files, zone files, and generated keyboard layout caches no longer write
+  bespoke durable files.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -65,8 +66,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 ## Current Authority Map
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
-  `DatabaseEntry` plus old `CultCache` still own legacy catalog reads inside the
-  Unity runtime until catalog migration lands.
+  `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
+  reads inside the Unity runtime until catalog migration lands.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -80,9 +81,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   generated keyboard layout caches, and server-side `DatabaseCache` paths.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
-- Deletion line: no new behavior should be added to the old `DatabaseEntry`,
-  legacy `CultCache`, or MessagePack catalog paths except bounded migration
-  readers that emit typed `Aetheria.State` documents.
+- Deletion line: no new behavior should be added to `LegacyCatalogBoundary`, the
+  old `DatabaseEntry`, legacy `CultCache`, or MessagePack catalog paths except
+  bounded migration readers that emit typed `Aetheria.State` documents.
 
 ## Target Authority Map
 

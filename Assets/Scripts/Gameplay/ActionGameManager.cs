@@ -23,7 +23,6 @@ using UnityEngine.EventSystems;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
-using Path = System.IO.Path;
 using quaternion = Unity.Mathematics.quaternion;
 using Random = UnityEngine.Random;
 
@@ -37,33 +36,8 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    public static string AetheriaStateFilePath => Path.Combine(GameDataDirectory.FullName, "aetheria-world.cc");
-    public static string LegacyAetherDatabasePath => Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack");
-
-    private static CultCache _legacyCultCache;
-
-    public static CultCache LegacyCultCache
-    {
-        get
-        {
-            if (_legacyCultCache != null) return _legacyCultCache;
-
-            _legacyCultCache = new CultCache();
-            _legacyCultCache.AddBackingStore(
-                new SingleFileMessagePackBackingStore(LegacyAetherDatabasePath));
-            
-            // Particularly heavy objects should be stored in / retrieved from MsgPack files as it's much tighter than JSON
-            // Such as NameFiles, which are just huge collections of geonames used to condition Markov chains
-            _legacyCultCache.AddBackingStore(new MultiFileMessagePackBackingStore(GameDataDirectory.FullName), typeof(NameFile));
-            
-            _legacyCultCache.PullAllBackingStores();
-            
-            return _legacyCultCache;
-        }
-    }
-
-    [Obsolete("Use LegacyCultCache only for migration-era catalog reads. Live state belongs in GameData/aetheria-world.cc through Aetheria.State.")]
-    public static CultCache CultCache => LegacyCultCache;
+    public static string AetheriaStateFilePath => LegacyCatalogBoundary.GetStateFilePath(GameDataDirectory);
+    public static string LegacyAetherDatabasePath => LegacyCatalogBoundary.GetLegacyCatalogPath(GameDataDirectory);
 
     private static PlayerSettings _playerSettings;
     public static PlayerSettings PlayerSettings
@@ -261,7 +235,10 @@ public class ActionGameManager : MonoBehaviour
         
         Debug.Log($"Aetheria typed state file: {AetheriaStateFilePath}");
         Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
-        ItemManager = new ItemManager(LegacyCultCache, Settings.GameplaySettings, Debug.Log);
+        ItemManager = new ItemManager(
+            LegacyCatalogBoundary.GetCatalogCache(GameDataDirectory),
+            Settings.GameplaySettings,
+            Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
