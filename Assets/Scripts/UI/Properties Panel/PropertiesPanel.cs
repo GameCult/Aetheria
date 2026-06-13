@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -370,19 +371,40 @@ public class PropertiesPanel : MonoBehaviour
 
 	private void AddItemProperties(ItemInstance item)
 	{
-		var data = GameManager.ItemManager.GetData(item);
+		var typedItem = FindTypedPropertyItem(item);
+		var data = typedItem == null ? GameManager.ItemManager.GetData(item) : null;
 		
-		AddProperty(data.Description);
+		AddProperty(typedItem?.Description ?? data.Description);
 		
 		if (item is SimpleCommodity simpleCommodity)
 			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		var manufacturer = ActionGameManager.RuntimeCatalog?.FindCorporationByLegacyId(data.Manufacturer.ToString());
+		var manufacturer = typedItem != null
+			? ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)
+			: ActionGameManager.RuntimeCatalog?.FindCorporationByLegacyId(data.Manufacturer.ToString());
 		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
-		sheet.AddStat("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
+		sheet.AddStat("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(GetTypedMass(item, typedItem)));
 		
 		//AddProperty("Thermal Mass", () => Context.GetThermalMass(item).SignificantDigits(Context.GameplaySettings.SignificantDigits));
+	}
+
+	private float GetTypedMass(ItemInstance item, AetheriaRuntimeCatalogItem typedItem)
+	{
+		if (typedItem == null)
+			return GameManager.ItemManager.GetMass(item);
+
+		return item is SimpleCommodity simpleCommodity
+			? (float)typedItem.Mass * simpleCommodity.Quantity
+			: (float)typedItem.Mass;
+	}
+
+	private static AetheriaRuntimeCatalogItem FindTypedPropertyItem(ItemInstance item)
+	{
+		var itemId = item?.Data?.ItemId ?? Guid.Empty;
+		return itemId == Guid.Empty
+			? null
+			: ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
 	}
 
 	private void AddEquippableItemProperties(EquippableItem item, Func<PerformanceStat, float> statValueFunction)

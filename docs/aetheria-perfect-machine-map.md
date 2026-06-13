@@ -138,6 +138,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   falling back to legacy `HullData` projection for missing rows. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
   pickup visuals and scan labels before falling back to legacy item projections.
+  The item properties panel also reads typed catalog description, manufacturer,
+  and base mass for item presentation before hydrating legacy DTOs for behavior
+  reflection, thermal curves, and durability math that have not yet moved to
+  typed behavior surfaces.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
