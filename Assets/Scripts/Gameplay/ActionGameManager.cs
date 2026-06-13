@@ -729,6 +729,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
+                            if (!IsTypedConsumable(itemInstanceDragAction.Item)) return false;
                             if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
                             slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
                             return true;
@@ -746,6 +747,21 @@ public class ActionGameManager : MonoBehaviour
                 UnregisterDragTarget();
             });
             return slot;
+        }
+
+        bool IsTypedConsumable(ItemInstance item)
+        {
+            var typedItem = FindTypedActionBarItem(item);
+            return typedItem == null ||
+                   string.Equals(typedItem.Category, nameof(ConsumableItemData), StringComparison.Ordinal);
+        }
+
+        AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
+        {
+            var itemId = item?.Data?.ItemId ?? Guid.Empty;
+            return itemId == Guid.Empty
+                ? null
+                : RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
         }
 
         var bindings = RuntimePlayerSettings.InputSettings.ActionBarInputs.OrderBy(i => i)
