@@ -480,10 +480,11 @@ public class ActionGameManager : MonoBehaviour
             args =>
             {
                 var itemName = string.Join(" ", args);
-                var item = ItemManager.GetCatalogEntries<EquippableItemData>()
-                    .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
-                if (item != null)
+                var catalogItem = RuntimeCatalog?.EquipmentItems
+                    .FirstOrDefault(item => string.Equals(item.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
+                if (catalogItem != null && Guid.TryParse(catalogItem.LegacyId, out var legacyId))
                 {
+                    var item = ItemManager.GetCatalogEntry<EquippableItemData>(legacyId);
                     _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(item, .95f));
                 }
             });
