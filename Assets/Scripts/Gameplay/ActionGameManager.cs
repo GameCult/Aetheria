@@ -43,7 +43,6 @@ public class ActionGameManager : MonoBehaviour
     {
         get
         {
-            RegisterResolver.Register();
             return _playerSettings ??= GetDefaultPlayerSettings();
         }
     }

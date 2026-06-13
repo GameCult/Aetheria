@@ -36,7 +36,6 @@ public class MainMenu : MonoBehaviour
         // Start loading the database in the background 'cause it takes a few seconds
         //_databaseLoad = Task.Run(() => ActionGameManager.Database);
         
-        RegisterResolver.Register();
         _panelPosition = PanelPrototype.transform.position;
         
         var panel1 = PanelPrototype.Instantiate<PropertiesPanel>();
