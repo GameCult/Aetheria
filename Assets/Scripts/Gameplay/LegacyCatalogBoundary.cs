@@ -15,7 +15,6 @@ public static class LegacyCatalogBoundary
 
         _catalogCache = new LegacyCatalogCache();
         _catalogCache.AddBackingStore(new SingleFileMessagePackBackingStore(GetLegacyCatalogPath(gameDataDirectory)));
-        _catalogCache.AddBackingStore(new MultiFileMessagePackBackingStore(gameDataDirectory.FullName), typeof(NameFile));
         _catalogCache.PullAllBackingStores();
         DatabaseLinkBase.BindLegacyCatalog(_catalogCache);
         return _catalogCache;

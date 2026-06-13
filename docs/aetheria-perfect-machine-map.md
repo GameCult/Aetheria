@@ -45,7 +45,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `MessagePackSerializer` calls are the two legacy catalog deserializers and
   their resolver setup.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
-  `GameData/NameFile/*.msgpack` as migration/catalog inputs. The old
+  `GameData/NameFile/*.msgpack` as migration inputs. The Unity runtime legacy
+  catalog bridge opens only `GameData/AetherDB.msgpack`; `NameFile/*.msgpack`
+  is no longer a runtime backing store. The old
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
@@ -76,8 +78,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The private `ActionGameManager` catalog boot helper delegates to
   `LegacyCatalogBoundary`, which opens `LegacyCatalogCache` as the only
   concrete pull-only catalog cache. Runtime consumers receive
-  `ILegacyCatalogReader`, so old MessagePack backing stores may hydrate
-  in-memory domain objects for the current Unity runtime, but this path cannot
+  `ILegacyCatalogReader`, so the old `AetherDB.msgpack` backing store may hydrate
+  in-memory item domain objects for the current Unity runtime, but this path cannot
   push or delete legacy files. The legacy backing-store
   write/realtime APIs, public cache mutation methods, enumeration methods, and
   global-setting lookup methods have been deleted; only backing-store pull
@@ -107,7 +109,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
   `Faction` DTOs, including allegiance edges, for the existing simulation shape
-  and resolves full name arrays from `aetheria.name_file.v2` records.
+  and resolves full name arrays from `aetheria.name_file.v2` records. The
+  legacy catalog runtime no longer opens the old `GameData/NameFile/*.msgpack`
+  directory.
   `ActionGameManager` still has a
   private legacy catalog boot helper that feeds `ItemManager` for item/entity
   systems; menu/generation paths no longer receive the legacy reader directly.
@@ -438,6 +442,9 @@ First Aetheria surfaces to publish:
    - Done: delete `ILegacyCatalogReader.GetAll<T>` and the type/global indexes
      inside `LegacyCatalogCache`; the legacy cache is now only a pull-fed GUID
      lookup bridge.
+   - Done: remove `GameData/NameFile/*.msgpack` from Unity runtime legacy
+     catalog boot; typed name files now own runtime names, and old name files
+     remain migration inputs only.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
