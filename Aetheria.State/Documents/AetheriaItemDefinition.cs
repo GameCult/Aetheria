@@ -105,6 +105,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(30)]
     public AetheriaItemHardpoint[] Hardpoints { get; set; } = [];
+
+    [Key(31)]
+    public AetheriaBehaviorPayload[] BehaviorPayloads { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -149,4 +152,65 @@ public sealed class AetheriaItemHardpoint
 
     [Key(9)]
     public double Armor { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaBehaviorPayload
+{
+    [Key(0)]
+    public int UnionKey { get; set; }
+
+    [Key(1)]
+    public string Kind { get; set; } = "";
+
+    [Key(2)]
+    public int Group { get; set; }
+
+    [Key(3)]
+    public AetheriaBehaviorField[] Fields { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaBehaviorField
+{
+    [Key(0)]
+    public int Key { get; set; }
+
+    [Key(1)]
+    public AetheriaBehaviorValue Value { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaBehaviorMapEntry
+{
+    [Key(0)]
+    public string Key { get; set; } = "";
+
+    [Key(1)]
+    public AetheriaBehaviorValue Value { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaBehaviorValue
+{
+    [Key(0)]
+    public string Kind { get; set; } = "nil";
+
+    [Key(1)]
+    public string StringValue { get; set; } = "";
+
+    [Key(2)]
+    public double NumberValue { get; set; }
+
+    [Key(3)]
+    public bool BoolValue { get; set; }
+
+    [Key(4)]
+    public string LegacyIdValue { get; set; } = "";
+
+    [Key(5)]
+    public AetheriaBehaviorValue[] Children { get; set; } = [];
+
+    [Key(6)]
+    public AetheriaBehaviorMapEntry[] MapEntries { get; set; } = [];
 }

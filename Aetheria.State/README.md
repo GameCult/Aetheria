@@ -48,15 +48,14 @@ into `Aetheria.State`. The current checked-in catalog maps to 115 item
 definitions, 12 factions, and 12 name files. Typed item definitions include
 legacy manufacturer IDs, price, shape dimensions, occupied cell counts, full
 shape-cell masks, interior shape masks for hull/cargo equipment, hull hardpoint
-definitions, and
-stable equipment facets: hardpoint type, hull type, behavior kind fingerprints,
-stack size, durability, and weapon range/caliber/type/fire/modifier
-classifications.
+definitions, behavior kind fingerprints, typed recursive behavior payloads, and
+stable equipment facets: hardpoint type, hull type, stack size, durability, and
+weapon range/caliber/type/fire/modifier classifications.
 Typed corporation documents include the legacy short name, the true description
 field from key 3, name-file and boss-hull legacy IDs, influence distance,
-allegiance count, and music bank IDs. Runtime object graphs, full behavior
-payloads, and simulation state remain legacy until dedicated typed documents
-exist.
+allegiance count, and music bank IDs. Runtime object graphs, typed behavior
+factory construction, and simulation state remain legacy until dedicated typed
+runtime documents exist.
 Legacy GUID references that are `Guid.Empty` are imported as absent references,
 not as resolvable catalog links.
 
@@ -77,10 +76,10 @@ It opens `aetheria-world.cc`, emits immutable catalog read models for trade,
 equipment, behavior, hardpoint, manufacturer, corporation, and name-file
 queries, exposes typed item shape masks for layout and fitting consumers, and
 exposes typed interior masks and hardpoints for equipment/cargo layout
-consumers, and can read the published Eve catalog surface. It does not
-deserialize legacy `DatabaseEntry` objects and does not write state. Unity can
-use this as the first package boundary once CultLib/Eve runtime packaging is
-available.
+consumers, exposes typed behavior payload read models, and can read the
+published Eve catalog surface. It does not deserialize legacy `DatabaseEntry`
+objects and does not write state. Unity can use this as the first package
+boundary once CultLib/Eve runtime packaging is available.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
@@ -88,9 +87,12 @@ records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
 for one migrated record of each catalog kind and checks that expanded item and
 corporation catalog facts survived materialization. The verifier also exercises
 the typed catalog snapshot query surface, shape-mask invariants, and the
-published Eve catalog surface. Legacy content currently includes at least one
-overhanging hardpoint; the verifier preserves the payload and checks hardpoint
-local masks rather than silently converting content repair into migration.
+typed behavior payload tree, and the published Eve catalog surface. The current
+catalog materializes 65 behavior payloads, 661 behavior fields, and 18
+behavior-side legacy-ID references. Legacy content currently includes at least
+one overhanging hardpoint; the verifier preserves the payload and checks
+hardpoint local masks rather than silently converting content repair into
+migration.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime

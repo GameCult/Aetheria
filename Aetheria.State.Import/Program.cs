@@ -313,7 +313,14 @@ internal static class LegacyCatalogReader
         var shape = ReadShape(payload, 5);
         var interiorShape = ReadInteriorShape(unionKey, payload, shape);
         var hardpoints = unionKey == 3 ? ReadHardpoints(payload, 23) : [];
-        var behaviorKinds = ReadBehaviorKinds(payload, unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10);
+        var behaviorKey = unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10;
+        var behaviorPayloads = ReadBehaviorPayloads(payload, behaviorKey);
+        var behaviorKinds = behaviorPayloads
+            .Select(behavior => behavior.Kind)
+            .Where(kind => !string.IsNullOrWhiteSpace(kind))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var summary = new AetheriaLegacyCatalogEntrySummary
         {
             LegacyId = legacyId,
@@ -345,10 +352,11 @@ internal static class LegacyCatalogReader
                     InteriorOccupiedCells = interiorShape.OccupiedCells,
                     InteriorShapeCells = interiorShape.Cells,
                     Hardpoints = hardpoints,
+                    BehaviorPayloads = behaviorPayloads,
                     HardpointType = GetHardpointType(unionKey, payload),
                     HullType = unionKey == 3 ? GetEnumName(payload, 25, HullTypes) : "",
                     BehaviorKinds = behaviorKinds,
-                    BehaviorCount = behaviorKinds.Length,
+                    BehaviorCount = behaviorPayloads.Length,
                     MaxStack = unionKey == 0 ? GetInt(payload, 9) : 0,
                     Stackable = false,
                     Duration = 0,
@@ -640,7 +648,7 @@ internal static class LegacyCatalogReader
         };
     }
 
-    private static string[] ReadBehaviorKinds(IReadOnlyDictionary<int, object?> payload, int key)
+    private static AetheriaBehaviorPayload[] ReadBehaviorPayloads(IReadOnlyDictionary<int, object?> payload, int key)
     {
         if (!payload.TryGetValue(key, out var value) || value is not object?[] behaviors)
         {
@@ -648,18 +656,17 @@ internal static class LegacyCatalogReader
         }
 
         return behaviors
-            .Select(ReadBehaviorKind)
-            .Where(kind => !string.IsNullOrWhiteSpace(kind))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase)
+            .Select(ReadBehaviorPayload)
+            .Where(behavior => behavior != null)
+            .Cast<AetheriaBehaviorPayload>()
             .ToArray();
     }
 
-    private static string ReadBehaviorKind(object? value)
+    private static AetheriaBehaviorPayload? ReadBehaviorPayload(object? value)
     {
-        if (value is not object?[] union || union.Length < 1)
+        if (value is not object?[] union || union.Length < 2)
         {
-            return "";
+            return null;
         }
 
         var unionKey = union[0] switch
@@ -668,7 +675,74 @@ internal static class LegacyCatalogReader
             int intValue => intValue,
             _ => -1
         };
-        return BehaviorUnionNames.TryGetValue(unionKey, out var name) ? name : $"behavior:{unionKey}";
+        var fields = union[1] is object?[] payload
+            ? payload
+                .Select((fieldValue, index) => new AetheriaBehaviorField
+                {
+                    Key = index,
+                    Value = ReadBehaviorValue(fieldValue)
+                })
+                .ToArray()
+            : [];
+        return new AetheriaBehaviorPayload
+        {
+            UnionKey = unionKey,
+            Kind = BehaviorUnionNames.TryGetValue(unionKey, out var name) ? name : $"behavior:{unionKey}",
+            Group = fields.FirstOrDefault(field => field.Key == 0)?.Value.Kind == "number"
+                ? checked((int) fields[0].Value.NumberValue)
+                : 0,
+            Fields = fields
+        };
+    }
+
+    private static AetheriaBehaviorValue ReadBehaviorValue(object? value)
+    {
+        if (value == null)
+        {
+            return new AetheriaBehaviorValue { Kind = "nil" };
+        }
+
+        return value switch
+        {
+            bool boolValue => new AetheriaBehaviorValue { Kind = "bool", BoolValue = boolValue },
+            string stringValue => new AetheriaBehaviorValue { Kind = "string", StringValue = stringValue },
+            byte[] bytes when bytes.Length == 16 => new AetheriaBehaviorValue
+            {
+                Kind = "legacy-id",
+                LegacyIdValue = new Guid(bytes).ToString("D")
+            },
+            byte[] bytes => new AetheriaBehaviorValue
+            {
+                Kind = "binary",
+                StringValue = Convert.ToHexString(bytes).ToLowerInvariant()
+            },
+            object?[] array => new AetheriaBehaviorValue
+            {
+                Kind = "array",
+                Children = array.Select(ReadBehaviorValue).ToArray()
+            },
+            Dictionary<string, object?> map => new AetheriaBehaviorValue
+            {
+                Kind = "map",
+                MapEntries = map
+                    .OrderBy(entry => entry.Key, StringComparer.Ordinal)
+                    .Select(entry => new AetheriaBehaviorMapEntry
+                    {
+                        Key = entry.Key,
+                        Value = ReadBehaviorValue(entry.Value)
+                    })
+                    .ToArray()
+            },
+            double doubleValue => new AetheriaBehaviorValue { Kind = "number", NumberValue = doubleValue },
+            float floatValue => new AetheriaBehaviorValue { Kind = "number", NumberValue = floatValue },
+            long integerValue => new AetheriaBehaviorValue { Kind = "number", NumberValue = integerValue },
+            int integerValue => new AetheriaBehaviorValue { Kind = "number", NumberValue = integerValue },
+            _ => new AetheriaBehaviorValue
+            {
+                Kind = "unknown",
+                StringValue = value.ToString() ?? ""
+            }
+        };
     }
 
     private static Dictionary<int, string> CreateEnumMap(string[] names)

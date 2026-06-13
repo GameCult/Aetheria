@@ -60,12 +60,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   files. Item definitions now carry legacy manufacturer IDs, price, shape
   dimensions, occupied cell counts, full typed shape-cell masks, hardpoint
   type, hull type, interior shape masks for hull/cargo equipment, hull
-  hardpoint definitions, behavior kind fingerprints, stack size, durability,
-  and weapon range/caliber/type/fire/modifier classifications. Corporation
-  documents now carry the legacy short name, true description from key 3,
-  name-file and boss-hull legacy IDs, influence distance, allegiance count, and
-  music bank IDs. Empty legacy GUID references are imported as absent links
-  rather than as `Guid.Empty` catalog IDs.
+  hardpoint definitions, behavior kind fingerprints, typed recursive behavior
+  payloads, stack size, durability, and weapon range/caliber/type/fire/modifier
+  classifications. Corporation documents now carry the legacy short name, true
+  description from key 3, name-file and boss-hull legacy IDs, influence
+  distance, allegiance count, and music bank IDs. Empty legacy GUID references
+  are imported as absent links rather than as `Guid.Empty` catalog IDs.
   `Aetheria.State` now owns the canonical legacy-ID record key mapping for
   migrated item, corporation, and name-file documents.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
@@ -77,7 +77,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   models for trade/equipment/behavior/hardpoint/manufacturer/corporation/name
   queries, exposes typed item shape masks for layout/fitting consumers, and
   exposes typed interior masks and hardpoints for future equipment/cargo
-  layout consumers. It reads the published Eve surface without deserializing
+  layout consumers, plus typed behavior payload read models for future
+  behavior factories. It reads the published Eve surface without deserializing
   legacy `DatabaseEntry` objects. It is not a simulation owner and does not
   write state.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
@@ -95,7 +96,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the expanded typed catalog facts, typed catalog snapshot queries, and typed
   Eve catalog surface are present in the `.cc` store. The current verifier sees
   52 shaped item masks, 5 interior masks, 3 hardpoint-host hulls, 22
-  hardpoints, 39 behavior-bearing item definitions, 51 hardpoint-tagged
+  hardpoints, 39 behavior-bearing item definitions, 65 behavior payloads, 661
+  behavior fields, 18 behavior-side legacy-ID references, 51 hardpoint-tagged
   equipment items, 3 hull items, and 18 weapon-facet item definitions. Legacy
   content includes at least one overhanging hardpoint (`LonginusX`); migration
   verification preserves that payload and does not convert content repair into
@@ -264,9 +266,12 @@ First Aetheria surfaces to publish:
      expose them through the Unity-facing read facade.
    - Done: import typed interior shape masks and hull hardpoint definitions
      needed by future equipment/cargo layout and fitting consumers.
+   - Done: import recursive typed behavior payloads so future behavior
+     factories no longer have to depend on legacy `BehaviorData` objects just
+     to see authored behavior fields.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     full behavior payloads, simulation state, and any catalog fields not
-     covered by the stable scalar/fingerprint pass.
+     typed behavior factory construction, simulation state, and any catalog
+     fields not covered by the stable scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
@@ -333,7 +338,7 @@ First Aetheria surfaces to publish:
 - Unity runtime catalog smoke proves read-only catalog consumers can open the
   typed `.cc` store through `Aetheria.State.Unity` without `DatabaseEntry` or
   `LegacyCatalogCache`, including typed item masks, interior masks, and
-  hardpoint definitions.
+  hardpoint definitions, plus typed behavior payloads.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

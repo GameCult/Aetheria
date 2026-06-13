@@ -113,6 +113,7 @@ public sealed class AetheriaRuntimeCatalogItem
         int interiorOccupiedCells,
         IReadOnlyList<AetheriaRuntimeShapeCell> interiorShapeCells,
         IReadOnlyList<AetheriaRuntimeHardpoint> hardpoints,
+        IReadOnlyList<AetheriaRuntimeBehaviorPayload> behaviorPayloads,
         string hardpointType,
         string hullType,
         IReadOnlyList<string> behaviorKinds,
@@ -141,6 +142,7 @@ public sealed class AetheriaRuntimeCatalogItem
         InteriorOccupiedCells = interiorOccupiedCells;
         InteriorShapeCells = interiorShapeCells;
         Hardpoints = hardpoints;
+        BehaviorPayloads = behaviorPayloads;
         HardpointType = hardpointType;
         HullType = hullType;
         BehaviorKinds = behaviorKinds;
@@ -170,6 +172,7 @@ public sealed class AetheriaRuntimeCatalogItem
     public int InteriorOccupiedCells { get; }
     public IReadOnlyList<AetheriaRuntimeShapeCell> InteriorShapeCells { get; }
     public IReadOnlyList<AetheriaRuntimeHardpoint> Hardpoints { get; }
+    public IReadOnlyList<AetheriaRuntimeBehaviorPayload> BehaviorPayloads { get; }
     public string HardpointType { get; }
     public string HullType { get; }
     public IReadOnlyList<string> BehaviorKinds { get; }
@@ -201,6 +204,7 @@ public sealed class AetheriaRuntimeCatalogItem
             item.InteriorOccupiedCells,
             item.InteriorShapeCells.Select(AetheriaRuntimeShapeCell.FromState).ToArray(),
             item.Hardpoints.Select(AetheriaRuntimeHardpoint.FromState).ToArray(),
+            item.BehaviorPayloads.Select(AetheriaRuntimeBehaviorPayload.FromState).ToArray(),
             item.HardpointType,
             item.HullType,
             item.BehaviorKinds,
@@ -229,6 +233,121 @@ public sealed class AetheriaRuntimeShapeCell
     public static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)
     {
         return new AetheriaRuntimeShapeCell(cell.X, cell.Y);
+    }
+}
+
+public sealed class AetheriaRuntimeBehaviorPayload
+{
+    public AetheriaRuntimeBehaviorPayload(
+        int unionKey,
+        string kind,
+        int group,
+        IReadOnlyList<AetheriaRuntimeBehaviorField> fields)
+    {
+        UnionKey = unionKey;
+        Kind = kind;
+        Group = group;
+        Fields = fields;
+    }
+
+    public int UnionKey { get; }
+
+    public string Kind { get; }
+
+    public int Group { get; }
+
+    public IReadOnlyList<AetheriaRuntimeBehaviorField> Fields { get; }
+
+    public static AetheriaRuntimeBehaviorPayload FromState(AetheriaBehaviorPayload payload)
+    {
+        return new AetheriaRuntimeBehaviorPayload(
+            payload.UnionKey,
+            payload.Kind,
+            payload.Group,
+            payload.Fields.Select(AetheriaRuntimeBehaviorField.FromState).ToArray());
+    }
+}
+
+public sealed class AetheriaRuntimeBehaviorField
+{
+    public AetheriaRuntimeBehaviorField(int key, AetheriaRuntimeBehaviorValue value)
+    {
+        Key = key;
+        Value = value;
+    }
+
+    public int Key { get; }
+
+    public AetheriaRuntimeBehaviorValue Value { get; }
+
+    public static AetheriaRuntimeBehaviorField FromState(AetheriaBehaviorField field)
+    {
+        return new AetheriaRuntimeBehaviorField(field.Key, AetheriaRuntimeBehaviorValue.FromState(field.Value));
+    }
+}
+
+public sealed class AetheriaRuntimeBehaviorMapEntry
+{
+    public AetheriaRuntimeBehaviorMapEntry(string key, AetheriaRuntimeBehaviorValue value)
+    {
+        Key = key;
+        Value = value;
+    }
+
+    public string Key { get; }
+
+    public AetheriaRuntimeBehaviorValue Value { get; }
+
+    public static AetheriaRuntimeBehaviorMapEntry FromState(AetheriaBehaviorMapEntry entry)
+    {
+        return new AetheriaRuntimeBehaviorMapEntry(entry.Key, AetheriaRuntimeBehaviorValue.FromState(entry.Value));
+    }
+}
+
+public sealed class AetheriaRuntimeBehaviorValue
+{
+    public AetheriaRuntimeBehaviorValue(
+        string kind,
+        string stringValue,
+        double numberValue,
+        bool boolValue,
+        string legacyIdValue,
+        IReadOnlyList<AetheriaRuntimeBehaviorValue> children,
+        IReadOnlyList<AetheriaRuntimeBehaviorMapEntry> mapEntries)
+    {
+        Kind = kind;
+        StringValue = stringValue;
+        NumberValue = numberValue;
+        BoolValue = boolValue;
+        LegacyIdValue = legacyIdValue;
+        Children = children;
+        MapEntries = mapEntries;
+    }
+
+    public string Kind { get; }
+
+    public string StringValue { get; }
+
+    public double NumberValue { get; }
+
+    public bool BoolValue { get; }
+
+    public string LegacyIdValue { get; }
+
+    public IReadOnlyList<AetheriaRuntimeBehaviorValue> Children { get; }
+
+    public IReadOnlyList<AetheriaRuntimeBehaviorMapEntry> MapEntries { get; }
+
+    public static AetheriaRuntimeBehaviorValue FromState(AetheriaBehaviorValue value)
+    {
+        return new AetheriaRuntimeBehaviorValue(
+            value.Kind,
+            value.StringValue,
+            value.NumberValue,
+            value.BoolValue,
+            value.LegacyIdValue,
+            value.Children.Select(FromState).ToArray(),
+            value.MapEntries.Select(AetheriaRuntimeBehaviorMapEntry.FromState).ToArray());
     }
 }
 

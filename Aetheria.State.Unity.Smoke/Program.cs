@@ -62,6 +62,20 @@ if (!catalog.FindItemsByBehavior(behaviorKind).Any())
     throw new InvalidOperationException($"Runtime catalog behavior lookup failed for {behaviorKind}.");
 }
 
+var behaviorHost = catalog.Items.FirstOrDefault(item => item.BehaviorPayloads.Count > 0)
+    ?? throw new InvalidOperationException("Runtime catalog has no typed behavior payloads.");
+if (!behaviorHost.BehaviorPayloads.All(payload => behaviorHost.BehaviorKinds.Contains(payload.Kind)))
+{
+    throw new InvalidOperationException(
+        $"Runtime behavior payload kind index mismatch for {behaviorHost.Name}.");
+}
+
+var behaviorPayload = behaviorHost.BehaviorPayloads.First();
+if (behaviorPayload.Fields.Count == 0)
+{
+    throw new InvalidOperationException($"Runtime behavior payload has no fields for {behaviorHost.Name}.");
+}
+
 var equipment = catalog.EquipmentItems.First();
 if (!catalog.FindItemsByHardpoint(equipment.HardpointType).Any())
 {
@@ -85,5 +99,6 @@ Console.WriteLine($"Aetheria Unity runtime catalog smoke passed: {statePath}");
 Console.WriteLine($"Items/trade/equipment: {catalog.Items.Count}/{catalog.TradeItems.Count}/{catalog.EquipmentItems.Count}");
 Console.WriteLine($"Shape mask sample: {shaped.Name} {shaped.ShapeWidth}x{shaped.ShapeHeight}/{shaped.ShapeCells.Count}");
 Console.WriteLine($"Interior/hardpoint sample: {interior.Name} {interior.InteriorShapeCells.Count}; {hardpointHost.Name} {hardpoint.Type} {hardpoint.ShapeCells.Count}");
+Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayload.Kind}/{behaviorPayload.Fields.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");

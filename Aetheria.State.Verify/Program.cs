@@ -48,6 +48,13 @@ var interiorShapeItems = items.Count(item => item.InteriorShapeCells.Length > 0)
 var hardpointHostItems = items.Count(item => item.Hardpoints.Length > 0);
 var hardpointCount = items.Sum(item => item.Hardpoints.Length);
 var behaviorItems = items.Count(item => item.BehaviorCount > 0 && item.BehaviorKinds.Length > 0);
+var behaviorPayloadItems = items.Count(item => item.BehaviorPayloads.Length > 0);
+var behaviorPayloadCount = items.Sum(item => item.BehaviorPayloads.Length);
+var behaviorFieldCount = items.SelectMany(item => item.BehaviorPayloads).Sum(behavior => behavior.Fields.Length);
+var behaviorLegacyRefCount = items
+    .SelectMany(item => item.BehaviorPayloads)
+    .SelectMany(behavior => behavior.Fields)
+    .Count(field => ContainsBehaviorValueKind(field.Value, "legacy-id"));
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
 var weaponItems = items.Count(item =>
@@ -146,6 +153,29 @@ foreach (var item in items.Where(item => item.Hardpoints.Length > 0))
 if (behaviorItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any behavior fingerprints.");
+}
+
+if (behaviorPayloadItems != behaviorItems || behaviorPayloadCount == 0 || behaviorFieldCount == 0)
+{
+    throw new InvalidOperationException(
+        $"Typed behavior payload import mismatch: payloadItems={behaviorPayloadItems}, behaviorItems={behaviorItems}, payloads={behaviorPayloadCount}, fields={behaviorFieldCount}.");
+}
+
+foreach (var item in items.Where(item => item.BehaviorPayloads.Length > 0))
+{
+    if (item.BehaviorPayloads.Length != item.BehaviorCount)
+    {
+        throw new InvalidOperationException(
+            $"Typed item behavior payload count mismatch for {item.Name}: payloads={item.BehaviorPayloads.Length}, count={item.BehaviorCount}.");
+    }
+
+    foreach (var behavior in item.BehaviorPayloads)
+    {
+        if (string.IsNullOrWhiteSpace(behavior.Kind) || behavior.UnionKey < 0 || behavior.Fields.Length == 0)
+        {
+            throw new InvalidOperationException($"Typed item behavior payload is incomplete for {item.Name}.");
+        }
+    }
 }
 
 if (hardpointItems == 0)
@@ -256,6 +286,7 @@ Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
+Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
@@ -276,6 +307,13 @@ static void RequireCount(AetheriaMigrationLedger ledger, string documentType, in
         throw new InvalidOperationException(
             $"Migration ledger count mismatch for {documentType}: ledger={expected.Value}, actual={actual}.");
     }
+}
+
+static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)
+{
+    return string.Equals(value.Kind, kind, StringComparison.OrdinalIgnoreCase) ||
+           value.Children.Any(child => ContainsBehaviorValueKind(child, kind)) ||
+           value.MapEntries.Any(entry => ContainsBehaviorValueKind(entry.Value, kind));
 }
 
 static async Task RequireLegacyLookupAsync<T>(
