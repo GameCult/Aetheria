@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DataStructures.ViliWonka.Heap;
+using GameCult.Aetheria.State.Unity;
 using Ink.Runtime;
 using MIConvexHull;
 using JM.LinqFaster;
@@ -33,6 +34,7 @@ public class Galaxy
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
     private readonly ItemManager _itemManager;
+    private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
 
     public GalaxyZone[] ExitPath
     {
@@ -49,11 +51,13 @@ public class Galaxy
         SectorBackgroundSettings background, 
         NameGeneratorSettings nameGeneratorSettings, 
         ItemManager itemManager,
+        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
         _itemManager = itemManager;
+        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
         IsPrelude = false;
         Background = background;
         Log = log;
@@ -81,7 +85,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(itemManager, nameGeneratorSettings, ref random, progressCallback);
+        GenerateNames(nameGeneratorSettings, ref random, progressCallback);
 
         progressCallback?.Invoke("Done!");
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
@@ -97,6 +101,7 @@ public class Galaxy
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
         ItemManager itemManager,
+        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
@@ -104,6 +109,7 @@ public class Galaxy
         uint seed = 0)
     {
         _itemManager = itemManager;
+        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
         IsPrelude = true;
 
         Background = background;
@@ -189,7 +195,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(itemManager, nameGeneratorSettings, ref random, progressCallback);
+        GenerateNames(nameGeneratorSettings, ref random, progressCallback);
         
         // progressCallback?.Invoke("Weaving Narrative");
         // var processor = new StoryProcessor(playerSettings, narrativeDirectory, this, ref random, Log);
@@ -280,8 +286,7 @@ public class Galaxy
         }
     }
 
-    private void GenerateNames(ItemManager itemManager,
-        NameGeneratorSettings nameGeneratorSettings,
+    private void GenerateNames(NameGeneratorSettings nameGeneratorSettings,
         ref Random random,
         Action<string> progressCallback = null)
     {
@@ -290,7 +295,13 @@ public class Galaxy
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, itemManager.GetCatalogEntry<NameFile>(faction.GeonameFile).Names, nameGeneratorSettings);
+            var nameFile = _runtimeCatalog.FindNameFileByLegacyId(faction.GeonameFile.ToString());
+            if (nameFile == null || nameFile.Names.Count == 0)
+            {
+                throw new InvalidOperationException($"Typed catalog has no name file for faction {faction.Name} ({faction.GeonameFile}).");
+            }
+
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, nameFile.Names, nameGeneratorSettings);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID

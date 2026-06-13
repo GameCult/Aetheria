@@ -93,9 +93,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `ItemManager` for manufacturer display; it resolves the manufacturer through
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader`. Sector and
-  tutorial generation receive `ItemManager` and use the same narrow catalog
-  lookup port for factions and name files. `ActionGameManager` now has a
-  private legacy catalog boot helper that feeds only `ItemManager`;
+  tutorial generation still receive `ItemManager` for legacy `Faction` objects,
+  but name generation now receives the package-owned typed runtime catalog and
+  resolves full name arrays from `aetheria.name_file.v2` records. `ActionGameManager`
+  now has a private legacy catalog boot helper that feeds only `ItemManager`;
   menu/generation paths no longer receive the legacy reader directly.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
@@ -136,6 +137,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   that package source and owns the full `Aetheria.State` mapper plus Eve surface
   read path for .NET smokes. Neither is a simulation owner and neither writes
   state.
+  `Aetheria.Shared.Unity` references this package directly so `Galaxy` can
+  consume typed name files without loading legacy `NameFile` documents.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -174,6 +177,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
   deleted. `NameTools` can still clean/generate names, but legacy NameFile
   `.msgpack` export is disabled.
+- Galaxy name generation no longer reads legacy `NameFile` entries through
+  `ItemManager`; it requires the typed runtime catalog opened from
+  `GameData/aetheria-world.cc`.
 - MessagePack is no longer used as a runtime object-cloning shortcut for
   `EntitySettings`, and UI/player-settings startup no longer registers the old
   MessagePack resolver. Resolver registration is confined to legacy catalog
@@ -379,6 +385,8 @@ First Aetheria surfaces to publish:
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
      read the materialized `.cc` catalog plus Eve surface without the legacy
      catalog reader.
+   - Done: move `Galaxy` name generation to the typed runtime catalog; legacy
+     `NameFile` entries no longer decide generated zone names.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.

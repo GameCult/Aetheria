@@ -5,7 +5,8 @@
         "MessagePack",
         "Unity.Mathematics",
         "UniRx",
-        "Ink"
+        "Ink",
+        "GameCult.Aetheria.State.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

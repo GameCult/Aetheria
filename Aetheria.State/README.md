@@ -93,6 +93,10 @@ consumers, exposes typed behavior payload read models, and can read the
 published Eve catalog surface. It does not deserialize legacy `DatabaseEntry`
 objects and does not write state. Unity can use this as the first package
 boundary once CultLib/Eve runtime packaging is available.
+`Galaxy` now consumes this package-owned runtime catalog for name generation,
+so generated zone names come from `aetheria.name_file.v2` records instead of
+legacy `NameFile` documents. Faction selection still uses legacy `Faction`
+objects until that domain model has a typed runtime replacement.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
 typed loadout template in addition to world, catalog, run state, zone state, and
