@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -119,7 +120,10 @@ public class SchematicDisplay : MonoBehaviour
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Item.Data is WeaponItemData weaponItemData)
+            var typedWeapon = FindTypedWeapon(x.Item.EquippableItem);
+            if (typedWeapon != null)
+                x.ListElement.ShowWeapon(typedWeapon);
+            else if(x.Item.Data is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
@@ -129,6 +133,18 @@ public class SchematicDisplay : MonoBehaviour
             }
         }
     }
+
+    private static AetheriaRuntimeCatalogItem FindTypedWeapon(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        var typedItem = itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        return typedItem != null && !string.IsNullOrWhiteSpace(typedItem.WeaponType)
+            ? typedItem
+            : null;
+    }
+
 
     void Update()
     {

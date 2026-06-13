@@ -85,6 +85,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   DTOs to classify the icon; legacy custom action-bar icon paths remain fallback
   projection data. Unity boot reads typed player settings back through the
   package-owned CultCache reader before falling back to defaults.
+- The combat schematic HUD uses typed runtime catalog weapon facets for its
+  static weapon icon strip before falling back to legacy `WeaponItemData`.
+  Runtime weapon behavior still owns ammo counts, active range, cooldowns,
+  temperature, and durability display until those session facts have typed
+  runtime surfaces.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
