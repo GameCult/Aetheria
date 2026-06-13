@@ -129,8 +129,16 @@ catalog reader. It also proves runtime commit envelopes for settings and run
 zone/entity snapshots can be queued, applied through `Aetheria.State`, and
 cleared.
 
-`Aetheria.State.ApplyPending` is the bounded local applicator for queued Unity
-runtime commits:
+`Economy.Server` opens the CultMesh state host, applies pending runtime commits
+on startup, and polls for new pending commits while running. For a bounded
+one-shot drain without leaving the host running:
+
+```powershell
+dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-once
+```
+
+`Aetheria.State.ApplyPending` is the smaller local operator applicator for
+queued Unity runtime commits when the server host is not being used:
 
 ```powershell
 dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .

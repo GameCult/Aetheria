@@ -16,10 +16,17 @@ internal static class Program
             startServer: true).ConfigureAwait(false);
 
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
+        await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
+        if (HasFlag(args, "--apply-pending-once"))
+        {
+            Console.WriteLine("Aetheria pending runtime commit drain completed.");
+            return;
+        }
+
         Console.WriteLine("Aetheria CultMesh state host is running. Press Ctrl+C to stop.");
-        await WaitForShutdownAsync().ConfigureAwait(false);
+        await RunUntilShutdownAsync(node, PendingInterval(args)).ConfigureAwait(false);
 
         Console.WriteLine("Aetheria CultMesh state host stopping.");
     }
@@ -59,7 +66,24 @@ internal static class Program
         }).ConfigureAwait(false);
     }
 
-    private static Task WaitForShutdownAsync()
+    private static async Task ApplyPendingRuntimeCommitsAsync(AetheriaStateNode node)
+    {
+        var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(node).ConfigureAwait(false);
+        if (report.AppliedPaths.Length == 0)
+        {
+            Console.WriteLine("No pending Aetheria runtime commits.");
+            return;
+        }
+
+        Console.WriteLine(
+            "Applied pending Aetheria runtime commits: " +
+            $"settings={report.AppliedPlayerSettings}, " +
+            $"loadouts={report.AppliedLoadoutTemplates}, " +
+            $"runs={report.AppliedRunCheckpoints}, " +
+            $"files={report.AppliedPaths.Length}");
+    }
+
+    private static async Task RunUntilShutdownAsync(AetheriaStateNode node, TimeSpan pendingInterval)
     {
         var stopped = new TaskCompletionSource<object?>();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -68,6 +92,34 @@ internal static class Program
             stopped.TrySetResult(null);
         };
 
-        return stopped.Task;
+        while (!stopped.Task.IsCompleted)
+        {
+            var delay = Task.Delay(pendingInterval);
+            var completed = await Task.WhenAny(stopped.Task, delay).ConfigureAwait(false);
+            if (completed == stopped.Task)
+                break;
+
+            await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
+        }
+    }
+
+    private static TimeSpan PendingInterval(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count - 1; i++)
+        {
+            if (string.Equals(args[i], "--pending-interval-ms", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(args[i + 1], out var milliseconds) &&
+                milliseconds > 0)
+            {
+                return TimeSpan.FromMilliseconds(milliseconds);
+            }
+        }
+
+        return TimeSpan.FromSeconds(5);
+    }
+
+    private static bool HasFlag(IReadOnlyList<string> args, string flag)
+    {
+        return args.Any(arg => string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase));
     }
 }

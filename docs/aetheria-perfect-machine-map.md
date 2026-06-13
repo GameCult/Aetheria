@@ -41,9 +41,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
-  persistence shape. `Aetheria.State.ApplyPending` is the repo-local applicator
-  entrypoint for draining `aetheria-world.cc.pending` into canonical typed state
-  until that worker is hosted as a daemon/CultMesh organ.
+  persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
+  into canonical typed state on startup and on a daemon polling loop while
+  hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
+  bounded local operator applicator.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -117,7 +118,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `ActionGameManager` binds the typed runtime item catalog projected from
   `aetheria-world.cc`. MessagePack catalog construction no longer grabs global
   `DatabaseLinkBase` authority.
-- `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
+- `Economy.Server` now starts the modern `Aetheria.State` CultMesh node, drains
+  pending Unity runtime commits through the typed state applicator, and no
   longer owns RethinkDB/LiteNetLib state.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
   ledger for the legacy catalog files. It also raw-decodes stable old
@@ -170,6 +172,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   successfully applied command files by default. It is an operational bridge,
   not a second state owner; the applicator delegates all writes to
   `AetheriaStateNode`.
+- `Economy.Server` hosts the CultMesh state node and now owns the long-running
+  pending runtime commit drain loop. `--apply-pending-once` runs the same drain
+  path once for smoke/operator use without keeping the process alive.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -530,6 +535,8 @@ First Aetheria surfaces to publish:
      documents.
    - Done: add `Aetheria.State.ApplyPending` as a bounded local applicator for
      queued runtime commits until the drain loop is hosted as a daemon.
+   - Done: move the pending runtime commit drain into `Economy.Server` startup
+     and daemon polling, with `--apply-pending-once` for bounded operation.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.
