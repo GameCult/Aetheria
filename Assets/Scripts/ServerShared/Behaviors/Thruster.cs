@@ -79,7 +79,7 @@ public class Thruster : Behavior, IAnalogBehavior
                 Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
-            if (!Entity.VisibilitySources.ContainsRuntimeCatalogKey(this) || vis > Entity.VisibilitySources[this])
+            if (!Entity.VisibilitySources.TryGetValue(this, out var existingVisibility) || vis > existingVisibility)
                 Entity.VisibilitySources[this] = vis;
             return true;
         }

@@ -194,6 +194,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   DTOs. This gives Unity the same provider-owned retained tree that the
   SDK-style state client reads, without JSON fixtures, HTTP dashboard
   summaries, or renderer-owned state.
+- `AetheriaEveSurfacePresenter` is the first runtime UI Toolkit consumer of
+  those typed surface documents. It owns mounting only: state file resolution,
+  surface lookup, lowering, and visible capability gaps for commands. Provider
+  command acceptance still belongs to the future CultMesh command bridge.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
@@ -281,6 +285,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the first carries no-engine `gamecult.eve.surface.v1` contract DTOs, and the
   second lowers those retained trees into UI Toolkit `VisualElement` trees.
   These packages are renderer boundaries, not UI truth owners.
+  `org.gamecult.aetheria.eve-runtime` now adds the Aetheria-specific
+  `UIDocument` presenter that reads provider-owned Eve surfaces from
+  `GameData/aetheria-world.cc` and mounts them through the lowerer. Its command
+  path currently reports the missing CultMesh command bridge instead of
+  accepting renderer-local command effects.
 
 ## Invariants
 
@@ -540,6 +549,11 @@ First Aetheria surfaces to publish:
    - Done: teach the embedded Unity state package to read
      `gamecult.eve.surface` records from the `.cc` store into that shared
      contract.
+   - Done: add `org.gamecult.aetheria.eve-runtime` with a `UIDocument`
+     presenter that mounts typed Eve surfaces from `GameData/aetheria-world.cc`
+     through UI Toolkit without giving the renderer state authority.
+   - Wire the presenter into a Unity scene/prefab for the first runtime surface
+     and replace a concrete uGUI screen.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
    - Replace the old IMGUI DB inspector first, because it is closest to state

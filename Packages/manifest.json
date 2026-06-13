@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "org.gamecult.aetheria.eve-runtime": "file:org.gamecult.aetheria.eve-runtime",
+    "org.gamecult.aetheria.state": "file:org.gamecult.aetheria.state",
     "org.gamecult.eve.surface": "file:org.gamecult.eve.surface",
     "org.gamecult.eve.unity-uitoolkit": "file:org.gamecult.eve.unity-uitoolkit",
     "com.unity.2d.sprite": "1.0.0",

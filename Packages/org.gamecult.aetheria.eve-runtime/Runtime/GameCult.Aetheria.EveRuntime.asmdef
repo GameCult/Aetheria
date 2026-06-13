@@ -1,0 +1,18 @@
+{
+    "name": "GameCult.Aetheria.EveRuntime",
+    "rootNamespace": "GameCult.Aetheria.EveRuntime",
+    "references": [
+        "GameCult.Aetheria.State.Unity",
+        "GameCult.Eve.Surface",
+        "GameCult.Eve.UnityUIToolkit"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

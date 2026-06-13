@@ -1,5 +1,22 @@
 {
   "dependencies": {
+    "org.gamecult.aetheria.eve-runtime": {
+      "version": "file:org.gamecult.aetheria.eve-runtime",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "org.gamecult.aetheria.state": "0.1.0",
+        "org.gamecult.eve.unity-uitoolkit": "0.1.0"
+      }
+    },
+    "org.gamecult.aetheria.state": {
+      "version": "file:org.gamecult.aetheria.state",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "org.gamecult.eve.surface": "0.1.0"
+      }
+    },
     "org.gamecult.eve.surface": {
       "version": "file:org.gamecult.eve.surface",
       "depth": 0,

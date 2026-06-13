@@ -561,7 +561,7 @@ public class HardpointData : ITintInspector
                 x => ColorMath.HsvToRgb(float3(frac((float)(int)x/hardpointTypes.Length + .25f), 1, 1)));
         }
 
-        return _tintColors.ContainsRuntimeCatalogKey(type) ? _tintColors[type] : _tintColors[HardpointType.Hull];
+        return _tintColors.TryGetValue(type, out var color) ? color : _tintColors[HardpointType.Hull];
     }
 
     private static Dictionary<HardpointType, float3> _tintColors;
@@ -597,7 +597,7 @@ public class PerformanceStat
 
     public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
     {
-        if(!ScaleModifiers.ContainsRuntimeCatalogKey(entity))
+        if(!ScaleModifiers.ContainsKey(entity))
             ScaleModifiers[entity] = new Dictionary<Behavior, float>();
 
         return ScaleModifiers[entity];
@@ -605,7 +605,7 @@ public class PerformanceStat
 
     public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
     {
-        if(!ConstantModifiers.ContainsRuntimeCatalogKey(entity))
+        if(!ConstantModifiers.ContainsKey(entity))
             ConstantModifiers[entity] = new Dictionary<Behavior, float>();
 
         return ConstantModifiers[entity];

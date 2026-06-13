@@ -27,9 +27,9 @@ public abstract class Behavior
             if(Item != null)
             {
                 var hardpoint = Entity.Hardpoints[Item.Position.x, Item.Position.y];
-                if (hardpoint != null && Entity.HardpointTransforms.ContainsRuntimeCatalogKey(hardpoint))
+                if (hardpoint != null && Entity.HardpointTransforms.TryGetValue(hardpoint, out var hardpointTransform))
                 {
-                    return normalize(Entity.HardpointTransforms[hardpoint].direction);
+                    return normalize(hardpointTransform.direction);
                 }
                 else
                 {
