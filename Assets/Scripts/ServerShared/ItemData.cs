@@ -260,7 +260,7 @@ public class Shape
 
 }
 
-public abstract class ItemData : RuntimeCatalogEntry, INamedEntry
+public abstract class ItemData : RuntimeProjectionEntry, INamedEntry
 {
     [Inspectable, RuntimeCatalogKey(1)]
     public string Name;
@@ -609,7 +609,7 @@ public class PerformanceStat
 }
 
 [Inspectable]
-public class PersonalityAttribute : RuntimeCatalogEntry, INamedEntry
+public class PersonalityAttribute : RuntimeProjectionEntry, INamedEntry
 {
     [Inspectable, RuntimeCatalogKey(1)]
     public string Name;

@@ -21,7 +21,7 @@ public class RuntimeZoneBlueprint
     public double Time;
 }
 
-public abstract class BodyData : RuntimeCatalogEntry, INamedEntry
+public abstract class BodyData : RuntimeProjectionEntry, INamedEntry
 {
     public string Name = "";
 
@@ -101,7 +101,7 @@ public class Asteroid
     public float RotationSpeed;
 }
 
-public class OrbitData : RuntimeCatalogEntry
+public class OrbitData : RuntimeProjectionEntry
 {
     public Guid Parent;
 

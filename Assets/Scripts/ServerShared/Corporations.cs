@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 
 [Inspectable]
-public class Faction : RuntimeCatalogEntry, INamedEntry
+public class Faction : RuntimeProjectionEntry, INamedEntry
 {
     [Inspectable]
     public string Name;
@@ -63,7 +63,7 @@ public class Faction : RuntimeCatalogEntry, INamedEntry
 }
 
 [Inspectable]
-public class NameFile : RuntimeCatalogEntry, INamedEntry
+public class NameFile : RuntimeProjectionEntry, INamedEntry
 {
     public string Name;
     public string[] Names;

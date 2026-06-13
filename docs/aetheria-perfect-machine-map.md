@@ -46,7 +46,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared domain state is still partly built around `RuntimeCatalogEntry`, GUID
+- Shared domain state is still partly built around `RuntimeProjectionEntry`, GUID
   identity, runtime catalog metadata, and static projection references. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
@@ -96,8 +96,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `RuntimeItemReference`, a hydrated item-id/value holder, not a process-global
   catalog resolver. The old `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
-  deleted. The old `DatabaseEntry` name has been demoted to
-  `RuntimeCatalogEntry` for surviving runtime DTOs, and the old generic
+  deleted. The old `DatabaseEntry`/`RuntimeCatalogEntry` base has been demoted
+  to `RuntimeProjectionEntry` for surviving runtime DTOs, and the old generic
   `DatabaseLink<T>`/`RuntimeCatalogLink<T>` path has collapsed into the
   item-specific runtime reference.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
@@ -346,7 +346,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
-  item records for the old simulation object model. `RuntimeCatalogEntry` is a
+  item records for the old simulation object model. `RuntimeProjectionEntry` is a
   projection identity helper, not a persistence base, and behavior type
   selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection.
@@ -382,7 +382,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to old `ItemData` DTO
   metadata or MessagePack catalog paths except bounded migration readers and the
-  current typed item projection bridge. `RuntimeCatalogEntry` is no longer a
+  current typed item projection bridge. `RuntimeProjectionEntry` is not a
   persistence owner.
 
 ## Target Authority Map
@@ -399,7 +399,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `RuntimeCatalogEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: replace the remaining `RuntimeCatalogEntry`/`ItemData` runtime DTO
+- Deletion line: replace the remaining `RuntimeProjectionEntry`/`ItemData` runtime DTO
   projection with native typed item instances, then remove old MessagePack
   catalog metadata from live Unity source once import-only migration no longer
   needs it.
@@ -544,6 +544,8 @@ First Aetheria surfaces to publish:
      `DatabaseLink<T>`, and `InspectableDatabaseLinkAttribute` to runtime
      projection names, and move the old `ServerShared/CultCache` folder to
      `ServerShared/RuntimeProjection`.
+   - Done: rename the surviving runtime DTO identity base from
+     `RuntimeCatalogEntry` to `RuntimeProjectionEntry`.
    - Done: replace behavior union reflection with an explicit runtime catalog
      behavior map and remove all live `Union(...)` annotations.
    - Done: demote agent task runtime shapes from MessagePack object/key/union
@@ -705,6 +707,8 @@ First Aetheria surfaces to publish:
   `Assets/Scripts` now finds only `ItemManager` checking its own hydrated value.
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
   item instances use `RuntimeItemReference` and expose `Data.ItemId`.
+- Live Unity source has no `RuntimeCatalogEntry`; surviving DTOs inherit
+  `RuntimeProjectionEntry`.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or
