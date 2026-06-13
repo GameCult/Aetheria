@@ -122,7 +122,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   commands, not in-client catalog hydration shortcuts. `LoadoutGenerator` also
   receives the typed runtime catalog and uses it to own
   item candidate selection before hydrating selected legacy item DTOs by ID for
-  exact fitting checks and behavior construction. The unused `TradeMenuDebug`
+  remaining behavior construction and legacy simulation checks. Hardpoint type,
+  shape fit, station bay fit, hull/category, and behavior-kind prefilters now
+  run against typed catalog rows before any DTO projection is hydrated. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`.
@@ -391,7 +393,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
-  remaining runtime single-ID item projection bridge. The old trade debug UI
+  remaining runtime single-ID item projection bridge, but typed catalog rows own
+  the loadout candidate prefilters for shape, category, hardpoint type, and
+  behavior kind before that bridge is invoked. The old trade debug UI
   and console `give` command have been deleted. No live caller can enumerate
   legacy catalog entries or request catalog-shaped single entries through
   `ItemManager`.
@@ -558,6 +562,10 @@ First Aetheria surfaces to publish:
    - Done: move `LoadoutGenerator` item candidate selection to the typed
      runtime catalog; legacy item DTO hydration remains only for exact fitting
      checks and behavior construction.
+   - Done: move loadout hardpoint fit, station bay fit, hull/category, and
+     behavior-kind prefilters ahead of DTO hydration so typed catalog rows
+     reject incompatible candidates before `GetRuntimeItemProjection<T>` is
+     called.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: delete the console `give` command instead of preserving a debug
@@ -802,4 +810,7 @@ temporary `AetheriaRuntimeItemCatalog` DTO materializer. The typed state spine
 and migration quarantine exist; the next cuts should replace surviving
 projection consumers with typed item facets, typed behavior factories, and Eve
 surfaces until `GetRuntimeItemProjection<T>` has no caller and the old DTO
-bridge can be deleted.
+bridge can be deleted. Loadout generation should keep moving eligibility tests
+onto `AetheriaRuntimeCatalogItem` rows before projection; any predicate that
+still needs `ItemData` must earn that dependency by using behavior objects or
+simulation-only methods that typed facets do not yet expose.

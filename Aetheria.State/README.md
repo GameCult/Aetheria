@@ -73,6 +73,9 @@ abstraction has been deleted; item data projection is routed through
 `Projection` is not durable state; it is a bridge for surviving simulation and
 UI code. The remaining single-item bridge is named `GetRuntimeItemProjection<T>`,
 not catalog entry access.
+Loadout generation now applies typed catalog prefilters for item category,
+hardpoint type, shape fit, hull type, and behavior kind before hydrating legacy
+`ItemData` projections for final simulation compatibility.
 Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source. Temporary
 faction/corporation projections and zone body/orbit DTOs keep local GUID fields

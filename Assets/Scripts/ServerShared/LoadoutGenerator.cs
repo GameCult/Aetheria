@@ -93,7 +93,9 @@ public class LoadoutGenerator
         
         var emptyShape = entity.UnoccupiedSpace;
         
-        var dockingBayData = RandomItem<DockingBayData>(2, item => item.Shape.FitsWithin(emptyShape, out _, out _));
+        var dockingBayData = RandomItem<DockingBayData>(2,
+            item => item.Shape.FitsWithin(emptyShape, out _, out _),
+            item => FitsWithin(item, emptyShape));
         if (dockingBayData == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
 
         dockingBayData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -107,8 +109,10 @@ public class LoadoutGenerator
         OutfitEntity(entity);
 
         var cargo = entity.CargoBays.First();
-        IEnumerable<EquippableItemData> inventory = RandomItems<EquippableItemData>(16, 1, 
-            data => !(data is HullData hull && hull.HullType != HullType.Ship) && !(data is CargoBayData));
+        IEnumerable<EquippableItemData> inventory = RandomItems<EquippableItemData>(16, 1,
+            data => !(data is HullData hull && hull.HullType != HullType.Ship) && !(data is CargoBayData),
+            item => item.Category != "CargoBayData" && item.Category != "DockingBayData" &&
+                    (item.Category != "HullData" || item.HullType == nameof(HullType.Ship)));
         inventory = inventory
             .OrderByDescending(item=>item.Shape.Coordinates.Length);
         foreach (var item in inventory)
@@ -129,7 +133,11 @@ public class LoadoutGenerator
                 item.HullType == type);
     }
     
-    public T[] RandomItems<T>(int count, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
+    public T[] RandomItems<T>(
+        int count,
+        float sizeExponent,
+        Predicate<T> filter = null,
+        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
     {
         return RuntimeCatalog.EquipmentItems
             .Where(IsTypedCandidate<T>)
@@ -138,7 +146,8 @@ public class LoadoutGenerator
                 Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer) &&
                 manufacturer != Guid.Empty &&
                 (Galaxy.IsPrelude || Galaxy.ContainsFaction(manufacturer) &&
-                    (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))))
+                    (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))) &&
+                (typedFilter?.Invoke(item) ?? true))
             .Select(ProjectRuntimeItem<T>)
             .Where(item => item != null)
             .Where(item => 
@@ -198,17 +207,51 @@ public class LoadoutGenerator
             : 1;
     }
 
-    public T RandomItem<T>(float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
+    public T RandomItem<T>(
+        float sizeExponent,
+        Predicate<T> filter = null,
+        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
     {
-        return RandomItems(1, sizeExponent, filter).FirstOrDefault();
+        return RandomItems(1, sizeExponent, filter, typedFilter).FirstOrDefault();
     }
     
     public T RandomItem<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
     {
-        return RandomItem<T>(sizeExponent, item => item.HardpointType == hardpoint.Type &&
-                                  (filter?.Invoke(item) ?? true) && 
-                                  item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                                  item.Shape.Coordinates.Length==hardpoint.Shape.Coordinates.Length);
+        return RandomItem<T>(
+            sizeExponent,
+            item => item.HardpointType == hardpoint.Type &&
+                    (filter?.Invoke(item) ?? true) &&
+                    item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
+                    item.Shape.Coordinates.Length == hardpoint.Shape.Coordinates.Length,
+            item => FitsHardpoint(item, hardpoint));
+    }
+
+    private static bool FitsHardpoint(AetheriaRuntimeCatalogItem item, HardpointData hardpoint)
+    {
+        return string.Equals(item.HardpointType, hardpoint.Type.ToString(), StringComparison.Ordinal) &&
+               item.OccupiedCells == hardpoint.Shape.Coordinates.Length &&
+               FitsWithin(item, hardpoint.Shape, hardpoint.Rotation);
+    }
+
+    private static bool FitsWithin(AetheriaRuntimeCatalogItem item, Shape target)
+    {
+        return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells).FitsWithin(target, out _, out _);
+    }
+
+    private static bool FitsWithin(AetheriaRuntimeCatalogItem item, Shape target, ItemRotation rotation)
+    {
+        return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells).FitsWithin(target, rotation, out _);
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
+        foreach (var cell in cells)
+        {
+            shape[int2(cell.X, cell.Y)] = true;
+        }
+
+        return shape;
     }
 
     private void OutfitEntity(Entity entity)
@@ -256,9 +299,10 @@ public class LoadoutGenerator
 
         var emptyShape = entity.UnoccupiedSpace;
         
-        var cargoData = RandomItem<CargoBayData>(3, item =>
-            !(item is DockingBayData) &&
-            item.Shape.FitsWithin(emptyShape, out _, out _));
+        var cargoData = RandomItem<CargoBayData>(3,
+            item => !(item is DockingBayData) &&
+                    item.Shape.FitsWithin(emptyShape, out _, out _),
+            item => item.Category != "DockingBayData" && FitsWithin(item, emptyShape));
         if (cargoData == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
         cargoData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -269,9 +313,11 @@ public class LoadoutGenerator
 
         emptyShape = entity.UnoccupiedSpace;
 
-        var capacitorData = RandomItem<GearData>(2, item =>
-            item.Behaviors.Any(b => b is CapacitorData) &&
-            item.Shape.FitsWithin(emptyShape, out _, out _));
+        var capacitorData = RandomItem<GearData>(2,
+            item => item.Behaviors.Any(b => b is CapacitorData) &&
+                    item.Shape.FitsWithin(emptyShape, out _, out _),
+            item => item.BehaviorKinds.Contains(nameof(CapacitorData), StringComparer.Ordinal) &&
+                    FitsWithin(item, emptyShape));
         if (capacitorData == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
 
         capacitorData.Shape.FitsWithin(emptyShape, out var capacitorRotation, out var capacitorPosition);
