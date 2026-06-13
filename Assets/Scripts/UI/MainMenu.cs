@@ -33,9 +33,6 @@ public class MainMenu : MonoBehaviour
     
     void Start()
     {
-        // Start loading the database in the background 'cause it takes a few seconds
-        //_databaseLoad = Task.Run(() => ActionGameManager.Database);
-        
         _panelPosition = PanelPrototype.transform.position;
         
         var panel1 = PanelPrototype.Instantiate<PropertiesPanel>();
@@ -97,7 +94,7 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddButton("New Game",
             () =>
             {
-                var generatorState = "Loading Database Contents";
+                var generatorState = "Loading typed catalog";
                 Action<string> setState = s => generatorState = s;
 
                 Fade(true);

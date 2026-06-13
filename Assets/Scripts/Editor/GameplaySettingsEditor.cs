@@ -16,8 +16,6 @@ public class GameSettingsEditor : Editor
     private bool _showWeaponCaliberIcons;
     private bool _showWeaponRangeIcons;
     private bool _showProperties;
-    private bool _showDatabase;
-
 //    private ScriptableItem _prefab;
     
     public override void OnInspectorGUI()

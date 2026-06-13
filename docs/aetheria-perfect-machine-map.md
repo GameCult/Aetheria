@@ -558,6 +558,8 @@ First Aetheria surfaces to publish:
    - Done: rename loadout generation's selected-item bridge from legacy
      hydration to runtime item projection; typed catalog filtering remains the
      selection owner.
+   - Done: remove stale main-menu/editor database vocabulary from Unity UI
+     surfaces; galaxy generation now reports typed catalog loading.
    - Done: remove the stale `MessagePack` assembly reference from
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.
