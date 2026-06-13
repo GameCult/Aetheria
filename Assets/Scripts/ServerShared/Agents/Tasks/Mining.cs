@@ -3,14 +3,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using MessagePack;
-[MessagePackObject]
+
 public class Mining : AgentTask
 {
-    [IgnoreMember] public override TaskType Type => TaskType.Mine;
+    public override TaskType Type => TaskType.Mine;
 
-    [Key(4)]
     public Guid Asteroids;
 }

@@ -9,12 +9,7 @@ using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable,
- Union(0, typeof(InstantWeaponData)),
- Union(1, typeof(LauncherData)),
- Union(2, typeof(ConstantWeaponData)),
- Union(3, typeof(ChargedWeaponData)),
- RuntimeInspectable]
+[Inspectable, RuntimeInspectable]
 public abstract class WeaponData : BehaviorData
 {
     [Inspectable, Key(1), RuntimeInspectable]

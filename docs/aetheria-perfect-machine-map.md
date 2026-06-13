@@ -215,7 +215,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   plain runtime/session/config projections now, not MessagePack persistence
   shapes. The global scene-load MessagePack resolver hook is deleted. The slime
   compute settings path no longer serializes its local parameter struct for
-  change detection.
+  change detection. Agent task runtime shapes no longer carry MessagePack
+  object, union, key, or ignore metadata. They remain plain in-memory AI task
+  DTOs until a typed Verse task document exists.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -258,9 +260,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
   item records for the old simulation object model. `DatabaseEntry` no longer
-  carries MessagePack union metadata; remaining item/behavior DTO MessagePack
-  keys are temporary projection metadata until typed behavior factories replace
-  reflection. Item properties
+  carries MessagePack union metadata, and behavior type selection now uses an
+  explicit runtime catalog map instead of `UnionAttribute` reflection.
+  Remaining item/behavior DTO MessagePack keys are temporary projection metadata
+  until typed behavior factories replace reflection. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
   remaining runtime single-ID item lookup bridge. The old trade debug UI and
   console `give` command have been deleted. No live caller can enumerate legacy
@@ -442,6 +445,10 @@ First Aetheria surfaces to publish:
      `LegacyItemCatalogCache`, and the runtime MessagePack deserializer path.
    - Done: demote `DatabaseEntry` and `DatabaseLink<T>` from MessagePack
      union/object shapes to plain runtime identity/link helpers.
+   - Done: replace behavior union reflection with an explicit runtime catalog
+     behavior map and remove all live `Union(...)` annotations.
+   - Done: demote agent task runtime shapes from MessagePack object/key/union
+     metadata to plain in-memory DTOs.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.

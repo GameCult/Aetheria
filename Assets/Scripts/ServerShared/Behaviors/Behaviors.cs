@@ -145,45 +145,7 @@ public abstract class PersistentBehaviorData
 {
 }
 
-[Inspectable,
- Union(0, typeof(GuidedWeaponData)),
- Union(1, typeof(LauncherData)),
- Union(2, typeof(ReactorData)),
- Union(3, typeof(RadiatorData)),
- Union(4, typeof(StatModifierData)),
- Union(5, typeof(SensorData)),
- Union(6, typeof(ReflectorData)),
- Union(7, typeof(ShieldData)),
- Union(8, typeof(ThrusterData)),
- Union(9, typeof(WearData)),
- Union(10, typeof(VelocityConversionData)),
- Union(11, typeof(VelocityLimitData)),
- Union(12, typeof(AetherDriveData)),
- // Union(14, typeof(TowingControllerData)),
- Union(15, typeof(CooldownData)),
- Union(16, typeof(HeatData)),
- // Union(17, typeof(HitscanData)),
- Union(18, typeof(ItemUsageData)),
- //Union(19, typeof(RadianceData)),
- Union(20, typeof(SwitchData)),
- Union(21, typeof(TriggerData)),
- Union(22, typeof(VisibilityData)),
- Union(23, typeof(ThermotoggleData)),
- Union(24, typeof(EnergyDrawData)),
- // Union(25, typeof(MiningControllerData)),
- Union(26, typeof(MiningToolData)),
- // Union(27, typeof(SurveyControllerData)),
- Union(28, typeof(ResourceScannerData)),
- // Union(29, typeof(WanderControllerData)),
- // Union(30, typeof(HaulingControllerData)),
- Union(31, typeof(CapacitorData)),
- Union(32, typeof(CockpitData)),
- Union(33, typeof(HeatStorageData)),
- Union(34, typeof(TurretControllerData)),
- Union(35, typeof(InstantWeaponData)),
- Union(36, typeof(ConstantWeaponData)),
- Union(37, typeof(ChargedWeaponData)),
- Union(38, typeof(AutoWeaponData))]
+[Inspectable]
 public abstract class BehaviorData
 {
     [Inspectable, Key(0)]
