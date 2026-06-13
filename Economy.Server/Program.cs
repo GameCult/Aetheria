@@ -5,6 +5,8 @@ namespace Aetheria.Server;
 
 internal static class Program
 {
+    private const string RuntimeId = "aetheria-economy-server";
+
     private static async Task Main(string[] args)
     {
         var statePath = ResolveStatePath(args);
@@ -12,7 +14,7 @@ internal static class Program
 
         await using var node = await AetheriaStateNode.OpenAsync(
             statePath,
-            runtimeId: "aetheria-economy-server",
+            runtimeId: RuntimeId,
             startServer: true).ConfigureAwait(false);
 
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
@@ -68,19 +70,75 @@ internal static class Program
 
     private static async Task ApplyPendingRuntimeCommitsAsync(AetheriaStateNode node)
     {
-        var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(node).ConfigureAwait(false);
-        if (report.AppliedPaths.Length == 0)
-        {
-            Console.WriteLine("No pending Aetheria runtime commits.");
-            return;
-        }
+        var pendingBefore = CountPendingRuntimeCommits(node.StatePath);
+        var now = DateTimeOffset.UtcNow.ToString("O");
 
-        Console.WriteLine(
-            "Applied pending Aetheria runtime commits: " +
-            $"settings={report.AppliedPlayerSettings}, " +
-            $"loadouts={report.AppliedLoadoutTemplates}, " +
-            $"runs={report.AppliedRunCheckpoints}, " +
-            $"files={report.AppliedPaths.Length}");
+        try
+        {
+            var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(node).ConfigureAwait(false);
+            var status = new AetheriaRuntimeCommitDrainStatus
+            {
+                RuntimeId = RuntimeId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAppliedAtUtc = report.AppliedPaths.Length > 0 ? now : "",
+                PendingBeforeApply = pendingBefore,
+                CommandsApplied = report.AppliedPaths.Length,
+                AppliedPlayerSettings = report.AppliedPlayerSettings,
+                AppliedLoadoutTemplates = report.AppliedLoadoutTemplates,
+                AppliedRunCheckpoints = report.AppliedRunCheckpoints,
+                ConsecutiveFailures = 0,
+                Status = "ok"
+            };
+            await PublishDrainStatusAsync(node, status).ConfigureAwait(false);
+
+            if (report.AppliedPaths.Length == 0)
+            {
+                Console.WriteLine("No pending Aetheria runtime commits.");
+                return;
+            }
+
+            Console.WriteLine(
+                "Applied pending Aetheria runtime commits: " +
+                $"settings={report.AppliedPlayerSettings}, " +
+                $"loadouts={report.AppliedLoadoutTemplates}, " +
+                $"runs={report.AppliedRunCheckpoints}, " +
+                $"files={report.AppliedPaths.Length}");
+        }
+        catch (Exception ex)
+        {
+            var existing = await node.GetRuntimeCommitDrainStatusAsync().ConfigureAwait(false);
+            var status = new AetheriaRuntimeCommitDrainStatus
+            {
+                RuntimeId = RuntimeId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAppliedAtUtc = existing?.LastAppliedAtUtc ?? "",
+                PendingBeforeApply = pendingBefore,
+                ConsecutiveFailures = (existing?.ConsecutiveFailures ?? 0) + 1,
+                LastError = ex.ToString(),
+                Status = "error"
+            };
+            await PublishDrainStatusAsync(node, status).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static async Task PublishDrainStatusAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeCommitDrainStatus status)
+    {
+        await node.PutRuntimeCommitDrainStatusAsync(status).ConfigureAwait(false);
+        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(status)).ConfigureAwait(false);
+        await node.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static int CountPendingRuntimeCommits(string statePath)
+    {
+        var pendingDirectory = statePath + ".pending";
+        return Directory.Exists(pendingDirectory)
+            ? Directory.EnumerateFiles(pendingDirectory, "*.cc").Count()
+            : 0;
     }
 
     private static async Task RunUntilShutdownAsync(AetheriaStateNode node, TimeSpan pendingInterval)

@@ -90,6 +90,20 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutCatalogSurfaceAsync(
         AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), now));
 
+    var drainStatus = new AetheriaRuntimeCommitDrainStatus
+    {
+        RuntimeId = "smoke-runtime",
+        StatePath = statePath,
+        LastPollAtUtc = now,
+        LastAppliedAtUtc = now,
+        PendingBeforeApply = 1,
+        CommandsApplied = 1,
+        AppliedPlayerSettings = 1,
+        Status = "ok"
+    };
+    await node.PutRuntimeCommitDrainStatusAsync(drainStatus);
+    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
+
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
     {
         Name = "Smoke Aether Runner",
@@ -240,6 +254,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var nameFile = await reopened.GetNameFileByLegacyIdAsync(nameFileLegacyId);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var catalogSurface = await reopened.GetCatalogSurfaceAsync();
+    var drainStatus = await reopened.GetRuntimeCommitDrainStatusAsync();
+    var operationsSurface = await reopened.GetOperationsSurfaceAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
     var runState = await reopened.GetRunStateAsync(runKey);
@@ -275,6 +291,13 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         catalogSurface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId)
     {
         throw new InvalidOperationException("Eve catalog surface did not survive flush/reopen.");
+    }
+
+    if (drainStatus?.RuntimeId != "smoke-runtime" ||
+        drainStatus.CommandsApplied != 1 ||
+        operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId)
+    {
+        throw new InvalidOperationException("Runtime commit drain status or operations surface did not survive flush/reopen.");
     }
 
     if (playerSettings?.ActiveRunKey != runKey.ToString() ||

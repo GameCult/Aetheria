@@ -173,6 +173,16 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<EveSurfaceState>(new CultRecordKey(AetheriaCatalogSurfaceProjector.SurfaceKey));
     }
 
+    public Task<CultRecordHandle<EveSurfaceState>> PutOperationsSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaOperationsSurfaceProjector.SurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetOperationsSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(new CultRecordKey(AetheriaOperationsSurfaceProjector.SurfaceKey));
+    }
+
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);
@@ -225,6 +235,18 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public Task<AetheriaEntitySnapshot?> GetEntitySnapshotAsync(CultRecordKey key)
     {
         return Database.GetAsync<AetheriaEntitySnapshot>(key);
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeCommitDrainStatus>> PutRuntimeCommitDrainStatusAsync(
+        AetheriaRuntimeCommitDrainStatus status)
+    {
+        return Database.PutAsync(new CultRecordKey("global:aetheria.runtime_commit_drain_status.v1"), status);
+    }
+
+    public Task<AetheriaRuntimeCommitDrainStatus?> GetRuntimeCommitDrainStatusAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeCommitDrainStatus>(
+            new CultRecordKey("global:aetheria.runtime_commit_drain_status.v1"));
     }
 
     public Task FlushAsync(bool soft = false)

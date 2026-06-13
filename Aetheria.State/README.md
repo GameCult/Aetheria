@@ -137,6 +137,11 @@ one-shot drain without leaving the host running:
 dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-once
 ```
 
+The server publishes `AetheriaRuntimeCommitDrainStatus` and the
+`aetheria.operations` Eve surface after each drain attempt, so pending depth,
+applied counts, failures, and timestamps are typed state rather than console-only
+status.
+
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits when the server host is not being used:
 

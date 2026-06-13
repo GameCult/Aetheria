@@ -175,6 +175,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `Economy.Server` hosts the CultMesh state node and now owns the long-running
   pending runtime commit drain loop. `--apply-pending-once` runs the same drain
   path once for smoke/operator use without keeping the process alive.
+- `AetheriaRuntimeCommitDrainStatus` and the `aetheria.operations` Eve surface
+  publish pending-drain health, pending depth, applied counts, failures, and
+  timestamps as typed state. Console logs are notification-only.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -537,6 +540,8 @@ First Aetheria surfaces to publish:
      queued runtime commits until the drain loop is hosted as a daemon.
    - Done: move the pending runtime commit drain into `Economy.Server` startup
      and daemon polling, with `--apply-pending-once` for bounded operation.
+   - Done: publish pending-drain health as typed CultCache state and an Eve
+     operations surface.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.
