@@ -68,7 +68,7 @@ public abstract class DatabaseEntry
 public class DatabaseLink<T> : DatabaseLinkBase where T : DatabaseEntry
 {
     [IgnoreMember]
-    public T Value => Cache.Get<T>(LinkID);
+    public T Value => ResolveLegacyCatalog<T>(LinkID);
 }
 
 [MessagePackObject]
@@ -78,7 +78,24 @@ public class DatabaseLinkBase
     public Guid LinkID;
 
     [IgnoreMember]
-    public static CultCache Cache;
+    private static CultCache LegacyCatalogCache { get; set; }
+
+    protected static T ResolveLegacyCatalog<T>(Guid linkId) where T : DatabaseEntry
+    {
+        if (LegacyCatalogCache == null)
+            throw new InvalidOperationException("Legacy DatabaseLink resolution is not bound. Open LegacyCatalogBoundary before reading legacy catalog object graphs.");
+
+        return LegacyCatalogCache.Get<T>(linkId);
+    }
+
+    public static void BindLegacyCatalog(CultCache cache)
+    {
+        if (cache == null) throw new ArgumentNullException(nameof(cache));
+        if (!cache.ReadOnly)
+            throw new InvalidOperationException("Legacy DatabaseLink resolution requires a read-only catalog cache.");
+
+        LegacyCatalogCache = cache;
+    }
 }
 
 public interface ITintInspector

@@ -54,8 +54,6 @@ public class CultCache
     public CultCache(bool readOnly = false)
     {
         ReadOnly = readOnly;
-        DatabaseLinkBase.Cache = this;
-        
         foreach (var type in typeof(DatabaseEntry).GetAllChildClasses())
         {
             _types[type] = new HashSet<DatabaseEntry>();

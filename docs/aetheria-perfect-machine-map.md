@@ -35,6 +35,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - `LegacyCatalogBoundary` opens the legacy `CultCache` in read-only mode. Old
   MessagePack backing stores may hydrate in-memory domain objects for the
   current Unity runtime, but this path cannot push or delete legacy files.
+- `DatabaseLink<T>.Value` can resolve legacy links only after
+  `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
+  construction no longer grabs global `DatabaseLinkBase` authority.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
@@ -70,7 +73,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
-  reads inside the Unity runtime until catalog migration lands.
+  reads and legacy `DatabaseLink<T>` resolution inside the Unity runtime until
+  catalog migration lands.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
