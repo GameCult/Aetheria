@@ -5,71 +5,69 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 
-[LegacyCatalogGroup("Galaxy"), Inspectable, MessagePackObject]
+[LegacyCatalogGroup("Galaxy"), Inspectable]
 public class Faction : DatabaseEntry, INamedEntry
 {
-    [Inspectable, Key(1)]
+    [Inspectable]
     public string Name;
 
-    [Inspectable, Key(2)]
+    [Inspectable]
     public string ShortName;
 
-    [InspectableText, Key(3)]
+    [InspectableText]
     public string Description;
 
-    [InspectableTexture, Key(4)]
+    [InspectableTexture]
     public string Logo;
 
-    [InspectableDatabaseLink(typeof(PersonalityAttribute)), Key(5)]
+    [InspectableDatabaseLink(typeof(PersonalityAttribute))]
     public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
 
-    // [Inspectable, Key(6)]
+    // [Inspectable]
     // public bool PlayerHostile;
 
-    [InspectableColor, Key(7)]
+    [InspectableColor]
     public float3 PrimaryColor;
 
-    [InspectableColor, Key(8)]
+    [InspectableColor]
     public float3 SecondaryColor;
 
-    [InspectableDatabaseLink(typeof(NameFile)), Key(9)]
+    [InspectableDatabaseLink(typeof(NameFile))]
     public Guid GeonameFile;
 
-    [InspectableDatabaseLink(typeof(HullData)), Key(10)]
+    [InspectableDatabaseLink(typeof(HullData))]
     public Guid BossHull;
 
-    [Inspectable, Key(11)]
+    [Inspectable]
     public int InfluenceDistance = 4;
 
-    [InspectableDatabaseLink(typeof(Faction)), RangedFloat(0, 1), Key(12)]
+    [InspectableDatabaseLink(typeof(Faction)), RangedFloat(0, 1)]
     public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
 
-    [InspectableSoundBank, Key(13)]
+    [InspectableSoundBank]
     public uint OverworldMusic;
 
-    [InspectableSoundBank, Key(14)]
+    [InspectableSoundBank]
     public uint CombatMusic;
 
-    [InspectableSoundBank, Key(15)]
+    [InspectableSoundBank]
     public uint BossMusic;
 
-    [IgnoreMember] public string EntryName
+    public string EntryName
     {
         get => Name;
         set => Name = value;
     }
 }
 
-[Inspectable, MessagePackObject]
+[Inspectable]
 public class NameFile : DatabaseEntry, INamedEntry
 {
-    [Key(1)] public string Name;
-    [Key(2)] public string[] Names;
+    public string Name;
+    public string[] Names;
 
-    [IgnoreMember]
     public string EntryName
     {
         get => Name;

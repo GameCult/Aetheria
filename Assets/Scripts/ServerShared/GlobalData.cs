@@ -5,55 +5,54 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using MessagePack;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using static NoiseFbm;
 
-[Inspectable, Serializable, LegacyCatalogGroup("Galaxy"), MessagePackObject]
+[Inspectable, Serializable, LegacyCatalogGroup("Galaxy")]
 public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
 {
-    [Inspectable, Key(1)]
+    [Inspectable]
     public float CoreBoost = 1.05f;
 
-    [Inspectable, Key(2)]
+    [Inspectable]
     public float CoreBoostOffset = .1f;
 
-    [Inspectable, Key(3)]
+    [Inspectable]
     public float CoreBoostPower = 2.25f;
 
-    [Inspectable, Key(4)]
+    [Inspectable]
     public float SpokeScale = 1;
 
-    [Inspectable, Key(5)]
+    [Inspectable]
     public float SpokeOffset = 0;
 
-    [Inspectable, Key(6)]
+    [Inspectable]
     public float EdgeReduction = 3;
 
-    [Inspectable, Key(7)]
+    [Inspectable]
     public float NoiseOffset = 0;
 
-    [Inspectable, Key(8)]
+    [Inspectable]
     public float NoiseAmplitude = 1.5f;
 
-    [Inspectable, Key(9)]
+    [Inspectable]
     public float NoiseGain = .7f;
 
-    [Inspectable, Key(10)]
+    [Inspectable]
     public float NoiseLacunarity = 2;
 
-    [Inspectable, Key(11)]
+    [Inspectable]
     public int NoiseOctaves = 7;
 
-    [Inspectable, Key(12)]
+    [Inspectable]
     public float NoiseFrequency = 1;
 
-    [Inspectable, Key(13)]
+    [Inspectable]
     public float NoisePosition = 1337;
 
-    [Inspectable, Key(14)]
+    [Inspectable]
     public string Name;
 
     public float Evaluate(float2 uv, GalaxyShapeSettings settings)
@@ -71,7 +70,7 @@ public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
         return gal;
     }
 
-    [IgnoreMember] public string EntryName
+    public string EntryName
     {
         get => Name;
         set => Name = value;

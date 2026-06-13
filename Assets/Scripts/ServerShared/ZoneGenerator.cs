@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
-using MessagePack;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;

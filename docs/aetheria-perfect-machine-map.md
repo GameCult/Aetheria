@@ -218,6 +218,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   change detection. Agent task runtime shapes no longer carry MessagePack
   object, union, key, or ignore metadata. They remain plain in-memory AI task
   DTOs until a typed Verse task document exists.
+- Legacy player, faction, name-file, galaxy-map-layer, and narrative helper
+  DTOs no longer carry MessagePack object/key/ignore metadata. Typed
+  corporation/name-file/catalog documents own durable state; these classes are
+  inspector/runtime projections only.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -449,6 +453,9 @@ First Aetheria surfaces to publish:
      behavior map and remove all live `Union(...)` annotations.
    - Done: demote agent task runtime shapes from MessagePack object/key/union
      metadata to plain in-memory DTOs.
+   - Done: demote legacy player, faction, name-file, galaxy-map-layer, and
+     narrative helper DTOs from MessagePack metadata to plain runtime/inspector
+     shapes.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.

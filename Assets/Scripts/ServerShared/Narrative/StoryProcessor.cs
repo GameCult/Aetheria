@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using Ink;
 using Ink.Parsed;
-using MessagePack;
 using Path = System.IO.Path;
 using Random = Unity.Mathematics.Random;
 using Story = Ink.Runtime.Story;
