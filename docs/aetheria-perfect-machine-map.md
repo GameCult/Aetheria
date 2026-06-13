@@ -41,7 +41,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
-  persistence shape.
+  persistence shape. `Aetheria.State.ApplyPending` is the repo-local applicator
+  entrypoint for draining `aetheria-world.cc.pending` into canonical typed state
+  until that worker is hosted as a daemon/CultMesh organ.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -163,6 +165,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   commands after writing typed documents. Run checkpoint envelopes now carry
   current-zone and entity snapshots so the old `.zone` file path has a live
   typed runtime projection path.
+- `Aetheria.State.ApplyPending` opens the typed state node and applies queued
+  Unity runtime command envelopes from `aetheria-world.cc.pending`, deleting
+  successfully applied command files by default. It is an operational bridge,
+  not a second state owner; the applicator delegates all writes to
+  `AetheriaStateNode`.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -521,6 +528,8 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commands to carry current-zone and entity
      snapshots into canonical `AetheriaZoneState` and `AetheriaEntitySnapshot`
      documents.
+   - Done: add `Aetheria.State.ApplyPending` as a bounded local applicator for
+     queued runtime commits until the drain loop is hosted as a daemon.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.

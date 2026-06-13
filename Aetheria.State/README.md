@@ -23,12 +23,12 @@ The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 `.zone` files. `AetheriaPlayerSettings` is the typed Verse replacement for
 `PlayerSettings.msgpack`, and `AetheriaLoadoutTemplate` is the typed Verse
 replacement for bespoke loadout files, with structured hull/equipment/cargo/
-docking item slots, nested child-entity loadouts, and weapon groups. Until
-`Aetheria.State` is available to Unity as a runtime Verse package, Unity
-settings and loadout edits are still session-local and run saving is disabled.
-That is intentional: the missing runtime package is the owner gap, and the old
-bespoke file formats must not keep acting as durable truth while the state spine
-is being rebuilt.
+docking item slots, nested child-entity loadouts, and weapon groups. Unity
+settings, loadout saves, and run checkpoints now queue typed `.cc.pending`
+runtime commit envelopes beside `GameData/aetheria-world.cc`. `Aetheria.State`
+owns applying those envelopes into canonical typed state through
+`AetheriaRuntimeCommitLogApplier`; the Unity-side command log is command-only
+and cannot become durable truth by itself.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
@@ -125,7 +125,20 @@ Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime
 facade and proves read-only Unity-facing catalog access without the legacy
-catalog reader.
+catalog reader. It also proves runtime commit envelopes for settings and run
+zone/entity snapshots can be queued, applied through `Aetheria.State`, and
+cleared.
+
+`Aetheria.State.ApplyPending` is the bounded local applicator for queued Unity
+runtime commits:
+
+```powershell
+dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .
+```
+
+Pass an explicit state path as the second argument when applying a non-default
+`.cc` file. Use `--keep` only for diagnostics; normal application deletes
+successfully applied command files.
 
 Current rebuild notes:
 
