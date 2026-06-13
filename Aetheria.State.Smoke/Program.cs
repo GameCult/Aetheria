@@ -10,6 +10,7 @@ var itemLegacyId = "smoke:aether-drive";
 var factionLegacyId = "smoke:faction";
 var nameFileLegacyId = "smoke:name-file";
 var runKey = new CultRecordKey("run:smoke");
+var loadoutKey = new CultRecordKey("loadout:smoke:aether-runner");
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
 {
@@ -87,6 +88,40 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutCatalogSurfaceAsync(
         AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), now));
 
+    await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
+    {
+        Name = "Smoke Aether Runner",
+        OwnerPlayerKey = "player:smoke",
+        CreatedAtUtc = now,
+        UpdatedAtUtc = now,
+        RootEntity = new AetheriaEntityLoadout
+        {
+            Name = "Smoke Aether Runner",
+            Kind = "ship",
+            FactionKey = AetheriaCatalogKeys.CorporationFromLegacyId(factionLegacyId).ToString(),
+            Hull = new AetheriaLoadoutItem
+            {
+                ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+                Quality = 1.0,
+                Durability = 1.0
+            },
+            Equipment =
+            [
+                new AetheriaLoadoutItemSlot
+                {
+                    Position = new AetheriaGridCoord { X = 0, Y = 0 },
+                    Item = new AetheriaLoadoutItem
+                    {
+                        ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+                        Quality = 0.95,
+                        Durability = 0.8
+                    }
+                }
+            ],
+            WeaponGroups = [[0]]
+        }
+    });
+
     await node.PutRunStateAsync(runKey, new AetheriaRunState
     {
         RunId = "smoke",
@@ -125,6 +160,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var catalogSurface = await reopened.GetCatalogSurfaceAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
+    var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
     var runState = await reopened.GetRunStateAsync(runKey);
 
     if (world?.WorldId != "aetheria")
@@ -161,6 +197,13 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (playerSettings?.ActiveRunKey != runKey.ToString())
     {
         throw new InvalidOperationException("Player settings did not survive flush/reopen.");
+    }
+
+    if (loadout?.RootEntity.Hull.ItemKey != AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString() ||
+        loadout.RootEntity.Equipment.Length != 1 ||
+        loadout.RootEntity.WeaponGroups.Length != 1)
+    {
+        throw new InvalidOperationException("Loadout template did not survive flush/reopen.");
     }
 
     if (runState?.RunId != "smoke" || runState.ActionBarBindings.Length != 1)

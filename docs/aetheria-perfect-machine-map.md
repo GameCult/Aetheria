@@ -39,6 +39,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack` and
   `EntityPack` remain as runtime construction/loadout snapshots, but no longer
   declare themselves as MessagePack persistence documents.
+- `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
+  replacement for bespoke `.loadout` files. It stores structured hull,
+  equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
+  state through record-key references and typed value slots instead of opaque
+  `EntityPack` serialization. Unity has not wired its save/loadout UI to this
+  document yet, so the old in-memory `EntityPack` path is still a runtime
+  construction helper, not durable authority.
 - `LegacyCatalogBoundary` opens `LegacyCatalogCache` as the only concrete
   pull-only catalog cache. Runtime consumers receive `ILegacyCatalogReader`,
   so old MessagePack backing stores may hydrate in-memory domain objects for
@@ -157,7 +164,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog reads emit in-memory domain objects only; the old local save and
   editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
-  methods, not importer-local string concatenation. The catalog operator UI is
+  methods, not importer-local string concatenation. Loadout templates have a
+  typed state document and node put/get path; Unity's save button still needs
+  to call it through the runtime Verse package. The catalog operator UI is
   emitted as a typed Eve surface document derived from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
   serialized legacy payloads are projections, migration inputs, or disabled
@@ -269,6 +278,8 @@ First Aetheria surfaces to publish:
    - Done: import recursive typed behavior payloads so future behavior
      factories no longer have to depend on legacy `BehaviorData` objects just
      to see authored behavior fields.
+   - Done: add typed `AetheriaLoadoutTemplate` documents and smoke coverage so
+     `.loadout` no longer lacks a durable Verse replacement.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, simulation state, and any catalog
      fields not covered by the stable scalar/fingerprint/payload pass.
@@ -326,7 +337,7 @@ First Aetheria surfaces to publish:
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference
-  resolution.
+  resolution, including loadout templates as the `.loadout` replacement.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from

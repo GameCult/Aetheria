@@ -20,6 +20,102 @@ public sealed class AetheriaPlayerSettings
     public string LastUpdatedAtUtc { get; set; } = "";
 }
 
+[CultDocument("aetheria.loadout_template", "aetheria.loadout_template.v1")]
+[MessagePackObject]
+public sealed class AetheriaLoadoutTemplate
+{
+    [Key(0)]
+    [CultName]
+    public string Name { get; set; } = "";
+
+    [Key(1)]
+    public string OwnerPlayerKey { get; set; } = "";
+
+    [Key(2)]
+    public AetheriaEntityLoadout RootEntity { get; set; } = new();
+
+    [Key(3)]
+    public string CreatedAtUtc { get; set; } = "";
+
+    [Key(4)]
+    public string UpdatedAtUtc { get; set; } = "";
+}
+
+[MessagePackObject]
+public sealed class AetheriaEntityLoadout
+{
+    [Key(0)]
+    [CultName]
+    public string Name { get; set; } = "";
+
+    [Key(1)]
+    public string Kind { get; set; } = "";
+
+    [Key(2)]
+    public string FactionKey { get; set; } = "";
+
+    [Key(3)]
+    public AetheriaLoadoutItem Hull { get; set; } = new();
+
+    [Key(4)]
+    public AetheriaLoadoutItemSlot[] Equipment { get; set; } = [];
+
+    [Key(5)]
+    public AetheriaLoadoutItemSlot[] CargoBays { get; set; } = [];
+
+    [Key(6)]
+    public AetheriaLoadoutItemSlot[] DockingBays { get; set; } = [];
+
+    [Key(7)]
+    public AetheriaCargoBayLoadout[] CargoContents { get; set; } = [];
+
+    [Key(8)]
+    public AetheriaCargoBayLoadout[] DockingBayContents { get; set; } = [];
+
+    [Key(9)]
+    public int[] DockingBayAssignments { get; set; } = [];
+
+    [Key(10)]
+    public int[][] WeaponGroups { get; set; } = [];
+
+    [Key(11)]
+    public AetheriaEntityLoadout[] Children { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaLoadoutItem
+{
+    [Key(0)]
+    [CultReference(typeof(AetheriaItemDefinition))]
+    public string ItemKey { get; set; } = "";
+
+    [Key(1)]
+    public double Quality { get; set; } = 1.0;
+
+    [Key(2)]
+    public double Durability { get; set; } = 1.0;
+
+    [Key(3)]
+    public int Quantity { get; set; } = 1;
+}
+
+[MessagePackObject]
+public sealed class AetheriaLoadoutItemSlot
+{
+    [Key(0)]
+    public AetheriaGridCoord Position { get; set; } = new();
+
+    [Key(1)]
+    public AetheriaLoadoutItem Item { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaCargoBayLoadout
+{
+    [Key(0)]
+    public AetheriaLoadoutItemSlot[] Items { get; set; } = [];
+}
+
 [CultDocument("aetheria.run_state", "aetheria.run_state.v1")]
 [MessagePackObject]
 public sealed class AetheriaRunState
