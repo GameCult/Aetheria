@@ -203,12 +203,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   hydration kept for the old debug UI callbacks.
 - MessagePack is no longer used as a runtime object-cloning shortcut for
   `EntitySettings`, and UI/player-settings startup no longer registers the old
-  MessagePack resolver. Resolver registration is confined to legacy catalog
-  deserialization. Unused Unity asset formatters for GameObject, Material,
-  Sprite, and Texture2D are deleted. Keyboard layout DTOs are plain runtime
-  parse/display models, not MessagePack save shapes. `PlayerSettings` is a
-  plain session-local runtime object until typed Verse settings are imported
-  into Unity. `ZoneData` body/orbit DTOs, `ItemInstance` DTOs,
+  MessagePack resolver. The custom Unity-side MessagePack resolver and math/type
+  formatter source has been deleted with the old bespoke file format path.
+  Unused Unity asset formatters for GameObject, Material, Sprite, and Texture2D
+  are deleted. Keyboard layout DTOs are plain runtime parse/display models, not
+  MessagePack save shapes. `PlayerSettings` is a plain session-local runtime
+  object until typed Verse settings are imported into Unity. `ZoneData` body/orbit DTOs, `ItemInstance` DTOs,
   `EntitySettings`, `Ship`, Unity inspector game settings, environment/volume
   settings, exponential curves, Wwise bindings, and enum dictionaries are also
   plain runtime/session/config projections now, not MessagePack persistence
@@ -473,8 +473,9 @@ First Aetheria surfaces to publish:
    - Done: delete public legacy catalog cache mutation APIs.
    - Done: delete the stale `StrategyGameManager.csbak` backup source and
      unused Unity asset MessagePack formatters.
-   - Done: demote keyboard layout DTOs from MessagePack shapes and delete the
-     global scene-load MessagePack resolver hook.
+   - Done: demote keyboard layout DTOs from MessagePack shapes, delete the
+     global scene-load MessagePack resolver hook, and remove the now-unused
+     Unity-side custom MessagePack resolver/formatter source.
    - Done: demote `PlayerSettings` and nested settings from MessagePack shapes
      after the legacy settings writer was disabled.
    - Remaining: delete or quarantine old cache abstractions that no longer
