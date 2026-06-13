@@ -1,6 +1,6 @@
 # Aetheria Perfect Machine Map
 
-Date: 2026-06-12
+Date: 2026-06-13
 
 This is the Proprioception and Imagination pass for turning Aetheria from a
 Unity project with ancestral cache/network/UI machinery into a coherent
@@ -17,22 +17,23 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Mechanism
 
-- Unity client/runtime lives under `Assets/`, with gameplay scripts reading and
-  mutating old `CultCache` data, especially through `ActionGameManager`.
-- Shared domain state is built around `DatabaseEntry`, GUID identity, MessagePack
-  attributes, Newtonsoft attributes, JsonKnownTypes polymorphism, and static
-  cache references.
-- Local persistence is mostly old MessagePack files in `GameData/`, but JSON
-  backing stores, JSON converters, JsonKnownTypes, and Newtonsoft attributes are
-  still welded into the model.
-- `Economy.Server` uses LiteNetLib and MessagePack messages, while its database
-  path still directly connects to RethinkDB and depends on the old shared cache
-  model.
-- A vendored RethinkDB driver lives under
-  `Assets/Scripts/ServerShared/NIH/RethinkDb/` and pins old Newtonsoft.
-- The old Unity DB inspector is an IMGUI editor window under
-  `Assets/Scripts/CultCache/Editor/`, tied to Rethink tables and the old
-  cache model.
+- Unity client/runtime lives under `Assets/`. Gameplay still reads the legacy
+  item/name catalog through `ActionGameManager.LegacyCultCache`, but local run
+  saves, loadouts, player settings files, zone files, and generated keyboard
+  layout caches no longer write bespoke durable files.
+- Shared domain state is still partly built around `DatabaseEntry`, GUID
+  identity, MessagePack attributes, and static cache references. Newtonsoft,
+  JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
+  `Economy.Shared` wrapper have been removed from live source.
+- Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
+  `GameData/NameFile/*.msgpack` as migration/catalog inputs. The old
+  `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
+  `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
+- `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
+  longer owns RethinkDB/LiteNetLib state.
+- The old IMGUI DB inspector under `Assets/Scripts/CultCache/Editor/` has been
+  deleted. `NameTools` can still clean/generate names, but legacy NameFile
+  `.msgpack` export is disabled.
 - Runtime UI is old Unity UI/uGUI prefabs plus `MonoBehaviour` scripts under
   `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`.
 - Aetheria already has Unity UIElements support available through
@@ -55,20 +56,25 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Authority Map
 
-- Owner: `DatabaseEntry` plus old `CultCache` act as the practical state owner.
-- Inputs: Unity gameplay code, editor DB inspector actions, legacy data files,
-  RethinkDB changefeeds, and server messages.
-- Outputs: in-memory domain objects, old MessagePack files, optional JSON files,
-  RethinkDB table writes, and UI/editor projections.
-- Derived state: UI panels, editor rows, Rethink table names, and serialized
-  payloads pretend to be projections but can still influence write paths.
-- Forbidden writers: Rethink changefeed handlers, old JSON backing stores,
-  JsonKnownTypes converters, editor table exports, static cache globals, and
-  server-side `DatabaseCache` paths.
+- Owner: `Aetheria.State` owns the new typed state spine for durable state.
+  `DatabaseEntry` plus old `CultCache` still own legacy catalog reads inside the
+  Unity runtime until catalog migration lands.
+- Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
+  CultMesh server state.
+- Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
+  catalog reads emit in-memory domain objects only; the old local save and
+  editor catalog write paths have been cut.
+- Derived state: UI panels, generated keyboard layouts, editor rows, and
+  serialized legacy payloads are projections or migration inputs, not durable
+  authority.
+- Forbidden writers: old JSON backing stores, JsonKnownTypes converters,
+  Rethink/LiteNet paths, IMGUI database editor exports, local save-file writes,
+  generated keyboard layout caches, and server-side `DatabaseCache` paths.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to the old `DatabaseEntry`,
-  RethinkDB, JsonKnownTypes, or IMGUI DB inspector paths.
+  legacy `CultCache`, or MessagePack catalog paths except bounded migration
+  readers that emit typed `Aetheria.State` documents.
 
 ## Target Authority Map
 
@@ -84,9 +90,9 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   `DatabaseEntry.ID`, global cache statics, and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: after migration smokes pass, delete vendored RethinkDB,
-  Newtonsoft/JsonKnownTypes dependencies, old JSON backing stores, and the old
-  cache editor window.
+- Deletion line: after catalog migration smokes pass, delete or quarantine the
+  remaining legacy `CultCache`/`DatabaseEntry` runtime catalog dependency and
+  remove old MessagePack backing store classes from live Unity source.
 
 ## Intended Change
 
@@ -173,12 +179,15 @@ First Aetheria surfaces to publish:
    - Then replace runtime HUD/menu/inventory/map screens.
 
 7. Purge
-   - Delete vendored RethinkDB.
-   - Delete JsonKnownTypes.
-   - Delete Newtonsoft dependencies and attributes from live code.
-   - Delete old JSON backing stores.
-   - Delete or quarantine old cache abstractions that no longer protect an
-     invariant.
+   - Done: delete vendored RethinkDB.
+   - Done: delete JsonKnownTypes.
+   - Done: delete Newtonsoft dependencies and attributes from live code.
+   - Done: delete old JSON backing stores.
+   - Done: delete the broken `Economy.Shared` wrapper and tracked build output.
+   - Done: disable legacy local save, loadout, zone, player-settings, keyboard
+     layout, DB inspector, and NameFile export writers.
+   - Remaining: delete or quarantine old cache abstractions that no longer
+     protect an invariant once catalog migration has a typed reader.
 
 ## Verification
 

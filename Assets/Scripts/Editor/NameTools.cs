@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using MessagePack;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEditor;
@@ -46,17 +45,7 @@ public class NameTools : EditorWindow
 
         if (GUILayout.Button("Save Name Files"))
         {
-            RegisterResolver.Register();
-            var nameFilesDirectory = ActionGameManager.GameDataDirectory.CreateSubdirectory("NameFile");
-            foreach (var nameFile in NameFiles)
-            {
-                var entry = new NameFile
-                {
-                    Name = nameFile.name, 
-                    Names = nameFile.text.Split('\n')
-                };
-                File.WriteAllBytes(Path.Combine(nameFilesDirectory.FullName, $"{entry.ID.ToString()}.msgpack"), MessagePackSerializer.Serialize((DatabaseEntry) entry));
-            }
+            Debug.LogWarning("Name file persistence belongs to the Verse state spine. Legacy NameFile .msgpack export is disabled.");
         }
         
         nameFile = (TextAsset) EditorGUILayout.ObjectField("Name File", nameFile, typeof(TextAsset), false);

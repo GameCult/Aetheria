@@ -25,6 +25,11 @@ Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout
 edits are runtime-only until Verse owns a typed layout/settings document.
 
+The old IMGUI CultCache database editor has been deleted, and `NameTools` no
+longer exports `NameFile/*.msgpack`. `AetherDB.msgpack` and existing name files
+remain legacy catalog inputs only; typed catalog migration is the next owner
+move.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently
