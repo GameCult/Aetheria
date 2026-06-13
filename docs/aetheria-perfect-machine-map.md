@@ -35,6 +35,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - `LegacyCatalogBoundary` opens the legacy `CultCache` in read-only mode. Old
   MessagePack backing stores may hydrate in-memory domain objects for the
   current Unity runtime, but this path cannot push or delete legacy files.
+  `SingleFileMessagePackBackingStore` and `MultiFileMessagePackBackingStore`
+  now throw on `Push`, `Delete`, and `PushAll`.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
   construction no longer grabs global `DatabaseLinkBase` authority.

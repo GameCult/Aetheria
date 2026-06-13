@@ -297,34 +297,19 @@ public abstract class MultiFileBackingStore : CacheBackingStore, RealtimeBacking
         }
     }
 
-    private string GetFileName(DatabaseEntry entry) =>
-        $"{(entry is INamedEntry namedEntry ? namedEntry.EntryName : entry.ID.ToString())}.{Extension}";
-
     public override void Push(DatabaseEntry entry)
     {
-        var type = entry.GetType();
-        Entries[entry.ID] = entry;
-        var directory = _entryTypeDirectories[type];
-        directory.Create();
-        File.WriteAllBytes(Path.Combine(directory.FullName, GetFileName(entry)), Serialize(entry));
+        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
     }
 
     public override void Delete(DatabaseEntry entry)
     {
-        if(Entries.ContainsKey(entry.ID))
-        {
-            var type = entry.GetType();
-            Entries.Remove(entry.ID);
-            var directory = _entryTypeDirectories[type];
-            var file = new FileInfo(Path.Combine(directory.FullName, GetFileName(entry)));
-            if (file.Exists)
-                file.Delete();
-        }
+        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
     }
 
     public override void PushAll(bool soft = false)
     {
-        foreach(var entry in Entries.Values.ToArray()) Push(entry);
+        throw new NotSupportedException("Legacy multi-file backing stores are read-only migration inputs.");
     }
 
     public void ObserveChanges()
@@ -400,24 +385,17 @@ public abstract class SingleFileBackingStore : CacheBackingStore
 
     public override void Push(DatabaseEntry entry)
     {
-        var type = entry.GetType();
-        Entries[entry.ID] = entry;
-        PushAll();
+        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
     }
 
     public override void Delete(DatabaseEntry entry)
     {
-        if(Entries.ContainsKey(entry.ID))
-        {
-            Entries.Remove(entry.ID);
-            PushAll();
-        }
+        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
     }
 
     public override void PushAll(bool soft = false)
     {
-        var entriesArray = Entries.Values.ToArray();
-        File.WriteAllBytes(FileInfo.FullName, Serialize(entriesArray));
+        throw new NotSupportedException("Legacy single-file backing stores are read-only migration inputs.");
     }
 }
 
