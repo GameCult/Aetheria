@@ -36,7 +36,6 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    public static string AetheriaStateFilePath => AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
     private static string LegacyAetherDatabasePath => LegacyCatalogBoundary.GetLegacyCatalogPath(GameDataDirectory);
     private static ILegacyCatalogReader LegacyCatalog => LegacyCatalogBoundary.GetCatalog(GameDataDirectory);
 
@@ -232,8 +231,11 @@ public class ActionGameManager : MonoBehaviour
         Instance = this;
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
-        
-        Debug.Log($"Aetheria typed state file: {AetheriaStateFilePath}");
+
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
+        Debug.Log($"Aetheria typed state file: {stateBoot.StateFilePath}");
+        if (!stateBoot.StateFileExists)
+            Debug.LogWarning("Aetheria typed state file is missing. Run the Aetheria.State importer before treating legacy catalog data as runtime state.");
         Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
         ItemManager = new ItemManager(
             LegacyCatalog,

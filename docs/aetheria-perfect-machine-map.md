@@ -23,10 +23,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `ActionGameManager` no longer owns a global legacy cache.
   `GameCult.Aetheria.State.Unity`, the embedded Unity package under
   `Packages/org.gamecult.aetheria.state`, owns the Unity runtime path to
-  `GameData/aetheria-world.cc` through `AetheriaRuntimeStateBoundary`;
-  `LegacyCatalogBoundary` no longer names or owns typed state paths. Local run
-  saves, loadouts, player settings files, zone files, and generated keyboard
-  layout caches no longer write bespoke durable files. The legacy
+  `GameData/aetheria-world.cc` through `AetheriaRuntimeStateBoundary` and owns
+  the Unity boot-time state-file existence probe through
+  `AetheriaRuntimeStateBoot`. `ActionGameManager` consumes that package-owned
+  boot report and warns when `aetheria-world.cc` is missing before treating
+  legacy catalog data as runtime state. `LegacyCatalogBoundary` no longer names
+  or owns typed state paths. Local run saves, loadouts, player settings files,
+  zone files, and generated keyboard layout caches no longer write bespoke
+  durable files. The legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
   persistence shape.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
@@ -132,7 +136,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
   Unity resolves this path through the embedded `GameCult.Aetheria.State.Unity`
-  runtime package, not through the legacy catalog boundary.
+  runtime package, not through the legacy catalog boundary. Unity also asks the
+  package to inspect whether the typed state file exists during boot; the
+  warning is notification-only and does not make legacy catalog data the typed
+  state owner.
   Import rebuilds clear the generated `.cc`, `.cc.records`, and `.cultmesh`
   outputs for the selected state path after capturing legacy inputs, so schema
   evolution can rematerialize typed state instead of being blocked by stale
@@ -197,7 +204,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
-  typed state file path and is the landing zone for future typed catalog boot.
+  typed state file path plus the boot-time state-file probe, and is the landing
+  zone for future typed catalog boot.
   `LegacyCatalogBoundary` is the only named owner for opening the old catalog
   and binding legacy `DatabaseLink<T>` resolution until catalog migration lands.
   `ActionGameManager` has a private boot helper that calls it only to construct
@@ -221,9 +229,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   put/get paths; Unity `SaveState`/`SaveZone` still need to commit through those
   ports. The catalog operator UI is emitted as a typed Eve surface document
   derived from the catalog snapshot.
-- Derived state: UI panels, generated keyboard layouts, editor rows, and
-  serialized legacy payloads are projections, migration inputs, or disabled
-  session-local DTOs, not durable authority.
+- Derived state: UI panels, generated keyboard layouts, editor rows, typed
+  state boot warnings, and serialized legacy payloads are projections,
+  migration inputs, diagnostics, or disabled session-local DTOs, not durable
+  authority.
 - Forbidden writers: old JSON backing stores, JsonKnownTypes converters,
   Rethink/LiteNet paths, IMGUI database editor exports, local save-file writes,
   generated keyboard layout caches, and server-side `DatabaseCache` paths.
