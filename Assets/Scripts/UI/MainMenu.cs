@@ -30,7 +30,6 @@ public class MainMenu : MonoBehaviour
     private float _fadeLerp;
     private bool _fading;
     private Vector3 _panelPosition;
-    //private Task<DatabaseCache> _databaseLoad;
     
     void Start()
     {
@@ -100,7 +99,7 @@ public class MainMenu : MonoBehaviour
                     {
                         ActionGameManager.IsTutorial = ActionGameManager.PlayerSettings.SavedRun.IsTutorial;
                         ActionGameManager.CurrentGalaxy = new Galaxy(
-                            ActionGameManager.CultCache,
+                            ActionGameManager.LegacyCultCache,
                             ActionGameManager.PlayerSettings.SavedRun,
                             Debug.Log);
                         SceneManager.LoadScene("ARPG");
@@ -131,7 +130,7 @@ public class MainMenu : MonoBehaviour
                             Settings.SectorGenerationSettings,
                             Settings.SectorBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
+                            ActionGameManager.LegacyCultCache,
                             Debug.Log,
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
@@ -158,7 +157,7 @@ public class MainMenu : MonoBehaviour
                             Settings.TutorialGenerationSettings,
                             Settings.TutorialBackgroundSettings,
                             Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
+                            ActionGameManager.LegacyCultCache,
                             ActionGameManager.PlayerSettings,
                             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
                             Debug.Log,

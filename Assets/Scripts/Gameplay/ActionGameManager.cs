@@ -11,7 +11,6 @@ using Cinemachine;
 using Ink;
 using Ink.Runtime;
 using MessagePack;
-using Newtonsoft.Json;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -38,29 +37,33 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    private static CultCache _cultCache;
+    public static string AetheriaStateFilePath => Path.Combine(GameDataDirectory.FullName, "aetheria-world.cc");
+    public static string LegacyAetherDatabasePath => Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack");
 
-    public static CultCache CultCache
+    private static CultCache _legacyCultCache;
+
+    public static CultCache LegacyCultCache
     {
         get
         {
-            if (_cultCache != null) return _cultCache;
+            if (_legacyCultCache != null) return _legacyCultCache;
 
-            _cultCache = new CultCache();
-            //RethinkConnection.RethinkConnect(_cultCache, "gamecult.org:28016", DatabaseName);
-            //_cultCache.AddBackingStore(new MultiFileJsonBackingStore(GameDataDirectory.FullName));
-            _cultCache.AddBackingStore(
-                new SingleFileMessagePackBackingStore(Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack")));
+            _legacyCultCache = new CultCache();
+            _legacyCultCache.AddBackingStore(
+                new SingleFileMessagePackBackingStore(LegacyAetherDatabasePath));
             
             // Particularly heavy objects should be stored in / retrieved from MsgPack files as it's much tighter than JSON
             // Such as NameFiles, which are just huge collections of geonames used to condition Markov chains
-            _cultCache.AddBackingStore(new MultiFileMessagePackBackingStore(GameDataDirectory.FullName), typeof(NameFile));
+            _legacyCultCache.AddBackingStore(new MultiFileMessagePackBackingStore(GameDataDirectory.FullName), typeof(NameFile));
             
-            _cultCache.PullAllBackingStores();
+            _legacyCultCache.PullAllBackingStores();
             
-            return _cultCache;
+            return _legacyCultCache;
         }
     }
+
+    [Obsolete("Use LegacyCultCache only for migration-era catalog reads. Live state belongs in GameData/aetheria-world.cc through Aetheria.State.")]
+    public static CultCache CultCache => LegacyCultCache;
 
     private static PlayerSettings _playerSettings;
     public static PlayerSettings PlayerSettings
@@ -263,7 +266,9 @@ public class ActionGameManager : MonoBehaviour
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
         
-        ItemManager = new ItemManager(CultCache, Settings.GameplaySettings, Debug.Log);
+        Debug.Log($"Aetheria typed state file: {AetheriaStateFilePath}");
+        Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
+        ItemManager = new ItemManager(LegacyCultCache, Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
