@@ -53,7 +53,7 @@ public class ItemManager
         _logger = logger;
     }
 
-    public T GetCatalogEntry<T>(Guid id) where T : DatabaseEntry
+    public T GetCatalogEntry<T>(Guid id) where T : ItemData
     {
         return _itemData.Get<T>(id);
     }
@@ -62,15 +62,6 @@ public class ItemManager
     {
         _logger(s);
     }
-
-    // public int ItemTier(CraftedItemData itemData)
-    // {
-    //     if (Tier.ContainsKey(itemData)) return Tier[itemData];
-    //
-    //     Tier[itemData] = itemData.Ingredients.Keys.Max(ci => _cache.Get<ItemData>(ci) is CraftedItemData craftableIngredient ? ItemTier(craftableIngredient) : 0);
-		  //
-    //     return Tier[itemData];
-    // }
 
     public SimpleCommodityData GetData(SimpleCommodity item)
     {

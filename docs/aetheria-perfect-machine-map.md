@@ -79,7 +79,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `LegacyCatalogBoundary`, which opens `LegacyCatalogCache` as the only
   concrete pull-only catalog cache. Runtime consumers receive
   `ILegacyCatalogReader`, so the old `AetherDB.msgpack` backing store may hydrate
-  in-memory item domain objects for the current Unity runtime, but this path cannot
+  in-memory item domain objects for the current Unity runtime, but the cache now
+  admits only `ItemData` entries and cannot resolve generic `DatabaseEntry`
+  object graphs. This path cannot
   push or delete legacy files. The legacy backing-store
   write/realtime APIs, public cache mutation methods, enumeration methods, and
   global-setting lookup methods have been deleted; only backing-store pull
@@ -270,7 +272,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.State.Unity` facade maps typed `.cc` documents into the same
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The legacy cache no longer has a public mutation surface, but
-  it still materializes `ItemManager`. Item properties manufacturer display is
+  it still materializes `ItemManager`. The legacy cache is item-only; old
+  `Faction`, `NameFile`, global, zone, player, task, and body entries are no
+  longer accepted as runtime catalog entries. Item properties manufacturer display is
   a typed snapshot consumer; loadout generation is the remaining runtime
   single-ID item hydration bridge. The old trade debug UI and console `give`
   command have been deleted. No live
@@ -445,6 +449,8 @@ First Aetheria surfaces to publish:
    - Done: remove `GameData/NameFile/*.msgpack` from Unity runtime legacy
      catalog boot; typed name files now own runtime names, and old name files
      remain migration inputs only.
+   - Done: narrow `ILegacyCatalogReader` and `DatabaseLink<T>` to `ItemData`;
+     `LegacyCatalogCache` ignores non-item entries from `AetherDB.msgpack`.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.

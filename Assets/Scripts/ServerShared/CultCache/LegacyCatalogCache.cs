@@ -10,8 +10,8 @@ using UniRx;
 
 public interface ILegacyCatalogReader
 {
-    DatabaseEntry Get(Guid guid);
-    T Get<T>(Guid guid) where T : DatabaseEntry;
+    ItemData Get(Guid guid);
+    T Get<T>(Guid guid) where T : ItemData;
 }
 
 public class LegacyCatalogCache : ILegacyCatalogReader
@@ -21,7 +21,7 @@ public class LegacyCatalogCache : ILegacyCatalogReader
 
     private List<CacheBackingStore> _backingStores = new List<CacheBackingStore>();
 
-    private readonly Dictionary<Guid, DatabaseEntry> _entries = new Dictionary<Guid, DatabaseEntry>();
+    private readonly Dictionary<Guid, ItemData> _entries = new Dictionary<Guid, ItemData>();
 
     public void AddBackingStore(CacheBackingStore store)
     {
@@ -41,21 +41,21 @@ public class LegacyCatalogCache : ILegacyCatalogReader
     {
         lock(addLock)
         {
-            if (entry != null)
+            if (entry is ItemData item)
             {
-                _entries[entry.ID] = entry;
+                _entries[item.ID] = item;
             }
         }
     }
 
-    public DatabaseEntry Get(Guid guid)
+    public ItemData Get(Guid guid)
     {
-        DatabaseEntry entry;
+        ItemData entry;
         _entries.TryGetValue(guid, out entry);
         return entry;
     }
 	
-    public T Get<T>(Guid guid) where T : DatabaseEntry
+    public T Get<T>(Guid guid) where T : ItemData
     {
         return Get(guid) as T;
     }

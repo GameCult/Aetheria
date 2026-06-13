@@ -81,7 +81,6 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
                     if (_scanTime > ScanDuration)
                     {
                         // TODO: Implement Scanning!
-                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
                         _scanTime = 0;
                     }
                     return true;
@@ -94,7 +93,6 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
                     _scanTime += dt;
                     if (_scanTime > ScanDuration)
                     {
-                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
                         _scanTime = 0;
                     }
                     return true;

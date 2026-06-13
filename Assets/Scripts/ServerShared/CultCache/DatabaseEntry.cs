@@ -65,7 +65,7 @@ public abstract class DatabaseEntry
 }
 
 [MessagePackObject]
-public class DatabaseLink<T> : DatabaseLinkBase where T : DatabaseEntry
+public class DatabaseLink<T> : DatabaseLinkBase where T : ItemData
 {
     [IgnoreMember]
     public T Value => ResolveLegacyCatalog<T>(LinkID);
@@ -80,10 +80,10 @@ public class DatabaseLinkBase
     [IgnoreMember]
     private static ILegacyCatalogReader Catalog { get; set; }
 
-    protected static T ResolveLegacyCatalog<T>(Guid linkId) where T : DatabaseEntry
+    protected static T ResolveLegacyCatalog<T>(Guid linkId) where T : ItemData
     {
         if (Catalog == null)
-            throw new InvalidOperationException("Legacy DatabaseLink resolution is not bound. Open LegacyCatalogBoundary before reading legacy catalog object graphs.");
+            throw new InvalidOperationException("Legacy item link resolution is not bound. Open LegacyCatalogBoundary before reading legacy item object graphs.");
 
         return Catalog.Get<T>(linkId);
     }
