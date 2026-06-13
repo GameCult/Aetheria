@@ -8,7 +8,7 @@ CultCache state into Unity UI Toolkit.
 - it reads `gamecult.eve.surface.v1` from `GameData/aetheria-world.cc`;
 - it lowers the retained tree through `org.gamecult.eve.unity-uitoolkit`;
 - it queues renderer-emitted commands as typed `.cc.eve.pending` command
-  envelopes for the future CultMesh command bridge.
+  envelopes for Aetheria's provider-owned command bridge.
 
 Commands are surfaced as `gamecult.eve.command.v1` requests. The presenter does
 not accept or apply them locally; provider acceptance still belongs to the

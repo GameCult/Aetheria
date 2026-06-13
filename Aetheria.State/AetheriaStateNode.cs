@@ -261,6 +261,18 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             new CultRecordKey("global:aetheria.runtime_commit_drain_status.v1"));
     }
 
+    public Task<CultRecordHandle<AetheriaEveCommandDrainStatus>> PutEveCommandDrainStatusAsync(
+        AetheriaEveCommandDrainStatus status)
+    {
+        return Database.PutAsync(new CultRecordKey("global:aetheria.eve_command_drain_status.v1"), status);
+    }
+
+    public Task<AetheriaEveCommandDrainStatus?> GetEveCommandDrainStatusAsync()
+    {
+        return Database.GetAsync<AetheriaEveCommandDrainStatus>(
+            new CultRecordKey("global:aetheria.eve_command_drain_status.v1"));
+    }
+
     public Task FlushAsync(bool soft = false)
     {
         return _node.FlushAsync(soft);

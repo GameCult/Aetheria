@@ -7,15 +7,19 @@ public static class AetheriaOperationsSurfaceProjector
     public const string SurfaceKey = "eve:surface:aetheria.operations";
     public const string SurfaceId = "aetheria.operations";
 
-    public static EveSurfaceState Build(AetheriaRuntimeCommitDrainStatus drainStatus, long version = 1)
+    public static EveSurfaceState Build(
+        AetheriaRuntimeCommitDrainStatus drainStatus,
+        AetheriaEveCommandDrainStatus? eveCommandStatus = null,
+        long version = 1)
     {
+        var updatedAtUtc = LatestTimestamp(drainStatus.LastPollAtUtc, eveCommandStatus?.LastPollAtUtc);
         return new EveSurfaceState
         {
             ProviderId = "aetheria",
             ProviderKind = "game.runtime",
             Title = "Aetheria Operations",
             Version = version,
-            UpdatedAtUtc = drainStatus.LastPollAtUtc,
+            UpdatedAtUtc = updatedAtUtc,
             Surface = new EveSurface
             {
                 Id = SurfaceId,
@@ -39,7 +43,26 @@ public static class AetheriaOperationsSurfaceProjector
                             ("runtime", drainStatus.RuntimeId),
                             ("lastPoll", drainStatus.LastPollAtUtc),
                             ("lastApplied", drainStatus.LastAppliedAtUtc),
-                            ("error", drainStatus.LastError))))
+                            ("error", drainStatus.LastError))),
+                    Node(
+                        "aetheria.operations.eveCommandDrain",
+                        "card",
+                        [("title", "Eve Command Drain")],
+                        Metric("eveCommandDrain.status", "Status", eveCommandStatus?.Status ?? "missing"),
+                        Metric("eveCommandDrain.pending", "Pending Before Apply", (eveCommandStatus?.PendingBeforeApply ?? 0).ToString()),
+                        Metric("eveCommandDrain.accepted", "Commands Accepted", (eveCommandStatus?.CommandsAccepted ?? 0).ToString()),
+                        Metric("eveCommandDrain.rejected", "Commands Rejected", (eveCommandStatus?.CommandsRejected ?? 0).ToString()),
+                        Metric("eveCommandDrain.catalogRefreshes", "Catalog Refreshes", (eveCommandStatus?.AppliedCatalogRefreshes ?? 0).ToString()),
+                        Metric("eveCommandDrain.operationsRefreshes", "Operations Refreshes", (eveCommandStatus?.AppliedOperationsRefreshes ?? 0).ToString()),
+                        Metric("eveCommandDrain.failures", "Consecutive Failures", (eveCommandStatus?.ConsecutiveFailures ?? 0).ToString()),
+                        Row(
+                            "eveCommandDrain.last",
+                            ("runtime", eveCommandStatus?.RuntimeId ?? ""),
+                            ("lastPoll", eveCommandStatus?.LastPollAtUtc ?? ""),
+                            ("lastAccepted", eveCommandStatus?.LastAcceptedAtUtc ?? ""),
+                            ("lastRejected", eveCommandStatus?.LastRejectedCommand ?? ""),
+                            ("rejectedReason", eveCommandStatus?.LastRejectedReason ?? ""),
+                            ("error", eveCommandStatus?.LastError ?? ""))))
             },
             Commands =
             [
@@ -51,6 +74,16 @@ public static class AetheriaOperationsSurfaceProjector
                 }
             ]
         };
+    }
+
+    private static string LatestTimestamp(string first, string? second)
+    {
+        if (string.IsNullOrWhiteSpace(second))
+            return first;
+        if (string.IsNullOrWhiteSpace(first))
+            return second;
+
+        return string.CompareOrdinal(second, first) > 0 ? second : first;
     }
 
     private static EveSurfaceComponent Metric(string id, string label, string value)

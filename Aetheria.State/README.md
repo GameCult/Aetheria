@@ -29,6 +29,12 @@ runtime commit envelopes beside `GameData/aetheria-world.cc`. `Aetheria.State`
 owns applying those envelopes into canonical typed state through
 `AetheriaRuntimeCommitLogApplier`; the Unity-side command log is command-only
 and cannot become durable truth by itself.
+Unity Eve surfaces also emit `gamecult.eve.command.v1` envelopes under
+`GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
+provider-owned acceptance organ for those commands: it validates the provider,
+surface, and command template before running the narrow refresh handlers for
+the catalog and operations surfaces. Renderer callbacks do not accept commands
+or mutate game state locally.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
@@ -130,22 +136,25 @@ zone/entity snapshots can be queued, applied through `Aetheria.State`, and
 cleared.
 
 `Economy.Server` opens the CultMesh state host, applies pending runtime commits
-on startup, and polls for new pending commits while running. For a bounded
-one-shot drain without leaving the host running:
+and pending Eve surface commands on startup, and polls for new pending work
+while running. For a bounded one-shot drain without leaving the host running:
 
 ```powershell
 dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-once
 ```
 
-The server publishes `AetheriaRuntimeCommitDrainStatus` and the
-`aetheria.operations` Eve surface after each drain attempt, so pending depth,
-applied counts, failures, and timestamps are typed state rather than console-only
-status. It also publishes `gamecult.eve.provider_advertisement.v1` for the
-`aetheria` provider, advertising the catalog and operations surfaces plus the
-typed schemas witnessed by the local `.cc` state file.
+The server publishes `AetheriaRuntimeCommitDrainStatus`,
+`AetheriaEveCommandDrainStatus`, and the `aetheria.operations` Eve surface after
+drain attempts, so pending depth, accepted/applied/rejected counts, failures,
+and timestamps are typed state rather than console-only status. It also
+publishes `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
+advertising the catalog and operations surfaces plus the typed schemas witnessed
+by the local `.cc` state file.
 
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
-queued Unity runtime commits when the server host is not being used:
+queued Unity runtime commits and Eve commands when the server host is not being
+used. It also republishes the typed drain status, operations surface, and
+provider advertisement after applying pending files:
 
 ```powershell
 dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .

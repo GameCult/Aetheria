@@ -19,11 +19,12 @@ internal static class Program
 
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
         await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
+        await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
         if (HasFlag(args, "--apply-pending-once"))
         {
-            Console.WriteLine("Aetheria pending runtime commit drain completed.");
+            Console.WriteLine("Aetheria pending runtime and Eve command drains completed.");
             return;
         }
 
@@ -129,15 +130,106 @@ internal static class Program
         AetheriaRuntimeCommitDrainStatus status)
     {
         await node.PutRuntimeCommitDrainStatusAsync(status).ConfigureAwait(false);
-        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(status)).ConfigureAwait(false);
+        await PublishOperationsStateAsync(node, status.LastPollAtUtc).ConfigureAwait(false);
+    }
+
+    private static async Task ApplyPendingEveCommandsAsync(AetheriaStateNode node)
+    {
+        var pendingBefore = CountPendingEveCommands(node.StatePath);
+        var now = DateTimeOffset.UtcNow.ToString("O");
+
+        try
+        {
+            var report = await AetheriaEveCommandBridge.ApplyPendingAsync(node).ConfigureAwait(false);
+            var status = new AetheriaEveCommandDrainStatus
+            {
+                RuntimeId = RuntimeId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAcceptedAtUtc = report.AcceptedPaths.Length > 0 ? now : "",
+                PendingBeforeApply = pendingBefore,
+                CommandsAccepted = report.AcceptedPaths.Length,
+                CommandsRejected = report.RejectedCommands,
+                AppliedCatalogRefreshes = report.AppliedCatalogRefreshes,
+                AppliedOperationsRefreshes = report.AppliedOperationsRefreshes,
+                LastRejectedCommand = report.LastRejectedCommand,
+                LastRejectedReason = report.LastRejectedReason,
+                ConsecutiveFailures = 0,
+                Status = report.RejectedCommands > 0 ? "rejected" : "ok"
+            };
+            await PublishEveCommandStatusAsync(node, status).ConfigureAwait(false);
+
+            if (report.AcceptedPaths.Length == 0 && report.RejectedCommands == 0)
+            {
+                Console.WriteLine("No pending Aetheria Eve commands.");
+                return;
+            }
+
+            Console.WriteLine(
+                "Drained pending Aetheria Eve commands: " +
+                $"accepted={report.AcceptedPaths.Length}, " +
+                $"rejected={report.RejectedCommands}, " +
+                $"catalogRefreshes={report.AppliedCatalogRefreshes}, " +
+                $"operationsRefreshes={report.AppliedOperationsRefreshes}");
+        }
+        catch (Exception ex)
+        {
+            var existing = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false);
+            var status = new AetheriaEveCommandDrainStatus
+            {
+                RuntimeId = RuntimeId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAcceptedAtUtc = existing?.LastAcceptedAtUtc ?? "",
+                PendingBeforeApply = pendingBefore,
+                ConsecutiveFailures = (existing?.ConsecutiveFailures ?? 0) + 1,
+                LastError = ex.ToString(),
+                Status = "error"
+            };
+            await PublishEveCommandStatusAsync(node, status).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static async Task PublishEveCommandStatusAsync(
+        AetheriaStateNode node,
+        AetheriaEveCommandDrainStatus status)
+    {
+        await node.PutEveCommandDrainStatusAsync(status).ConfigureAwait(false);
+        await PublishOperationsStateAsync(node, status.LastPollAtUtc).ConfigureAwait(false);
+    }
+
+    private static async Task PublishOperationsStateAsync(
+        AetheriaStateNode node,
+        string updatedAtUtc)
+    {
+        var commitStatus = await node.GetRuntimeCommitDrainStatusAsync().ConfigureAwait(false) ??
+            new AetheriaRuntimeCommitDrainStatus
+            {
+                RuntimeId = RuntimeId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = updatedAtUtc,
+                Status = "idle"
+            };
+        var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false);
+        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus))
+            .ConfigureAwait(false);
         await node.PutProviderAdvertisementAsync(
-            AetheriaProviderAdvertisementProjector.Build(node.StatePath, status.LastPollAtUtc)).ConfigureAwait(false);
+            AetheriaProviderAdvertisementProjector.Build(node.StatePath, updatedAtUtc)).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
     }
 
     private static int CountPendingRuntimeCommits(string statePath)
     {
         var pendingDirectory = statePath + ".pending";
+        return Directory.Exists(pendingDirectory)
+            ? Directory.EnumerateFiles(pendingDirectory, "*.cc").Count()
+            : 0;
+    }
+
+    private static int CountPendingEveCommands(string statePath)
+    {
+        var pendingDirectory = AetheriaEveCommandBridge.GetPendingDirectory(statePath);
         return Directory.Exists(pendingDirectory)
             ? Directory.EnumerateFiles(pendingDirectory, "*.cc").Count()
             : 0;
@@ -160,6 +252,7 @@ internal static class Program
                 break;
 
             await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
+            await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
         }
     }
 

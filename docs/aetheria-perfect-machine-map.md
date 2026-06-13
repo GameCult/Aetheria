@@ -42,9 +42,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy
   `PlayerSettings` runtime object is no longer decorated as a MessagePack
   persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
-  into canonical typed state on startup and on a daemon polling loop while
-  hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
-  bounded local operator applicator.
+  into canonical typed state and drains `aetheria-world.cc.eve.pending` through
+  the provider-owned Eve command bridge on startup and on a daemon polling loop
+  while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
+  bounded local operator applicator for both pending lanes.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -290,8 +291,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `UIDocument` presenter that reads provider-owned Eve surfaces from
   `GameData/aetheria-world.cc` and mounts them through the lowerer. Its command
   path queues `gamecult.eve.command.v1` envelopes under
-  `aetheria-world.cc.eve.pending` for the future CultMesh command bridge
-  instead of accepting renderer-local command effects.
+  `aetheria-world.cc.eve.pending` for the provider-owned command bridge instead
+  of accepting renderer-local command effects. `AetheriaEveCommandBridge`
+  currently accepts the advertised catalog/operations refresh commands,
+  republishes provider-owned surfaces, rejects unknown/unadvertised commands,
+  and records `AetheriaEveCommandDrainStatus` as typed state.
 
 ## Invariants
 
@@ -558,9 +562,12 @@ First Aetheria surfaces to publish:
      `gamecult.eve.command.v1` envelopes under `.eve.pending`, separate from
      runtime state commits so the existing state applicator cannot accidentally
      accept commands it does not own.
-   - Add the CultMesh command bridge that drains `.eve.pending`, validates
-     command templates, invokes provider-owned command handlers, and republishes
-     accepted state.
+   - Done: add the provider-owned Eve command bridge that drains `.eve.pending`,
+     validates provider/surface/command templates, invokes the current refresh
+     handlers, republishes accepted surfaces, rejects unknown commands, and
+     records typed command-drain status.
+   - Extend the command bridge beyond refresh commands as gameplay/editor Eve
+     surfaces acquire provider-owned handlers.
    - Wire the presenter into a Unity scene/prefab for the first runtime surface
      and replace a concrete uGUI screen.
    - Move the staged packages into the Eve repo once its worktree is clean, then
@@ -592,6 +599,8 @@ First Aetheria surfaces to publish:
      and daemon polling, with `--apply-pending-once` for bounded operation.
    - Done: publish pending-drain health as typed CultCache state and an Eve
      operations surface.
+   - Done: publish Eve command-drain health as typed CultCache state and include
+     it in the operations surface.
    - Done: publish an Eve provider advertisement so Odin/Eve can discover
      Aetheria surfaces and command boundaries through typed state.
    - Done: stop legacy catalog pull/read paths from writing entries back to
@@ -638,6 +647,10 @@ First Aetheria surfaces to publish:
   can apply them into canonical typed settings/run/zone/entity state, and
   commands are cleared after application. It also proves renderer-emitted Eve
   commands are queued as typed command envelopes separately from state commits.
+- `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
+  `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
+  rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes
+  the Eve command drain through the operations surface.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

@@ -94,11 +94,11 @@ namespace GameCult.Aetheria.State.Unity
             return new AetheriaRuntimeEveCommandEnvelope(
                 CommandSchema,
                 commandId,
-                request.ProviderId,
-                request.SurfaceId,
-                request.Command,
+                request.ProviderId ?? "",
+                request.SurfaceId ?? "",
+                request.Command ?? "",
                 issuedAtUtc,
-                request.ClientId,
+                request.ClientId ?? "",
                 new Dictionary<string, string>(request.Payload, StringComparer.Ordinal),
                 finalPath);
         }

@@ -39,7 +39,9 @@ public static class AetheriaProviderAdvertisementProjector
                 "aetheria.zone_state.v1",
                 "aetheria.entity_snapshot.v1",
                 "aetheria.runtime_commit_drain_status.v1",
-                "gamecult.eve.surface.v1"
+                "aetheria.eve_command_drain_status.v1",
+                "gamecult.eve.surface.v1",
+                "gamecult.eve.command.v1"
             ],
             Witnesses =
             [

@@ -105,6 +105,39 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
     await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
 
+    AetheriaEveCommandBridge.QueueCommand(
+        statePath,
+        AetheriaProviderAdvertisementProjector.ProviderId,
+        AetheriaCatalogSurfaceProjector.SurfaceId,
+        "aetheria.catalog.refresh",
+        new Dictionary<string, string> { ["source"] = "state-smoke" },
+        "aetheria-state-smoke");
+    AetheriaEveCommandBridge.QueueCommand(
+        statePath,
+        AetheriaProviderAdvertisementProjector.ProviderId,
+        AetheriaCatalogSurfaceProjector.SurfaceId,
+        "aetheria.catalog.unknown",
+        new Dictionary<string, string> { ["source"] = "state-smoke" },
+        "aetheria-state-smoke");
+    var eveCommandReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node);
+    var eveCommandStatus = new AetheriaEveCommandDrainStatus
+    {
+        RuntimeId = "smoke-runtime",
+        StatePath = statePath,
+        LastPollAtUtc = now,
+        LastAcceptedAtUtc = now,
+        PendingBeforeApply = 2,
+        CommandsAccepted = eveCommandReport.AcceptedPaths.Length,
+        CommandsRejected = eveCommandReport.RejectedCommands,
+        AppliedCatalogRefreshes = eveCommandReport.AppliedCatalogRefreshes,
+        AppliedOperationsRefreshes = eveCommandReport.AppliedOperationsRefreshes,
+        LastRejectedCommand = eveCommandReport.LastRejectedCommand,
+        LastRejectedReason = eveCommandReport.LastRejectedReason,
+        Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
+    };
+    await node.PutEveCommandDrainStatusAsync(eveCommandStatus);
+    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus, eveCommandStatus));
+
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
     {
         Name = "Smoke Aether Runner",
@@ -256,6 +289,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var catalogSurface = await reopened.GetCatalogSurfaceAsync();
     var drainStatus = await reopened.GetRuntimeCommitDrainStatusAsync();
+    var eveCommandStatus = await reopened.GetEveCommandDrainStatusAsync();
     var operationsSurface = await reopened.GetOperationsSurfaceAsync();
     var advertisement = await reopened.GetProviderAdvertisementAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
@@ -297,15 +331,21 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 
     if (drainStatus?.RuntimeId != "smoke-runtime" ||
         drainStatus.CommandsApplied != 1 ||
-        operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId)
+        eveCommandStatus?.CommandsAccepted != 1 ||
+        eveCommandStatus.CommandsRejected != 1 ||
+        eveCommandStatus.AppliedCatalogRefreshes != 1 ||
+        !eveCommandStatus.LastRejectedReason.Contains("not advertised", StringComparison.Ordinal) ||
+        operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId ||
+        !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandDrain"))
     {
-        throw new InvalidOperationException("Runtime commit drain status or operations surface did not survive flush/reopen.");
+        throw new InvalidOperationException("Runtime commit/Eve command drain status or operations surface did not survive flush/reopen.");
     }
 
     if (advertisement?.ProviderId != AetheriaProviderAdvertisementProjector.ProviderId ||
         advertisement.Surfaces.Length < 2 ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
-        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId))
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId) ||
+        !advertisement.Schemas.Contains(AetheriaEveCommandBridge.CommandSchema))
     {
         throw new InvalidOperationException("Aetheria Eve provider advertisement did not survive flush/reopen.");
     }

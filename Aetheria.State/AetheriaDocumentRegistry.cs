@@ -38,6 +38,7 @@ public static class AetheriaDocumentRegistry
                 CultNetDocumentBinding.ForDocument<AetheriaZoneState>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaEntitySnapshot>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaRuntimeCommitDrainStatus>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaEveCommandDrainStatus>(registry),
                 CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry),
                 CultNetDocumentBinding.ForDocument<EveProviderAdvertisementState>(registry)
             });
@@ -59,6 +60,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaZoneState),
         typeof(AetheriaEntitySnapshot),
         typeof(AetheriaRuntimeCommitDrainStatus),
+        typeof(AetheriaEveCommandDrainStatus),
         typeof(EveSurfaceState),
         typeof(EveProviderAdvertisementState)
     ];
