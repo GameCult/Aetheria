@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -53,7 +51,7 @@ public class InputDisplayLayout : MonoBehaviour
     private ButtonMapping _previewButton;
     private ActionMapping _previewOriginalAction;
     private bool _previewOriginallyActionBar;
-    
+
     public InputActionAsset Input { get; set; }
 
     private class ButtonMapping
@@ -77,11 +75,11 @@ public class InputDisplayLayout : MonoBehaviour
         public List<ButtonMapping> ButtonMappings = new List<ButtonMapping>();
         public Rect LabelRect => Label.GetComponent<RectTransform>().ScreenSpaceRect();
     }
-    
+
     private Dictionary<string, ButtonMapping> _bindButtons = new Dictionary<string, ButtonMapping>();
     private List<ButtonMapping> _buttonMappings = new List<ButtonMapping>();
     private List<ActionMapping> _actionMappings = new List<ActionMapping>();
-    
+
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
@@ -89,22 +87,21 @@ public class InputDisplayLayout : MonoBehaviour
         // _inputLayout = ParseJson(LayoutFile.text);
         RegisterResolver.Register();
         _inputLayout = MessagePackSerializer.Deserialize<InputLayout>(File.ReadAllBytes(path));
-        // _inputLayout = JsonConvert.DeserializeObject<InputLayout>(File.ReadAllText(path));
         // SaveLayout();
         DisplayLayout(_inputLayout);
-        
+
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));
         _buttonMappings.Add(MapMouseButton(MouseRight, "<Mouse>/rightButton"));
         _buttonMappings.Add(MapMouseButton(MouseMiddle, "<Mouse>/middleButton"));
         _buttonMappings.Add(MapMouseButton(MouseForward, "<Mouse>/forwardButton"));
         _buttonMappings.Add(MapMouseButton(MouseBack, "<Mouse>/backButton"));
-        
+
         Canvas.ForceUpdateCanvases();
 
         foreach (var buttonMapping in _buttonMappings)
         {
             _bindButtons[buttonMapping.Button.InputSystemPath] = buttonMapping;
-            
+
             buttonMapping.TestAction = new InputAction(binding: buttonMapping.Button.InputSystemPath);
             buttonMapping.TestAction.started += context =>
             {
@@ -118,7 +115,7 @@ public class InputDisplayLayout : MonoBehaviour
             buttonMapping.TestAction.canceled += context => AssignColor(buttonMapping);
             buttonMapping.TestAction.Enable();
         }
-        
+
         foreach(var actionBarInput in ActionGameManager.PlayerSettings.InputSettings.ActionBarInputs)
         {
             if (!_bindButtons.ContainsKey(actionBarInput)) Debug.LogError($"Unable to find input button for \"{actionBarInput}\"");
@@ -128,7 +125,7 @@ public class InputDisplayLayout : MonoBehaviour
                 AssignColor(_bindButtons[actionBarInput]);
             }
         }
-        
+
         if(Input==null)
         {
             var input = new AetheriaInput();
@@ -185,7 +182,7 @@ public class InputDisplayLayout : MonoBehaviour
                             : frac(GlobalHue + GlobalHueRange + (float) i / (bindableActions.Length - 1) * (1 - GlobalHueRange * 2))
                     };
                     _actionMappings.Add(actionMapping);
-                    
+
                     var buttonMapping = _bindButtons[binding.effectivePath];
                     buttonMapping.ActionMapping = actionMapping;
                     AssignColor(buttonMapping);
@@ -310,7 +307,7 @@ public class InputDisplayLayout : MonoBehaviour
 
     private ActionMapping[] OverlappingLabels(Rect rect) => _actionMappings
         .Where(a => a.LabelRect.Overlaps(rect)).ToArray();
-    
+
     private Rect[] Overlap(Rect rect) => _buttonMappings
         .Where(b=>b.IsActionBarButton || b.ActionMapping!=null)
         .Select(b=>b.ButtonRect)
@@ -345,7 +342,7 @@ public class InputDisplayLayout : MonoBehaviour
                         {
                             var buttonMapping = new ButtonMapping
                             {
-                                Button = key, 
+                                Button = key,
                                 DisplayButton = displayKey
                             };
                             _bindButtons[key.InputSystemPath] = buttonMapping;
@@ -390,11 +387,11 @@ public class InputDisplayLayout : MonoBehaviour
         var nextWidth = 1f;
         var nextHeight = 1;
         var reader = new JsonTextReader(new StringReader(layout));
-        
+
         reader.Read();
         if (reader.TokenType != JsonToken.StartArray)
             throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}, expected: StartArray, received: {Enum.GetName(typeof(JsonToken), reader.TokenType)}");
-        
+
         while(reader.Read() && reader.TokenType != JsonToken.EndArray)
         {
             if (reader.TokenType != JsonToken.StartArray)
@@ -475,12 +472,12 @@ public class InputDisplayLayout : MonoBehaviour
             fillColor *= FillMultiplier;
             fillColor.a = FillAlpha;
             button.DisplayButton.Fill.color = fillColor;
-                        
+
             path = "";
             while (string.IsNullOrEmpty(path)) yield return null;
             button.Button.InputSystemPath = path;
             //Debug.Log($"Bound \"{path}\" to \"{bindableKey.MainLabel}\"");
-                        
+
             button.DisplayButton.Outline.color = DefaultColor;
             fillColor = DefaultColor;
             fillColor *= FillMultiplier;
@@ -623,7 +620,7 @@ public class InputDisplayLayout : MonoBehaviour
                 .Where(_ => _dragAction != null)
                 .Subscribe(EndDrag);
         }
-        
+
         foreach (var actionMapping in _actionMappings)
         {
             actionMapping.Label.BeginDragTrigger.OnBeginDragAsObservable().Subscribe(_ =>

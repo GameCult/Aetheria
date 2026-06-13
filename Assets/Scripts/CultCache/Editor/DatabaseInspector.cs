@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
@@ -21,7 +20,7 @@ public class DatabaseInspector : EditorWindow
 {
     public static CultCache CultCache;
     public DatabaseEntry entry;
-    
+
     // Singleton to avoid multiple instances of window.
     private static DatabaseInspector _instance;
     public static DatabaseInspector Instance => _instance ? _instance : GetWindow<DatabaseInspector>();
@@ -32,10 +31,10 @@ public class DatabaseInspector : EditorWindow
 
     private Vector2 _view;
     private GUIStyle _warning;
-    private List<(Type targetType, HashSet<Type> attributes, Type inspectorType, object instance)> _inspectors = 
+    private List<(Type targetType, HashSet<Type> attributes, Type inspectorType, object instance)> _inspectors =
         new List<(Type targetType, HashSet<Type> attributes, Type inspectorType, object instance)>();
 
-    private List<(Type targetType, HashSet<Type> attributes, Type inspectorType, Dictionary<Type, object> instances)> _genericInspectors = 
+    private List<(Type targetType, HashSet<Type> attributes, Type inspectorType, Dictionary<Type, object> instances)> _genericInspectors =
         new List<(Type targetType, HashSet<Type> attributes, Type inspectorType, Dictionary<Type, object> instances)>();
     private HashSet<object> _foldouts = new HashSet<object>();
 
@@ -60,8 +59,8 @@ public class DatabaseInspector : EditorWindow
                 if (genericArguments[0].ContainsGenericParameters)
                 {
                     _genericInspectors.Add((
-                        genericArguments[0].GetGenericTypeDefinition(), 
-                        new HashSet<Type>(genericArguments.Skip(1)), 
+                        genericArguments[0].GetGenericTypeDefinition(),
+                        new HashSet<Type>(genericArguments.Skip(1)),
                         type,
                         new Dictionary<Type, object>()
                         ));
@@ -69,16 +68,16 @@ public class DatabaseInspector : EditorWindow
                 else
                 {
                     _inspectors.Add((
-                        genericArguments[0], 
-                        new HashSet<Type>(genericArguments.Skip(1)), 
-                        type, 
+                        genericArguments[0],
+                        new HashSet<Type>(genericArguments.Skip(1)),
+                        type,
                         Activator.CreateInstance(type)
                         ));
                 }
             }
         }
     }
-    
+
     public void Inspect(object obj, object parent = null)
     {
         foreach (var field in obj.GetType().GetFields().OrderBy(f=>f.GetCustomAttribute<KeyAttribute>()?.IntKey ?? 0))
@@ -86,7 +85,7 @@ public class DatabaseInspector : EditorWindow
             Inspect(obj, field, parent);
         }
     }
-    
+
     public void Inspect(object obj, FieldInfo field, object parent = null)
     {
         var inspectable = field.GetCustomAttribute<InspectableAttribute>();
@@ -96,7 +95,7 @@ public class DatabaseInspector : EditorWindow
 
         var type = field.FieldType;
         var value = field.GetValue(obj);
-        
+
         field.SetValue(obj, InspectMember(field.Name.SplitCamelCase(), value, parent ?? obj, type, false, attributes));
     }
 
@@ -124,7 +123,7 @@ public class DatabaseInspector : EditorWindow
             _listItemStyle = style;
             return value;
         }
-        
+
         if (type.IsEnum)
         {
             var isflags = type.GetCustomAttributes<FlagsAttribute>().Any();
@@ -133,7 +132,7 @@ public class DatabaseInspector : EditorWindow
             _listItemStyle = style;
             return value;
         }
-        
+
         if (type.GetCustomAttribute<InspectableAttribute>() != null)
         {
             if(!suppressContainer)
@@ -164,7 +163,7 @@ public class DatabaseInspector : EditorWindow
             _listItemStyle = style;
             return value;
         }
-        
+
         if (type.IsGenericType)
         {
             var genericTypeDefinition = type.GetGenericTypeDefinition();
@@ -186,7 +185,7 @@ public class DatabaseInspector : EditorWindow
                 return value;
             }
         }
-        
+
         Debug.Log($"Field \"{label}\" has unknown type {type.Name}. No inspector was generated.");
 
         _listItemStyle = style;
@@ -231,12 +230,12 @@ public class DatabaseInspector : EditorWindow
             LabelField("No Entry Selected!");
             return;
         }
-        
+
         if(entry is INamedEntry namedEntry)
             GUILayout.Label(namedEntry.EntryName, EditorStyles.boldLabel);
-        
+
         _view = BeginScrollView(
-            _view, 
+            _view,
             false,
             false,
             GUIStyle.none,
@@ -249,11 +248,11 @@ public class DatabaseInspector : EditorWindow
         RegisterResolver.Register();
         var previousBytes = MessagePackSerializer.Serialize<DatabaseEntry>(entry);
         var previousHash = previousBytes.GetHashSHA1();
-        
+
         EditorGUI.BeginChangeCheck();
 
         var dataEntry = entry;
-        
+
         using (new HorizontalScope())
         {
             // if(GUILayout.Button("Print JSON"))
@@ -272,7 +271,7 @@ public class DatabaseInspector : EditorWindow
                 CultCache.Add(copy);
             }
         }
-        
+
         using (var h = new HorizontalScope())
         {
             GUILayout.Label("ID");
@@ -287,7 +286,7 @@ public class DatabaseInspector : EditorWindow
             if(previousHash != MessagePackSerializer.Serialize(entry).GetHashSHA1())
                 CultCache.Add(entry);
         }
-            
+
         EndScrollView();
     }
 }

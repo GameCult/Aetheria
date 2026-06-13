@@ -3,33 +3,32 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
+[Inspectable, MessagePackObject, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class ThrusterData : BehaviorData
 {
-    [Inspectable, JsonProperty("thrust"), Key(1), RuntimeInspectable]  
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, JsonProperty("visibility"), Key(2), RuntimeInspectable]  
+    [Inspectable, Key(2), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [Inspectable, JsonProperty("heat"), Key(3), RuntimeInspectable]  
+    [Inspectable, Key(3), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, JsonProperty("energy"), Key(4), RuntimeInspectable]  
+    [Inspectable, Key(4), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [InspectablePrefab, JsonProperty("Particles"), Key(5)]
+    [InspectablePrefab, Key(5)]
     public string ParticlesPrefab;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Thruster(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new Thruster(this, item);
@@ -48,7 +47,7 @@ public class Thruster : Behavior, IAnalogBehavior
     }
 
     private ThrusterData _data;
-    
+
     private float _input;
 
     public Thruster(ThrusterData data, EquippedItem item) : base(data, item)

@@ -4,23 +4,21 @@
 
 using System;
 using MessagePack;
-using Newtonsoft.Json;
-
-[LegacyCatalogGroup("Users"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Users"), MessagePackObject]
 public class PlayerData : DatabaseEntry, INamedEntry
 {
-    [JsonProperty("email"), Key(1)]
+    [Key(1)]
     public string Email;
 
-    [JsonProperty("password"), Key(2)]
+    [Key(2)]
     public string Password;
 
-    [JsonProperty("username"), Key(3)]
+    [Key(3)]
     public string Username;
 
-    [JsonProperty("corporation"), Key(4)]
+    [Key(4)]
     public Guid Corporation;
-    
+
     [IgnoreMember] public string EntryName
     {
         get => Username;

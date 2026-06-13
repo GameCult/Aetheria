@@ -2,28 +2,27 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class LockWeaponData : InstantWeaponData
 {
-    [Inspectable, JsonProperty("speed"), Key(21), RuntimeInspectable]
+    [Inspectable, Key(21), RuntimeInspectable]
     public PerformanceStat LockSpeed = new PerformanceStat();
 
-    [Inspectable, JsonProperty("sensorImpact"), Key(22)]
+    [Inspectable, Key(22)]
     public PerformanceStat SensorImpact = new PerformanceStat();
 
-    [Inspectable, JsonProperty("threshold"), Key(23), RuntimeInspectable]
+    [Inspectable, Key(23), RuntimeInspectable]
     public PerformanceStat LockAngle = new PerformanceStat();
 
-    [Inspectable, JsonProperty("directionImpact"), Key(24)]
+    [Inspectable, Key(24)]
     public PerformanceStat DirectionImpact = new PerformanceStat();
 
-    [Inspectable, JsonProperty("decay"), Key(25)]
+    [Inspectable, Key(25)]
     public PerformanceStat Decay = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new LockWeapon(this, item);
@@ -59,7 +58,7 @@ public class LockWeapon : InstantWeapon
     {
         get => saturate(_lock);
     }
-    
+
     public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;

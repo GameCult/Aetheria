@@ -1,15 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
-
-[JsonObject]
 public class WwiseMetadataFile
 {
     public WwiseMetaSoundBanksInfo SoundBanksInfo;
 }
 
-[JsonObject]
 public class WwiseMetaSoundBanksInfo
 {
     public WwiseMetaSoundBank[] SoundBanks;
@@ -29,7 +25,6 @@ public class WwiseMetaSoundBanksInfo
     }
 }
 
-[JsonObject]
 public class WwiseMetaSoundBank
 {
     public uint Id;
@@ -83,7 +78,6 @@ public class WwiseMetaSoundBank
     }
 }
 
-[JsonObject]
 public class WwiseMetaObject
 {
     public uint Id;

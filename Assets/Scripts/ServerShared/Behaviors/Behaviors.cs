@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -6,9 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
@@ -51,14 +49,14 @@ public abstract class Behavior
         Item = item;
         ItemManager = Item.ItemManager;
     }
-    
+
     protected Behavior(BehaviorData data, ConsumableItemEffect consumable)
     {
         Data = data;
         Consumable = consumable;
         ItemManager = consumable.Entity.ItemManager;
     }
-    
+
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables
 
@@ -83,7 +81,7 @@ public abstract class Behavior
             CauseDamage(Item.Wear * multiplier);
         }
     }
-    
+
     public virtual bool Execute(float dt)
     {
         return true;
@@ -142,19 +140,17 @@ public interface IPopulationAssignment
     int AssignedPopulation { get; set; }
 }
 
-[MessagePackObject,
- JsonObject(MemberSerialization.OptIn),
- JsonConverter(typeof(JsonKnownTypesConverter<PersistentBehaviorData>))]
+[MessagePackObject]
 public abstract class PersistentBehaviorData
 {
 }
 
-[Inspectable, 
+[Inspectable,
  Union(0, typeof(GuidedWeaponData)),
  Union(1, typeof(LauncherData)),
- Union(2, typeof(ReactorData)), 
- Union(3, typeof(RadiatorData)), 
- Union(4, typeof(StatModifierData)), 
+ Union(2, typeof(ReactorData)),
+ Union(3, typeof(RadiatorData)),
+ Union(4, typeof(StatModifierData)),
  Union(5, typeof(SensorData)),
  Union(6, typeof(ReflectorData)),
  Union(7, typeof(ShieldData)),
@@ -187,13 +183,12 @@ public abstract class PersistentBehaviorData
  Union(35, typeof(InstantWeaponData)),
  Union(36, typeof(ConstantWeaponData)),
  Union(37, typeof(ChargedWeaponData)),
- Union(38, typeof(AutoWeaponData)),
- JsonConverter(typeof(JsonKnownTypesConverter<BehaviorData>)), JsonObject(MemberSerialization.OptIn)]
+ Union(38, typeof(AutoWeaponData))]
 public abstract class BehaviorData
 {
-    [Inspectable, JsonProperty("group"), Key(0)]
+    [Inspectable, Key(0)]
     public int Group;
-    
+
     public abstract Behavior CreateInstance(EquippedItem item);
     public abstract Behavior CreateInstance(ConsumableItemEffect consumable);
 

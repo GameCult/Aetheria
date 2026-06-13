@@ -3,24 +3,23 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class ReflectorData : BehaviorData
 {
-    [Inspectable, JsonProperty("crossSection"), Key(1), RuntimeInspectable]  
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat CrossSection = new PerformanceStat();
 
-    // [InspectableAnimationCurve, JsonProperty("visibility"), Key(1)]  
+    // [InspectableAnimationCurve, Key(1)]
     // public float4[] VisibilityCurve;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Reflector(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new Reflector(this, item);
@@ -44,7 +43,7 @@ public class Reflector : Behavior
     public override bool Execute(float dt)
     {
         Entity.VisibilitySources[this] = Evaluate(_data.CrossSection) * Entity.Zone.GetLight(Entity.Position.xz);
-        
+
         return true;
     }
 }

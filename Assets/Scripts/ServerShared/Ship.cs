@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using MessagePack;
-using Newtonsoft.Json;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
@@ -17,7 +16,7 @@ using quaternion = Unity.Mathematics.quaternion;
 [MessagePackObject]
 public class Ship : Entity
 {
-    
+
     // [Key("bindings")]   public Dictionary<KeyCode,Guid>    Bindings = new Dictionary<KeyCode,Guid>();
     //[IgnoreMember] public int HullHardpointCount;
 
@@ -67,7 +66,7 @@ public class Ship : Entity
 
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
-    
+
     public quaternion Rotation { get; private set; }
 
     public void ExitWormhole(float2 wormholePosition, float2 exitVelocity)
@@ -95,25 +94,25 @@ public class Ship : Entity
 
         _aetherDrives = new HashSet<AetherDrive>(GetBehaviors<AetherDrive>());
         _aetherDriveItems = new HashSet<EquippedItem>(_aetherDrives.Select(x => x.Item));
-        
+
         _allThrusters = GetBehaviors<Thruster>().ToArray();
         _thrusterItems = new HashSet<EquippedItem>(_allThrusters.Select(x=>x.Item));
-        
+
         _forwardThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Reversed));
 
         _reverseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.None));
-        
+
         _rightThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise));
-        
+
         _leftThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Clockwise));
-        
+
         _counterClockwiseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Torque < -ItemManager.GameplaySettings.TorqueFloor));
-        
+
         _clockwiseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Torque > ItemManager.GameplaySettings.TorqueFloor));
     }
@@ -153,7 +152,7 @@ public class Ship : Entity
         RecalculateClockwiseTorque();
         RecalculateCounterClockwiseTorque();
     }
-    
+
     private void RecalculateForwardThrust()
     {
         ForwardThrust = 0;
@@ -283,7 +282,7 @@ public class Ship : Entity
                 Direction = lerp(Direction, look, min(delta, 1));
             }
             deltaRot = pow(abs(deltaRot), .5f) * sign(deltaRot);
-        
+
             foreach (var thruster in _clockwiseThrusters) thruster.Axis += deltaRot;
             foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -deltaRot;
 
@@ -294,9 +293,9 @@ public class Ship : Entity
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
             Velocity = normalize(Velocity) * AetheriaMath.Decay(velocityMagnitude, HullData.Drag, delta);
-        
+
         Position.xz += Velocity * delta;
-        
+
         var normal = Zone.GetNormal(Position.xz);
         var force = new float2(normal.x, normal.z);
         var forceMagnitude = lengthsq(force);
@@ -308,7 +307,7 @@ public class Ship : Entity
         var shipRight = Direction.Rotate(ItemRotation.Clockwise);
         var forward = cross(float3(shipRight.x, 0, shipRight.y), normal);
         Rotation = quaternion.LookRotation(forward, normal);
-        
+
         base.Update(delta);
 
         if (_exitingWormhole)
@@ -360,7 +359,7 @@ public class Ship : Entity
                 else
                 {
                     Position.xz = _wormholePosition;
-                    Rotation = quaternion.LookRotation(float3(0, -1, 0), 
+                    Rotation = quaternion.LookRotation(float3(0, -1, 0),
                         float3(-_wormholeEntryDirection.x, 0, -_wormholeEntryDirection.y));
                 }
 

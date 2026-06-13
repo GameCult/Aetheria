@@ -1,86 +1,85 @@
 using System;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using float2 = Unity.Mathematics.float2;
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class ZoneEnvironment
 {
-    [JsonProperty("nebula"), Key(0)] public NebulaSettings Nebula;
-    [JsonProperty("flow"), Key(1)] public FlowSettings Flow;
-    [JsonProperty("noise"), Key(2)] public NoiseSettings Noise;
-    [JsonProperty("lighting"), Key(3)] public AmbientLightingSettings Lighting;
-    [JsonProperty("grid"), Key(4)] public GridSettings Grid;
+    [Key(0)] public NebulaSettings Nebula;
+    [Key(1)] public FlowSettings Flow;
+    [Key(2)] public NoiseSettings Noise;
+    [Key(3)] public AmbientLightingSettings Lighting;
+    [Key(4)] public GridSettings Grid;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class NebulaSettings
 {
-    [JsonProperty("fillDensity"), Key(0)] public float FillDensity;
-    [JsonProperty("fillDistance"), Key(1)] public float FillDistance;
-    [JsonProperty("fillExponent"), Key(2)] public float FillExponent;
-    [JsonProperty("fillOffset"), Key(12)] public float FillOffset;
-    [JsonProperty("cloudDensity"), Key(3)] public float PatchDensity;
-    [JsonProperty("fogOffset"), Key(4)] public float FloorOffset;
-    [JsonProperty("fogBlend"), Key(5)] public float FloorBlend;
-    [JsonProperty("cloudBlend"), Key(6)] public float PatchBlend;
-    [JsonProperty("luminance"), Key(7)] public float Luminance;
-    [JsonProperty("extinction"), Key(13)] public float Extinction;
-    //[JsonProperty("tintExponent"), Key(8)] public float TintExponent;
-    [JsonProperty("tintLodExponent"), Key(9)] public float TintLodExponent;
-    [JsonProperty("safetyDistance"), Key(10)] public float SafetyDistance;
+    [Key(0)] public float FillDensity;
+    [Key(1)] public float FillDistance;
+    [Key(2)] public float FillExponent;
+    [Key(12)] public float FillOffset;
+    [Key(3)] public float PatchDensity;
+    [Key(4)] public float FloorOffset;
+    [Key(5)] public float FloorBlend;
+    [Key(6)] public float PatchBlend;
+    [Key(7)] public float Luminance;
+    [Key(13)] public float Extinction;
+    //[Key(8)] public float TintExponent;
+    [Key(9)] public float TintLodExponent;
+    [Key(10)] public float SafetyDistance;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class GridSettings
 {
-    [JsonProperty("enabled"), Key(0)] public bool Enabled;
-    [JsonProperty("offset"), Key(1)] public float Offset;
+    [Key(0)] public bool Enabled;
+    [Key(1)] public float Offset;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class AmbientLightingSettings
 {
-    [JsonProperty("dynamicSkyBoost"), Key(0)] public float DynamicSkyBoost;
-    [JsonProperty("dynamicLodHigh"), Key(1)] public float DynamicLodHigh;
-    [JsonProperty("dynamicLodLow"), Key(2)] public float DynamicLodLow;
-    [JsonProperty("dynamicIntensity"), Key(3)] public float DynamicIntensity;
+    [Key(0)] public float DynamicSkyBoost;
+    [Key(1)] public float DynamicLodHigh;
+    [Key(2)] public float DynamicLodLow;
+    [Key(3)] public float DynamicIntensity;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class FlowSettings
 {
-    [JsonProperty("scale"), Key(0)] public float GlobalScale;
-    [JsonProperty("amplitudeGlobal"), Key(1)] public float GlobalAmplitude;
-    [JsonProperty("scrollSpeed"), Key(2)] public float GlobalScrollSpeed;
-    [JsonProperty("period"), Key(3)] public float Period;
-    [JsonProperty("amplitudeSlope"), Key(4)] public float SlopeAmplitude;
-    [JsonProperty("amplitudeSwirl"), Key(5)] public float SwirlAmplitude;
+    [Key(0)] public float GlobalScale;
+    [Key(1)] public float GlobalAmplitude;
+    [Key(2)] public float GlobalScrollSpeed;
+    [Key(3)] public float Period;
+    [Key(4)] public float SlopeAmplitude;
+    [Key(5)] public float SwirlAmplitude;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class NoiseSettings
 {
-    [JsonProperty("scale"), Key(0)] public float Scale;
-    [JsonProperty("amplitude"), Key(1)] public float Amplitude;
-    [JsonProperty("exponent"), Key(2)] public float Exponent;
-    [JsonProperty("speed"), Key(3)] public float Speed;
-    [JsonProperty("slopeExponent"), Key(4)] public float SlopeExponent;
+    [Key(0)] public float Scale;
+    [Key(1)] public float Amplitude;
+    [Key(2)] public float Exponent;
+    [Key(3)] public float Speed;
+    [Key(4)] public float SlopeExponent;
 }
 
-[Union(0, typeof(PowerBrush)), 
- Union(1, typeof(SimplexBrush)), 
- Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Union(0, typeof(PowerBrush)),
+ Union(1, typeof(SimplexBrush)),
+ Serializable, MessagePackObject]
 public abstract class Brush
 {
-    [JsonProperty("layerMask"), Key(0)] public BrushLayer LayerMask;
-    [JsonProperty("cutoff"), Key(1)] public float Cutoff;
-    [JsonProperty("depth"), Key(2)] public float Depth;
-    [JsonProperty("envelopeExponent"), Key(3)] public float EnvelopeExponent;
-    
+    [Key(0)] public BrushLayer LayerMask;
+    [Key(1)] public float Cutoff;
+    [Key(2)] public float Depth;
+    [Key(3)] public float EnvelopeExponent;
+
     float powerPulse( float x, float power )
     {
         x = saturate(abs(x))-.001f;
@@ -98,7 +97,7 @@ public abstract class Brush
     }
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class PowerBrush : Brush
 {
     protected override float Evaluate(float2 world, float2 uv)
@@ -107,27 +106,27 @@ public class PowerBrush : Brush
     }
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public abstract class TextureBrush : Brush
 {
-    [JsonProperty("frequency"), Key(4)] public float2 Frequency;
-    [JsonProperty("phase"), Key(5)] public float2 Phase;
+    [Key(4)] public float2 Frequency;
+    [Key(5)] public float2 Phase;
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public abstract class AnimatedBrush : TextureBrush
 {
-    [JsonProperty("animationSpeed"), Key(6)] public float AnimationSpeed;
-    
+    [Key(6)] public float AnimationSpeed;
+
     [IgnoreMember]
     public float Time { get; set; }
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class SimplexBrush : TextureBrush
 {
-    [JsonProperty("absolute"), Key(6)] public bool AbsoluteValue;
-    
+    [Key(6)] public bool AbsoluteValue;
+
     protected override float Evaluate(float2 world, float2 uv)
     {
         var noise = snoise(world * Frequency + Phase);
@@ -135,11 +134,11 @@ public class SimplexBrush : TextureBrush
     }
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class AnimatedSimplexBrush : AnimatedBrush
 {
-    [JsonProperty("absolute"), Key(7)] public bool AbsoluteValue;
-    
+    [Key(7)] public bool AbsoluteValue;
+
     protected override float Evaluate(float2 world, float2 uv)
     {
         var noise = snoise(float3(float2(world * Frequency + Phase), AnimationSpeed * Time));
@@ -147,11 +146,11 @@ public class AnimatedSimplexBrush : AnimatedBrush
     }
 }
 
-[Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Serializable, MessagePackObject]
 public class RadialWaveBrush : TextureBrush
 {
-    [JsonProperty("waveExponent"), Key(7)] public float WaveExponent;
-    
+    [Key(7)] public float WaveExponent;
+
     protected override float Evaluate(float2 world, float2 uv)
     {
         float dist = length(uv);

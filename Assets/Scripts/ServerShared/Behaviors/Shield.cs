@@ -3,19 +3,18 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class ShieldData : BehaviorData
 {
-    [Inspectable, JsonProperty("efficiency"), Key(1), RuntimeInspectable]  
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, JsonProperty("energy"), Key(2), RuntimeInspectable]  
+    [Inspectable, Key(2), RuntimeInspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Shield(this, item);

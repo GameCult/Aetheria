@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class AetheriaDatabaseView : DatabaseListView
 {
-    // Singleton to avoid multiple instances of window. 
+    // Singleton to avoid multiple instances of window.
     private static DatabaseListView _instance;
     private string tableName;
     public static DatabaseListView Instance => _instance ? _instance : GetWindow<AetheriaDatabaseView>();
@@ -23,11 +23,11 @@ public class AetheriaDatabaseView : DatabaseListView
     protected override DatabaseEntryGroup[] Groupers => new DatabaseEntryGroup[]
     {
         new DatabaseEntryGroup<SimpleCommodityData,SimpleCommodityCategory>(
-            data => data.Category, 
+            data => data.Category,
             category => Enum.GetName(typeof(SimpleCommodityCategory), category),
             (data, category) => data.Category = category ),
         new DatabaseEntryGroup<CompoundCommodityData, CompoundCommodityCategory>(
-            data => data.Category, 
+            data => data.Category,
             category => Enum.GetName(typeof(CompoundCommodityCategory), category),
             (data, category) => data.Category = category ),
         new DatabaseEntryGroup<GearData, HardpointType>(

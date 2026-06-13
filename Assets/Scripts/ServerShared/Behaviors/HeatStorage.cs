@@ -4,11 +4,10 @@
 
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class HeatStorageData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

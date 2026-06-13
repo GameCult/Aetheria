@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -6,12 +6,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class PlanetSettings
 {
     public float ZoneDepthExponent;
@@ -36,7 +35,7 @@ public class PlanetSettings
     public ExponentialCurve OrbitPeriod;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class GalaxyShapeSettings
 {
     public int Arms = 4;
@@ -44,7 +43,7 @@ public class GalaxyShapeSettings
     public float TwistExponent = 2;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class NameGeneratorSettings
 {
     public int NameGeneratorMinLength = 5;
@@ -52,7 +51,7 @@ public class NameGeneratorSettings
     public int NameGeneratorOrder = 4;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class SectorBackgroundSettings
 {
     public float NoiseAmplitude;
@@ -63,12 +62,12 @@ public class SectorBackgroundSettings
     public float NoisePosition;
     public float CloudExponent;
     public float CloudAmplitude;
-    
+
     public float fBm(float2 p, int octaves)
     {
         float freq = NoiseFrequency, amp = .5f;
-        float sum = 0;	
-        for(int i = 0; i < octaves; i++) 
+        float sum = 0;
+        for(int i = 0; i < octaves; i++)
         {
             if(i<4)
                 sum += (1-abs(snoise(p * freq))) * amp;
@@ -86,7 +85,7 @@ public class SectorBackgroundSettings
     }
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class SectorGenerationSettings
 {
     public float LinkDensity = .5f;
@@ -95,7 +94,7 @@ public class SectorGenerationSettings
     public int BossCount;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class TutorialGenerationSettings
 {
     public string ProtagonistFaction;
@@ -107,11 +106,11 @@ public class TutorialGenerationSettings
     public int ZoneCount = 32;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName:true)]
 public class ZoneGenerationSettings
 {
     public ExponentialCurve PlanetSafetyRadius;
-    
+
     public float MassFloor = 1;
     public float SunMass = 10000;
     public float GasGiantMass = 2000;
@@ -127,7 +126,7 @@ public class ZoneGenerationSettings
     public ExponentialLerp ZoneMass;
     public ExponentialLerp SubZoneCount;
     public float ZoneBoundaryRadius;
-    
+
     public float BeltProbability = .05f;
     public float BeltMassCeiling = 500f;
 
@@ -142,7 +141,7 @@ public class ZoneGenerationSettings
     public float SunSecondaryColorDistance = .25f;
     public float SunLightSaturation = .5f;
     public float SunFogTintSaturation = .5f;
-    
+
     public ExponentialLerp GasGiantBandCount;
     public float GasGiantBandColorSeparation = .25f;
     public float GasGiantBandAltColorChance = .25f;
@@ -152,7 +151,7 @@ public class ZoneGenerationSettings
     public string[] NameData;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName: true)]
 public class GameplaySettings
 {
     public EntitySettings DefaultEntitySettings;
@@ -214,7 +213,7 @@ public class GameplaySettings
     public float AgentFiringMinDot = .99f;
 }
 
-[Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]
+[Serializable, MessagePackObject(keyAsPropertyName: true)]
 public class RarityTier
 {
     public string Name;

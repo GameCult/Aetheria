@@ -1,22 +1,20 @@
 using MessagePack;
-using Newtonsoft.Json;
-
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class WwiseSoundBinding
 {
-    [Key(0), JsonProperty("playEvent")]
+    [Key(0)]
     public uint PlayEvent;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class WwiseLoopingSoundBinding : WwiseSoundBinding
 {
-    [Key(1), JsonProperty("stopEvent")]
+    [Key(1)]
     public uint StopEvent;
 }
 
 // public class WwiseParameterBinding
 // {
-//     [Key(0), JsonProperty("parameter")]
+//     [Key(0)]
 //     public uint Parameter;
 // }

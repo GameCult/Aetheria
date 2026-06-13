@@ -1,31 +1,30 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class ResourceScannerData : BehaviorData
 {
-    [Inspectable, JsonProperty("range"), Key(1), RuntimeInspectable]
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat Range = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("minDensity"), Key(2), RuntimeInspectable]
+
+    [Inspectable, Key(2), RuntimeInspectable]
     public PerformanceStat MinimumDensity = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("scanDuration"), Key(3), RuntimeInspectable]
+
+    [Inspectable, Key(3), RuntimeInspectable]
     public PerformanceStat ScanDuration = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new ResourceScanner(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new ResourceScanner(this, item);
@@ -35,7 +34,7 @@ public class ResourceScannerData : BehaviorData
 public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
     public int Asteroid = -1;
-    
+
     private ResourceScannerData _data;
     private float _scanTime;
     private Guid _scanTarget;

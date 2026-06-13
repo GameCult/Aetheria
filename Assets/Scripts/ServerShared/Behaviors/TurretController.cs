@@ -1,17 +1,16 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Collections.Generic;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float3 = Unity.Mathematics.float3;
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[MessagePackObject, RuntimeInspectable]
 public class TurretControllerData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

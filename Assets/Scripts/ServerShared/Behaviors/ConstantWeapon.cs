@@ -4,21 +4,20 @@
 
 using System;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class ConstantWeaponData : WeaponData
 {
-    [InspectablePrefab, JsonProperty("ammoInterval"), Key(17)]  
+    [InspectablePrefab, Key(17)]
     public float AmmoInterval = 1;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new ConstantWeapon(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new ConstantWeapon(this, item);
@@ -32,17 +31,17 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     private float _ammoInterval;
     private float _reload;
     private bool _reloading;
-    
+
     public override int Ammo
     {
         get => _ammo;
     }
-    
+
     public float Progress
     {
         get { return saturate(_reload); }
     }
-    
+
     public override float DamagePerSecond => Damage;
     public override float RangeDamagePerSecond(float range)
     {
@@ -53,7 +52,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public event Action OnReloadComplete;
     public event Action OnStartFiring;
     public event Action OnStopFiring;
-    
+
     public void ResetEvents()
     {
         OnReloadBegin = null;
@@ -95,7 +94,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                     }
                     return false;
                 }
-                
+
                 _ammoInterval -= dt / _data.AmmoInterval;
                 if (_ammoInterval < 0)
                 {
@@ -109,7 +108,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                             var item = cargo.ItemsOfType[_data.AmmoType][0];
                             if (item is SimpleCommodity simpleCommodity)
                                 cargo.Remove(simpleCommodity, 1);
-                            
+
                             if(_data.MagazineSize > 1)
                             {
                                 _reloading = true;

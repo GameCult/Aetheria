@@ -3,28 +3,27 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class LauncherData : LockWeaponData
 {
-    [InspectableAnimationCurve, JsonProperty("guidance"), Key(26)]  
+    [InspectableAnimationCurve, Key(26)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, JsonProperty("thrustCurve"), Key(27)]  
+    [InspectableAnimationCurve, Key(27)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, JsonProperty("liftCurve"), Key(28)]  
+    [InspectableAnimationCurve, Key(28)]
     public float4[] LiftCurve;
 
-    [Inspectable, JsonProperty("thrust"), Key(29)]  
+    [Inspectable, Key(29)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, JsonProperty("frequency"), Key(30)]
+    [Inspectable, Key(30)]
     public float DodgeFrequency;
 
-    [Inspectable, JsonProperty("missileSpeed"), Key(31), RuntimeInspectable]
+    [Inspectable, Key(31), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -33,25 +32,25 @@ public class LauncherData : LockWeaponData
     }
 }
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class GuidedWeaponData : InstantWeaponData
 {
-    [InspectableAnimationCurve, JsonProperty("guidance"), Key(21)]  
+    [InspectableAnimationCurve, Key(21)]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, JsonProperty("thrustCurve"), Key(22)]  
+    [InspectableAnimationCurve, Key(22)]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, JsonProperty("liftCurve"), Key(23)]  
+    [InspectableAnimationCurve, Key(23)]
     public float4[] LiftCurve;
 
-    [Inspectable, JsonProperty("thrust"), Key(24)]  
+    [Inspectable, Key(24)]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, JsonProperty("frequency"), Key(25)]
+    [Inspectable, Key(25)]
     public float DodgeFrequency;
 
-    [Inspectable, JsonProperty("missileSpeed"), Key(26), RuntimeInspectable]
+    [Inspectable, Key(26), RuntimeInspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

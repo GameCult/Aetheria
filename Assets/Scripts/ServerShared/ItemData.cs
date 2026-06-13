@@ -6,19 +6,17 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using int2 = Unity.Mathematics.int2;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class Shape
 {
-    [JsonProperty("name"), Key(0)] public bool[,] Cells;
-    
+    [Key(0)] public bool[,] Cells;
+
     private bool _dirty = true;
 
     public Shape()
@@ -31,7 +29,7 @@ public class Shape
     {
         Cells = new bool[width, height];
     }
-    
+
     [IgnoreMember]
     public int Width
     {
@@ -49,7 +47,7 @@ public class Shape
     public void Resize(int width, int height)
     {
         var newCells = new bool[width, height];
-        
+
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -65,7 +63,7 @@ public class Shape
         int r = x%m;
         return r<0 ? r+m : r;
     }
-    
+
     public int2 Rotate(int2 position, ItemRotation rotation)
     {
         return rotation switch
@@ -78,7 +76,7 @@ public class Shape
     }
 
     private int2[] _cachedShapeCoordinates;
-    
+
     [IgnoreMember]
     public int2[] Coordinates
     {
@@ -105,7 +103,7 @@ public class Shape
     }
 
     private int2[] _cachedAllShapeCoordinates;
-    
+
     [IgnoreMember]
     public int2[] AllCoordinates => _cachedAllShapeCoordinates ?? (_cachedAllShapeCoordinates = EnumerateAllShapeCoordinates().ToArray());
 
@@ -142,7 +140,7 @@ public class Shape
         foreach(var shapeCoord in Coordinates)
             shape[shapeCoord] = (
                 this[shapeCoord + int2(-1,-1)] && this[shapeCoord + int2(0,-1)] && this[shapeCoord + int2(1,-1)] &&
-                this[shapeCoord + int2(-1,0)] && this[shapeCoord + int2(1,0)] && 
+                this[shapeCoord + int2(-1,0)] && this[shapeCoord + int2(1,0)] &&
                 this[shapeCoord + int2(-1,1)] && this[shapeCoord + int2(0,1)] && this[shapeCoord + int2(1,1)]
             );
         return shape;
@@ -166,7 +164,7 @@ public class Shape
         foreach (var shapeCoord in AllCoordinates)
             shape[shapeCoord] = (
                 this[shapeCoord + int2(-1,-1)] || this[shapeCoord + int2(0,-1)] || this[shapeCoord + int2(1,-1)] ||
-                this[shapeCoord + int2(-1,0)] || this[shapeCoord] || this[shapeCoord + int2(1,0)] || 
+                this[shapeCoord + int2(-1,0)] || this[shapeCoord] || this[shapeCoord + int2(1,0)] ||
                 this[shapeCoord + int2(-1,1)] || this[shapeCoord + int2(0,1)] || this[shapeCoord + int2(1,1)]
             );
         return shape;
@@ -191,7 +189,7 @@ public class Shape
         position = int2.zero;
         return false;
     }
-    
+
     // Try to find a position with which a shape can be placed to fit within another shape
     public bool FitsWithin(Shape other, ItemRotation rotation, out int2 position)
     {
@@ -221,11 +219,11 @@ public class Shape
     // Set every cell on the line from a to b to true according to Bresenham's Line Algorithm
     public void SetLine(float2 a, float2 b)
     {
-        if  (a.Equals(b))            
-        {            
+        if  (a.Equals(b))
+        {
             return;
         }
-        
+
         // If line gradient is steep, swap x and y
         bool steep = Math.Abs(b.y - a.y) > Math.Abs(b.x - a.x);
         if (steep)
@@ -241,11 +239,11 @@ public class Shape
             a = b;
             b = temp;
         }
-        
+
         float dx = b.x - a.x;
         float dy = b.y - a.y;
         float derr = Math.Abs(dy / dx); // dx != 0
-        
+
         int y = (int) Math.Round(a.y);
         int xStart = (int) Math.Round(a.x);
         float error = (a.y - y) + (xStart - a.x) * derr;
@@ -268,34 +266,34 @@ public class Shape
 
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), JsonConverter(typeof(JsonKnownTypesConverter<ItemData>))]
+[MessagePackObject]
 public abstract class ItemData : DatabaseEntry, INamedEntry
 {
-    [Inspectable, JsonProperty("name"), Key(1)]
+    [Inspectable, Key(1)]
     public string Name;
-    
-    [InspectableText, JsonProperty("description"), Key(2)]
+
+    [InspectableText, Key(2)]
     public string Description;
-    
-    [InspectableDatabaseLink(typeof(Faction)), JsonProperty("creator"), Key(3)]
+
+    [InspectableDatabaseLink(typeof(Faction)), Key(3)]
     public Guid Manufacturer;
 
-    [Inspectable, JsonProperty("mass"), Key(4)]
+    [Inspectable, Key(4)]
     public float Mass;
 
-    [InspectableSchematicShape, JsonProperty("shape"), Key(5)]
+    [InspectableSchematicShape, Key(5)]
     public Shape Shape;
 
     // Heat needed to change temperature of 1 gram by 1 degree
-    [Inspectable, JsonProperty("specificHeat"), Key(6)]
+    [Inspectable, Key(6)]
     public float SpecificHeat = 1;
-    
-    [Inspectable, JsonProperty("conductivity"), Key(7)]
+
+    [Inspectable, Key(7)]
     public float Conductivity = 1;
-    
-    [Inspectable, JsonProperty("price"), Key(8)]
+
+    [Inspectable, Key(8)]
     public int Price = 0;
-    
+
     [IgnoreMember] public string EntryName
     {
         get => Name;
@@ -308,113 +306,112 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
-    // [InspectableField, JsonProperty("resourceBodyType"), Key(6)]  
+    // [InspectableField, Key(6)]
     // public BodyType ResourceBodyType;
     //
     // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), JsonProperty("resourceDensity"), Key(7)]  
+    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), Key(7)]
     // public List<Guid> ResourceDensity = new List<Guid>();
     //
     // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, JsonProperty("distribution"), Key(8)]
+    // [InspectableField, Key(8)]
     // public ExponentialLerp Distribution;
     //
     // // Minimum amount of resources needed for presence to register
-    // [InspectableField, JsonProperty("floor"), Key(11)]
+    // [InspectableField, Key(11)]
     // public float Floor = 5f;
 
-    [Inspectable, JsonProperty("maxStackSize"), Key(9)]
+    [Inspectable, Key(9)]
     public int MaxStack = 10;
 
-    [Inspectable, JsonProperty("category"), Key(10)]  
+    [Inspectable, Key(10)]
     public SimpleCommodityCategory Category;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), JsonConverter(typeof(JsonKnownTypesConverter<CraftedItemData>))]
+[MessagePackObject]
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, JsonProperty("ingredientQualityWeight"), Key(9)]  
+    // [Inspectable, Key(9)]
     // public float IngredientQualityWeight = .5f;
 }
 
 [LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class CompoundCommodityData : CraftedItemData
 {
-    [InspectableDatabaseLink(typeof(PersonalityAttribute)), JsonProperty("demandProfile"), Key(10)]
+    [InspectableDatabaseLink(typeof(PersonalityAttribute)), Key(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
-    [Inspectable, JsonProperty("category"), Key(11)] 
+    [Inspectable, Key(11)]
     public CompoundCommodityCategory Category;
 }
 
 [LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class ConsumableItemData : CraftedItemData
 {
-    [Inspectable, JsonProperty("behaviors"), Key(10)]
+    [Inspectable, Key(10)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, JsonProperty("stackable"), Key(11)]
+    [Inspectable, Key(11)]
     public bool Stackable;
 
-    [Inspectable, JsonProperty("duration"), Key(12)]
+    [Inspectable, Key(12)]
     public float Duration;
 
-    [InspectableTexture, JsonProperty("icon"), Key(13)]
+    [InspectableTexture, Key(13)]
     public string Icon;
 
-    [Inspectable, JsonProperty("effectiveness"), Key(14)]
+    [Inspectable, Key(14)]
     public BezierCurve Effectiveness;
 }
 
-[JsonObject(MemberSerialization.OptIn)]
 public abstract class EquippableItemData : CraftedItemData
 {
-    [InspectableTexture, JsonProperty("schematic"), Key(10)]
+    [InspectableTexture, Key(10)]
     public string Schematic;
-    
-    [Inspectable, JsonProperty("behaviors"), Key(11)]  
+
+    [Inspectable, Key(11)]
     public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
-    [Inspectable, JsonProperty("durability"), Key(12)]
+    [Inspectable, Key(12)]
     public float Durability;
-    
-    [InspectableTemperature, JsonProperty("minTemp"), Key(13)]
+
+    [InspectableTemperature, Key(13)]
     public float MinimumTemperature;
 
-    [InspectableTemperature, JsonProperty("maxTemp"), Key(14)]
+    [InspectableTemperature, Key(14)]
     public float MaximumTemperature;
 
-    // [InspectableField, JsonProperty("durabilityExponent"), Key(15), SimplePerformanceStat]
+    // [InspectableField, Key(15), SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
     //
-    // [InspectableField, JsonProperty("heatExponent"), Key(16), SimplePerformanceStat]
+    // [InspectableField, Key(16), SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
-    
-    [InspectableAnimationCurve, JsonProperty("heatCurve"), Key(17)]
+
+    [InspectableAnimationCurve, Key(17)]
     public BezierCurve HeatPerformanceCurve;
 
-    [Inspectable, JsonProperty("resilience"), Key(18)]
+    [Inspectable, Key(18)]
     public float ThermalResilience = 1;
-    
-    // [Inspectable, JsonProperty("sfx"), Key(19)]
+
+    // [Inspectable, Key(19)]
     // public string SoundEffectTrigger;
-    
-    [InspectableTexture, JsonProperty("actionIcon"), Key(20)]
+
+    [InspectableTexture, Key(20)]
     public string ActionBarIcon;
 
-    [InspectableSoundBank, JsonProperty("soundBank"), Key(21)]
+    [InspectableSoundBank, Key(21)]
     public uint SoundBank;
 
-    [Inspectable, JsonProperty("audioStats"), Key(22)]
+    [Inspectable, Key(22)]
     public List<AudioStat> AudioStats = new List<AudioStat>();
-    
+
     [IgnoreMember]
     public abstract HardpointType HardpointType { get; }
-    
+
     [IgnoreMember] private const int STEPS = 64;
 
     [IgnoreMember] private float? _optimum;
-    
+
     [IgnoreMember]
     public float OptimalTemperature
     {
@@ -446,82 +443,82 @@ public abstract class EquippableItemData : CraftedItemData
     }
 }
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class AudioStat
 {
-    [InspectableAudioParameter, JsonProperty("parameter"), Key(0)]
+    [InspectableAudioParameter, Key(0)]
     public uint Parameter;
 
-    [Inspectable, JsonProperty("stat"), Key(1)]
+    [Inspectable, Key(1)]
     public PerformanceStat Stat = new PerformanceStat();
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class GearData : EquippableItemData
 {
-    [Inspectable, JsonProperty("hardpointType"), Key(23)]
+    [Inspectable, Key(23)]
     public HardpointType Hardpoint;
 
     [IgnoreMember] public override HardpointType HardpointType => Hardpoint;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class CargoBayData : EquippableItemData
 {
-    [Inspectable, JsonProperty("interiorShape"), Key(24)]
+    [Inspectable, Key(24)]
     public Shape InteriorShape;
-    
+
     [IgnoreMember] public override HardpointType HardpointType => HardpointType.Tool;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class DockingBayData : CargoBayData
 {
-    [Inspectable, JsonProperty("maxSize"), Key(25)]
+    [Inspectable, Key(25)]
     public int2 MaxSize;
 }
 
-[LegacyCatalogGroup("Items"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), MessagePackObject]
 public class WeaponItemData : GearData
 {
-    [Inspectable, JsonProperty("range"), Key(24)]
+    [Inspectable, Key(24)]
     public WeaponRange WeaponRange;
-    
-    [Inspectable, JsonProperty("caliber"), Key(25)]
+
+    [Inspectable, Key(25)]
     public WeaponCaliber WeaponCaliber;
-    
-    [Inspectable, JsonProperty("weaponType"), Key(26)]
+
+    [Inspectable, Key(26)]
     public WeaponType WeaponType;
-    
-    [Inspectable, JsonProperty("fireTypes"), Key(27)]
+
+    [Inspectable, Key(27)]
     public WeaponFireType WeaponFireTypes;
-    
-    [Inspectable, JsonProperty("modifiers"), Key(28)]
+
+    [Inspectable, Key(28)]
     public WeaponModifiers WeaponModifiers;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class HullData : EquippableItemData
 {
-    [Inspectable, JsonProperty("hardpoints"), Key(23)]  
+    [Inspectable, Key(23)]
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [InspectablePrefab, JsonProperty("prefab"), Key(24)]  
+    [InspectablePrefab, Key(24)]
     public string Prefab;
 
-    [Inspectable, JsonProperty("hullType"), Key(25)]
+    [Inspectable, Key(25)]
     public HullType HullType;
 
-    [Inspectable, JsonProperty("gridOffset"), Key(26)]
+    [Inspectable, Key(26)]
     public float GridOffset;
 
-    [Inspectable, JsonProperty("armor"), Key(27)]
+    [Inspectable, Key(27)]
     public float Armor;
 
-    [Inspectable, JsonProperty("drag"), Key(28)]
+    [Inspectable, Key(28)]
     public float Drag;
-    
-    [Inspectable, JsonProperty("canTow"), Key(29)]
+
+    [Inspectable, Key(29)]
     public bool CanTow;
 
     [IgnoreMember]
@@ -543,15 +540,15 @@ public class HullData : EquippableItemData
     [IgnoreMember] public override HardpointType HardpointType => HardpointType.Hull;
 }
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class HardpointData : ITintInspector
 {
-    [Inspectable, JsonProperty("type"), Key(0)] public HardpointType Type;
-    [Inspectable, JsonProperty("position"), Key(1)] public int2 Position;
-    [Inspectable, JsonProperty("shape"), Key(2)] public Shape Shape = new Shape();
-    [Inspectable, JsonProperty("transform"), Key(3)] public string Transform;
-    [Inspectable, JsonProperty("rotation"), Key(4)] public ItemRotation Rotation;
-    [Inspectable, JsonProperty("armor"), Key(5)] public float Armor;
+    [Inspectable, Key(0)] public HardpointType Type;
+    [Inspectable, Key(1)] public int2 Position;
+    [Inspectable, Key(2)] public Shape Shape = new Shape();
+    [Inspectable, Key(3)] public string Transform;
+    [Inspectable, Key(4)] public ItemRotation Rotation;
+    [Inspectable, Key(5)] public float Armor;
 
     public override string ToString()
     {
@@ -578,30 +575,30 @@ public class HardpointData : ITintInspector
 
         return _tintColors.ContainsKey(type) ? _tintColors[type] : _tintColors[HardpointType.Hull];
     }
-    
+
     private static Dictionary<HardpointType, float3> _tintColors;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class PerformanceStat
 {
-    [JsonProperty("min"), Key(0)]  public float Min;
+    [Key(0)]  public float Min;
 
-    [JsonProperty("max"), Key(1)]  public float Max;
+    [Key(1)]  public float Max;
 
-    [JsonProperty("heatExponentMultiplier"), Key(2)] 
+    [Key(2)]
     public float HeatExponentMultiplier;
 
-    [JsonProperty("durabilityExponentMultiplier"), Key(3)] 
+    [Key(3)]
     public float DurabilityExponentMultiplier;
 
-    [JsonProperty("qualityExponent"), Key(4)] 
+    [Key(4)]
     public float QualityExponent;
-    
-    //[JsonProperty("id"), Key(5)]  public Guid ID = Guid.NewGuid();
 
-    // [JsonProperty("ingredient"), Key(5)]  public Guid? Ingredient;
-    
+    //[Key(5)]  public Guid ID = Guid.NewGuid();
+
+    // [Key(5)]  public Guid? Ingredient;
+
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
 
@@ -630,18 +627,18 @@ public class PerformanceStat
     }
 }
 
-[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[LegacyCatalogGroup("Items"), Inspectable, MessagePackObject]
 public class PersonalityAttribute : DatabaseEntry, INamedEntry
 {
-    [Inspectable, JsonProperty("name"), Key(1)]
+    [Inspectable, Key(1)]
     public string Name;
-    
-    [Inspectable, JsonProperty("low"), Key(2)]
+
+    [Inspectable, Key(2)]
     public string LowName;
-    
-    [Inspectable, JsonProperty("high"), Key(3)]
+
+    [Inspectable, Key(3)]
     public string HighName;
-    
+
     [IgnoreMember] public string EntryName
     {
         get => Name;

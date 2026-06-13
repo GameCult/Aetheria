@@ -6,64 +6,63 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, 
+[Inspectable,
  Union(0, typeof(InstantWeaponData)),
  Union(1, typeof(LauncherData)),
- Union(2, typeof(ConstantWeaponData)), 
- Union(3, typeof(ChargedWeaponData)), 
+ Union(2, typeof(ConstantWeaponData)),
+ Union(3, typeof(ChargedWeaponData)),
  RuntimeInspectable]
 public abstract class WeaponData : BehaviorData
 {
-    [Inspectable, JsonProperty("damageType"), Key(1), RuntimeInspectable]
+    [Inspectable, Key(1), RuntimeInspectable]
     public DamageType DamageType;
 
-    [Inspectable, JsonProperty("damage"), Key(2), RuntimeInspectable]
+    [Inspectable, Key(2), RuntimeInspectable]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), JsonProperty("penetration"), Key(3), RuntimeInspectable]
+    [InspectableRangedFloat(0,1), Key(3), RuntimeInspectable]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), JsonProperty("damageSpread"), Key(4)]
+    [InspectableRangedFloat(0,1), Key(4)]
     public PerformanceStat DamageSpread = new PerformanceStat();
 
-    [Inspectable, JsonProperty("minRange"), Key(5)]
+    [Inspectable, Key(5)]
     public PerformanceStat MinRange = new PerformanceStat();
 
-    [Inspectable, JsonProperty("range"), Key(6)]
+    [Inspectable, Key(6)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
+    [InspectableAnimationCurve, Key(7)]
     public BezierCurve DamageCurve;
-    
-    [InspectablePrefab, JsonProperty("effect"), Key(8)]  
+
+    [InspectablePrefab, Key(8)]
     public string EffectPrefab;
-    
-    [InspectablePrefab, JsonProperty("energy"), Key(9), RuntimeInspectable]  
+
+    [InspectablePrefab, Key(9), RuntimeInspectable]
     public PerformanceStat Energy = new PerformanceStat();
-    
-    [InspectablePrefab, JsonProperty("heat"), Key(10), RuntimeInspectable]  
+
+    [InspectablePrefab, Key(10), RuntimeInspectable]
     public PerformanceStat Heat = new PerformanceStat();
-    
-    [InspectablePrefab, JsonProperty("visibility"), Key(11), RuntimeInspectable]  
+
+    [InspectablePrefab, Key(11), RuntimeInspectable]
     public PerformanceStat Visibility = new PerformanceStat();
-    
-    [InspectableDatabaseLink(typeof(SimpleCommodityData)), JsonProperty("ammo"), Key(12), RuntimeInspectable]  
+
+    [InspectableDatabaseLink(typeof(SimpleCommodityData)), Key(12), RuntimeInspectable]
     public Guid AmmoType;
 
-    [InspectablePrefab, JsonProperty("magSize"), Key(13)]
+    [InspectablePrefab, Key(13)]
     public int MagazineSize;
-    
-    [InspectablePrefab, JsonProperty("reloadTime"), Key(14)]  
+
+    [InspectablePrefab, Key(14)]
     public float ReloadTime = 1;
-    
-    [InspectablePrefab, JsonProperty("spread"), Key(15)]  
+
+    [InspectablePrefab, Key(15)]
     public PerformanceStat Spread = new PerformanceStat();
 
-    [Inspectable, JsonProperty("velocity"), Key(16)]
+    [Inspectable, Key(16)]
     public PerformanceStat Velocity = new PerformanceStat();
 }
 
@@ -75,7 +74,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
     public WeaponData WeaponData => _data;
-    
+
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
     public float DamageSpread { get; protected set; }
@@ -93,12 +92,12 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     {
         get => _firing;
     }
-    
+
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    
+
     public Weapon(WeaponData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;

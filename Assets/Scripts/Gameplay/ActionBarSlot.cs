@@ -1,8 +1,6 @@
 using System;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
-using Newtonsoft.Json;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -206,6 +204,6 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
 
     public override void Update()
     {
-        
+
     }
 }

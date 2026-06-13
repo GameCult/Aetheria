@@ -2,54 +2,53 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class ChargedWeaponData : InstantWeaponData
 {
-    [Inspectable, JsonProperty("chargeTime"), Key(21), RuntimeInspectable]
+    [Inspectable, Key(21), RuntimeInspectable]
     public PerformanceStat ChargeTime = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("chargeEnergy"), Key(22), RuntimeInspectable]
+
+    [Inspectable, Key(22), RuntimeInspectable]
     public PerformanceStat ChargeEnergy = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("chargeHeat"), Key(23), RuntimeInspectable]
+
+    [Inspectable, Key(23), RuntimeInspectable]
     public PerformanceStat ChargeHeat = new PerformanceStat();
 
-    [Inspectable, JsonProperty("canFireEarly"), Key(24)]
+    [Inspectable, Key(24)]
     public bool CanFireEarly;
 
-    [Inspectable, JsonProperty("failureCharge"), Key(25)]
+    [Inspectable, Key(25)]
     public float FailureCharge;
 
-    [Inspectable, JsonProperty("failureDamage"), Key(26)]
+    [Inspectable, Key(26)]
     public float FailureDamage = 1;
 
-    [Inspectable, JsonProperty("chargeDamage"), Key(27)]
+    [Inspectable, Key(27)]
     public float ChargeFiringDamageMultiplier = 1;
 
-    [Inspectable, JsonProperty("chargeSpread"), Key(28)]
+    [Inspectable, Key(28)]
     public float ChargeFiringSpreadMultiplier = 1;
 
-    [Inspectable, JsonProperty("chargeBurstCount"), Key(29)]
+    [Inspectable, Key(29)]
     public float ChargeFiringBurstCountMultiplier = 1;
 
-    [Inspectable, JsonProperty("chargeVisibility"), Key(30)]
+    [Inspectable, Key(30)]
     public float ChargeFiringVisibilityMultiplier = 1;
 
-    [Inspectable, JsonProperty("chargeVelocity"), Key(31)]
+    [Inspectable, Key(31)]
     public float ChargeFiringVelocityMultiplier = 1;
 
-    [Inspectable, JsonProperty("chargeHeatMul"), Key(32)]
+    [Inspectable, Key(32)]
     public float ChargeFiringHeatMultiplier = 1;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new ChargedWeapon(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new ChargedWeapon(this, item);
@@ -63,11 +62,11 @@ public class ChargedWeapon : InstantWeapon
     private bool _charged;
     private float _charge;
     private float _progress;
-    
+
     public float ChargeTime { get; protected set; }
     public float ChargeEnergy { get; protected set; }
     public float ChargeHeat { get; protected set; }
-    
+
     public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
@@ -97,12 +96,12 @@ public class ChargedWeapon : InstantWeapon
     {
         get => _charge;
     }
-    
+
     public ChargedWeapon(ChargedWeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    
+
     public ChargedWeapon(ChargedWeaponData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;

@@ -1,13 +1,11 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
-
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-20)]
+[Inspectable, MessagePackObject, Order(-20)]
 public class TriggerData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

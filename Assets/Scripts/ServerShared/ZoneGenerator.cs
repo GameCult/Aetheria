@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -50,7 +50,7 @@ public static class ZoneGenerator
 		pack.Radius = zoneSettings.ZoneRadius.Evaluate(density);
 		pack.Mass = zoneSettings.ZoneMass.Evaluate(density);
 		var targetSubzoneCount = zoneSettings.SubZoneCount.Evaluate(density);
-		
+
 		//Debug.Log($"Generating zone at position {zone.Position} with radius {zoneRadius} and mass {zoneMass}");
 
 		var planets = new List<GeneratorPlanet>();
@@ -58,10 +58,10 @@ public static class ZoneGenerator
 		{
 			var zoneBoundary = new Circle(float2.zero, pack.Radius * zoneSettings.ZoneBoundaryRadius);
 			float boundaryTangentRadius(float2 point) => -zoneBoundary.DistanceTo(point);
-			
+
 			var occupiedAreas = new List<Circle>();
 			float tangentRadius(float2 point) => min(boundaryTangentRadius(point), occupiedAreas.Min(circle => circle.DistanceTo(point)));
-			
+
 			var startPosition = random.NextFloat(pack.Radius * .25f, pack.Radius * .5f) * random.NextFloat2Direction();
 			occupiedAreas.Add(new Circle(startPosition, boundaryTangentRadius(startPosition)));
 
@@ -91,11 +91,11 @@ public static class ZoneGenerator
 		}
 		else
 			planets.AddRange(GenerateEntities(zoneSettings, ref random, pack.Mass, pack.Radius, float2.zero));
-        
+
         // Create collections to map between zone generator output and database entries
         var orbitMap = new Dictionary<GeneratorPlanet, OrbitData>();
         var orbitInverseMap = new Dictionary<OrbitData, GeneratorPlanet>();
-        
+
         // Create orbit database entries
         pack.Orbits = planets.Select(planet =>
         {
@@ -116,11 +116,11 @@ public static class ZoneGenerator
             data.Parent = orbitInverseMap[data].Parent != null
                 ? orbitMap[orbitInverseMap[data].Parent].ID
                 : Guid.Empty;
-        
+
         // Cache resource densities
         // var resourceMaps = mapLayers.Values
 	       //  .ToDictionary(m => m.ID, m => m.Evaluate(zone.Position, settings.ShapeSettings));
-        
+
         pack.Planets = planets.Where(p=>!p.Empty).Select(planet =>
         {
 	        // Dictionary<Guid, float> planetResources = new Dictionary<Guid, float>();
@@ -128,7 +128,7 @@ public static class ZoneGenerator
 		        planet.Mass > zoneSettings.SunMass ? BodyType.Sun :
 		        planet.Mass > zoneSettings.GasGiantMass ? BodyType.GasGiant :
 		        planet.Mass > zoneSettings.PlanetMass ? BodyType.Planet : BodyType.Planetoid;
-	        
+
 	        // foreach (var r in resources)
 	        // {
 		       //  if ((bodyType & r.ResourceBodyType) != 0)
@@ -164,7 +164,7 @@ public static class ZoneGenerator
             planetData.Name = planetData.ID.ToString().Substring(0, 8);
             if (planetData is AsteroidBeltData beltData)
             {
-	            beltData.Asteroids = 
+	            beltData.Asteroids =
 		            Enumerable.Range(0, (int) zoneSettings.AsteroidCount.Evaluate(beltData.Mass * orbitMap[planet].Distance))
 			            .Select(_ => new Asteroid
 			            {
@@ -197,12 +197,12 @@ public static class ZoneGenerator
 		            float primary = random.NextFloat();
 		            float right = frac(primary + zoneSettings.GasGiantBandColorSeparation);
 		            float left = frac(primary + 1 - zoneSettings.GasGiantBandColorSeparation);
-		            
+
 		            // Create n time keys from 0 to 1
 		            var bandCount = (int) (zoneSettings.GasGiantBandCount.Evaluate(random.NextFloat()) + .5f);
 		            var times = Enumerable.Range(0, bandCount)
 			            .Select(i => (float) i / (bandCount-1));
-		            
+
 		            // Each band has a chance of being either the primary or one of the adjacent hues
 		            // Saturation and Value are random with curves applied
 		            gas.Colors = times
@@ -211,7 +211,7 @@ public static class ZoneGenerator
 				            zoneSettings.GasGiantBandSaturation.Evaluate(random.NextFloat()),
 				            zoneSettings.GasGiantBandSaturation.Evaluate(random.NextFloat()))),time))
 			            .ToArray();
-		            
+
 		            gas.FirstOffsetDomainRotationSpeed = 0;
 	            }
 	            gas.AlbedoRotationSpeed = -3;
@@ -265,7 +265,7 @@ public static class ZoneGenerator
         void PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, int distanceMultiplier)
         {
 	        var phase = 20f * distanceMultiplier / orbit.Distance;
-	        
+
 	        var turretOrbit = new OrbitData
 	        {
 		        ID = Guid.NewGuid(),
@@ -331,7 +331,7 @@ public static class ZoneGenerator
 
         return pack;
 	}
-	
+
 	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)
 	// {
 	// 	return random.NextPowerDistribution(resource.Minimum, resource.Maximum, resource.Exponent,
@@ -352,20 +352,20 @@ public static class ZoneGenerator
 		// There is some chance of generating a rosette or binary system
 		// Probabilities which are fixed for the entire galaxy are in GlobalData, contained in the GameContext
 		var rosette = random.NextFloat() < settings.RosetteProbability;
-		
+
 		if (rosette)
 		{
 			// Create a rosette with a number of vertices between 2 and 9 inclusive
 			root.ExpandRosette(ref random, (int)(random.NextFloat(1, 5) + random.NextFloat(1, 5)));
-		
+
 			// Create a small number of less massive "captured" planets orbiting past the rosette
 			root.ExpandSolar(
 				ref random,
-				count: (int)(random.NextFloat(1, 3) * random.NextFloat(1, 2)), 
-				massMulMin: .6f, 
-				massMulMax: .8f, 
-				distMulMin: 1.25f, 
-				distMulMax: 1.75f, 
+				count: (int)(random.NextFloat(1, 3) * random.NextFloat(1, 2)),
+				massMulMin: .6f,
+				massMulMax: .8f,
+				distMulMin: 1.25f,
+				distMulMax: 1.75f,
 				jupiterJump: 1,
 				massFraction: .1f);
 
@@ -376,9 +376,9 @@ public static class ZoneGenerator
 				// Give each child in the rosette its own mini solar system
 				p.ExpandSolar(
 					ref random,
-					count: (int) (random.NextFloat(1, 3 * m) + random.NextFloat(1, 3 * m)), 
-					massMulMin: 0.75f, 
-					massMulMax: 2.5f, 
+					count: (int) (random.NextFloat(1, 3 * m) + random.NextFloat(1, 3 * m)),
+					massMulMin: 0.75f,
+					massMulMax: 2.5f,
 					distMulMin: 1 + m * .25f,
 					distMulMax: 1.05f + m * .5f,
 					jupiterJump: random.NextFloat() * random.NextFloat() * 10 + 1,
@@ -391,9 +391,9 @@ public static class ZoneGenerator
 			// Create a regular old boring solar system
 			root.ExpandSolar(
 				ref random,
-				count: random.NextInt(5, 15), 
-				massMulMin: 0.75f, 
-				massMulMax: 2.5f, 
+				count: random.NextInt(5, 15),
+				massMulMin: 0.75f,
+				massMulMax: 2.5f,
 				distMulMin: 1.1f,
 				distMulMax: 1.25f,
 				jupiterJump: random.NextFloat() * random.NextFloat() * 10 + 1,
@@ -407,13 +407,13 @@ public static class ZoneGenerator
 		{
 			// Get all children that are above the satellite creation mass floor and not rosette members
 			var satelliteCandidates = rosette
-				? root.AllPlanets().Where(p => 
-					p != root && 
-					p.Parent != root && 
+				? root.AllPlanets().Where(p =>
+					p != root &&
+					p.Parent != root &&
 					p.Mass > settings.SatelliteCreationMassFloor &&
 					!alreadyExpanded.Contains(p))
-				: root.AllPlanets().Where(p => 
-					p != root && 
+				: root.AllPlanets().Where(p =>
+					p != root &&
 					p.Mass > settings.SatelliteCreationMassFloor &&
 					!alreadyExpanded.Contains(p));
 
@@ -450,7 +450,7 @@ public static class ZoneGenerator
 		var beltCandidates = rosette
 			? root.AllPlanets().Where(p => p != root && p.Parent != root && p.Mass < settings.BeltMassCeiling && !binaries.Contains(p) && p.Children.Count == 0)
 			: root.AllPlanets().Where(p => p != root && p.Mass < settings.BeltMassCeiling && !binaries.Contains(p) && p.Children.Count == 0);
-		
+
 		foreach(var planet in beltCandidates.Reverse())
 			if (random.NextFloat() < settings.BeltProbability && !planet.Parent.Children.Any(p=>p.Belt))
 				planet.Belt = true;
@@ -493,29 +493,29 @@ public class GeneratorPlanet
 	public void ExpandRosette(ref Random random, int vertices)
 	{
 		//Debug.Log("Expanding Rosette");
-		
+
 		// Rosette children replace the parent, parent orbital node is left empty
 		Empty = true;
-		
+
 		// Masses in a rosette alternate, so every sequential pair has the same shared mass
 		var sharedMass = Mass / vertices * 2;
-		
+
 		// Proportion of the masses of sequential pairs is random, but only for even vertex counts
 		var proportion = vertices % 2 == 0 ? random.NextFloat(.5f,.95f) : .5f;
-		
+
 		// Place children at a fixed distance in the center of the range
 		var dist = (ChildDistanceMinimum + ChildDistanceMaximum) / 2;
-		
+
 		// Position of first child
 		var p0 = new float2(0, dist);
-		
+
 		// Position of second child
 		var p1 = OrbitData.Evaluate(1.0f / vertices) * dist;
-		
+
 		// Maximum child distance is half the distance to the neighbor minus the neighbor's radius
 		var p0ChildDist = (distance(p0, p1) * proportion - Settings.PlanetSafetyRadius.Evaluate(sharedMass * (1 - proportion))) * .75f;
 		var p1ChildDist = (distance(p0, p1) * (1 - proportion) - Settings.PlanetSafetyRadius.Evaluate(sharedMass * proportion)) * .75f;
-		
+
 		for (int i = 0; i < vertices; i++)
 		{
 			var child = new GeneratorPlanet
@@ -542,14 +542,14 @@ public class GeneratorPlanet
 		// Expansion is impossible when child space is full
 		if (count == 0 || ChildDistanceMaximum < ChildDistanceMinimum)
 			return;
-		
+
 		var masses = new float[count];
 		var distances = new float[count];
-		
-		// Accumulate total mass 
+
+		// Accumulate total mass
 		// Initialize first mass and distance, actual number doesn't matter since total mass will be divided proportionally
 		float massTotal = distances[0] = masses[0] = 1;
-		
+
 		// Masses and distances multiply from one planet to the next
 		// Mass typically increases exponentially as you go further out
 		// jupiterJump is an additional mass multiplier applied after half of the planets
@@ -575,7 +575,7 @@ public class GeneratorPlanet
 				distances[i] = lerp(ChildDistanceMinimum, ChildDistanceMaximum,
 					(oldDistances[i] - oldDistances[0]) / (oldDistances[count - 1] - oldDistances[0])) + Settings.PlanetSafetyRadius.Evaluate(masses[i]);
 		}
-		
+
 		for (var i = 0; i < count; i++)
 		{
 			// Only instantiate children above the mass floor

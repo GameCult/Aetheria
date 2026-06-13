@@ -2,11 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class AutoWeaponData : InstantWeaponData
 {
     public override Behavior CreateInstance(EquippedItem item)
@@ -17,7 +16,7 @@ public class AutoWeaponData : InstantWeaponData
 
 public class AutoWeapon : InstantWeapon
 {
-    
+
     public AutoWeapon(InstantWeaponData data, EquippedItem item) : base(data, item) { }
     public AutoWeapon(InstantWeaponData data, ConsumableItemEffect item) : base(data, item) { }
 

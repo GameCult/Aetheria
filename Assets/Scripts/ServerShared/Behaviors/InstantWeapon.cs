@@ -2,23 +2,22 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class InstantWeaponData : WeaponData
 {
-    [Inspectable, JsonProperty("count"), Key(17)]
+    [Inspectable, Key(17)]
     public PerformanceStat Count = new PerformanceStat();
 
-    [Inspectable, JsonProperty("burstTime"), Key(18)]
+    [Inspectable, Key(18)]
     public PerformanceStat BurstTime = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("cooldown"), Key(19), RuntimeInspectable]
+
+    [Inspectable, Key(19), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
-    
-    [InspectablePrefab, JsonProperty("ammoInterval"), Key(20)]  
+
+    [InspectablePrefab, Key(20)]
     public bool SingleAmmoBurst;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -93,7 +92,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
         if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
-        
+
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
         _burstTimer = 0;
@@ -116,13 +115,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     private bool UseAmmo()
     {
         if (_data.MagazineSize <= 1) return true;
-        
+
         if (_ammo > 0)
         {
             _ammo--;
             return true;
         }
-        
+
         var hasAmmo = true;
         if (_data.AmmoType != Guid.Empty)
         {
@@ -177,7 +176,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                 _burstRemaining = 0;
                 return false;
             }
-            
+
             _burstRemaining--;
             _burstTimer -= _burstInterval;
             OnFire?.Invoke();

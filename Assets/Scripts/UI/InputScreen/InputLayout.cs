@@ -1,18 +1,16 @@
 using System.Collections.Generic;
-using JsonKnownTypes;using MessagePack;
-using Newtonsoft.Json;
-
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+using MessagePack;
+[MessagePackObject]
 public class InputLayout
 {
-    [Key(0), JsonProperty("rows")] public InputLayoutRow[] Rows;
+    [Key(0)] public InputLayoutRow[] Rows;
 
     public IEnumerable<InputLayoutBindableKey> GetBindableKeys()
     {
         foreach (var row in Rows)
         {
             if (!(row is InputLayoutKeyRow keyRow)) continue;
-            
+
             foreach (var column in keyRow.Columns)
             {
                 if (column is InputLayoutBindableKey bindableKey)
@@ -24,27 +22,25 @@ public class InputLayout
     }
 }
 
-[JsonConverter(typeof(JsonKnownTypesConverter<InputLayoutRow>)),
- MessagePackObject, 
+[MessagePackObject,
  Union(0, typeof(InputLayoutRowSpacer)),
  Union(1, typeof(InputLayoutKeyRow))
 ]
 public abstract class InputLayoutRow { }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class InputLayoutRowSpacer : InputLayoutRow
 {
-    [Key(0), JsonProperty("height")] public float Height;
+    [Key(0)] public float Height;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class InputLayoutKeyRow : InputLayoutRow
 {
-    [Key(0), JsonProperty("columns")] public InputLayoutColumn[] Columns;
+    [Key(0)] public InputLayoutColumn[] Columns;
 }
 
-[JsonConverter(typeof(JsonKnownTypesConverter<InputLayoutColumn>)),
- MessagePackObject, 
+[MessagePackObject,
  Union(0, typeof(InputLayoutColumnSpacer)),
  Union(1, typeof(InputLayoutKey)),
  Union(2, typeof(InputLayoutBindableKey)),
@@ -52,21 +48,21 @@ public class InputLayoutKeyRow : InputLayoutRow
 ]
 public abstract class InputLayoutColumn
 {
-    [Key(0), JsonProperty("width")] public float Width;
+    [Key(0)] public float Width;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class InputLayoutColumnSpacer : InputLayoutColumn { }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class InputLayoutKey : InputLayoutColumn { }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[MessagePackObject]
 public class InputLayoutBindableKey : InputLayoutKey, IBindableButton
 {
-    [Key(1), JsonProperty("mainLabel")] public string MainLabel;
-    [Key(2), JsonProperty("altLabel")] public string AltLabel;
-    [Key(3), JsonProperty("path")] public string ShortPath;
+    [Key(1)] public string MainLabel;
+    [Key(2)] public string AltLabel;
+    [Key(3)] public string ShortPath;
 
     [IgnoreMember]
     public string InputSystemPath
@@ -84,7 +80,7 @@ public class InputLayoutBindableKey : InputLayoutKey, IBindableButton
 
 public class InputLayoutMultiRowKey : InputLayoutBindableKey
 {
-    [Key(4), JsonProperty("height")] public int Height;
+    [Key(4)] public int Height;
 }
 
 public class InputLayoutMouseButton : IBindableButton

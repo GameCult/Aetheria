@@ -3,16 +3,15 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[MessagePackObject, RuntimeInspectable]
 public class VelocityConversionData : BehaviorData
 {
-    [Inspectable, JsonProperty("lambda"), Key(1), RuntimeInspectable]  
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat Lambda = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new VelocityConversion(this, item);

@@ -4,11 +4,10 @@
 
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class CockpitData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)
@@ -24,12 +23,12 @@ public class CockpitData : BehaviorData
 public class Cockpit : Behavior
 {
     private CockpitData _data;
-    
+
     public Cockpit(CockpitData data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    
+
     public Cockpit(CockpitData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;

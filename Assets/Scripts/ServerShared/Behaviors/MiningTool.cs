@@ -1,29 +1,28 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(10)]
+[Inspectable, MessagePackObject, Order(10)]
 public class MiningToolData : BehaviorData
 {
-    [Inspectable, JsonProperty("dps"), Key(1)]
+    [Inspectable, Key(1)]
     public PerformanceStat DamagePerSecond = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("efficiency"), Key(2)]
+
+    [Inspectable, Key(2)]
     public PerformanceStat Efficiency = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("penetration"), Key(3)]
+
+    [Inspectable, Key(3)]
     public PerformanceStat Penetration = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("range"), Key(4)]
+
+    [Inspectable, Key(4)]
     public PerformanceStat Range = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new MiningTool(this, item);
@@ -38,7 +37,7 @@ public class MiningTool : Behavior
 {
     public Guid AsteroidBelt;
     public int Asteroid;
-    
+
     private MiningToolData _data;
     public float Range { get; private set; }
 
@@ -56,8 +55,8 @@ public class MiningTool : Behavior
     {
         Range = Evaluate(_data.Range);
         var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
-        if (AsteroidBelt != Guid.Empty && 
-            Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) && 
+        if (AsteroidBelt != Guid.Empty &&
+            Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) &&
             length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
         {
             Entity.Zone.MineAsteroid(

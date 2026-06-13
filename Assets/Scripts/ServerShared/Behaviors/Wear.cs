@@ -4,16 +4,15 @@
 
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(1000), RuntimeInspectable]
+[Inspectable, MessagePackObject, Order(1000), RuntimeInspectable]
 public class WearData : BehaviorData
 {
-    [InspectableTemperature, JsonProperty("perSecond"), Key(1)]
+    [InspectableTemperature, Key(1)]
     public bool PerSecond = true;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Wear(this, item);

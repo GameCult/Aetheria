@@ -6,55 +6,54 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using static NoiseFbm;
 
-[Inspectable, Serializable, LegacyCatalogGroup("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, Serializable, LegacyCatalogGroup("Galaxy"), MessagePackObject]
 public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
 {
-    [Inspectable, JsonProperty("coreBoost"), Key(1)]  
+    [Inspectable, Key(1)]
     public float CoreBoost = 1.05f;
 
-    [Inspectable, JsonProperty("coreBoostOffset"), Key(2)]  
+    [Inspectable, Key(2)]
     public float CoreBoostOffset = .1f;
 
-    [Inspectable, JsonProperty("coreBoostPower"), Key(3)]  
+    [Inspectable, Key(3)]
     public float CoreBoostPower = 2.25f;
 
-    [Inspectable, JsonProperty("spokeScale"), Key(4)]  
+    [Inspectable, Key(4)]
     public float SpokeScale = 1;
 
-    [Inspectable, JsonProperty("spokeOffset"), Key(5)]  
+    [Inspectable, Key(5)]
     public float SpokeOffset = 0;
 
-    [Inspectable, JsonProperty("edgeReduction"), Key(6)]  
+    [Inspectable, Key(6)]
     public float EdgeReduction = 3;
 
-    [Inspectable, JsonProperty("noiseOffset"), Key(7)]  
+    [Inspectable, Key(7)]
     public float NoiseOffset = 0;
 
-    [Inspectable, JsonProperty("noiseAmplitude"), Key(8)]  
+    [Inspectable, Key(8)]
     public float NoiseAmplitude = 1.5f;
 
-    [Inspectable, JsonProperty("noiseGain"), Key(9)]  
+    [Inspectable, Key(9)]
     public float NoiseGain = .7f;
 
-    [Inspectable, JsonProperty("noiseLacunarity"), Key(10)]  
+    [Inspectable, Key(10)]
     public float NoiseLacunarity = 2;
 
-    [Inspectable, JsonProperty("noiseOctaves"), Key(11)]  
+    [Inspectable, Key(11)]
     public int NoiseOctaves = 7;
 
-    [Inspectable, JsonProperty("noiseFrequency"), Key(12)]  
+    [Inspectable, Key(12)]
     public float NoiseFrequency = 1;
 
-    [Inspectable, JsonProperty("noisePosition"), Key(13)]  
+    [Inspectable, Key(13)]
     public float NoisePosition = 1337;
 
-    [Inspectable, JsonProperty("name"), Key(14)]  
+    [Inspectable, Key(14)]
     public string Name;
 
     public float Evaluate(float2 uv, GalaxyShapeSettings settings)
@@ -88,12 +87,12 @@ public static class NoiseFbm
             fBm(p+10, octaves, frequency, offset, amplitude, lacunarity, gain),
             fBm(p+20, octaves, frequency, offset, amplitude, lacunarity, gain));
     }
-    
+
     public static float fBm(float2 p, int octaves, float frequency, float offset, float amplitude, float lacunarity, float gain)
     {
         float freq = frequency, amp = .5f;
-        float sum = 0;	
-        for(int i = 0; i < octaves; i++) 
+        float sum = 0;
+        for(int i = 0; i < octaves; i++)
         {
             sum += snoise(p * freq) * amp;
             freq *= lacunarity;
@@ -109,12 +108,12 @@ public static class NoiseFbm
             fBm(p+10, octaves, frequency, offset, amplitude, lacunarity, gain),
             fBm(p+20, octaves, frequency, offset, amplitude, lacunarity, gain));
     }
-    
+
     public static float fBm(float p, int octaves, float frequency, float offset, float amplitude, float lacunarity, float gain)
     {
         float freq = frequency, amp = .5f;
-        float sum = 0;	
-        for(int i = 0; i < octaves; i++) 
+        float sum = 0;
+        for(int i = 0; i < octaves; i++)
         {
             sum += Noise1D.noise(p * freq) * amp;
             freq *= lacunarity;

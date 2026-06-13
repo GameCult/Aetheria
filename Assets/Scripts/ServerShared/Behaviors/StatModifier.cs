@@ -1,27 +1,25 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
-
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class StatModifierData : BehaviorData
 {
-    [Inspectable, JsonProperty("stat"), Key(1)]  
+    [Inspectable, Key(1)]
     public StatReference Stat = new StatReference();
-    
-    [Inspectable, JsonProperty("modifier"), Key(2)]  
+
+    [Inspectable, Key(2)]
     public PerformanceStat Modifier = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("type"), Key(3)]  
+
+    [Inspectable, Key(3)]
     public StatModifierType Type;
 
-    [InspectableType(typeof(BehaviorData)), JsonProperty("requireBehavior"), Key(4)]
+    [InspectableType(typeof(BehaviorData)), Key(4)]
     public Type RequireBehavior;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new StatModifier(this, item);
@@ -39,7 +37,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private StatModifierData _data;
 
     private PerformanceStat[] _stats;
-    
+
     private static Type[] _statObjects;
 
     private bool _applied;
@@ -130,12 +128,12 @@ public enum StatModifierType
     Multiplier
 }
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, MessagePackObject]
 public class StatReference
 {
-    [InspectableType(typeof(BehaviorData)), JsonProperty("behavior"), Key(1)]
+    [InspectableType(typeof(BehaviorData)), Key(1)]
     public string Target;
-    
-    [Inspectable, JsonProperty("stat"), Key(2)]
+
+    [Inspectable, Key(2)]
     public string Stat;
 }

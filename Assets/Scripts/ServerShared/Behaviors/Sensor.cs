@@ -5,45 +5,44 @@
 using System;
 using System.Collections.Generic;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+[Inspectable, MessagePackObject, RuntimeInspectable]
 public class SensorData : BehaviorData
 {
-    [Inspectable, JsonProperty("sensitivity"), Key(3), RuntimeInspectable]
+    [Inspectable, Key(3), RuntimeInspectable]
     public PerformanceStat Sensitivity = new PerformanceStat();
 
-    [InspectableAnimationCurve, JsonProperty("sensCurve"), Key(4), RuntimeInspectable]
+    [InspectableAnimationCurve, Key(4), RuntimeInspectable]
     public BezierCurve SensitivityCurve;
 
-    [Inspectable, JsonProperty("pingBoost"), Key(5), RuntimeInspectable]
+    [Inspectable, Key(5), RuntimeInspectable]
     public PerformanceStat PingBoost;
 
-    [Inspectable, JsonProperty("pingEnergy"), Key(6), RuntimeInspectable]
+    [Inspectable, Key(6), RuntimeInspectable]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, JsonProperty("pingVisibility"), Key(7), RuntimeInspectable]
+    [Inspectable, Key(7), RuntimeInspectable]
     public PerformanceStat PingVisibility;
 
-    [Inspectable, JsonProperty("pingRange"), Key(8), RuntimeInspectable]
+    [Inspectable, Key(8), RuntimeInspectable]
     public PerformanceStat PingRange;
 
-    [Inspectable, JsonProperty("pingCooldown"), Key(9), RuntimeInspectable]
+    [Inspectable, Key(9), RuntimeInspectable]
     public PerformanceStat PingCooldown;
 
-    [Inspectable, JsonProperty("pingDuration"), Key(10)]
+    [Inspectable, Key(10)]
     public float PingDuration = 2;
 
-    [Inspectable, JsonProperty("pingRadiusExponent"), Key(11)]
+    [Inspectable, Key(11)]
     public float PingRadiusExponent = .5f;
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Sensor(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new Sensor(this, item);
@@ -63,7 +62,7 @@ public class Sensor : Behavior, IEventBehavior
     {
         get => saturate(_pingCooldown);
     }
-    
+
     public float PingRadius
     {
         get => _pingRadius;
@@ -118,13 +117,13 @@ public class Sensor : Behavior, IEventBehavior
         }
 
         _pingCooldown -= dt / Evaluate(_data.PingCooldown);
-        
+
         // TODO: Handle Active Detection / Visibility From Reflected Radiance
         var forward = Direction.xz;
         foreach (var entity in Entity.Zone.Entities)
         {
             if (entity == Entity) continue;
-            
+
             var diff = entity.Position.xz - Entity.Position.xz;
             var angle = acos(dot(forward, normalize(diff)));
             var dist = length(diff);

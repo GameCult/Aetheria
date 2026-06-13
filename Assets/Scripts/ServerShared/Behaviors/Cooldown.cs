@@ -1,25 +1,24 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
 using System.Linq;
 using MessagePack;
-using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-10), RuntimeInspectable]
+[Inspectable, MessagePackObject, Order(-10), RuntimeInspectable]
 public class CooldownData : BehaviorData
 {
-    [Inspectable, JsonProperty("cooldown"), Key(1), RuntimeInspectable]
+    [Inspectable, Key(1), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
-    
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new Cooldown(this, item);
     }
-    
+
     public override Behavior CreateInstance(ConsumableItemEffect item)
     {
         return new Cooldown(this, item);
