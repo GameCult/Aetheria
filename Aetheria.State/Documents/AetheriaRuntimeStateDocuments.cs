@@ -18,6 +18,77 @@ public sealed class AetheriaPlayerSettings
 
     [Key(2)]
     public string LastUpdatedAtUtc { get; set; } = "";
+
+    [Key(3)]
+    public string PlayerName { get; set; } = "";
+
+    [Key(4)]
+    public bool TutorialPassed { get; set; }
+
+    [Key(5)]
+    public AetheriaStoryFileHash[] StoryFileHashes { get; set; } = [];
+
+    [Key(6)]
+    public AetheriaPlayerGameplaySettings Gameplay { get; set; } = new();
+
+    [Key(7)]
+    public AetheriaPlayerGraphicsSettings Graphics { get; set; } = new();
+
+    [Key(8)]
+    public AetheriaPlayerInputSettings Input { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaStoryFileHash
+{
+    [Key(0)]
+    public string StoryPath { get; set; } = "";
+
+    [Key(1)]
+    public string Hash { get; set; } = "";
+}
+
+[MessagePackObject]
+public sealed class AetheriaPlayerGameplaySettings
+{
+    [Key(0)]
+    public string TemperatureUnit { get; set; } = "Celsius";
+
+    [Key(1)]
+    public int SignificantDigits { get; set; } = 3;
+}
+
+[MessagePackObject]
+public sealed class AetheriaPlayerGraphicsSettings
+{
+    [Key(0)]
+    public string NebulaQuality { get; set; } = "Normal";
+
+    [Key(1)]
+    public bool ShowAsteroidsInMinimap { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaPlayerInputSettings
+{
+    [Key(0)]
+    public AetheriaInputBindingOverride[] BindingOverrides { get; set; } = [];
+
+    [Key(1)]
+    public string[] ActionBarInputs { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaInputBindingOverride
+{
+    [Key(0)]
+    public string ActionName { get; set; } = "";
+
+    [Key(1)]
+    public int BindingIndex { get; set; }
+
+    [Key(2)]
+    public string BindingPath { get; set; } = "";
 }
 
 [CultDocument("aetheria.loadout_template", "aetheria.loadout_template.v1")]

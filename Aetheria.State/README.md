@@ -13,18 +13,22 @@ are migration inputs only.
 
 The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
-bindings, and stat grids. Do not preserve `SavedGame` or `EntityPack` as opaque
-payloads in the new store; they are source shapes for migration, not portable
-state authority.
+bindings, and stat grids. Player settings include player name, tutorial flag,
+story-file hash cursors, gameplay formatting, graphics preferences, input
+binding overrides, and action-bar inputs. Do not preserve `SavedGame`,
+`PlayerSettings`, or `EntityPack` as opaque payloads in the new store; they are
+source shapes for migration, not portable state authority.
 
 The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
-`.zone` files. `AetheriaLoadoutTemplate` is now the typed Verse replacement for
-bespoke loadout files, with structured hull/equipment/cargo/docking item slots,
-nested child-entity loadouts, and weapon groups. Until `Aetheria.State` is
-available to Unity as a runtime Verse package, Unity loadout edits are still
-session-local and run saving is disabled. That is intentional: the missing
-runtime package is the owner gap, and the old bespoke file formats must not keep
-acting as durable truth while the state spine is being rebuilt.
+`.zone` files. `AetheriaPlayerSettings` is the typed Verse replacement for
+`PlayerSettings.msgpack`, and `AetheriaLoadoutTemplate` is the typed Verse
+replacement for bespoke loadout files, with structured hull/equipment/cargo/
+docking item slots, nested child-entity loadouts, and weapon groups. Until
+`Aetheria.State` is available to Unity as a runtime Verse package, Unity
+settings and loadout edits are still session-local and run saving is disabled.
+That is intentional: the missing runtime package is the owner gap, and the old
+bespoke file formats must not keep acting as durable truth while the state spine
+is being rebuilt.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
@@ -60,6 +64,10 @@ factory construction, and simulation state remain legacy until dedicated typed
 runtime documents exist.
 Legacy GUID references that are `Guid.Empty` are imported as absent references,
 not as resolvable catalog links.
+Before materializing state, the importer clears the generated `.cc`,
+`.cc.records`, and `.cultmesh` outputs for the selected state path. Legacy
+catalog inputs are captured first and are not deleted. This lets schema changes
+rebuild the typed artifact instead of failing on a stale embedded schema catalog.
 
 `AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
 documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
@@ -83,10 +91,10 @@ published Eve catalog surface. It does not deserialize legacy `DatabaseEntry`
 objects and does not write state. Unity can use this as the first package
 boundary once CultLib/Eve runtime packaging is available.
 
-`Aetheria.State.Smoke` writes and reopens a typed loadout template in addition
-to world, catalog, player settings, and run state. That smoke is the current
-proof that loadouts have a durable Verse state shape without reviving `.loadout`
-serialization.
+`Aetheria.State.Smoke` writes and reopens full typed player settings plus a
+typed loadout template in addition to world, catalog, and run state. That smoke
+is the current proof that settings and loadouts have durable Verse state shapes
+without reviving `PlayerSettings.msgpack` or `.loadout` serialization.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

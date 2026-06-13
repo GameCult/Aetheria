@@ -43,6 +43,8 @@ var parsedNameFiles = entries.Concat(nameFileEntries)
     .Select(entry => entry.NameFile!)
     .ToArray();
 
+ResetMaterializedStateOutput(statePath);
+
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-legacy-catalog-import");
 
 await node.PutLegacyCatalogQuarantineAsync(new AetheriaLegacyCatalogQuarantine
@@ -153,6 +155,34 @@ static AetheriaLegacyCatalogFile CaptureFile(string root, string path)
         Fingerprint = Convert.ToHexString(hash).ToLowerInvariant(),
         Bytes = stream.Length
     };
+}
+
+static void ResetMaterializedStateOutput(string statePath)
+{
+    DeleteFileIfExists(statePath);
+    DeleteDirectoryIfExists($"{statePath}.records");
+
+    var meshDirectory = Path.ChangeExtension(statePath, ".cultmesh");
+    if (!string.Equals(meshDirectory, statePath, StringComparison.OrdinalIgnoreCase))
+    {
+        DeleteDirectoryIfExists(meshDirectory);
+    }
+}
+
+static void DeleteFileIfExists(string path)
+{
+    if (File.Exists(path))
+    {
+        File.Delete(path);
+    }
+}
+
+static void DeleteDirectoryIfExists(string path)
+{
+    if (Directory.Exists(path))
+    {
+        Directory.Delete(path, recursive: true);
+    }
 }
 
 internal static class LegacyCatalogReader

@@ -39,6 +39,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   deleted. The dead `SavedStory` JSON DTO is deleted. `ZonePack` and
   `EntityPack` remain as runtime construction/loadout snapshots, but no longer
   declare themselves as MessagePack persistence documents.
+- `Aetheria.State` now expands `AetheriaPlayerSettings` beyond an active-run
+  pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
+  name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
+  preferences, input binding overrides, and action-bar inputs. Unity's menu and
+  input screens still mutate the old `PlayerSettings` runtime object in memory
+  until the runtime Verse package is wired.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -97,6 +103,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
+  Import rebuilds clear the generated `.cc`, `.cc.records`, and `.cultmesh`
+  outputs for the selected state path after capturing legacy inputs, so schema
+  evolution can rematerialize typed state instead of being blocked by stale
+  embedded schema catalogs.
   `Aetheria.State.Verify` opens the materialized file and checks that migration
   ledger counts match actual typed catalog records, that the legacy-ID lookup
   API resolves migrated item, corporation, and name-file documents, and that
@@ -164,10 +174,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog reads emit in-memory domain objects only; the old local save and
   editor catalog write paths have been cut. Migrated catalog documents are
   addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
-  methods, not importer-local string concatenation. Loadout templates have a
-  typed state document and node put/get path; Unity's save button still needs
-  to call it through the runtime Verse package. The catalog operator UI is
-  emitted as a typed Eve surface document derived from the catalog snapshot.
+  methods, not importer-local string concatenation. Player settings and loadout
+  templates have typed state documents and node put/get paths; Unity's menu,
+  input screens, and save button still need to call them through the runtime
+  Verse package. The catalog operator UI is emitted as a typed Eve surface
+  document derived from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
   serialized legacy payloads are projections, migration inputs, or disabled
   session-local DTOs, not durable authority.
@@ -278,6 +289,9 @@ First Aetheria surfaces to publish:
    - Done: import recursive typed behavior payloads so future behavior
      factories no longer have to depend on legacy `BehaviorData` objects just
      to see authored behavior fields.
+   - Done: expand typed `AetheriaPlayerSettings` so `PlayerSettings.msgpack`
+     no longer lacks a durable Verse replacement for actual runtime settings
+     values.
    - Done: add typed `AetheriaLoadoutTemplate` documents and smoke coverage so
      `.loadout` no longer lacks a durable Verse replacement.
    - Remaining: add typed documents/mappers for runtime object graphs,
@@ -337,7 +351,8 @@ First Aetheria surfaces to publish:
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference
-  resolution, including loadout templates as the `.loadout` replacement.
+  resolution, including full player settings as the `PlayerSettings.msgpack`
+  replacement and loadout templates as the `.loadout` replacement.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from

@@ -145,7 +145,40 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutPlayerSettingsAsync(new AetheriaPlayerSettings
     {
         ActiveRunKey = runKey.ToString(),
-        LastUpdatedAtUtc = now
+        LastUpdatedAtUtc = now,
+        PlayerName = "Smoke Pilot",
+        TutorialPassed = true,
+        StoryFileHashes =
+        [
+            new AetheriaStoryFileHash
+            {
+                StoryPath = "Narrative/smoke.ink",
+                Hash = "sha256:smoke"
+            }
+        ],
+        Gameplay = new AetheriaPlayerGameplaySettings
+        {
+            TemperatureUnit = "Celsius",
+            SignificantDigits = 4
+        },
+        Graphics = new AetheriaPlayerGraphicsSettings
+        {
+            NebulaQuality = "High",
+            ShowAsteroidsInMinimap = true
+        },
+        Input = new AetheriaPlayerInputSettings
+        {
+            BindingOverrides =
+            [
+                new AetheriaInputBindingOverride
+                {
+                    ActionName = "Thrust",
+                    BindingIndex = 0,
+                    BindingPath = "<Keyboard>/w"
+                }
+            ],
+            ActionBarInputs = ["<Keyboard>/1", "<Mouse>/leftButton"]
+        }
     });
 
     await node.FlushAsync();
@@ -194,7 +227,14 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Eve catalog surface did not survive flush/reopen.");
     }
 
-    if (playerSettings?.ActiveRunKey != runKey.ToString())
+    if (playerSettings?.ActiveRunKey != runKey.ToString() ||
+        playerSettings.PlayerName != "Smoke Pilot" ||
+        !playerSettings.TutorialPassed ||
+        playerSettings.StoryFileHashes.Length != 1 ||
+        playerSettings.Gameplay.SignificantDigits != 4 ||
+        playerSettings.Graphics.NebulaQuality != "High" ||
+        playerSettings.Input.BindingOverrides.Length != 1 ||
+        playerSettings.Input.ActionBarInputs.Length != 2)
     {
         throw new InvalidOperationException("Player settings did not survive flush/reopen.");
     }
