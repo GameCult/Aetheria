@@ -29,7 +29,7 @@ public class ItemManager
 
     // private Guid _forceLoadZone;
     
-    private readonly IRuntimeItemCatalogReader _itemData;
+    private readonly IRuntimeItemProjectionReader _itemProjections;
     public GameplaySettings GameplaySettings { get; }
 
     // public double Time
@@ -45,16 +45,16 @@ public class ItemManager
 
     // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
 
-    public ItemManager(IRuntimeItemCatalogReader itemData, GameplaySettings settings, Action<string> logger)
+    public ItemManager(IRuntimeItemProjectionReader itemProjections, GameplaySettings settings, Action<string> logger)
     {
-        _itemData = itemData;
+        _itemProjections = itemProjections;
         GameplaySettings = settings;
         _logger = logger;
     }
 
-    public T GetCatalogEntry<T>(Guid id) where T : ItemData
+    public T GetRuntimeItemProjection<T>(Guid id) where T : ItemData
     {
-        return _itemData.Get<T>(id);
+        return _itemProjections.Get<T>(id);
     }
 
     public RuntimeItemReference CreateReference(ItemData item)
@@ -75,7 +75,7 @@ public class ItemManager
             return;
         }
 
-        var data = _itemData.Get(item.Data.ItemId);
+        var data = _itemProjections.Get(item.Data.ItemId);
         if (data == null)
         {
             _logger($"Attempted to hydrate missing item id {item.Data.ItemId}");

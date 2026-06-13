@@ -6,13 +6,13 @@ using System.Reflection;
 using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 
-public interface IRuntimeItemCatalogReader
+public interface IRuntimeItemProjectionReader
 {
     ItemData Get(Guid guid);
     T Get<T>(Guid guid) where T : ItemData;
 }
 
-public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
+public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
 {
     private readonly Dictionary<Guid, ItemData> _items;
     private static readonly IReadOnlyDictionary<int, Type> BehaviorTypesByUnionKey = new Dictionary<int, Type>

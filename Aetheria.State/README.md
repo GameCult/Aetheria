@@ -69,8 +69,10 @@ and inspection metadata for the typed runtime bridge.
 Item instances now carry `RuntimeItemReference`, a narrow item-definition id plus
 optional hydrated projection cache. The old generic `RuntimeCatalogLink<T>`
 abstraction has been deleted; item data projection is routed through
-`ItemManager` and the typed runtime catalog reader. `Projection` is not durable
-state; it is a bridge for surviving simulation and UI code.
+`ItemManager` and a runtime item projection reader over the typed catalog.
+`Projection` is not durable state; it is a bridge for surviving simulation and
+UI code. The remaining single-item bridge is named `GetRuntimeItemProjection<T>`,
+not catalog entry access.
 Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
 `RuntimeCatalogEntry` base name no longer appears in live source. Temporary
 faction/corporation projections and zone body/orbit DTOs keep local GUID fields

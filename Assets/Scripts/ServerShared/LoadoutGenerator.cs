@@ -181,7 +181,7 @@ public class LoadoutGenerator
     private T ProjectRuntimeItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
     {
         return Guid.TryParse(item.LegacyId, out var legacyId)
-            ? ItemManager.GetCatalogEntry<T>(legacyId)
+            ? ItemManager.GetRuntimeItemProjection<T>(legacyId)
             : null;
     }
 
