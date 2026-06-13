@@ -7,6 +7,7 @@ var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var statePath = AetheriaStatePaths.ResolveDefaultStatePath(root);
 var now = DateTimeOffset.UtcNow.ToString("O");
 var itemKey = new CultRecordKey("item:smoke-aether-drive");
+var runKey = new CultRecordKey("run:smoke");
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
 {
@@ -48,6 +49,32 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves the new state owner can write, flush, reopen, and read without old JSON/Rethink authority."]
     });
 
+    await node.PutSavedRunAsync(runKey, new AetheriaSavedRun
+    {
+        RunId = "smoke",
+        IsTutorial = false,
+        EntranceZoneIndex = 0,
+        ExitZoneIndex = 1,
+        CurrentZoneIndex = 0,
+        CurrentZoneEntityIndex = 0,
+        DiscoveredZoneIndices = [0],
+        ActionBarBindings =
+        [
+            new AetheriaActionBarBinding
+            {
+                Kind = "weapon-group",
+                WeaponGroup = 0
+            }
+        ],
+        UpdatedAtUtc = now
+    });
+
+    await node.PutPlayerSettingsAsync(new AetheriaPlayerSettings
+    {
+        ActiveRunKey = runKey.ToString(),
+        LastUpdatedAtUtc = now
+    });
+
     await node.FlushAsync();
 }
 
@@ -55,6 +82,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 {
     var world = await reopened.GetWorldAsync();
     var item = await reopened.GetItemDefinitionAsync(itemKey);
+    var playerSettings = await reopened.GetPlayerSettingsAsync();
+    var savedRun = await reopened.GetSavedRunAsync(runKey);
 
     if (world?.WorldId != "aetheria")
     {
@@ -64,6 +93,16 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (item?.Name != "Smoke Aether Drive")
     {
         throw new InvalidOperationException("Item definition did not survive flush/reopen.");
+    }
+
+    if (playerSettings?.ActiveRunKey != runKey.ToString())
+    {
+        throw new InvalidOperationException("Player settings did not survive flush/reopen.");
+    }
+
+    if (savedRun?.RunId != "smoke" || savedRun.ActionBarBindings.Length != 1)
+    {
+        throw new InvalidOperationException("Saved run did not survive flush/reopen.");
     }
 }
 

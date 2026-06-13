@@ -9,6 +9,11 @@ tree, RethinkDB, JsonKnownTypes, or Newtonsoft.Json.
 The first live state file is `GameData/aetheria-world.cc`. Legacy files such as
 `GameData/AetherDB.msgpack` are migration inputs only.
 
+The typed save model is split into player settings, saved runs, saved zones,
+entity snapshots, item slots, weapon groups, action-bar bindings, and stat
+grids. Do not preserve `SavedGame` or `EntityPack` as opaque payloads in the
+new store; they are source shapes for migration, not portable state authority.
+
 Current rebuild notes:
 
 - `MessagePack` 3.1.4 is pulled transitively through CultLib and is currently

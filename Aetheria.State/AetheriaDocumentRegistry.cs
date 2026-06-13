@@ -29,7 +29,11 @@ public static class AetheriaDocumentRegistry
                 CultNetDocumentBinding.ForDocument<AetheriaCorporation>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaPlayerProfile>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaRuntimeSession>(registry),
-                CultNetDocumentBinding.ForDocument<AetheriaMigrationLedger>(registry)
+                CultNetDocumentBinding.ForDocument<AetheriaMigrationLedger>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaPlayerSettings>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaSavedRun>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaSavedZone>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaEntitySnapshot>(registry)
             });
     }
 
@@ -40,6 +44,10 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaCorporation),
         typeof(AetheriaPlayerProfile),
         typeof(AetheriaRuntimeSession),
-        typeof(AetheriaMigrationLedger)
+        typeof(AetheriaMigrationLedger),
+        typeof(AetheriaPlayerSettings),
+        typeof(AetheriaSavedRun),
+        typeof(AetheriaSavedZone),
+        typeof(AetheriaEntitySnapshot)
     ];
 }

@@ -88,6 +88,26 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<AetheriaItemDefinition>(key);
     }
 
+    public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
+    {
+        return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);
+    }
+
+    public Task<AetheriaPlayerSettings?> GetPlayerSettingsAsync()
+    {
+        return Database.GetAsync<AetheriaPlayerSettings>(new CultRecordKey("global:aetheria.player_settings.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaSavedRun>> PutSavedRunAsync(CultRecordKey key, AetheriaSavedRun run)
+    {
+        return Database.PutAsync(key, run);
+    }
+
+    public Task<AetheriaSavedRun?> GetSavedRunAsync(CultRecordKey key)
+    {
+        return Database.GetAsync<AetheriaSavedRun>(key);
+    }
+
     public Task FlushAsync(bool soft = false)
     {
         return _node.FlushAsync(soft);
