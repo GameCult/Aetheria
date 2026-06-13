@@ -220,12 +220,27 @@ public class Galaxy
 
     private static Faction[] ProjectFactions(AetheriaRuntimeCatalogSnapshot runtimeCatalog)
     {
-        var factions = runtimeCatalog.Corporations
+        var corporations = runtimeCatalog.Corporations.ToArray();
+        var factions = corporations
             .Select(ProjectFaction)
             .ToArray();
         if (factions.Length == 0)
         {
             throw new InvalidOperationException("Typed catalog has no factions for galaxy generation.");
+        }
+
+        var factionsByLegacyId = factions.ToDictionary(faction => faction.ID.ToString("D"), StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < corporations.Length; index++)
+        {
+            foreach (var allegiance in corporations[index].Allegiances)
+            {
+                if (Guid.TryParse(allegiance.CorporationLegacyId, out var corporationId) &&
+                    corporationId != Guid.Empty &&
+                    factionsByLegacyId.ContainsKey(corporationId.ToString("D")))
+                {
+                    factions[index].Allegiance[corporationId] = (float) allegiance.Weight;
+                }
+            }
         }
 
         return factions;

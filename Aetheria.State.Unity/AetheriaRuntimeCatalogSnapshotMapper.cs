@@ -107,7 +107,10 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             corporation.GeonameFileLegacyId,
             corporation.BossHullLegacyId,
             corporation.InfluenceDistance,
-            corporation.AllegianceCount);
+            corporation.AllegianceCount,
+            corporation.Allegiances.Select(allegiance => new AetheriaRuntimeCorporationAllegiance(
+                allegiance.CorporationLegacyId,
+                allegiance.Weight)).ToArray());
     }
 
     private static AetheriaRuntimeNameFile FromState(AetheriaNameFile nameFile)

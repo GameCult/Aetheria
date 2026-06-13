@@ -335,7 +335,8 @@ namespace GameCult.Aetheria.State.Unity
             string geonameFileLegacyId,
             string bossHullLegacyId,
             int influenceDistance,
-            int allegianceCount)
+            int allegianceCount,
+            IReadOnlyList<AetheriaRuntimeCorporationAllegiance> allegiances)
         {
             LegacyId = legacyId;
             Name = name;
@@ -345,6 +346,7 @@ namespace GameCult.Aetheria.State.Unity
             BossHullLegacyId = bossHullLegacyId;
             InfluenceDistance = influenceDistance;
             AllegianceCount = allegianceCount;
+            Allegiances = allegiances;
         }
 
         public string LegacyId { get; }
@@ -355,6 +357,19 @@ namespace GameCult.Aetheria.State.Unity
         public string BossHullLegacyId { get; }
         public int InfluenceDistance { get; }
         public int AllegianceCount { get; }
+        public IReadOnlyList<AetheriaRuntimeCorporationAllegiance> Allegiances { get; }
+    }
+
+    public sealed class AetheriaRuntimeCorporationAllegiance
+    {
+        public AetheriaRuntimeCorporationAllegiance(string corporationLegacyId, double weight)
+        {
+            CorporationLegacyId = corporationLegacyId;
+            Weight = weight;
+        }
+
+        public string CorporationLegacyId { get; }
+        public double Weight { get; }
     }
 
     public sealed class AetheriaRuntimeNameFile

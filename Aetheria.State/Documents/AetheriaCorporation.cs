@@ -3,7 +3,7 @@ using MessagePack;
 
 namespace Aetheria.State.Documents;
 
-[CultDocument("aetheria.corporation", "aetheria.corporation.v1")]
+[CultDocument("aetheria.corporation", "aetheria.corporation.v2")]
 [MessagePackObject]
 public sealed class AetheriaCorporation
 {
@@ -43,4 +43,17 @@ public sealed class AetheriaCorporation
 
     [Key(10)]
     public uint BossMusic { get; set; }
+
+    [Key(11)]
+    public AetheriaCorporationAllegiance[] Allegiances { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaCorporationAllegiance
+{
+    [Key(0)]
+    public string CorporationLegacyId { get; set; } = "";
+
+    [Key(1)]
+    public double Weight { get; set; }
 }

@@ -58,9 +58,11 @@ stable equipment facets: hardpoint type, hull type, stack size, durability, and
 weapon range/caliber/type/fire/modifier classifications.
 Typed corporation documents include the legacy short name, the true description
 field from key 3, name-file and boss-hull legacy IDs, influence distance,
-allegiance count, and music bank IDs. Runtime object graphs, typed behavior
-factory construction, and simulation state remain legacy until dedicated typed
-runtime documents exist.
+allegiance count, full allegiance edges, and music bank IDs. Corporation
+documents are `aetheria.corporation.v2` records because runtime generation
+needs actual allegiance weights, not only display counts. Runtime object graphs,
+typed behavior factory construction, and simulation state remain legacy until
+dedicated typed runtime documents exist.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy
@@ -94,11 +96,11 @@ published Eve catalog surface. It does not deserialize legacy `DatabaseEntry`
 objects and does not write state. Unity can use this as the first package
 boundary once CultLib/Eve runtime packaging is available.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection
-and name generation, so generated sectors use typed corporation and
+and name generation, so generated sectors use typed corporation v2 and
 `aetheria.name_file.v2` records instead of legacy `Faction`/`NameFile`
 catalog documents. It still projects typed corporations into temporary
-`Faction` DTOs because the surrounding simulation has not yet been rebuilt
-around typed corporation records.
+`Faction` DTOs, including allegiance dictionaries, because the surrounding
+simulation has not yet been rebuilt around typed corporation records.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
 typed loadout template in addition to world, catalog, run state, zone state, and

@@ -22,7 +22,7 @@ var catalog = node.ReadCatalogSnapshot();
 var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
-RequireCount(ledger, "aetheria.corporation.v1", corporations.Length);
+RequireCount(ledger, "aetheria.corporation.v2", corporations.Length);
 RequireCount(ledger, "aetheria.name_file.v2", nameFiles.Length);
 
 if (items.Length == 0)
@@ -68,6 +68,7 @@ var weaponItems = items.Count(item =>
     !string.IsNullOrWhiteSpace(item.WeaponCaliber));
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
+var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
 
 if (pricedItems == 0)
 {
@@ -208,6 +209,11 @@ if (corporationNameLinks == 0)
     throw new InvalidOperationException("Typed corporations did not import geoname file legacy IDs.");
 }
 
+if (corporationAllegianceEdges == 0 || corporations.Any(corporation => corporation.Allegiances.Length != corporation.AllegianceCount))
+{
+    throw new InvalidOperationException("Typed corporations did not import full allegiance edges.");
+}
+
 var tradeItems = catalog.TradeItems.ToArray();
 if (tradeItems.Length != pricedItems)
 {
@@ -297,6 +303,7 @@ Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");
 Console.WriteLine($"Described/geoname-linked corporations: {describedCorporations}/{corporationNameLinks}");
+Console.WriteLine($"Corporation allegiance edges: {corporationAllegianceEdges}");
 Console.WriteLine($"Name files: {nameFiles.Length}");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)

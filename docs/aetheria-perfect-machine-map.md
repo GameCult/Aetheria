@@ -94,9 +94,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader` or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
-  catalog. `Galaxy` projects typed corporation records into temporary legacy
-  `Faction` DTOs for the existing simulation shape and resolves full name
-  arrays from `aetheria.name_file.v2` records. `ActionGameManager` still has a
+  catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
+  `Faction` DTOs, including allegiance edges, for the existing simulation shape
+  and resolves full name arrays from `aetheria.name_file.v2` records.
+  `ActionGameManager` still has a
   private legacy catalog boot helper that feeds `ItemManager` for item/entity
   systems; menu/generation paths no longer receive the legacy reader directly.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
@@ -116,13 +117,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   payloads, stack size, durability, and weapon range/caliber/type/fire/modifier
   classifications. Corporation documents now carry the legacy short name, true
   description from key 3, name-file and boss-hull legacy IDs, influence
-  distance, allegiance count, and music bank IDs. Empty legacy GUID references
-  are imported as absent links rather than as `Guid.Empty` catalog IDs.
+  distance, allegiance count, full allegiance edges, and music bank IDs. Empty
+  legacy GUID references are imported as absent links rather than as
+  `Guid.Empty` catalog IDs.
   Name-file documents are now `aetheria.name_file.v2` records and carry both
   sample names for compact surfaces and the full legacy name array for future
-  `Galaxy`/Markov name generation cutover. `Aetheria.State` now owns the
-  canonical legacy-ID record key mapping for migrated item, corporation, and
-  name-file documents.
+  `Galaxy`/Markov name generation cutover. Corporation documents are now
+  `aetheria.corporation.v2` records because runtime generation needs actual
+  allegiance edges, not only a count. `Aetheria.State` now owns the canonical
+  legacy-ID record key mapping for migrated item, corporation, and name-file
+  documents.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
@@ -167,8 +171,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   masks, 5 interior masks, 3 hardpoint-host hulls, 22 hardpoints, 39
   behavior-bearing item definitions, 65 behavior payloads, 661 behavior fields,
   18 behavior-side legacy-ID references, 51 hardpoint-tagged equipment items, 3
-  hull items, and 18 weapon-facet item definitions. Legacy content includes at
-  least one overhanging hardpoint (`LonginusX`); migration verification
+  hull items, 18 weapon-facet item definitions, and 143 corporation allegiance
+  edges. Legacy content includes at least one overhanging hardpoint
+  (`LonginusX`); migration verification
   preserves that payload and does not convert content repair into mapper
   authority.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
@@ -362,6 +367,9 @@ First Aetheria surfaces to publish:
    - Done: promote typed name files to `aetheria.name_file.v2` with full name
      arrays, so future `Galaxy` name generation has a Verse-owned replacement
      for legacy `NameFile.Names`.
+   - Done: promote typed corporations to `aetheria.corporation.v2` with full
+     allegiance edges, so temporary `Faction` DTO projection can preserve
+     loadout generation behavior without reading legacy faction entries.
    - Done: expand the stable item mapper to include equipment facets and
      behavior kind fingerprints needed by future Unity/Eve catalog consumers.
    - Done: import full item shape-cell masks into typed catalog documents and

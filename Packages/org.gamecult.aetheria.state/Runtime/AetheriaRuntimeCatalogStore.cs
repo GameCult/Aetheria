@@ -198,7 +198,9 @@ namespace GameCult.Aetheria.State.Unity
             var bossHullLegacyId = ReadFieldString(ref reader, fields, 5);
             var influenceDistance = ReadFieldInt32(ref reader, fields, 6);
             var allegianceCount = ReadFieldInt32(ref reader, fields, 7);
-            SkipRemaining(ref reader, fields, 8);
+            SkipFields(ref reader, fields, 8, 11);
+            var allegiances = ReadFieldCorporationAllegiances(ref reader, fields, 11);
+            SkipRemaining(ref reader, fields, 12);
             return new AetheriaRuntimeCorporation(
                 legacyId,
                 name,
@@ -207,7 +209,8 @@ namespace GameCult.Aetheria.State.Unity
                 geonameFileLegacyId,
                 bossHullLegacyId,
                 influenceDistance,
-                allegianceCount);
+                allegianceCount,
+                allegiances);
         }
 
         private static AetheriaRuntimeNameFile ReadNameFile(byte[] payload)
@@ -251,6 +254,23 @@ namespace GameCult.Aetheria.State.Unity
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadFieldShapeCells(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? Array.Empty<AetheriaRuntimeShapeCell>() : ReadShapeCells(ref reader);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCorporationAllegiance> ReadFieldCorporationAllegiances(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeCorporationAllegiance>();
+            var count = reader.ReadArrayHeader();
+            var allegiances = new AetheriaRuntimeCorporationAllegiance[count];
+            for (var allegiance = 0; allegiance < count; allegiance++)
+            {
+                var allegianceFields = reader.ReadArrayHeader();
+                var corporationLegacyId = ReadFieldString(ref reader, allegianceFields, 0);
+                var weight = ReadFieldDouble(ref reader, allegianceFields, 1);
+                SkipRemaining(ref reader, allegianceFields, 2);
+                allegiances[allegiance] = new AetheriaRuntimeCorporationAllegiance(corporationLegacyId, weight);
+            }
+
+            return allegiances;
         }
 
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadShapeCells(ref MessagePackReader reader)
@@ -404,6 +424,12 @@ namespace GameCult.Aetheria.State.Unity
         private static void SkipField(ref MessagePackReader reader, int fields, int index)
         {
             if (index < fields)
+                reader.Skip();
+        }
+
+        private static void SkipFields(ref MessagePackReader reader, int fields, int firstIndex, int stopBeforeIndex)
+        {
+            for (var field = firstIndex; field < fields && field < stopBeforeIndex; field++)
                 reader.Skip();
         }
 

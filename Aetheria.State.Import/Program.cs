@@ -91,7 +91,7 @@ await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
         },
         new AetheriaMigrationCount
         {
-            DocumentType = "aetheria.corporation.v1",
+            DocumentType = "aetheria.corporation.v2",
             Count = corporations.Length
         },
         new AetheriaMigrationCount
@@ -412,7 +412,8 @@ internal static class LegacyCatalogReader
                     AllegianceCount = GetMapCount(payload, 12),
                     OverworldMusic = GetUInt(payload, 13),
                     CombatMusic = GetUInt(payload, 14),
-                    BossMusic = GetUInt(payload, 15)
+                    BossMusic = GetUInt(payload, 15),
+                    Allegiances = ReadAllegiances(payload, 12)
                 }
                 : null,
             unionKey == 9
@@ -507,10 +508,20 @@ internal static class LegacyCatalogReader
         for (var index = 0; index < length; index++)
         {
             var key = ReadValue(ref reader);
-            values[key?.ToString() ?? ""] = ReadValue(ref reader);
+            values[FormatMapKey(key)] = ReadValue(ref reader);
         }
 
         return values;
+    }
+
+    private static string FormatMapKey(object? key)
+    {
+        return key switch
+        {
+            byte[] bytes when bytes.Length == 16 => new Guid(bytes).ToString("D"),
+            string text => text,
+            _ => key?.ToString() ?? ""
+        };
     }
 
     private static object? SkipValue(ref MessagePackReader reader)
@@ -596,6 +607,30 @@ internal static class LegacyCatalogReader
     private static int GetMapCount(IReadOnlyDictionary<int, object?> payload, int key)
     {
         return payload.TryGetValue(key, out var value) && value is Dictionary<string, object?> map ? map.Count : 0;
+    }
+
+    private static AetheriaCorporationAllegiance[] ReadAllegiances(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value is not Dictionary<string, object?> map)
+        {
+            return [];
+        }
+
+        return map
+            .Select(entry => new AetheriaCorporationAllegiance
+            {
+                CorporationLegacyId = NormalizeLegacyId(entry.Key),
+                Weight = ReadDoubleValue(entry.Value)
+            })
+            .Where(allegiance => !string.IsNullOrWhiteSpace(allegiance.CorporationLegacyId))
+            .ToArray();
+    }
+
+    private static string NormalizeLegacyId(string legacyId)
+    {
+        return Guid.TryParse(legacyId, out var parsed) && parsed != Guid.Empty
+            ? parsed.ToString("D")
+            : "";
     }
 
     private static int GetArrayLength(IReadOnlyDictionary<int, object?> payload, int key)

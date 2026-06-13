@@ -109,10 +109,20 @@ if (catalog.GetManufacturer(manufactured) == null)
 }
 
 var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
-var packageNameFile = packageCorporation == null ? null : packageCatalog.GetNameFile(packageCorporation);
+if (packageCorporation == null)
+{
+    throw new InvalidOperationException("Package catalog store did not read any corporation name-file links.");
+}
+
+var packageNameFile = packageCatalog.GetNameFile(packageCorporation);
 if (packageNameFile == null || packageNameFile.Names.Count == 0 || packageNameFile.Names.Count != packageNameFile.NameCount)
 {
     throw new InvalidOperationException("Package catalog store did not read corporation/name-file links with full names.");
+}
+
+if (packageCorporation.Allegiances.Count == 0 || packageCorporation.Allegiances.Count != packageCorporation.AllegianceCount)
+{
+    throw new InvalidOperationException("Package catalog store did not read corporation allegiance edges.");
 }
 
 if (surface?.Schema != "gamecult.eve.surface.v1" ||
