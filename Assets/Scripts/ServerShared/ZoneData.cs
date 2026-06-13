@@ -21,8 +21,10 @@ public class RuntimeZoneBlueprint
     public double Time;
 }
 
-public abstract class BodyData : RuntimeProjectionEntry, INamedEntry
+public abstract class BodyData : INamedEntry
 {
+    public Guid ID = Guid.NewGuid();
+
     public string Name = "";
 
     public Guid Orbit;
@@ -101,8 +103,10 @@ public class Asteroid
     public float RotationSpeed;
 }
 
-public class OrbitData : RuntimeProjectionEntry
+public class OrbitData
 {
+    public Guid ID = Guid.NewGuid();
+
     public Guid Parent;
 
     public float Distance;

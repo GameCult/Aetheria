@@ -69,8 +69,10 @@ and inspection metadata for the typed runtime bridge.
 Item instances now carry `RuntimeItemReference`, a narrow item-id/value holder.
 The old generic `RuntimeCatalogLink<T>` abstraction has been deleted; item data
 projection is routed through `ItemManager` and the typed runtime catalog reader.
-Surviving catalog and zone Unity DTOs inherit `RuntimeProjectionEntry`; the old
-`RuntimeCatalogEntry` base name no longer appears in live source.
+Surviving item/faction catalog Unity DTOs inherit `RuntimeProjectionEntry`; the
+old `RuntimeCatalogEntry` base name no longer appears in live source. Zone
+body/orbit DTOs keep local GUID fields but no longer inherit the shared
+projection identity base.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 typed runtime projection still uses `LegacyPayloadKeyAttribute` only where the
 temporary mapper needs a deterministic field order.

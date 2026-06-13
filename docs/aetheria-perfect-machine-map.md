@@ -305,6 +305,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AgentTask` has been cut loose from `RuntimeProjectionEntry`; AI tasks are
   local runtime work orders and no longer participate in the shared projection
   identity base.
+- `BodyData` and `OrbitData` have also been cut loose from
+  `RuntimeProjectionEntry`; they keep local GUID fields for zone runtime lookup,
+  but no longer inherit shared projection equality.
 - `Aetheria.Shared.Unity` no longer references the vendored `MessagePack`
   assembly. The embedded `GameCult.Aetheria.State.Unity` package still depends
   on MessagePackReader to open CultCache `.cc` records; that dependency belongs
