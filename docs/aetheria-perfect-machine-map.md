@@ -79,9 +79,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   that only needs a domain lookup.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader`. Sector and
   tutorial generation receive `ItemManager` and use the same narrow catalog
-  lookup port for factions and name files. `ActionGameManager.LegacyCatalog`
-  now feeds only `ItemManager` boot; menu/generation paths no longer receive
-  the legacy reader directly.
+  lookup port for factions and name files. `ActionGameManager.LegacyCatalog` is
+  now a private boot helper that feeds only `ItemManager`; menu/generation paths
+  no longer receive the legacy reader directly.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -184,16 +184,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 ## Current Authority Map
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
-  `ActionGameManager.LegacyCatalog` is the only Unity runtime access point for
-  old MessagePack catalog reads, and `LegacyCatalogBoundary` is the only named
-  owner for opening the old catalog and binding legacy `DatabaseLink<T>`
-  resolution until catalog migration lands. Runtime code receives narrow
-  `ItemManager` catalog methods where gameplay only needs lookups. `ItemManager`
-  still receives `ILegacyCatalogReader` until typed runtime catalog boot
-  replaces it; `Galaxy` has been moved off the legacy reader and now consumes
-  `ItemManager`. `Aetheria.State.Unity` owns a read-only typed catalog facade
-  for future Unity consumers; it does not write state or own simulation. The
-  legacy cache no longer has a public mutation surface.
+  `LegacyCatalogBoundary` is the only named owner for opening the old catalog
+  and binding legacy `DatabaseLink<T>` resolution until catalog migration lands.
+  `ActionGameManager` has a private boot helper that calls it only to construct
+  `ItemManager`. Runtime code receives narrow `ItemManager` catalog methods
+  where gameplay only needs lookups. `ItemManager` still receives
+  `ILegacyCatalogReader` until typed runtime catalog boot replaces it; `Galaxy`
+  has been moved off the legacy reader and now consumes `ItemManager`.
+  `Aetheria.State.Unity` owns a read-only typed catalog facade for future Unity
+  consumers; it does not write state or own simulation. The legacy cache no
+  longer has a public mutation surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
