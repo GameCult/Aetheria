@@ -130,6 +130,8 @@ internal static class Program
     {
         await node.PutRuntimeCommitDrainStatusAsync(status).ConfigureAwait(false);
         await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(status)).ConfigureAwait(false);
+        await node.PutProviderAdvertisementAsync(
+            AetheriaProviderAdvertisementProjector.Build(node.StatePath, status.LastPollAtUtc)).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
     }
 

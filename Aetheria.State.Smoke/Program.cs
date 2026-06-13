@@ -103,6 +103,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     };
     await node.PutRuntimeCommitDrainStatusAsync(drainStatus);
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
+    await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
 
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
     {
@@ -256,6 +257,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var catalogSurface = await reopened.GetCatalogSurfaceAsync();
     var drainStatus = await reopened.GetRuntimeCommitDrainStatusAsync();
     var operationsSurface = await reopened.GetOperationsSurfaceAsync();
+    var advertisement = await reopened.GetProviderAdvertisementAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
     var runState = await reopened.GetRunStateAsync(runKey);
@@ -298,6 +300,14 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId)
     {
         throw new InvalidOperationException("Runtime commit drain status or operations surface did not survive flush/reopen.");
+    }
+
+    if (advertisement?.ProviderId != AetheriaProviderAdvertisementProjector.ProviderId ||
+        advertisement.Surfaces.Length < 2 ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId))
+    {
+        throw new InvalidOperationException("Aetheria Eve provider advertisement did not survive flush/reopen.");
     }
 
     if (playerSettings?.ActiveRunKey != runKey.ToString() ||

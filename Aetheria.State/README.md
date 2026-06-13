@@ -140,7 +140,9 @@ dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-o
 The server publishes `AetheriaRuntimeCommitDrainStatus` and the
 `aetheria.operations` Eve surface after each drain attempt, so pending depth,
 applied counts, failures, and timestamps are typed state rather than console-only
-status.
+status. It also publishes `gamecult.eve.provider_advertisement.v1` for the
+`aetheria` provider, advertising the catalog and operations surfaces plus the
+typed schemas witnessed by the local `.cc` state file.
 
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits when the server host is not being used:
