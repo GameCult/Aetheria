@@ -11,6 +11,8 @@ var factionLegacyId = "smoke:faction";
 var nameFileLegacyId = "smoke:name-file";
 var runKey = new CultRecordKey("run:smoke");
 var loadoutKey = new CultRecordKey("loadout:smoke:aether-runner");
+var zoneKey = new CultRecordKey("zone:smoke:0");
+var entityKey = new CultRecordKey("entity:smoke:runner");
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
 {
@@ -122,6 +124,51 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         }
     });
 
+    await node.PutEntitySnapshotAsync(entityKey, new AetheriaEntitySnapshot
+    {
+        Name = "Smoke Aether Runner",
+        Kind = "ship",
+        Position = new AetheriaVector3 { X = 12.5, Y = 0.0, Z = -3.25 },
+        Direction = new AetheriaVector2 { X = 0.0, Y = 1.0 },
+        FactionKey = AetheriaCatalogKeys.CorporationFromLegacyId(factionLegacyId).ToString(),
+        HullItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+        Equipment =
+        [
+            new AetheriaEntityItemSlot
+            {
+                Position = new AetheriaGridCoord { X = 0, Y = 0 },
+                ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString()
+            }
+        ],
+        WeaponGroups =
+        [
+            new AetheriaWeaponGroupSnapshot
+            {
+                EquipmentIndices = [0]
+            }
+        ],
+        StatGrids =
+        [
+            new AetheriaEntityStatGrid
+            {
+                Name = "armor",
+                Width = 2,
+                Height = 2,
+                Values = [1.0, 0.9, 0.8, 0.7]
+            }
+        ]
+    });
+
+    await node.PutZoneStateAsync(zoneKey, new AetheriaZoneState
+    {
+        Name = "Smoke Zone",
+        Position = new AetheriaVector2 { X = 4.0, Y = 8.0 },
+        AdjacentZoneIndices = [1],
+        FactionIndices = [0],
+        OwnerFactionIndex = 0,
+        EntityKeys = [entityKey.ToString()]
+    });
+
     await node.PutRunStateAsync(runKey, new AetheriaRunState
     {
         RunId = "smoke",
@@ -131,6 +178,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         CurrentZoneIndex = 0,
         CurrentZoneEntityIndex = 0,
         DiscoveredZoneIndices = [0],
+        ZoneKeys = [zoneKey.ToString()],
         ActionBarBindings =
         [
             new AetheriaActionBarBinding
@@ -195,6 +243,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
     var runState = await reopened.GetRunStateAsync(runKey);
+    var zoneState = await reopened.GetZoneStateAsync(zoneKey);
+    var entitySnapshot = await reopened.GetEntitySnapshotAsync(entityKey);
 
     if (world?.WorldId != "aetheria")
     {
@@ -246,9 +296,28 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Loadout template did not survive flush/reopen.");
     }
 
-    if (runState?.RunId != "smoke" || runState.ActionBarBindings.Length != 1)
+    if (runState?.RunId != "smoke" ||
+        runState.ZoneKeys.Length != 1 ||
+        runState.ActionBarBindings.Length != 1)
     {
         throw new InvalidOperationException("Run state did not survive flush/reopen.");
+    }
+
+    if (zoneState?.EntityKeys.Length != 1 ||
+        zoneState.EntityKeys[0] != entityKey.ToString() ||
+        zoneState.Position.X != 4.0 ||
+        zoneState.OwnerFactionIndex != 0)
+    {
+        throw new InvalidOperationException("Zone state did not survive flush/reopen.");
+    }
+
+    if (entitySnapshot?.Kind != "ship" ||
+        entitySnapshot.Equipment.Length != 1 ||
+        entitySnapshot.WeaponGroups.Length != 1 ||
+        entitySnapshot.StatGrids.Length != 1 ||
+        entitySnapshot.StatGrids[0].Values.Length != 4)
+    {
+        throw new InvalidOperationException("Entity snapshot did not survive flush/reopen.");
     }
 }
 

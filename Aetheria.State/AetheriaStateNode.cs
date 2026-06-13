@@ -205,6 +205,28 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<AetheriaRunState>(key);
     }
 
+    public Task<CultRecordHandle<AetheriaZoneState>> PutZoneStateAsync(CultRecordKey key, AetheriaZoneState zone)
+    {
+        return Database.PutAsync(key, zone);
+    }
+
+    public Task<AetheriaZoneState?> GetZoneStateAsync(CultRecordKey key)
+    {
+        return Database.GetAsync<AetheriaZoneState>(key);
+    }
+
+    public Task<CultRecordHandle<AetheriaEntitySnapshot>> PutEntitySnapshotAsync(
+        CultRecordKey key,
+        AetheriaEntitySnapshot entity)
+    {
+        return Database.PutAsync(key, entity);
+    }
+
+    public Task<AetheriaEntitySnapshot?> GetEntitySnapshotAsync(CultRecordKey key)
+    {
+        return Database.GetAsync<AetheriaEntitySnapshot>(key);
+    }
+
     public Task FlushAsync(bool soft = false)
     {
         return _node.FlushAsync(soft);

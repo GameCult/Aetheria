@@ -92,9 +92,11 @@ objects and does not write state. Unity can use this as the first package
 boundary once CultLib/Eve runtime packaging is available.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
-typed loadout template in addition to world, catalog, and run state. That smoke
-is the current proof that settings and loadouts have durable Verse state shapes
-without reviving `PlayerSettings.msgpack` or `.loadout` serialization.
+typed loadout template in addition to world, catalog, run state, zone state, and
+an entity snapshot. The run smoke proves a typed run can reference a typed zone,
+the zone can reference typed entity snapshots, and entity snapshots can preserve
+equipment slots, weapon groups, and stat grids without reviving
+`PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

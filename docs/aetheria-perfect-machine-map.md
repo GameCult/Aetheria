@@ -45,6 +45,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
   input screens still mutate the old `PlayerSettings` runtime object in memory
   until the runtime Verse package is wired.
+- `Aetheria.State` now exposes typed node put/get ports for run state, zone
+  state, and entity snapshots. The state smoke writes a run referencing a zone,
+  a zone referencing an entity snapshot, and an entity snapshot carrying
+  position, direction, faction, hull, equipment slots, weapon groups, and a stat
+  grid. This proves the `.zone` replacement graph is durable typed state; Unity
+  `ZonePack` and `EntityPack` are still runtime construction projections until
+  the runtime package is wired.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -177,8 +184,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   methods, not importer-local string concatenation. Player settings and loadout
   templates have typed state documents and node put/get paths; Unity's menu,
   input screens, and save button still need to call them through the runtime
-  Verse package. The catalog operator UI is emitted as a typed Eve surface
-  document derived from the catalog snapshot.
+  Verse package. Run, zone, and entity snapshot state also have typed node
+  put/get paths; Unity `SaveState`/`SaveZone` still need to commit through those
+  ports. The catalog operator UI is emitted as a typed Eve surface document
+  derived from the catalog snapshot.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
   serialized legacy payloads are projections, migration inputs, or disabled
   session-local DTOs, not durable authority.
@@ -294,6 +303,8 @@ First Aetheria surfaces to publish:
      values.
    - Done: add typed `AetheriaLoadoutTemplate` documents and smoke coverage so
      `.loadout` no longer lacks a durable Verse replacement.
+   - Done: add typed node ports and smoke coverage for run -> zone -> entity
+     snapshots so `.zone` no longer lacks a durable Verse replacement graph.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, simulation state, and any catalog
      fields not covered by the stable scalar/fingerprint/payload pass.
@@ -352,7 +363,8 @@ First Aetheria surfaces to publish:
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference
   resolution, including full player settings as the `PlayerSettings.msgpack`
-  replacement and loadout templates as the `.loadout` replacement.
+  replacement, loadout templates as the `.loadout` replacement, and a run ->
+  zone -> entity snapshot graph as the `.zone` replacement.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from
