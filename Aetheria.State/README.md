@@ -42,8 +42,7 @@ edits are runtime-only until Verse owns a typed layout/settings document.
 
 The old IMGUI CultCache database editor has been deleted, and `NameTools` no
 longer exports `NameFile/*.msgpack`. `AetherDB.msgpack` and existing name files
-remain legacy catalog inputs only; typed catalog migration is the next owner
-move.
+remain legacy catalog inputs only; typed catalog records are the durable owner.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine
 state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus
@@ -62,6 +61,10 @@ field from key 3, name-file and boss-hull legacy IDs, influence distance,
 allegiance count, and music bank IDs. Runtime object graphs, typed behavior
 factory construction, and simulation state remain legacy until dedicated typed
 runtime documents exist.
+Typed name-file documents are `aetheria.name_file.v2` records. They carry the
+legacy ID, display name, count, compact sample names for surfaces, and the full
+name array needed to move `Galaxy`/Markov name generation off legacy
+`NameFile.Names`.
 Legacy GUID references that are `Guid.Empty` are imported as absent references,
 not as resolvable catalog links.
 Before materializing state, the importer clears the generated `.cc`,
@@ -101,15 +104,15 @@ equipment slots, weapon groups, and stat grids without reviving
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
 records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
-for one migrated record of each catalog kind and checks that expanded item and
-corporation catalog facts survived materialization. The verifier also exercises
-the typed catalog snapshot query surface, shape-mask invariants, and the
-typed behavior payload tree, and the published Eve catalog surface. The current
-catalog materializes 65 behavior payloads, 661 behavior fields, and 18
-behavior-side legacy-ID references. Legacy content currently includes at least
-one overhanging hardpoint; the verifier preserves the payload and checks
-hardpoint local masks rather than silently converting content repair into
-migration.
+for one migrated record of each catalog kind, checks that name-file v2 records
+carry their full name arrays, and checks that expanded item and corporation
+catalog facts survived materialization. The verifier also exercises the typed
+catalog snapshot query surface, shape-mask invariants, the typed behavior
+payload tree, and the published Eve catalog surface. The current catalog
+materializes 65 behavior payloads, 661 behavior fields, and 18 behavior-side
+legacy-ID references. Legacy content currently includes at least one overhanging
+hardpoint; the verifier preserves the payload and checks hardpoint local masks
+rather than silently converting content repair into migration.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime

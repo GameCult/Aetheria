@@ -218,8 +218,9 @@ namespace GameCult.Aetheria.State.Unity
             var legacyId = ReadFieldString(ref reader, fields, 1);
             var nameCount = ReadFieldInt32(ref reader, fields, 2);
             var sampleNames = ReadFieldStringArray(ref reader, fields, 3);
-            SkipRemaining(ref reader, fields, 4);
-            return new AetheriaRuntimeNameFile(legacyId, name, nameCount, sampleNames);
+            var names = ReadFieldStringArray(ref reader, fields, 4);
+            SkipRemaining(ref reader, fields, 5);
+            return new AetheriaRuntimeNameFile(legacyId, name, nameCount, sampleNames, names);
         }
 
         private static string ReadFieldString(ref MessagePackReader reader, int fields, int index)

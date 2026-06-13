@@ -3,7 +3,7 @@ using MessagePack;
 
 namespace Aetheria.State.Documents;
 
-[CultDocument("aetheria.name_file", "aetheria.name_file.v1")]
+[CultDocument("aetheria.name_file", "aetheria.name_file.v2")]
 [MessagePackObject]
 public sealed class AetheriaNameFile
 {
@@ -20,4 +20,7 @@ public sealed class AetheriaNameFile
 
     [Key(3)]
     public string[] SampleNames { get; set; } = [];
+
+    [Key(4)]
+    public string[] Names { get; set; } = [];
 }

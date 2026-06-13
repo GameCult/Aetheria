@@ -23,7 +23,7 @@ var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcN
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
 RequireCount(ledger, "aetheria.corporation.v1", corporations.Length);
-RequireCount(ledger, "aetheria.name_file.v1", nameFiles.Length);
+RequireCount(ledger, "aetheria.name_file.v2", nameFiles.Length);
 
 if (items.Length == 0)
 {
@@ -38,6 +38,11 @@ if (corporations.Length == 0)
 if (nameFiles.Length == 0)
 {
     throw new InvalidOperationException("Typed state has no name files.");
+}
+
+if (nameFiles.Any(nameFile => nameFile.Names.Length == 0 || nameFile.Names.Length != nameFile.NameCount))
+{
+    throw new InvalidOperationException("Typed name files did not import their full name arrays.");
 }
 
 var pricedItems = items.Count(item => item.Price > 0);

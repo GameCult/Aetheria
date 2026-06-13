@@ -116,8 +116,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   description from key 3, name-file and boss-hull legacy IDs, influence
   distance, allegiance count, and music bank IDs. Empty legacy GUID references
   are imported as absent links rather than as `Guid.Empty` catalog IDs.
-  `Aetheria.State` now owns the canonical legacy-ID record key mapping for
-  migrated item, corporation, and name-file documents.
+  Name-file documents are now `aetheria.name_file.v2` records and carry both
+  sample names for compact surfaces and the full legacy name array for future
+  `Galaxy`/Markov name generation cutover. `Aetheria.State` now owns the
+  canonical legacy-ID record key mapping for migrated item, corporation, and
+  name-file documents.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
@@ -152,17 +155,18 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   evolution can rematerialize typed state instead of being blocked by stale
   embedded schema catalogs.
   `Aetheria.State.Verify` opens the materialized file and checks that migration
-  ledger counts match actual typed catalog records, that the legacy-ID lookup
-  API resolves migrated item, corporation, and name-file documents, and that
-  the expanded typed catalog facts, typed catalog snapshot queries, and typed
-  Eve catalog surface are present in the `.cc` store. The current verifier sees
-  52 shaped item masks, 5 interior masks, 3 hardpoint-host hulls, 22
-  hardpoints, 39 behavior-bearing item definitions, 65 behavior payloads, 661
-  behavior fields, 18 behavior-side legacy-ID references, 51 hardpoint-tagged
-  equipment items, 3 hull items, and 18 weapon-facet item definitions. Legacy
-  content includes at least one overhanging hardpoint (`LonginusX`); migration
-  verification preserves that payload and does not convert content repair into
-  mapper authority.
+  ledger counts match actual typed catalog records, that name-file v2 records
+  carry their full name arrays, that the legacy-ID lookup API resolves migrated
+  item, corporation, and name-file documents, and that the expanded typed
+  catalog facts, typed catalog snapshot queries, and typed Eve catalog surface
+  are present in the `.cc` store. The current verifier sees 52 shaped item
+  masks, 5 interior masks, 3 hardpoint-host hulls, 22 hardpoints, 39
+  behavior-bearing item definitions, 65 behavior payloads, 661 behavior fields,
+  18 behavior-side legacy-ID references, 51 hardpoint-tagged equipment items, 3
+  hull items, and 18 weapon-facet item definitions. Legacy content includes at
+  least one overhanging hardpoint (`LonginusX`); migration verification
+  preserves that payload and does not convert content repair into mapper
+  authority.
 - `.voidbot/state/aetheria.cc` is the repo Persona state witness. Aetheria is
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
@@ -348,6 +352,9 @@ First Aetheria surfaces to publish:
    - Done: implement a bounded raw payload mapper that converts stable old
      `DatabaseEntry` union fields into typed item/faction/name-file catalog
      documents without making `Aetheria.State` depend on Unity's legacy model.
+   - Done: promote typed name files to `aetheria.name_file.v2` with full name
+     arrays, so future `Galaxy` name generation has a Verse-owned replacement
+     for legacy `NameFile.Names`.
    - Done: expand the stable item mapper to include equipment facets and
      behavior kind fingerprints needed by future Unity/Eve catalog consumers.
    - Done: import full item shape-cell masks into typed catalog documents and

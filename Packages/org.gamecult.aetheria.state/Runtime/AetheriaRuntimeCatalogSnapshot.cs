@@ -363,17 +363,20 @@ namespace GameCult.Aetheria.State.Unity
             string legacyId,
             string name,
             int nameCount,
-            IReadOnlyList<string> sampleNames)
+            IReadOnlyList<string> sampleNames,
+            IReadOnlyList<string> names)
         {
             LegacyId = legacyId;
             Name = name;
             NameCount = nameCount;
             SampleNames = sampleNames;
+            Names = names;
         }
 
         public string LegacyId { get; }
         public string Name { get; }
         public int NameCount { get; }
         public IReadOnlyList<string> SampleNames { get; }
+        public IReadOnlyList<string> Names { get; }
     }
 }

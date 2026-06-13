@@ -116,6 +116,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             nameFile.LegacyId,
             nameFile.Name,
             nameFile.NameCount,
-            nameFile.SampleNames);
+            nameFile.SampleNames,
+            nameFile.Names);
     }
 }

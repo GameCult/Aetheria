@@ -109,9 +109,10 @@ if (catalog.GetManufacturer(manufactured) == null)
 }
 
 var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
-if (packageCorporation == null || packageCatalog.GetNameFile(packageCorporation) == null)
+var packageNameFile = packageCorporation == null ? null : packageCatalog.GetNameFile(packageCorporation);
+if (packageNameFile == null || packageNameFile.Names.Count == 0 || packageNameFile.Names.Count != packageNameFile.NameCount)
 {
-    throw new InvalidOperationException("Package catalog store did not read corporation/name-file links.");
+    throw new InvalidOperationException("Package catalog store did not read corporation/name-file links with full names.");
 }
 
 if (surface?.Schema != "gamecult.eve.surface.v1" ||

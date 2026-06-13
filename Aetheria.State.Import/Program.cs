@@ -96,7 +96,7 @@ await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
         },
         new AetheriaMigrationCount
         {
-            DocumentType = "aetheria.name_file.v1",
+            DocumentType = "aetheria.name_file.v2",
             Count = parsedNameFiles.Length
         }
     ],
@@ -421,7 +421,8 @@ internal static class LegacyCatalogReader
                     Name = name,
                     LegacyId = legacyId,
                     NameCount = GetArrayLength(payload, 2),
-                    SampleNames = GetStringArraySample(payload, 2, 8)
+                    SampleNames = GetStringArraySample(payload, 2, 8),
+                    Names = GetStringArray(payload, 2)
                 }
                 : null);
     }
@@ -786,6 +787,13 @@ internal static class LegacyCatalogReader
     {
         return payload.TryGetValue(key, out var value) && value is object?[] array
             ? array.OfType<string>().Take(max).ToArray()
+            : [];
+    }
+
+    private static string[] GetStringArray(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        return payload.TryGetValue(key, out var value) && value is object?[] array
+            ? array.OfType<string>().ToArray()
             : [];
     }
 
