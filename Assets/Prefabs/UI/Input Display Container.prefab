@@ -171,7 +171,6 @@ MonoBehaviour:
   MouseForward: {fileID: 3575543200853098931}
   MouseBack: {fileID: 3575543200736016711}
   RowContainer: {fileID: 3575543201062286835}
-  LayoutFile: {fileID: 4900000, guid: 44459239c373d2c449a479e84867648a, type: 3}
   LabelPrototype: {fileID: 3575543201132091708}
   LinePrototype: {fileID: 3575543201409287276}
   RowPrototype: {fileID: 3575543199809032540}

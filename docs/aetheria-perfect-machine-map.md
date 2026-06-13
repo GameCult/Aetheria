@@ -762,10 +762,10 @@ First Aetheria surfaces to publish:
   `InputActionAsset.FromJson`, but that JSON belongs to Unity's generated input
   action lowering under Aetheria's remapping system. It is not durable Aetheria
   state and does not own remapping authority.
-- Keyboard display layout parsing is named as a runtime projection parser:
-  `InputDisplayLayout` uses Unity-side `SimpleJson` only to read checked-in
-  keyboard display geometry. The dead commented Ink `ToJson` write path has
-  been removed from live source.
+- Keyboard display layout parsing is no longer JSON-backed:
+  `InputDisplayLayout` builds its static ANSI-104 display projection from typed
+  `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
+  checked-in `ansi104.json` display file have been removed from live source.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes

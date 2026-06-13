@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Ink.Runtime;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -23,7 +22,6 @@ public class InputDisplayLayout : MonoBehaviour
     public InputDisplayButton MouseForward;
     public InputDisplayButton MouseBack;
     public VerticalLayoutGroup RowContainer;
-    public TextAsset LayoutFile;
     public Prototype LabelPrototype;
     public Prototype LinePrototype;
     //public UILineRendererList LineRenderer;
@@ -82,7 +80,7 @@ public class InputDisplayLayout : MonoBehaviour
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
-        _inputLayout = ParseKeyboardLayoutProjection(LayoutFile.text);
+        _inputLayout = InputLayout.CreateAnsi104();
         DisplayLayout(_inputLayout);
 
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));
@@ -374,93 +372,6 @@ public class InputDisplayLayout : MonoBehaviour
                 throw new ArgumentOutOfRangeException(nameof(row));
             }
         }
-    }
-
-    public InputLayout ParseKeyboardLayoutProjection(string layout)
-    {
-        var rows = new List<InputLayoutRow>();
-        var nextWidth = 1f;
-        var nextHeight = 1;
-
-        foreach (var rowValue in SimpleJson.TextToArray(layout))
-        {
-            if (!(rowValue is List<object> parsedRow))
-                throw new FormatException("Unexpected keyboard layout JSON format: expected a row array.");
-
-            var row = new InputLayoutKeyRow();
-            var columns = new List<InputLayoutColumn>();
-
-            foreach (var columnValue in parsedRow)
-            {
-                switch (columnValue)
-                {
-                    case Dictionary<string, object> options:
-                        ApplyLayoutOptions(options, rows, columns, ref nextWidth, ref nextHeight);
-                        break;
-                    case string label:
-                        columns.Add(CreateLayoutKey(label, ref nextWidth, ref nextHeight));
-                        break;
-                    default:
-                        throw new FormatException("Unexpected keyboard layout JSON format: expected a key label or options object.");
-                }
-            }
-
-            row.Columns = columns.ToArray();
-            rows.Add(row);
-        }
-
-        return new InputLayout {Rows = rows.ToArray()};
-    }
-
-    private static void ApplyLayoutOptions(
-        Dictionary<string, object> options,
-        ICollection<InputLayoutRow> rows,
-        ICollection<InputLayoutColumn> columns,
-        ref float nextWidth,
-        ref int nextHeight)
-    {
-        foreach (var option in options)
-        {
-            switch (option.Key)
-            {
-                case "a":
-                    break;
-                case "w":
-                    nextWidth = Convert.ToSingle(option.Value);
-                    break;
-                case "h":
-                    nextHeight = Convert.ToInt32(option.Value);
-                    break;
-                case "y":
-                    rows.Add(new InputLayoutRowSpacer {Height = Convert.ToSingle(option.Value)});
-                    break;
-                case "x":
-                    columns.Add(new InputLayoutColumnSpacer {Width = Convert.ToSingle(option.Value)});
-                    break;
-            }
-        }
-    }
-
-    private static InputLayoutKey CreateLayoutKey(string label, ref float nextWidth, ref int nextHeight)
-    {
-        InputLayoutKey key;
-        var trimmedLabel = label.Trim();
-        if (!string.IsNullOrEmpty(trimmedLabel))
-        {
-            var labels = trimmedLabel.Split('\n');
-            key = nextHeight != 1 ? new InputLayoutMultiRowKey {Height = nextHeight} : new InputLayoutBindableKey();
-            nextHeight = 1;
-            ((InputLayoutBindableKey) key).MainLabel = labels.Length == 2 ? labels[1] : trimmedLabel;
-            ((InputLayoutBindableKey) key).AltLabel = labels.Length == 2 ? labels[0] : "";
-        }
-        else
-        {
-            key = new InputLayoutKey();
-        }
-
-        key.Width = nextWidth;
-        nextWidth = 1f;
-        return key;
     }
 
     private IEnumerator AssociateInputKeys()
