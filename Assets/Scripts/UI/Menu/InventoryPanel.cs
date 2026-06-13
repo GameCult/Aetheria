@@ -817,7 +817,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 if (_displayedEntity.Armor[position.x, position.y] > .01f)
                     return Settings.ArmorGradient.Evaluate(_displayedEntity.Armor[position.x, position.y] / _displayedEntity.MaxArmor[position.x, position.y]);
 
-                if (item != null) return Settings.DurabilityGradient.Evaluate(item.Durability / _displayedEntity.ItemManager.GetData(item).Durability);
+                if (item != null) return Settings.DurabilityGradient.Evaluate(item.Durability / GetMaxDurability(item));
                 return float3(.25f).ToColor();
             }
 
@@ -871,6 +871,15 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         return typedItem != null &&
                !string.IsNullOrWhiteSpace(typedItem.HardpointType) &&
                Enum.TryParse(typedItem.HardpointType, true, out hardpointType);
+    }
+
+    private float GetMaxDurability(ItemInstance item)
+    {
+        var typedItem = FindTypedInventoryItem(item);
+        if (typedItem != null && typedItem.Durability > 0)
+            return (float)typedItem.Durability;
+
+        return _displayedEntity.ItemManager.GetData(item).Durability;
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
