@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -99,16 +101,38 @@ public class ActionBarGearBinding : ActionBarBinding
     public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {
         Item = item;
-        var data = entity.ItemManager.GetData(item.EquippableItem);
         Behavior = behavior;
         Slot.QuantityRemaining.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(true);
         Slot.Label.gameObject.SetActive(false);
         if (!string.IsNullOrEmpty(Item.Data.ActionBarIcon))
             Slot.Icon.texture = Resources.Load<Texture2D>(Item.Data.ActionBarIcon.Substring("Assets/Resources/".Length).Split('.').First());
-        else if (data is WeaponItemData weaponItemData)
-            Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(weaponItemData.WeaponType).texture;
-        else Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(data.HardpointType).texture;
+        else Slot.Icon.texture = ResolveIconTexture();
+    }
+
+    private Texture2D ResolveIconTexture()
+    {
+        var typedItem = FindTypedGearItem(Item.EquippableItem);
+        if (typedItem != null)
+        {
+            if (Enum.TryParse<WeaponType>(typedItem.WeaponType, out var weaponType))
+                return ActionGameManager.Instance.Settings.GetIcon(weaponType).texture;
+
+            if (Enum.TryParse<HardpointType>(typedItem.HardpointType, out var hardpointType))
+                return ActionGameManager.Instance.Settings.GetIcon(hardpointType).texture;
+        }
+
+        return Item.Data is WeaponItemData weaponItemData
+            ? ActionGameManager.Instance.Settings.GetIcon(weaponItemData.WeaponType).texture
+            : ActionGameManager.Instance.Settings.GetIcon(Item.Data.HardpointType).texture;
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedGearItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 
     public override void Activate()
