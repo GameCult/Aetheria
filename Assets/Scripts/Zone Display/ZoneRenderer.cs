@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
+using GameCult.Aetheria.State.Unity;
 using UniRx;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -568,11 +569,12 @@ public class ZoneRenderer : MonoBehaviour
 
     public void DropItem(Vector3 position, Vector3 velocity, ItemInstance item)
     {
+        var typedItem = FindTypedPickupItem(item);
         var gridObject = item switch
         {
             SimpleCommodity _ => Instantiate(SimpleCommodityPickup),
             CompoundCommodity _ => Instantiate(CompoundCommodityPickup),
-            EquippableItem equippableItem when ItemManager.GetData(equippableItem) is WeaponItemData => Instantiate(WeaponPickup),
+            EquippableItem equippableItem when IsWeaponPickup(equippableItem, typedItem) => Instantiate(WeaponPickup),
             EquippableItem _ => Instantiate(GearPickup),
             _ => throw new NotImplementedException()
         };
@@ -584,7 +586,7 @@ public class ZoneRenderer : MonoBehaviour
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
         itemPickup.Item = item;
         itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = ItemManager.GetData(item).Name;
+        itemPickup.ScanLabel.text = typedItem?.Name ?? ItemManager.GetData(item).Name;
         if (item is CraftedItemInstance craftedItemInstance)
         {
             var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
@@ -594,6 +596,22 @@ public class ZoneRenderer : MonoBehaviour
         else itemPickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
         gridObject.gameObject.AddComponent<TimedDestroy>().Duration = Settings.PickupLifetime;
         _loot.Add(itemPickup);
+    }
+
+    private bool IsWeaponPickup(EquippableItem item, AetheriaRuntimeCatalogItem typedItem)
+    {
+        if (typedItem != null)
+            return string.Equals(typedItem.Category, nameof(WeaponItemData), StringComparison.Ordinal);
+
+        return ItemManager.GetData(item) is WeaponItemData;
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedPickupItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 }
 

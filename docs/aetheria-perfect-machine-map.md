@@ -135,7 +135,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   hydrating `ItemData` projections for legacy commodity filters, columns, and
   buy actions. The sector properties UI also resolves station/turret/ship
   counts through typed hull classifications from the runtime catalog before
-  falling back to legacy `HullData` projection for missing rows.
+  falling back to legacy `HullData` projection for missing rows. Loot pickup
+  presentation now uses typed catalog category/name rows to choose weapon-vs-gear
+  pickup visuals and scan labels before falling back to legacy item projections.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
