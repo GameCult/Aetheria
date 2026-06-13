@@ -32,7 +32,7 @@ public class Galaxy
     private HashSet<Guid> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
-    private readonly ILegacyCatalogReader _catalog;
+    private readonly ItemManager _itemManager;
 
     public GalaxyZone[] ExitPath
     {
@@ -48,16 +48,16 @@ public class Galaxy
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
         NameGeneratorSettings nameGeneratorSettings, 
-        ILegacyCatalogReader catalog,
+        ItemManager itemManager,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _catalog = catalog;
+        _itemManager = itemManager;
         IsPrelude = false;
         Background = background;
         Log = log;
-        var factions = catalog.GetAll<Faction>();
+        var factions = itemManager.GetCatalogEntries<Faction>();
         var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
@@ -81,7 +81,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(catalog, nameGeneratorSettings, ref random, progressCallback);
+        GenerateNames(itemManager, nameGeneratorSettings, ref random, progressCallback);
 
         progressCallback?.Invoke("Done!");
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
@@ -89,21 +89,21 @@ public class Galaxy
     
     public Faction ResolveFaction(string name)
     {
-        return _catalog.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
+        return _itemManager.GetCatalogEntries<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
-        ILegacyCatalogReader catalog,
+        ItemManager itemManager,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _catalog = catalog;
+        _itemManager = itemManager;
         IsPrelude = true;
 
         Background = background;
@@ -189,7 +189,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        GenerateNames(catalog, nameGeneratorSettings, ref random, progressCallback);
+        GenerateNames(itemManager, nameGeneratorSettings, ref random, progressCallback);
         
         // progressCallback?.Invoke("Weaving Narrative");
         // var processor = new StoryProcessor(playerSettings, narrativeDirectory, this, ref random, Log);
@@ -280,7 +280,7 @@ public class Galaxy
         }
     }
 
-    private void GenerateNames(ILegacyCatalogReader catalog,
+    private void GenerateNames(ItemManager itemManager,
         NameGeneratorSettings nameGeneratorSettings,
         ref Random random,
         Action<string> progressCallback = null)
@@ -290,7 +290,7 @@ public class Galaxy
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, catalog.Get<NameFile>(faction.GeonameFile).Names, nameGeneratorSettings);
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, itemManager.GetCatalogEntry<NameFile>(faction.GeonameFile).Names, nameGeneratorSettings);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID
