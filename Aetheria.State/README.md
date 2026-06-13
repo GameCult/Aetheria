@@ -45,8 +45,9 @@ been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
 The dead `SavedStory` JSON DTO is gone. `RuntimeZoneBlueprint` and
 `RuntimeEntityBlueprint` remain in-memory construction/loadout projections for
-Unity runtime code, but no longer carry save-file vocabulary or MessagePack
-persistence attributes.
+Unity runtime code, with `RuntimeEntityBlueprintProjector` capturing and
+instantiating those projections. They no longer carry save-file or serializer
+vocabulary, and they do not declare MessagePack persistence attributes.
 
 Keyboard layout rendering now reads the checked-in Unity text asset directly.
 The old generated `GameData/KeyboardLayouts/*.msgpack` cache was deleted; layout

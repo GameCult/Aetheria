@@ -81,7 +81,7 @@ public class Zone
 
         foreach (var entityBlueprint in blueprint.Entities)
         {
-            var entity = EntitySerializer.InstantiateFromBlueprint(_itemManager, this, entityBlueprint);
+            var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(_itemManager, this, entityBlueprint);
             Entities.Add(entity);
             entity.Activate();
             if (entity is Ship {IsPlayerShip: false} ship)
@@ -110,7 +110,7 @@ public class Zone
         {
             Radius = Blueprint.Radius,
             Mass = Blueprint.Mass,
-            Entities = Entities.Select(EntitySerializer.CaptureBlueprint).ToList(),
+            Entities = Entities.Select(RuntimeEntityBlueprintProjector.CaptureBlueprint).ToList(),
             Orbits = Orbits.Values.Select(o=>o.Data).ToList(),
             Planets = Planets.Values.ToList(),
             Time = _time

@@ -62,8 +62,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   deleted. The dead `SavedStory` JSON DTO is deleted.
   `RuntimeZoneBlueprint`, body/orbit zone runtime data, item-instance runtime
   data, `Ship`, and `EntitySettings` remain as runtime
-  construction/loadout/session projections, but no longer use save-file
-  vocabulary or declare themselves as MessagePack persistence documents.
+  construction/loadout/session projections, but no longer use save-file or
+  serializer vocabulary or declare themselves as MessagePack persistence
+  documents.
 - `Aetheria.State` now expands `AetheriaPlayerSettings` beyond an active-run
   pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
@@ -637,6 +638,9 @@ First Aetheria surfaces to publish:
      `RuntimeZoneBlueprint`/`RuntimeEntityBlueprint`, and rename loadout
      collections away from save-payload vocabulary. These are now explicitly
      runtime construction projections, not portable state authority.
+   - Done: rename the old `EntitySerializer` runtime helper to
+     `RuntimeEntityBlueprintProjector`; it captures/instantiates runtime
+     blueprint projections and no longer presents itself as a serializer.
    - Done: demote Unity's live `PlayerSettings` runtime object to
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
@@ -690,6 +694,8 @@ First Aetheria surfaces to publish:
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
   `EntitySerializer.Unpack` hits.
+- Runtime entity blueprint projection no longer uses the `EntitySerializer`
+  authority name; live Unity source calls `RuntimeEntityBlueprintProjector`.
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
 - Input binding and action-bar edits now queue the same typed player-settings

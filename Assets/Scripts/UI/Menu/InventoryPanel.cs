@@ -170,7 +170,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 ContextMenu.AddOption("Save Loadout",
                     () =>
                     {
-                        GameManager.QueueRuntimeLoadoutTemplateCommit(EntitySerializer.CaptureBlueprint(_displayedEntity));
+                        GameManager.QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprintProjector.CaptureBlueprint(_displayedEntity));
                     });
 
                 if (GameManager.LoadoutBlueprints.Any())
@@ -180,7 +180,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                             (
                                 $"{blueprint.Name} - {blueprint.Price(GameManager.ItemManager):n0}", () =>
                                 {
-                                    var entity = EntitySerializer.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
+                                    var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
                                     entity.SetParent(GameManager.DockedEntity);
                                     GameManager.Credits -= blueprint.Price(GameManager.ItemManager);
                                     GameManager.CurrentEntity = entity;

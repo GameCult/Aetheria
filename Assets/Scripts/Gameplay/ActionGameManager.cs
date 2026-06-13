@@ -754,7 +754,7 @@ public class ActionGameManager : MonoBehaviour
                     nearestFaction,
                     .5f);
 
-                var turret = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+                var turret = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 turret.Zone = Zone;
@@ -786,7 +786,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var ship = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
+        //                     var ship = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
         //                     ship.Position.xz = _currentEntity.Position.xz +
         //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     ship.Zone = Zone;
@@ -796,7 +796,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var turret = EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+        //                     var turret = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
         //                     turret.Position.xz = _currentEntity.Position.xz +
         //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     turret.Zone = Zone;
@@ -961,12 +961,12 @@ public class ActionGameManager : MonoBehaviour
             SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
             PopulateLevel(CurrentGalaxy.Entrance);
             var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-            var ship = EntitySerializer.InstantiateFromBlueprint(
+            var ship = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(
                 ItemManager,
                 Zone,
                 loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),
                 true);
-            // EntitySerializer.InstantiateFromBlueprint(ItemManager, Zone, LoadoutBlueprints.First(x => x.Name == StarterShipTemplate), true);
+            // RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, LoadoutBlueprints.First(x => x.Name == StarterShipTemplate), true);
             ((Ship) ship).IsPlayerShip = true;
             ship.Position = float3.zero;
             ship.Zone = Zone;

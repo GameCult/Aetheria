@@ -61,7 +61,7 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntitySerializer.CaptureBlueprint(entity);
+        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity);
     }
 
     public RuntimeOrbitalEntityBlueprint GenerateTurretLoadout()
@@ -76,7 +76,7 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntitySerializer.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
+        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
     public RuntimeOrbitalEntityBlueprint GenerateStationLoadout()
@@ -119,7 +119,7 @@ public class LoadoutGenerator
 
         entity.CanTow = hullData.CanTow;
         
-        return EntitySerializer.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
+        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
     public HullData RandomHull(HullType type, Predicate<HullData> hullFilter = null)

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.Mathematics;
 
-public static class EntitySerializer
+public static class RuntimeEntityBlueprintProjector
 {
     public static RuntimeEntityBlueprint CaptureBlueprint(Entity entity)
     {
