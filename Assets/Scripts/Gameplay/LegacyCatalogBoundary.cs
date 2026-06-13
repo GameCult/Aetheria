@@ -14,7 +14,7 @@ public static class LegacyCatalogBoundary
         return Path.Combine(gameDataDirectory.FullName, "AetherDB.msgpack");
     }
 
-    public static LegacyCatalogCache GetCatalogCache(DirectoryInfo gameDataDirectory)
+    public static ILegacyCatalogReader GetCatalog(DirectoryInfo gameDataDirectory)
     {
         if (_catalogCache != null) return _catalogCache;
 

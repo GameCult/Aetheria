@@ -10,7 +10,14 @@ using System.Reflection;
 using MessagePack;
 using UniRx;
 
-public class LegacyCatalogCache
+public interface ILegacyCatalogReader
+{
+    DatabaseEntry Get(Guid guid);
+    T Get<T>(Guid guid) where T : DatabaseEntry;
+    IEnumerable<T> GetAll<T>() where T : DatabaseEntry;
+}
+
+public class LegacyCatalogCache : ILegacyCatalogReader
 {
 
     private readonly object addLock = new object();

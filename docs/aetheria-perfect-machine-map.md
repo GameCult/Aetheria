@@ -32,13 +32,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted.
-- `LegacyCatalogBoundary` opens `LegacyCatalogCache` as a pull-only catalog
-  cache. Old MessagePack backing stores may hydrate in-memory domain objects
-  for the current Unity runtime, but this path cannot push or delete legacy
-  files. The legacy backing-store write/realtime APIs and public cache mutation
-  methods have been deleted; only backing-store pull hydration can populate it.
-  The backing-store serializer methods are also deleted, so the legacy cache
-  interface exposes deserialization only.
+- `LegacyCatalogBoundary` opens `LegacyCatalogCache` as the only concrete
+  pull-only catalog cache. Runtime consumers receive `ILegacyCatalogReader`,
+  so old MessagePack backing stores may hydrate in-memory domain objects for
+  the current Unity runtime, but this path cannot push or delete legacy files.
+  The legacy backing-store write/realtime APIs and public cache mutation methods
+  have been deleted; only backing-store pull hydration can populate it. The
+  backing-store serializer methods are also deleted, so the legacy cache
+  implementation exposes deserialization only.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
   `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
@@ -93,8 +94,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
   reads and legacy `DatabaseLink<T>` resolution inside the Unity runtime until
-  catalog migration lands. The legacy cache no longer has a public mutation
-  surface.
+  catalog migration lands. Runtime code receives `ILegacyCatalogReader`, not the
+  concrete cache. The legacy cache no longer has a public mutation surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy

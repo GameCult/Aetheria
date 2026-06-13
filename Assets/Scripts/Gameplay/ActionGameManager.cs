@@ -234,7 +234,7 @@ public class ActionGameManager : MonoBehaviour
         Debug.Log($"Aetheria typed state file: {AetheriaStateFilePath}");
         Debug.Log($"Aetheria legacy item catalog: {LegacyAetherDatabasePath}");
         ItemManager = new ItemManager(
-            LegacyCatalogBoundary.GetCatalogCache(GameDataDirectory),
+            LegacyCatalogBoundary.GetCatalog(GameDataDirectory),
             Settings.GameplaySettings,
             Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
