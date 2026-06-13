@@ -25,7 +25,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Shared domain state is still partly built around `DatabaseEntry`, GUID
   identity, MessagePack attributes, and static cache references. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
-  `Economy.Shared` wrapper have been removed from live source.
+  `Economy.Shared` wrapper have been removed from live source. The stale
+  `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
+  formatter classes have also been deleted, so the remaining direct
+  `MessagePackSerializer` calls are the two legacy catalog deserializers.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
   `GameData/NameFile/*.msgpack` as migration/catalog inputs. The old
   `PlayerSettings.msgpack`, `.loadout`, `.zone`, and
@@ -87,8 +90,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - MessagePack is no longer used as a runtime object-cloning shortcut for
   `EntitySettings`, and UI/player-settings startup no longer registers the old
   MessagePack resolver. Resolver registration is confined to legacy catalog
-  deserialization. The slime compute settings path no longer serializes its
-  local parameter struct for change detection.
+  deserialization. Unused Unity asset formatters for GameObject, Material,
+  Sprite, and Texture2D are deleted. The slime compute settings path no longer
+  serializes its local parameter struct for change detection.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
@@ -266,6 +270,8 @@ First Aetheria surfaces to publish:
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.
    - Done: delete public legacy catalog cache mutation APIs.
+   - Done: delete the stale `StrategyGameManager.csbak` backup source and
+     unused Unity asset MessagePack formatters.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
