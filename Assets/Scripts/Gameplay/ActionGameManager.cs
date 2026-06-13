@@ -485,7 +485,6 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var runtimeItemCatalog = new AetheriaRuntimeItemCatalog(RuntimeCatalog);
-        RuntimeCatalogLinkBase.BindRuntimeItemCatalog(runtimeItemCatalog);
         ItemManager = new ItemManager(
             runtimeItemCatalog,
             Settings.GameplaySettings,
@@ -666,7 +665,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
-                            if (!(itemInstanceDragAction.Item.Data.Value is ConsumableItemData consumable)) return false;
+                            if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
                             slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
                             return true;
                         case WeaponGroupDragObject weaponGroupDragAction:

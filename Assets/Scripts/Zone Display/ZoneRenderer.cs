@@ -584,7 +584,7 @@ public class ZoneRenderer : MonoBehaviour
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
         itemPickup.Item = item;
         itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = item.Data.Value.Name;
+        itemPickup.ScanLabel.text = ItemManager.GetData(item).Name;
         if (item is CraftedItemInstance craftedItemInstance)
         {
             var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();

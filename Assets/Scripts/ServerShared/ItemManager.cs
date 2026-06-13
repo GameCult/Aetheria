@@ -58,6 +58,34 @@ public class ItemManager
         return _itemData.Get<T>(id);
     }
 
+    public RuntimeCatalogLink<ItemData> CreateLink(ItemData item)
+    {
+        return new RuntimeCatalogLink<ItemData>(item);
+    }
+
+    public ItemData GetData(ItemInstance item)
+    {
+        Hydrate(item);
+        return item?.Data?.Value;
+    }
+
+    public void Hydrate(ItemInstance item)
+    {
+        if (item?.Data == null || item.Data.Value != null)
+        {
+            return;
+        }
+
+        var data = _itemData.Get(item.Data.LinkID);
+        if (data == null)
+        {
+            _logger($"Attempted to hydrate missing item id {item.Data.LinkID}");
+            return;
+        }
+
+        item.Data.SetValue(data);
+    }
+
     public void Log(string s)
     {
         _logger(s);
@@ -65,32 +93,32 @@ public class ItemManager
 
     public SimpleCommodityData GetData(SimpleCommodity item)
     {
-        return item.Data.Value as SimpleCommodityData;
+        return GetData((ItemInstance)item) as SimpleCommodityData;
     }
 
     public CraftedItemData GetData(CraftedItemInstance item)
     {
-        return item.Data.Value as CraftedItemData;
+        return GetData((ItemInstance)item) as CraftedItemData;
     }
 
     public EquippableItemData GetData(EquippableItem item)
     {
-        return item.Data.Value as EquippableItemData;
+        return GetData((ItemInstance)item) as EquippableItemData;
     }
 
     public float GetMass(ItemInstance item)
     {
         return item switch
         {
-            CraftedItemInstance _ => item.Data.Value.Mass,
-            SimpleCommodity commodity => item.Data.Value.Mass * commodity.Quantity,
+            CraftedItemInstance _ => GetData(item).Mass,
+            SimpleCommodity commodity => GetData(item).Mass * commodity.Quantity,
             _ => 0
         };
     }
 
     public float GetThermalMass(ItemInstance item)
     {
-        var data = item.Data.Value;
+        var data = GetData(item);
         return item switch
         {
             CraftedItemInstance _ => data.Mass * data.SpecificHeat,
@@ -128,7 +156,7 @@ public class ItemManager
         {
             var newItem = new SimpleCommodity
             {
-                Data = new RuntimeCatalogLink<ItemData>{LinkID = item.ID},
+                Data = CreateLink(item),
                 Quantity = count
             };
             //ItemData.Add(newItem);
@@ -141,7 +169,7 @@ public class ItemManager
 
     public ItemInstance Instantiate(ItemInstance item)
     {
-        var data = item.Data.Value;
+        var data = GetData(item);
         if(data is CraftedItemData c)
         {
             var i = CreateInstance(c);
@@ -163,13 +191,13 @@ public class ItemManager
         {
             return new EquippableItem
             {
-                Data = new RuntimeCatalogLink<ItemData> {LinkID = item.ID}, Quality = quality, Durability = equippableItemData.Durability
+                Data = CreateLink(item), Quality = quality, Durability = equippableItemData.Durability
             };
         }
 
         var newCommodity = new CompoundCommodity
         {
-            Data = new RuntimeCatalogLink<ItemData>{LinkID = item.ID},
+            Data = CreateLink(item),
             Quality = quality
         };
         return newCommodity;

@@ -117,7 +117,7 @@ public class InventoryMenu : MonoBehaviour
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.CargoBay.Cargo[item];
                             _selectedItem = item;
-                            _selectedItemData = item.Data.Value;
+                            _selectedItemData = GameManager.ItemManager.GetData(item);
                             foreach (var v in _selectedItemData.Shape.Coordinates)
                             {
                                 var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;

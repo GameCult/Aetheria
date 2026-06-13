@@ -222,7 +222,7 @@ public class TradeMenu : MonoBehaviour
             data => data.Shape.Width*data.Shape.Height));
         
         var items = Inventory.Cargo.Keys
-            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, ii.Data.Value));
+            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>

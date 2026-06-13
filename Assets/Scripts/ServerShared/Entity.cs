@@ -1089,7 +1089,7 @@ public class ConsumableItemEffect
     {
         Item = item;
         Entity = entity;
-        Data = (ConsumableItemData) item.Data.Value;
+        Data = entity.ItemManager.GetData(item) as ConsumableItemData;
         RemainingDuration = Data.Duration;
 
         Behaviors = Data.Behaviors
@@ -1399,7 +1399,7 @@ public class EquippedCargoBay : EquippedItem
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
-        var itemData = item.Data.Value;
+        var itemData = ItemManager.GetData(item);
         // Check every cell of the item's shape
         foreach (var i in itemData.Shape.Coordinates)
         {

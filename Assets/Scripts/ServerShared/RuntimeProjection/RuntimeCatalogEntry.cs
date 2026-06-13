@@ -28,29 +28,27 @@ public abstract class RuntimeCatalogEntry
 
 public class RuntimeCatalogLink<T> : RuntimeCatalogLinkBase where T : ItemData
 {
-    public T Value => ResolveRuntimeItemCatalog<T>(LinkID);
+    public T Value { get; private set; }
+
+    public RuntimeCatalogLink()
+    {
+    }
+
+    public RuntimeCatalogLink(T value)
+    {
+        SetValue(value);
+    }
+
+    public void SetValue(T value)
+    {
+        Value = value;
+        LinkID = value?.ID ?? Guid.Empty;
+    }
 }
 
 public class RuntimeCatalogLinkBase
 {
     public Guid LinkID;
-
-    private static IRuntimeItemCatalogReader Catalog { get; set; }
-
-    protected static T ResolveRuntimeItemCatalog<T>(Guid linkId) where T : ItemData
-    {
-        if (Catalog == null)
-            throw new InvalidOperationException("Runtime item catalog resolution is not bound. Open typed Aetheria runtime state before reading item object graphs.");
-
-        return Catalog.Get<T>(linkId);
-    }
-
-    public static void BindRuntimeItemCatalog(IRuntimeItemCatalogReader catalog)
-    {
-        if (catalog == null) throw new ArgumentNullException(nameof(catalog));
-
-        Catalog = catalog;
-    }
 }
 
 public interface ITintInspector

@@ -623,6 +623,9 @@ First Aetheria surfaces to publish:
      Unity-side custom MessagePack resolver/formatter source.
    - Done: demote `PlayerSettings` and nested settings from MessagePack shapes
      after the legacy settings writer was disabled.
+   - Done: delete the process-global runtime catalog resolver from
+     `RuntimeCatalogLink<T>`; item instances now carry hydrated identifiers and
+     `ItemManager` owns resolution through the typed runtime catalog reader.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -656,6 +659,11 @@ First Aetheria surfaces to publish:
   can apply them into canonical typed settings/run/zone/entity state, and
   commands are cleared after application. It also proves renderer-emitted Eve
   commands are queued as typed command envelopes separately from state commits.
+- Unity batchmode compile with Editor `6000.4.2f1` returned cleanly after the
+  runtime catalog resolver cut; `Logs/codex-unity-compile.log` has no compiler
+  error hits.
+- `rg ".Data.Value|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
+  `Assets/Scripts` now finds only `ItemManager` checking its own hydrated value.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes

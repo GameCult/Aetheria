@@ -99,7 +99,7 @@ public class ActionBarGearBinding : ActionBarBinding
     public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {
         Item = item;
-        var data = item.EquippableItem.Data.Value as EquippableItemData;
+        var data = entity.ItemManager.GetData(item.EquippableItem);
         Behavior = behavior;
         Slot.QuantityRemaining.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(true);
