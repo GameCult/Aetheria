@@ -100,9 +100,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EquippableItemData` by ID only for `ItemManager.CreateInstance`.
   `LoadoutGenerator` also receives the typed runtime catalog and uses it to own
   item candidate selection before hydrating selected legacy item DTOs by ID for
-  exact fitting checks and behavior construction.
-  `TradeMenuDebug` uses the typed trade catalog for rows and only hydrates
-  legacy `ItemData` by ID for its old inspect/buy UI callbacks.
+  exact fitting checks and behavior construction. The unused `TradeMenuDebug`
+  script has been deleted instead of preserving an old uGUI debug path that
+  turned typed trade rows back into legacy `ItemData` objects.
 - `Galaxy` generation no longer accepts `ILegacyCatalogReader` or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
@@ -268,8 +268,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owns simulation. The legacy cache no longer has a public mutation surface, but
   it still materializes `ItemManager`. Item properties manufacturer display is
   a typed snapshot consumer; the give console command, loadout generation, and
-  trade debug are typed-selection consumers with temporary legacy item
-  instantiation or UI callback hydration. No live caller can enumerate legacy
+  old trade debug UI has been deleted. No live caller can enumerate legacy
   catalog entries through `ItemManager` or `ILegacyCatalogReader`.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
@@ -428,8 +427,8 @@ First Aetheria surfaces to publish:
    - Done: move `LoadoutGenerator` item candidate selection to the typed
      runtime catalog; legacy item DTO hydration remains only for exact fitting
      checks and behavior construction.
-   - Done: move `TradeMenuDebug` row selection to the typed trade catalog;
-     legacy item DTO hydration remains only for old inspect/buy callbacks.
+   - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
+     longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers
      moved to typed catalog selection.
    - Done: delete `ILegacyCatalogReader.GetAll<T>` and the type/global indexes
