@@ -76,7 +76,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   projection is not portable state authority. Aetheria has its own remapping UI
   that calls Unity's InputSystem at the binding/action layer; Unity's generated
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
-  the durable owner.
+  the durable owner. Binding drag/drop and action-bar remapping both queue the
+  same typed player-settings commit after mutating the runtime projection.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying

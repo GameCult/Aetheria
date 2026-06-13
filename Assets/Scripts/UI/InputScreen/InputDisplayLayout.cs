@@ -502,6 +502,14 @@ public class InputDisplayLayout : MonoBehaviour
         ActionGameManager.QueueRuntimePlayerSettingsCommit();
     }
 
+    private void CommitBindingOverride(InputAction action, InputBinding binding, string inputSystemPath)
+    {
+        binding.overridePath = inputSystemPath;
+        action.ApplyBindingOverride(binding);
+        ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap[(action.name, action.GetBindingIndex(binding))] = inputSystemPath;
+        QueueRuntimeInputSettingsCommit();
+    }
+
     private void OnEnable()
     {
         foreach(var buttonMapping in _buttonMappings)
@@ -525,11 +533,7 @@ public class InputDisplayLayout : MonoBehaviour
             }
             else
             {
-                _dragAction.Binding.overridePath = _previewButton.Button.InputSystemPath;
-                _dragAction.Action.ApplyBindingOverride(_dragAction.Binding);
-                ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap[(_dragAction.Action.name,
-                    _dragAction.Action.GetBindingIndex(_dragAction.Binding))] = _previewButton.Button.InputSystemPath;
-                // TODO: Assign New Binding
+                CommitBindingOverride(_dragAction.Action, _dragAction.Binding, _previewButton.Button.InputSystemPath);
             }
 
             foreach(var action in _actionMappings)
