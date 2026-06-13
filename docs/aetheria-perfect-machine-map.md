@@ -95,10 +95,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot. Entity
   restore and loadout manufacturer-distance weighting no longer use `ItemManager`
   for faction lookup; they resolve factions through the `Galaxy` typed
-  corporation projection. The `give` command selects matching items from the
-  typed runtime catalog, then temporarily hydrates the selected legacy
-  `EquippableItemData` by ID only for `ItemManager.CreateInstance`.
-  `LoadoutGenerator` also receives the typed runtime catalog and uses it to own
+  corporation projection. There is no live console item-spawn command; future
+  operator item actions should be typed command documents or Eve/CultUI
+  commands, not in-client catalog hydration shortcuts. `LoadoutGenerator` also
+  receives the typed runtime catalog and uses it to own
   item candidate selection before hydrating selected legacy item DTOs by ID for
   exact fitting checks and behavior construction. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
@@ -267,9 +267,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The legacy cache no longer has a public mutation surface, but
   it still materializes `ItemManager`. Item properties manufacturer display is
-  a typed snapshot consumer; the give console command, loadout generation, and
-  old trade debug UI has been deleted. No live caller can enumerate legacy
-  catalog entries through `ItemManager` or `ILegacyCatalogReader`.
+  a typed snapshot consumer; loadout generation is the remaining runtime
+  single-ID item hydration bridge. The old trade debug UI and console `give`
+  command have been deleted. No live
+  caller can enumerate legacy catalog entries through `ItemManager` or
+  `ILegacyCatalogReader`.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -429,6 +431,8 @@ First Aetheria surfaces to publish:
      checks and behavior construction.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
+   - Done: delete the console `give` command instead of preserving a debug
+     operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers
      moved to typed catalog selection.
    - Done: delete `ILegacyCatalogReader.GetAll<T>` and the type/global indexes

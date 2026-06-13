@@ -476,19 +476,6 @@ public class ActionGameManager : MonoBehaviour
                 }
             });
         
-        ConsoleController.AddCommand("give",
-            args =>
-            {
-                var itemName = string.Join(" ", args);
-                var catalogItem = RuntimeCatalog?.EquipmentItems
-                    .FirstOrDefault(item => string.Equals(item.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
-                if (catalogItem != null && Guid.TryParse(catalogItem.LegacyId, out var legacyId))
-                {
-                    var item = ItemManager.GetCatalogEntry<EquippableItemData>(legacyId);
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(item, .95f));
-                }
-            });
-        
         ConsoleController.AddCommand("trackmissile",
             _ =>
             {
