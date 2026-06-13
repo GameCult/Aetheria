@@ -78,21 +78,21 @@ public class DatabaseLinkBase
     public Guid LinkID;
 
     [IgnoreMember]
-    private static CultCache LegacyCatalogCache { get; set; }
+    private static LegacyCatalogCache CatalogCache { get; set; }
 
     protected static T ResolveLegacyCatalog<T>(Guid linkId) where T : DatabaseEntry
     {
-        if (LegacyCatalogCache == null)
+        if (CatalogCache == null)
             throw new InvalidOperationException("Legacy DatabaseLink resolution is not bound. Open LegacyCatalogBoundary before reading legacy catalog object graphs.");
 
-        return LegacyCatalogCache.Get<T>(linkId);
+        return CatalogCache.Get<T>(linkId);
     }
 
-    public static void BindLegacyCatalog(CultCache cache)
+    public static void BindLegacyCatalog(LegacyCatalogCache cache)
     {
         if (cache == null) throw new ArgumentNullException(nameof(cache));
 
-        LegacyCatalogCache = cache;
+        CatalogCache = cache;
     }
 }
 

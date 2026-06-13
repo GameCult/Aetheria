@@ -10,7 +10,7 @@ using System.Reflection;
 using MessagePack;
 using UniRx;
 
-public class CultCache
+public class LegacyCatalogCache
 {
 
     private readonly object addLock = new object();
@@ -27,7 +27,7 @@ public class CultCache
 
     public IEnumerable<DatabaseEntry> AllEntries => _entries.Values;
 
-    public CultCache()
+    public LegacyCatalogCache()
     {
         foreach (var type in typeof(DatabaseEntry).GetAllChildClasses())
         {

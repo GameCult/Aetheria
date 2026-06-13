@@ -13,7 +13,7 @@ authority.
 Aetheria should persist and replicate game state as typed CultCache documents,
 publish multiplayer/service state through CultMesh, and render operator/runtime
 interfaces from Eve CultUI surfaces. The old JSON, RethinkDB, JsonKnownTypes,
-local CultCache, and legacy UI paths should be migration-only or deleted.
+legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Mechanism
 
@@ -32,13 +32,13 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted.
-- `LegacyCatalogBoundary` opens the legacy `CultCache` as a pull-only catalog
+- `LegacyCatalogBoundary` opens `LegacyCatalogCache` as a pull-only catalog
   cache. Old MessagePack backing stores may hydrate in-memory domain objects
   for the current Unity runtime, but this path cannot push or delete legacy
   files. The legacy backing-store write/realtime APIs and public cache mutation
   methods have been deleted; only backing-store pull hydration can populate it.
 - `DatabaseLink<T>.Value` can resolve legacy links only after
-  `LegacyCatalogBoundary` binds the read-only catalog cache. `CultCache`
+  `LegacyCatalogBoundary` binds the pull-only catalog cache. Legacy catalog
   construction no longer grabs global `DatabaseLinkBase` authority.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node and no
   longer owns RethinkDB/LiteNetLib state.
@@ -95,8 +95,8 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to `LegacyCatalogBoundary`, the
-  old `DatabaseEntry`, legacy `CultCache`, or MessagePack catalog paths except
-  bounded migration readers that emit typed `Aetheria.State` documents.
+  old `DatabaseEntry`, `LegacyCatalogCache`, or MessagePack catalog paths
+  except bounded migration readers that emit typed `Aetheria.State` documents.
 
 ## Target Authority Map
 
@@ -113,7 +113,7 @@ local CultCache, and legacy UI paths should be migration-only or deleted.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
 - Deletion line: after catalog migration smokes pass, delete or quarantine the
-  remaining legacy `CultCache`/`DatabaseEntry` runtime catalog dependency and
+  remaining `LegacyCatalogCache`/`DatabaseEntry` runtime catalog dependency and
   remove old MessagePack backing store classes from live Unity source.
 
 ## Intended Change
@@ -190,7 +190,8 @@ First Aetheria surfaces to publish:
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
-   - Remove runtime dependency on old `CultCache` and `DatabaseEntry` as owners.
+   - Remove runtime dependency on `LegacyCatalogCache` and `DatabaseEntry` as
+     owners.
 
 5. Mesh host
    - Replace `Economy.Server` RethinkDB and LiteNetLib database authority with a
@@ -215,10 +216,10 @@ First Aetheria surfaces to publish:
    - Done: disable legacy local save, loadout, zone, player-settings, keyboard
      layout, DB inspector, and NameFile export writers.
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
-   - Done: stop legacy `CultCache` pull/read paths from writing entries back to
+   - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
-   - Done: delete legacy `CultCache` backing-store write/realtime APIs.
-   - Done: delete public legacy `CultCache` mutation APIs.
+   - Done: delete legacy catalog backing-store write/realtime APIs.
+   - Done: delete public legacy catalog cache mutation APIs.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

@@ -2,7 +2,7 @@ using System.IO;
 
 public static class LegacyCatalogBoundary
 {
-    private static CultCache _catalogCache;
+    private static LegacyCatalogCache _catalogCache;
 
     public static string GetStateFilePath(DirectoryInfo gameDataDirectory)
     {
@@ -14,11 +14,11 @@ public static class LegacyCatalogBoundary
         return Path.Combine(gameDataDirectory.FullName, "AetherDB.msgpack");
     }
 
-    public static CultCache GetCatalogCache(DirectoryInfo gameDataDirectory)
+    public static LegacyCatalogCache GetCatalogCache(DirectoryInfo gameDataDirectory)
     {
         if (_catalogCache != null) return _catalogCache;
 
-        _catalogCache = new CultCache();
+        _catalogCache = new LegacyCatalogCache();
         _catalogCache.AddBackingStore(new SingleFileMessagePackBackingStore(GetLegacyCatalogPath(gameDataDirectory)));
         _catalogCache.AddBackingStore(new MultiFileMessagePackBackingStore(gameDataDirectory.FullName), typeof(NameFile));
         _catalogCache.PullAllBackingStores();

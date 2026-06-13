@@ -32,7 +32,7 @@ public class Galaxy
     private HashSet<Guid> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
-    private readonly CultCache _cache;
+    private readonly LegacyCatalogCache _cache;
 
     public GalaxyZone[] ExitPath
     {
@@ -48,7 +48,7 @@ public class Galaxy
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
         NameGeneratorSettings nameGeneratorSettings, 
-        CultCache cache,
+        LegacyCatalogCache cache,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
@@ -96,7 +96,7 @@ public class Galaxy
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
-        CultCache cache,
+        LegacyCatalogCache cache,
         PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
@@ -280,7 +280,7 @@ public class Galaxy
         }
     }
 
-    private void GenerateNames(CultCache cache,
+    private void GenerateNames(LegacyCatalogCache cache,
         NameGeneratorSettings nameGeneratorSettings,
         ref Random random,
         Action<string> progressCallback = null)
