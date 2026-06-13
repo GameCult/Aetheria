@@ -70,6 +70,13 @@ summary, trade-catalog, and corporation views. This is a typed CultCache
 provider document and a local mirror of the Eve contract until the shared Eve
 Unity UI Toolkit lowering package exists.
 
+`Aetheria.State.Unity` is the Unity-facing runtime read facade over typed state.
+It opens `aetheria-world.cc`, emits immutable catalog read models for trade,
+equipment, behavior, hardpoint, manufacturer, corporation, and name-file
+queries, and can read the published Eve catalog surface. It does not deserialize
+legacy `DatabaseEntry` objects and does not write state. Unity can use this as
+the first package boundary once CultLib/Eve runtime packaging is available.
+
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
 records in the `.cc` store. It also verifies the canonical legacy-ID lookup API
@@ -77,6 +84,10 @@ for one migrated record of each catalog kind and checks that expanded item and
 corporation catalog facts survived materialization. The verifier also exercises
 the typed catalog snapshot query surface and the published Eve catalog surface.
 Use it after import when `GameData/aetheria-world.cc` changes.
+
+`Aetheria.State.Unity.Smoke` opens the materialized state through the runtime
+facade and proves read-only Unity-facing catalog access without the legacy
+catalog reader.
 
 Current rebuild notes:
 

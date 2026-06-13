@@ -71,6 +71,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
   queries without touching `DatabaseEntry`.
+- `Aetheria.State.Unity` is the Unity-facing runtime read facade over typed
+  catalog state. It opens `aetheria-world.cc`, emits immutable catalog read
+  models for trade/equipment/behavior/hardpoint/manufacturer/corporation/name
+  queries, and reads the published Eve surface without deserializing legacy
+  `DatabaseEntry` objects. It is not a simulation owner and does not write
+  state.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -133,7 +139,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `LegacyCatalogBoundary` is the only named owner for old MessagePack catalog
   reads and legacy `DatabaseLink<T>` resolution inside the Unity runtime until
   catalog migration lands. Runtime code receives `ILegacyCatalogReader`, not the
-  concrete cache. The legacy cache no longer has a public mutation surface.
+  concrete cache. `Aetheria.State.Unity` owns a read-only typed catalog facade
+  for future Unity consumers; it does not write state or own simulation. The
+  legacy cache no longer has a public mutation surface.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
@@ -250,6 +258,9 @@ First Aetheria surfaces to publish:
      catalog fields not covered by the stable scalar/fingerprint pass.
 
 4. Runtime cutover
+   - Done: add a Unity-facing typed catalog read facade and smoke proving it can
+     read the materialized `.cc` catalog plus Eve surface without the legacy
+     catalog reader.
    - Replace `ActionGameManager` cache bootstrap with the new state runtime.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
@@ -308,6 +319,9 @@ First Aetheria surfaces to publish:
   typed state without old readers remaining on the live runtime path.
 - Migration smoke proves stable old catalog payload fields can be read once and
   converted without old readers remaining on the live runtime path.
+- Unity runtime catalog smoke proves read-only catalog consumers can open the
+  typed `.cc` store through `Aetheria.State.Unity` without `DatabaseEntry` or
+  `LegacyCatalogCache`.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser
