@@ -189,6 +189,8 @@ First Aetheria surfaces to publish:
    - Done: disable legacy local save, loadout, zone, player-settings, keyboard
      layout, DB inspector, and NameFile export writers.
    - Done: delete the old `SavedGame`/`SavedZone` runtime save DTO and loader.
+   - Done: stop legacy `CultCache` pull/read paths from writing entries back to
+     their source backing store.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

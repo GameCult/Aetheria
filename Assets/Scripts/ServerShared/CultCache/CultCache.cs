@@ -122,11 +122,15 @@ public class CultCache
                 }
                 
                 if(_typeStores.ContainsKey(type))
-                    _typeStores[type].Push(entry);
+                {
+                    var typeStore = _typeStores[type];
+                    if(typeStore != source)
+                        typeStore.Push(entry);
+                }
                 else
                 {
-                    var masterStore = _backingStores.First();
-                    if(masterStore!=source)
+                    var masterStore = _backingStores.FirstOrDefault();
+                    if(masterStore != null && masterStore!=source)
                         masterStore.Push(entry);
                 }
                 
