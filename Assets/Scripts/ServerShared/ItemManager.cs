@@ -17,7 +17,6 @@ using float4 = Unity.Mathematics.float4;
 public class ItemManager
 {
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
-    // public Dictionary<string, GalaxyMapLayerData> MapLayers = new Dictionary<string, GalaxyMapLayerData>();
     // public SimpleCommodityData[] Resources;
     // public Dictionary<Guid, List<IController>> CorporationControllers = new Dictionary<Guid, List<IController>>();
     // public Dictionary<Guid, ZoneDefinition> GalaxyZones;

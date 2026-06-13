@@ -7,7 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
 
-[LegacyCatalogGroup("Galaxy"), Inspectable]
+[Inspectable]
 public class Faction : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable]

@@ -47,7 +47,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
 - Shared domain state is still partly built around `RuntimeCatalogEntry`, GUID
-  identity, runtime catalog metadata, and static projection references. Newtonsoft,
+  identity, runtime catalog metadata, and static projection references. Dead
+  user-record and galaxy-map-layer catalog roots have been deleted, and
+  surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
   `Economy.Shared` wrapper have been removed from live source. The stale
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
@@ -547,6 +549,8 @@ First Aetheria surfaces to publish:
    - Done: replace remaining item/behavior DTO MessagePack field metadata with
      `RuntimeCatalogKeyAttribute`; no live `Assets/Scripts` source depends on
      MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
+   - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
+     remove legacy catalog group/table annotations from surviving runtime DTOs.
    - Done: remove the stale `MessagePack` assembly reference from
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.

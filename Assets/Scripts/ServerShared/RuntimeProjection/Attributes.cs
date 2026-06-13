@@ -106,17 +106,6 @@ public class TooltipAttribute : Attribute
     public TooltipAttribute(string tooltip) => this.tooltip = tooltip;
 }
 
-[AttributeUsage(AttributeTargets.Class)]
-public class LegacyCatalogGroupAttribute : Attribute
-{
-    public string TableName;
-
-    public LegacyCatalogGroupAttribute(string tableName)
-    {
-        TableName = tableName;
-    }
-}
-
 public class NameAttribute : Attribute
 {
     public string Name;

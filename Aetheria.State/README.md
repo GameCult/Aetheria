@@ -56,6 +56,10 @@ edits are runtime-only until Verse owns a typed layout/settings document.
 The old IMGUI CultCache database editor has been deleted, and `NameTools` no
 longer exports `NameFile/*.msgpack`. `AetherDB.msgpack` and existing name files
 remain legacy catalog inputs only; typed catalog records are the durable owner.
+Dead legacy catalog roots for user records and galaxy map-layer resources have
+been deleted from live Unity source. Surviving runtime DTOs no longer carry
+legacy catalog group/table annotations; their remaining metadata is projection
+and inspection metadata for the typed runtime bridge.
 
 `Aetheria.State.Import` captures the legacy catalog files into typed quarantine
 state: path, size, and SHA-256 fingerprint for `AetherDB.msgpack` plus

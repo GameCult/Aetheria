@@ -295,16 +295,12 @@ public abstract class ItemData : RuntimeCatalogEntry, INamedEntry
 
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
     // [InspectableField, RuntimeCatalogKey(6)]
     // public BodyType ResourceBodyType;
-    //
-    // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableRuntimeCatalogLink(typeof(GalaxyMapLayerData)), RuntimeCatalogKey(7)]
-    // public List<Guid> ResourceDensity = new List<Guid>();
     //
     // // Controls the lowest value in the resource distribution curve
     // [InspectableField, RuntimeCatalogKey(8)]
@@ -327,7 +323,7 @@ public abstract class CraftedItemData : ItemData
     // public float IngredientQualityWeight = .5f;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
     [InspectableRuntimeCatalogLink(typeof(PersonalityAttribute)), RuntimeCatalogKey(10)]
@@ -337,7 +333,7 @@ public class CompoundCommodityData : CraftedItemData
     public CompoundCommodityCategory Category;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class ConsumableItemData : CraftedItemData
 {
     [Inspectable, RuntimeCatalogKey(10)]
@@ -443,7 +439,7 @@ public class AudioStat
     public PerformanceStat Stat = new PerformanceStat();
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class GearData : EquippableItemData
 {
     [Inspectable, RuntimeCatalogKey(23)]
@@ -452,7 +448,7 @@ public class GearData : EquippableItemData
     public override HardpointType HardpointType => Hardpoint;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class CargoBayData : EquippableItemData
 {
     [Inspectable, RuntimeCatalogKey(24)]
@@ -461,14 +457,14 @@ public class CargoBayData : EquippableItemData
     public override HardpointType HardpointType => HardpointType.Tool;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class DockingBayData : CargoBayData
 {
     [Inspectable, RuntimeCatalogKey(25)]
     public int2 MaxSize;
 }
 
-[LegacyCatalogGroup("Items")]
+
 public class WeaponItemData : GearData
 {
     [Inspectable, RuntimeCatalogKey(24)]
@@ -487,7 +483,7 @@ public class WeaponItemData : GearData
     public WeaponModifiers WeaponModifiers;
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class HullData : EquippableItemData
 {
     [Inspectable, RuntimeCatalogKey(23)]
@@ -612,7 +608,7 @@ public class PerformanceStat
     }
 }
 
-[LegacyCatalogGroup("Items"), Inspectable]
+[Inspectable]
 public class PersonalityAttribute : RuntimeCatalogEntry, INamedEntry
 {
     [Inspectable, RuntimeCatalogKey(1)]
