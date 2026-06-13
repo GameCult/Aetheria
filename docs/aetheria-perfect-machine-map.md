@@ -626,6 +626,9 @@ First Aetheria surfaces to publish:
    - Done: delete the process-global runtime catalog resolver from
      `RuntimeCatalogLink<T>`; item instances now carry hydrated identifiers and
      `ItemManager` owns resolution through the typed runtime catalog reader.
+   - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
+     asmdef auto-reference; only explicit state-spine assemblies should see it
+     while the Unity CultCache bridge still needs a low-level `.cc` codec.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -664,6 +667,10 @@ First Aetheria surfaces to publish:
   error hits.
 - `rg ".Data.Value|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
   `Assets/Scripts` now finds only `ItemManager` checking its own hydrated value.
+- Unity batchmode compile also returned cleanly after disabling `MessagePack`
+  auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
+  MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or
+  `IMessagePackFormatter` hits.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
   rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes
