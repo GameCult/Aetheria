@@ -95,9 +95,19 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(key, item);
     }
 
+    public Task<CultRecordHandle<AetheriaItemDefinition>> PutLegacyItemDefinitionAsync(AetheriaItemDefinition item)
+    {
+        return PutItemDefinitionAsync(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(item.LegacyId), item);
+    }
+
     public Task<AetheriaItemDefinition?> GetItemDefinitionAsync(CultRecordKey key)
     {
         return Database.GetAsync<AetheriaItemDefinition>(key);
+    }
+
+    public Task<AetheriaItemDefinition?> GetItemDefinitionByLegacyIdAsync(string legacyId)
+    {
+        return GetItemDefinitionAsync(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(legacyId));
     }
 
     public Task<CultRecordHandle<AetheriaCorporation>> PutCorporationAsync(CultRecordKey key, AetheriaCorporation corporation)
@@ -105,9 +115,19 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(key, corporation);
     }
 
+    public Task<CultRecordHandle<AetheriaCorporation>> PutLegacyCorporationAsync(AetheriaCorporation corporation)
+    {
+        return PutCorporationAsync(AetheriaCatalogKeys.CorporationFromLegacyId(corporation.LegacyId), corporation);
+    }
+
     public Task<AetheriaCorporation?> GetCorporationAsync(CultRecordKey key)
     {
         return Database.GetAsync<AetheriaCorporation>(key);
+    }
+
+    public Task<AetheriaCorporation?> GetCorporationByLegacyIdAsync(string legacyId)
+    {
+        return GetCorporationAsync(AetheriaCatalogKeys.CorporationFromLegacyId(legacyId));
     }
 
     public Task<CultRecordHandle<AetheriaNameFile>> PutNameFileAsync(CultRecordKey key, AetheriaNameFile nameFile)
@@ -115,9 +135,19 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(key, nameFile);
     }
 
+    public Task<CultRecordHandle<AetheriaNameFile>> PutLegacyNameFileAsync(AetheriaNameFile nameFile)
+    {
+        return PutNameFileAsync(AetheriaCatalogKeys.NameFileFromLegacyId(nameFile.LegacyId), nameFile);
+    }
+
     public Task<AetheriaNameFile?> GetNameFileAsync(CultRecordKey key)
     {
         return Database.GetAsync<AetheriaNameFile>(key);
+    }
+
+    public Task<AetheriaNameFile?> GetNameFileByLegacyIdAsync(string legacyId)
+    {
+        return GetNameFileAsync(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
     }
 
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)

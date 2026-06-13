@@ -50,7 +50,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   MessagePack union fields into typed item/faction/name-file documents without
   compiling the old Unity domain model into `Aetheria.State`. The current
   checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
-  files.
+  files. `Aetheria.State` now owns the canonical legacy-ID record key mapping
+  for migrated item, corporation, and name-file documents.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
@@ -100,7 +101,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Legacy
   catalog reads emit in-memory domain objects only; the old local save and
-  editor catalog write paths have been cut.
+  editor catalog write paths have been cut. Migrated catalog documents are
+  addressed through `AetheriaCatalogKeys` and `AetheriaStateNode` legacy-ID
+  methods, not importer-local string concatenation.
 - Derived state: UI panels, generated keyboard layouts, editor rows, and
   serialized legacy payloads are projections, migration inputs, or disabled
   session-local DTOs, not durable authority.

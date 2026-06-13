@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using Aetheria.State;
 using Aetheria.State.Documents;
 using Aetheria.State.Migration;
-using GameCult.Caching;
 using MessagePack;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
@@ -110,17 +109,17 @@ await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
 
 foreach (var item in itemDefinitions)
 {
-    await node.PutItemDefinitionAsync(new CultRecordKey($"legacy:item:{item.LegacyId}"), item);
+    await node.PutLegacyItemDefinitionAsync(item);
 }
 
 foreach (var corporation in corporations)
 {
-    await node.PutCorporationAsync(new CultRecordKey($"legacy:faction:{corporation.LegacyId}"), corporation);
+    await node.PutLegacyCorporationAsync(corporation);
 }
 
 foreach (var nameFile in parsedNameFiles)
 {
-    await node.PutNameFileAsync(new CultRecordKey($"legacy:name-file:{nameFile.LegacyId}"), nameFile);
+    await node.PutLegacyNameFileAsync(nameFile);
 }
 
 await node.FlushAsync();

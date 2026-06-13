@@ -6,9 +6,9 @@ using GameCult.Caching;
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var statePath = AetheriaStatePaths.ResolveDefaultStatePath(root);
 var now = DateTimeOffset.UtcNow.ToString("O");
-var itemKey = new CultRecordKey("item:smoke-aether-drive");
-var factionKey = new CultRecordKey("faction:smoke");
-var nameFileKey = new CultRecordKey("name-file:smoke");
+var itemLegacyId = "smoke:aether-drive";
+var factionLegacyId = "smoke:faction";
+var nameFileLegacyId = "smoke:name-file";
 var runKey = new CultRecordKey("run:smoke");
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
@@ -22,13 +22,12 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         UpdatedAtUtc = now
     });
 
-    await node.PutItemDefinitionAsync(
-        itemKey,
+    await node.PutLegacyItemDefinitionAsync(
         new AetheriaItemDefinition
         {
             Name = "Smoke Aether Drive",
             Category = "ship-module",
-            LegacyId = "smoke:aether-drive",
+            LegacyId = itemLegacyId,
             Description = "Typed CultCache smoke document for the rebuild spine.",
             Mass = 12.5,
             Volume = 4.0,
@@ -70,17 +69,17 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves legacy catalog quarantine state is typed and durable."]
     });
 
-    await node.PutCorporationAsync(factionKey, new AetheriaCorporation
+    await node.PutLegacyCorporationAsync(new AetheriaCorporation
     {
         Name = "Smoke Faction",
-        LegacyId = "smoke:faction",
+        LegacyId = factionLegacyId,
         Description = "Typed faction/corporation document for legacy catalog migration smoke."
     });
 
-    await node.PutNameFileAsync(nameFileKey, new AetheriaNameFile
+    await node.PutLegacyNameFileAsync(new AetheriaNameFile
     {
         Name = "Smoke Names",
-        LegacyId = "smoke:name-file",
+        LegacyId = nameFileLegacyId,
         NameCount = 2,
         SampleNames = ["Ada", "Grace"]
     });
@@ -117,9 +116,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
 await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke-reopen"))
 {
     var world = await reopened.GetWorldAsync();
-    var item = await reopened.GetItemDefinitionAsync(itemKey);
-    var faction = await reopened.GetCorporationAsync(factionKey);
-    var nameFile = await reopened.GetNameFileAsync(nameFileKey);
+    var item = await reopened.GetItemDefinitionByLegacyIdAsync(itemLegacyId);
+    var faction = await reopened.GetCorporationByLegacyIdAsync(factionLegacyId);
+    var nameFile = await reopened.GetNameFileByLegacyIdAsync(nameFileLegacyId);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var runState = await reopened.GetRunStateAsync(runKey);
@@ -134,7 +133,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Item definition did not survive flush/reopen.");
     }
 
-    if (faction?.LegacyId != "smoke:faction")
+    if (faction?.LegacyId != factionLegacyId)
     {
         throw new InvalidOperationException("Faction/corporation document did not survive flush/reopen.");
     }
