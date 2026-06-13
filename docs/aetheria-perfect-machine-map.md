@@ -77,7 +77,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   binds `DatabaseLinkBase` to that typed runtime item reader before gameplay
   objects read `ItemInstance.Data.Value`. The old `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
-  deleted.
+  deleted. `DatabaseEntry` and `DatabaseLink<T>` are plain runtime identity/link
+  helpers now, not MessagePack objects or a global union root.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
   gameplay/UI API. Temporary item instantiation bridges now go through the
   narrow `ItemManager.GetCatalogEntry<T>` method. `ItemManager` no longer
@@ -256,7 +257,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache.
   `AetheriaRuntimeItemCatalog` materializes temporary `ItemData` DTOs from typed
-  item records for the old simulation object model. Item properties
+  item records for the old simulation object model. `DatabaseEntry` no longer
+  carries MessagePack union metadata; remaining item/behavior DTO MessagePack
+  keys are temporary projection metadata until typed behavior factories replace
+  reflection. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
   remaining runtime single-ID item lookup bridge. The old trade debug UI and
   console `give` command have been deleted. No live caller can enumerate legacy
@@ -284,9 +288,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   generated keyboard layout caches, and server-side `DatabaseCache` paths.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
-- Deletion line: no new behavior should be added to old `DatabaseEntry` or
-  MessagePack catalog paths except bounded migration readers that emit typed
-  `Aetheria.State` documents.
+- Deletion line: no new behavior should be added to old `ItemData` DTO
+  metadata or MessagePack catalog paths except bounded migration readers and the
+  current typed item projection bridge. `DatabaseEntry` is no longer a
+  persistence owner.
 
 ## Target Authority Map
 
@@ -435,10 +440,11 @@ First Aetheria surfaces to publish:
      `AetheriaRuntimeItemCatalog`, a typed-state-backed projection from
      `AetheriaRuntimeCatalogSnapshot`; delete `LegacyItemCatalogBoundary`,
      `LegacyItemCatalogCache`, and the runtime MessagePack deserializer path.
+   - Done: demote `DatabaseEntry` and `DatabaseLink<T>` from MessagePack
+     union/object shapes to plain runtime identity/link helpers.
    - Convert domain references from GUID/base-class patterns to typed record
      refs.
-   - Remove runtime dependency on `DatabaseEntry`/`ItemData` DTOs as item
-     instance owners.
+   - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
    - Replace `Economy.Server` RethinkDB and LiteNetLib database authority with a
