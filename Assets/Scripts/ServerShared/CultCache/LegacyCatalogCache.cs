@@ -8,13 +8,13 @@ using System.IO;
 using MessagePack;
 using UniRx;
 
-public interface ILegacyCatalogReader
+public interface ILegacyItemCatalogReader
 {
     ItemData Get(Guid guid);
     T Get<T>(Guid guid) where T : ItemData;
 }
 
-public class LegacyCatalogCache : ILegacyCatalogReader
+public class LegacyItemCatalogCache : ILegacyItemCatalogReader
 {
 
     private readonly object addLock = new object();

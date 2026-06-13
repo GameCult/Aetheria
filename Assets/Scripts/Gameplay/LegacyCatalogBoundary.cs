@@ -1,22 +1,22 @@
 using System.IO;
 
-public static class LegacyCatalogBoundary
+public static class LegacyItemCatalogBoundary
 {
-    private static LegacyCatalogCache _catalogCache;
+    private static LegacyItemCatalogCache _catalogCache;
 
-    public static string GetLegacyCatalogPath(DirectoryInfo gameDataDirectory)
+    public static string GetLegacyItemCatalogPath(DirectoryInfo gameDataDirectory)
     {
         return Path.Combine(gameDataDirectory.FullName, "AetherDB.msgpack");
     }
 
-    public static ILegacyCatalogReader GetCatalog(DirectoryInfo gameDataDirectory)
+    public static ILegacyItemCatalogReader GetCatalog(DirectoryInfo gameDataDirectory)
     {
         if (_catalogCache != null) return _catalogCache;
 
-        _catalogCache = new LegacyCatalogCache();
-        _catalogCache.AddBackingStore(new SingleFileMessagePackBackingStore(GetLegacyCatalogPath(gameDataDirectory)));
+        _catalogCache = new LegacyItemCatalogCache();
+        _catalogCache.AddBackingStore(new SingleFileMessagePackBackingStore(GetLegacyItemCatalogPath(gameDataDirectory)));
         _catalogCache.PullAllBackingStores();
-        DatabaseLinkBase.BindLegacyCatalog(_catalogCache);
+        DatabaseLinkBase.BindLegacyItemCatalog(_catalogCache);
         return _catalogCache;
     }
 }

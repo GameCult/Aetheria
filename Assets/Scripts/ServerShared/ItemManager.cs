@@ -30,7 +30,7 @@ public class ItemManager
 
     // private Guid _forceLoadZone;
     
-    private readonly ILegacyCatalogReader _itemData;
+    private readonly ILegacyItemCatalogReader _itemData;
     public GameplaySettings GameplaySettings { get; }
 
     // public double Time
@@ -46,7 +46,7 @@ public class ItemManager
 
     // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
 
-    public ItemManager(ILegacyCatalogReader itemData, GameplaySettings settings, Action<string> logger)
+    public ItemManager(ILegacyItemCatalogReader itemData, GameplaySettings settings, Action<string> logger)
     {
         _itemData = itemData;
         GameplaySettings = settings;

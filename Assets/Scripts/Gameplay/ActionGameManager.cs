@@ -36,8 +36,8 @@ public class ActionGameManager : MonoBehaviour
         get => _gameDataDirectory ??= new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData");
     }
 
-    private static string LegacyAetherDatabasePath => LegacyCatalogBoundary.GetLegacyCatalogPath(GameDataDirectory);
-    private static ILegacyCatalogReader LegacyCatalog => LegacyCatalogBoundary.GetCatalog(GameDataDirectory);
+    private static string LegacyAetherDatabasePath => LegacyItemCatalogBoundary.GetLegacyItemCatalogPath(GameDataDirectory);
+    private static ILegacyItemCatalogReader LegacyCatalog => LegacyItemCatalogBoundary.GetCatalog(GameDataDirectory);
 
     private static PlayerSettings _playerSettings;
     public static PlayerSettings PlayerSettings
