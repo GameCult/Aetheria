@@ -76,7 +76,7 @@ namespace GameCult.Aetheria.State.Unity
     {
         public string Name { get; set; } = "";
         public string Kind { get; set; } = "";
-        public string FactionLegacyId { get; set; } = "";
+        public string CorporationLegacyId { get; set; } = "";
         public AetheriaRuntimeLoadoutItemCommit Hull { get; set; } = new AetheriaRuntimeLoadoutItemCommit();
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> Equipment { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> CargoBays { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
@@ -90,7 +90,7 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeLoadoutItemCommit
     {
-        public string ItemLegacyId { get; set; } = "";
+        public string ItemDefinitionLegacyId { get; set; } = "";
         public double Quality { get; set; } = 1.0;
         public double Durability { get; set; } = 1.0;
         public int Quantity { get; set; } = 1;
@@ -142,8 +142,8 @@ namespace GameCult.Aetheria.State.Unity
         public double PositionZ { get; set; }
         public double DirectionX { get; set; }
         public double DirectionY { get; set; }
-        public string FactionLegacyId { get; set; } = "";
-        public string HullItemLegacyId { get; set; } = "";
+        public string CorporationLegacyId { get; set; } = "";
+        public string HullItemDefinitionLegacyId { get; set; } = "";
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> Equipment { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> CargoBays { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> DockingBays { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
@@ -301,7 +301,7 @@ namespace GameCult.Aetheria.State.Unity
             writer.WriteArrayHeader(12);
             writer.Write(entity.Name ?? "");
             writer.Write(entity.Kind ?? "");
-            writer.Write(entity.FactionLegacyId ?? "");
+            writer.Write(entity.CorporationLegacyId ?? "");
             WriteLoadoutItem(ref writer, entity.Hull);
             WriteItemSlots(ref writer, entity.Equipment);
             WriteItemSlots(ref writer, entity.CargoBays);
@@ -316,7 +316,7 @@ namespace GameCult.Aetheria.State.Unity
         private static void WriteLoadoutItem(ref MessagePackWriter writer, AetheriaRuntimeLoadoutItemCommit item)
         {
             writer.WriteArrayHeader(4);
-            writer.Write(item.ItemLegacyId ?? "");
+            writer.Write(item.ItemDefinitionLegacyId ?? "");
             writer.Write(item.Quality);
             writer.Write(item.Durability);
             writer.Write(item.Quantity);
@@ -397,8 +397,8 @@ namespace GameCult.Aetheria.State.Unity
                 writer.Write(entity.PositionZ);
                 writer.Write(entity.DirectionX);
                 writer.Write(entity.DirectionY);
-                writer.Write(entity.FactionLegacyId ?? "");
-                writer.Write(entity.HullItemLegacyId ?? "");
+                writer.Write(entity.CorporationLegacyId ?? "");
+                writer.Write(entity.HullItemDefinitionLegacyId ?? "");
                 WriteItemSlots(ref writer, entity.Equipment);
                 WriteItemSlots(ref writer, entity.CargoBays);
                 WriteItemSlots(ref writer, entity.DockingBays);

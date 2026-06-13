@@ -187,7 +187,7 @@ try
                             PositionZ = 3.0,
                             DirectionX = 0.0,
                             DirectionY = 1.0,
-                            HullItemLegacyId = "smoke:hull",
+                            HullItemDefinitionLegacyId = "smoke:hull",
                             Equipment = new[]
                             {
                                 new AetheriaRuntimeLoadoutItemSlotCommit
@@ -196,7 +196,7 @@ try
                                     Y = 0,
                                     Item = new AetheriaRuntimeLoadoutItemCommit
                                     {
-                                        ItemLegacyId = "smoke:weapon",
+                                        ItemDefinitionLegacyId = "smoke:weapon",
                                         Quality = 0.9,
                                         Durability = 0.8
                                     }

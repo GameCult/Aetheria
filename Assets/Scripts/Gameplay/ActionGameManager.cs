@@ -266,7 +266,7 @@ public class ActionGameManager : MonoBehaviour
         {
             Name = blueprint.Name ?? "",
             Kind = blueprint is RuntimeShipBlueprint ? "ship" : blueprint is RuntimeOrbitalEntityBlueprint ? "orbital" : "entity",
-            FactionLegacyId = blueprint.Faction == Guid.Empty ? "" : blueprint.Faction.ToString("D"),
+            CorporationLegacyId = blueprint.Faction == Guid.Empty ? "" : blueprint.Faction.ToString("D"),
             Hull = ProjectLoadoutItem(blueprint.Hull),
             Equipment = ProjectSlots(blueprint.Equipment),
             CargoBays = ProjectSlots(blueprint.CargoBays),
@@ -315,7 +315,7 @@ public class ActionGameManager : MonoBehaviour
 
         return new AetheriaRuntimeLoadoutItemCommit
         {
-            ItemLegacyId = item.Data?.ItemId.ToString("D") ?? "",
+            ItemDefinitionLegacyId = item.Data?.ItemId.ToString("D") ?? "",
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1
@@ -379,8 +379,8 @@ public class ActionGameManager : MonoBehaviour
             PositionZ = entity.Position.z,
             DirectionX = entity.Direction.x,
             DirectionY = entity.Direction.y,
-            FactionLegacyId = entity.Faction?.ID.ToString("D") ?? "",
-            HullItemLegacyId = entity.Hull?.Data?.ItemId.ToString("D") ?? "",
+            CorporationLegacyId = entity.Faction?.ID.ToString("D") ?? "",
+            HullItemDefinitionLegacyId = entity.Hull?.Data?.ItemId.ToString("D") ?? "",
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
             DockingBays = ProjectEquippedSlots(entity.DockingBays),
