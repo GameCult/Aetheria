@@ -122,9 +122,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   commands, not in-client catalog hydration shortcuts. `LoadoutGenerator` also
   receives the typed runtime catalog and uses it to own
   item candidate selection before hydrating selected legacy item DTOs by ID for
-  remaining behavior construction and legacy simulation checks. Hardpoint type,
-  shape fit, station bay fit, hull/category, and behavior-kind prefilters now
-  run against typed catalog rows before any DTO projection is hydrated. The unused `TradeMenuDebug`
+  remaining behavior construction and legacy simulation checks. Hull type,
+  hardpoint type, shape fit, station bay fit, hull/category, and behavior-kind
+  prefilters now run against typed catalog rows before any DTO projection is hydrated. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`.
@@ -394,8 +394,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   metadata. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation is the
   remaining runtime single-ID item projection bridge, but typed catalog rows own
-  the loadout candidate prefilters for shape, category, hardpoint type, and
-  behavior kind before that bridge is invoked. The old trade debug UI
+  the loadout candidate prefilters for hull type, shape, category, hardpoint
+  type, and behavior kind before that bridge is invoked. The old trade debug UI
   and console `give` command have been deleted. No live caller can enumerate
   legacy catalog entries or request catalog-shaped single entries through
   `ItemManager`.
@@ -566,6 +566,8 @@ First Aetheria surfaces to publish:
      behavior-kind prefilters ahead of DTO hydration so typed catalog rows
      reject incompatible candidates before `GetRuntimeItemProjection<T>` is
      called.
+   - Done: move loadout hull type and control-module behavior-kind checks onto
+     typed catalog rows before hydrating `HullData`/`BehaviorData` projections.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: delete the console `give` command instead of preserving a debug

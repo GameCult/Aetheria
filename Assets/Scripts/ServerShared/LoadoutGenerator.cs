@@ -128,9 +128,10 @@ public class LoadoutGenerator
 
     public HullData RandomHull(HullType type, Predicate<HullData> hullFilter = null)
     {
-        return RandomItem<HullData>(0, item => 
+        return RandomItem<HullData>(0, item =>
                 (hullFilter?.Invoke(item) ?? true) &&
-                item.HullType == type);
+                item.HullType == type,
+            item => string.Equals(item.HullType, type.ToString(), StringComparison.Ordinal));
     }
     
     public T[] RandomItems<T>(
@@ -233,6 +234,12 @@ public class LoadoutGenerator
                FitsWithin(item, hardpoint.Shape, hardpoint.Rotation);
     }
 
+    private static bool HasBehaviorKind(AetheriaRuntimeCatalogItem item, string behaviorKind)
+    {
+        return !string.IsNullOrWhiteSpace(behaviorKind) &&
+               item.BehaviorKinds.Contains(behaviorKind, StringComparer.Ordinal);
+    }
+
     private static bool FitsWithin(AetheriaRuntimeCatalogItem item, Shape target)
     {
         return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells).FitsWithin(target, out _, out _);
@@ -263,8 +270,14 @@ public class LoadoutGenerator
         {
             if (hardpoint.Type == HardpointType.ControlModule)
             {
+                var controllerBehaviorKind = entity is Ship
+                    ? nameof(CockpitData)
+                    : entity is OrbitalEntity
+                        ? nameof(TurretControllerData)
+                        : null;
                 var controllerData = RandomItem<GearData>(hardpoint, 2,
-                    item => item.Behaviors.Any(b => entity is Ship && b is CockpitData || entity is OrbitalEntity && b is TurretControllerData));
+                    item => item.Behaviors.Any(b => entity is Ship && b is CockpitData || entity is OrbitalEntity && b is TurretControllerData),
+                    item => HasBehaviorKind(item, controllerBehaviorKind));
                 if (controllerData == null) 
                     throw new InvalidLoadoutException("No compatible controller found for entity!");
                 var controller = ItemManager.CreateInstance(controllerData) as EquippableItem;
