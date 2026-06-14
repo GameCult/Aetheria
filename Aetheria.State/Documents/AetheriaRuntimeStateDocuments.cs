@@ -250,6 +250,166 @@ public sealed class AetheriaZoneState
     [Key(5)]
     [CultReference(typeof(AetheriaEntitySnapshot), many: true)]
     public string[] EntityKeys { get; set; } = [];
+
+    [Key(6)]
+    public AetheriaOrbitSnapshot[] Orbits { get; set; } = [];
+
+    [Key(7)]
+    public AetheriaBodySnapshot[] Bodies { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaOrbitSnapshot
+{
+    [Key(0)]
+    public string OrbitId { get; set; } = "";
+
+    [Key(1)]
+    public string ParentId { get; set; } = "";
+
+    [Key(2)]
+    public double Distance { get; set; }
+
+    [Key(3)]
+    public double Phase { get; set; }
+
+    [Key(4)]
+    public AetheriaVector2 FixedPosition { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaBodySnapshot
+{
+    [Key(0)]
+    public string BodyId { get; set; } = "";
+
+    [Key(1)]
+    public string Kind { get; set; } = "";
+
+    [Key(2)]
+    public string Name { get; set; } = "";
+
+    [Key(3)]
+    public string OrbitId { get; set; } = "";
+
+    [Key(4)]
+    public double Mass { get; set; }
+
+    [Key(5)]
+    public AetheriaBodyResource[] Resources { get; set; } = [];
+
+    [Key(6)]
+    public double BodyRadiusMultiplier { get; set; } = 1.0;
+
+    [Key(7)]
+    public double GravityRadiusMultiplier { get; set; } = 1.0;
+
+    [Key(8)]
+    public double GravityDepthMultiplier { get; set; } = 1.0;
+
+    [Key(9)]
+    public double GravityDepthExponent { get; set; } = 16.0;
+
+    [Key(10)]
+    public AetheriaAsteroidSnapshot[] Asteroids { get; set; } = [];
+
+    [Key(11)]
+    public AetheriaGasGiantVisualState GasGiantVisual { get; set; } = new();
+
+    [Key(12)]
+    public AetheriaSunVisualState SunVisual { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaBodyResource
+{
+    [Key(0)]
+    public string ItemKey { get; set; } = "";
+
+    [Key(1)]
+    public double Amount { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaAsteroidSnapshot
+{
+    [Key(0)]
+    public double Distance { get; set; }
+
+    [Key(1)]
+    public double Phase { get; set; }
+
+    [Key(2)]
+    public double Size { get; set; }
+
+    [Key(3)]
+    public double RotationSpeed { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaGasGiantVisualState
+{
+    [Key(0)]
+    public double FirstOffsetDomainRotationSpeed { get; set; } = 1.0;
+
+    [Key(1)]
+    public double FirstOffsetRotationSpeed { get; set; } = 1.0;
+
+    [Key(2)]
+    public double SecondOffsetDomainRotationSpeed { get; set; } = 1.0;
+
+    [Key(3)]
+    public double SecondOffsetRotationSpeed { get; set; } = 1.0;
+
+    [Key(4)]
+    public double AlbedoRotationSpeed { get; set; } = 1.0;
+
+    [Key(5)]
+    public double WaveRadiusMultiplier { get; set; } = 1.0;
+
+    [Key(6)]
+    public double WaveDepthMultiplier { get; set; } = 1.0;
+
+    [Key(7)]
+    public double WaveDepthExponent { get; set; } = 8.0;
+
+    [Key(8)]
+    public double WaveSpeedMultiplier { get; set; } = 8.0;
+
+    [Key(9)]
+    public string[] MaterialOverrides { get; set; } = [];
+
+    [Key(10)]
+    public AetheriaColor[] Colors { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaSunVisualState
+{
+    [Key(0)]
+    public AetheriaVector3 LightColor { get; set; } = new();
+
+    [Key(1)]
+    public AetheriaVector3 FogTintColor { get; set; } = new();
+
+    [Key(2)]
+    public double LightRadiusMultiplier { get; set; } = 1.0;
+}
+
+[MessagePackObject]
+public sealed class AetheriaColor
+{
+    [Key(0)]
+    public double X { get; set; }
+
+    [Key(1)]
+    public double Y { get; set; }
+
+    [Key(2)]
+    public double Z { get; set; }
+
+    [Key(3)]
+    public double W { get; set; }
 }
 
 [CultDocument("aetheria.entity_snapshot", "aetheria.entity_snapshot.v1")]

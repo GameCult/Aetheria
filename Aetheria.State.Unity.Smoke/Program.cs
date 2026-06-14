@@ -201,6 +201,51 @@ try
                     PositionY = -4.0,
                     AdjacentZoneIndices = new[] { 1 },
                     OwnerFactionIndex = 0,
+                    Orbits = new[]
+                    {
+                        new AetheriaRuntimeOrbitSnapshotCommit
+                        {
+                            OrbitLegacyId = "smoke:orbit",
+                            ParentLegacyId = "smoke:parent-orbit",
+                            Distance = 100.0,
+                            Phase = 0.25,
+                            FixedPositionX = 5.0,
+                            FixedPositionY = -6.0
+                        }
+                    },
+                    Bodies = new[]
+                    {
+                        new AetheriaRuntimeBodySnapshotCommit
+                        {
+                            BodyLegacyId = "smoke:body",
+                            Kind = "asteroid_belt",
+                            Name = "Smoke Belt",
+                            OrbitLegacyId = "smoke:orbit",
+                            Mass = 42.0,
+                            Resources = new[]
+                            {
+                                new AetheriaRuntimeBodyResourceCommit
+                                {
+                                    ItemDefinitionLegacyId = "smoke:ore",
+                                    Amount = 3.5
+                                }
+                            },
+                            BodyRadiusMultiplier = 1.25,
+                            GravityRadiusMultiplier = 2.0,
+                            GravityDepthMultiplier = 0.5,
+                            GravityDepthExponent = 12.0,
+                            Asteroids = new[]
+                            {
+                                new AetheriaRuntimeAsteroidCommit
+                                {
+                                    Distance = 7.0,
+                                    Phase = 0.75,
+                                    Size = 2.0,
+                                    RotationSpeed = 0.5
+                                }
+                            }
+                        }
+                    },
                     Entities = new[]
                     {
                         new AetheriaRuntimeEntitySnapshotCommit
@@ -270,6 +315,14 @@ try
             run.FactionRelationships[0].Relationship == "Friendly" &&
             run.FactionRelationships[0].Standing == 3 &&
             zone?.EntityKeys.Length == 1 &&
+            zone.Orbits.Length == 1 &&
+            zone.Orbits[0].OrbitId == "smoke:orbit" &&
+            zone.Orbits[0].FixedPosition.X == 5.0 &&
+            zone.Bodies.Length == 1 &&
+            zone.Bodies[0].Kind == "asteroid_belt" &&
+            zone.Bodies[0].Resources.Length == 1 &&
+            zone.Bodies[0].Resources[0].ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
+            zone.Bodies[0].Asteroids.Length == 1 &&
             entity?.Equipment.Length == 1 &&
             entity.WeaponGroups.Length == 1 &&
             AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count == 0;

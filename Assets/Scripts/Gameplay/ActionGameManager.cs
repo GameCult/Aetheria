@@ -502,9 +502,133 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(index => index)
                 .ToArray() ?? Array.Empty<int>(),
             OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
+            Orbits = ProjectZoneOrbits(zone.Blueprint),
+            Bodies = ProjectZoneBodies(zone.Blueprint),
             Entities = zone.Entities
                 .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
                 .ToArray()
+        };
+    }
+
+    private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(RuntimeZoneBlueprint blueprint)
+    {
+        return blueprint?.Orbits?
+            .OrderBy(orbit => orbit.ID)
+            .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
+            {
+                OrbitLegacyId = LegacyId(orbit.ID),
+                ParentLegacyId = LegacyId(orbit.Parent),
+                Distance = orbit.Distance,
+                Phase = orbit.Phase,
+                FixedPositionX = orbit.FixedPosition.x,
+                FixedPositionY = orbit.FixedPosition.y
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>();
+    }
+
+    private static AetheriaRuntimeBodySnapshotCommit[] ProjectZoneBodies(RuntimeZoneBlueprint blueprint)
+    {
+        return blueprint?.Planets?
+            .OrderBy(body => body.ID)
+            .Select(ProjectZoneBody)
+            .ToArray() ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+    }
+
+    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(BodyData body)
+    {
+        return new AetheriaRuntimeBodySnapshotCommit
+        {
+            BodyLegacyId = LegacyId(body.ID),
+            Kind = BodyKind(body),
+            Name = body.Name ?? "",
+            OrbitLegacyId = LegacyId(body.Orbit),
+            Mass = body.Mass,
+            Resources = body.Resources?
+                .OrderBy(pair => pair.Key)
+                .Select(pair => new AetheriaRuntimeBodyResourceCommit
+                {
+                    ItemDefinitionLegacyId = LegacyId(pair.Key),
+                    Amount = pair.Value
+                })
+                .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
+            BodyRadiusMultiplier = body.BodyRadiusMultiplier,
+            GravityRadiusMultiplier = body.GravityRadiusMultiplier,
+            GravityDepthMultiplier = body.GravityDepthMultiplier,
+            GravityDepthExponent = body.GravityDepthExponent,
+            Asteroids = body is AsteroidBeltData belt
+                ? ProjectAsteroids(belt.Asteroids)
+                : Array.Empty<AetheriaRuntimeAsteroidCommit>(),
+            GasGiantVisual = body is GasGiantData gas
+                ? ProjectGasGiantVisual(gas)
+                : new AetheriaRuntimeGasGiantVisualCommit(),
+            SunVisual = body is SunData sun
+                ? ProjectSunVisual(sun)
+                : new AetheriaRuntimeSunVisualCommit()
+        };
+    }
+
+    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(Asteroid[] asteroids)
+    {
+        return asteroids?
+            .Select(asteroid => new AetheriaRuntimeAsteroidCommit
+            {
+                Distance = asteroid.Distance,
+                Phase = asteroid.Phase,
+                Size = asteroid.Size,
+                RotationSpeed = asteroid.RotationSpeed
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
+    }
+
+    private static AetheriaRuntimeGasGiantVisualCommit ProjectGasGiantVisual(GasGiantData gas)
+    {
+        return new AetheriaRuntimeGasGiantVisualCommit
+        {
+            FirstOffsetDomainRotationSpeed = gas.FirstOffsetDomainRotationSpeed,
+            FirstOffsetRotationSpeed = gas.FirstOffsetRotationSpeed,
+            SecondOffsetDomainRotationSpeed = gas.SecondOffsetDomainRotationSpeed,
+            SecondOffsetRotationSpeed = gas.SecondOffsetRotationSpeed,
+            AlbedoRotationSpeed = gas.AlbedoRotationSpeed,
+            WaveRadiusMultiplier = gas.WaveRadiusMultiplier,
+            WaveDepthMultiplier = gas.WaveDepthMultiplier,
+            WaveDepthExponent = gas.WaveDepthExponent,
+            WaveSpeedMultiplier = gas.WaveSpeedMultiplier,
+            MaterialOverrides = gas.MaterialOverrides?.ToArray() ?? Array.Empty<string>(),
+            Colors = gas.Colors?
+                .Select(color => new AetheriaRuntimeColorCommit
+                {
+                    X = color.x,
+                    Y = color.y,
+                    Z = color.z,
+                    W = color.w
+                })
+                .ToArray() ?? Array.Empty<AetheriaRuntimeColorCommit>()
+        };
+    }
+
+    private static AetheriaRuntimeSunVisualCommit ProjectSunVisual(SunData sun)
+    {
+        return new AetheriaRuntimeSunVisualCommit
+        {
+            LightColorX = sun.LightColor.x,
+            LightColorY = sun.LightColor.y,
+            LightColorZ = sun.LightColor.z,
+            FogTintColorX = sun.FogTintColor.x,
+            FogTintColorY = sun.FogTintColor.y,
+            FogTintColorZ = sun.FogTintColor.z,
+            LightRadiusMultiplier = sun.LightRadiusMultiplier
+        };
+    }
+
+    private static string BodyKind(BodyData body)
+    {
+        return body switch
+        {
+            SunData => "sun",
+            GasGiantData => "gas_giant",
+            AsteroidBeltData => "asteroid_belt",
+            PlanetData => "planet",
+            _ => "body"
         };
     }
 
@@ -545,6 +669,11 @@ public class ActionGameManager : MonoBehaviour
                 Item = ProjectLoadoutItem(slot.EquippableItem)
             })
             .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+    }
+
+    private static string LegacyId(Guid id)
+    {
+        return id == Guid.Empty ? "" : id.ToString("D");
     }
 
     private static int ZoneIndex(GalaxyZone zone)

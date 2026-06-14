@@ -235,7 +235,47 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         AdjacentZoneIndices = [1],
         FactionIndices = [0],
         OwnerFactionIndex = 0,
-        EntityKeys = [entityKey.ToString()]
+        EntityKeys = [entityKey.ToString()],
+        Orbits =
+        [
+            new AetheriaOrbitSnapshot
+            {
+                OrbitId = "smoke:orbit",
+                ParentId = "smoke:parent-orbit",
+                Distance = 100,
+                Phase = 0.25,
+                FixedPosition = new AetheriaVector2 { X = 5, Y = -6 }
+            }
+        ],
+        Bodies =
+        [
+            new AetheriaBodySnapshot
+            {
+                BodyId = "smoke:body",
+                Kind = "asteroid_belt",
+                Name = "Smoke Belt",
+                OrbitId = "smoke:orbit",
+                Mass = 42,
+                Resources =
+                [
+                    new AetheriaBodyResource
+                    {
+                        ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+                        Amount = 3.5
+                    }
+                ],
+                Asteroids =
+                [
+                    new AetheriaAsteroidSnapshot
+                    {
+                        Distance = 7,
+                        Phase = 0.75,
+                        Size = 2,
+                        RotationSpeed = 0.5
+                    }
+                ]
+            }
+        ]
     });
 
     await node.PutRunStateAsync(runKey, new AetheriaRunState
@@ -410,7 +450,13 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (zoneState?.EntityKeys.Length != 1 ||
         zoneState.EntityKeys[0] != entityKey.ToString() ||
         zoneState.Position.X != 4.0 ||
-        zoneState.OwnerFactionIndex != 0)
+        zoneState.OwnerFactionIndex != 0 ||
+        zoneState.Orbits.Length != 1 ||
+        zoneState.Orbits[0].OrbitId != "smoke:orbit" ||
+        zoneState.Bodies.Length != 1 ||
+        zoneState.Bodies[0].Kind != "asteroid_belt" ||
+        zoneState.Bodies[0].Resources.Length != 1 ||
+        zoneState.Bodies[0].Asteroids.Length != 1)
     {
         throw new InvalidOperationException("Zone state did not survive flush/reopen.");
     }

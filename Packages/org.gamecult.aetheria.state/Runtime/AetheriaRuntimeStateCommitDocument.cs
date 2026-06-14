@@ -301,6 +301,181 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(7)]
         public IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> Entities { get; set; } = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+
+        [Key(8)]
+        public IReadOnlyList<AetheriaRuntimeOrbitSnapshotCommit> Orbits { get; set; } = Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>();
+
+        [Key(9)]
+        public IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> Bodies { get; set; } = Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeOrbitSnapshotCommit
+    {
+        [Key(0)]
+        public string OrbitLegacyId { get; set; } = "";
+
+        [Key(1)]
+        public string ParentLegacyId { get; set; } = "";
+
+        [Key(2)]
+        public double Distance { get; set; }
+
+        [Key(3)]
+        public double Phase { get; set; }
+
+        [Key(4)]
+        public double FixedPositionX { get; set; }
+
+        [Key(5)]
+        public double FixedPositionY { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeBodySnapshotCommit
+    {
+        [Key(0)]
+        public string BodyLegacyId { get; set; } = "";
+
+        [Key(1)]
+        public string Kind { get; set; } = "";
+
+        [Key(2)]
+        public string Name { get; set; } = "";
+
+        [Key(3)]
+        public string OrbitLegacyId { get; set; } = "";
+
+        [Key(4)]
+        public double Mass { get; set; }
+
+        [Key(5)]
+        public IReadOnlyList<AetheriaRuntimeBodyResourceCommit> Resources { get; set; } = Array.Empty<AetheriaRuntimeBodyResourceCommit>();
+
+        [Key(6)]
+        public double BodyRadiusMultiplier { get; set; } = 1.0;
+
+        [Key(7)]
+        public double GravityRadiusMultiplier { get; set; } = 1.0;
+
+        [Key(8)]
+        public double GravityDepthMultiplier { get; set; } = 1.0;
+
+        [Key(9)]
+        public double GravityDepthExponent { get; set; } = 16.0;
+
+        [Key(10)]
+        public IReadOnlyList<AetheriaRuntimeAsteroidCommit> Asteroids { get; set; } = Array.Empty<AetheriaRuntimeAsteroidCommit>();
+
+        [Key(11)]
+        public AetheriaRuntimeGasGiantVisualCommit GasGiantVisual { get; set; } = new AetheriaRuntimeGasGiantVisualCommit();
+
+        [Key(12)]
+        public AetheriaRuntimeSunVisualCommit SunVisual { get; set; } = new AetheriaRuntimeSunVisualCommit();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeBodyResourceCommit
+    {
+        [Key(0)]
+        public string ItemDefinitionLegacyId { get; set; } = "";
+
+        [Key(1)]
+        public double Amount { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeAsteroidCommit
+    {
+        [Key(0)]
+        public double Distance { get; set; }
+
+        [Key(1)]
+        public double Phase { get; set; }
+
+        [Key(2)]
+        public double Size { get; set; }
+
+        [Key(3)]
+        public double RotationSpeed { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeGasGiantVisualCommit
+    {
+        [Key(0)]
+        public double FirstOffsetDomainRotationSpeed { get; set; } = 1.0;
+
+        [Key(1)]
+        public double FirstOffsetRotationSpeed { get; set; } = 1.0;
+
+        [Key(2)]
+        public double SecondOffsetDomainRotationSpeed { get; set; } = 1.0;
+
+        [Key(3)]
+        public double SecondOffsetRotationSpeed { get; set; } = 1.0;
+
+        [Key(4)]
+        public double AlbedoRotationSpeed { get; set; } = 1.0;
+
+        [Key(5)]
+        public double WaveRadiusMultiplier { get; set; } = 1.0;
+
+        [Key(6)]
+        public double WaveDepthMultiplier { get; set; } = 1.0;
+
+        [Key(7)]
+        public double WaveDepthExponent { get; set; } = 8.0;
+
+        [Key(8)]
+        public double WaveSpeedMultiplier { get; set; } = 8.0;
+
+        [Key(9)]
+        public IReadOnlyList<string> MaterialOverrides { get; set; } = Array.Empty<string>();
+
+        [Key(10)]
+        public IReadOnlyList<AetheriaRuntimeColorCommit> Colors { get; set; } = Array.Empty<AetheriaRuntimeColorCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSunVisualCommit
+    {
+        [Key(0)]
+        public double LightColorX { get; set; }
+
+        [Key(1)]
+        public double LightColorY { get; set; }
+
+        [Key(2)]
+        public double LightColorZ { get; set; }
+
+        [Key(3)]
+        public double FogTintColorX { get; set; }
+
+        [Key(4)]
+        public double FogTintColorY { get; set; }
+
+        [Key(5)]
+        public double FogTintColorZ { get; set; }
+
+        [Key(6)]
+        public double LightRadiusMultiplier { get; set; } = 1.0;
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeColorCommit
+    {
+        [Key(0)]
+        public double X { get; set; }
+
+        [Key(1)]
+        public double Y { get; set; }
+
+        [Key(2)]
+        public double Z { get; set; }
+
+        [Key(3)]
+        public double W { get; set; }
     }
 
     [MessagePackObject]

@@ -256,7 +256,9 @@ public static class AetheriaRuntimeCommitLogApplier
                     AdjacentZoneIndices = ToIntArray(zone.AdjacentZoneIndices),
                     FactionIndices = ToIntArray(zone.FactionIndices),
                     OwnerFactionIndex = zone.OwnerFactionIndex,
-                    EntityKeys = entityKeys.ToArray()
+                    EntityKeys = entityKeys.ToArray(),
+                    Orbits = ToOrbitSnapshots(zone.Orbits),
+                    Bodies = ToBodySnapshots(zone.Bodies)
                 })
                 .ConfigureAwait(false);
             zoneKeys.Add(zoneKey.ToString());
@@ -265,6 +267,131 @@ public static class AetheriaRuntimeCommitLogApplier
         if (zoneKeys.Count > 0)
             run.ZoneKeys = zoneKeys.ToArray();
         await node.PutRunStateAsync(RunKey(run.RunId), run).ConfigureAwait(false);
+    }
+
+    private static AetheriaOrbitSnapshot[] ToOrbitSnapshots(
+        IReadOnlyList<AetheriaRuntimeOrbitSnapshotCommit>? orbits)
+    {
+        return (orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
+            .Select(orbit => new AetheriaOrbitSnapshot
+            {
+                OrbitId = orbit.OrbitLegacyId ?? "",
+                ParentId = orbit.ParentLegacyId ?? "",
+                Distance = orbit.Distance,
+                Phase = orbit.Phase,
+                FixedPosition = new AetheriaVector2
+                {
+                    X = orbit.FixedPositionX,
+                    Y = orbit.FixedPositionY
+                }
+            })
+            .ToArray();
+    }
+
+    private static AetheriaBodySnapshot[] ToBodySnapshots(
+        IReadOnlyList<AetheriaRuntimeBodySnapshotCommit>? bodies)
+    {
+        return (bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            .Select(body => new AetheriaBodySnapshot
+            {
+                BodyId = body.BodyLegacyId ?? "",
+                Kind = body.Kind ?? "",
+                Name = body.Name ?? "",
+                OrbitId = body.OrbitLegacyId ?? "",
+                Mass = body.Mass,
+                Resources = ToBodyResources(body.Resources),
+                BodyRadiusMultiplier = body.BodyRadiusMultiplier,
+                GravityRadiusMultiplier = body.GravityRadiusMultiplier,
+                GravityDepthMultiplier = body.GravityDepthMultiplier,
+                GravityDepthExponent = body.GravityDepthExponent,
+                Asteroids = ToAsteroidSnapshots(body.Asteroids),
+                GasGiantVisual = ToGasGiantVisual(body.GasGiantVisual),
+                SunVisual = ToSunVisual(body.SunVisual)
+            })
+            .ToArray();
+    }
+
+    private static AetheriaBodyResource[] ToBodyResources(
+        IReadOnlyList<AetheriaRuntimeBodyResourceCommit>? resources)
+    {
+        return (resources ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>())
+            .Select(resource => new AetheriaBodyResource
+            {
+                ItemKey = ReferenceKey("aetheria.item_definition", resource.ItemDefinitionLegacyId ?? ""),
+                Amount = resource.Amount
+            })
+            .ToArray();
+    }
+
+    private static AetheriaAsteroidSnapshot[] ToAsteroidSnapshots(
+        IReadOnlyList<AetheriaRuntimeAsteroidCommit>? asteroids)
+    {
+        return (asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>())
+            .Select(asteroid => new AetheriaAsteroidSnapshot
+            {
+                Distance = asteroid.Distance,
+                Phase = asteroid.Phase,
+                Size = asteroid.Size,
+                RotationSpeed = asteroid.RotationSpeed
+            })
+            .ToArray();
+    }
+
+    private static AetheriaGasGiantVisualState ToGasGiantVisual(AetheriaRuntimeGasGiantVisualCommit? visual)
+    {
+        if (visual == null)
+            return new AetheriaGasGiantVisualState();
+
+        return new AetheriaGasGiantVisualState
+        {
+            FirstOffsetDomainRotationSpeed = visual.FirstOffsetDomainRotationSpeed,
+            FirstOffsetRotationSpeed = visual.FirstOffsetRotationSpeed,
+            SecondOffsetDomainRotationSpeed = visual.SecondOffsetDomainRotationSpeed,
+            SecondOffsetRotationSpeed = visual.SecondOffsetRotationSpeed,
+            AlbedoRotationSpeed = visual.AlbedoRotationSpeed,
+            WaveRadiusMultiplier = visual.WaveRadiusMultiplier,
+            WaveDepthMultiplier = visual.WaveDepthMultiplier,
+            WaveDepthExponent = visual.WaveDepthExponent,
+            WaveSpeedMultiplier = visual.WaveSpeedMultiplier,
+            MaterialOverrides = (visual.MaterialOverrides ?? Array.Empty<string>()).ToArray(),
+            Colors = (visual.Colors ?? Array.Empty<AetheriaRuntimeColorCommit>())
+                .Select(ToColor)
+                .ToArray()
+        };
+    }
+
+    private static AetheriaSunVisualState ToSunVisual(AetheriaRuntimeSunVisualCommit? visual)
+    {
+        if (visual == null)
+            return new AetheriaSunVisualState();
+
+        return new AetheriaSunVisualState
+        {
+            LightColor = new AetheriaVector3
+            {
+                X = visual.LightColorX,
+                Y = visual.LightColorY,
+                Z = visual.LightColorZ
+            },
+            FogTintColor = new AetheriaVector3
+            {
+                X = visual.FogTintColorX,
+                Y = visual.FogTintColorY,
+                Z = visual.FogTintColorZ
+            },
+            LightRadiusMultiplier = visual.LightRadiusMultiplier
+        };
+    }
+
+    private static AetheriaColor ToColor(AetheriaRuntimeColorCommit color)
+    {
+        return new AetheriaColor
+        {
+            X = color.X,
+            Y = color.Y,
+            Z = color.Z,
+            W = color.W
+        };
     }
 
     private static AetheriaEntitySnapshot ToEntitySnapshot(
