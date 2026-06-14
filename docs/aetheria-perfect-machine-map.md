@@ -102,7 +102,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   values until those session facts have typed runtime surfaces.
   Hull and item durability percentages use typed max durability only; incomplete
   typed rows use current runtime durability as the generic denominator instead
-  of falling back to legacy `ItemData.Durability`.
+  of falling back to legacy `ItemData.Durability`. Target HUD hitpoint fill also
+  reads target hull max durability from the typed runtime hull row instead of
+  `EquippedHull.Data.Durability`.
   Gear heat-fill ranges in the schematic HUD also read typed catalog thermal
   bounds; rows without typed thermal bounds use a neutral current-temperature
   range instead of hydrating legacy `ItemData`.
@@ -701,6 +703,8 @@ First Aetheria surfaces to publish:
    - Done: move schematic HUD weapon-row classification onto typed behavior-kind
      rows; runtime `Weapon` instances remain the owner for live ammo/cooldown
      display values.
+   - Done: move target HUD hitpoint fill denominator onto typed hull durability;
+     live hull item durability remains the numerator/runtime damage owner.
    - Done: import typed item specific heat and move `ItemManager` generic mass,
      thermal-mass, and crafted-price helpers onto typed runtime catalog rows.
    - Done: import typed thermal performance curve keys and move PropertiesPanel

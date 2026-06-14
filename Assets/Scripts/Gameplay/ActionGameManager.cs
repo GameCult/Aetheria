@@ -1514,7 +1514,11 @@ public class ActionGameManager : MonoBehaviour
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
                     TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold)/(1-threshold));
                     VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
-                    TargetHitpointsFill.fillAmount = lerp(.25f, .75f, target.Hull.Durability / target.EquippedHull.Data.Durability);
+                    var targetHull = ItemManager.GetRuntimeItem(target.Hull);
+                    var targetMaxDurability = targetHull?.Durability > 0
+                        ? (float)targetHull.Durability
+                        : Math.Max(target.Hull.Durability, 1f);
+                    TargetHitpointsFill.fillAmount = lerp(.25f, .75f, target.Hull.Durability / targetMaxDurability);
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
