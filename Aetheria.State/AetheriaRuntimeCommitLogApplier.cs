@@ -168,7 +168,8 @@ public static class AetheriaRuntimeCommitLogApplier
             ItemKey = ReferenceKey("aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
             Quality = item.Quality,
             Durability = item.Durability,
-            Quantity = item.Quantity
+            Quantity = item.Quantity,
+            Enabled = item.Enabled
         };
     }
 
@@ -205,7 +206,8 @@ public static class AetheriaRuntimeCommitLogApplier
                     ItemKey = item.ItemKey,
                     Quality = item.Quality,
                     Durability = item.Durability,
-                    Quantity = item.Quantity
+                    Quantity = item.Quantity,
+                    Enabled = item.Enabled
                 };
             })
             .ToArray();

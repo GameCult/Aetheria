@@ -769,14 +769,16 @@ namespace GameCult.Aetheria.State.Unity
                 var quality = ReadFieldDouble(ref reader, slotFields, 2, 1);
                 var durability = ReadFieldDouble(ref reader, slotFields, 3, 1);
                 var quantity = ReadFieldInt32(ref reader, slotFields, 4);
-                SkipRemaining(ref reader, slotFields, 5);
+                var enabled = ReadFieldBool(ref reader, slotFields, 5, true);
+                SkipRemaining(ref reader, slotFields, 6);
                 slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(
                     position.X,
                     position.Y,
                     itemKey,
                     quality,
                     durability,
-                    quantity <= 0 ? 1 : quantity);
+                    quantity <= 0 ? 1 : quantity,
+                    enabled);
             }
 
             return slots;
@@ -1058,6 +1060,11 @@ namespace GameCult.Aetheria.State.Unity
             return index < fields && reader.ReadBoolean();
         }
 
+        private static bool ReadFieldBool(ref MessagePackReader reader, int fields, int index, bool fallback)
+        {
+            return index >= fields ? fallback : reader.ReadBoolean();
+        }
+
         private static long ReadFieldInt64(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? 0 : reader.ReadInt64();
@@ -1220,13 +1227,14 @@ namespace GameCult.Aetheria.State.Unity
             var quality = ReadFieldDouble(ref reader, itemFields, 1, 1);
             var durability = ReadFieldDouble(ref reader, itemFields, 2, 1);
             var quantity = ReadFieldInt32(ref reader, itemFields, 3);
-            SkipRemaining(ref reader, itemFields, 4);
-            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity);
+            var enabled = ReadFieldBool(ref reader, itemFields, 4, true);
+            SkipRemaining(ref reader, itemFields, 5);
+            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity, enabled);
         }
 
         private static AetheriaRuntimeLoadoutItemSnapshot EmptyLoadoutItem()
         {
-            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1);
+            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1, true);
         }
 
         private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> ReadFieldLoadoutItemSlots(ref MessagePackReader reader, int fields, int index)

@@ -168,6 +168,9 @@ public sealed class AetheriaLoadoutItem
 
     [Key(3)]
     public int Quantity { get; set; } = 1;
+
+    [Key(4)]
+    public bool Enabled { get; set; } = true;
 }
 
 [MessagePackObject]
@@ -568,6 +571,9 @@ public sealed class AetheriaEntityItemSlot
 
     [Key(4)]
     public int Quantity { get; set; } = 1;
+
+    [Key(5)]
+    public bool Enabled { get; set; } = true;
 }
 
 [MessagePackObject]

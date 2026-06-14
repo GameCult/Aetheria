@@ -158,8 +158,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contact rows for gathered information, hostility, and visible classification,
   and active consumable item/timer rows.
   Entity equipment, cargo-bay, and docking-bay slot rows preserve item-instance
-  facts needed for restore: item key, quality, durability, and quantity. Those
-  facts are no longer discarded when pending checkpoint commands become
+  facts needed for restore: item key, quality, durability, quantity, and enabled
+  state. Those facts are no longer discarded when pending checkpoint commands become
   canonical `AetheriaEntitySnapshot` documents or package readback DTOs.
   Cargo bay contents, docking bay contents, and docking bay child assignments
   also persist as typed snapshot rows, so inventories and docked-child
@@ -850,6 +850,8 @@ First Aetheria surfaces to publish:
    - Done: preserve entity snapshot item-instance facts for equipment,
      cargo-bay, and docking-bay slot rows: item key, quality, durability, and
      quantity now survive canonical state and Unity package readback.
+   - Done: preserve item enabled state on typed loadout items and entity item
+     slots, so disabled equipment is no longer only runtime blueprint state.
    - Done: preserve cargo bay contents, docking bay contents, and docking bay
      child assignments in typed entity snapshots.
    - Done: preserve aggregate entity visibility and visibility-source count in

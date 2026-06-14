@@ -184,6 +184,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(3)]
         public int Quantity { get; set; } = 1;
+
+        [Key(4)]
+        public bool Enabled { get; set; } = true;
     }
 
     [MessagePackObject]

@@ -184,7 +184,8 @@ try
                         {
                             ItemDefinitionLegacyId = "smoke:weapon",
                             Quality = 0.9,
-                            Durability = 0.8
+                            Durability = 0.8,
+                            Enabled = false
                         }
                     }
                 },
@@ -343,7 +344,8 @@ try
                                     {
                                         ItemDefinitionLegacyId = "smoke:weapon",
                                         Quality = 0.9,
-                                        Durability = 0.8
+                                        Durability = 0.8,
+                                        Enabled = false
                                     }
                                 }
                             },
@@ -667,6 +669,7 @@ try
             loadout.RootEntity.Hull.ItemKey == "aetheria.item_definition:legacy:smoke:hull" &&
             loadout.RootEntity.Equipment.Length == 1 &&
             loadout.RootEntity.Equipment[0].Position.X == 1 &&
+            !loadout.RootEntity.Equipment[0].Item.Enabled &&
             loadout.RootEntity.CargoContents.Length == 1 &&
             loadout.RootEntity.CargoContents[0].Items[0].Item.Quantity == 5 &&
             run?.ZoneKeys.Length == 1 &&
@@ -702,6 +705,7 @@ try
             entity.Equipment[0].Quality == 0.9 &&
             entity.Equipment[0].Durability == 0.8 &&
             entity.Equipment[0].Quantity == 1 &&
+            !entity.Equipment[0].Enabled &&
             entity.Velocity.X == 4.0 &&
             entity.Velocity.Y == -2.0 &&
             entity.TargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
@@ -816,6 +820,7 @@ try
         packageLoadouts.Count != 1 ||
         packageLoadouts[0].RootEntity.Hull.ItemKey != "aetheria.item_definition:legacy:smoke:hull" ||
         packageLoadouts[0].RootEntity.Equipment[0].X != 1 ||
+        packageLoadouts[0].RootEntity.Equipment[0].Item.Enabled ||
         packageLoadouts[0].RootEntity.CargoContents[0].Items[0].Item.Quantity != 5 ||
         packageRuns.Count != 1 ||
         packageRuns[0].RunId != "smoke-run" ||
@@ -841,6 +846,7 @@ try
         packageEntities[0].Equipment[0].Quality != 0.9 ||
         packageEntities[0].Equipment[0].Durability != 0.8 ||
         packageEntities[0].Equipment[0].Quantity != 1 ||
+        packageEntities[0].Equipment[0].Enabled ||
         packageEntities[0].VelocityX != 4.0 ||
         packageEntities[0].VelocityY != -2.0 ||
         packageEntities[0].TargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||

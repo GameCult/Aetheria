@@ -260,8 +260,12 @@ public class ActionGameManager : MonoBehaviour
             return ItemManager.CreateSimpleCommodityInstance(typedItem, Math.Max(1, item.Quantity));
 
         var instance = ItemManager.CreateCraftedInstance(typedItem, (float)item.Quality);
-        if (instance is EquippableItem equippable && item.Durability > 0)
-            equippable.Durability = (float)item.Durability;
+        if (instance is EquippableItem equippable)
+        {
+            equippable.Enabled.Value = item.Enabled;
+            if (item.Durability > 0)
+                equippable.Durability = (float)item.Durability;
+        }
         return instance;
     }
 
@@ -524,7 +528,8 @@ public class ActionGameManager : MonoBehaviour
             ItemDefinitionLegacyId = item.ItemId == Guid.Empty ? "" : item.ItemId.ToString("D"),
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
-            Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1
+            Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1,
+            Enabled = item is not EquippableItem enabledItem || enabledItem.Enabled.Value
         };
     }
 

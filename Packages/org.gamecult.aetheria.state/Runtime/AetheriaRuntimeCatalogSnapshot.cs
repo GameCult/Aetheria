@@ -636,18 +636,20 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeLoadoutItemSnapshot
     {
-        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity)
+        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity, bool enabled)
         {
             ItemKey = itemKey;
             Quality = quality;
             Durability = durability;
             Quantity = quantity;
+            Enabled = enabled;
         }
 
         public string ItemKey { get; }
         public double Quality { get; }
         public double Durability { get; }
         public int Quantity { get; }
+        public bool Enabled { get; }
     }
 
     public sealed class AetheriaRuntimeLoadoutItemSlotSnapshot
@@ -973,7 +975,7 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot
     {
-        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity)
+        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity, bool enabled)
         {
             X = x;
             Y = y;
@@ -981,6 +983,7 @@ namespace GameCult.Aetheria.State.Unity
             Quality = quality;
             Durability = durability;
             Quantity = quantity;
+            Enabled = enabled;
         }
 
         public int X { get; }
@@ -989,6 +992,7 @@ namespace GameCult.Aetheria.State.Unity
         public double Quality { get; }
         public double Durability { get; }
         public int Quantity { get; }
+        public bool Enabled { get; }
     }
 
     public sealed class AetheriaRuntimeEntityStatGridSnapshot
