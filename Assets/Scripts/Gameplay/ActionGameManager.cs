@@ -538,6 +538,7 @@ public class ActionGameManager : MonoBehaviour
             ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
             CurrentZoneIndex = ZoneIndex(Zone?.GalaxyZone),
             CurrentZoneEntityIndex = Zone?.Entities?.IndexOf(CurrentEntity) ?? -1,
+            GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
             DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
                 .Select(ZoneIndex)
                 .Where(index => index >= 0)

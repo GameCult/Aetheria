@@ -26,6 +26,7 @@ public class Galaxy
     public GalaxyZone[] Zones { get; }
     public GalaxyZone Entrance { get; }
     public GalaxyZone Exit { get; }
+    public uint GenerationSeed { get; }
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
@@ -60,7 +61,8 @@ public class Galaxy
         IsPrelude = false;
         Background = background;
         Log = log;
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        GenerationSeed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(GenerationSeed);
         Factions = _allFactions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
 
@@ -117,7 +119,8 @@ public class Galaxy
 
         Background = background;
         Log = log;
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        GenerationSeed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(GenerationSeed);
         
         var factions = new List<Faction>();
 

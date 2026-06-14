@@ -238,6 +238,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(9)]
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit> FactionRelationships { get; set; } = Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
+
+        [Key(10)]
+        public uint GenerationSeed { get; set; }
     }
 
     [MessagePackObject]

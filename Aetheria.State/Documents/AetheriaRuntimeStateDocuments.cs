@@ -225,6 +225,9 @@ public sealed class AetheriaRunState
 
     [Key(10)]
     public string UpdatedAtUtc { get; set; } = "";
+
+    [Key(11)]
+    public uint GenerationSeed { get; set; }
 }
 
 [CultDocument("aetheria.zone_state", "aetheria.zone_state.v1")]

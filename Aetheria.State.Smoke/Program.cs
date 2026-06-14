@@ -286,6 +286,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         ExitZoneIndex = 1,
         CurrentZoneIndex = 0,
         CurrentZoneEntityIndex = 0,
+        GenerationSeed = 424242,
         DiscoveredZoneIndices = [0],
         ZoneKeys = [zoneKey.ToString()],
         ActionBarBindings =
@@ -441,6 +442,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 
     if (runState?.RunId != "smoke" ||
+        runState.GenerationSeed != 424242 ||
         runState.ZoneKeys.Length != 1 ||
         runState.ActionBarBindings.Length != 1)
     {

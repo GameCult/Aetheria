@@ -40,9 +40,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `AetheriaStateNode`. The embedded Unity state package can also read typed
   run, zone, and entity snapshot documents back from the `.cc` store as
   read-only runtime DTOs, including action-bar bindings, faction
-  relationships, zone entity/orbit/body references, entity session scalars,
-  active consumables, behavior progress, weapon state, behavior state, and
-  stat-grid rows. Local run saves, loadouts, player settings files, zone
+  relationships, generation seed, zone entity/orbit/body references, entity
+  session scalars, active consumables, behavior progress, weapon state,
+  behavior state, and stat-grid rows. Local run saves, loadouts, player settings files, zone
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `RuntimePlayerSettings` runtime object is no longer named or decorated as a
@@ -122,8 +122,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
-  position, direction, faction, hull, equipment slots, weapon groups, and a stat
-  grid. This proves the `.zone` replacement graph is durable typed state. Unity
+  generation seed, position, direction, faction, hull, equipment slots, weapon
+  groups, and a stat grid. This proves the `.zone` replacement graph is durable typed state. Unity
   now queues current-zone/current-entity-collection snapshots, current
   action-bar bindings, and current faction relationship rows through the
   runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
@@ -136,6 +136,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Runtime blueprints no longer capture or restore behavior-private
   `PersistentBehaviorData` blobs; that dead save-shape hook and its
   `IPersistentBehavior` interface are deleted.
+- Galaxy generation now exposes the actual nonzero seed used to create topology.
+  The main menu passes explicit seeds into normal and tutorial galaxy
+  construction, and run checkpoints persist that seed into `AetheriaRunState`.
+  Current-zone snapshot restore must attach to a regenerated galaxy with the
+  same seed; restoring zone indices against a fresh random galaxy is forbidden
+  split-brain state, not a Continue feature.
 - Run checkpoint zone snapshots include typed orbit and body rows. Orbit IDs,
   parent IDs, distance, phase, fixed positions, body kind/name/orbit,
   resources, gravity/body multipliers, asteroid belt entries, and gas/sun
@@ -791,6 +797,9 @@ First Aetheria surfaces to publish:
      entity snapshot documents, so the `.zone` replacement graph is not only
      writable through the state node but also inspectable by runtime package
      consumers.
+   - Done: persist the actual galaxy generation seed in typed run state, so
+     future Continue/restore work has a reproducible topology body before
+     applying current-zone/entity snapshots.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

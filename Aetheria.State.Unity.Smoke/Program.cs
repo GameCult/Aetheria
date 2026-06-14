@@ -216,6 +216,7 @@ try
         new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "smoke-run",
+            GenerationSeed = 424242,
             CurrentZoneIndex = 0,
             CurrentZoneEntityIndex = 0,
             DiscoveredZoneIndices = new[] { 0 },
@@ -504,6 +505,7 @@ try
             loadout.RootEntity.CargoContents.Length == 1 &&
             loadout.RootEntity.CargoContents[0].Items[0].Item.Quantity == 5 &&
             run?.ZoneKeys.Length == 1 &&
+            run.GenerationSeed == 424242 &&
             run.ActionBarBindings.Length == 2 &&
             run.ActionBarBindings[0].ControlPath == "<Keyboard>/1" &&
             run.ActionBarBindings[0].Kind == "weapon_group" &&
@@ -593,6 +595,7 @@ try
         packageLoadouts[0].RootEntity.CargoContents[0].Items[0].Item.Quantity != 5 ||
         packageRuns.Count != 1 ||
         packageRuns[0].RunId != "smoke-run" ||
+        packageRuns[0].GenerationSeed != 424242 ||
         packageRuns[0].ZoneKeys.Count != 1 ||
         packageRuns[0].ActionBarBindings.Count != 2 ||
         packageRuns[0].ActionBarBindings[1].TargetKey != "aetheria.item_definition:legacy:smoke:weapon" ||

@@ -462,7 +462,8 @@ namespace GameCult.Aetheria.State.Unity
             var actionBarBindings = ReadFieldActionBarBindings(ref reader, fields, 8);
             var factionRelationships = ReadFieldFactionRelationships(ref reader, fields, 9);
             var updatedAtUtc = ReadFieldString(ref reader, fields, 10);
-            SkipRemaining(ref reader, fields, 11);
+            var generationSeed = ReadFieldUInt32(ref reader, fields, 11);
+            SkipRemaining(ref reader, fields, 12);
             return new AetheriaRuntimeRunStateSnapshot(
                 runId,
                 isTutorial,
@@ -474,7 +475,8 @@ namespace GameCult.Aetheria.State.Unity
                 zoneKeys,
                 actionBarBindings,
                 factionRelationships,
-                updatedAtUtc);
+                updatedAtUtc,
+                generationSeed);
         }
 
         private static AetheriaRuntimeZoneStateSnapshot ReadZoneStatePayload(byte[] payload)

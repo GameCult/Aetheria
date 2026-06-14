@@ -107,6 +107,7 @@ public class MainMenu : MonoBehaviour
                 {
                     Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
                     ActionGameManager.IsTutorial = false;
+                    var generationSeed = NextGenerationSeed();
                     Task.Run(() =>
                     {
                         var sector = new Galaxy(
@@ -115,7 +116,8 @@ public class MainMenu : MonoBehaviour
                             Settings.NameGeneratorSettings,
                             ActionGameManager.RuntimeCatalog,
                             Debug.Log,
-                            setState);
+                            setState,
+                            generationSeed);
                         Observable.NextFrame().Subscribe(_ =>
                         {
                             ActionGameManager.CurrentGalaxy = sector;
@@ -133,6 +135,7 @@ public class MainMenu : MonoBehaviour
                     } while (Settings.TutorialBackgroundSettings.CloudDensity(float2(0.5f)) < .5f);
                     
                     ActionGameManager.IsTutorial = true;
+                    var generationSeed = NextGenerationSeed();
                     Task.Run(() =>
                     {
                         var sector = new Galaxy(
@@ -143,7 +146,8 @@ public class MainMenu : MonoBehaviour
                             ActionGameManager.RuntimePlayerSettings,
                             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
                             Debug.Log,
-                            setState);
+                            setState,
+                            generationSeed);
                         Observable.NextFrame().Subscribe(_ =>
                         {
                             ActionGameManager.CurrentGalaxy = sector;
@@ -159,6 +163,12 @@ public class MainMenu : MonoBehaviour
                 Fade(true);
             });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
+    }
+
+    private static uint NextGenerationSeed()
+    {
+        var seed = (uint)Random.Range(1, int.MaxValue);
+        return seed == 0 ? 1u : seed;
     }
 
     private void ShowSettings()

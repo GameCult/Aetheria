@@ -227,7 +227,8 @@ public static class AetheriaRuntimeCommitLogApplier
             DiscoveredZoneIndices = ToIntArray(checkpoint.DiscoveredZoneIndices),
             ActionBarBindings = ToActionBarBindings(checkpoint.ActionBarBindings),
             FactionRelationships = ToFactionRelationships(checkpoint.FactionRelationships),
-            UpdatedAtUtc = updatedAtUtc
+            UpdatedAtUtc = updatedAtUtc,
+            GenerationSeed = checkpoint.GenerationSeed
         };
 
         var zoneKeys = new List<string>();

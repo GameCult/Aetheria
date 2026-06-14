@@ -687,7 +687,8 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<string> zoneKeys,
             IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings,
             IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> factionRelationships,
-            string updatedAtUtc)
+            string updatedAtUtc,
+            uint generationSeed)
         {
             RunId = runId;
             IsTutorial = isTutorial;
@@ -700,6 +701,7 @@ namespace GameCult.Aetheria.State.Unity
             ActionBarBindings = actionBarBindings;
             FactionRelationships = factionRelationships;
             UpdatedAtUtc = updatedAtUtc;
+            GenerationSeed = generationSeed;
         }
 
         public string RunId { get; }
@@ -713,6 +715,7 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ActionBarBindings { get; }
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> FactionRelationships { get; }
         public string UpdatedAtUtc { get; }
+        public uint GenerationSeed { get; }
     }
 
     public sealed class AetheriaRuntimeZoneStateSnapshot
