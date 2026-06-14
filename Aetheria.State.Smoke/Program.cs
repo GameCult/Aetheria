@@ -206,7 +206,10 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             new AetheriaEntityItemSlot
             {
                 Position = new AetheriaGridCoord { X = 0, Y = 0 },
-                ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString()
+                ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+                Quality = 0.9,
+                Durability = 0.8,
+                Quantity = 1
             }
         ],
         WeaponGroups =
@@ -465,6 +468,9 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 
     if (entitySnapshot?.Kind != "ship" ||
         entitySnapshot.Equipment.Length != 1 ||
+        entitySnapshot.Equipment[0].Quality != 0.9 ||
+        entitySnapshot.Equipment[0].Durability != 0.8 ||
+        entitySnapshot.Equipment[0].Quantity != 1 ||
         entitySnapshot.WeaponGroups.Length != 1 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)

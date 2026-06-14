@@ -153,6 +153,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   They also carry public runtime session state: velocity, target entity
   reference, active flag, heatsink toggle, shutdown override, tractor power,
   heatstroke/hypothermia accumulators, and active consumable item/timer rows.
+  Entity equipment, cargo-bay, and docking-bay slot rows preserve item-instance
+  facts needed for restore: item key, quality, durability, and quantity. Those
+  facts are no longer discarded when pending checkpoint commands become
+  canonical `AetheriaEntitySnapshot` documents or package readback DTOs.
   Equipped-item and active-consumable behaviors that intentionally expose
   `IProgressBehavior` now publish typed progress rows keyed by owner kind,
   owner index, behavior index, behavior kind, and progress value.
@@ -800,6 +804,9 @@ First Aetheria surfaces to publish:
    - Done: persist the actual galaxy generation seed in typed run state, so
      future Continue/restore work has a reproducible topology body before
      applying current-zone/entity snapshots.
+   - Done: preserve entity snapshot item-instance facts for equipment,
+     cargo-bay, and docking-bay slot rows: item key, quality, durability, and
+     quantity now survive canonical state and Unity package readback.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

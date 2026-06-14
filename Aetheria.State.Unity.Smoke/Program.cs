@@ -529,6 +529,9 @@ try
             zone.Bodies[0].Resources[0].ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
             zone.Bodies[0].Asteroids.Length == 1 &&
             entity?.Equipment.Length == 1 &&
+            entity.Equipment[0].Quality == 0.9 &&
+            entity.Equipment[0].Durability == 0.8 &&
+            entity.Equipment[0].Quantity == 1 &&
             entity.Velocity.X == 4.0 &&
             entity.Velocity.Y == -2.0 &&
             entity.TargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
@@ -611,6 +614,9 @@ try
         packageZones[0].Bodies[0].AsteroidCount != 1 ||
         packageEntities.Count != 1 ||
         packageEntities[0].Name != "Unity Smoke Ship" ||
+        packageEntities[0].Equipment[0].Quality != 0.9 ||
+        packageEntities[0].Equipment[0].Durability != 0.8 ||
+        packageEntities[0].Equipment[0].Quantity != 1 ||
         packageEntities[0].VelocityX != 4.0 ||
         packageEntities[0].VelocityY != -2.0 ||
         packageEntities[0].TargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||

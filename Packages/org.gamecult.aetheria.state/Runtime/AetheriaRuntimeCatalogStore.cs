@@ -696,8 +696,17 @@ namespace GameCult.Aetheria.State.Unity
                 var slotFields = reader.ReadArrayHeader();
                 var position = ReadFieldGridCoord(ref reader, slotFields, 0);
                 var itemKey = ReadFieldString(ref reader, slotFields, 1);
-                SkipRemaining(ref reader, slotFields, 2);
-                slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(position.X, position.Y, itemKey);
+                var quality = ReadFieldDouble(ref reader, slotFields, 2, 1);
+                var durability = ReadFieldDouble(ref reader, slotFields, 3, 1);
+                var quantity = ReadFieldInt32(ref reader, slotFields, 4);
+                SkipRemaining(ref reader, slotFields, 5);
+                slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(
+                    position.X,
+                    position.Y,
+                    itemKey,
+                    quality,
+                    durability,
+                    quantity <= 0 ? 1 : quantity);
             }
 
             return slots;

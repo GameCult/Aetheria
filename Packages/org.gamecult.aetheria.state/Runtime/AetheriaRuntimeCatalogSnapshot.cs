@@ -923,16 +923,22 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot
     {
-        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey)
+        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity)
         {
             X = x;
             Y = y;
             ItemKey = itemKey;
+            Quality = quality;
+            Durability = durability;
+            Quantity = quantity;
         }
 
         public int X { get; }
         public int Y { get; }
         public string ItemKey { get; }
+        public double Quality { get; }
+        public double Durability { get; }
+        public int Quantity { get; }
     }
 
     public sealed class AetheriaRuntimeEntityStatGridSnapshot

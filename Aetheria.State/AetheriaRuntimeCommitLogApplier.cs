@@ -191,11 +191,22 @@ public static class AetheriaRuntimeCommitLogApplier
     private static AetheriaEntityItemSlot[] ToEntityItemSlots(
         IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit>? slots)
     {
-        return ToItemSlots(slots)
-            .Select(slot => new AetheriaEntityItemSlot
+        return (slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            .Select(slot =>
             {
-                Position = slot.Position,
-                ItemKey = slot.Item.ItemKey
+                var item = ToLoadoutItem(slot.Item);
+                return new AetheriaEntityItemSlot
+                {
+                    Position = new AetheriaGridCoord
+                    {
+                        X = slot.X,
+                        Y = slot.Y
+                    },
+                    ItemKey = item.ItemKey,
+                    Quality = item.Quality,
+                    Durability = item.Durability,
+                    Quantity = item.Quantity
+                };
             })
             .ToArray();
     }

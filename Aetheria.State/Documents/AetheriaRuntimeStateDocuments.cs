@@ -504,6 +504,15 @@ public sealed class AetheriaEntityItemSlot
 
     [Key(1)]
     public string ItemKey { get; set; } = "";
+
+    [Key(2)]
+    public double Quality { get; set; } = 1.0;
+
+    [Key(3)]
+    public double Durability { get; set; } = 1.0;
+
+    [Key(4)]
+    public int Quantity { get; set; } = 1;
 }
 
 [MessagePackObject]
