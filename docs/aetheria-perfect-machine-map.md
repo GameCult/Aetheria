@@ -162,8 +162,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   instances through `ItemManager.CreateRuntimeBehaviors`; the remaining
   `BehaviorData` config list is explicitly temporary and internal to behavior
   construction. `StatModifier` requirement and stat-target lookup now inspects
-  the live equipped behavior instances and their typed payload kinds, not a
-  freshly rebuilt config list. The unused `TradeMenuDebug` script has been
+  the live equipped behavior instances and asks package-owned typed behavior
+  metadata for kind/family matching, not a freshly rebuilt config list or a
+  behavior-local class taxonomy. The unused `TradeMenuDebug` script has been
   deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
@@ -221,8 +222,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owner; bridge instances carry the typed behavior payload kind so runtime
   logic does not have to reselect behavior identity from the old class graph.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
-  behavior kinds on the live equipped behavior instances instead of scanning
-  `BehaviorData` subclasses, rebuilding temporary configs, or hydrating
+  behavior kinds on the live equipped behavior instances through
+  `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning `BehaviorData`
+  subclasses, rebuilding temporary configs, or hydrating
   `EquippableItemData.Behaviors`. `ConsumableItemData` and
   `EquippableItemData` no longer expose legacy `Behaviors` lists at all. The
   old item-DTO stat branch was deleted after inspection showed no active
@@ -537,8 +539,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   item rows and temporarily builds `BehaviorData` config objects from typed
   behavior payloads behind the `ItemManager.CreateRuntimeBehaviors` runtime
   construction primitive. Direct config reads no longer escape `ItemManager`;
-  gameplay stat modifiers target live behavior instances instead of rebuilding
-  config DTOs for lookup.
+  gameplay stat modifiers target live behavior instances and package-owned
+  behavior metadata instead of rebuilding config DTOs for lookup.
   `RuntimeItemReference.ItemId` is the only item reference value. The reader
   interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
   typed catalog row ownership rather than old DTO projection ownership. Behavior
@@ -828,6 +830,9 @@ First Aetheria surfaces to publish:
      equipped behavior instances. It now modifies the `PerformanceStat` objects
      actually held by runtime behavior data instead of rebuilding temporary
      config DTOs from the catalog.
+   - Done: move `StatModifier` behavior kind/family matching onto
+     `AetheriaRuntimeBehaviorMetadataCatalog`; the behavior only normalizes
+     migrated `*Data` tokens before asking the package-owned metadata owner.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

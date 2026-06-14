@@ -4,6 +4,8 @@
 
 using System;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
+
 [Inspectable]
 public class StatModifierData : BehaviorData
 {
@@ -75,19 +77,22 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private static bool BehaviorKindMatches(string runtimeKind, string expectedKind)
     {
+        return AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+            runtimeKind,
+            NormalizeExpectedBehaviorKind(expectedKind));
+    }
+
+    private static string NormalizeExpectedBehaviorKind(string expectedKind)
+    {
         if (string.IsNullOrWhiteSpace(expectedKind))
         {
-            return false;
-        }
-
-        if (string.Equals(runtimeKind, expectedKind, StringComparison.Ordinal))
-        {
-            return true;
+            return "";
         }
 
         const string legacyDataSuffix = "Data";
-        return expectedKind.EndsWith(legacyDataSuffix, StringComparison.Ordinal) &&
-               string.Equals(runtimeKind, expectedKind.Substring(0, expectedKind.Length - legacyDataSuffix.Length), StringComparison.Ordinal);
+        return expectedKind.EndsWith(legacyDataSuffix, StringComparison.Ordinal)
+            ? expectedKind.Substring(0, expectedKind.Length - legacyDataSuffix.Length)
+            : expectedKind;
     }
 
     private bool HasRequiredBehavior(EquippedItem gear)
