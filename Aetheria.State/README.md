@@ -87,6 +87,10 @@ derived legacy-GUID compatibility projection for broader simulation paths.
 Cargo inventory indexes, consumable activation lookup, action-bar consumable
 quantity/fill, transfer lookup, trade owned counts, weapon ammo references, and
 item-use behavior references now use item keys.
+Unity runtime commit DTOs also carry typed `ItemKey`/`HullItemKey` fields for
+loadout items, action-bar targets, body resources, entity hulls, and active
+consumables. Their old `*LegacyId` fields remain import/export compatibility
+only; the commit applier prefers typed keys whenever present.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts

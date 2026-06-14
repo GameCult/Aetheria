@@ -187,6 +187,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(4)]
         public bool Enabled { get; set; } = true;
+
+        [Key(5)]
+        public string ItemKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -266,6 +269,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(5)]
         public int WeaponGroup { get; set; } = -1;
+
+        [Key(6)]
+        public string ItemKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -388,6 +394,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(1)]
         public double Amount { get; set; }
+
+        [Key(2)]
+        public string ItemKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -610,6 +619,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(34)]
         public IReadOnlyList<AetheriaRuntimeEntityContactCommit> Contacts { get; set; } = Array.Empty<AetheriaRuntimeEntityContactCommit>();
+
+        [Key(35)]
+        public string HullItemKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -658,6 +670,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(3)]
         public double Duration { get; set; }
+
+        [Key(4)]
+        public string ItemKey { get; set; } = "";
     }
 
     [MessagePackObject]

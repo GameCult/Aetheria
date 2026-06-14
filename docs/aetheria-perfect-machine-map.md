@@ -496,10 +496,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The dead Unity `NameFile` projection class has been deleted. Runtime name
   generation reads `AetheriaRuntimeNameFile` records from the typed catalog
   facade; legacy `GameData/NameFile/*.msgpack` remains migration input only.
-- Pending Unity runtime commit envelopes now name their source catalog IDs as
-  `CorporationLegacyId`, `ItemDefinitionLegacyId`, and
-  `HullItemDefinitionLegacyId`; the applier has always projected those fields
-  into typed corporation and item-definition record keys.
+- Pending Unity runtime commit envelopes now carry typed item keys for loadout
+  items, action-bar targets, body resources, entity hulls, and active
+  consumables. The older `ItemDefinitionLegacyId` and
+  `HullItemDefinitionLegacyId` fields remain compatibility import/export
+  fields; the applier prefers `ItemKey`/`HullItemKey` whenever present.
+  Corporation legacy IDs still translate to typed corporation record keys at
+  the commit boundary.
 - Entity restore and loadout manufacturer-distance weighting no longer read
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
   over the typed corporation projection.
@@ -626,7 +629,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   transfer lookup, and trade owned-count rows now use item keys rather than
   GUID-owned cargo indexes. Weapon ammo and item-use behavior config item
   references are also typed-key-first (`AmmoItemKey`/`ItemKey`), with
-  `AmmoType`/`Item` only derived GUID compatibility;
+  `AmmoType`/`Item` only derived GUID compatibility. Runtime commit DTOs now
+  publish item and hull identity through `ItemKey`/`HullItemKey`, with legacy
+  ID fields demoted to compatibility;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1206,9 +1211,9 @@ First Aetheria surfaces to publish:
      in the typed state package's `.cc` reader.
    - In progress: convert domain references from GUID/base-class patterns to
      typed record refs. Item instances, cargo inventory indexes, weapon ammo
-     references, and item-use behavior references now carry typed item keys;
-     remaining broader simulation paths still derive legacy GUIDs until those
-     structures move to typed keys.
+     references, item-use behavior references, and runtime commit item/hull
+     surfaces now carry typed item keys; remaining broader simulation paths
+     still derive legacy GUIDs until those structures move to typed keys.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
@@ -1327,13 +1332,16 @@ First Aetheria surfaces to publish:
      derived legacy compatibility for unfinished cargo and simulation paths.
    - Done: move `EquippedCargoBay.ItemsOfType`, consumable activation lookup,
      action-bar consumable quantity/fill, item transfer lookup, and trade owned
-     counts from derived `Guid ItemId` keys to typed `ItemKey` strings. GUID
-     behavior-config fields still translate at the cargo boundary until
-     behavior config construction moves to typed item references.
+     counts from derived `Guid ItemId` keys to typed `ItemKey` strings.
    - Done: move weapon ammo and `ItemUsage` config references from GUID fields
      to typed item-key fields. `AmmoType` and `Item` remain derived compatibility
      properties, but runtime ammo consumption, item use, and HUD ammo counts use
      `AmmoItemKey`/`ItemKey`.
+   - Done: add typed `ItemKey`/`HullItemKey` fields to runtime commit item
+     surfaces and make the applier prefer them over stale legacy-ID fields.
+     Loadout items, action-bar targets, body resources, entity hulls, cargo
+     contents, and active consumables now prove typed-key ownership in the
+     Unity smoke by carrying intentionally stale legacy IDs.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

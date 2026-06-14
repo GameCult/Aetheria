@@ -171,7 +171,8 @@ try
                 CorporationLegacyId = "smoke:faction",
                 Hull = new AetheriaRuntimeLoadoutItemCommit
                 {
-                    ItemDefinitionLegacyId = "smoke:hull",
+                    ItemDefinitionLegacyId = "stale:hull",
+                    ItemKey = "aetheria.item_definition:legacy:smoke:hull",
                     Quality = 0.7,
                     Durability = 0.6
                 },
@@ -183,7 +184,8 @@ try
                         Y = 2,
                         Item = new AetheriaRuntimeLoadoutItemCommit
                         {
-                            ItemDefinitionLegacyId = "smoke:weapon",
+                            ItemDefinitionLegacyId = "stale:weapon",
+                            ItemKey = "aetheria.item_definition:legacy:smoke:weapon",
                             Quality = 0.9,
                             Durability = 0.8,
                             Enabled = false
@@ -202,7 +204,8 @@ try
                                 Y = 4,
                                 Item = new AetheriaRuntimeLoadoutItemCommit
                                 {
-                                    ItemDefinitionLegacyId = "smoke:ore",
+                                    ItemDefinitionLegacyId = "stale:ore",
+                                    ItemKey = "aetheria.item_definition:legacy:smoke:ore",
                                     Quantity = 5
                                 }
                             }
@@ -234,7 +237,8 @@ try
                 {
                     ControlPath = "<Keyboard>/2",
                     Kind = "gear",
-                    ItemDefinitionLegacyId = "smoke:weapon",
+                    ItemDefinitionLegacyId = "stale:weapon",
+                    ItemKey = "aetheria.item_definition:legacy:smoke:weapon",
                     EquipmentIndex = 0,
                     BehaviorIndex = 1
                 }
@@ -283,7 +287,8 @@ try
                             {
                                 new AetheriaRuntimeBodyResourceCommit
                                 {
-                                    ItemDefinitionLegacyId = "smoke:ore",
+                                    ItemDefinitionLegacyId = "stale:ore",
+                                    ItemKey = "aetheria.item_definition:legacy:smoke:ore",
                                     Amount = 3.5
                                 }
                             },
@@ -334,7 +339,8 @@ try
                             TractorPower = 12.5,
                             Heatstroke = 0.25,
                             Hypothermia = 0.125,
-                            HullItemDefinitionLegacyId = "smoke:hull",
+                            HullItemDefinitionLegacyId = "stale:hull",
+                            HullItemKey = "aetheria.item_definition:legacy:smoke:hull",
                             Equipment = new[]
                             {
                                 new AetheriaRuntimeLoadoutItemSlotCommit
@@ -343,7 +349,8 @@ try
                                     Y = 0,
                                     Item = new AetheriaRuntimeLoadoutItemCommit
                                     {
-                                        ItemDefinitionLegacyId = "smoke:weapon",
+                                        ItemDefinitionLegacyId = "stale:weapon",
+                                        ItemKey = "aetheria.item_definition:legacy:smoke:weapon",
                                         Quality = 0.9,
                                         Durability = 0.8,
                                         Enabled = false
@@ -362,7 +369,8 @@ try
                                             Y = 3,
                                             Item = new AetheriaRuntimeLoadoutItemCommit
                                             {
-                                                ItemDefinitionLegacyId = "smoke:ore",
+                                                ItemDefinitionLegacyId = "stale:ore",
+                                                ItemKey = "aetheria.item_definition:legacy:smoke:ore",
                                                 Quantity = 7
                                             }
                                         }
@@ -387,7 +395,8 @@ try
                             {
                                 new AetheriaRuntimeActiveConsumableCommit
                                 {
-                                    ItemDefinitionLegacyId = "smoke:consumable",
+                                    ItemDefinitionLegacyId = "stale:consumable",
+                                    ItemKey = "aetheria.item_definition:legacy:smoke:consumable",
                                     Quality = 0.75,
                                     RemainingDuration = 3.0,
                                     Duration = 5.0

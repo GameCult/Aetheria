@@ -94,8 +94,8 @@ public class ActionBarConsumableBinding : ActionBarBinding
         else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Duration;
     }
 
-    private string TargetItemKey =>
-        Guid.TryParse(Target.LegacyId, out var legacyId) ? AetheriaRuntimeItemReference.FromLegacyId(legacyId) : "";
+    public string TargetItemKey =>
+        Guid.TryParse(Target?.LegacyId, out var legacyId) ? AetheriaRuntimeItemReference.FromLegacyId(legacyId) : "";
 
     public string TargetItemDefinitionLegacyId => Target?.LegacyId ?? "";
 
@@ -116,13 +116,13 @@ public class ActionBarGearBinding : ActionBarBinding
     {
         get
         {
-            var itemKey = Item?.EquippableItem?.ItemKey ?? "";
-            const string legacyPrefix = "aetheria.item_definition:legacy:";
-            return itemKey.StartsWith(legacyPrefix, StringComparison.OrdinalIgnoreCase)
-                ? itemKey.Substring(legacyPrefix.Length)
+            return AetheriaRuntimeItemReference.ToLegacyId(TargetItemKey) is var legacyId && legacyId != Guid.Empty
+                ? legacyId.ToString("D")
                 : "";
         }
     }
+
+    public string TargetItemKey => Item?.EquippableItem?.ItemKey ?? "";
 
     public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {

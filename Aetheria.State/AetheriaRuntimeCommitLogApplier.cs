@@ -164,7 +164,7 @@ public static class AetheriaRuntimeCommitLogApplier
         item ??= new AetheriaRuntimeLoadoutItemCommit();
         return new AetheriaLoadoutItem
         {
-            ItemKey = ReferenceKey("aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
+            ItemKey = ReferenceKey(item.ItemKey, "aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
             Quality = item.Quality,
             Durability = item.Durability,
             Quantity = item.Quantity,
@@ -332,7 +332,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (resources ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>())
             .Select(resource => new AetheriaBodyResource
             {
-                ItemKey = ReferenceKey("aetheria.item_definition", resource.ItemDefinitionLegacyId ?? ""),
+                ItemKey = ReferenceKey(resource.ItemKey, "aetheria.item_definition", resource.ItemDefinitionLegacyId ?? ""),
                 Amount = resource.Amount
             })
             .ToArray();
@@ -464,7 +464,7 @@ public static class AetheriaRuntimeCommitLogApplier
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
             FactionKey = ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
-            HullItemKey = ReferenceKey("aetheria.item_definition", entity.HullItemDefinitionLegacyId ?? ""),
+            HullItemKey = ReferenceKey(entity.HullItemKey, "aetheria.item_definition", entity.HullItemDefinitionLegacyId ?? ""),
             Equipment = ToEntityItemSlots(entity.Equipment),
             CargoBays = ToEntityItemSlots(entity.CargoBays),
             DockingBays = ToEntityItemSlots(entity.DockingBays),
@@ -624,7 +624,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (consumables ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>())
             .Select(consumable => new AetheriaActiveConsumableSnapshot
             {
-                ItemKey = ReferenceKey("aetheria.item_definition", consumable.ItemDefinitionLegacyId ?? ""),
+                ItemKey = ReferenceKey(consumable.ItemKey, "aetheria.item_definition", consumable.ItemDefinitionLegacyId ?? ""),
                 Quality = consumable.Quality,
                 RemainingDuration = consumable.RemainingDuration,
                 Duration = consumable.Duration
@@ -666,7 +666,7 @@ public static class AetheriaRuntimeCommitLogApplier
             {
                 ControlPath = binding.ControlPath ?? "",
                 Kind = binding.Kind ?? "",
-                TargetKey = ReferenceKey("aetheria.item_definition", binding.ItemDefinitionLegacyId ?? ""),
+                TargetKey = ReferenceKey(binding.ItemKey, "aetheria.item_definition", binding.ItemDefinitionLegacyId ?? ""),
                 EquipmentIndex = binding.EquipmentIndex,
                 BehaviorIndex = binding.BehaviorIndex,
                 WeaponGroup = binding.WeaponGroup
@@ -710,6 +710,13 @@ public static class AetheriaRuntimeCommitLogApplier
     private static string ReferenceKey(string documentName, string legacyId)
     {
         return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{documentName}:legacy:{legacyId}";
+    }
+
+    private static string ReferenceKey(string typedKey, string documentName, string legacyId)
+    {
+        return !string.IsNullOrWhiteSpace(typedKey)
+            ? typedKey
+            : ReferenceKey(documentName, legacyId);
     }
 
     private static string StableToken(string value)
