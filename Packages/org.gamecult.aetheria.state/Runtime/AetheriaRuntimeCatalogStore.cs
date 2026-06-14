@@ -18,6 +18,9 @@ namespace GameCult.Aetheria.State.Unity
         private const string EveSurfaceSchema = "gamecult.eve.surface";
         private const string PlayerSettingsSchema = "aetheria.player_settings";
         private const string LoadoutTemplateSchema = "aetheria.loadout_template";
+        private const string RunStateSchema = "aetheria.run_state";
+        private const string ZoneStateSchema = "aetheria.zone_state";
+        private const string EntitySnapshotSchema = "aetheria.entity_snapshot";
         private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
 
         public static AetheriaRuntimeCatalogSnapshot OpenReadOnly(string stateFilePath)
@@ -106,6 +109,63 @@ namespace GameCult.Aetheria.State.Unity
             return loadouts
                 .OrderBy(loadout => loadout.Name, StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeRunStateSnapshot> ReadRunStates(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            var runs = new List<AetheriaRuntimeRunStateSnapshot>();
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != RunStateSchema)
+                    continue;
+
+                runs.Add(ReadRunStatePayload(record.Payload));
+            }
+
+            return runs.OrderBy(run => run.RunId, StringComparer.Ordinal).ToArray();
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeZoneStateSnapshot> ReadZoneStates(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            var zones = new List<AetheriaRuntimeZoneStateSnapshot>();
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != ZoneStateSchema)
+                    continue;
+
+                zones.Add(ReadZoneStatePayload(record.Payload));
+            }
+
+            return zones.OrderBy(zone => zone.Name, StringComparer.Ordinal).ToArray();
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeEntitySnapshot> ReadEntitySnapshots(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            var entities = new List<AetheriaRuntimeEntitySnapshot>();
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != EntitySnapshotSchema)
+                    continue;
+
+                entities.Add(ReadEntitySnapshotPayload(record.Payload));
+            }
+
+            return entities.OrderBy(entity => entity.Name, StringComparer.Ordinal).ToArray();
         }
 
         private static Dictionary<string, string> ReadSchemaCatalog(string stateFilePath)
@@ -387,6 +447,440 @@ namespace GameCult.Aetheria.State.Unity
                 updatedAtUtc);
         }
 
+        private static AetheriaRuntimeRunStateSnapshot ReadRunStatePayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            var runId = ReadFieldString(ref reader, fields, 0);
+            var isTutorial = ReadFieldBool(ref reader, fields, 1);
+            var entranceZoneIndex = ReadFieldInt32(ref reader, fields, 2);
+            var exitZoneIndex = ReadFieldInt32(ref reader, fields, 3);
+            var currentZoneIndex = ReadFieldInt32(ref reader, fields, 4);
+            var currentZoneEntityIndex = ReadFieldInt32(ref reader, fields, 5);
+            var discoveredZoneIndices = ReadFieldInt32Array(ref reader, fields, 6);
+            var zoneKeys = ReadFieldStringArray(ref reader, fields, 7);
+            var actionBarBindings = ReadFieldActionBarBindings(ref reader, fields, 8);
+            var factionRelationships = ReadFieldFactionRelationships(ref reader, fields, 9);
+            var updatedAtUtc = ReadFieldString(ref reader, fields, 10);
+            SkipRemaining(ref reader, fields, 11);
+            return new AetheriaRuntimeRunStateSnapshot(
+                runId,
+                isTutorial,
+                entranceZoneIndex,
+                exitZoneIndex,
+                currentZoneIndex,
+                currentZoneEntityIndex,
+                discoveredZoneIndices,
+                zoneKeys,
+                actionBarBindings,
+                factionRelationships,
+                updatedAtUtc);
+        }
+
+        private static AetheriaRuntimeZoneStateSnapshot ReadZoneStatePayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            var name = ReadFieldString(ref reader, fields, 0);
+            var position = ReadFieldVector2(ref reader, fields, 1);
+            var adjacentZoneIndices = ReadFieldInt32Array(ref reader, fields, 2);
+            var factionIndices = ReadFieldInt32Array(ref reader, fields, 3);
+            var ownerFactionIndex = ReadFieldInt32(ref reader, fields, 4);
+            var entityKeys = ReadFieldStringArray(ref reader, fields, 5);
+            var orbits = ReadFieldOrbitSnapshots(ref reader, fields, 6);
+            var bodies = ReadFieldBodySnapshots(ref reader, fields, 7);
+            SkipRemaining(ref reader, fields, 8);
+            return new AetheriaRuntimeZoneStateSnapshot(
+                name,
+                position.X,
+                position.Y,
+                adjacentZoneIndices,
+                factionIndices,
+                ownerFactionIndex,
+                entityKeys,
+                orbits,
+                bodies);
+        }
+
+        private static AetheriaRuntimeEntitySnapshot ReadEntitySnapshotPayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            var name = ReadFieldString(ref reader, fields, 0);
+            var kind = ReadFieldString(ref reader, fields, 1);
+            var position = ReadFieldVector3(ref reader, fields, 2);
+            var direction = ReadFieldVector2(ref reader, fields, 3);
+            var factionKey = ReadFieldString(ref reader, fields, 4);
+            var hullItemKey = ReadFieldString(ref reader, fields, 5);
+            var equipment = ReadFieldEntityItemSlots(ref reader, fields, 6);
+            var cargoBays = ReadFieldEntityItemSlots(ref reader, fields, 7);
+            var dockingBays = ReadFieldEntityItemSlots(ref reader, fields, 8);
+            var childEntityKeys = ReadFieldStringArray(ref reader, fields, 9);
+            var weaponGroups = ReadFieldEntityWeaponGroups(ref reader, fields, 10);
+            var statGrids = ReadFieldEntityStatGrids(ref reader, fields, 11);
+            var velocity = ReadFieldVector2(ref reader, fields, 12);
+            var targetEntityKey = ReadFieldString(ref reader, fields, 13);
+            var isActive = ReadFieldBool(ref reader, fields, 14);
+            var heatsinksEnabled = ReadFieldBool(ref reader, fields, 15);
+            var overrideShutdown = ReadFieldBool(ref reader, fields, 16);
+            var tractorPower = ReadFieldDouble(ref reader, fields, 17);
+            var heatstroke = ReadFieldDouble(ref reader, fields, 18);
+            var hypothermia = ReadFieldDouble(ref reader, fields, 19);
+            var activeConsumables = ReadFieldActiveConsumables(ref reader, fields, 20);
+            var behaviorProgress = ReadFieldBehaviorProgress(ref reader, fields, 21);
+            var weaponStates = ReadFieldWeaponStates(ref reader, fields, 22);
+            var behaviorStates = ReadFieldBehaviorStates(ref reader, fields, 23);
+            SkipRemaining(ref reader, fields, 24);
+            return new AetheriaRuntimeEntitySnapshot(
+                name,
+                kind,
+                position.X,
+                position.Y,
+                position.Z,
+                direction.X,
+                direction.Y,
+                factionKey,
+                hullItemKey,
+                equipment,
+                cargoBays,
+                dockingBays,
+                childEntityKeys,
+                weaponGroups,
+                statGrids,
+                velocity.X,
+                velocity.Y,
+                targetEntityKey,
+                isActive,
+                heatsinksEnabled,
+                overrideShutdown,
+                tractorPower,
+                heatstroke,
+                hypothermia,
+                activeConsumables,
+                behaviorProgress,
+                weaponStates,
+                behaviorStates);
+        }
+
+        private static Vector2Value ReadFieldVector2(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new Vector2Value(0, 0);
+            var vectorFields = reader.ReadArrayHeader();
+            var x = ReadFieldDouble(ref reader, vectorFields, 0);
+            var y = ReadFieldDouble(ref reader, vectorFields, 1);
+            SkipRemaining(ref reader, vectorFields, 2);
+            return new Vector2Value(x, y);
+        }
+
+        private static Vector3Value ReadFieldVector3(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new Vector3Value(0, 0, 0);
+            var vectorFields = reader.ReadArrayHeader();
+            var x = ReadFieldDouble(ref reader, vectorFields, 0);
+            var y = ReadFieldDouble(ref reader, vectorFields, 1);
+            var z = ReadFieldDouble(ref reader, vectorFields, 2);
+            SkipRemaining(ref reader, vectorFields, 3);
+            return new Vector3Value(x, y, z);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ReadFieldActionBarBindings(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var bindings = new AetheriaRuntimeActionBarBindingSnapshot[count];
+            for (var binding = 0; binding < count; binding++)
+            {
+                var bindingFields = reader.ReadArrayHeader();
+                var controlPath = ReadFieldString(ref reader, bindingFields, 0);
+                var kind = ReadFieldString(ref reader, bindingFields, 1);
+                var targetKey = ReadFieldString(ref reader, bindingFields, 2);
+                var equipmentIndex = ReadFieldInt32(ref reader, bindingFields, 3);
+                var behaviorIndex = ReadFieldInt32(ref reader, bindingFields, 4);
+                var weaponGroup = ReadFieldInt32(ref reader, bindingFields, 5);
+                SkipRemaining(ref reader, bindingFields, 6);
+                bindings[binding] = new AetheriaRuntimeActionBarBindingSnapshot(
+                    controlPath,
+                    kind,
+                    targetKey,
+                    equipmentIndex,
+                    behaviorIndex,
+                    weaponGroup);
+            }
+
+            return bindings;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> ReadFieldFactionRelationships(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeFactionRelationshipSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var relationships = new AetheriaRuntimeFactionRelationshipSnapshot[count];
+            for (var relationshipIndex = 0; relationshipIndex < count; relationshipIndex++)
+            {
+                var relationshipFields = reader.ReadArrayHeader();
+                var factionKey = ReadFieldString(ref reader, relationshipFields, 0);
+                var relationship = ReadFieldString(ref reader, relationshipFields, 1);
+                var standing = ReadFieldDouble(ref reader, relationshipFields, 2);
+                SkipRemaining(ref reader, relationshipFields, 3);
+                relationships[relationshipIndex] = new AetheriaRuntimeFactionRelationshipSnapshot(factionKey, relationship, standing);
+            }
+
+            return relationships;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeOrbitSnapshot> ReadFieldOrbitSnapshots(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeOrbitSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var orbits = new AetheriaRuntimeOrbitSnapshot[count];
+            for (var orbit = 0; orbit < count; orbit++)
+            {
+                var orbitFields = reader.ReadArrayHeader();
+                var orbitId = ReadFieldString(ref reader, orbitFields, 0);
+                var parentId = ReadFieldString(ref reader, orbitFields, 1);
+                var distance = ReadFieldDouble(ref reader, orbitFields, 2);
+                var phase = ReadFieldDouble(ref reader, orbitFields, 3);
+                var fixedPosition = ReadFieldVector2(ref reader, orbitFields, 4);
+                SkipRemaining(ref reader, orbitFields, 5);
+                orbits[orbit] = new AetheriaRuntimeOrbitSnapshot(
+                    orbitId,
+                    parentId,
+                    distance,
+                    phase,
+                    fixedPosition.X,
+                    fixedPosition.Y);
+            }
+
+            return orbits;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeBodySnapshot> ReadFieldBodySnapshots(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeBodySnapshot>();
+            var count = reader.ReadArrayHeader();
+            var bodies = new AetheriaRuntimeBodySnapshot[count];
+            for (var body = 0; body < count; body++)
+            {
+                var bodyFields = reader.ReadArrayHeader();
+                var bodyId = ReadFieldString(ref reader, bodyFields, 0);
+                var kind = ReadFieldString(ref reader, bodyFields, 1);
+                var name = ReadFieldString(ref reader, bodyFields, 2);
+                var orbitId = ReadFieldString(ref reader, bodyFields, 3);
+                var mass = ReadFieldDouble(ref reader, bodyFields, 4);
+                var resourceCount = CountAndSkipFieldArray(ref reader, bodyFields, 5);
+                SkipFields(ref reader, bodyFields, 6, 10);
+                var asteroidCount = CountAndSkipFieldArray(ref reader, bodyFields, 10);
+                SkipRemaining(ref reader, bodyFields, 11);
+                bodies[body] = new AetheriaRuntimeBodySnapshot(
+                    bodyId,
+                    kind,
+                    name,
+                    orbitId,
+                    mass,
+                    resourceCount,
+                    asteroidCount);
+            }
+
+            return bodies;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> ReadFieldEntityItemSlots(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeEntityItemSlotSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var slots = new AetheriaRuntimeEntityItemSlotSnapshot[count];
+            for (var slot = 0; slot < count; slot++)
+            {
+                var slotFields = reader.ReadArrayHeader();
+                var position = ReadFieldGridCoord(ref reader, slotFields, 0);
+                var itemKey = ReadFieldString(ref reader, slotFields, 1);
+                SkipRemaining(ref reader, slotFields, 2);
+                slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(position.X, position.Y, itemKey);
+            }
+
+            return slots;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> ReadFieldEntityStatGrids(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeEntityStatGridSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var grids = new AetheriaRuntimeEntityStatGridSnapshot[count];
+            for (var grid = 0; grid < count; grid++)
+            {
+                var gridFields = reader.ReadArrayHeader();
+                var name = ReadFieldString(ref reader, gridFields, 0);
+                var width = ReadFieldInt32(ref reader, gridFields, 1);
+                var height = ReadFieldInt32(ref reader, gridFields, 2);
+                var values = ReadFieldDoubleArray(ref reader, gridFields, 3);
+                SkipRemaining(ref reader, gridFields, 4);
+                grids[grid] = new AetheriaRuntimeEntityStatGridSnapshot(name, width, height, values);
+            }
+
+            return grids;
+        }
+
+        private static IReadOnlyList<IReadOnlyList<int>> ReadFieldEntityWeaponGroups(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<IReadOnlyList<int>>();
+            var count = reader.ReadArrayHeader();
+            var groups = new IReadOnlyList<int>[count];
+            for (var group = 0; group < count; group++)
+            {
+                var groupFields = reader.ReadArrayHeader();
+                groups[group] = ReadFieldInt32Array(ref reader, groupFields, 0);
+                SkipRemaining(ref reader, groupFields, 1);
+            }
+
+            return groups;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeActiveConsumableSnapshot> ReadFieldActiveConsumables(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeActiveConsumableSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var consumables = new AetheriaRuntimeActiveConsumableSnapshot[count];
+            for (var consumable = 0; consumable < count; consumable++)
+            {
+                var consumableFields = reader.ReadArrayHeader();
+                var itemKey = ReadFieldString(ref reader, consumableFields, 0);
+                var quality = ReadFieldDouble(ref reader, consumableFields, 1, 1);
+                var remainingDuration = ReadFieldDouble(ref reader, consumableFields, 2);
+                var duration = ReadFieldDouble(ref reader, consumableFields, 3);
+                SkipRemaining(ref reader, consumableFields, 4);
+                consumables[consumable] = new AetheriaRuntimeActiveConsumableSnapshot(itemKey, quality, remainingDuration, duration);
+            }
+
+            return consumables;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> ReadFieldBehaviorProgress(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeBehaviorProgressSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var progressRows = new AetheriaRuntimeBehaviorProgressSnapshot[count];
+            for (var progress = 0; progress < count; progress++)
+            {
+                var progressFields = reader.ReadArrayHeader();
+                var ownerKind = ReadFieldString(ref reader, progressFields, 0);
+                var ownerIndex = ReadFieldInt32(ref reader, progressFields, 1);
+                var behaviorIndex = ReadFieldInt32(ref reader, progressFields, 2);
+                var behaviorKind = ReadFieldString(ref reader, progressFields, 3);
+                var progressValue = ReadFieldDouble(ref reader, progressFields, 4);
+                SkipRemaining(ref reader, progressFields, 5);
+                progressRows[progress] = new AetheriaRuntimeBehaviorProgressSnapshot(
+                    ownerKind,
+                    ownerIndex,
+                    behaviorIndex,
+                    behaviorKind,
+                    progressValue);
+            }
+
+            return progressRows;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeWeaponStateSnapshot> ReadFieldWeaponStates(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeWeaponStateSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var weaponStates = new AetheriaRuntimeWeaponStateSnapshot[count];
+            for (var weapon = 0; weapon < count; weapon++)
+            {
+                var weaponFields = reader.ReadArrayHeader();
+                var ownerKind = ReadFieldString(ref reader, weaponFields, 0);
+                var ownerIndex = ReadFieldInt32(ref reader, weaponFields, 1);
+                var behaviorIndex = ReadFieldInt32(ref reader, weaponFields, 2);
+                var behaviorKind = ReadFieldString(ref reader, weaponFields, 3);
+                var firing = ReadFieldBool(ref reader, weaponFields, 4);
+                var ammo = ReadFieldInt32(ref reader, weaponFields, 5);
+                var burstRemaining = ReadFieldInt32(ref reader, weaponFields, 6);
+                var burstTimer = ReadFieldDouble(ref reader, weaponFields, 7);
+                var burstInterval = ReadFieldDouble(ref reader, weaponFields, 8);
+                var cooldownProgress = ReadFieldDouble(ref reader, weaponFields, 9);
+                var coolingDown = ReadFieldBool(ref reader, weaponFields, 10);
+                var charging = ReadFieldBool(ref reader, weaponFields, 11);
+                var charged = ReadFieldBool(ref reader, weaponFields, 12);
+                var charge = ReadFieldDouble(ref reader, weaponFields, 13);
+                var reloading = ReadFieldBool(ref reader, weaponFields, 14);
+                var reloadProgress = ReadFieldDouble(ref reader, weaponFields, 15);
+                var ammoIntervalProgress = ReadFieldDouble(ref reader, weaponFields, 16);
+                SkipRemaining(ref reader, weaponFields, 17);
+                weaponStates[weapon] = new AetheriaRuntimeWeaponStateSnapshot(
+                    ownerKind,
+                    ownerIndex,
+                    behaviorIndex,
+                    behaviorKind,
+                    firing,
+                    ammo,
+                    burstRemaining,
+                    burstTimer,
+                    burstInterval,
+                    cooldownProgress,
+                    coolingDown,
+                    charging,
+                    charged,
+                    charge,
+                    reloading,
+                    reloadProgress,
+                    ammoIntervalProgress);
+            }
+
+            return weaponStates;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> ReadFieldBehaviorStates(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeBehaviorStateSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var behaviorStates = new AetheriaRuntimeBehaviorStateSnapshot[count];
+            for (var behavior = 0; behavior < count; behavior++)
+            {
+                var behaviorFields = reader.ReadArrayHeader();
+                var ownerKind = ReadFieldString(ref reader, behaviorFields, 0);
+                var ownerIndex = ReadFieldInt32(ref reader, behaviorFields, 1);
+                var behaviorIndex = ReadFieldInt32(ref reader, behaviorFields, 2);
+                var behaviorKind = ReadFieldString(ref reader, behaviorFields, 3);
+                var pinging = ReadFieldBool(ref reader, behaviorFields, 4);
+                var pingCooldown = ReadFieldDouble(ref reader, behaviorFields, 5);
+                var pingLerp = ReadFieldDouble(ref reader, behaviorFields, 6);
+                var pingRadius = ReadFieldDouble(ref reader, behaviorFields, 7);
+                var pingedEntityCount = ReadFieldInt32(ref reader, behaviorFields, 8);
+                var radiatorTemperature = ReadFieldDouble(ref reader, behaviorFields, 9);
+                var emissivity = ReadFieldDouble(ref reader, behaviorFields, 10);
+                var pumpedHeat = ReadFieldDouble(ref reader, behaviorFields, 11);
+                var wasteHeat = ReadFieldDouble(ref reader, behaviorFields, 12);
+                var energyUsage = ReadFieldDouble(ref reader, behaviorFields, 13);
+                var reactorDraw = ReadFieldDouble(ref reader, behaviorFields, 14);
+                var reactorLoadRatio = ReadFieldDouble(ref reader, behaviorFields, 15);
+                var capacitorCharge = ReadFieldDouble(ref reader, behaviorFields, 16);
+                var capacitorCapacity = ReadFieldDouble(ref reader, behaviorFields, 17);
+                var capacitorEfficiency = ReadFieldDouble(ref reader, behaviorFields, 18);
+                SkipRemaining(ref reader, behaviorFields, 19);
+                behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
+                    ownerKind,
+                    ownerIndex,
+                    behaviorIndex,
+                    behaviorKind,
+                    pinging,
+                    pingCooldown,
+                    pingLerp,
+                    pingRadius,
+                    pingedEntityCount,
+                    radiatorTemperature,
+                    emissivity,
+                    pumpedHeat,
+                    wasteHeat,
+                    energyUsage,
+                    reactorDraw,
+                    reactorLoadRatio,
+                    capacitorCharge,
+                    capacitorCapacity,
+                    capacitorEfficiency);
+            }
+
+            return behaviorStates;
+        }
+
         private static string ReadFieldString(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? "" : ReadString(ref reader);
@@ -647,6 +1141,16 @@ namespace GameCult.Aetheria.State.Unity
                 values[item] = group;
             }
 
+            return values;
+        }
+
+        private static IReadOnlyList<double> ReadFieldDoubleArray(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<double>();
+            var count = reader.ReadArrayHeader();
+            var values = new double[count];
+            for (var item = 0; item < count; item++)
+                values[item] = reader.ReadDouble();
             return values;
         }
 
@@ -990,6 +1494,15 @@ namespace GameCult.Aetheria.State.Unity
                 reader.Skip();
         }
 
+        private static int CountAndSkipFieldArray(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return 0;
+            var count = reader.ReadArrayHeader();
+            for (var item = 0; item < count; item++)
+                reader.Skip();
+            return count;
+        }
+
         private static void SkipRemaining(ref MessagePackReader reader, int fields, int firstUnhandledIndex)
         {
             for (var field = firstUnhandledIndex; field < fields; field++)
@@ -1051,6 +1564,35 @@ namespace GameCult.Aetheria.State.Unity
             public IReadOnlyList<AetheriaRuntimeInputBindingOverride> BindingOverrides { get; }
 
             public IReadOnlyList<string> ActionBarInputs { get; }
+        }
+
+        private readonly struct Vector2Value
+        {
+            public Vector2Value(double x, double y)
+            {
+                X = x;
+                Y = y;
+            }
+
+            public double X { get; }
+
+            public double Y { get; }
+        }
+
+        private readonly struct Vector3Value
+        {
+            public Vector3Value(double x, double y, double z)
+            {
+                X = x;
+                Y = y;
+                Z = z;
+            }
+
+            public double X { get; }
+
+            public double Y { get; }
+
+            public double Z { get; }
         }
 
         private readonly struct GridCoord

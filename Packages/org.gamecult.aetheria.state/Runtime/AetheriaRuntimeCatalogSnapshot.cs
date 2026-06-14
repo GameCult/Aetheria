@@ -673,4 +673,436 @@ namespace GameCult.Aetheria.State.Unity
 
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> Items { get; }
     }
+
+    public sealed class AetheriaRuntimeRunStateSnapshot
+    {
+        public AetheriaRuntimeRunStateSnapshot(
+            string runId,
+            bool isTutorial,
+            int entranceZoneIndex,
+            int exitZoneIndex,
+            int currentZoneIndex,
+            int currentZoneEntityIndex,
+            IReadOnlyList<int> discoveredZoneIndices,
+            IReadOnlyList<string> zoneKeys,
+            IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings,
+            IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> factionRelationships,
+            string updatedAtUtc)
+        {
+            RunId = runId;
+            IsTutorial = isTutorial;
+            EntranceZoneIndex = entranceZoneIndex;
+            ExitZoneIndex = exitZoneIndex;
+            CurrentZoneIndex = currentZoneIndex;
+            CurrentZoneEntityIndex = currentZoneEntityIndex;
+            DiscoveredZoneIndices = discoveredZoneIndices;
+            ZoneKeys = zoneKeys;
+            ActionBarBindings = actionBarBindings;
+            FactionRelationships = factionRelationships;
+            UpdatedAtUtc = updatedAtUtc;
+        }
+
+        public string RunId { get; }
+        public bool IsTutorial { get; }
+        public int EntranceZoneIndex { get; }
+        public int ExitZoneIndex { get; }
+        public int CurrentZoneIndex { get; }
+        public int CurrentZoneEntityIndex { get; }
+        public IReadOnlyList<int> DiscoveredZoneIndices { get; }
+        public IReadOnlyList<string> ZoneKeys { get; }
+        public IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ActionBarBindings { get; }
+        public IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> FactionRelationships { get; }
+        public string UpdatedAtUtc { get; }
+    }
+
+    public sealed class AetheriaRuntimeZoneStateSnapshot
+    {
+        public AetheriaRuntimeZoneStateSnapshot(
+            string name,
+            double positionX,
+            double positionY,
+            IReadOnlyList<int> adjacentZoneIndices,
+            IReadOnlyList<int> factionIndices,
+            int ownerFactionIndex,
+            IReadOnlyList<string> entityKeys,
+            IReadOnlyList<AetheriaRuntimeOrbitSnapshot> orbits,
+            IReadOnlyList<AetheriaRuntimeBodySnapshot> bodies)
+        {
+            Name = name;
+            PositionX = positionX;
+            PositionY = positionY;
+            AdjacentZoneIndices = adjacentZoneIndices;
+            FactionIndices = factionIndices;
+            OwnerFactionIndex = ownerFactionIndex;
+            EntityKeys = entityKeys;
+            Orbits = orbits;
+            Bodies = bodies;
+        }
+
+        public string Name { get; }
+        public double PositionX { get; }
+        public double PositionY { get; }
+        public IReadOnlyList<int> AdjacentZoneIndices { get; }
+        public IReadOnlyList<int> FactionIndices { get; }
+        public int OwnerFactionIndex { get; }
+        public IReadOnlyList<string> EntityKeys { get; }
+        public IReadOnlyList<AetheriaRuntimeOrbitSnapshot> Orbits { get; }
+        public IReadOnlyList<AetheriaRuntimeBodySnapshot> Bodies { get; }
+    }
+
+    public sealed class AetheriaRuntimeEntitySnapshot
+    {
+        public AetheriaRuntimeEntitySnapshot(
+            string name,
+            string kind,
+            double positionX,
+            double positionY,
+            double positionZ,
+            double directionX,
+            double directionY,
+            string factionKey,
+            string hullItemKey,
+            IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> equipment,
+            IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> cargoBays,
+            IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> dockingBays,
+            IReadOnlyList<string> childEntityKeys,
+            IReadOnlyList<IReadOnlyList<int>> weaponGroups,
+            IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> statGrids,
+            double velocityX,
+            double velocityY,
+            string targetEntityKey,
+            bool isActive,
+            bool heatsinksEnabled,
+            bool overrideShutdown,
+            double tractorPower,
+            double heatstroke,
+            double hypothermia,
+            IReadOnlyList<AetheriaRuntimeActiveConsumableSnapshot> activeConsumables,
+            IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> behaviorProgress,
+            IReadOnlyList<AetheriaRuntimeWeaponStateSnapshot> weaponStates,
+            IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> behaviorStates)
+        {
+            Name = name;
+            Kind = kind;
+            PositionX = positionX;
+            PositionY = positionY;
+            PositionZ = positionZ;
+            DirectionX = directionX;
+            DirectionY = directionY;
+            FactionKey = factionKey;
+            HullItemKey = hullItemKey;
+            Equipment = equipment;
+            CargoBays = cargoBays;
+            DockingBays = dockingBays;
+            ChildEntityKeys = childEntityKeys;
+            WeaponGroups = weaponGroups;
+            StatGrids = statGrids;
+            VelocityX = velocityX;
+            VelocityY = velocityY;
+            TargetEntityKey = targetEntityKey;
+            IsActive = isActive;
+            HeatsinksEnabled = heatsinksEnabled;
+            OverrideShutdown = overrideShutdown;
+            TractorPower = tractorPower;
+            Heatstroke = heatstroke;
+            Hypothermia = hypothermia;
+            ActiveConsumables = activeConsumables;
+            BehaviorProgress = behaviorProgress;
+            WeaponStates = weaponStates;
+            BehaviorStates = behaviorStates;
+        }
+
+        public string Name { get; }
+        public string Kind { get; }
+        public double PositionX { get; }
+        public double PositionY { get; }
+        public double PositionZ { get; }
+        public double DirectionX { get; }
+        public double DirectionY { get; }
+        public string FactionKey { get; }
+        public string HullItemKey { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> Equipment { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> CargoBays { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> DockingBays { get; }
+        public IReadOnlyList<string> ChildEntityKeys { get; }
+        public IReadOnlyList<IReadOnlyList<int>> WeaponGroups { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> StatGrids { get; }
+        public double VelocityX { get; }
+        public double VelocityY { get; }
+        public string TargetEntityKey { get; }
+        public bool IsActive { get; }
+        public bool HeatsinksEnabled { get; }
+        public bool OverrideShutdown { get; }
+        public double TractorPower { get; }
+        public double Heatstroke { get; }
+        public double Hypothermia { get; }
+        public IReadOnlyList<AetheriaRuntimeActiveConsumableSnapshot> ActiveConsumables { get; }
+        public IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> BehaviorProgress { get; }
+        public IReadOnlyList<AetheriaRuntimeWeaponStateSnapshot> WeaponStates { get; }
+        public IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> BehaviorStates { get; }
+    }
+
+    public sealed class AetheriaRuntimeActionBarBindingSnapshot
+    {
+        public AetheriaRuntimeActionBarBindingSnapshot(string controlPath, string kind, string targetKey, int equipmentIndex, int behaviorIndex, int weaponGroup)
+        {
+            ControlPath = controlPath;
+            Kind = kind;
+            TargetKey = targetKey;
+            EquipmentIndex = equipmentIndex;
+            BehaviorIndex = behaviorIndex;
+            WeaponGroup = weaponGroup;
+        }
+
+        public string ControlPath { get; }
+        public string Kind { get; }
+        public string TargetKey { get; }
+        public int EquipmentIndex { get; }
+        public int BehaviorIndex { get; }
+        public int WeaponGroup { get; }
+    }
+
+    public sealed class AetheriaRuntimeFactionRelationshipSnapshot
+    {
+        public AetheriaRuntimeFactionRelationshipSnapshot(string factionKey, string relationship, double standing)
+        {
+            FactionKey = factionKey;
+            Relationship = relationship;
+            Standing = standing;
+        }
+
+        public string FactionKey { get; }
+        public string Relationship { get; }
+        public double Standing { get; }
+    }
+
+    public sealed class AetheriaRuntimeOrbitSnapshot
+    {
+        public AetheriaRuntimeOrbitSnapshot(string orbitId, string parentId, double distance, double phase, double fixedPositionX, double fixedPositionY)
+        {
+            OrbitId = orbitId;
+            ParentId = parentId;
+            Distance = distance;
+            Phase = phase;
+            FixedPositionX = fixedPositionX;
+            FixedPositionY = fixedPositionY;
+        }
+
+        public string OrbitId { get; }
+        public string ParentId { get; }
+        public double Distance { get; }
+        public double Phase { get; }
+        public double FixedPositionX { get; }
+        public double FixedPositionY { get; }
+    }
+
+    public sealed class AetheriaRuntimeBodySnapshot
+    {
+        public AetheriaRuntimeBodySnapshot(string bodyId, string kind, string name, string orbitId, double mass, int resourceCount, int asteroidCount)
+        {
+            BodyId = bodyId;
+            Kind = kind;
+            Name = name;
+            OrbitId = orbitId;
+            Mass = mass;
+            ResourceCount = resourceCount;
+            AsteroidCount = asteroidCount;
+        }
+
+        public string BodyId { get; }
+        public string Kind { get; }
+        public string Name { get; }
+        public string OrbitId { get; }
+        public double Mass { get; }
+        public int ResourceCount { get; }
+        public int AsteroidCount { get; }
+    }
+
+    public sealed class AetheriaRuntimeEntityItemSlotSnapshot
+    {
+        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey)
+        {
+            X = x;
+            Y = y;
+            ItemKey = itemKey;
+        }
+
+        public int X { get; }
+        public int Y { get; }
+        public string ItemKey { get; }
+    }
+
+    public sealed class AetheriaRuntimeEntityStatGridSnapshot
+    {
+        public AetheriaRuntimeEntityStatGridSnapshot(string name, int width, int height, IReadOnlyList<double> values)
+        {
+            Name = name;
+            Width = width;
+            Height = height;
+            Values = values;
+        }
+
+        public string Name { get; }
+        public int Width { get; }
+        public int Height { get; }
+        public IReadOnlyList<double> Values { get; }
+    }
+
+    public sealed class AetheriaRuntimeActiveConsumableSnapshot
+    {
+        public AetheriaRuntimeActiveConsumableSnapshot(string itemKey, double quality, double remainingDuration, double duration)
+        {
+            ItemKey = itemKey;
+            Quality = quality;
+            RemainingDuration = remainingDuration;
+            Duration = duration;
+        }
+
+        public string ItemKey { get; }
+        public double Quality { get; }
+        public double RemainingDuration { get; }
+        public double Duration { get; }
+    }
+
+    public sealed class AetheriaRuntimeBehaviorProgressSnapshot
+    {
+        public AetheriaRuntimeBehaviorProgressSnapshot(string ownerKind, int ownerIndex, int behaviorIndex, string behaviorKind, double progress)
+        {
+            OwnerKind = ownerKind;
+            OwnerIndex = ownerIndex;
+            BehaviorIndex = behaviorIndex;
+            BehaviorKind = behaviorKind;
+            Progress = progress;
+        }
+
+        public string OwnerKind { get; }
+        public int OwnerIndex { get; }
+        public int BehaviorIndex { get; }
+        public string BehaviorKind { get; }
+        public double Progress { get; }
+    }
+
+    public sealed class AetheriaRuntimeWeaponStateSnapshot
+    {
+        public AetheriaRuntimeWeaponStateSnapshot(
+            string ownerKind,
+            int ownerIndex,
+            int behaviorIndex,
+            string behaviorKind,
+            bool firing,
+            int ammo,
+            int burstRemaining,
+            double burstTimer,
+            double burstInterval,
+            double cooldownProgress,
+            bool coolingDown,
+            bool charging,
+            bool charged,
+            double charge,
+            bool reloading,
+            double reloadProgress,
+            double ammoIntervalProgress)
+        {
+            OwnerKind = ownerKind;
+            OwnerIndex = ownerIndex;
+            BehaviorIndex = behaviorIndex;
+            BehaviorKind = behaviorKind;
+            Firing = firing;
+            Ammo = ammo;
+            BurstRemaining = burstRemaining;
+            BurstTimer = burstTimer;
+            BurstInterval = burstInterval;
+            CooldownProgress = cooldownProgress;
+            CoolingDown = coolingDown;
+            Charging = charging;
+            Charged = charged;
+            Charge = charge;
+            Reloading = reloading;
+            ReloadProgress = reloadProgress;
+            AmmoIntervalProgress = ammoIntervalProgress;
+        }
+
+        public string OwnerKind { get; }
+        public int OwnerIndex { get; }
+        public int BehaviorIndex { get; }
+        public string BehaviorKind { get; }
+        public bool Firing { get; }
+        public int Ammo { get; }
+        public int BurstRemaining { get; }
+        public double BurstTimer { get; }
+        public double BurstInterval { get; }
+        public double CooldownProgress { get; }
+        public bool CoolingDown { get; }
+        public bool Charging { get; }
+        public bool Charged { get; }
+        public double Charge { get; }
+        public bool Reloading { get; }
+        public double ReloadProgress { get; }
+        public double AmmoIntervalProgress { get; }
+    }
+
+    public sealed class AetheriaRuntimeBehaviorStateSnapshot
+    {
+        public AetheriaRuntimeBehaviorStateSnapshot(
+            string ownerKind,
+            int ownerIndex,
+            int behaviorIndex,
+            string behaviorKind,
+            bool pinging,
+            double pingCooldown,
+            double pingLerp,
+            double pingRadius,
+            int pingedEntityCount,
+            double radiatorTemperature,
+            double emissivity,
+            double pumpedHeat,
+            double wasteHeat,
+            double energyUsage,
+            double reactorDraw,
+            double reactorLoadRatio,
+            double capacitorCharge,
+            double capacitorCapacity,
+            double capacitorEfficiency)
+        {
+            OwnerKind = ownerKind;
+            OwnerIndex = ownerIndex;
+            BehaviorIndex = behaviorIndex;
+            BehaviorKind = behaviorKind;
+            Pinging = pinging;
+            PingCooldown = pingCooldown;
+            PingLerp = pingLerp;
+            PingRadius = pingRadius;
+            PingedEntityCount = pingedEntityCount;
+            RadiatorTemperature = radiatorTemperature;
+            Emissivity = emissivity;
+            PumpedHeat = pumpedHeat;
+            WasteHeat = wasteHeat;
+            EnergyUsage = energyUsage;
+            ReactorDraw = reactorDraw;
+            ReactorLoadRatio = reactorLoadRatio;
+            CapacitorCharge = capacitorCharge;
+            CapacitorCapacity = capacitorCapacity;
+            CapacitorEfficiency = capacitorEfficiency;
+        }
+
+        public string OwnerKind { get; }
+        public int OwnerIndex { get; }
+        public int BehaviorIndex { get; }
+        public string BehaviorKind { get; }
+        public bool Pinging { get; }
+        public double PingCooldown { get; }
+        public double PingLerp { get; }
+        public double PingRadius { get; }
+        public int PingedEntityCount { get; }
+        public double RadiatorTemperature { get; }
+        public double Emissivity { get; }
+        public double PumpedHeat { get; }
+        public double WasteHeat { get; }
+        public double EnergyUsage { get; }
+        public double ReactorDraw { get; }
+        public double ReactorLoadRatio { get; }
+        public double CapacitorCharge { get; }
+        public double CapacitorCapacity { get; }
+        public double CapacitorEfficiency { get; }
+    }
 }

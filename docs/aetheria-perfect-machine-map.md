@@ -37,7 +37,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.State` owns applying those command documents into canonical
   `AetheriaPlayerSettings`, `AetheriaLoadoutTemplate`, `AetheriaRunState`,
   `AetheriaZoneState`, and `AetheriaEntitySnapshot` documents through
-  `AetheriaStateNode`. Local run saves, loadouts, player settings files, zone
+  `AetheriaStateNode`. The embedded Unity state package can also read typed
+  run, zone, and entity snapshot documents back from the `.cc` store as
+  read-only runtime DTOs, including action-bar bindings, faction
+  relationships, zone entity/orbit/body references, entity session scalars,
+  active consumables, behavior progress, weapon state, behavior state, and
+  stat-grid rows. Local run saves, loadouts, player settings files, zone
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `RuntimePlayerSettings` runtime object is no longer named or decorated as a
@@ -782,6 +787,10 @@ First Aetheria surfaces to publish:
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
+   - Done: add Unity package readback for canonical typed run, zone, and
+     entity snapshot documents, so the `.zone` replacement graph is not only
+     writable through the state node but also inspectable by runtime package
+     consumers.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

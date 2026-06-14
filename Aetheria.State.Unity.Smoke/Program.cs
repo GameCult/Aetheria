@@ -580,6 +580,9 @@ try
 
     var packageSettings = AetheriaRuntimeCatalogStore.ReadPlayerSettings(commitSmokeStatePath);
     var packageLoadouts = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(commitSmokeStatePath);
+    var packageRuns = AetheriaRuntimeCatalogStore.ReadRunStates(commitSmokeStatePath);
+    var packageZones = AetheriaRuntimeCatalogStore.ReadZoneStates(commitSmokeStatePath);
+    var packageEntities = AetheriaRuntimeCatalogStore.ReadEntitySnapshots(commitSmokeStatePath);
     if (!typedNodeApplied ||
         packageSettings?.PlayerName != "Unity smoke" ||
         packageSettings.TutorialPassed != true ||
@@ -587,11 +590,40 @@ try
         packageLoadouts.Count != 1 ||
         packageLoadouts[0].RootEntity.Hull.ItemKey != "aetheria.item_definition:legacy:smoke:hull" ||
         packageLoadouts[0].RootEntity.Equipment[0].X != 1 ||
-        packageLoadouts[0].RootEntity.CargoContents[0].Items[0].Item.Quantity != 5)
+        packageLoadouts[0].RootEntity.CargoContents[0].Items[0].Item.Quantity != 5 ||
+        packageRuns.Count != 1 ||
+        packageRuns[0].RunId != "smoke-run" ||
+        packageRuns[0].ZoneKeys.Count != 1 ||
+        packageRuns[0].ActionBarBindings.Count != 2 ||
+        packageRuns[0].ActionBarBindings[1].TargetKey != "aetheria.item_definition:legacy:smoke:weapon" ||
+        packageRuns[0].FactionRelationships.Count != 1 ||
+        packageRuns[0].FactionRelationships[0].FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
+        packageZones.Count != 1 ||
+        packageZones[0].Name != "Unity Smoke Zone" ||
+        packageZones[0].EntityKeys.Count != 1 ||
+        packageZones[0].Orbits.Count != 1 ||
+        packageZones[0].Orbits[0].FixedPositionX != 5.0 ||
+        packageZones[0].Bodies.Count != 1 ||
+        packageZones[0].Bodies[0].ResourceCount != 1 ||
+        packageZones[0].Bodies[0].AsteroidCount != 1 ||
+        packageEntities.Count != 1 ||
+        packageEntities[0].Name != "Unity Smoke Ship" ||
+        packageEntities[0].VelocityX != 4.0 ||
+        packageEntities[0].VelocityY != -2.0 ||
+        packageEntities[0].TargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
+        packageEntities[0].ActiveConsumables.Count != 1 ||
+        packageEntities[0].ActiveConsumables[0].ItemKey != "aetheria.item_definition:legacy:smoke:consumable" ||
+        packageEntities[0].BehaviorProgress.Count != 2 ||
+        packageEntities[0].WeaponStates.Count != 3 ||
+        packageEntities[0].WeaponStates[2].AmmoIntervalProgress != 0.6 ||
+        packageEntities[0].BehaviorStates.Count != 4 ||
+        packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
+        packageEntities[0].StatGrids.Count != 2 ||
+        packageEntities[0].StatGrids.All(grid => grid.Name != "temperature" || grid.Values.Count != 2 || grid.Values[1] != 281.0))
     {
         throw new InvalidOperationException(
             "Runtime state commit log did not apply queued settings/loadout/run snapshots through the typed state node. " +
-            $"typedNodeApplied={typedNodeApplied}, packageSettings={(packageSettings == null ? "null" : $"{packageSettings.PlayerName}/{packageSettings.TutorialPassed}/{packageSettings.ActionBarInputs.Count}")}, packageLoadouts={packageLoadouts.Count}");
+            $"typedNodeApplied={typedNodeApplied}, packageSettings={(packageSettings == null ? "null" : $"{packageSettings.PlayerName}/{packageSettings.TutorialPassed}/{packageSettings.ActionBarInputs.Count}")}, packageLoadouts={packageLoadouts.Count}, packageRuns={packageRuns.Count}, packageZones={packageZones.Count}, packageEntities={packageEntities.Count}");
     }
 
     var eveCommand = AetheriaRuntimeEveCommandLog.QueueCommand(
