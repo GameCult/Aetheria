@@ -757,6 +757,15 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(36)]
     public double ResourceScannerScanDuration { get; set; }
+
+    [Key(37)]
+    public string MiningToolAsteroidBeltId { get; set; } = "";
+
+    [Key(38)]
+    public int MiningToolAsteroidIndex { get; set; } = -1;
+
+    [Key(39)]
+    public double MiningToolRange { get; set; }
 }
 
 [MessagePackObject]

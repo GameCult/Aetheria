@@ -916,6 +916,17 @@ public class ActionGameManager : MonoBehaviour
                     ResourceScannerScanDuration = resourceScanner.ScanDuration
                 };
             }
+            else if (behavior is MiningTool miningTool)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    MiningToolAsteroidBeltId = miningTool.AsteroidBelt == Guid.Empty
+                        ? ""
+                        : miningTool.AsteroidBelt.ToString("D"),
+                    MiningToolAsteroidIndex = miningTool.Asteroid,
+                    MiningToolRange = miningTool.Range
+                };
+            }
 
             if (state == null)
                 continue;

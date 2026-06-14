@@ -284,6 +284,16 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 ResourceScannerRange = 500.0,
                 ResourceScannerMinimumDensity = 0.2,
                 ResourceScannerScanDuration = 3.5
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 2,
+                BehaviorKind = "MiningTool",
+                MiningToolAsteroidBeltId = "smoke:body",
+                MiningToolAsteroidIndex = 3,
+                MiningToolRange = 275.0
             }
         ],
         StatGrids =
@@ -547,7 +557,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 2 ||
+        entitySnapshot.BehaviorStates.Length != 3 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
@@ -557,6 +567,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.BehaviorStates[1].ResourceScannerAsteroidIndex != 2 ||
         entitySnapshot.BehaviorStates[1].ResourceScannerScanTime != 1.25 ||
         entitySnapshot.BehaviorStates[1].ResourceScannerScanDuration != 3.5 ||
+        entitySnapshot.BehaviorStates[2].BehaviorKind != "MiningTool" ||
+        entitySnapshot.BehaviorStates[2].MiningToolAsteroidBeltId != "smoke:body" ||
+        entitySnapshot.BehaviorStates[2].MiningToolAsteroidIndex != 3 ||
+        entitySnapshot.BehaviorStates[2].MiningToolRange != 275.0 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

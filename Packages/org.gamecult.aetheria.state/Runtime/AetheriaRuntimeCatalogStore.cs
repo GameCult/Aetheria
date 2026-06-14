@@ -894,7 +894,10 @@ namespace GameCult.Aetheria.State.Unity
                 var resourceScannerRange = ReadFieldDouble(ref reader, behaviorFields, 34);
                 var resourceScannerMinimumDensity = ReadFieldDouble(ref reader, behaviorFields, 35);
                 var resourceScannerScanDuration = ReadFieldDouble(ref reader, behaviorFields, 36);
-                SkipRemaining(ref reader, behaviorFields, 37);
+                var miningToolAsteroidBeltId = ReadFieldString(ref reader, behaviorFields, 37);
+                var miningToolAsteroidIndex = ReadFieldInt32(ref reader, behaviorFields, 38);
+                var miningToolRange = ReadFieldDouble(ref reader, behaviorFields, 39);
+                SkipRemaining(ref reader, behaviorFields, 40);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -932,7 +935,10 @@ namespace GameCult.Aetheria.State.Unity
                     resourceScannerScanTime,
                     resourceScannerRange,
                     resourceScannerMinimumDensity,
-                    resourceScannerScanDuration);
+                    resourceScannerScanDuration,
+                    miningToolAsteroidBeltId,
+                    miningToolAsteroidIndex,
+                    miningToolRange);
             }
 
             return behaviorStates;

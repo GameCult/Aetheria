@@ -513,6 +513,16 @@ try
                                     ResourceScannerRange = 500.0,
                                     ResourceScannerMinimumDensity = 0.2,
                                     ResourceScannerScanDuration = 3.5
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 6,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "MiningTool",
+                                    MiningToolAsteroidBeltId = "smoke:body",
+                                    MiningToolAsteroidIndex = 3,
+                                    MiningToolRange = 275.0
                                 }
                             },
                             StatGrids = new[]
@@ -633,7 +643,7 @@ try
             entity.WeaponStates[3].BehaviorKind == "LockWeapon" &&
             entity.WeaponStates[3].LockProgress == 0.65 &&
             entity.WeaponStates[3].LockTargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
-            entity.BehaviorStates.Length == 6 &&
+            entity.BehaviorStates.Length == 7 &&
             entity.BehaviorStates[0].BehaviorKind == "Sensor" &&
             entity.BehaviorStates[0].Pinging &&
             entity.BehaviorStates[0].PingRadius == 1200.0 &&
@@ -655,6 +665,10 @@ try
             entity.BehaviorStates[5].ResourceScannerAsteroidIndex == 2 &&
             entity.BehaviorStates[5].ResourceScannerScanTime == 1.25 &&
             entity.BehaviorStates[5].ResourceScannerScanDuration == 3.5 &&
+            entity.BehaviorStates[6].BehaviorKind == "MiningTool" &&
+            entity.BehaviorStates[6].MiningToolAsteroidBeltId == "smoke:body" &&
+            entity.BehaviorStates[6].MiningToolAsteroidIndex == 3 &&
+            entity.BehaviorStates[6].MiningToolRange == 275.0 &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&
@@ -710,12 +724,14 @@ try
         packageEntities[0].WeaponStates[2].AmmoIntervalProgress != 0.6 ||
         packageEntities[0].WeaponStates[3].LockProgress != 0.65 ||
         packageEntities[0].WeaponStates[3].LockTargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
-        packageEntities[0].BehaviorStates.Count != 6 ||
+        packageEntities[0].BehaviorStates.Count != 7 ||
         packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
         packageEntities[0].BehaviorStates[4].AetherDriveRpmY != 900.0 ||
         packageEntities[0].BehaviorStates[4].AetherDriveMaximumRpm != 2400.0 ||
         packageEntities[0].BehaviorStates[5].ResourceScannerTargetBodyId != "smoke:body" ||
         packageEntities[0].BehaviorStates[5].ResourceScannerScanDuration != 3.5 ||
+        packageEntities[0].BehaviorStates[6].MiningToolAsteroidBeltId != "smoke:body" ||
+        packageEntities[0].BehaviorStates[6].MiningToolRange != 275.0 ||
         packageEntities[0].StatGrids.Count != 2 ||
         packageEntities[0].StatGrids.All(grid => grid.Name != "temperature" || grid.Values.Count != 2 || grid.Values[1] != 281.0))
     {
