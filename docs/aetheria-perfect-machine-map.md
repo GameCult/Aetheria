@@ -529,9 +529,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
   typed catalog row ownership rather than old DTO projection ownership. Behavior
   type selection now uses an explicit runtime catalog map instead of
-  `UnionAttribute` reflection. Runtime item category classification uses
-  package-owned `AetheriaRuntimeItemCategories` tokens; gameplay code should not
-  ask C# legacy DTO class names to classify typed catalog rows.
+  `UnionAttribute` reflection, and the temporary behavior config constructor
+  map is keyed by typed behavior payload kind rather than legacy union key.
+  Runtime item category classification uses package-owned
+  `AetheriaRuntimeItemCategories` tokens; gameplay code should not ask C#
+  legacy DTO class names to classify typed catalog rows.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties
@@ -786,6 +788,9 @@ First Aetheria surfaces to publish:
      off `Data.Behaviors` and onto typed runtime behavior payload config
      construction; `BehaviorData` remains only the temporary behavior-class
      config bridge.
+   - Done: move the temporary behavior config constructor map from legacy union
+     keys to typed behavior payload kind strings; union keys remain migration
+     provenance only for this runtime path.
    - Done: move `StatModifier` behavior requirements and behavior-stat targets
      off `EquippableItemData.Behaviors` and onto typed runtime behavior config;
      the obsolete item-DTO stat target branch is deleted because the live

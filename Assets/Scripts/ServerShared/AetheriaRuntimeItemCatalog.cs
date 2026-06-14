@@ -15,39 +15,39 @@ public interface IRuntimeItemCatalogReader
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
 {
     private readonly Dictionary<Guid, AetheriaRuntimeCatalogItem> _typedItems;
-    private static readonly IReadOnlyDictionary<int, Type> BehaviorTypesByUnionKey = new Dictionary<int, Type>
+    private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByKind = new Dictionary<string, Type>(StringComparer.Ordinal)
     {
-        { 0, typeof(GuidedWeaponData) },
-        { 1, typeof(LauncherData) },
-        { 2, typeof(ReactorData) },
-        { 3, typeof(RadiatorData) },
-        { 4, typeof(StatModifierData) },
-        { 5, typeof(SensorData) },
-        { 6, typeof(ReflectorData) },
-        { 7, typeof(ShieldData) },
-        { 8, typeof(ThrusterData) },
-        { 9, typeof(WearData) },
-        { 10, typeof(VelocityConversionData) },
-        { 11, typeof(VelocityLimitData) },
-        { 12, typeof(AetherDriveData) },
-        { 15, typeof(CooldownData) },
-        { 16, typeof(HeatData) },
-        { 18, typeof(ItemUsageData) },
-        { 20, typeof(SwitchData) },
-        { 21, typeof(TriggerData) },
-        { 22, typeof(VisibilityData) },
-        { 23, typeof(ThermotoggleData) },
-        { 24, typeof(EnergyDrawData) },
-        { 26, typeof(MiningToolData) },
-        { 28, typeof(ResourceScannerData) },
-        { 31, typeof(CapacitorData) },
-        { 32, typeof(CockpitData) },
-        { 33, typeof(HeatStorageData) },
-        { 34, typeof(TurretControllerData) },
-        { 35, typeof(InstantWeaponData) },
-        { 36, typeof(ConstantWeaponData) },
-        { 37, typeof(ChargedWeaponData) },
-        { 38, typeof(AutoWeaponData) }
+        { "GuidedWeapon", typeof(GuidedWeaponData) },
+        { "Launcher", typeof(LauncherData) },
+        { "Reactor", typeof(ReactorData) },
+        { "Radiator", typeof(RadiatorData) },
+        { "StatModifier", typeof(StatModifierData) },
+        { "Sensor", typeof(SensorData) },
+        { "Reflector", typeof(ReflectorData) },
+        { "Shield", typeof(ShieldData) },
+        { "Thruster", typeof(ThrusterData) },
+        { "Wear", typeof(WearData) },
+        { "VelocityConversion", typeof(VelocityConversionData) },
+        { "VelocityLimit", typeof(VelocityLimitData) },
+        { "AetherDrive", typeof(AetherDriveData) },
+        { "Cooldown", typeof(CooldownData) },
+        { "Heat", typeof(HeatData) },
+        { "ItemUsage", typeof(ItemUsageData) },
+        { "Switch", typeof(SwitchData) },
+        { "Trigger", typeof(TriggerData) },
+        { "Visibility", typeof(VisibilityData) },
+        { "Thermotoggle", typeof(ThermotoggleData) },
+        { "EnergyDraw", typeof(EnergyDrawData) },
+        { "MiningTool", typeof(MiningToolData) },
+        { "ResourceScanner", typeof(ResourceScannerData) },
+        { "Capacitor", typeof(CapacitorData) },
+        { "Cockpit", typeof(CockpitData) },
+        { "HeatStorage", typeof(HeatStorageData) },
+        { "TurretController", typeof(TurretControllerData) },
+        { "InstantWeapon", typeof(InstantWeaponData) },
+        { "ConstantWeapon", typeof(ConstantWeaponData) },
+        { "ChargedWeapon", typeof(ChargedWeaponData) },
+        { "AutoWeapon", typeof(AutoWeaponData) }
     };
 
     public AetheriaRuntimeItemCatalog(AetheriaRuntimeCatalogSnapshot catalog)
@@ -95,7 +95,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
 
     private static BehaviorData BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
     {
-        if (!BehaviorTypesByUnionKey.TryGetValue(payload.UnionKey, out var behaviorType))
+        if (!BehaviorTypesByKind.TryGetValue(payload.Kind, out var behaviorType))
         {
             return null;
         }
