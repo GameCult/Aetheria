@@ -972,6 +972,15 @@ public class ActionGameManager : MonoBehaviour
                     TriggerPulled = trigger.Pulled
                 };
             }
+            else if (behavior is StatModifier statModifier)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    StatModifierApplied = statModifier.Applied,
+                    StatModifierExecuted = statModifier.Executed,
+                    StatModifierTargetStatCount = statModifier.TargetStatCount
+                };
+            }
 
             if (state == null)
                 continue;

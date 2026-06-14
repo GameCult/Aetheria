@@ -793,6 +793,15 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(48)]
     public bool TriggerPulled { get; set; }
+
+    [Key(49)]
+    public bool StatModifierApplied { get; set; }
+
+    [Key(50)]
+    public bool StatModifierExecuted { get; set; }
+
+    [Key(51)]
+    public int StatModifierTargetStatCount { get; set; }
 }
 
 [MessagePackObject]

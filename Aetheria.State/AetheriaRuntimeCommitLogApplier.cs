@@ -516,7 +516,10 @@ public static class AetheriaRuntimeCommitLogApplier
                 VelocityLimit = state.VelocityLimit,
                 ThermotoggleTargetTemperature = state.ThermotoggleTargetTemperature,
                 SwitchActivated = state.SwitchActivated,
-                TriggerPulled = state.TriggerPulled
+                TriggerPulled = state.TriggerPulled,
+                StatModifierApplied = state.StatModifierApplied,
+                StatModifierExecuted = state.StatModifierExecuted,
+                StatModifierTargetStatCount = state.StatModifierTargetStatCount
             })
             .ToArray();
     }

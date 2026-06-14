@@ -42,6 +42,10 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private bool _applied;
     private bool _executed;
 
+    public bool Applied => _applied;
+    public bool Executed => _executed;
+    public int TargetStatCount => _stats?.Length ?? 0;
+
     public StatModifier(StatModifierData data, EquippedItem item) : base(data, item)
     {
         _data = data;
