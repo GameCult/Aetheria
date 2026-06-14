@@ -233,9 +233,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   max durability only, with current runtime durability as the generic
   denominator for incomplete typed rows. `ItemManager.Evaluate` also uses typed
   runtime item max durability and item names when evaluating unequipped
-  performance stats. `ItemManager.CreateInstance(CraftedItemData, float)`
-  initializes new equippable runtime durability from the typed runtime item row;
-  `EquippableItemData.Durability` is only an incomplete-row fallback.
+  performance stats. `ItemManager` typed item instantiation primitives create
+  simple commodities, crafted items, and equippable items from runtime catalog
+  rows; old DTO-based item creation is gone from blueprint cloning.
   `EquippedItem` also takes conductivity, max durability, thermal bounds, and
   thermal performance curve keys from the typed runtime item row for heat
   conduction, durability performance, thermal performance, and wear scaling.
@@ -768,6 +768,10 @@ First Aetheria surfaces to publish:
    - Done: move runtime blueprint price aggregation and conductivity restore
      geometry onto typed runtime item price and hull shape rows; legacy
      `ItemData.Price` and `HullData.Shape` no longer own those blueprint paths.
+   - Done: move runtime blueprint item cloning off `ItemData` hydration and onto
+     typed runtime item rows; `ItemManager.Instantiate` now clones simple
+     commodities, crafted items, consumables, and equippables from
+     `AetheriaRuntimeCatalogItem` identity and facets.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and

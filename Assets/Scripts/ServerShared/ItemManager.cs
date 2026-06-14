@@ -89,11 +89,6 @@ public class ItemManager
         return shape;
     }
 
-    public RuntimeItemReference CreateReference(ItemData item)
-    {
-        return new RuntimeItemReference(item);
-    }
-
     public RuntimeItemReference CreateReference(Guid itemId)
     {
         return new RuntimeItemReference(itemId);
@@ -221,57 +216,74 @@ public class ItemManager
         };
     }
 
-    public SimpleCommodity CreateInstance(SimpleCommodityData item, int count)
+    public SimpleCommodity CreateSimpleCommodityInstance(AetheriaRuntimeCatalogItem item, int count)
     {
-        if (item != null)
+        var itemId = GetLegacyGuid(item);
+        if (itemId != Guid.Empty)
         {
-            var newItem = new SimpleCommodity
+            return new SimpleCommodity
             {
-                Data = CreateReference(item),
+                Data = CreateReference(itemId),
                 Quantity = count
             };
-            //ItemData.Add(newItem);
-            return newItem;
         }
-        
-        _logger("Attempted to create Simple Commodity instance using missing or incorrect item id");
+
+        _logger("Attempted to create simple commodity instance using missing typed item data");
         return null;
     }
 
     public ItemInstance Instantiate(ItemInstance item)
     {
-        var data = GetData(item);
-        if(data is CraftedItemData c)
+        var typedItem = GetRuntimeItem(item);
+        if (typedItem == null)
         {
-            var i = CreateInstance(c);
-            i.Rotation = item.Rotation;
-            return i;
+            _logger($"Attempted to instantiate missing item id {item?.Data?.ItemId}");
+            return null;
         }
-        if (item is SimpleCommodity s)
+
+        ItemInstance instance = item switch
         {
-            var i = CreateInstance(data as SimpleCommodityData, s.Quantity);
-            i.Rotation = item.Rotation;
-            return i;
-        }
-        return null;
+            SimpleCommodity simple => CreateSimpleCommodityInstance(typedItem, simple.Quantity),
+            CraftedItemInstance => CreateCraftedInstance(typedItem),
+            _ => null
+        };
+
+        if (instance != null)
+            instance.Rotation = item.Rotation;
+
+        return instance;
     }
 
-    public CraftedItemInstance CreateInstance(CraftedItemData item, float quality)
+    public CraftedItemInstance CreateCraftedInstance(AetheriaRuntimeCatalogItem item, float quality)
     {
-        if (item is EquippableItemData equippableItemData)
+        if (IsEquippable(item))
+            return CreateEquippableInstance(item, quality);
+
+        var itemId = GetLegacyGuid(item);
+        if (itemId == Guid.Empty)
         {
-            return new EquippableItem
+            throw new NullReferenceException("Attempted to create crafted item instance using missing typed item data!");
+        }
+
+        if (string.Equals(item.Category, nameof(ConsumableItemData), StringComparison.Ordinal))
+        {
+            return new ConsumableItem
             {
-                Data = CreateReference(item), Quality = quality, Durability = GetInitialDurability(equippableItemData)
+                Data = CreateReference(itemId),
+                Quality = quality
             };
         }
 
-        var newCommodity = new CompoundCommodity
+        return new CompoundCommodity
         {
-            Data = CreateReference(item),
+            Data = CreateReference(itemId),
             Quality = quality
         };
-        return newCommodity;
+    }
+
+    public CraftedItemInstance CreateCraftedInstance(AetheriaRuntimeCatalogItem item)
+    {
+        return CreateCraftedInstance(item, SelectCraftedQuality());
     }
 
     public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item, float quality)
@@ -295,23 +307,6 @@ public class ItemManager
         return CreateEquippableInstance(item, SelectCraftedQuality());
     }
 
-    private float GetInitialDurability(EquippableItemData item)
-    {
-        var typedItem = GetRuntimeItem(item.ID);
-        return typedItem?.Durability > 0 ? (float)typedItem.Durability : item.Durability;
-    }
-    
-    public CraftedItemInstance CreateInstance(CraftedItemData item)
-    {
-        if (item == null)
-        {
-            throw new NullReferenceException("Attempted to create crafted item instance using missing or incorrect item data!");
-            return null;
-        }
-
-        return CreateInstance(item, SelectCraftedQuality());
-    }
-
     private float SelectCraftedQuality()
     {
         var quality = Random.NextFloat();
@@ -330,6 +325,12 @@ public class ItemManager
         return item != null && Guid.TryParse(item.LegacyId, out var itemId)
             ? itemId
             : Guid.Empty;
+    }
+
+    private static bool IsEquippable(AetheriaRuntimeCatalogItem item)
+    {
+        return !string.IsNullOrWhiteSpace(item?.HardpointType) ||
+               string.Equals(item?.Category, nameof(HullData), StringComparison.Ordinal);
     }
 
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)
