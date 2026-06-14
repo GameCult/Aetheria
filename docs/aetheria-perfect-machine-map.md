@@ -47,8 +47,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy
   `RuntimePlayerSettings` runtime object is no longer named or decorated as a
   MessagePack persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
-  into canonical typed state and drains typed `aetheria-world.cc.eve.pending`
-  command documents through the provider-owned Eve command bridge on startup and on a daemon polling loop
+  CultCache-record queue files into canonical typed state and drains typed
+  `aetheria-world.cc.eve.pending` CultCache-record command documents through
+  the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
 - Shared item domain state is still partly built around `RuntimeItemDefinitionReference`,
@@ -60,8 +61,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
   formatter classes have also been deleted, so the remaining direct
   `MessagePackSerializer` calls are no longer present in live gameplay source;
-  the package-owned pending command lanes still use MessagePack as the current
-  CultCache binary transport for typed `.cc` command envelopes.
+  the package-owned pending lanes now write CultCache-shaped `.cc` queue records.
+  Their current typed record payload codec still uses MessagePack until Unity
+  imports/generated real CultCache serializers from CultLib.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
   `GameData/NameFile/*.msgpack` as migration inputs only. Unity gameplay no
   longer opens those MessagePack files at runtime. The old
@@ -1228,8 +1230,11 @@ First Aetheria surfaces to publish:
      `AetheriaEveCommandBridge`; renderer/runtime command files are queued
      through `AetheriaRuntimeEveCommandLog`, while the provider bridge only
      validates, applies, reports, and deletes accounted commands.
-   - Done: replace the `.eve.pending` command lane's private raw MessagePack
-     array protocol with shared `AetheriaRuntimeEveCommandDocument` files.
+   - Done: replace the pending lane private raw MessagePack payload files with
+     CultCache-shaped `.cc` queue records for both runtime state commits and Eve
+     commands. `AetheriaRuntimePendingCultCacheStore` owns the temporary
+     envelope writer/reader until the Unity package can use generated CultCache
+     serializers directly.
    - Extend the command bridge beyond refresh commands as gameplay/editor Eve
      surfaces acquire provider-owned handlers.
    - Wire the presenter into a Unity scene/prefab for the first runtime surface
@@ -1395,9 +1400,12 @@ First Aetheria surfaces to publish:
   can apply them into canonical typed settings/run/zone/entity state, and
   commands are cleared after application. It also proves renderer-emitted Eve
   commands are queued as typed command envelopes separately from state commits.
-- Current Unity batchmode compile probes are blocked while another Unity editor
-  instance has `E:/Projects/Aetheria` open; typed state builds and smokes remain
-  the available verification until the editor lock is released.
+  The smoke now inspects pending queue bytes directly and verifies each pending
+  file is a CultCache store snapshot with a schema catalog and exactly one
+  typed record.
+- Unity batchmode compile with Editor `6000.4.2f1` is currently available and
+  should be rerun after package/runtime C# edits; Unity may leave generated
+  package metadata and project files that must be cleaned before commit.
 - Direct `dotnet build .\Assembly-CSharp.csproj --no-restore` is not currently
   a valid gameplay compile substitute: the generated Unity project references a
   missing root-level `GameCult.Aetheria.State.Unity.csproj` instead of the live

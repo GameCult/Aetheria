@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Caching;
-using MessagePack;
 
 namespace Aetheria.State;
 
@@ -75,7 +74,7 @@ public static class AetheriaRuntimeCommitLogApplier
 
     private static AetheriaRuntimeStateCommitDocument ReadCommand(string path)
     {
-        var command = MessagePackSerializer.Deserialize<AetheriaRuntimeStateCommitDocument>(File.ReadAllBytes(path));
+        var command = AetheriaRuntimePendingCultCacheStore.ReadStateCommit(path);
         if (!string.Equals(command.Schema, AetheriaRuntimeStateCommitDocument.SchemaId, StringComparison.Ordinal))
             throw new InvalidDataException($"Unexpected Aetheria runtime commit schema '{command.Schema}' in {path}.");
         return command;

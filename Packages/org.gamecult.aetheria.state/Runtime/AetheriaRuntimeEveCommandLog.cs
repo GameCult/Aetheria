@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Eve.Surface;
-using MessagePack;
 
 #nullable enable
 
@@ -35,8 +34,6 @@ namespace GameCult.Aetheria.State.Unity
             var finalPath = Path.Combine(
                 pendingDirectory,
                 $"{issuedAtUtc.Replace(':', '-')}.{StableToken(request.SurfaceId)}.{StableToken(request.Command)}.{commandId}.cc");
-            var tempPath = finalPath + ".tmp";
-
             var document = new AetheriaRuntimeEveCommandDocument
             {
                 Schema = CommandSchema,
@@ -49,10 +46,7 @@ namespace GameCult.Aetheria.State.Unity
                 Payload = CopyPayload(request.Payload)
             };
 
-            File.WriteAllBytes(tempPath, MessagePackSerializer.Serialize(document));
-            if (File.Exists(finalPath))
-                File.Delete(finalPath);
-            File.Move(tempPath, finalPath);
+            AetheriaRuntimePendingCultCacheStore.WriteEveCommand(finalPath, document);
 
             return new AetheriaRuntimeEveCommandEnvelope(
                 document.Schema,
@@ -79,9 +73,14 @@ namespace GameCult.Aetheria.State.Unity
                 .ToArray();
         }
 
+        public static AetheriaRuntimeEveCommandDocument ReadDocument(string path)
+        {
+            return AetheriaRuntimePendingCultCacheStore.ReadEveCommand(path);
+        }
+
         private static AetheriaRuntimeEveCommandEnvelope ReadEnvelope(string path)
         {
-            var document = MessagePackSerializer.Deserialize<AetheriaRuntimeEveCommandDocument>(File.ReadAllBytes(path));
+            var document = ReadDocument(path);
 
             return new AetheriaRuntimeEveCommandEnvelope(
                 document.Schema ?? "",

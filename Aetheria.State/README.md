@@ -200,7 +200,10 @@ Use it after import when `GameData/aetheria-world.cc` changes.
 facade and proves read-only Unity-facing catalog access without the legacy
 catalog reader. It also proves runtime commit envelopes for settings and run
 zone/entity snapshots can be queued, applied through `Aetheria.State`, and
-cleared.
+cleared. Pending runtime state and Eve command queue files are CultCache-shaped
+`.cc` records with embedded schema catalogs; their current record payload codec
+is still temporary package code until Unity consumes generated CultCache
+serializers directly.
 
 `Economy.Server` opens the CultMesh state host, applies pending runtime commits
 and pending Eve surface commands on startup, and polls for new pending work

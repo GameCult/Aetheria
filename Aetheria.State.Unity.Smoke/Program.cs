@@ -2,6 +2,7 @@ using Aetheria.State;
 using Aetheria.State.Unity;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
+using MessagePack;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -650,6 +651,7 @@ try
     {
         throw new InvalidOperationException("Runtime state commit log did not read the queued player settings command.");
     }
+    AssertPendingCultCacheEnvelope(commit.Path, AetheriaRuntimeStateCommitDocument.SchemaId);
 
     var typedNodeApplied = false;
     await using (var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke"))
@@ -917,6 +919,7 @@ try
     {
         throw new InvalidOperationException("Runtime Eve command log did not preserve typed command envelopes separately from state commits.");
     }
+    AssertPendingCultCacheEnvelope(eveCommand.Path, AetheriaRuntimeEveCommandDocument.SchemaId);
 }
 finally
 {
@@ -936,3 +939,54 @@ Console.WriteLine($"Eve surface: {surface.Surface.Id}");
 Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
 Console.WriteLine("Runtime state commit log smoke: settings, loadouts, action-bar bindings, faction relationships, and run zone/entity snapshots queued, applied, and cleared");
 Console.WriteLine("Runtime Eve command log smoke: surface command queued separately from state commits");
+
+static void AssertPendingCultCacheEnvelope(string path, string expectedSchemaId)
+{
+    var reader = new MessagePackReader(File.ReadAllBytes(path));
+    var fieldCount = reader.ReadArrayHeader();
+    if (fieldCount < 3)
+    {
+        throw new InvalidOperationException($"Pending file {path} is not a CultCache store snapshot.");
+    }
+
+    var formatVersion = reader.ReadString();
+    if (formatVersion != "cultcache.store.v1")
+    {
+        throw new InvalidOperationException($"Pending file {path} has format '{formatVersion}', not cultcache.store.v1.");
+    }
+
+    var catalogCount = reader.ReadArrayHeader();
+    var catalogHasSchema = false;
+    for (var index = 0; index < catalogCount; index++)
+    {
+        var catalogFieldCount = reader.ReadArrayHeader();
+        var schemaId = catalogFieldCount > 0 ? reader.ReadString() : "";
+        catalogHasSchema |= schemaId == expectedSchemaId;
+        for (var field = 1; field < catalogFieldCount; field++)
+        {
+            reader.Skip();
+        }
+    }
+
+    var recordCount = reader.ReadArrayHeader();
+    if (recordCount != 1)
+    {
+        throw new InvalidOperationException($"Pending file {path} should contain one CultCache record, found {recordCount}.");
+    }
+
+    var recordFieldCount = reader.ReadArrayHeader();
+    if (recordFieldCount < 4)
+    {
+        throw new InvalidOperationException($"Pending file {path} has an incomplete CultCache record.");
+    }
+
+    var key = reader.ReadString();
+    var recordSchemaId = reader.ReadString();
+    reader.Skip();
+    var payload = reader.ReadBytes();
+    var payloadLength = payload?.Length ?? 0;
+    if (!catalogHasSchema || recordSchemaId != expectedSchemaId || string.IsNullOrWhiteSpace(key) || payloadLength == 0)
+    {
+        throw new InvalidOperationException($"Pending file {path} does not publish a typed CultCache record for {expectedSchemaId}.");
+    }
+}

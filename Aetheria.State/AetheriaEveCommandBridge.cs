@@ -1,6 +1,5 @@
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Unity;
-using MessagePack;
 
 namespace Aetheria.State;
 
@@ -82,7 +81,7 @@ public static class AetheriaEveCommandBridge
 
     private static AetheriaRuntimeEveCommandDocument ReadCommand(string path)
     {
-        return MessagePackSerializer.Deserialize<AetheriaRuntimeEveCommandDocument>(File.ReadAllBytes(path));
+        return AetheriaRuntimePendingCultCacheStore.ReadEveCommand(path);
     }
 
     private static string Validate(AetheriaRuntimeEveCommandDocument command)

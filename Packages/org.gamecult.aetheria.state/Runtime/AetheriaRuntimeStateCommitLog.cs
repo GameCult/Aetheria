@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using MessagePack;
 
 #nullable enable
 
@@ -57,6 +56,11 @@ namespace GameCult.Aetheria.State.Unity
                 .ToArray();
         }
 
+        public static AetheriaRuntimeStateCommitDocument ReadDocument(string path)
+        {
+            return AetheriaRuntimePendingCultCacheStore.ReadStateCommit(path);
+        }
+
         private static AetheriaRuntimeCommitEnvelope WriteCommit(
             string stateFilePath,
             AetheriaRuntimeCommitKind kind,
@@ -70,8 +74,6 @@ namespace GameCult.Aetheria.State.Unity
             var finalPath = Path.Combine(
                 pendingDirectory,
                 $"{createdAtUtc.Replace(':', '-')}.{KindToken(kind)}.{commandId}.cc");
-            var tempPath = finalPath + ".tmp";
-
             var document = new AetheriaRuntimeStateCommitDocument
             {
                 Schema = CommitSchema,
@@ -81,17 +83,14 @@ namespace GameCult.Aetheria.State.Unity
             };
             attachPayload(document);
 
-            File.WriteAllBytes(tempPath, MessagePackSerializer.Serialize(document));
-            if (File.Exists(finalPath))
-                File.Delete(finalPath);
-            File.Move(tempPath, finalPath);
+            AetheriaRuntimePendingCultCacheStore.WriteStateCommit(finalPath, document);
 
             return new AetheriaRuntimeCommitEnvelope(CommitSchema, kind, commandId, createdAtUtc, finalPath);
         }
 
         private static AetheriaRuntimeCommitEnvelope ReadEnvelope(string path)
         {
-            var document = MessagePackSerializer.Deserialize<AetheriaRuntimeStateCommitDocument>(File.ReadAllBytes(path));
+            var document = ReadDocument(path);
             return new AetheriaRuntimeCommitEnvelope(
                 document.Schema ?? "",
                 ParseKind(document.Kind ?? ""),
