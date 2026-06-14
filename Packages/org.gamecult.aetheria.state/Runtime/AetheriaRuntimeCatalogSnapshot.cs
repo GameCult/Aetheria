@@ -99,6 +99,7 @@ namespace GameCult.Aetheria.State.Unity
             string manufacturerLegacyId,
             int price,
             double mass,
+            double specificHeat,
             double volume,
             int shapeWidth,
             int shapeHeight,
@@ -134,6 +135,7 @@ namespace GameCult.Aetheria.State.Unity
             ManufacturerLegacyId = manufacturerLegacyId;
             Price = price;
             Mass = mass;
+            SpecificHeat = specificHeat;
             Volume = volume;
             ShapeWidth = shapeWidth;
             ShapeHeight = shapeHeight;
@@ -170,6 +172,7 @@ namespace GameCult.Aetheria.State.Unity
         public string ManufacturerLegacyId { get; }
         public int Price { get; }
         public double Mass { get; }
+        public double SpecificHeat { get; }
         public double Volume { get; }
         public int ShapeWidth { get; }
         public int ShapeHeight { get; }

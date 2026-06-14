@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
@@ -55,6 +56,12 @@ public class ItemManager
     public T GetRuntimeItemProjection<T>(Guid id) where T : ItemData
     {
         return _itemProjections.Get<T>(id);
+    }
+
+    public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty ? null : _itemProjections.GetRuntimeItem(itemId);
     }
 
     public RuntimeItemReference CreateReference(ItemData item)
@@ -107,21 +114,32 @@ public class ItemManager
 
     public float GetMass(ItemInstance item)
     {
+        var typedItem = GetRuntimeItem(item);
+        if (typedItem == null)
+        {
+            return 0;
+        }
+
         return item switch
         {
-            CraftedItemInstance _ => GetData(item).Mass,
-            SimpleCommodity commodity => GetData(item).Mass * commodity.Quantity,
+            CraftedItemInstance _ => (float)typedItem.Mass,
+            SimpleCommodity commodity => (float)typedItem.Mass * commodity.Quantity,
             _ => 0
         };
     }
 
     public float GetThermalMass(ItemInstance item)
     {
-        var data = GetData(item);
+        var typedItem = GetRuntimeItem(item);
+        if (typedItem == null)
+        {
+            return 0;
+        }
+
         return item switch
         {
-            CraftedItemInstance _ => data.Mass * data.SpecificHeat,
-            SimpleCommodity commodity => data.Mass * data.SpecificHeat * commodity.Quantity,
+            CraftedItemInstance _ => (float)(typedItem.Mass * typedItem.SpecificHeat),
+            SimpleCommodity commodity => (float)(typedItem.Mass * typedItem.SpecificHeat * commodity.Quantity),
             _ => 0
         };
     }
@@ -145,8 +163,10 @@ public class ItemManager
 
     public int GetPrice(CraftedItemInstance item)
     {
-        var data = GetData(item);
-        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * data.Price);
+        var typedItem = GetRuntimeItem(item);
+        return typedItem == null
+            ? 0
+            : (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * typedItem.Price);
     }
 
     public SimpleCommodity CreateInstance(SimpleCommodityData item, int count)

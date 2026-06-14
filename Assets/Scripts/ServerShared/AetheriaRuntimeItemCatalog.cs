@@ -8,12 +8,14 @@ using Unity.Mathematics;
 
 public interface IRuntimeItemProjectionReader
 {
+    AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
     ItemData Get(Guid guid);
     T Get<T>(Guid guid) where T : ItemData;
 }
 
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
 {
+    private readonly Dictionary<Guid, AetheriaRuntimeCatalogItem> _typedItems;
     private readonly Dictionary<Guid, ItemData> _items;
     private static readonly IReadOnlyDictionary<int, Type> BehaviorTypesByUnionKey = new Dictionary<int, Type>
     {
@@ -54,10 +56,20 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
     {
         if (catalog == null) throw new ArgumentNullException(nameof(catalog));
 
+        _typedItems = catalog.Items
+            .Where(item => Guid.TryParse(item.LegacyId, out _))
+            .ToDictionary(item => Guid.Parse(item.LegacyId), item => item);
+
         _items = catalog.Items
             .Select(ProjectItem)
             .Where(item => item != null)
             .ToDictionary(item => item.ID, item => item);
+    }
+
+    public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid)
+    {
+        _typedItems.TryGetValue(guid, out var item);
+        return item;
     }
 
     public ItemData Get(Guid guid)
@@ -90,6 +102,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         projected.Description = item.Description;
         projected.Manufacturer = ParseGuid(item.ManufacturerLegacyId);
         projected.Mass = (float)item.Mass;
+        projected.SpecificHeat = (float)item.SpecificHeat;
         projected.Shape = ProjectShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells);
         projected.Price = item.Price;
 

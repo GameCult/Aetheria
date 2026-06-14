@@ -47,6 +47,7 @@ if (nameFiles.Any(nameFile => nameFile.Names.Length == 0 || nameFile.Names.Lengt
 
 var pricedItems = items.Count(item => item.Price > 0);
 var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
+var specificHeatItems = items.Count(item => item.SpecificHeat > 0);
 var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
 var shapedMaskItems = items.Count(item => item.ShapeCells.Length > 0);
 var interiorShapeItems = items.Count(item => item.InteriorShapeCells.Length > 0);
@@ -87,6 +88,12 @@ if (pricedItems == 0)
 if (manufacturedItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any manufacturer legacy IDs.");
+}
+
+if (specificHeatItems != items.Length)
+{
+    throw new InvalidOperationException(
+        $"Typed item definitions did not import positive specific heat for every item: {specificHeatItems}/{items.Length}.");
 }
 
 if (shapedItems == 0)
@@ -346,7 +353,7 @@ if (string.IsNullOrWhiteSpace(quarantine.CatalogFingerprint))
 Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
-Console.WriteLine($"Priced/manufactured/shaped items: {pricedItems}/{manufacturedItems}/{shapedItems}");
+Console.WriteLine($"Priced/manufactured/specific-heat/shaped items: {pricedItems}/{manufacturedItems}/{specificHeatItems}/{shapedItems}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");

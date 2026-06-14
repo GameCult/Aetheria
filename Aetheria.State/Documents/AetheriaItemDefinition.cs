@@ -126,6 +126,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(37)]
     public string CompoundCommodityCategory { get; set; } = "";
+
+    [Key(38)]
+    public double SpecificHeat { get; set; } = 1;
 }
 
 [MessagePackObject]

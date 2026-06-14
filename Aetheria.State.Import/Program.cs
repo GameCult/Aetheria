@@ -387,6 +387,7 @@ internal static class LegacyCatalogReader
                     LegacyId = legacyId,
                     Description = description,
                     Mass = GetDouble(payload, 4),
+                    SpecificHeat = GetPositiveDoubleOrDefault(payload, 6, 1),
                     Volume = shape.OccupiedCells,
                     ManufacturerLegacyId = GetOptionalGuid(payload, 3),
                     Price = GetInt(payload, 8),
@@ -586,6 +587,12 @@ internal static class LegacyCatalogReader
             int integerValue => integerValue,
             _ => 0
         };
+    }
+
+    private static double GetPositiveDoubleOrDefault(IReadOnlyDictionary<int, object?> payload, int key, double fallback)
+    {
+        var value = GetDouble(payload, key);
+        return value > 0 ? value : fallback;
     }
 
     private static int GetInt(IReadOnlyDictionary<int, object?> payload, int key)

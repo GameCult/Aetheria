@@ -201,7 +201,8 @@ namespace GameCult.Aetheria.State.Unity
             var hullPrefab = ReadFieldString(ref reader, fields, 35);
             var simpleCommodityCategory = ReadFieldString(ref reader, fields, 36);
             var compoundCommodityCategory = ReadFieldString(ref reader, fields, 37);
-            SkipRemaining(ref reader, fields, 38);
+            var specificHeat = ReadFieldDouble(ref reader, fields, 38, 1);
+            SkipRemaining(ref reader, fields, 39);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -211,6 +212,7 @@ namespace GameCult.Aetheria.State.Unity
                 manufacturerLegacyId,
                 price,
                 mass,
+                specificHeat,
                 volume,
                 shapeWidth,
                 shapeHeight,
@@ -344,6 +346,11 @@ namespace GameCult.Aetheria.State.Unity
         private static double ReadFieldDouble(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? 0 : reader.ReadDouble();
+        }
+
+        private static double ReadFieldDouble(ref MessagePackReader reader, int fields, int index, double fallback)
+        {
+            return index >= fields ? fallback : reader.ReadDouble();
         }
 
         private static IReadOnlyList<string> ReadFieldStringArray(ref MessagePackReader reader, int fields, int index)

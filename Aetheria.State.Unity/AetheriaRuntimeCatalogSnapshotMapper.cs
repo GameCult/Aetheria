@@ -23,6 +23,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.ManufacturerLegacyId,
             item.Price,
             item.Mass,
+            item.SpecificHeat,
             item.Volume,
             item.ShapeWidth,
             item.ShapeHeight,

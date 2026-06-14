@@ -222,8 +222,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   dimensions, occupied cell counts, full typed shape-cell masks, hardpoint
   type, hull type, interior shape masks for hull/cargo equipment, hull
   hardpoint definitions, behavior kind fingerprints, typed recursive behavior
-  payloads, stack size, durability, and weapon range/caliber/type/fire/modifier
-  classifications. Corporation documents now carry the legacy short name, true
+  payloads, stack size, specific heat, durability, and weapon
+  range/caliber/type/fire/modifier classifications. Corporation documents now carry the legacy short name, true
   description from key 3, name-file and boss-hull legacy IDs, influence
   distance, allegiance count, full allegiance edges, and music bank IDs. Empty
   legacy GUID references are imported as absent links rather than as
@@ -239,6 +239,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
   corporation name-file queries, plus equipment, hardpoint, and behavior
   queries without touching runtime projection DTOs.
+- `ItemManager` can now ask its typed runtime item reader for the owning
+  `AetheriaRuntimeCatalogItem` row by item ID. Its generic mass, thermal-mass,
+  and crafted-price helpers read typed mass, specific heat, quantity, quality,
+  and price rather than hydrating `ItemData`; legacy projection hydration is
+  still used for behavior construction and simulation surfaces that have not
+  been rebuilt yet.
 - The embedded `GameCult.Aetheria.State.Unity` package now owns the
   Unity-visible immutable catalog read-model contract for
   trade/equipment/behavior/hardpoint/manufacturer/corporation/name queries,
@@ -658,6 +664,8 @@ First Aetheria surfaces to publish:
      and active-duration fill until typed consumable effect execution exists.
    - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
      onto typed catalog rows.
+   - Done: import typed item specific heat and move `ItemManager` generic mass,
+     thermal-mass, and crafted-price helpers onto typed runtime catalog rows.
    - Done: import typed thermal performance curve keys and move PropertiesPanel
      thermal curve presentation onto typed catalog rows; incomplete typed rows
      use a neutral fallback curve instead of hydrating legacy thermal DTOs.
