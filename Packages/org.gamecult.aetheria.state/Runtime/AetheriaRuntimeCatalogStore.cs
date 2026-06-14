@@ -900,7 +900,11 @@ namespace GameCult.Aetheria.State.Unity
                 var thrusterAxis = ReadFieldDouble(ref reader, behaviorFields, 40);
                 var thrusterThrust = ReadFieldDouble(ref reader, behaviorFields, 41);
                 var thrusterTorque = ReadFieldDouble(ref reader, behaviorFields, 42);
-                SkipRemaining(ref reader, behaviorFields, 43);
+                var shieldEfficiency = ReadFieldDouble(ref reader, behaviorFields, 43);
+                var shieldEnergyUsage = ReadFieldDouble(ref reader, behaviorFields, 44);
+                var velocityLimit = ReadFieldDouble(ref reader, behaviorFields, 45);
+                var thermotoggleTargetTemperature = ReadFieldDouble(ref reader, behaviorFields, 46);
+                SkipRemaining(ref reader, behaviorFields, 47);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -944,7 +948,11 @@ namespace GameCult.Aetheria.State.Unity
                     miningToolRange,
                     thrusterAxis,
                     thrusterThrust,
-                    thrusterTorque);
+                    thrusterTorque,
+                    shieldEfficiency,
+                    shieldEnergyUsage,
+                    velocityLimit,
+                    thermotoggleTargetTemperature);
             }
 
             return behaviorStates;

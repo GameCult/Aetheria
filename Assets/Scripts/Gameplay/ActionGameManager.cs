@@ -936,6 +936,28 @@ public class ActionGameManager : MonoBehaviour
                     ThrusterTorque = thruster.Torque
                 };
             }
+            else if (behavior is Shield shield)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    ShieldEfficiency = shield.Efficiency,
+                    ShieldEnergyUsage = shield.EnergyUsage
+                };
+            }
+            else if (behavior is VelocityLimit velocityLimit)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    VelocityLimit = velocityLimit.Limit
+                };
+            }
+            else if (behavior is Thermotoggle thermotoggle)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    ThermotoggleTargetTemperature = thermotoggle.TargetTemperature
+                };
+            }
 
             if (state == null)
                 continue;

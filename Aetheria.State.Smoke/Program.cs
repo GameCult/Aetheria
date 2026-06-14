@@ -304,6 +304,31 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 ThrusterAxis = 0.8,
                 ThrusterThrust = 125.0,
                 ThrusterTorque = -0.4
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 4,
+                BehaviorKind = "Shield",
+                ShieldEfficiency = 0.7,
+                ShieldEnergyUsage = 1.4
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 5,
+                BehaviorKind = "VelocityLimit",
+                VelocityLimit = 42.0
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 6,
+                BehaviorKind = "Thermotoggle",
+                ThermotoggleTargetTemperature = 315.5
             }
         ],
         StatGrids =
@@ -567,7 +592,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 4 ||
+        entitySnapshot.BehaviorStates.Length != 7 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
@@ -585,6 +610,13 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.BehaviorStates[3].ThrusterAxis != 0.8 ||
         entitySnapshot.BehaviorStates[3].ThrusterThrust != 125.0 ||
         entitySnapshot.BehaviorStates[3].ThrusterTorque != -0.4 ||
+        entitySnapshot.BehaviorStates[4].BehaviorKind != "Shield" ||
+        entitySnapshot.BehaviorStates[4].ShieldEfficiency != 0.7 ||
+        entitySnapshot.BehaviorStates[4].ShieldEnergyUsage != 1.4 ||
+        entitySnapshot.BehaviorStates[5].BehaviorKind != "VelocityLimit" ||
+        entitySnapshot.BehaviorStates[5].VelocityLimit != 42.0 ||
+        entitySnapshot.BehaviorStates[6].BehaviorKind != "Thermotoggle" ||
+        entitySnapshot.BehaviorStates[6].ThermotoggleTargetTemperature != 315.5 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

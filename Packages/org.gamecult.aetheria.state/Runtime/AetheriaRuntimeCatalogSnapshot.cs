@@ -1110,7 +1110,11 @@ namespace GameCult.Aetheria.State.Unity
             double miningToolRange,
             double thrusterAxis,
             double thrusterThrust,
-            double thrusterTorque)
+            double thrusterTorque,
+            double shieldEfficiency,
+            double shieldEnergyUsage,
+            double velocityLimit,
+            double thermotoggleTargetTemperature)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1155,6 +1159,10 @@ namespace GameCult.Aetheria.State.Unity
             ThrusterAxis = thrusterAxis;
             ThrusterThrust = thrusterThrust;
             ThrusterTorque = thrusterTorque;
+            ShieldEfficiency = shieldEfficiency;
+            ShieldEnergyUsage = shieldEnergyUsage;
+            VelocityLimit = velocityLimit;
+            ThermotoggleTargetTemperature = thermotoggleTargetTemperature;
         }
 
         public string OwnerKind { get; }
@@ -1200,5 +1208,9 @@ namespace GameCult.Aetheria.State.Unity
         public double ThrusterAxis { get; }
         public double ThrusterThrust { get; }
         public double ThrusterTorque { get; }
+        public double ShieldEfficiency { get; }
+        public double ShieldEnergyUsage { get; }
+        public double VelocityLimit { get; }
+        public double ThermotoggleTargetTemperature { get; }
     }
 }

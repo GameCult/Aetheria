@@ -775,6 +775,18 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(42)]
     public double ThrusterTorque { get; set; }
+
+    [Key(43)]
+    public double ShieldEfficiency { get; set; }
+
+    [Key(44)]
+    public double ShieldEnergyUsage { get; set; }
+
+    [Key(45)]
+    public double VelocityLimit { get; set; }
+
+    [Key(46)]
+    public double ThermotoggleTargetTemperature { get; set; }
 }
 
 [MessagePackObject]

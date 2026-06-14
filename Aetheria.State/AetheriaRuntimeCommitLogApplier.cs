@@ -510,7 +510,11 @@ public static class AetheriaRuntimeCommitLogApplier
                 MiningToolRange = state.MiningToolRange,
                 ThrusterAxis = state.ThrusterAxis,
                 ThrusterThrust = state.ThrusterThrust,
-                ThrusterTorque = state.ThrusterTorque
+                ThrusterTorque = state.ThrusterTorque,
+                ShieldEfficiency = state.ShieldEfficiency,
+                ShieldEnergyUsage = state.ShieldEnergyUsage,
+                VelocityLimit = state.VelocityLimit,
+                ThermotoggleTargetTemperature = state.ThermotoggleTargetTemperature
             })
             .ToArray();
     }
