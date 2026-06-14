@@ -35,6 +35,11 @@ public class RuntimeItemReference
     {
     }
 
+    public RuntimeItemReference(Guid itemId)
+    {
+        ItemId = itemId;
+    }
+
     public RuntimeItemReference(ItemData value)
     {
         SetProjection(value);

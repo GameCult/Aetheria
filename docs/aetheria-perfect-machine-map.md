@@ -199,9 +199,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   names entities from the typed hull row and no longer keeps a `HullData`
   property just to preserve the old naming bridge. `LoadoutGenerator`
   candidate weighting, hardpoint/cargo/capacitor fit, selected-item reuse, and
-  hull conductivity setup now use typed runtime catalog rows; selected DTO
-  hydration is only the remaining item-instantiation bridge. Docking bay max
-  ship size is imported as typed item state and `EquippedDockingBay.MaxSize`
+  hull conductivity setup now use typed runtime catalog rows. Generated loadout
+  item birth also uses a typed-row instance primitive, so selected catalog rows
+  no longer hydrate `EquippableItemData` just to create equipment. Docking bay
+  max ship size is imported as typed item state and `EquippedDockingBay.MaxSize`
   derives from the typed runtime catalog row. `EquippedItem.InsetShape` now
   derives from typed hull/item shape rows. `EquippedItem` and
   `ConsumableItemEffect` behavior construction now read typed behavior payloads
@@ -770,6 +771,10 @@ First Aetheria surfaces to publish:
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and
      mass/thermal mass.
+   - Done: move `LoadoutGenerator` selected item birth onto typed runtime item
+     rows via `ItemManager.CreateEquippableInstance`; generated hulls, cargo,
+     docking bays, controllers, capacitors, reused gear, and station inventory no
+     longer hydrate `EquippableItemData` projections merely to instantiate.
    - Done: import typed conductivity and hull physical facets, regenerate the
      checked-in `.cc` catalog, and move `Entity.MapEntity`,
      `Entity.UnoccupiedSpace`, grid-offset placement, and

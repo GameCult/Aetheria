@@ -49,13 +49,13 @@ public class LoadoutGenerator
     
     public RuntimeEntityBlueprint GenerateShipLoadout(Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
-        var hullData = RandomHull(HullType.Ship, hullFilter);
-        if(hullData==null)
+        var hullRow = RandomHull(HullType.Ship, hullFilter);
+        if(hullRow==null)
         {
             ItemManager.Log("Unable to generate ship loadout: no compatible hull found!");
             return null;
         }
-        var hull = ItemManager.CreateInstance(hullData) as EquippableItem;
+        var hull = ItemManager.CreateEquippableInstance(hullRow);
         if(hull==null)
             ItemManager.Log("WHAT???");
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
@@ -66,13 +66,13 @@ public class LoadoutGenerator
 
     public RuntimeOrbitalEntityBlueprint GenerateTurretLoadout()
     {
-        var hullData = RandomHull(HullType.Turret);
-        if(hullData==null)
+        var hullRow = RandomHull(HullType.Turret);
+        if(hullRow==null)
         {
             ItemManager.Log("Unable to generate turret loadout: no compatible hull found!");
             return null;
         }
-        var hull = ItemManager.CreateInstance(hullData) as EquippableItem;
+        var hull = ItemManager.CreateEquippableInstance(hullRow);
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
@@ -81,24 +81,23 @@ public class LoadoutGenerator
 
     public RuntimeOrbitalEntityBlueprint GenerateStationLoadout()
     {
-        var hullData = RandomHull(HullType.Station);
-        if(hullData==null)
+        var hullRow = RandomHull(HullType.Station);
+        if(hullRow==null)
         {
             ItemManager.Log("Unable to generate station loadout: no compatible hull found!");
             return null;
         }
-        var hull = ItemManager.CreateInstance(hullData) as EquippableItem;
+        var hull = ItemManager.CreateEquippableInstance(hullRow);
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         
         var emptyShape = entity.UnoccupiedSpace;
         
         var dockingBayRow = RandomCatalogItem<DockingBayData>(2, item => FitsWithin(item, emptyShape));
-        var dockingBayData = ProjectRuntimeItem<DockingBayData>(dockingBayRow);
-        if (dockingBayData == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
+        if (dockingBayRow == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
 
         ToShape(dockingBayRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
-        var dockingBay = ItemManager.CreateInstance(dockingBayData) as EquippableItem;
+        var dockingBay = ItemManager.CreateEquippableInstance(dockingBayRow);
         dockingBay.Rotation = cargoRotation;
         if (!entity.TryEquip(dockingBay, cargoPosition))
         {
@@ -108,31 +107,29 @@ public class LoadoutGenerator
         OutfitEntity(entity);
 
         var cargo = entity.CargoBays.First();
-        IEnumerable<EquippableItemData> inventory = RandomCatalogItems<EquippableItemData>(16, 1,
+        IEnumerable<AetheriaRuntimeCatalogItem> inventory = RandomCatalogItems<EquippableItemData>(16, 1,
                 item => item.Category != "CargoBayData" && item.Category != "DockingBayData" &&
                     (item.Category != "HullData" || item.HullType == nameof(HullType.Ship)));
         inventory = inventory
-            .Select(ProjectRuntimeItem<EquippableItemData>)
             .Where(item => item != null);
         inventory = inventory
-            .OrderByDescending(item=>item.Shape.Coordinates.Length);
+            .OrderByDescending(item=>item.OccupiedCells);
         foreach (var item in inventory)
         {
-            var instance = ItemManager.CreateInstance(item);
+            var instance = ItemManager.CreateEquippableInstance(item);
             cargo.TryStore(instance);
         }
 
-        entity.CanTow = hullData.CanTow;
+        entity.CanTow = hullRow.HullCanTow;
         
         return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
-    public HullData RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
+    public AetheriaRuntimeCatalogItem RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
-        var hullRow = RandomCatalogItem<HullData>(0, item =>
+        return RandomCatalogItem<HullData>(0, item =>
             string.Equals(item.HullType, type.ToString(), StringComparison.Ordinal) &&
             (hullFilter?.Invoke(item) ?? true));
-        return ProjectRuntimeItem<HullData>(hullRow);
     }
     
     public AetheriaRuntimeCatalogItem[] RandomCatalogItems<T>(
@@ -190,18 +187,6 @@ public class LoadoutGenerator
         }
 
         return string.Equals(item.Category, requestedType.Name, StringComparison.Ordinal);
-    }
-
-    private T ProjectRuntimeItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
-    {
-        if (item == null)
-        {
-            return null;
-        }
-
-        return Guid.TryParse(item.LegacyId, out var legacyId)
-            ? ItemManager.GetRuntimeItemProjection<T>(legacyId)
-            : null;
     }
 
     private float ManufacturerDistancePenalty(Guid manufacturer)
@@ -324,10 +309,9 @@ public class LoadoutGenerator
                         ? nameof(TurretControllerData)
                         : null;
                 var controllerRow = RandomCatalogItem<GearData>(hardpoint, 2, item => HasBehaviorKind(item, controllerBehaviorKind));
-                var controllerData = ProjectRuntimeItem<GearData>(controllerRow);
-                if (controllerData == null) 
+                if (controllerRow == null)
                     throw new InvalidLoadoutException("No compatible controller found for entity!");
-                var controller = ItemManager.CreateInstance(controllerData) as EquippableItem;
+                var controller = ItemManager.CreateEquippableInstance(controllerRow);
                 if (!entity.TryEquip(controller))
                 {
                     throw new InvalidLoadoutException($"Failed to equip selected {hardpoint.Type}!");
@@ -343,15 +327,14 @@ public class LoadoutGenerator
                         ? entity.Equipment.FirstOrDefault(item => item.EquippableItem.Data.ItemId == previousItemId)
                         : null;
                 itemRow ??= RandomCatalogItem<GearData>(hardpoint, 2);
-                var itemData = ProjectRuntimeItem<GearData>(itemRow);
-                if (itemData == null) ItemManager.Log($"No compatible item found for entity {hardpoint.Type} hardpoint!");
+                if (itemRow == null) ItemManager.Log($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                 else
                 {
                     //throw new InvalidLoadoutException($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                     EquippableItem item;
                     if(previousItem!=null)
-                        item = ItemManager.CreateInstance(itemData, previousItem.EquippableItem.Quality) as EquippableItem;
-                    else item = ItemManager.CreateInstance(itemData) as EquippableItem;
+                        item = ItemManager.CreateEquippableInstance(itemRow, previousItem.EquippableItem.Quality);
+                    else item = ItemManager.CreateEquippableInstance(itemRow);
                     if (!entity.TryEquip(item))
                     {
                         throw new InvalidLoadoutException($"Failed to equip selected {hardpoint.Type}!");
@@ -364,11 +347,10 @@ public class LoadoutGenerator
         var emptyShape = entity.UnoccupiedSpace;
         
         var cargoRow = RandomCatalogItem<CargoBayData>(3, item => item.Category != "DockingBayData" && FitsWithin(item, emptyShape));
-        var cargoData = ProjectRuntimeItem<CargoBayData>(cargoRow);
-        if (cargoData == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
+        if (cargoRow == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
         ToShape(cargoRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
-        var cargo = ItemManager.CreateInstance(cargoData) as EquippableItem;
+        var cargo = ItemManager.CreateEquippableInstance(cargoRow);
         cargo.Rotation = cargoRotation;
         if (!entity.TryEquip(cargo, cargoPosition))
             throw new InvalidLoadoutException("Failed to equip selected cargo bay!");
@@ -378,11 +360,10 @@ public class LoadoutGenerator
         var capacitorRow = RandomCatalogItem<GearData>(2,
             item => item.BehaviorKinds.Contains(nameof(CapacitorData), StringComparer.Ordinal) &&
                     FitsWithin(item, emptyShape));
-        var capacitorData = ProjectRuntimeItem<GearData>(capacitorRow);
-        if (capacitorData == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
+        if (capacitorRow == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
 
         ToShape(capacitorRow).FitsWithin(emptyShape, out var capacitorRotation, out var capacitorPosition);
-        var capacitor = ItemManager.CreateInstance(capacitorData) as EquippableItem;
+        var capacitor = ItemManager.CreateEquippableInstance(capacitorRow);
         capacitor.Rotation = capacitorRotation;
         if (!entity.TryEquip(capacitor, capacitorPosition))
             throw new InvalidLoadoutException("Failed to equip selected capacitor!");

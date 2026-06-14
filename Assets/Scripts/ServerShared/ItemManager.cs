@@ -99,6 +99,11 @@ public class ItemManager
         return new RuntimeItemReference(item);
     }
 
+    public RuntimeItemReference CreateReference(Guid itemId)
+    {
+        return new RuntimeItemReference(itemId);
+    }
+
     public ItemData GetData(ItemInstance item)
     {
         Hydrate(item);
@@ -274,6 +279,27 @@ public class ItemManager
         return newCommodity;
     }
 
+    public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item, float quality)
+    {
+        var itemId = GetLegacyGuid(item);
+        if (itemId == Guid.Empty)
+        {
+            throw new NullReferenceException("Attempted to create equippable item instance using missing typed item data!");
+        }
+
+        return new EquippableItem
+        {
+            Data = CreateReference(itemId),
+            Quality = quality,
+            Durability = item.Durability > 0 ? (float)item.Durability : 1f
+        };
+    }
+
+    public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item)
+    {
+        return CreateEquippableInstance(item, SelectCraftedQuality());
+    }
+
     private float GetInitialDurability(EquippableItemData item)
     {
         var typedItem = GetRuntimeItem(item.ID);
@@ -288,6 +314,11 @@ public class ItemManager
             return null;
         }
 
+        return CreateInstance(item, SelectCraftedQuality());
+    }
+
+    private float SelectCraftedQuality()
+    {
         var quality = Random.NextFloat();
         var tier = GameplaySettings.Tiers[0];
         foreach (var t in GameplaySettings.Tiers)
@@ -296,7 +327,14 @@ public class ItemManager
                 tier = t;
         }
 
-        return CreateInstance(item, tier.Quality);
+        return tier.Quality;
+    }
+
+    private static Guid GetLegacyGuid(AetheriaRuntimeCatalogItem item)
+    {
+        return item != null && Guid.TryParse(item.LegacyId, out var itemId)
+            ? itemId
+            : Guid.Empty;
     }
 
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)
