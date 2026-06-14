@@ -425,6 +425,16 @@ try
                                     Reloading = true,
                                     ReloadProgress = 0.4,
                                     AmmoIntervalProgress = 0.6
+                                },
+                                new AetheriaRuntimeWeaponStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 2,
+                                    BehaviorIndex = 1,
+                                    BehaviorKind = "LockWeapon",
+                                    Ammo = 1,
+                                    LockProgress = 0.65,
+                                    LockTargetEntityIndex = 0
                                 }
                             },
                             BehaviorStates = new[]
@@ -574,7 +584,7 @@ try
             entity.BehaviorProgress[0].Progress == 0.5 &&
             entity.BehaviorProgress[1].OwnerKind == "active_consumable" &&
             entity.BehaviorProgress[1].Progress == 0.75 &&
-            entity.WeaponStates.Length == 3 &&
+            entity.WeaponStates.Length == 4 &&
             entity.WeaponStates[0].BehaviorKind == "InstantWeapon" &&
             entity.WeaponStates[0].Firing &&
             entity.WeaponStates[0].Ammo == 2 &&
@@ -588,6 +598,9 @@ try
             entity.WeaponStates[2].BehaviorKind == "ConstantWeapon" &&
             entity.WeaponStates[2].Reloading &&
             entity.WeaponStates[2].AmmoIntervalProgress == 0.6 &&
+            entity.WeaponStates[3].BehaviorKind == "LockWeapon" &&
+            entity.WeaponStates[3].LockProgress == 0.65 &&
+            entity.WeaponStates[3].LockTargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
             entity.BehaviorStates.Length == 4 &&
             entity.BehaviorStates[0].BehaviorKind == "Sensor" &&
             entity.BehaviorStates[0].Pinging &&
@@ -651,8 +664,10 @@ try
         packageEntities[0].DockingBayAssignments[0] != -1 ||
         packageEntities[0].ActiveConsumables[0].ItemKey != "aetheria.item_definition:legacy:smoke:consumable" ||
         packageEntities[0].BehaviorProgress.Count != 2 ||
-        packageEntities[0].WeaponStates.Count != 3 ||
+        packageEntities[0].WeaponStates.Count != 4 ||
         packageEntities[0].WeaponStates[2].AmmoIntervalProgress != 0.6 ||
+        packageEntities[0].WeaponStates[3].LockProgress != 0.65 ||
+        packageEntities[0].WeaponStates[3].LockTargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
         packageEntities[0].BehaviorStates.Count != 4 ||
         packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
         packageEntities[0].StatGrids.Count != 2 ||

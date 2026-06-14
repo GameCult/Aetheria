@@ -636,6 +636,12 @@ public sealed class AetheriaWeaponStateSnapshot
 
     [Key(16)]
     public double AmmoIntervalProgress { get; set; }
+
+    [Key(17)]
+    public double LockProgress { get; set; }
+
+    [Key(18)]
+    public string LockTargetEntityKey { get; set; } = "";
 }
 
 [MessagePackObject]

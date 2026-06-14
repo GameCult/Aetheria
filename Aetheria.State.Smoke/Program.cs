@@ -238,6 +238,19 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 EquipmentIndices = [0]
             }
         ],
+        WeaponStates =
+        [
+            new AetheriaWeaponStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 1,
+                BehaviorKind = "LockWeapon",
+                Ammo = 1,
+                LockProgress = 0.65,
+                LockTargetEntityKey = entityKey.ToString()
+            }
+        ],
         StatGrids =
         [
             new AetheriaEntityStatGrid
@@ -495,6 +508,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.DockingBayAssignments.Length != 1 ||
         entitySnapshot.DockingBayAssignments[0] != -1 ||
         entitySnapshot.WeaponGroups.Length != 1 ||
+        entitySnapshot.WeaponStates.Length != 1 ||
+        entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
+        entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
+        entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

@@ -685,6 +685,12 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(16)]
         public double AmmoIntervalProgress { get; set; }
+
+        [Key(17)]
+        public double LockProgress { get; set; }
+
+        [Key(18)]
+        public int LockTargetEntityIndex { get; set; } = -1;
     }
 
     [MessagePackObject]

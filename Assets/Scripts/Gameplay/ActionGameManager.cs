@@ -795,7 +795,7 @@ public class ActionGameManager : MonoBehaviour
             StatGrids = ProjectEntityStatGrids(entity),
             ActiveConsumables = ProjectActiveConsumables(entity),
             BehaviorProgress = ProjectBehaviorProgress(entity),
-            WeaponStates = ProjectWeaponStates(entity),
+            WeaponStates = ProjectWeaponStates(zone, entity),
             BehaviorStates = ProjectBehaviorStates(entity)
         };
     }
@@ -896,21 +896,22 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(Entity entity)
+    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(Zone zone, Entity entity)
     {
         var states = new List<AetheriaRuntimeWeaponStateCommit>();
 
         for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+            states.AddRange(ProjectWeaponStates(zone, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
 
         var activeConsumables = entity.ActiveConsumables;
         for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+            states.AddRange(ProjectWeaponStates(zone, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
 
         return states.ToArray();
     }
 
     private static IEnumerable<AetheriaRuntimeWeaponStateCommit> ProjectWeaponStates(
+        Zone zone,
         string ownerKind,
         int ownerIndex,
         IReadOnlyList<Behavior> behaviors)
@@ -954,6 +955,12 @@ public class ActionGameManager : MonoBehaviour
                 state.Reloading = constant.Reloading;
                 state.ReloadProgress = constant.ReloadProgress;
                 state.AmmoIntervalProgress = constant.AmmoIntervalProgress;
+            }
+
+            if (weapon is LockWeapon lockWeapon)
+            {
+                state.LockProgress = lockWeapon.LockProgress;
+                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : zone.Entities.IndexOf(lockWeapon.LockTarget);
             }
 
             yield return state;

@@ -58,6 +58,10 @@ public class LockWeapon : InstantWeapon
         get => saturate(_lock);
     }
 
+    public float LockProgress => saturate(_lock);
+
+    public Entity LockTarget => _target;
+
     public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;

@@ -1019,7 +1019,9 @@ namespace GameCult.Aetheria.State.Unity
             double charge,
             bool reloading,
             double reloadProgress,
-            double ammoIntervalProgress)
+            double ammoIntervalProgress,
+            double lockProgress,
+            string lockTargetEntityKey)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1038,6 +1040,8 @@ namespace GameCult.Aetheria.State.Unity
             Reloading = reloading;
             ReloadProgress = reloadProgress;
             AmmoIntervalProgress = ammoIntervalProgress;
+            LockProgress = lockProgress;
+            LockTargetEntityKey = lockTargetEntityKey;
         }
 
         public string OwnerKind { get; }
@@ -1057,6 +1061,8 @@ namespace GameCult.Aetheria.State.Unity
         public bool Reloading { get; }
         public double ReloadProgress { get; }
         public double AmmoIntervalProgress { get; }
+        public double LockProgress { get; }
+        public string LockTargetEntityKey { get; }
     }
 
     public sealed class AetheriaRuntimeBehaviorStateSnapshot

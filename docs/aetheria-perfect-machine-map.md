@@ -164,8 +164,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `IProgressBehavior` now publish typed progress rows keyed by owner kind,
   owner index, behavior index, behavior kind, and progress value.
   Weapon behaviors now also publish typed runtime rows for firing state, ammo,
-  burst timing, cooldown progress, charged-weapon charging/charge state, and
-  constant-weapon reload/ammo-interval state.
+  burst timing, cooldown progress, charged-weapon charging/charge state,
+  constant-weapon reload/ammo-interval state, and lock-weapon lock progress
+  plus target entity reference.
   Sensor, radiator, reactor, and capacitor behaviors publish typed state rows
   for ping state, radiator temperature/throughput, reactor draw/load, and
   capacitor charge/capacity/efficiency.
@@ -794,6 +795,9 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      weapon behavior state rows for instant, charged, and constant weapon
      runtime internals.
+   - Done: extend weapon behavior state rows for lock-weapon progress and
+     target entity references, so lock acquisition state no longer evaporates
+     at the commit boundary.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      behavior state rows for sensor ping state plus radiator, reactor, and
      capacitor runtime internals.
