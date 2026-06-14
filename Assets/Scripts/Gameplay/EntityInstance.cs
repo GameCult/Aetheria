@@ -51,8 +51,8 @@ public class EntityInstance : MonoBehaviour
     // private (Reactor reactor, GameObject sfxSource) _reactor;
     // private Dictionary<Radiator, GameObject> _radiatorSfx = new Dictionary<Radiator, GameObject>();
     
-    private static Dictionary<InstantWeaponData, InstantWeaponEffectManager> _instantWeaponManagers = new Dictionary<InstantWeaponData, InstantWeaponEffectManager>();
-    private static Dictionary<ConstantWeaponData, ConstantWeaponEffectManager> _constantWeaponManagers = new Dictionary<ConstantWeaponData, ConstantWeaponEffectManager>();
+    private static Dictionary<string, InstantWeaponEffectManager> _instantWeaponManagers = new Dictionary<string, InstantWeaponEffectManager>();
+    private static Dictionary<string, ConstantWeaponEffectManager> _constantWeaponManagers = new Dictionary<string, ConstantWeaponEffectManager>();
 
     public static void ClearWeaponManagers()
     {
@@ -217,23 +217,23 @@ public class EntityInstance : MonoBehaviour
                 
                 if (behavior is InstantWeapon instantWeapon)
                 {
-                    var data = (InstantWeaponData) instantWeapon.Data;
-                    if (!_instantWeaponManagers.ContainsKey(data))
+                    var effectPrefab = instantWeapon.EffectPrefab;
+                    if (!_instantWeaponManagers.ContainsKey(effectPrefab))
                     {
-                        var managerPrefab = UnityHelpers.LoadAsset<InstantWeaponEffectManager>(data.EffectPrefab);
+                        var managerPrefab = UnityHelpers.LoadAsset<InstantWeaponEffectManager>(effectPrefab);
                         if(managerPrefab)
                         {
-                            _instantWeaponManagers.Add(data, Instantiate(managerPrefab, EffectManagerParent));
+                            _instantWeaponManagers.Add(effectPrefab, Instantiate(managerPrefab, EffectManagerParent));
                         }
-                        else Debug.LogError($"No InstantWeaponEffectManager prefab found at path {data.EffectPrefab}");
+                        else Debug.LogError($"No InstantWeaponEffectManager prefab found at path {effectPrefab}");
                     }
 
                     instantWeapon.OnFire += () => 
-                        _instantWeaponManagers[data].Fire(instantWeapon, item, this, entity.Target.Value != null && ZoneRenderer.EntityInstances.ContainsKey(entity.Target.Value) ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
+                        _instantWeaponManagers[effectPrefab].Fire(instantWeapon, item, this, entity.Target.Value != null && ZoneRenderer.EntityInstances.ContainsKey(entity.Target.Value) ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
 
                     if (behavior is ChargedWeapon chargedWeapon)
                     {
-                        var chargeManager = _instantWeaponManagers[data].GetComponent<ChargeEffectManager>();
+                        var chargeManager = _instantWeaponManagers[effectPrefab].GetComponent<ChargeEffectManager>();
                         if (chargeManager)
                         {
                             chargedWeapon.OnStartCharging += () => chargeManager.StartCharging(chargedWeapon, item, this);
@@ -246,21 +246,21 @@ public class EntityInstance : MonoBehaviour
 
                 if (behavior is ConstantWeapon constantWeapon)
                 {
-                    var data = (ConstantWeaponData) constantWeapon.Data;
-                    if (!_constantWeaponManagers.ContainsKey(data))
+                    var effectPrefab = constantWeapon.EffectPrefab;
+                    if (!_constantWeaponManagers.ContainsKey(effectPrefab))
                     {
-                        var managerPrefab = UnityHelpers.LoadAsset<ConstantWeaponEffectManager>(data.EffectPrefab);
+                        var managerPrefab = UnityHelpers.LoadAsset<ConstantWeaponEffectManager>(effectPrefab);
                         if(managerPrefab)
                         {
-                            _constantWeaponManagers.Add(data, Instantiate(managerPrefab, EffectManagerParent));
+                            _constantWeaponManagers.Add(effectPrefab, Instantiate(managerPrefab, EffectManagerParent));
                         }
-                        else Debug.LogError($"No ConstantWeaponEffectManager prefab found at path {data.EffectPrefab}");
+                        else Debug.LogError($"No ConstantWeaponEffectManager prefab found at path {effectPrefab}");
                     }
 
                     constantWeapon.OnStartFiring += () =>
-                        _constantWeaponManagers[data].StartFiring(data, item, this, entity.Target.Value != null ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
+                        _constantWeaponManagers[effectPrefab].StartFiring(constantWeapon, item, this, entity.Target.Value != null ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
                     constantWeapon.OnStopFiring += () => 
-                        _constantWeaponManagers[data].StopFiring(item);
+                        _constantWeaponManagers[effectPrefab].StopFiring(item);
                 }
             }
             

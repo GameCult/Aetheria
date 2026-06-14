@@ -9,18 +9,18 @@ public class ConstantLightningManager : ConstantWeaponEffectManager
 
     private Dictionary<EquippedItem, ConstantLightning> _bolts = new Dictionary<EquippedItem, ConstantLightning>();
     
-    public override void StartFiring(WeaponData data, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void StartFiring(ConstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
     {
         var p = LightningPrototype.Instantiate<ConstantLightning>();
         p.Source = source;
         var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
         var barrel = source.GetBarrel(hp);
         p.Barrel = barrel;
-        p.Damage = item.Evaluate(data.Damage);
-        p.Range = item.Evaluate(data.Range);
-        p.Penetration = item.Evaluate(data.Penetration);
-        p.Spread = item.Evaluate(data.DamageSpread);
-        p.DamageType = data.DamageType;
+        p.Damage = weapon.Damage;
+        p.Range = weapon.Range;
+        p.Penetration = weapon.Penetration;
+        p.Spread = weapon.DamageSpread;
+        p.DamageType = weapon.DamageType;
         _bolts.Add(item, p);
     }
 

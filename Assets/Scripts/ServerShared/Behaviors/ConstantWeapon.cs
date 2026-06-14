@@ -137,6 +137,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     {
         if(!_firing && !_reloading)
         {
+            UpdateStats();
             _firing = true;
             OnStartFiring?.Invoke();
         }

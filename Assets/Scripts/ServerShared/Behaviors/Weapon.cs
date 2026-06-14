@@ -69,6 +69,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract int Ammo { get; }
     public WeaponData WeaponData => _data;
     public DamageType DamageType { get; }
+    public string EffectPrefab { get; }
 
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
@@ -92,12 +93,14 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     {
         _data = data;
         DamageType = data.DamageType;
+        EffectPrefab = data.EffectPrefab ?? "";
     }
 
     public Weapon(WeaponData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         DamageType = data.DamageType;
+        EffectPrefab = data.EffectPrefab ?? "";
     }
 
     protected virtual void UpdateStats()

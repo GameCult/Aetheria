@@ -1003,6 +1003,10 @@ First Aetheria surfaces to publish:
    - Done: move projectile, hitscan, beam, lightning, and mine effect damage
      type reads off `WeaponData` and onto `Weapon.DamageType`; effect managers
      consume live weapon metadata instead of config DTO fields.
+   - Done: move weapon effect prefab lookup and constant weapon visual startup
+     off `InstantWeaponData`/`ConstantWeaponData`; `EntityInstance` caches
+     managers by `Weapon.EffectPrefab`, and constant effect managers consume
+     live `ConstantWeapon` stats.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

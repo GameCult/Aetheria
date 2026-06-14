@@ -8,7 +8,7 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
 
     private Dictionary<EquippedItem, ConstantParticleWeapon> _weapons = new Dictionary<EquippedItem, ConstantParticleWeapon>();
     
-    public override void StartFiring(WeaponData data, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void StartFiring(ConstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
     {
         var p = WeaponPrototype.Instantiate<ConstantParticleWeapon>();
         p.Source = source;
@@ -19,8 +19,8 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
-        p.Damage = item.Evaluate(data.Damage);
-        p.DamageType = data.DamageType;
+        p.Damage = weapon.Damage;
+        p.DamageType = weapon.DamageType;
         _weapons.Add(item, p);
         p.Initialize();
     }
