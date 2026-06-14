@@ -27,6 +27,10 @@ public class TurretController : Behavior, IInitializableBehavior
     private float _shotSpeed;
     private bool _predictShots;
 
+    public int WeaponCount => _weapons.Count;
+    public float ShotSpeed => _shotSpeed;
+    public bool PredictShots => _predictShots;
+
     public TurretController(TurretControllerData data, EquippedItem item) : base(data, item)
     {
         _data = data;

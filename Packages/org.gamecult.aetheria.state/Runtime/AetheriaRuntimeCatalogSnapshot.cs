@@ -1119,7 +1119,10 @@ namespace GameCult.Aetheria.State.Unity
             bool triggerPulled,
             bool statModifierApplied,
             bool statModifierExecuted,
-            int statModifierTargetStatCount)
+            int statModifierTargetStatCount,
+            int turretControllerWeaponCount,
+            double turretControllerShotSpeed,
+            bool turretControllerPredictShots)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1173,6 +1176,9 @@ namespace GameCult.Aetheria.State.Unity
             StatModifierApplied = statModifierApplied;
             StatModifierExecuted = statModifierExecuted;
             StatModifierTargetStatCount = statModifierTargetStatCount;
+            TurretControllerWeaponCount = turretControllerWeaponCount;
+            TurretControllerShotSpeed = turretControllerShotSpeed;
+            TurretControllerPredictShots = turretControllerPredictShots;
         }
 
         public string OwnerKind { get; }
@@ -1227,5 +1233,8 @@ namespace GameCult.Aetheria.State.Unity
         public bool StatModifierApplied { get; }
         public bool StatModifierExecuted { get; }
         public int StatModifierTargetStatCount { get; }
+        public int TurretControllerWeaponCount { get; }
+        public double TurretControllerShotSpeed { get; }
+        public bool TurretControllerPredictShots { get; }
     }
 }

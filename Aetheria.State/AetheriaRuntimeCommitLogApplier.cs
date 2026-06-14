@@ -519,7 +519,10 @@ public static class AetheriaRuntimeCommitLogApplier
                 TriggerPulled = state.TriggerPulled,
                 StatModifierApplied = state.StatModifierApplied,
                 StatModifierExecuted = state.StatModifierExecuted,
-                StatModifierTargetStatCount = state.StatModifierTargetStatCount
+                StatModifierTargetStatCount = state.StatModifierTargetStatCount,
+                TurretControllerWeaponCount = state.TurretControllerWeaponCount,
+                TurretControllerShotSpeed = state.TurretControllerShotSpeed,
+                TurretControllerPredictShots = state.TurretControllerPredictShots
             })
             .ToArray();
     }

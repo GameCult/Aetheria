@@ -851,5 +851,14 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(51)]
         public int StatModifierTargetStatCount { get; set; }
+
+        [Key(52)]
+        public int TurretControllerWeaponCount { get; set; }
+
+        [Key(53)]
+        public double TurretControllerShotSpeed { get; set; }
+
+        [Key(54)]
+        public bool TurretControllerPredictShots { get; set; }
     }
 }

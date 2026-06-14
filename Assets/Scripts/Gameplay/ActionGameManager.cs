@@ -981,6 +981,15 @@ public class ActionGameManager : MonoBehaviour
                     StatModifierTargetStatCount = statModifier.TargetStatCount
                 };
             }
+            else if (behavior is TurretController turretController)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    TurretControllerWeaponCount = turretController.WeaponCount,
+                    TurretControllerShotSpeed = turretController.ShotSpeed,
+                    TurretControllerPredictShots = turretController.PredictShots
+                };
+            }
 
             if (state == null)
                 continue;

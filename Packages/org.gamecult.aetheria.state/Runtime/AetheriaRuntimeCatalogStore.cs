@@ -909,7 +909,10 @@ namespace GameCult.Aetheria.State.Unity
                 var statModifierApplied = ReadFieldBool(ref reader, behaviorFields, 49);
                 var statModifierExecuted = ReadFieldBool(ref reader, behaviorFields, 50);
                 var statModifierTargetStatCount = ReadFieldInt32(ref reader, behaviorFields, 51);
-                SkipRemaining(ref reader, behaviorFields, 52);
+                var turretControllerWeaponCount = ReadFieldInt32(ref reader, behaviorFields, 52);
+                var turretControllerShotSpeed = ReadFieldDouble(ref reader, behaviorFields, 53);
+                var turretControllerPredictShots = ReadFieldBool(ref reader, behaviorFields, 54);
+                SkipRemaining(ref reader, behaviorFields, 55);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -962,7 +965,10 @@ namespace GameCult.Aetheria.State.Unity
                     triggerPulled,
                     statModifierApplied,
                     statModifierExecuted,
-                    statModifierTargetStatCount);
+                    statModifierTargetStatCount,
+                    turretControllerWeaponCount,
+                    turretControllerShotSpeed,
+                    turretControllerPredictShots);
             }
 
             return behaviorStates;

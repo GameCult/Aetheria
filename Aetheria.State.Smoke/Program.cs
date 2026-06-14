@@ -355,6 +355,16 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 StatModifierApplied = true,
                 StatModifierExecuted = true,
                 StatModifierTargetStatCount = 2
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 10,
+                BehaviorKind = "TurretController",
+                TurretControllerWeaponCount = 2,
+                TurretControllerShotSpeed = 80.0,
+                TurretControllerPredictShots = true
             }
         ],
         StatGrids =
@@ -618,7 +628,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 10 ||
+        entitySnapshot.BehaviorStates.Length != 11 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
@@ -651,6 +661,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         !entitySnapshot.BehaviorStates[9].StatModifierApplied ||
         !entitySnapshot.BehaviorStates[9].StatModifierExecuted ||
         entitySnapshot.BehaviorStates[9].StatModifierTargetStatCount != 2 ||
+        entitySnapshot.BehaviorStates[10].BehaviorKind != "TurretController" ||
+        entitySnapshot.BehaviorStates[10].TurretControllerWeaponCount != 2 ||
+        entitySnapshot.BehaviorStates[10].TurretControllerShotSpeed != 80.0 ||
+        !entitySnapshot.BehaviorStates[10].TurretControllerPredictShots ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

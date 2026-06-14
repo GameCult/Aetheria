@@ -179,7 +179,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   energy usage, velocity limiters publish evaluated limit, and thermotoggles
   publish their active target temperature. Switches publish activated state,
   triggers publish pending pulled state, and stat modifiers publish
-  applied/executed flags plus target-stat count.
+  applied/executed flags plus target-stat count. Turret controllers publish
+  initialized weapon count, shot speed, and predictive-aim flag.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -828,6 +829,8 @@ First Aetheria surfaces to publish:
      pending pull state.
    - Done: extend behavior state rows for StatModifier applied/executed flags
      and target-stat count.
+   - Done: extend behavior state rows for TurretController initialized weapon
+     count, shot speed, and predictive-aim flag.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
