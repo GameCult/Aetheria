@@ -199,6 +199,22 @@ public class ItemManager
             : (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * typedItem.Price);
     }
 
+    public int GetPrice(ItemInstance item)
+    {
+        var typedItem = GetRuntimeItem(item);
+        if (typedItem == null)
+        {
+            return 0;
+        }
+
+        return item switch
+        {
+            CraftedItemInstance crafted => (int)(GameplaySettings.QualityPriceModifier.Evaluate(crafted.Quality) * typedItem.Price),
+            SimpleCommodity commodity => typedItem.Price * commodity.Quantity,
+            _ => typedItem.Price
+        };
+    }
+
     public SimpleCommodity CreateInstance(SimpleCommodityData item, int count)
     {
         if (item != null)

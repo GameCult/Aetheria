@@ -113,7 +113,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now queues current-zone/current-entity-collection snapshots through the
   runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
   `RuntimeEntityBlueprint` remain runtime construction/loadout projections
-  rather than durable file formats.
+  rather than durable file formats. Runtime blueprint restore now iterates typed
+  hull shape rows when restoring saved conductivity, and blueprint price
+  aggregation uses typed runtime item prices through `ItemManager` instead of
+  hydrating `HullData.Shape` or `ItemData.Price`.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -714,6 +717,9 @@ First Aetheria surfaces to publish:
    - Done: move `EquippedItem` and `ConsumableItemEffect` behavior construction
      off `Data.Behaviors` and onto typed runtime behavior payload projection;
      `BehaviorData` remains only the temporary behavior-class config bridge.
+   - Done: move runtime blueprint price aggregation and conductivity restore
+     geometry onto typed runtime item price and hull shape rows; legacy
+     `ItemData.Price` and `HullData.Shape` no longer own those blueprint paths.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and

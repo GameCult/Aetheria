@@ -133,9 +133,9 @@ public static class RuntimeEntityBlueprintProjector
         if(!instantiate)
             entity.Armor = blueprint.Armor;
         
-        var hullData = itemManager.GetData(entity.Hull);
-        
-        foreach(var v in hullData.Shape.Coordinates)
+        var hullShape = itemManager.GetRuntimeShape(entity.Hull);
+
+        foreach(var v in hullShape.Coordinates)
             entity.HullConductivity[v.x,v.y] = blueprint.Conductivity[v.x,v.y];
 
         entity.WeaponGroups = blueprint.WeaponGroups.Select(itemIndices =>
@@ -186,34 +186,26 @@ public abstract class RuntimeEntityBlueprint
     {
         if (_price != 0) return _price;
         
-        var hullData = itemManager.GetData(Hull);
-        _price = hullData.Price;
+        _price = itemManager.GetPrice(Hull);
 
         foreach (var (_, item) in Equipment)
         {
-            var itemData = itemManager.GetData(item);
-            _price += itemData.Price;
+            _price += itemManager.GetPrice(item);
         }
         foreach (var (_, item) in CargoBays)
         {
-            var itemData = itemManager.GetData(item);
-            _price += itemData.Price;
+            _price += itemManager.GetPrice(item);
         }
         foreach (var (_, item) in DockingBays)
         {
-            var itemData = itemManager.GetData(item);
-            _price += itemData.Price;
+            _price += itemManager.GetPrice(item);
         }
 
         foreach (var t in CargoContents)
         {
             foreach (var (_, item) in t)
             {
-                var itemData = itemManager.GetData(item);
-                if (item is SimpleCommodity s)
-                    _price += itemData.Price * s.Quantity;
-                else
-                    _price += itemData.Price;
+                _price += itemManager.GetPrice(item);
             }
         }
 
@@ -221,11 +213,7 @@ public abstract class RuntimeEntityBlueprint
         {
             foreach (var (_, item) in t)
             {
-                var itemData = itemManager.GetData(item);
-                if (item is SimpleCommodity s)
-                    _price += itemData.Price * s.Quantity;
-                else
-                    _price += itemData.Price;
+                _price += itemManager.GetPrice(item);
             }
         }
 
