@@ -2,6 +2,8 @@ using Aetheria.State;
 using Aetheria.State.Documents;
 using Aetheria.State.Migration;
 using GameCult.Caching;
+using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var statePath = AetheriaStatePaths.ResolveDefaultStatePath(root);
@@ -105,20 +107,24 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
     await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
 
-    AetheriaEveCommandBridge.QueueCommand(
+    AetheriaRuntimeEveCommandLog.QueueCommand(
         statePath,
-        AetheriaProviderAdvertisementProjector.ProviderId,
-        AetheriaCatalogSurfaceProjector.SurfaceId,
-        "aetheria.catalog.refresh",
-        new Dictionary<string, string> { ["source"] = "state-smoke" },
-        "aetheria-state-smoke");
-    AetheriaEveCommandBridge.QueueCommand(
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaCatalogSurfaceProjector.SurfaceId,
+            "aetheria.catalog.refresh",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
+    AetheriaRuntimeEveCommandLog.QueueCommand(
         statePath,
-        AetheriaProviderAdvertisementProjector.ProviderId,
-        AetheriaCatalogSurfaceProjector.SurfaceId,
-        "aetheria.catalog.unknown",
-        new Dictionary<string, string> { ["source"] = "state-smoke" },
-        "aetheria-state-smoke");
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaCatalogSurfaceProjector.SurfaceId,
+            "aetheria.catalog.unknown",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
     var eveCommandReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node);
     var eveCommandStatus = new AetheriaEveCommandDrainStatus
     {

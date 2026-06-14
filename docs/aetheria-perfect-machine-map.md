@@ -900,6 +900,10 @@ First Aetheria surfaces to publish:
      validates provider/surface/command templates, invokes the current refresh
      handlers, republishes accepted surfaces, rejects unknown commands, and
      records typed command-drain status.
+   - Done: delete provider-side Eve command emission from
+     `AetheriaEveCommandBridge`; renderer/runtime command files are queued
+     through `AetheriaRuntimeEveCommandLog`, while the provider bridge only
+     validates, applies, reports, and deletes accounted commands.
    - Extend the command bridge beyond refresh commands as gameplay/editor Eve
      surfaces acquire provider-owned handlers.
    - Wire the presenter into a Unity scene/prefab for the first runtime surface

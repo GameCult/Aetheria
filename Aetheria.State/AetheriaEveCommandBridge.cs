@@ -1,4 +1,3 @@
-using System.Buffers;
 using Aetheria.State.Documents;
 using MessagePack;
 
@@ -78,43 +77,6 @@ public static class AetheriaEveCommandBridge
         report.AcceptedPaths = accepted.ToArray();
         report.RejectedPaths = rejected.ToArray();
         return report;
-    }
-
-    public static void QueueCommand(
-        string stateFilePath,
-        string providerId,
-        string surfaceId,
-        string command,
-        IReadOnlyDictionary<string, string>? payload = null,
-        string clientId = "aetheria-state")
-    {
-        var issuedAtUtc = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
-        var commandId = Guid.NewGuid().ToString("N");
-        var pendingDirectory = GetPendingDirectory(stateFilePath);
-        Directory.CreateDirectory(pendingDirectory);
-
-        var finalPath = Path.Combine(
-            pendingDirectory,
-            $"{issuedAtUtc.Replace(':', '-')}.{StableToken(surfaceId)}.{StableToken(command)}.{commandId}.cc");
-        var tempPath = finalPath + ".tmp";
-
-        var buffer = new ArrayBufferWriter<byte>();
-        var writer = new MessagePackWriter(buffer);
-        writer.WriteArrayHeader(8);
-        writer.Write(CommandSchema);
-        writer.Write(commandId);
-        writer.Write(providerId ?? "");
-        writer.Write(surfaceId ?? "");
-        writer.Write(command ?? "");
-        writer.Write(issuedAtUtc);
-        writer.Write(clientId ?? "");
-        WritePayload(ref writer, payload);
-        writer.Flush();
-
-        File.WriteAllBytes(tempPath, buffer.WrittenSpan.ToArray());
-        if (File.Exists(finalPath))
-            File.Delete(finalPath);
-        File.Move(tempPath, finalPath);
     }
 
     private static AetheriaPendingEveCommand ReadCommand(string path)
@@ -199,17 +161,6 @@ public static class AetheriaEveCommandBridge
         };
     }
 
-    private static void WritePayload(ref MessagePackWriter writer, IReadOnlyDictionary<string, string>? payload)
-    {
-        payload ??= new Dictionary<string, string>(0, StringComparer.Ordinal);
-        writer.WriteMapHeader(payload.Count);
-        foreach (var entry in payload.OrderBy(entry => entry.Key, StringComparer.Ordinal))
-        {
-            writer.Write(entry.Key ?? "");
-            writer.Write(entry.Value ?? "");
-        }
-    }
-
     private static IReadOnlyDictionary<string, string> ReadPayload(ref MessagePackReader reader)
     {
         var count = reader.ReadMapHeader();
@@ -223,20 +174,6 @@ public static class AetheriaEveCommandBridge
         }
 
         return payload;
-    }
-
-    private static string StableToken(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return "empty";
-
-        var chars = value
-            .Select(character => char.IsLetterOrDigit(character) ? character : '-')
-            .ToArray();
-        var token = new string(chars).Trim('-').ToLowerInvariant();
-        while (token.Contains("--", StringComparison.Ordinal))
-            token = token.Replace("--", "-", StringComparison.Ordinal);
-        return string.IsNullOrWhiteSpace(token) ? "empty" : token;
     }
 
     private static string ReadString(ref MessagePackReader reader)
