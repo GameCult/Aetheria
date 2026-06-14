@@ -161,7 +161,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   station/turret/ship counts only through typed hull classifications from the runtime catalog;
   missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
-  pickup visuals and scan labels before falling back to legacy item projections.
+  pickup visuals and scan labels; missing typed rows degrade to generic unknown
+  pickup presentation instead of falling back to legacy item projections.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
@@ -637,6 +638,9 @@ First Aetheria surfaces to publish:
    - Done: import typed thermal performance curve keys and move PropertiesPanel
      thermal curve presentation onto typed catalog rows; legacy thermal curves
      are fallback projection only for incomplete imported rows.
+   - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
+     typed category/name rows now decide pickup visuals and scan labels, and
+     missing typed rows render generic unknown gear pickup presentation.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

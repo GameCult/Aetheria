@@ -574,7 +574,7 @@ public class ZoneRenderer : MonoBehaviour
         {
             SimpleCommodity _ => Instantiate(SimpleCommodityPickup),
             CompoundCommodity _ => Instantiate(CompoundCommodityPickup),
-            EquippableItem equippableItem when IsWeaponPickup(equippableItem, typedItem) => Instantiate(WeaponPickup),
+            EquippableItem _ when IsWeaponPickup(typedItem) => Instantiate(WeaponPickup),
             EquippableItem _ => Instantiate(GearPickup),
             _ => throw new NotImplementedException()
         };
@@ -586,7 +586,7 @@ public class ZoneRenderer : MonoBehaviour
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
         itemPickup.Item = item;
         itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = typedItem?.Name ?? ItemManager.GetData(item).Name;
+        itemPickup.ScanLabel.text = typedItem?.Name ?? "Unknown Item";
         if (item is CraftedItemInstance craftedItemInstance)
         {
             var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
@@ -598,12 +598,9 @@ public class ZoneRenderer : MonoBehaviour
         _loot.Add(itemPickup);
     }
 
-    private bool IsWeaponPickup(EquippableItem item, AetheriaRuntimeCatalogItem typedItem)
+    private static bool IsWeaponPickup(AetheriaRuntimeCatalogItem typedItem)
     {
-        if (typedItem != null)
-            return string.Equals(typedItem.Category, nameof(WeaponItemData), StringComparison.Ordinal);
-
-        return ItemManager.GetData(item) is WeaponItemData;
+        return typedItem != null && string.Equals(typedItem.Category, nameof(WeaponItemData), StringComparison.Ordinal);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedPickupItem(ItemInstance item)
