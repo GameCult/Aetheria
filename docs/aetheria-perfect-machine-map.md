@@ -1020,6 +1020,9 @@ First Aetheria surfaces to publish:
    - Done: move HUD ammo display reads off `WeaponData`; `SchematicDisplay`
      consumes `Weapon.AmmoType`, `Weapon.MagazineSize`, and `Weapon.UsesAmmo`,
      and the public `WeaponData` escape hatch has been removed.
+   - Done: delete dormant legacy item audio reads in `EntityInstance` and stale
+     commented thruster sound-trigger code; those paths had no live output and
+     therefore earned deletion rather than a new runtime metadata owner.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

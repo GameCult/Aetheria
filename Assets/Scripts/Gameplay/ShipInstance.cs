@@ -68,11 +68,6 @@ public class ShipInstance : EntityInstance
                 var thrusterHardpoint = ThrusterHardpoints
                     .FirstOrDefault(t => t.name == ship.Hardpoints[thruster.Item.Position.x, thruster.Item.Position.y].Transform);
                 particlesShape.meshRenderer = thrusterHardpoint?.Emitter;
-                // if (!string.IsNullOrEmpty(thruster.Item.Data.SoundEffectTrigger) && thrusterHardpoint != null)
-                // {
-                //     AkSoundEngine.RegisterGameObj(thrusterHardpoint.gameObject);
-                //     AkSoundEngine.PostEvent(thruster.Item.Data.SoundEffectTrigger, thrusterHardpoint.gameObject);
-                // }
 
                 return new ThrusterInstance
                 {

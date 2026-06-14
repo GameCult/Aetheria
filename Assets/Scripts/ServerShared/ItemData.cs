@@ -387,9 +387,6 @@ public abstract class EquippableItemData : CraftedItemData
     [Inspectable, LegacyPayloadKey(18)]
     public float ThermalResilience = 1;
 
-    // [Inspectable, LegacyPayloadKey(19)]
-    // public string SoundEffectTrigger;
-
     [InspectableTexture, LegacyPayloadKey(20)]
     public string ActionBarIcon;
 

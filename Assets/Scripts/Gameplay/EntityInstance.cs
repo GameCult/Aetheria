@@ -264,15 +264,6 @@ public class EntityInstance : MonoBehaviour
                 }
             }
             
-            var hp = Entity.Hardpoints[item.Position.x, item.Position.y];
-            if (hp != null && item.Data.SoundBank != 0)
-            {
-                var hardpointTransform = EquipmentHardpoints.FirstOrDefault(x => x.name == hp.Transform);
-                if (hardpointTransform != null)
-                {
-                    var hardpointGameObject = hardpointTransform.gameObject;
-                }
-            }
         }
         RadiatorMeshes = new Dictionary<Radiator, MeshRenderer>();
         Barrels = new Dictionary<HardpointData, Transform[]>();
