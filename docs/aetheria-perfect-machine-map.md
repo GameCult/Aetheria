@@ -155,10 +155,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
   pickup visuals and scan labels before falling back to legacy item projections.
-  The item properties panel also reads typed catalog description, manufacturer,
-  base mass, and max durability for item presentation before hydrating legacy
-  DTOs for behavior reflection and thermal curves that have not yet moved to
-  typed behavior surfaces. Inventory selection highlighting now uses typed item
+  The item properties panel also reads typed catalog title names, descriptions,
+  manufacturer, base mass, and max durability for basic item presentation without
+  hydrating legacy DTOs; legacy `ItemData` hydration remains only for behavior
+  reflection and thermal curves that have not yet moved to typed behavior
+  surfaces. Inventory selection highlighting now uses typed item
   shape cells only for UI tint geometry; incomplete typed rows produce no
   selected-cell mask instead of falling back to legacy `ItemData.Shape`.
   Inventory cargo cell tint now uses typed hardpoint facets only; incomplete

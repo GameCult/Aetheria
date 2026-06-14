@@ -372,17 +372,14 @@ public class PropertiesPanel : MonoBehaviour
 	private void AddItemProperties(ItemInstance item)
 	{
 		var typedItem = FindTypedPropertyItem(item);
-		var data = typedItem == null ? GameManager.ItemManager.GetData(item) : null;
 		
-		AddProperty(typedItem?.Description ?? data.Description);
+		AddProperty(typedItem?.Description ?? "No typed item description is available.");
 		
 		if (item is SimpleCommodity simpleCommodity)
 			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		var manufacturer = typedItem != null
-			? ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)
-			: ActionGameManager.RuntimeCatalog?.FindCorporationByLegacyId(data.Manufacturer.ToString());
+		var manufacturer = typedItem != null ? ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem) : null;
 		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
 		sheet.AddStat("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(GetTypedMass(item, typedItem)));
 		
@@ -392,7 +389,7 @@ public class PropertiesPanel : MonoBehaviour
 	private float GetTypedMass(ItemInstance item, AetheriaRuntimeCatalogItem typedItem)
 	{
 		if (typedItem == null)
-			return GameManager.ItemManager.GetMass(item);
+			return 0f;
 
 		return item is SimpleCommodity simpleCommodity
 			? (float)typedItem.Mass * simpleCommodity.Quantity
@@ -461,10 +458,11 @@ public class PropertiesPanel : MonoBehaviour
 
 	private string GetTitle(EquippableItem item)
 	{
-		var data = GameManager.ItemManager.GetData(item);
+		var typedItem = FindTypedPropertyItem(item);
 		var (tier, upgrades) = GameManager.ItemManager.GetTier(item);
+		var name = typedItem?.Name ?? "Unknown Item";
 		return
-			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{data.Name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
+			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
 	}
 
 	public void Inspect(EquippedItem item)
