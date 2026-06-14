@@ -262,7 +262,7 @@ public class ItemManager
         {
             return new EquippableItem
             {
-                Data = CreateReference(item), Quality = quality, Durability = equippableItemData.Durability
+                Data = CreateReference(item), Quality = quality, Durability = GetInitialDurability(equippableItemData)
             };
         }
 
@@ -272,6 +272,12 @@ public class ItemManager
             Quality = quality
         };
         return newCommodity;
+    }
+
+    private float GetInitialDurability(EquippableItemData item)
+    {
+        var typedItem = GetRuntimeItem(item.ID);
+        return typedItem?.Durability > 0 ? (float)typedItem.Durability : item.Durability;
     }
     
     public CraftedItemInstance CreateInstance(CraftedItemData item)
