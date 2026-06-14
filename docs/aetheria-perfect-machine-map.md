@@ -233,10 +233,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   performance stats. `ItemManager.CreateInstance(CraftedItemData, float)`
   initializes new equippable runtime durability from the typed runtime item row;
   `EquippableItemData.Durability` is only an incomplete-row fallback.
-  `EquippedItem` also takes conductivity and max durability from the typed
-  runtime item row for heat conduction, durability performance, and wear
-  scaling; the legacy equippable DTO still owns thermal curve, thermal
-  resilience, and audio-stat residue until those surfaces are imported.
+  `EquippedItem` also takes conductivity, max durability, thermal bounds, and
+  thermal performance curve keys from the typed runtime item row for heat
+  conduction, durability performance, thermal performance, and wear scaling;
+  the legacy equippable DTO still owns thermal resilience and audio-stat
+  residue until those surfaces are imported.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
@@ -774,6 +775,9 @@ First Aetheria surfaces to publish:
    - Done: move `EquippedItem` conductivity and max-durability performance/wear
      inputs onto typed runtime item rows; legacy thermal resilience and audio
      stats remain explicit DTO residues.
+   - Done: move `EquippedItem` thermal performance evaluation onto typed
+     runtime item thermal bounds and curve keys; legacy `Data.Performance`
+     remains only as an incomplete-row fallback.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster

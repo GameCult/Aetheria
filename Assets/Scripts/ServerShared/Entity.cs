@@ -1271,6 +1271,7 @@ public class EquippedItem
     public Shape InsetShape { get; }
     public Entity Entity { get; }
     public EquippableItemData Data { get; }
+    public AetheriaRuntimeCatalogItem RuntimeItem { get; }
 
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
     public ReactiveProperty<bool> DurabilityOnline { get; } = new ReactiveProperty<bool>(false);
@@ -1283,6 +1284,7 @@ public class EquippedItem
     public Subject<(uint id, float v)> AudioParameters { get; } = new Subject<(uint id, float v)>();
     public Dictionary<uint, float> AudioParameterValues { get; } = new Dictionary<uint, float>();
 
+    private readonly BezierCurve _thermalPerformanceCurve;
     private float oldTemperature;
     public float Temperature
     {
@@ -1372,9 +1374,10 @@ public class EquippedItem
         Entity = entity;
         EquippableItem = item;
         Position = position;
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        Conductivity = typedItem != null ? (float)typedItem.Conductivity : Data.Conductivity;
-        MaxDurability = typedItem?.Durability > 0 ? (float)typedItem.Durability : Math.Max(item.Durability, 1f);
+        RuntimeItem = ItemManager.GetRuntimeItem(item);
+        Conductivity = RuntimeItem != null ? (float)RuntimeItem.Conductivity : Data.Conductivity;
+        MaxDurability = RuntimeItem?.Durability > 0 ? (float)RuntimeItem.Durability : Math.Max(item.Durability, 1f);
+        _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
@@ -1443,7 +1446,7 @@ public class EquippedItem
     public void UpdatePerformance()
     {        
         var temp = Temperature;
-        ThermalPerformance = Data.Performance(temp);
+        ThermalPerformance = EvaluateThermalPerformance(temp);
         var deltaTemp = math.abs(temp - oldTemperature);
         DurabilityPerformance = EquippableItem.Durability / MaxDurability;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
@@ -1455,6 +1458,34 @@ public class EquippedItem
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;
         oldTemperature = temp;
+    }
+
+    private float EvaluateThermalPerformance(float temperature)
+    {
+        if (_thermalPerformanceCurve == null ||
+            RuntimeItem == null ||
+            RuntimeItem.MaximumTemperature <= RuntimeItem.MinimumTemperature)
+        {
+            return Data.Performance(temperature);
+        }
+
+        var t = unlerp((float)RuntimeItem.MinimumTemperature, (float)RuntimeItem.MaximumTemperature, temperature);
+        return saturate(_thermalPerformanceCurve.Evaluate(t));
+    }
+
+    private static BezierCurve CreateThermalPerformanceCurve(AetheriaRuntimeCatalogItem item)
+    {
+        if (item?.ThermalPerformanceCurveKeys == null || item.ThermalPerformanceCurveKeys.Count == 0)
+        {
+            return null;
+        }
+
+        return new BezierCurve
+        {
+            Keys = item.ThermalPerformanceCurveKeys
+                .Select(key => new float4((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent))
+                .ToArray()
+        };
     }
 
     public void Update(float delta)
