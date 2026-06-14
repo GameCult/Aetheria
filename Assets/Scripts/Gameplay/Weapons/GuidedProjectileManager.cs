@@ -60,6 +60,6 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
             p.TargetPosition = () => source.Entity.Position + length( (float3)source.LookAtPoint.position - source.Entity.Position) * source.Entity.LookDirection;
         }
-        else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");
+        else Debug.LogError($"Weapon {item.RuntimeItem?.Name ?? "Unknown item"} linked to {name} effect, but is not a Launcher!");
     }
 }

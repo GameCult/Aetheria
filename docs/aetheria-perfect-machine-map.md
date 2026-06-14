@@ -253,7 +253,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   max durability only, with current runtime durability as the generic
   denominator for incomplete typed rows. `ItemManager.Evaluate` also uses typed
   runtime item max durability and item names when evaluating unequipped
-  performance stats. `ItemManager` typed item instantiation primitives create
+  performance stats. Weapon group assignment and guided projectile diagnostics
+  report names from equipped typed runtime rows instead of `ItemData.Name`.
+  `ItemManager` typed item instantiation primitives create
   simple commodities, crafted items, and equippable items from runtime catalog
   rows; old DTO-based item creation is gone from blueprint cloning.
   `EquippedItem` also takes conductivity, max durability, thermal bounds, and

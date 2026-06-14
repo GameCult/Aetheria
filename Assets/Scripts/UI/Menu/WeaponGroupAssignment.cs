@@ -21,7 +21,7 @@ public class WeaponGroupAssignment : MonoBehaviour
     public void Inspect(EquippedItem item)
     {
         var weapon = item.GetBehavior<Weapon>();
-        if (weapon == null) throw new ArgumentException($"Attempted to inspect weapon groups on item \"{item.Data.Name}\" but no weapon is present!");
+        if (weapon == null) throw new ArgumentException($"Attempted to inspect weapon groups on item \"{item.RuntimeItem?.Name ?? "Unknown item"}\" but no weapon is present!");
         var groupCount = ActionGameManager.Instance.Settings.GameplaySettings.WeaponGroupCount;
         for (int i = 0; i < groupCount; i++)
         {
