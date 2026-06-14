@@ -143,8 +143,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `DatabaseLink<T>`/`RuntimeCatalogLink<T>` path has collapsed into the
   item-specific runtime reference.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
-  gameplay/UI API. Temporary item instantiation bridges now go through the
-  narrow `ItemManager.GetRuntimeItemProjection<T>` method. `ItemManager` no
+  gameplay/UI API. Temporary item projection hydration now goes through
+  `ItemManager.GetData` over `RuntimeItemReference.ItemId`. `ItemManager` no
   longer exposes a legacy catalog enumeration API or a catalog-entry-shaped
   single-item API. This prevents catalog authority from leaking into every
   caller that only needs a projection lookup. The item properties UI no longer uses
@@ -946,10 +946,9 @@ First Aetheria surfaces to publish:
      `RuntimeItemReference.Projection`, making the hydrated `ItemData` DTO a
      cache/display/behavior bridge derived from `ItemId` instead of the
      reference's apparent state value.
-   - Done: rename the remaining `ItemManager.GetCatalogEntry<T>` bridge to
-     `GetRuntimeItemProjection<T>` and rename the bridge reader interface to
-     `IRuntimeItemProjectionReader`, so the live API exposes projection
-     hydration rather than catalog-entry ownership.
+   - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
+     after loadout generation stopped hydrating selected typed rows into
+     `EquippableItemData` merely to instantiate equipment.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.
@@ -1049,8 +1048,7 @@ Do not add behavior to `ItemData`, `RuntimeItemProjectionEntry`, or the
 temporary `AetheriaRuntimeItemCatalog` DTO materializer. The typed state spine
 and migration quarantine exist; the next cuts should replace surviving
 projection consumers with typed item facets, typed behavior factories, and Eve
-surfaces until `GetRuntimeItemProjection<T>` has no caller and the old DTO
-bridge can be deleted. Loadout generation should keep moving eligibility tests
-onto `AetheriaRuntimeCatalogItem` rows before projection; any predicate that
-still needs `ItemData` must earn that dependency by using behavior objects or
-simulation-only methods that typed facets do not yet expose.
+surfaces until the remaining `GetData` hydration users are gone and the old DTO
+bridge can be deleted. Any predicate that still needs `ItemData` must earn that
+dependency by using behavior objects or simulation-only methods that typed
+facets do not yet expose.

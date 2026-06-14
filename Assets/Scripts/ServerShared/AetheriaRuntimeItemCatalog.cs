@@ -11,7 +11,6 @@ public interface IRuntimeItemProjectionReader
     AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
     IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid);
     ItemData Get(Guid guid);
-    T Get<T>(Guid guid) where T : ItemData;
 }
 
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
@@ -86,11 +85,6 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         ItemData item;
         _items.TryGetValue(guid, out item);
         return item;
-    }
-
-    public T Get<T>(Guid guid) where T : ItemData
-    {
-        return Get(guid) as T;
     }
 
     private static ItemData ProjectItem(AetheriaRuntimeCatalogItem item)

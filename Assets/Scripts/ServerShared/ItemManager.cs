@@ -53,11 +53,6 @@ public class ItemManager
         _logger = logger;
     }
 
-    public T GetRuntimeItemProjection<T>(Guid id) where T : ItemData
-    {
-        return _itemProjections.Get<T>(id);
-    }
-
     public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
     {
         var itemId = item?.Data?.ItemId ?? Guid.Empty;
