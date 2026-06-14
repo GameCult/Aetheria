@@ -37,16 +37,18 @@ public class Zone
     {
         get => (float) _time;
     }
-    public RuntimeZoneBlueprint Blueprint { get; }
+    public float Radius { get; }
+    public float Mass { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
 
-    public Zone(ItemManager itemManager, PlanetSettings settings, RuntimeZoneBlueprint blueprint, GalaxyZone galaxyZone, Galaxy galaxy)
+    public Zone(ItemManager itemManager, PlanetSettings settings, ZoneConstructionBlueprint blueprint, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = blueprint.Time;
         GalaxyZone = galaxyZone;
         Galaxy = galaxy;
-        Blueprint = blueprint;
+        Radius = blueprint.Radius;
+        Mass = blueprint.Mass;
         _itemManager = itemManager;
         Settings = settings;
         _random = new Random(Convert.ToUInt32(abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
@@ -98,35 +100,6 @@ public class Zone
         task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
         agent.Task = task;
         return agent;
-    }
-
-    public RuntimeZoneBlueprint CaptureBlueprint()
-    {
-        return new RuntimeZoneBlueprint
-        {
-            Radius = Blueprint.Radius,
-            Mass = Blueprint.Mass,
-            Entities = Entities.Select(RuntimeEntityBlueprintProjector.CaptureBlueprint).ToList(),
-            Orbits = Orbits.Values.Select(o=>o.ToData()).ToList(),
-            Planets = CaptureBodyData().ToList(),
-            Time = _time
-        };
-    }
-
-    public IEnumerable<BodyData> CaptureBodyData()
-    {
-        foreach (var orbit in Orbits.Values)
-        {
-            var planet = PlanetInstances.Values.FirstOrDefault(body => body.OrbitId == orbit.ID);
-            if (planet != null)
-            {
-                yield return planet.ToData();
-                continue;
-            }
-
-            var belt = AsteroidBelts.Values.FirstOrDefault(body => body.Orbit == orbit.ID);
-            if (belt != null) yield return belt.ToData();
-        }
     }
 
     public void AddOrbit(OrbitData orbit)
@@ -334,7 +307,7 @@ public class Zone
     
     public float GetHeight(float2 position)
     {
-        var result = -PowerPulse(length(position)/(Blueprint.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var result = -PowerPulse(length(position)/(Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
         foreach (var body in PlanetInstances.Values)
         {
             var p = position - body.Orbit.Position;
@@ -419,7 +392,6 @@ public class Planet
 {
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
-    private readonly BodyData _data;
     public Guid ID { get; }
     public string Name { get; }
     public Guid OrbitId { get; }
@@ -437,7 +409,6 @@ public class Planet
     {
         Settings = settings;
         Orbit = orbit;
-        _data = data;
         ID = data.ID;
         Name = data.Name ?? "";
         OrbitId = data.Orbit;
@@ -457,7 +428,6 @@ public class Planet
         GravityWellDepth = Settings.GravityDepth.Evaluate(Mass) * GravityDepthMultiplier;
     }
 
-    public BodyData ToData() => _data;
 }
 
 public class GasGiant : Planet
@@ -526,7 +496,6 @@ public class Sun : GasGiant
 
 public class AsteroidBelt
 {
-    private readonly AsteroidBeltData _data;
     private readonly Asteroid[] _asteroids;
     public Guid ID { get; }
     public string Name { get; }
@@ -548,7 +517,6 @@ public class AsteroidBelt
 
     public AsteroidBelt(AsteroidBeltData data)
     {
-        _data = data;
         _asteroids = data.Asteroids;
         ID = data.ID;
         Name = data.Name ?? "";
@@ -570,12 +538,10 @@ public class AsteroidBelt
 
     public Asteroid GetAsteroid(int asteroid) => _asteroids[asteroid];
 
-    public AsteroidBeltData ToData() => _data;
 }
 
 public class Orbit
 {
-    private readonly OrbitData _data;
     public Guid ID { get; }
     public Guid Parent { get; }
     public float Distance { get; }
@@ -588,7 +554,6 @@ public class Orbit
 
     public Orbit(PlanetSettings settings, OrbitData data)
     {
-        _data = data;
         ID = data.ID;
         Parent = data.Parent;
         Distance = data.Distance;
@@ -597,5 +562,4 @@ public class Orbit
         Period = settings.OrbitPeriod.Evaluate(data.Distance);
     }
 
-    public OrbitData ToData() => _data;
 }

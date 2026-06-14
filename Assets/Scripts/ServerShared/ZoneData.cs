@@ -11,7 +11,7 @@ using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 
-public class RuntimeZoneBlueprint
+public class ZoneConstructionBlueprint
 {
     public List<BodyData> Planets = new List<BodyData>();
     public List<OrbitData> Orbits = new List<OrbitData>();

@@ -58,7 +58,7 @@ or mutate game state locally.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
-The dead `SavedStory` JSON DTO is gone. `RuntimeZoneBlueprint` and
+The dead `SavedStory` JSON DTO is gone. `ZoneConstructionBlueprint` and
 `RuntimeEntityBlueprint` remain in-memory construction/loadout projections for
 Unity runtime code, with `RuntimeEntityBlueprintProjector` capturing and
 instantiating those projections. They no longer carry save-file or serializer
@@ -120,8 +120,8 @@ documents are `aetheria.corporation.v2` records because runtime generation
 needs actual allegiance weights, not only display counts. Runtime checkpoints
 now persist session faction relationships into typed run state, and runtime
 sessions publish typed state-host liveness. Zone checkpoints persist generated
-orbit/body rows into `AetheriaZoneState`, so `RuntimeZoneBlueprint` is no
-longer the only surface carrying celestial graph facts. Entity checkpoints
+orbit/body rows into `AetheriaZoneState`, so `ZoneConstructionBlueprint` is a
+one-shot construction input rather than the retained surface carrying celestial graph facts. Entity checkpoints
 persist hull simulation grids into `AetheriaEntitySnapshot`, so
 `RuntimeEntityBlueprint` is no longer the only surface carrying those live
 values. Broader runtime object graphs, typed behavior factory construction, and

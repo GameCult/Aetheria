@@ -1830,7 +1830,7 @@ public class ActionGameManager : MonoBehaviour
         
         if (galaxyZone.Contents == null)
         {
-            var runtimeBlueprint = ZoneGenerator.GenerateZone(
+            var constructionBlueprint = ZoneGenerator.GenerateZone(
                 ItemManager,
                 RuntimeCatalog,
                 Settings.ZoneSettings,
@@ -1838,7 +1838,7 @@ public class ActionGameManager : MonoBehaviour
                 galaxyZone,
                 IsTutorial
             );
-            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, runtimeBlueprint, galaxyZone, CurrentGalaxy);
+            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, CurrentGalaxy);
         }
         Zone = galaxyZone.Contents;
         PlayMusic(MusicType.Overworld);

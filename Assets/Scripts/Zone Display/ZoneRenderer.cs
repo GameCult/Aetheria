@@ -185,9 +185,9 @@ public class ZoneRenderer : MonoBehaviour
     {
         ClearZone();
         Zone = zone;
-        SectorBrushes.localScale = zone.Blueprint.Radius * 2 * Vector3.one;
-        SlimeGravityCamera.orthographicSize = zone.Blueprint.Radius;
-        SlimeRenderer.ZoneRadius = zone.Blueprint.Radius;
+        SectorBrushes.localScale = zone.Radius * 2 * Vector3.one;
+        SlimeGravityCamera.orthographicSize = zone.Radius;
+        SlimeRenderer.ZoneRadius = zone.Radius;
         foreach (var orbit in zone.Orbits.Values)
         {
             var planet = zone.PlanetInstances.Values.FirstOrDefault(body => body.OrbitId == orbit.ID);
@@ -228,7 +228,7 @@ public class ZoneRenderer : MonoBehaviour
                 AddWormhole(new Wormhole
                 {
                     Target = adjacentZone,
-                    Position = dir * zone.Blueprint.Radius * Settings.WormholeDistanceRatio
+                    Position = dir * zone.Radius * Settings.WormholeDistanceRatio
                 });
             }
         }

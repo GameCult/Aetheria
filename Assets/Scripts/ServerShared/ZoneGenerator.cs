@@ -35,7 +35,7 @@ public static class ZoneGenerator
 
 	private const int MaximumPlacementSamples = 32;
 
-	public static RuntimeZoneBlueprint GenerateZone(
+	public static ZoneConstructionBlueprint GenerateZone(
 		ItemManager itemManager,
 		AetheriaRuntimeCatalogSnapshot runtimeCatalog,
 		ZoneGenerationSettings zoneSettings,
@@ -43,7 +43,7 @@ public static class ZoneGenerator
 		GalaxyZone galaxyZone,
 		bool isTutorial = false)
 	{
-		var blueprint = new RuntimeZoneBlueprint();
+		var blueprint = new ZoneConstructionBlueprint();
 
 		var random = new Random(unchecked((uint) galaxyZone.Name.GetHashCode()) ^ hash(galaxyZone.Position));
 

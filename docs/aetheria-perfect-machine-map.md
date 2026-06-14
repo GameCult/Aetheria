@@ -69,7 +69,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted. The dead `SavedStory` JSON DTO is deleted.
-  `RuntimeZoneBlueprint`, body/orbit zone runtime data, item-instance runtime
+  `ZoneConstructionBlueprint`, body/orbit zone runtime data, item-instance runtime
   data, `Ship`, and `EntitySettings` remain as runtime
   construction/loadout/session projections, but no longer use save-file or
   serializer vocabulary or declare themselves as MessagePack persistence
@@ -126,7 +126,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   groups, and a stat grid. This proves the `.zone` replacement graph is durable typed state. Unity
   now queues current-zone/current-entity-collection snapshots, current
   action-bar bindings, and current faction relationship rows through the
-  runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
+  runtime commit log during run checkpoints; `ZoneConstructionBlueprint` and
   `RuntimeEntityBlueprint` remain runtime construction/loadout projections
   rather than durable file formats. Runtime blueprints no longer capture or
   restore live temperature, armor, max-armor, or hull-conductivity grids; those
@@ -147,9 +147,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   resources, gravity/body multipliers, asteroid belt entries, and gas/sun
   visual parameters now survive through the typed pending commit lane into
   `AetheriaZoneState`. Asteroid belt runtime damage, respawn timers, and
-  miner accumulators also persist on typed asteroid rows. `RuntimeZoneBlueprint`
-  feeds static generated geometry, but it is no longer the only place generated
-  celestial graph facts can live.
+  miner accumulators also persist on typed asteroid rows. `ZoneConstructionBlueprint`
+  feeds one-shot generated geometry into `Zone`; live zone radius/mass/orbit/body
+  reads come from runtime wrappers and typed checkpoint projection rather than
+  a retained construction payload.
 - Run checkpoint entity snapshots include typed simulation stat grids for
   temperature, thermal mass, armor, max armor, and hull-conductivity axes.
   They also carry public runtime session state: velocity, target entity
@@ -799,7 +800,7 @@ First Aetheria surfaces to publish:
      incidental drain status.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      zone orbit/body rows into `AetheriaZoneState`, so generated celestial
-     graph facts no longer live only inside `RuntimeZoneBlueprint`.
+     graph facts no longer live only inside construction blueprints.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      entity simulation stat grids into `AetheriaEntitySnapshot`, so
      temperature/armor/conductivity no longer live only in runtime blueprints.
@@ -1025,23 +1026,23 @@ First Aetheria surfaces to publish:
      therefore earned deletion rather than a new runtime metadata owner.
    - Done: move runtime orbit parent/phase/distance/fixed-position reads off
      `OrbitData`; `Zone`, `ActionGameManager`, and `ZoneRenderer` consume
-     `Orbit` runtime properties, with `Orbit.ToData()` retained only for
-     blueprint capture.
+     `Orbit` runtime properties, and the old `Orbit.ToData()` construction
+     capture bridge is deleted.
    - Done: move live asteroid-belt simulation, scanning, and mesh setup reads
      off `AsteroidBeltData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
-     consume `AsteroidBelt` runtime asteroid/resource/orbit properties, with
-     `AsteroidBelt.ToData()` retained for future capture/migration cuts.
+     consume `AsteroidBelt` runtime asteroid/resource/orbit properties, and
+     the old `AsteroidBelt.ToData()` construction capture bridge is deleted.
    - Done: move live planet mass/orbit/gravity reads off `BodyData`; `Zone`
      gravity evaluation and `ZoneRenderer` consume `Planet` runtime properties,
-     with `Planet.ToData()` retained as the temporary capture/config bridge.
+     and the old `Planet.ToData()` construction capture bridge is deleted.
    - Done: move typed zone orbit snapshot projection off
-     `RuntimeZoneBlueprint.Orbits`; run checkpoint commits now project current
+     construction-blueprint orbit rows; run checkpoint commits now project current
      `Zone.Orbits` runtime wrappers into typed orbit snapshot rows.
    - Done: move typed zone body snapshot projection off `BodyData` and
      `AsteroidBeltData`; run checkpoint commits now project `Planet` and
      `AsteroidBelt` runtime wrappers, including body resources, asteroid
      runtime damage/respawn/miner accumulators, and gas/sun visual fields.
-   - Done: move visited-sector summary counts off `RuntimeZoneBlueprint`
+   - Done: move visited-sector summary counts off construction-blueprint
      body/entity DTOs; `SectorRenderer` now counts planets, belts, gas giants,
      stars, stations, turrets, and ships from `GalaxyZone.Contents` runtime
      wrappers and live entities.
@@ -1062,6 +1063,10 @@ First Aetheria surfaces to publish:
      `ActionGameManager` keeps typed `AetheriaRuntimeLoadoutTemplateSnapshot`
      documents and projects blueprints only for pricing, instantiation, and
      commit boundaries.
+   - Done: rename `RuntimeZoneBlueprint` to `ZoneConstructionBlueprint`, delete
+     retained construction-payload state from `Zone`, and delete the unused
+     construction-capture bridge; `Zone` now keeps radius/mass as copied runtime
+     facts after construction.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
@@ -1306,6 +1311,9 @@ First Aetheria surfaces to publish:
      `RuntimeZoneBlueprint`/`RuntimeEntityBlueprint`, and rename loadout
      collections away from save-payload vocabulary. These are now explicitly
      runtime construction projections, not portable state authority.
+   - Done: continue the zone demotion by renaming `RuntimeZoneBlueprint` to
+     `ZoneConstructionBlueprint`; the old intermediate name no longer appears
+     in live Unity source.
    - Done: rename the old `EntitySerializer` runtime helper to
      `RuntimeEntityBlueprintProjector`; it captures/instantiates runtime
      blueprint projections and no longer presents itself as a serializer.
@@ -1360,6 +1368,11 @@ First Aetheria surfaces to publish:
 - Current Unity batchmode compile probes are blocked while another Unity editor
   instance has `E:/Projects/Aetheria` open; typed state builds and smokes remain
   the available verification until the editor lock is released.
+- Direct `dotnet build .\Assembly-CSharp.csproj --no-restore` is not currently
+  a valid gameplay compile substitute: the generated Unity project references a
+  missing root-level `GameCult.Aetheria.State.Unity.csproj` instead of the live
+  package/state project path, so it fails before reaching the gameplay rename
+  checks.
 - Unity batchmode compile with Editor `6000.4.2f1` returned cleanly after the
   runtime catalog resolver cut; `Logs/codex-unity-compile.log` has no compiler
   error hits.
