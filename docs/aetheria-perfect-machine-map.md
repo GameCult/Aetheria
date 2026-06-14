@@ -222,7 +222,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
   DTOs. Runtime behavior stat display and damage-range curves read typed
-  behavior payload fields by legacy payload key. The old explicit
+  behavior payload fields by legacy payload key. Damage-range payload selection
+  is keyed by typed behavior kind (`WeaponData`); legacy `BehaviorData` ancestry
+  is only a temporary metadata fallback while typed behavior metadata/factory
+  documents are missing. The old explicit
   `Inspect(ItemData)` DTO inspection overload is deleted; trade row clicks now
   inspect the typed runtime catalog row directly. Incomplete typed thermal
   curve rows render a neutral fallback curve instead of hydrating legacy
@@ -746,6 +749,9 @@ First Aetheria surfaces to publish:
      curves onto typed behavior payload fields, and delete the explicit
      `Inspect(ItemData)` projection inspector after moving trade row inspection
      onto typed runtime catalog rows.
+   - Done: demote PropertiesPanel weapon damage-range payload matching from
+     `BehaviorData` `Type` authority to a typed behavior kind key; reflection
+     remains metadata-only until typed behavior metadata/factory documents exist.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.
