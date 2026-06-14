@@ -315,29 +315,41 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this));
     }
 
+    public ConsumableItemEffect FindActiveConsumable(string itemKey)
+    {
+        return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
+    }
+
     public ConsumableItemEffect FindActiveConsumable(Guid itemId)
     {
-        return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemId == itemId);
+        return FindActiveConsumable(AetheriaRuntimeItemReference.FromLegacyId(itemId));
     }
 
     public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
     {
-        var itemId = GetLegacyGuid(item);
-        return item != null && itemId != Guid.Empty && (item.Stackable || FindActiveConsumable(itemId) == null);
+        var itemKey = GetItemKey(item);
+        return item != null && !string.IsNullOrWhiteSpace(itemKey) && (item.Stackable || FindActiveConsumable(itemKey) == null);
     }
 
     public bool TryActivateConsumable(AetheriaRuntimeCatalogItem typedItem)
     {
         if (!CanActivateConsumable(typedItem)) return false;
 
-        var itemId = GetLegacyGuid(typedItem);
-        var bay = FindItemInCargo(itemId);
+        var itemKey = GetItemKey(typedItem);
+        var bay = FindItemInCargo(itemKey);
         if (bay == null) return false;
 
-        var item = (ConsumableItem)bay.ItemsOfType[itemId].First();
+        var item = (ConsumableItem)bay.GetFirstItem(itemKey);
         ActivateConsumable(item);
         bay.Remove(item);
         return true;
+    }
+
+    private static string GetItemKey(AetheriaRuntimeCatalogItem item)
+    {
+        return GetLegacyGuid(item) is var itemId && itemId != Guid.Empty
+            ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
+            : "";
     }
 
     private static Guid GetLegacyGuid(AetheriaRuntimeCatalogItem item)
@@ -409,23 +421,33 @@ public abstract class Entity
             Temperature[position.x, position.y] += heat / ThermalMass[position.x, position.y];
     }
 
-    public int CountItemsInCargo(Guid itemDataID)
+    public int CountItemsInCargo(string itemKey)
     {
         int sum = 0;
         foreach (var x in CargoBays)
         {
-            if (x.ItemsOfType.ContainsKey(itemDataID))
+            if (x.ItemsOfType.ContainsKey(itemKey))
             {
-                foreach (var i in x.ItemsOfType[itemDataID]) sum += i is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 1;
+                foreach (var i in x.ItemsOfType[itemKey]) sum += i is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 1;
             }
         }
 
         return sum;
     }
 
+    public int CountItemsInCargo(Guid itemDataID)
+    {
+        return CountItemsInCargo(AetheriaRuntimeItemReference.FromLegacyId(itemDataID));
+    }
+
+    public EquippedCargoBay FindItemInCargo(string itemKey)
+    {
+        return CargoBays.FirstOrDefault(c => c.ContainsItem(itemKey));
+    }
+
     public EquippedCargoBay FindItemInCargo(Guid itemDataID)
     {
-        return CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
+        return FindItemInCargo(AetheriaRuntimeItemReference.FromLegacyId(itemDataID));
     }
 
     public Shape UnoccupiedSpace
@@ -450,14 +472,15 @@ public abstract class Entity
     // Returns the number of items successfully transferred
     public int TryTransferItems(Entity target, Guid itemDataID, int quantity)
     {
+        var itemKey = AetheriaRuntimeItemReference.FromLegacyId(itemDataID);
         int quantityTransferred = 0;
         while (quantityTransferred < quantity)
         {
-            EquippedCargoBay originInventory = CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
+            EquippedCargoBay originInventory = CargoBays.FirstOrDefault(c => c.ContainsItem(itemKey));
 
             if (originInventory == null) break;
 
-            var itemInstance = originInventory.ItemsOfType[itemDataID][0];
+            var itemInstance = originInventory.GetFirstItem(itemKey);
 
             if (itemInstance is SimpleCommodity simpleCommodity)
             {
@@ -1557,7 +1580,7 @@ public class EquippedCargoBay : EquippedItem
 
     public readonly ItemInstance[,] Occupancy;
 
-    public readonly Dictionary<Guid, List<ItemInstance>> ItemsOfType = new Dictionary<Guid, List<ItemInstance>>();
+    public readonly Dictionary<string, List<ItemInstance>> ItemsOfType = new Dictionary<string, List<ItemInstance>>();
 
     public Shape InteriorShape { get; }
 
@@ -1574,6 +1597,21 @@ public class EquippedCargoBay : EquippedItem
                 unoccupied[v] = Occupancy[v.x, v.y] == null;
             return unoccupied;
         }
+    }
+
+    public bool ContainsItem(string itemKey)
+    {
+        return !string.IsNullOrWhiteSpace(itemKey) && ItemsOfType.ContainsKey(itemKey);
+    }
+
+    public ItemInstance GetFirstItem(string itemKey)
+    {
+        return ContainsItem(itemKey) ? ItemsOfType[itemKey].FirstOrDefault() : null;
+    }
+
+    public ItemInstance GetFirstItem(Guid itemId)
+    {
+        return GetFirstItem(AetheriaRuntimeItemReference.FromLegacyId(itemId));
     }
 
     public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity)
@@ -1627,7 +1665,7 @@ public class EquippedCargoBay : EquippedItem
         // For simple commodities, search for existing item stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (item.ItemId != cargoItem.ItemId) continue;
+            if (item.ItemKey != cargoItem.ItemKey) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
             if (cargoCommodity.Quantity >= maxStack) continue;
@@ -1719,11 +1757,9 @@ public class EquippedCargoBay : EquippedItem
             }
             Cargo[item] = cargoCoord;
             
-            if(!ItemsOfType.ContainsKey(item.ItemId))
-                ItemsOfType[item.ItemId] = new List<ItemInstance>();
-            ItemsOfType[item.ItemId].Add(item);
+            AddTypedItemIndex(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.ItemId == item.ItemId)
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.ItemKey == item.ItemKey)
         {
             if (cargoCommodity.Quantity + item.Quantity <= maxStack)
             {
@@ -1763,9 +1799,7 @@ public class EquippedCargoBay : EquippedItem
         }
         Cargo[item] = cargoCoord;
         
-        if(!ItemsOfType.ContainsKey(item.ItemId))
-            ItemsOfType[item.ItemId] = new List<ItemInstance>();
-        ItemsOfType[item.ItemId].Add(item);
+        AddTypedItemIndex(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -1787,9 +1821,7 @@ public class EquippedCargoBay : EquippedItem
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            ItemsOfType[item.ItemId].Remove(item);
-            if (!ItemsOfType[item.ItemId].Any())
-                ItemsOfType.Remove(item.ItemId);
+            RemoveTypedItemIndex(item);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1815,9 +1847,7 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        ItemsOfType[item.ItemId].Remove(item);
-        if (!ItemsOfType[item.ItemId].Any())
-            ItemsOfType.Remove(item.ItemId);
+        RemoveTypedItemIndex(item);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1835,6 +1865,29 @@ public class EquippedCargoBay : EquippedItem
     {
         var typedItem = ItemManager.GetRuntimeItem(item);
         return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
+    }
+
+    private void AddTypedItemIndex(ItemInstance item)
+    {
+        var itemKey = item?.ItemKey ?? "";
+        if (string.IsNullOrWhiteSpace(itemKey))
+            return;
+
+        if (!ItemsOfType.ContainsKey(itemKey))
+            ItemsOfType[itemKey] = new List<ItemInstance>();
+
+        ItemsOfType[itemKey].Add(item);
+    }
+
+    private void RemoveTypedItemIndex(ItemInstance item)
+    {
+        var itemKey = item?.ItemKey ?? "";
+        if (string.IsNullOrWhiteSpace(itemKey) || !ItemsOfType.ContainsKey(itemKey))
+            return;
+
+        ItemsOfType[itemKey].Remove(item);
+        if (!ItemsOfType[itemKey].Any())
+            ItemsOfType.Remove(itemKey);
     }
 
     private int GetMaxStack(SimpleCommodity item)

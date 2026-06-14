@@ -82,20 +82,20 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Update()
     {
-        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(TargetLegacyId)}";
-        if (TargetLegacyId == Guid.Empty)
+        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(TargetItemKey)}";
+        if (string.IsNullOrWhiteSpace(TargetItemKey))
         {
             Slot.Fill.fillAmount = 0;
             return;
         }
 
-        var instance = Entity.FindActiveConsumable(TargetLegacyId);
+        var instance = Entity.FindActiveConsumable(TargetItemKey);
         if (instance == null) Slot.Fill.fillAmount = 0;
         else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Duration;
     }
 
-    private Guid TargetLegacyId =>
-        Guid.TryParse(Target.LegacyId, out var legacyId) ? legacyId : Guid.Empty;
+    private string TargetItemKey =>
+        Guid.TryParse(Target.LegacyId, out var legacyId) ? AetheriaRuntimeItemReference.FromLegacyId(legacyId) : "";
 
     public string TargetItemDefinitionLegacyId => Target?.LegacyId ?? "";
 
@@ -116,8 +116,11 @@ public class ActionBarGearBinding : ActionBarBinding
     {
         get
         {
-            var itemId = Item?.EquippableItem?.ItemId ?? Guid.Empty;
-            return itemId == Guid.Empty ? "" : itemId.ToString("D");
+            var itemKey = Item?.EquippableItem?.ItemKey ?? "";
+            const string legacyPrefix = "aetheria.item_definition:legacy:";
+            return itemKey.StartsWith(legacyPrefix, StringComparison.OrdinalIgnoreCase)
+                ? itemKey.Substring(legacyPrefix.Length)
+                : "";
         }
     }
 

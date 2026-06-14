@@ -83,8 +83,10 @@ legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
 Item instances now carry `AetheriaRuntimeItemReference`, a typed item-key
 facade. `ItemInstance.ItemKey` is the identity surface, while `ItemId` is a
-derived legacy-GUID compatibility projection for unfinished cargo and
-simulation paths.
+derived legacy-GUID compatibility projection for behavior config and broader
+simulation paths. Cargo inventory indexes, consumable activation lookup,
+action-bar consumable quantity/fill, transfer lookup, and trade owned counts
+now use item keys.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts

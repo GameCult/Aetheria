@@ -107,7 +107,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                         var cargo = Entity.FindItemInCargo(_data.AmmoType);
                         if (cargo != null)
                         {
-                            var item = cargo.ItemsOfType[_data.AmmoType][0];
+                            var item = cargo.GetFirstItem(_data.AmmoType);
                             if (item is SimpleCommodity simpleCommodity)
                                 cargo.Remove(simpleCommodity, 1);
 

@@ -39,7 +39,7 @@ public class ItemUsage : Behavior
         var cargo = Entity.FindItemInCargo(_data.Item);
         if (cargo == null) return false;
 
-        var item = cargo.ItemsOfType[_data.Item][0];
+        var item = cargo.GetFirstItem(_data.Item);
         if (item is SimpleCommodity simpleCommodity)
             cargo.Remove(simpleCommodity, 1);
         if (item is CraftedItemInstance craftedItemInstance)

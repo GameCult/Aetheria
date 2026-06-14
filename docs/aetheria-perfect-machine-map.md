@@ -53,7 +53,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
 - Shared item domain state is still partly built around `AetheriaRuntimeItemReference`,
-  `ItemData`, `RuntimeBehaviorConfig`, derived GUID compatibility, and runtime catalog metadata. Dead
+  `ItemData`, `RuntimeBehaviorConfig`, derived GUID compatibility in behavior
+  config and broader simulation paths, and runtime catalog metadata. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -620,7 +621,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   behavior metadata instead of rebuilding config DTOs for lookup.
   `ItemInstance.Reference` stores the typed item key, `ItemInstance.ItemKey`
   is the runtime identity surface, and `ItemInstance.ItemId` is a derived
-  legacy-GUID compatibility projection;
+  legacy-GUID compatibility projection. `EquippedCargoBay.ItemsOfType`,
+  consumable activation, action-bar consumable fill/quantity display, item
+  transfer lookup, and trade owned-count rows now use item keys rather than
+  GUID-owned cargo indexes;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1199,9 +1203,9 @@ First Aetheria surfaces to publish:
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.
    - In progress: convert domain references from GUID/base-class patterns to
-     typed record refs. Item instances now carry typed item keys; remaining
-     cargo/simulation dictionaries still derive legacy GUIDs until those
-     structures move to typed keys.
+     typed record refs. Item instances and cargo inventory indexes now carry
+     typed item keys; remaining behavior config and broader simulation paths
+     still derive legacy GUIDs until those structures move to typed keys.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
@@ -1318,6 +1322,11 @@ First Aetheria surfaces to publish:
      `AetheriaRuntimeItemReference` and make the reference typed-key-first.
      `ItemInstance.ItemKey` is now the primary identity surface; `ItemId` is
      derived legacy compatibility for unfinished cargo and simulation paths.
+   - Done: move `EquippedCargoBay.ItemsOfType`, consumable activation lookup,
+     action-bar consumable quantity/fill, item transfer lookup, and trade owned
+     counts from derived `Guid ItemId` keys to typed `ItemKey` strings. GUID
+     behavior-config fields still translate at the cargo boundary until
+     behavior config construction moves to typed item references.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

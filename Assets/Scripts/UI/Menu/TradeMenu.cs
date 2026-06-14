@@ -293,18 +293,18 @@ public class TradeMenu : MonoBehaviour
             x => () =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true}).ToString();
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemKey == x.ItemKey && s is Ship {IsPlayerShip: true}).ToString();
                 if(x.Item is SimpleCommodity)
-                    return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
-                return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0).ToString();
+                    return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
+                return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0).ToString();
             }, 
             x =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true});
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemKey == x.ItemKey && s is Ship {IsPlayerShip: true});
                 if(x.Item is SimpleCommodity)
-                    return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
-                return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0;
+                    return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
+                return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0;
             }));
         
         Spreadsheet.ShowData(
@@ -470,6 +470,8 @@ public class TradeMenu : MonoBehaviour
         public AetheriaRuntimeCatalogItem TypedItem { get; }
 
         public Guid LegacyId => Item?.ItemId ?? Guid.Empty;
+
+        public string ItemKey => Item?.ItemKey ?? "";
 
         public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : "Unknown Item";
 
