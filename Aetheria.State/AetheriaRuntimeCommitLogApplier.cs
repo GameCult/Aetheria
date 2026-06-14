@@ -226,6 +226,7 @@ public static class AetheriaRuntimeCommitLogApplier
             CurrentZoneEntityIndex = checkpoint.CurrentZoneEntityIndex,
             DiscoveredZoneIndices = ToIntArray(checkpoint.DiscoveredZoneIndices),
             ActionBarBindings = ToActionBarBindings(checkpoint.ActionBarBindings),
+            FactionRelationships = ToFactionRelationships(checkpoint.FactionRelationships),
             UpdatedAtUtc = updatedAtUtc
         };
 
@@ -324,6 +325,19 @@ public static class AetheriaRuntimeCommitLogApplier
                 EquipmentIndex = binding.EquipmentIndex,
                 BehaviorIndex = binding.BehaviorIndex,
                 WeaponGroup = binding.WeaponGroup
+            })
+            .ToArray();
+    }
+
+    private static AetheriaFactionRelationshipState[] ToFactionRelationships(
+        IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit>? relationships)
+    {
+        return (relationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
+            .Select(relationship => new AetheriaFactionRelationshipState
+            {
+                FactionKey = ReferenceKey("aetheria.corporation", relationship.CorporationLegacyId ?? ""),
+                Relationship = relationship.Relationship ?? "",
+                Standing = relationship.Standing
             })
             .ToArray();
     }

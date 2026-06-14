@@ -16,6 +16,8 @@ run state, zone state, entity snapshots, item slots, weapon groups, action-bar
 bindings, and stat grids. Runtime checkpoints include current action-bar
 bindings as stable typed targets: input control path, binding kind, item
 definition reference, equipment index, behavior index, or weapon-group index.
+They also include current faction relationship rows as typed corporation
+references plus relationship tokens and numeric standings.
 Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
 binding overrides, and action-bar inputs. Do not preserve `SavedGame`, Unity
@@ -105,9 +107,10 @@ Typed corporation documents include the legacy short name, the true description
 field from key 3, name-file and boss-hull legacy IDs, influence distance,
 allegiance count, full allegiance edges, and music bank IDs. Corporation
 documents are `aetheria.corporation.v2` records because runtime generation
-needs actual allegiance weights, not only display counts. Runtime object graphs,
-typed behavior factory construction, and simulation state remain legacy until
-dedicated typed runtime documents exist.
+needs actual allegiance weights, not only display counts. Runtime checkpoints
+now persist session faction relationships into typed run state, but broader
+runtime object graphs, typed behavior factory construction, and simulation
+state remain legacy until dedicated typed runtime documents exist.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy

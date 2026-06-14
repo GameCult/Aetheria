@@ -182,6 +182,15 @@ try
                     BehaviorIndex = 1
                 }
             },
+            FactionRelationships = new[]
+            {
+                new AetheriaRuntimeFactionRelationshipCommit
+                {
+                    CorporationLegacyId = "smoke:faction",
+                    Relationship = "Friendly",
+                    Standing = 3
+                }
+            },
             Zones = new[]
             {
                 new AetheriaRuntimeZoneSnapshotCommit
@@ -256,6 +265,10 @@ try
             run.ActionBarBindings[1].TargetKey == "aetheria.item_definition:legacy:smoke:weapon" &&
             run.ActionBarBindings[1].EquipmentIndex == 0 &&
             run.ActionBarBindings[1].BehaviorIndex == 1 &&
+            run.FactionRelationships.Length == 1 &&
+            run.FactionRelationships[0].FactionKey == "aetheria.corporation:legacy:smoke:faction" &&
+            run.FactionRelationships[0].Relationship == "Friendly" &&
+            run.FactionRelationships[0].Standing == 3 &&
             zone?.EntityKeys.Length == 1 &&
             entity?.Equipment.Length == 1 &&
             entity.WeaponGroups.Length == 1 &&
@@ -311,5 +324,5 @@ Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayloa
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
 Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
-Console.WriteLine("Runtime state commit log smoke: settings, action-bar bindings, and run zone/entity snapshots queued, applied, and cleared");
+Console.WriteLine("Runtime state commit log smoke: settings, action-bar bindings, faction relationships, and run zone/entity snapshots queued, applied, and cleared");
 Console.WriteLine("Runtime Eve command log smoke: surface command queued separately from state commits");

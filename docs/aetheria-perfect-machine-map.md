@@ -119,8 +119,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   a zone referencing an entity snapshot, and an entity snapshot carrying
   position, direction, faction, hull, equipment slots, weapon groups, and a stat
   grid. This proves the `.zone` replacement graph is durable typed state. Unity
-  now queues current-zone/current-entity-collection snapshots and current
-  action-bar bindings through the
+  now queues current-zone/current-entity-collection snapshots, current
+  action-bar bindings, and current faction relationship rows through the
   runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
   `RuntimeEntityBlueprint` remain runtime construction/loadout projections
   rather than durable file formats. Runtime blueprint restore now iterates typed
@@ -722,6 +722,9 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      action-bar bindings into `AetheriaRunState` as stable input-control and
      target references instead of UI or behavior-object payloads.
+   - Done: extend run checkpoint commits and smoke coverage to carry typed
+     faction relationship rows into `AetheriaRunState` as corporation
+     references, relationship tokens, and numeric standings.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, simulation state, and any catalog
      fields not covered by the stable scalar/fingerprint/payload pass.

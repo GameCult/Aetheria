@@ -423,6 +423,7 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(index => index)
                 .ToArray() ?? Array.Empty<int>(),
             ActionBarBindings = ProjectActionBarBindings(),
+            FactionRelationships = ProjectFactionRelationships(),
             Zones = Zone == null ? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>() : new[] { ProjectZoneSnapshot(Zone) }
         };
     }
@@ -465,6 +466,20 @@ public class ActionGameManager : MonoBehaviour
             default:
                 return null;
         }
+    }
+
+    private AetheriaRuntimeFactionRelationshipCommit[] ProjectFactionRelationships()
+    {
+        return CurrentGalaxy?.FactionRelationships?
+            .Where(pair => pair.Key != null)
+            .OrderBy(pair => pair.Key.ID)
+            .Select(pair => new AetheriaRuntimeFactionRelationshipCommit
+            {
+                CorporationLegacyId = pair.Key.ID == Guid.Empty ? "" : pair.Key.ID.ToString("D"),
+                Relationship = pair.Value.ToString(),
+                Standing = (int)pair.Value
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
     }
 
     private AetheriaRuntimeZoneSnapshotCommit ProjectZoneSnapshot(Zone zone)

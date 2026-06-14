@@ -358,6 +358,9 @@ public sealed class AetheriaFactionRelationshipState
     public string FactionKey { get; set; } = "";
 
     [Key(1)]
+    public string Relationship { get; set; } = "";
+
+    [Key(2)]
     public double Standing { get; set; }
 }
 

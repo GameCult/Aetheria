@@ -235,6 +235,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(8)]
         public IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> ActionBarBindings { get; set; } = Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
+
+        [Key(9)]
+        public IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit> FactionRelationships { get; set; } = Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
     }
 
     [MessagePackObject]
@@ -257,6 +260,19 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(5)]
         public int WeaponGroup { get; set; } = -1;
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeFactionRelationshipCommit
+    {
+        [Key(0)]
+        public string CorporationLegacyId { get; set; } = "";
+
+        [Key(1)]
+        public string Relationship { get; set; } = "";
+
+        [Key(2)]
+        public double Standing { get; set; }
     }
 
     [MessagePackObject]
