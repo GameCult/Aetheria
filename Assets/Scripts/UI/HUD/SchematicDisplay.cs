@@ -223,8 +223,7 @@ public class SchematicDisplay : MonoBehaviour
             if(HullDurabilityFill)
             {
                 _hull = _entity.Hull;
-                var hullData = _entity.ItemManager.GetData(_hull);
-                var dur = _hull.Durability / hullData.Durability;
+                var dur = _hull.Durability / GetMaxDurability(_hull);
                 HullDurabilityFill.anchorMax = new Vector2(dur, 1);
                 HullDurabilityLabel.text = $"{ActionGameManager.RuntimePlayerSettings.Format(dur * 100)}%";
             }
@@ -237,7 +236,7 @@ public class SchematicDisplay : MonoBehaviour
                     x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Item.Temperature), 0);
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
-                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
+                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / GetMaxDurability(x.Item.EquippableItem) * 100)}%";
                     if (x.Weapon.WeaponData.AmmoType != Guid.Empty)
                     {
                         if(x.Weapon.WeaponData.MagazineSize > 1)
@@ -254,5 +253,22 @@ public class SchematicDisplay : MonoBehaviour
                 }
             }
         }
+    }
+
+    private float GetMaxDurability(ItemInstance item)
+    {
+        var typedItem = FindTypedItem(item);
+        if (typedItem != null && typedItem.Durability > 0)
+            return (float)typedItem.Durability;
+
+        return _entity.ItemManager.GetData(item).Durability;
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 }

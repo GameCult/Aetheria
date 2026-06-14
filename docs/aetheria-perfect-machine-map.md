@@ -89,6 +89,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   falling back to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip before falling back to legacy `WeaponItemData`.
+  Hull and item durability percentages use typed max durability before falling
+  back to legacy `ItemData.Durability`.
   Runtime weapon behavior still owns ammo counts, active range, cooldowns,
   temperature, and durability display until those session facts have typed
   runtime surfaces.
