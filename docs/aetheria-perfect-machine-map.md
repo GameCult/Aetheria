@@ -1031,6 +1031,9 @@ First Aetheria surfaces to publish:
    - Done: move orbit phase evaluation off `OrbitData`; runtime zone updates,
      asteroid transforms, and generator rosette spacing now use `Orbit.Evaluate`,
      leaving `OrbitData` as a construction row only.
+   - Done: rename `OrbitalEntity.OrbitData` to `OrbitId` and delete the unused
+     `Zone.CreateOrbit` construction-row writer; runtime entities no longer
+     expose an orbit id through DTO-shaped naming.
    - Done: move live asteroid-belt simulation, scanning, and mesh setup reads
      off `AsteroidBeltData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
      consume `AsteroidBelt` runtime asteroid/resource/orbit properties, and

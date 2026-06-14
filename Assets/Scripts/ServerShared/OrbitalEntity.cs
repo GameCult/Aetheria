@@ -11,7 +11,7 @@ using float2 = Unity.Mathematics.float2;
 
 public class OrbitalEntity : Entity
 {
-    public Guid OrbitData;
+    public Guid OrbitId;
     public SecurityLevel SecurityLevel;
     public float SecurityRadius;
     public LocationStory Story;
@@ -19,15 +19,15 @@ public class OrbitalEntity : Entity
     
     public OrbitalEntity(ItemManager itemManager, Zone zone, EquippableItem hull, Guid orbit, EntitySettings settings) : base(itemManager, zone, hull, settings)
     {
-        OrbitData = orbit;
+        OrbitId = orbit;
     }
 
     public override void Update(float delta)
     {
-        if (OrbitData != Guid.Empty)
+        if (OrbitId != Guid.Empty)
         {
-            Position.xz = Zone.GetOrbitPosition(OrbitData);
-            Velocity = Zone.GetOrbitVelocity(OrbitData);
+            Position.xz = Zone.GetOrbitPosition(OrbitId);
+            Velocity = Zone.GetOrbitVelocity(OrbitId);
         }
         
         base.Update(delta);

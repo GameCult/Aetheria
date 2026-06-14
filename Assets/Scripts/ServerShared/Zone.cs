@@ -228,27 +228,6 @@ public class Zone
         }
     }
 
-    public OrbitData CreateOrbit(Guid parent, float2 position)
-    {
-        var parentPosition = GetOrbitPosition(parent);
-        var delta = position - parentPosition;
-        var distance = length(delta);
-        var period = Settings.OrbitPeriod.Evaluate(distance);
-        var phase = atan2(delta.y, delta.x) / (PI * 2);
-        var currentPhase = frac(_time / period);
-        var storedPhase = (float) frac(phase - currentPhase);
-
-        var orbit = new OrbitData
-        {
-            ID = Guid.NewGuid(),
-            Distance = distance,
-            Parent = parent,
-            Phase = storedPhase
-        };
-        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
-        return orbit;
-    }
-
     public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
     {
         var belt = AsteroidBelts[asteroidBelt];

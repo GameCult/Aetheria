@@ -1997,7 +1997,7 @@ public class ActionGameManager : MonoBehaviour
         FollowCamera.enabled = false;
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
-        var parentOrbit = Zone.Orbits[orbital.OrbitData].Parent;
+        var parentOrbit = Zone.Orbits[orbital.OrbitId].Parent;
         var parentOrbitPlanet = Zone.PlanetInstances.Values.FirstOrDefault(planet => planet.OrbitId == parentOrbit)?.ID ?? Guid.Empty;
         if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;

@@ -12,7 +12,7 @@ public static class RuntimeEntityBlueprintProjector
         if (entity is OrbitalEntity orbital)
             blueprint = new RuntimeOrbitalEntityBlueprint
             {
-                Orbit = orbital.OrbitData,
+                Orbit = orbital.OrbitId,
                 SecurityLevel = orbital.SecurityLevel,
                 SecurityRadius = orbital.SecurityRadius
             };
