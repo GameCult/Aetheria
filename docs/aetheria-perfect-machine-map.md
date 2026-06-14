@@ -158,9 +158,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   DTOs for behavior reflection and thermal curves that have not yet moved to
   typed behavior surfaces. Inventory selection highlighting now uses typed item
   shape cells for UI tint geometry before falling back to legacy `ItemData.Shape`.
-  Inventory cargo cell tint now uses typed hardpoint facets before falling back
-  to legacy `EquippableItemData.HardpointType`. Inventory HUD durability tint
-  uses typed max durability before falling back to legacy `ItemData.Durability`.
+  Inventory cargo cell tint now uses typed hardpoint facets only; incomplete
+  typed rows receive the generic tint instead of falling back to legacy
+  `EquippableItemData.HardpointType`. Inventory HUD durability tint uses typed
+  max durability before falling back to legacy `ItemData.Durability`.
   Inventory drag preview occupancy now projects typed item shape cells into the
   local `Shape` grid before falling back to legacy `ItemData.Shape`.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
