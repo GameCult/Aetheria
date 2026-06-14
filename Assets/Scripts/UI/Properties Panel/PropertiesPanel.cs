@@ -454,41 +454,158 @@ public class PropertiesPanel : MonoBehaviour
 			return;
 		}
 
-		var gearData = GameManager.ItemManager.GetData(item);
+		var typedItem = FindTypedPropertyItem(item);
 
 		var sheet = AddStatSheet();
-		foreach (var behavior in gearData.Behaviors)
+		foreach (var behavior in typedItem?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
 		{
-			if (behavior is StatModifierData statMod)
+			if (string.Equals(behavior.Kind, nameof(StatModifierData), StringComparison.Ordinal))
 			{
-				sheet.AddStat($"{statMod.Stat.Target.SplitCamelCase()}:{statMod.Stat.Stat.SplitCamelCase()}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(statMod.Modifier))}");
+				var statReference = ReadTypedStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
+				var modifier = ReadTypedPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
+				var modifierType = ReadTypedEnum(FindTypedBehaviorField(behavior, 3)?.Value, StatModifierType.Constant);
+				sheet.AddStat($"{statReference.target.SplitCamelCase()}:{statReference.stat.SplitCamelCase()}",
+					() => $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(modifier))}");
 			}
 			else
 			{
-				var type = behavior.GetType();
-				if (type.GetCustomAttribute(typeof(RuntimeInspectable)) == null) continue;
+				var type = ResolveBehaviorType(behavior.Kind);
+				if (type == null || type.GetCustomAttribute(typeof(RuntimeInspectable)) == null) continue;
 				foreach (var field in type.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
 				{
 					var fieldType = field.FieldType;
+					var payloadField = FindTypedBehaviorField(behavior, field.GetCustomAttribute<LegacyPayloadKeyAttribute>()?.Key);
 					if (fieldType == typeof(float))
-						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior))}");
+					{
+						var value = (float)(payloadField?.Value.NumberValue ?? 0);
+						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(value)}");
+					}
 					else if (fieldType == typeof(int))
-						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{(int) field.GetValue(behavior)}");
+					{
+						var value = (int)(payloadField?.Value.NumberValue ?? 0);
+						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{value}");
+					}
 					else if (fieldType == typeof(PerformanceStat))
 					{
-						var stat = (PerformanceStat) field.GetValue(behavior);
+						var stat = ReadTypedPerformanceStat(payloadField?.Value);
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(stat))}");
 					}
 				}
 			}
 		}
 
-		if (gearData.Behaviors.FirstOrDefault(b => b is WeaponData) is WeaponData weapon)
+		var weaponPayload = typedItem?.BehaviorPayloads.FirstOrDefault(payload => TypedBehaviorMatches(payload, typeof(WeaponData)));
+		if (weaponPayload != null)
 		{
+			var damageCurve = ReadTypedBezierCurve(FindTypedBehaviorField(weaponPayload, 7)?.Value);
+			var minRange = ReadTypedPerformanceStat(FindTypedBehaviorField(weaponPayload, 5)?.Value);
+			var rangeStat = ReadTypedPerformanceStat(FindTypedBehaviorField(weaponPayload, 6)?.Value);
 			var range = AddCurveField();
-			range.Show("Damage Range", weapon.DamageCurve, t => ActionGameManager.RuntimePlayerSettings.Format(lerp(statValueFunction(weapon.MinRange), statValueFunction(weapon.Range), t)));
+			range.Show("Damage Range", damageCurve, t => ActionGameManager.RuntimePlayerSettings.Format(lerp(statValueFunction(minRange), statValueFunction(rangeStat), t)));
 		}
 	}
+
+	private static AetheriaRuntimeBehaviorField FindTypedBehaviorField(AetheriaRuntimeBehaviorPayload behavior, int? key)
+	{
+		return key == null
+			? null
+			: behavior.Fields.FirstOrDefault(field => field.Key == key.Value);
+	}
+
+	private static PerformanceStat ReadTypedPerformanceStat(AetheriaRuntimeBehaviorValue value)
+	{
+		return new PerformanceStat
+		{
+			Min = ReadTypedChildNumber(value, 0),
+			Max = ReadTypedChildNumber(value, 1),
+			HeatExponentMultiplier = ReadTypedChildNumber(value, 2),
+			DurabilityExponentMultiplier = ReadTypedChildNumber(value, 3),
+			QualityExponent = ReadTypedChildNumber(value, 4)
+		};
+	}
+
+	private static (string target, string stat) ReadTypedStatReference(AetheriaRuntimeBehaviorValue value)
+	{
+		return (
+			ReadTypedChildString(value, 1),
+			ReadTypedChildString(value, 2));
+	}
+
+	private static BezierCurve ReadTypedBezierCurve(AetheriaRuntimeBehaviorValue value)
+	{
+		var keysValue = value != null && value.Children.Count > 0 ? value.Children[0] : null;
+		var keys = keysValue?.Children
+			.Select(ReadTypedFloat4)
+			.ToArray();
+
+		return new BezierCurve
+		{
+			Keys = keys != null && keys.Length > 0
+				? keys
+				: new[] { new float4(0f, 1f, 0f, 0f), new float4(1f, 1f, 0f, 0f) }
+		};
+	}
+
+	private static float4 ReadTypedFloat4(AetheriaRuntimeBehaviorValue value)
+	{
+		return new float4(
+			ReadTypedChildNumber(value, 0),
+			ReadTypedChildNumber(value, 1),
+			ReadTypedChildNumber(value, 2),
+			ReadTypedChildNumber(value, 3));
+	}
+
+	private static float ReadTypedChildNumber(AetheriaRuntimeBehaviorValue value, int index)
+	{
+		return value != null && value.Children.Count > index
+			? (float)value.Children[index].NumberValue
+			: 0f;
+	}
+
+	private static string ReadTypedChildString(AetheriaRuntimeBehaviorValue value, int index)
+	{
+		return value != null && value.Children.Count > index
+			? value.Children[index].StringValue ?? ""
+			: "";
+	}
+
+	private static T ReadTypedEnum<T>(AetheriaRuntimeBehaviorValue value, T fallback) where T : struct
+	{
+		if (!string.IsNullOrWhiteSpace(value?.StringValue) && Enum.TryParse(value.StringValue, true, out T parsed))
+		{
+			return parsed;
+		}
+
+		return value != null && Enum.IsDefined(typeof(T), (int)value.NumberValue)
+			? (T)Enum.ToObject(typeof(T), (int)value.NumberValue)
+			: fallback;
+	}
+
+	private static bool TypedBehaviorMatches(AetheriaRuntimeBehaviorPayload payload, Type behaviorType)
+	{
+		if (string.Equals(payload.Kind, behaviorType.Name, StringComparison.Ordinal))
+		{
+			return true;
+		}
+
+		var payloadType = ResolveBehaviorType(payload.Kind);
+		return payloadType != null && behaviorType.IsAssignableFrom(payloadType);
+	}
+
+	private static Type ResolveBehaviorType(string kind)
+	{
+		return string.IsNullOrWhiteSpace(kind)
+			? null
+			: BehaviorTypesByName.TryGetValue(kind, out var type)
+				? type
+				: null;
+	}
+
+	private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByName = typeof(BehaviorData)
+		.GetAllChildClasses()
+		.Where(type => !string.IsNullOrWhiteSpace(type.Name))
+		.GroupBy(type => type.Name)
+		.ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
 	private string GetTitle(EquippableItem item)
 	{
