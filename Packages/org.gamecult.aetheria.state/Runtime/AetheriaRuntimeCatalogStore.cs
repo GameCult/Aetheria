@@ -210,7 +210,8 @@ namespace GameCult.Aetheria.State.Unity
             var dockingMaxSizeX = ReadFieldInt32(ref reader, fields, 44);
             var dockingMaxSizeY = ReadFieldInt32(ref reader, fields, 45);
             var actionBarIcon = ReadFieldString(ref reader, fields, 46);
-            SkipRemaining(ref reader, fields, 47);
+            var thermalResilience = ReadFieldDouble(ref reader, fields, 47, 1);
+            SkipRemaining(ref reader, fields, 48);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -247,6 +248,7 @@ namespace GameCult.Aetheria.State.Unity
                 maximumTemperature,
                 thermalPerformanceCurveKeys,
                 hullPrefab,
+                thermalResilience,
                 hullGridOffset,
                 hullArmor,
                 hullDrag,

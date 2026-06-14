@@ -126,6 +126,7 @@ namespace GameCult.Aetheria.State.Unity
             double maximumTemperature,
             IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys,
             string hullPrefab,
+            double thermalResilience,
             double hullGridOffset,
             double hullArmor,
             double hullDrag,
@@ -170,6 +171,7 @@ namespace GameCult.Aetheria.State.Unity
             MaximumTemperature = maximumTemperature;
             ThermalPerformanceCurveKeys = thermalPerformanceCurveKeys;
             HullPrefab = hullPrefab;
+            ThermalResilience = thermalResilience;
             HullGridOffset = hullGridOffset;
             HullArmor = hullArmor;
             HullDrag = hullDrag;
@@ -215,6 +217,7 @@ namespace GameCult.Aetheria.State.Unity
         public double MaximumTemperature { get; }
         public IReadOnlyList<AetheriaRuntimeCurveKey> ThermalPerformanceCurveKeys { get; }
         public string HullPrefab { get; }
+        public double ThermalResilience { get; }
         public double HullGridOffset { get; }
         public double HullArmor { get; }
         public double HullDrag { get; }

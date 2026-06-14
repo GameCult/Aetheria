@@ -83,6 +83,7 @@ var maxDurabilityItems = items
 var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
 var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
 var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurveKeys.Length > 0);
+var thermalResilienceItems = items.Count(item => item.ThermalResilience > 0);
 var actionBarIconItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ActionBarIcon));
 var dockingBayItems = items.Count(item => item.Category == "DockingBayData");
 var dockingBayMaxSizeItems = items.Count(item =>
@@ -113,6 +114,12 @@ if (conductiveItems != items.Length)
 {
     throw new InvalidOperationException(
         $"Typed item definitions did not import positive conductivity for every item: {conductiveItems}/{items.Length}.");
+}
+
+if (thermalResilienceItems != items.Length)
+{
+    throw new InvalidOperationException(
+        $"Typed item definitions did not import positive thermal resilience for every item: {thermalResilienceItems}/{items.Length}.");
 }
 
 if (shapedItems == 0)
@@ -385,6 +392,7 @@ Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/specific-heat/conductive/shaped items: {pricedItems}/{manufacturedItems}/{specificHeatItems}/{conductiveItems}/{shapedItems}");
+Console.WriteLine($"Thermal resilience items: {thermalResilienceItems}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");

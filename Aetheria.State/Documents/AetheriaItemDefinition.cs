@@ -153,6 +153,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(46)]
     public string ActionBarIcon { get; set; } = "";
+
+    [Key(47)]
+    public double ThermalResilience { get; set; } = 1;
 }
 
 [MessagePackObject]

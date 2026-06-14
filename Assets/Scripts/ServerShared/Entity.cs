@@ -1263,6 +1263,7 @@ public class EquippedItem
     public Dictionary<int, BehaviorGroup> BehaviorGroups { get; }
     public float Conductivity { get; }
     public float MaxDurability { get; }
+    public float ThermalResilience { get; }
     public float ThermalPerformance { get; private set; }
     public float ThermalExponent { get; }
     public float DurabilityPerformance { get; private set; }
@@ -1377,6 +1378,7 @@ public class EquippedItem
         RuntimeItem = ItemManager.GetRuntimeItem(item);
         Conductivity = RuntimeItem != null ? (float)RuntimeItem.Conductivity : Data.Conductivity;
         MaxDurability = RuntimeItem?.Durability > 0 ? (float)RuntimeItem.Durability : Math.Max(item.Durability, 1f);
+        ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : Data.ThermalResilience;
         _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
@@ -1454,7 +1456,7 @@ public class EquippedItem
                 (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
-            ) * MaxDurability / Data.ThermalResilience;
+            ) * MaxDurability / ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;
         oldTemperature = temp;

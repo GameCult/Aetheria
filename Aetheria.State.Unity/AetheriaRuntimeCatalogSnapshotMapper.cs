@@ -50,6 +50,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.MaximumTemperature,
             item.ThermalPerformanceCurveKeys.Select(FromState).ToArray(),
             item.HullPrefab,
+            item.ThermalResilience,
             item.HullGridOffset,
             item.HullArmor,
             item.HullDrag,

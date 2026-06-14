@@ -125,6 +125,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         {
             equippable.Durability = (float)item.Durability;
             equippable.ActionBarIcon = item.ActionBarIcon;
+            equippable.ThermalResilience = (float)item.ThermalResilience;
             equippable.Behaviors = ProjectBehaviors(item).ToList();
         }
 

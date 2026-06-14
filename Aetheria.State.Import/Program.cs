@@ -414,6 +414,7 @@ internal static class LegacyCatalogReader
                     MinimumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 13) : 0,
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
+                    ThermalResilience = unionKey is 2 or 3 or 29 or 30 or 31 ? GetPositiveDoubleOrDefault(payload, 18, 1) : 1,
                     HullPrefab = unionKey == 3 ? GetString(payload, 24) : "",
                     HullGridOffset = unionKey == 3 ? GetDouble(payload, 26) : 0,
                     HullArmor = unionKey == 3 ? GetDouble(payload, 27) : 0,
