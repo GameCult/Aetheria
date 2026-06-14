@@ -94,47 +94,9 @@ public class ItemManager
         return new RuntimeItemReference(itemId);
     }
 
-    public ItemData GetData(ItemInstance item)
-    {
-        Hydrate(item);
-        return item?.Data?.Projection;
-    }
-
-    public void Hydrate(ItemInstance item)
-    {
-        if (item?.Data == null || item.Data.Projection != null)
-        {
-            return;
-        }
-
-        var data = _itemProjections.Get(item.Data.ItemId);
-        if (data == null)
-        {
-            _logger($"Attempted to hydrate missing item id {item.Data.ItemId}");
-            return;
-        }
-
-        item.Data.SetProjection(data);
-    }
-
     public void Log(string s)
     {
         _logger(s);
-    }
-
-    public SimpleCommodityData GetData(SimpleCommodity item)
-    {
-        return GetData((ItemInstance)item) as SimpleCommodityData;
-    }
-
-    public CraftedItemData GetData(CraftedItemInstance item)
-    {
-        return GetData((ItemInstance)item) as CraftedItemData;
-    }
-
-    public EquippableItemData GetData(EquippableItem item)
-    {
-        return GetData((ItemInstance)item) as EquippableItemData;
     }
 
     public float GetMass(ItemInstance item)

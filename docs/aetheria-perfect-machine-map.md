@@ -80,11 +80,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   same typed player-settings commit after mutating the runtime projection. The
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops and creates consumable bindings around typed
-  catalog rows before hydrating any legacy DTO. Missing typed rows are rejected
-  for consumable binding instead of falling through to legacy DTO classification.
-  Consumable activation and active-duration fill still resolve legacy
-  `ConsumableItemData` lazily because runtime effects and duration are not typed
-  execution surfaces yet. Gear action-bar bindings read custom icon resource
+  catalog rows. Missing typed rows are rejected for consumable binding instead
+  of falling through to legacy DTO classification. Consumable activation,
+  active-duration fill, runtime duration, and effectiveness curves now use typed
+  item rows with neutral defaults for missing optional facets. Gear action-bar bindings read custom icon resource
   paths from typed item rows, then use typed weapon and hardpoint facets for
   fallback icon selection, and finally fall back to a generic tool icon when
   typed facets are incomplete. The current legacy catalog has zero populated
@@ -134,20 +133,19 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
   gives `ItemManager` explicit item lookup authority. Item instances carry
-  `RuntimeItemReference`, an item-definition id plus optional hydrated
-  projection cache, not a process-global catalog resolver or durable item-data
-  owner. The old `LegacyItemCatalogBoundary`,
+  `RuntimeItemReference`, an item-definition id, not a process-global catalog
+  resolver, hydrated projection cache, or durable item-data owner. The old
+  `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
   deleted. The old `DatabaseEntry`/`RuntimeCatalogEntry` base has been demoted
   to `RuntimeItemProjectionEntry` for surviving item DTOs, and the old generic
   `DatabaseLink<T>`/`RuntimeCatalogLink<T>` path has collapsed into the
   item-specific runtime reference.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
-  gameplay/UI API. Temporary item projection hydration now goes through
-  `ItemManager.GetData` over `RuntimeItemReference.ItemId`. `ItemManager` no
-  longer exposes a legacy catalog enumeration API or a catalog-entry-shaped
-  single-item API. This prevents catalog authority from leaking into every
-  caller that only needs a projection lookup. The item properties UI no longer uses
+  gameplay/UI API, and its old `GetData`/`Hydrate` item DTO projection path has
+  been deleted. `AetheriaRuntimeItemCatalog` no longer materializes whole
+  `ItemData` DTOs as a runtime cache; it exposes typed item rows plus the
+  temporary behavior payload projection bridge. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot. Entity
   restore and loadout manufacturer-distance weighting no longer use `ItemManager`
@@ -241,13 +239,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   conduction, durability performance, thermal performance, and wear scaling.
   Thermal resilience is also typed and feeds wear scaling. Audio parameter stat
   bindings are typed item rows and feed equipped-item Wwise parameter updates;
-  the legacy equippable DTO is now only an incomplete-row projection fallback
-  for equipped-item simulation. Consumable stackability, duration, and
+  missing optional thermal/audio facets now degrade to neutral runtime defaults
+  instead of hydrating legacy equippable DTOs. Consumable stackability, duration, and
   effectiveness curve slots are part of typed item rows, and action-bar
   consumable activation/fill now command typed item IDs. The current mapped
-  legacy catalog has no consumable item rows, so `ConsumableItemData` remains a
-  compatibility fallback for any future/unmapped consumable instance until
-  consumable behavior execution is fully typed.
+  legacy catalog has no consumable item rows, so consumable runtime behavior
+  still needs future typed data coverage, but it no longer hydrates
+  `ConsumableItemData` as a fallback.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
@@ -772,6 +770,10 @@ First Aetheria surfaces to publish:
      typed runtime item rows; `ItemManager.Instantiate` now clones simple
      commodities, crafted items, consumables, and equippables from
      `AetheriaRuntimeCatalogItem` identity and facets.
+   - Done: delete the runtime item DTO hydration bridge; `ItemManager.GetData`,
+     `ItemManager.Hydrate`, `IRuntimeItemProjectionReader.Get`, the
+     `AetheriaRuntimeItemCatalog` whole-item DTO cache, and
+     `RuntimeItemReference.Projection` are gone.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and
@@ -790,24 +792,23 @@ First Aetheria surfaces to publish:
      typed runtime item rows; legacy `EquippableItemData.Durability` no longer
      owns that stat-evaluation path.
    - Done: move new equippable instance durability initialization onto typed
-     runtime item rows; legacy `EquippableItemData.Durability` remains only as
-     an incomplete-row fallback in the instantiation bridge.
+      runtime item rows.
    - Done: move `EquippedItem` conductivity and max-durability performance/wear
-     inputs onto typed runtime item rows; legacy thermal resilience and audio
-     stats remain explicit DTO residues.
+      inputs onto typed runtime item rows.
    - Done: move `EquippedItem` thermal performance evaluation onto typed
-     runtime item thermal bounds and curve keys; legacy `Data.Performance`
-     remains only as an incomplete-row fallback.
+      runtime item thermal bounds and curve keys; missing typed curve/range data
+      uses a neutral runtime default.
    - Done: import typed thermal resilience and move equipped-item wear scaling
-     off `EquippableItemData.ThermalResilience`; it remains only as an
-     incomplete-row fallback.
+      off `EquippableItemData.ThermalResilience`; missing typed resilience uses
+      a neutral runtime default.
    - Done: import typed audio parameter stat bindings and move equipped-item
-     Wwise parameter updates off `EquippableItemData.AudioStats`; it remains
-     only as an incomplete-row fallback.
+      Wwise parameter updates off `EquippableItemData.AudioStats`; missing
+      typed audio stat bindings produce no parameter updates.
    - Done: add typed consumable stackability, duration, and effectiveness curve
-     fields and route action-bar consumable activation through typed item rows;
-     verifier records that the current mapped catalog has `0` consumable item
-     rows, so the old DTO path cannot be fully deleted yet.
+      fields and route action-bar consumable activation/runtime evaluation
+      through typed item rows; verifier records that the current mapped catalog
+      has `0` consumable item rows, so future consumable content still needs
+      typed coverage.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
@@ -946,10 +947,9 @@ First Aetheria surfaces to publish:
    - Done: collapse the old generic `RuntimeCatalogLink<T>` abstraction into
      `RuntimeItemReference`, an item-specific runtime projection reference owned
      by `ItemManager`.
-   - Done: demote `RuntimeItemReference.Value` to
-     `RuntimeItemReference.Projection`, making the hydrated `ItemData` DTO a
-     cache/display/behavior bridge derived from `ItemId` instead of the
-     reference's apparent state value.
+   - Done: demote `RuntimeItemReference.Value` to an item-definition id, then
+      delete `RuntimeItemReference.Projection`; item references no longer carry
+      hydrated `ItemData` DTOs.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.
@@ -1048,11 +1048,9 @@ First Aetheria surfaces to publish:
 
 ## Immediate Cut Line
 
-Do not add behavior to `ItemData`, `RuntimeItemProjectionEntry`, or the
-temporary `AetheriaRuntimeItemCatalog` DTO materializer. The typed state spine
-and migration quarantine exist; the next cuts should replace surviving
-projection consumers with typed item facets, typed behavior factories, and Eve
-surfaces until the remaining `GetData` hydration users are gone and the old DTO
-bridge can be deleted. Any predicate that still needs `ItemData` must earn that
+Do not add behavior to `ItemData` or `RuntimeItemProjectionEntry`. The typed
+state spine and migration quarantine exist; the next cuts should replace the
+surviving behavior DTO projection bridge with typed behavior factories and Eve
+surfaces. Any predicate that still needs legacy DTO objects must earn that
 dependency by using behavior objects or simulation-only methods that typed
 facets do not yet expose.

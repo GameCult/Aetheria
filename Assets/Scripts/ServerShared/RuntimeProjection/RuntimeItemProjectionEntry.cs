@@ -28,7 +28,6 @@ public abstract class RuntimeItemProjectionEntry
 
 public class RuntimeItemReference
 {
-    public ItemData Projection { get; private set; }
     public Guid ItemId;
 
     public RuntimeItemReference()
@@ -38,17 +37,6 @@ public class RuntimeItemReference
     public RuntimeItemReference(Guid itemId)
     {
         ItemId = itemId;
-    }
-
-    public RuntimeItemReference(ItemData value)
-    {
-        SetProjection(value);
-    }
-
-    public void SetProjection(ItemData value)
-    {
-        Projection = value;
-        ItemId = value?.ID ?? Guid.Empty;
     }
 }
 

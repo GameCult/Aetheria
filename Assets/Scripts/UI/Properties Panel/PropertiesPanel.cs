@@ -346,29 +346,6 @@ public class PropertiesPanel : MonoBehaviour
 		OnPropertyAdded?.Invoke(field.gameObject);
 	}
 	
-	// public void Inspect(Entity entity)
-	// {
- //        Clear();
- //        Title.text = entity.Name;
- //        var hullData = Context.GetData(entity.Hull) as HullData;
- //        AddSection(
- //            hullData.HullType == HullType.Ship ? "Ship" :
- //            hullData.HullType == HullType.Station ? "Station" :
- //            "Platform");
- //        //AddList(hullData.Name).Inspect(hull, entity);
- //        //PropertiesPanel.AddProperty("Hull", () => $"{hullData.Name}");
- //        AddEntityProperties(entity);
- //        //cargoList.SetExpanded(false,true);
- //        
- //        RefreshValues();
-	// }
-
-	// private void AddEntityProperties(Entity entity)
-	// {
-	// 	AddField("Name", () => entity.Name, name => entity.Name = name);
-	// 	AddProperty("Mass", () => $"{entity.Mass.SignificantDigits(Context.GameplaySettings.SignificantDigits)}");
-	// }
-
 	private void AddItemProperties(ItemInstance item)
 	{
 		var typedItem = FindTypedPropertyItem(item);

@@ -1247,7 +1247,6 @@ public class ConsumableItemEffect
     public float RemainingDuration { get; private set; }
     public Entity Entity { get; }
     public ConsumableItem Item { get; }
-    public ConsumableItemData Data { get; }
     public Behavior[] Behaviors { get; }
     public AetheriaRuntimeCatalogItem RuntimeItem { get; }
     public float Duration => Math.Max(_duration, float.Epsilon);
@@ -1260,9 +1259,8 @@ public class ConsumableItemEffect
         Item = item;
         Entity = entity;
         RuntimeItem = entity.ItemManager.GetRuntimeItem(item);
-        Data = entity.ItemManager.GetData(item) as ConsumableItemData;
-        _duration = RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : Data?.Duration ?? 0;
-        _effectiveness = CreateEffectivenessCurve(RuntimeItem, Data);
+        _duration = RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0;
+        _effectiveness = CreateEffectivenessCurve(RuntimeItem);
         RemainingDuration = _duration;
 
         Behaviors = entity.ItemManager.GetRuntimeBehaviorProjections(item)
@@ -1297,7 +1295,7 @@ public class ConsumableItemEffect
         return result;
     }
 
-    private static BezierCurve CreateEffectivenessCurve(AetheriaRuntimeCatalogItem item, ConsumableItemData fallback)
+    private static BezierCurve CreateEffectivenessCurve(AetheriaRuntimeCatalogItem item)
     {
         if (item?.EffectivenessCurveKeys != null && item.EffectivenessCurveKeys.Count > 0)
         {
@@ -1313,7 +1311,7 @@ public class ConsumableItemEffect
             };
         }
 
-        return fallback?.Effectiveness ?? new BezierCurve
+        return new BezierCurve
         {
             Keys = new[] { new float4(0, 1, 0, 0), new float4(1, 1, 0, 0) }
         };
@@ -1342,7 +1340,6 @@ public class EquippedItem
     public float Wear { get; private set; }
     public Shape InsetShape { get; }
     public Entity Entity { get; }
-    public EquippableItemData Data { get; }
     public AetheriaRuntimeCatalogItem RuntimeItem { get; }
 
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
@@ -1443,16 +1440,15 @@ public class EquippedItem
     public EquippedItem(ItemManager itemManager, EquippableItem item, int2 position, Entity entity)
     {
         ItemManager = itemManager;
-        Data = ItemManager.GetData(item);
         Entity = entity;
         EquippableItem = item;
         Position = position;
         RuntimeItem = ItemManager.GetRuntimeItem(item);
-        Conductivity = RuntimeItem != null ? (float)RuntimeItem.Conductivity : Data.Conductivity;
+        Conductivity = RuntimeItem != null ? (float)RuntimeItem.Conductivity : 0;
         MaxDurability = RuntimeItem?.Durability > 0 ? (float)RuntimeItem.Durability : Math.Max(item.Durability, 1f);
-        ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : Data.ThermalResilience;
+        ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : 1;
         _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
-        _audioStats = CreateAudioStatBindings(RuntimeItem, Data);
+        _audioStats = CreateAudioStatBindings(RuntimeItem);
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
@@ -1541,7 +1537,7 @@ public class EquippedItem
             RuntimeItem == null ||
             RuntimeItem.MaximumTemperature <= RuntimeItem.MinimumTemperature)
         {
-            return Data.Performance(temperature);
+            return 1;
         }
 
         var t = unlerp((float)RuntimeItem.MinimumTemperature, (float)RuntimeItem.MaximumTemperature, temperature);
@@ -1594,9 +1590,7 @@ public class EquippedItem
         return null;
     }
 
-    private static EquippedItemAudioStatBinding[] CreateAudioStatBindings(
-        AetheriaRuntimeCatalogItem item,
-        EquippableItemData fallback)
+    private static EquippedItemAudioStatBinding[] CreateAudioStatBindings(AetheriaRuntimeCatalogItem item)
     {
         if (item?.AudioStats != null)
         {
@@ -1607,9 +1601,7 @@ public class EquippedItem
                 .ToArray();
         }
 
-        return fallback.AudioStats
-            .Select(audioStat => new EquippedItemAudioStatBinding(audioStat.Parameter, audioStat.Stat))
-            .ToArray();
+        return Array.Empty<EquippedItemAudioStatBinding>();
     }
 
     private static PerformanceStat CreatePerformanceStat(AetheriaRuntimePerformanceStat stat)

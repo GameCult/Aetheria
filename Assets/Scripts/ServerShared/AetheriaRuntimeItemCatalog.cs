@@ -10,13 +10,11 @@ public interface IRuntimeItemProjectionReader
 {
     AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
     IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid);
-    ItemData Get(Guid guid);
 }
 
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
 {
     private readonly Dictionary<Guid, AetheriaRuntimeCatalogItem> _typedItems;
-    private readonly Dictionary<Guid, ItemData> _items;
     private static readonly IReadOnlyDictionary<int, Type> BehaviorTypesByUnionKey = new Dictionary<int, Type>
     {
         { 0, typeof(GuidedWeaponData) },
@@ -59,11 +57,6 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         _typedItems = catalog.Items
             .Where(item => Guid.TryParse(item.LegacyId, out _))
             .ToDictionary(item => Guid.Parse(item.LegacyId), item => item);
-
-        _items = catalog.Items
-            .Select(ProjectItem)
-            .Where(item => item != null)
-            .ToDictionary(item => item.ID, item => item);
     }
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid)
@@ -80,124 +73,12 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             : ProjectBehaviors(item);
     }
 
-    public ItemData Get(Guid guid)
-    {
-        ItemData item;
-        _items.TryGetValue(guid, out item);
-        return item;
-    }
-
-    private static ItemData ProjectItem(AetheriaRuntimeCatalogItem item)
-    {
-        if (!Guid.TryParse(item.LegacyId, out var id))
-        {
-            return null;
-        }
-
-        var projected = CreateItemData(item);
-        if (projected == null)
-        {
-            return null;
-        }
-
-        projected.ID = id;
-        projected.Name = item.Name;
-        projected.Description = item.Description;
-        projected.Manufacturer = ParseGuid(item.ManufacturerLegacyId);
-        projected.Mass = (float)item.Mass;
-        projected.SpecificHeat = (float)item.SpecificHeat;
-        projected.Conductivity = (float)item.Conductivity;
-        projected.Shape = ProjectShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells);
-        projected.Price = item.Price;
-
-        if (projected is SimpleCommodityData simple)
-        {
-            simple.MaxStack = item.MaxStack;
-        }
-
-        if (projected is ConsumableItemData consumable)
-        {
-            consumable.Stackable = item.Stackable;
-            consumable.Duration = (float)item.Duration;
-            consumable.Effectiveness = ProjectCurve(item.EffectivenessCurveKeys);
-            consumable.Behaviors = ProjectBehaviors(item).ToList();
-        }
-
-        if (projected is EquippableItemData equippable)
-        {
-            equippable.Durability = (float)item.Durability;
-            equippable.ActionBarIcon = item.ActionBarIcon;
-            equippable.ThermalResilience = (float)item.ThermalResilience;
-            equippable.AudioStats = ProjectAudioStats(item).ToList();
-            equippable.Behaviors = ProjectBehaviors(item).ToList();
-        }
-
-        if (projected is GearData gear)
-        {
-            gear.Hardpoint = ParseEnum(item.HardpointType, HardpointType.Tool);
-        }
-
-        if (projected is CargoBayData cargoBay)
-        {
-            cargoBay.InteriorShape = ProjectShape(item.InteriorShapeWidth, item.InteriorShapeHeight, item.InteriorShapeCells);
-        }
-
-        if (projected is DockingBayData dockingBay)
-        {
-            dockingBay.MaxSize = new int2(item.DockingMaxSizeX, item.DockingMaxSizeY);
-        }
-
-        if (projected is WeaponItemData weapon)
-        {
-            weapon.WeaponRange = ParseEnum(item.WeaponRange, WeaponRange.Short);
-            weapon.WeaponCaliber = ParseEnum(item.WeaponCaliber, WeaponCaliber.Small);
-            weapon.WeaponType = ParseEnum(item.WeaponType, WeaponType.Laser);
-            weapon.WeaponFireTypes = ParseFlags(item.WeaponFireTypes, WeaponFireType.None);
-            weapon.WeaponModifiers = ParseFlags(item.WeaponModifiers, WeaponModifiers.None);
-        }
-
-        if (projected is HullData hull)
-        {
-            hull.HullType = ParseEnum(item.HullType, HullType.Ship);
-            hull.Hardpoints = item.Hardpoints.Select(ProjectHardpoint).ToList();
-            hull.GridOffset = (float)item.HullGridOffset;
-            hull.Armor = (float)item.HullArmor;
-            hull.Drag = (float)item.HullDrag;
-            hull.CanTow = item.HullCanTow;
-        }
-
-        return projected;
-    }
-
     private static BehaviorData[] ProjectBehaviors(AetheriaRuntimeCatalogItem item)
     {
         return item.BehaviorPayloads
             .Select(ProjectBehavior)
             .Where(behavior => behavior != null)
             .ToArray();
-    }
-
-    private static BezierCurve ProjectCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
-    {
-        return new BezierCurve
-        {
-            Keys = keys == null || keys.Count == 0
-                ? new[] { new float4(0, 1, 0, 0), new float4(1, 1, 0, 0) }
-                : keys.Select(key => new float4(
-                    (float)key.Time,
-                    (float)key.Value,
-                    (float)key.InTangent,
-                    (float)key.OutTangent)).ToArray()
-        };
-    }
-
-    private static IEnumerable<AudioStat> ProjectAudioStats(AetheriaRuntimeCatalogItem item)
-    {
-        return item.AudioStats.Select(audioStat => new AudioStat
-        {
-            Parameter = audioStat.Parameter,
-            Stat = ProjectPerformanceStat(audioStat.Stat)
-        });
     }
 
     private static PerformanceStat ProjectPerformanceStat(AetheriaRuntimePerformanceStat stat)
@@ -209,60 +90,6 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             HeatExponentMultiplier = (float)stat.HeatExponentMultiplier,
             DurabilityExponentMultiplier = (float)stat.DurabilityExponentMultiplier,
             QualityExponent = (float)stat.QualityExponent
-        };
-    }
-
-    private static ItemData CreateItemData(AetheriaRuntimeCatalogItem item)
-    {
-        switch (item.Category)
-        {
-            case "SimpleCommodityData":
-                return new SimpleCommodityData();
-            case "CompoundCommodityData":
-                return new CompoundCommodityData();
-            case "ConsumableItemData":
-                return new ConsumableItemData();
-            case "GearData":
-                return new GearData();
-            case "CargoBayData":
-                return new CargoBayData();
-            case "DockingBayData":
-                return new DockingBayData();
-            case "WeaponItemData":
-                return new WeaponItemData();
-            case "HullData":
-                return new HullData();
-            default:
-                return !string.IsNullOrWhiteSpace(item.HardpointType) ? new GearData() : null;
-        }
-    }
-
-    private static Shape ProjectShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
-    {
-        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
-        foreach (var coordinate in shape.AllCoordinates)
-        {
-            shape[coordinate] = false;
-        }
-
-        foreach (var cell in cells)
-        {
-            shape[new int2(cell.X, cell.Y)] = true;
-        }
-
-        return shape;
-    }
-
-    private static HardpointData ProjectHardpoint(AetheriaRuntimeHardpoint hardpoint)
-    {
-        return new HardpointData
-        {
-            Type = ParseEnum(hardpoint.Type, HardpointType.Hull),
-            Position = new int2(hardpoint.PositionX, hardpoint.PositionY),
-            Shape = ProjectShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells),
-            Transform = hardpoint.Transform,
-            Rotation = ParseEnum(hardpoint.Rotation, ItemRotation.None),
-            Armor = (float)hardpoint.Armor
         };
     }
 
@@ -388,28 +215,6 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
     private static Guid ParseGuid(string value)
     {
         return Guid.TryParse(value, out var result) ? result : Guid.Empty;
-    }
-
-    private static T ParseEnum<T>(string value, T fallback) where T : struct
-    {
-        return Enum.TryParse(value, true, out T parsed) ? parsed : fallback;
-    }
-
-    private static T ParseFlags<T>(string value, T fallback) where T : struct
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return fallback;
-        }
-
-        return value
-            .Split('|')
-            .Select(part => part.Trim())
-            .Where(part => part.Length > 0)
-            .Aggregate(fallback, (current, part) =>
-                Enum.TryParse(part, true, out T parsed)
-                    ? (T)Enum.ToObject(typeof(T), Convert.ToInt32(current) | Convert.ToInt32(parsed))
-                    : current);
     }
 
     private static float2 ConvertFloat2(AetheriaRuntimeBehaviorValue value)
