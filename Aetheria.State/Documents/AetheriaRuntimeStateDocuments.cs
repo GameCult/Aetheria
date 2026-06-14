@@ -347,6 +347,26 @@ public sealed class AetheriaAsteroidSnapshot
 
     [Key(3)]
     public double RotationSpeed { get; set; }
+
+    [Key(4)]
+    public double Damage { get; set; }
+
+    [Key(5)]
+    public double RespawnTimer { get; set; }
+
+    [Key(6)]
+    public AetheriaAsteroidMiningAccumulatorSnapshot[] MiningAccumulators { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaAsteroidMiningAccumulatorSnapshot
+{
+    [Key(0)]
+    [CultReference(typeof(AetheriaEntitySnapshot))]
+    public string MinerEntityKey { get; set; } = "";
+
+    [Key(1)]
+    public double Amount { get; set; }
 }
 
 [MessagePackObject]

@@ -270,7 +270,7 @@ public static class AetheriaRuntimeCommitLogApplier
                     OwnerFactionIndex = zone.OwnerFactionIndex,
                     EntityKeys = entityKeys.ToArray(),
                     Orbits = ToOrbitSnapshots(zone.Orbits),
-                    Bodies = ToBodySnapshots(zone.Bodies)
+                    Bodies = ToBodySnapshots(zone.Bodies, run.RunId, zone.ZoneIndex)
                 })
                 .ConfigureAwait(false);
             zoneKeys.Add(zoneKey.ToString());
@@ -301,7 +301,9 @@ public static class AetheriaRuntimeCommitLogApplier
     }
 
     private static AetheriaBodySnapshot[] ToBodySnapshots(
-        IReadOnlyList<AetheriaRuntimeBodySnapshotCommit>? bodies)
+        IReadOnlyList<AetheriaRuntimeBodySnapshotCommit>? bodies,
+        string runId,
+        int zoneIndex)
     {
         return (bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             .Select(body => new AetheriaBodySnapshot
@@ -316,7 +318,7 @@ public static class AetheriaRuntimeCommitLogApplier
                 GravityRadiusMultiplier = body.GravityRadiusMultiplier,
                 GravityDepthMultiplier = body.GravityDepthMultiplier,
                 GravityDepthExponent = body.GravityDepthExponent,
-                Asteroids = ToAsteroidSnapshots(body.Asteroids),
+                Asteroids = ToAsteroidSnapshots(body.Asteroids, runId, zoneIndex),
                 GasGiantVisual = ToGasGiantVisual(body.GasGiantVisual),
                 SunVisual = ToSunVisual(body.SunVisual)
             })
@@ -336,7 +338,9 @@ public static class AetheriaRuntimeCommitLogApplier
     }
 
     private static AetheriaAsteroidSnapshot[] ToAsteroidSnapshots(
-        IReadOnlyList<AetheriaRuntimeAsteroidCommit>? asteroids)
+        IReadOnlyList<AetheriaRuntimeAsteroidCommit>? asteroids,
+        string runId,
+        int zoneIndex)
     {
         return (asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>())
             .Select(asteroid => new AetheriaAsteroidSnapshot
@@ -344,7 +348,25 @@ public static class AetheriaRuntimeCommitLogApplier
                 Distance = asteroid.Distance,
                 Phase = asteroid.Phase,
                 Size = asteroid.Size,
-                RotationSpeed = asteroid.RotationSpeed
+                RotationSpeed = asteroid.RotationSpeed,
+                Damage = asteroid.Damage,
+                RespawnTimer = asteroid.RespawnTimer,
+                MiningAccumulators = ToAsteroidMiningAccumulators(asteroid.MiningAccumulators, runId, zoneIndex)
+            })
+            .ToArray();
+    }
+
+    private static AetheriaAsteroidMiningAccumulatorSnapshot[] ToAsteroidMiningAccumulators(
+        IReadOnlyList<AetheriaRuntimeAsteroidMiningAccumulatorCommit>? accumulators,
+        string runId,
+        int zoneIndex)
+    {
+        return (accumulators ?? Array.Empty<AetheriaRuntimeAsteroidMiningAccumulatorCommit>())
+            .Where(accumulator => accumulator.MinerEntityIndex >= 0)
+            .Select(accumulator => new AetheriaAsteroidMiningAccumulatorSnapshot
+            {
+                MinerEntityKey = EntityKey(runId, zoneIndex, accumulator.MinerEntityIndex).ToString(),
+                Amount = accumulator.Amount
             })
             .ToArray();
     }

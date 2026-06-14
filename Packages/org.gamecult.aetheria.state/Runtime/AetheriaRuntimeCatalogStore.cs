@@ -702,7 +702,7 @@ namespace GameCult.Aetheria.State.Unity
                 var mass = ReadFieldDouble(ref reader, bodyFields, 4);
                 var resourceCount = CountAndSkipFieldArray(ref reader, bodyFields, 5);
                 SkipFields(ref reader, bodyFields, 6, 10);
-                var asteroidCount = CountAndSkipFieldArray(ref reader, bodyFields, 10);
+                var asteroidSummary = ReadFieldAsteroidSummary(ref reader, bodyFields, 10);
                 SkipRemaining(ref reader, bodyFields, 11);
                 bodies[body] = new AetheriaRuntimeBodySnapshot(
                     bodyId,
@@ -711,10 +711,49 @@ namespace GameCult.Aetheria.State.Unity
                     orbitId,
                     mass,
                     resourceCount,
-                    asteroidCount);
+                    asteroidSummary.Count,
+                    asteroidSummary.DamagedCount,
+                    asteroidSummary.RespawningCount,
+                    asteroidSummary.MiningAccumulatorCount);
             }
 
             return bodies;
+        }
+
+        private static AsteroidSummary ReadFieldAsteroidSummary(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new AsteroidSummary(0, 0, 0, 0);
+            var count = reader.ReadArrayHeader();
+            var damagedCount = 0;
+            var respawningCount = 0;
+            var miningAccumulatorCount = 0;
+            for (var asteroid = 0; asteroid < count; asteroid++)
+            {
+                var asteroidFields = reader.ReadArrayHeader();
+                SkipFields(ref reader, asteroidFields, 0, 4);
+                if (ReadFieldDouble(ref reader, asteroidFields, 4) > 0) damagedCount++;
+                if (ReadFieldDouble(ref reader, asteroidFields, 5) > 0) respawningCount++;
+                miningAccumulatorCount += CountAndSkipFieldArray(ref reader, asteroidFields, 6);
+                SkipRemaining(ref reader, asteroidFields, 7);
+            }
+
+            return new AsteroidSummary(count, damagedCount, respawningCount, miningAccumulatorCount);
+        }
+
+        private readonly struct AsteroidSummary
+        {
+            public AsteroidSummary(int count, int damagedCount, int respawningCount, int miningAccumulatorCount)
+            {
+                Count = count;
+                DamagedCount = damagedCount;
+                RespawningCount = respawningCount;
+                MiningAccumulatorCount = miningAccumulatorCount;
+            }
+
+            public int Count { get; }
+            public int DamagedCount { get; }
+            public int RespawningCount { get; }
+            public int MiningAccumulatorCount { get; }
         }
 
         private static IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> ReadFieldEntityItemSlots(ref MessagePackReader reader, int fields, int index)

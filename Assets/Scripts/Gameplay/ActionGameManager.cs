@@ -625,7 +625,7 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray() ?? Array.Empty<int>(),
             OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
             Orbits = ProjectZoneOrbits(zone.Blueprint),
-            Bodies = ProjectZoneBodies(zone.Blueprint),
+            Bodies = ProjectZoneBodies(zone),
             Entities = zone.Entities
                 .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
                 .ToArray()
@@ -648,16 +648,17 @@ public class ActionGameManager : MonoBehaviour
             .ToArray() ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>();
     }
 
-    private static AetheriaRuntimeBodySnapshotCommit[] ProjectZoneBodies(RuntimeZoneBlueprint blueprint)
+    private static AetheriaRuntimeBodySnapshotCommit[] ProjectZoneBodies(Zone zone)
     {
-        return blueprint?.Planets?
+        return zone?.Blueprint?.Planets?
             .OrderBy(body => body.ID)
-            .Select(ProjectZoneBody)
+            .Select(body => ProjectZoneBody(zone, body))
             .ToArray() ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     }
 
-    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(BodyData body)
+    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Zone zone, BodyData body)
     {
+        zone.AsteroidBelts.TryGetValue(body.ID, out var asteroidBelt);
         return new AetheriaRuntimeBodySnapshotCommit
         {
             BodyLegacyId = LegacyId(body.ID),
@@ -678,7 +679,7 @@ public class ActionGameManager : MonoBehaviour
             GravityDepthMultiplier = body.GravityDepthMultiplier,
             GravityDepthExponent = body.GravityDepthExponent,
             Asteroids = body is AsteroidBeltData belt
-                ? ProjectAsteroids(belt.Asteroids)
+                ? ProjectAsteroids(zone, belt, asteroidBelt)
                 : Array.Empty<AetheriaRuntimeAsteroidCommit>(),
             GasGiantVisual = body is GasGiantData gas
                 ? ProjectGasGiantVisual(gas)
@@ -689,15 +690,31 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(Asteroid[] asteroids)
+    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(
+        Zone zone,
+        AsteroidBeltData beltData,
+        AsteroidBelt asteroidBelt)
     {
-        return asteroids?
-            .Select(asteroid => new AetheriaRuntimeAsteroidCommit
+        return beltData.Asteroids?
+            .Select((asteroid, asteroidIndex) => new AetheriaRuntimeAsteroidCommit
             {
                 Distance = asteroid.Distance,
                 Phase = asteroid.Phase,
                 Size = asteroid.Size,
-                RotationSpeed = asteroid.RotationSpeed
+                RotationSpeed = asteroid.RotationSpeed,
+                Damage = asteroidBelt != null && asteroidBelt.Damage.TryGetValue(asteroidIndex, out var damage) ? damage : 0,
+                RespawnTimer = asteroidBelt != null && asteroidBelt.RespawnTimers.TryGetValue(asteroidIndex, out var respawnTimer) ? respawnTimer : 0,
+                MiningAccumulators = asteroidBelt == null
+                    ? Array.Empty<AetheriaRuntimeAsteroidMiningAccumulatorCommit>()
+                    : asteroidBelt.MiningAccumulator
+                        .Where(pair => pair.Key.Item2 == asteroidIndex)
+                        .Select(pair => new AetheriaRuntimeAsteroidMiningAccumulatorCommit
+                        {
+                            MinerEntityIndex = zone.Entities.IndexOf(pair.Key.Item1),
+                            Amount = pair.Value
+                        })
+                        .Where(accumulator => accumulator.MinerEntityIndex >= 0)
+                        .ToArray()
             })
             .ToArray() ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
     }

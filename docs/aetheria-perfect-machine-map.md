@@ -146,8 +146,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   parent IDs, distance, phase, fixed positions, body kind/name/orbit,
   resources, gravity/body multipliers, asteroid belt entries, and gas/sun
   visual parameters now survive through the typed pending commit lane into
-  `AetheriaZoneState`. `RuntimeZoneBlueprint` feeds this projector, but it is
-  no longer the only place generated celestial graph facts can live.
+  `AetheriaZoneState`. Asteroid belt runtime damage, respawn timers, and
+  miner accumulators also persist on typed asteroid rows. `RuntimeZoneBlueprint`
+  feeds static generated geometry, but it is no longer the only place generated
+  celestial graph facts can live.
 - Run checkpoint entity snapshots include typed simulation stat grids for
   temperature, thermal mass, armor, max armor, and hull-conductivity axes.
   They also carry public runtime session state: velocity, target entity
@@ -840,6 +842,8 @@ First Aetheria surfaces to publish:
      entity snapshot documents, so the `.zone` replacement graph is not only
      writable through the state node but also inspectable by runtime package
      consumers.
+   - Done: preserve asteroid belt runtime state on typed asteroid rows:
+     damage, respawn timers, and miner accumulator references.
    - Done: persist the actual galaxy generation seed in typed run state, so
      future Continue/restore work has a reproducible topology body before
      applying current-zone/entity snapshots.

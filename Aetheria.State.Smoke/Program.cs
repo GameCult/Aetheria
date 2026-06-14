@@ -434,7 +434,17 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                         Distance = 7,
                         Phase = 0.75,
                         Size = 2,
-                        RotationSpeed = 0.5
+                        RotationSpeed = 0.5,
+                        Damage = 1.25,
+                        RespawnTimer = 6.5,
+                        MiningAccumulators =
+                        [
+                            new AetheriaAsteroidMiningAccumulatorSnapshot
+                            {
+                                MinerEntityKey = entityKey.ToString(),
+                                Amount = 0.75
+                            }
+                        ]
                     }
                 ]
             }
@@ -621,7 +631,12 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         zoneState.Bodies.Length != 1 ||
         zoneState.Bodies[0].Kind != "asteroid_belt" ||
         zoneState.Bodies[0].Resources.Length != 1 ||
-        zoneState.Bodies[0].Asteroids.Length != 1)
+        zoneState.Bodies[0].Asteroids.Length != 1 ||
+        zoneState.Bodies[0].Asteroids[0].Damage != 1.25 ||
+        zoneState.Bodies[0].Asteroids[0].RespawnTimer != 6.5 ||
+        zoneState.Bodies[0].Asteroids[0].MiningAccumulators.Length != 1 ||
+        zoneState.Bodies[0].Asteroids[0].MiningAccumulators[0].MinerEntityKey != entityKey.ToString() ||
+        zoneState.Bodies[0].Asteroids[0].MiningAccumulators[0].Amount != 0.75)
     {
         throw new InvalidOperationException("Zone state did not survive flush/reopen.");
     }

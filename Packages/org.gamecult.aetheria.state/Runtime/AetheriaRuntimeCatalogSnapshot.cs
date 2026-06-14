@@ -935,7 +935,17 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeBodySnapshot
     {
-        public AetheriaRuntimeBodySnapshot(string bodyId, string kind, string name, string orbitId, double mass, int resourceCount, int asteroidCount)
+        public AetheriaRuntimeBodySnapshot(
+            string bodyId,
+            string kind,
+            string name,
+            string orbitId,
+            double mass,
+            int resourceCount,
+            int asteroidCount,
+            int damagedAsteroidCount,
+            int respawningAsteroidCount,
+            int asteroidMiningAccumulatorCount)
         {
             BodyId = bodyId;
             Kind = kind;
@@ -944,6 +954,9 @@ namespace GameCult.Aetheria.State.Unity
             Mass = mass;
             ResourceCount = resourceCount;
             AsteroidCount = asteroidCount;
+            DamagedAsteroidCount = damagedAsteroidCount;
+            RespawningAsteroidCount = respawningAsteroidCount;
+            AsteroidMiningAccumulatorCount = asteroidMiningAccumulatorCount;
         }
 
         public string BodyId { get; }
@@ -953,6 +966,9 @@ namespace GameCult.Aetheria.State.Unity
         public double Mass { get; }
         public int ResourceCount { get; }
         public int AsteroidCount { get; }
+        public int DamagedAsteroidCount { get; }
+        public int RespawningAsteroidCount { get; }
+        public int AsteroidMiningAccumulatorCount { get; }
     }
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot

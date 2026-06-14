@@ -401,6 +401,25 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(3)]
         public double RotationSpeed { get; set; }
+
+        [Key(4)]
+        public double Damage { get; set; }
+
+        [Key(5)]
+        public double RespawnTimer { get; set; }
+
+        [Key(6)]
+        public IReadOnlyList<AetheriaRuntimeAsteroidMiningAccumulatorCommit> MiningAccumulators { get; set; } = Array.Empty<AetheriaRuntimeAsteroidMiningAccumulatorCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeAsteroidMiningAccumulatorCommit
+    {
+        [Key(0)]
+        public int MinerEntityIndex { get; set; } = -1;
+
+        [Key(1)]
+        public double Amount { get; set; }
     }
 
     [MessagePackObject]

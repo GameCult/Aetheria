@@ -296,7 +296,17 @@ try
                                     Distance = 7.0,
                                     Phase = 0.75,
                                     Size = 2.0,
-                                    RotationSpeed = 0.5
+                                    RotationSpeed = 0.5,
+                                    Damage = 1.25,
+                                    RespawnTimer = 6.5,
+                                    MiningAccumulators = new[]
+                                    {
+                                        new AetheriaRuntimeAsteroidMiningAccumulatorCommit
+                                        {
+                                            MinerEntityIndex = 0,
+                                            Amount = 0.75
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -683,6 +693,11 @@ try
             zone.Bodies[0].Resources.Length == 1 &&
             zone.Bodies[0].Resources[0].ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
             zone.Bodies[0].Asteroids.Length == 1 &&
+            zone.Bodies[0].Asteroids[0].Damage == 1.25 &&
+            zone.Bodies[0].Asteroids[0].RespawnTimer == 6.5 &&
+            zone.Bodies[0].Asteroids[0].MiningAccumulators.Length == 1 &&
+            zone.Bodies[0].Asteroids[0].MiningAccumulators[0].MinerEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
+            zone.Bodies[0].Asteroids[0].MiningAccumulators[0].Amount == 0.75 &&
             entity?.Equipment.Length == 1 &&
             entity.Equipment[0].Quality == 0.9 &&
             entity.Equipment[0].Durability == 0.8 &&
@@ -818,6 +833,9 @@ try
         packageZones[0].Bodies.Count != 1 ||
         packageZones[0].Bodies[0].ResourceCount != 1 ||
         packageZones[0].Bodies[0].AsteroidCount != 1 ||
+        packageZones[0].Bodies[0].DamagedAsteroidCount != 1 ||
+        packageZones[0].Bodies[0].RespawningAsteroidCount != 1 ||
+        packageZones[0].Bodies[0].AsteroidMiningAccumulatorCount != 1 ||
         packageEntities.Count != 1 ||
         packageEntities[0].Name != "Unity Smoke Ship" ||
         packageEntities[0].Equipment[0].Quality != 0.9 ||
