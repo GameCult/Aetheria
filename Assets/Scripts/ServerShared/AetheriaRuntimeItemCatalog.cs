@@ -9,7 +9,7 @@ using Unity.Mathematics;
 public interface IRuntimeItemCatalogReader
 {
     AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
-    IReadOnlyList<BehaviorData> GetRuntimeBehaviorConfigs(Guid guid);
+    IReadOnlyList<BehaviorData> GetTemporaryBehaviorConfigs(Guid guid);
 }
 
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
@@ -65,7 +65,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
         return item;
     }
 
-    public IReadOnlyList<BehaviorData> GetRuntimeBehaviorConfigs(Guid guid)
+    public IReadOnlyList<BehaviorData> GetTemporaryBehaviorConfigs(Guid guid)
     {
         var item = GetRuntimeItem(guid);
         return item == null

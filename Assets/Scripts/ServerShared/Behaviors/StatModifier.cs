@@ -55,7 +55,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
         _stats = Entity.Equipment
             .Select(hp => hp.EquippableItem)
             .Where(HasRequiredBehavior)
-            .SelectMany(gear => ItemManager.GetRuntimeBehaviorConfigs(gear))
+            .SelectMany(gear => ItemManager.GetTemporaryRuntimeBehaviorConfigs(gear))
             .Where(behavior => BehaviorKindMatches(behavior.Kind, _data.Stat.Target))
             .Select(FindTargetStat)
             .Where(stat => stat != null)
@@ -93,7 +93,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private bool HasRequiredBehavior(EquippableItem gear)
     {
         return string.IsNullOrWhiteSpace(_data.RequireBehavior) ||
-               ItemManager.GetRuntimeBehaviorConfigs(gear)
+               ItemManager.GetTemporaryRuntimeBehaviorConfigs(gear)
                    .Any(behavior => BehaviorKindMatches(behavior.Kind, _data.RequireBehavior));
     }
 

@@ -1188,9 +1188,7 @@ public class ConsumableItemEffect
         _effectiveness = CreateEffectivenessCurve(RuntimeItem);
         RemainingDuration = _duration;
 
-        Behaviors = entity.ItemManager.GetRuntimeBehaviorConfigs(item)
-            .Select(bd => bd.CreateInstance(this))
-            .ToArray();
+        Behaviors = entity.ItemManager.CreateRuntimeBehaviors(this);
     }
 
     public void Update(float delta)
@@ -1393,9 +1391,7 @@ public class EquippedItem
             .CombineLatest(Online, (enabled, online) => enabled && online).DistinctUntilChanged());
         
 
-        Behaviors = ItemManager.GetRuntimeBehaviorConfigs(item)
-            .Select(bd => bd.CreateInstance(this))
-            .ToArray();
+        Behaviors = ItemManager.CreateRuntimeBehaviors(this);
 
         BehaviorGroups = Behaviors
             .GroupBy(b => b.Data.Group)

@@ -158,8 +158,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   receives the typed runtime catalog and uses typed candidate-kind selectors
   for item selection and instantiation. Hull type, hardpoint type, shape fit,
   station bay fit, hull/category, and behavior-kind prefilters run against typed
-  catalog rows; the remaining behavior bridge builds temporary `BehaviorData`
-  config from typed payloads only at behavior-constructor boundaries. The unused `TradeMenuDebug`
+  catalog rows. `EquippedItem` and `ConsumableItemEffect` now create behavior
+  instances through `ItemManager.CreateRuntimeBehaviors`; the remaining
+  `BehaviorData` config list is explicitly temporary and exposed only for the
+  surviving `StatModifier` stat-target bridge. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
@@ -530,7 +532,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owns simulation. The runtime no longer has a MessagePack catalog cache or
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
   item rows and temporarily builds `BehaviorData` config objects from typed
-  behavior payloads for the old behavior class constructors.
+  behavior payloads behind the `ItemManager.CreateRuntimeBehaviors` runtime
+  construction primitive. Direct config reads are named temporary and remain
+  only where `StatModifier` still needs behavior-stat target lookup.
   `RuntimeItemReference.ItemId` is the only item reference value. The reader
   interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
   typed catalog row ownership rather than old DTO projection ownership. Behavior
@@ -804,6 +808,10 @@ First Aetheria surfaces to publish:
      off `Data.Behaviors` and onto typed runtime behavior payload config
      construction; `BehaviorData` remains only the temporary behavior-class
      config bridge.
+   - Done: route `EquippedItem` and `ConsumableItemEffect` behavior instance
+     creation through `ItemManager.CreateRuntimeBehaviors`; direct
+     `GetTemporaryRuntimeBehaviorConfigs` access remains only for the
+     `StatModifier` behavior-stat target bridge.
    - Done: move the temporary behavior config constructor map from legacy union
      keys to typed behavior payload kind strings; union keys remain migration
      provenance only for this runtime path.
