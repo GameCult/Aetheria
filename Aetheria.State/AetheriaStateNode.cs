@@ -195,6 +195,17 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             new CultRecordKey(AetheriaProviderAdvertisementProjector.AdvertisementKey));
     }
 
+    public Task<CultRecordHandle<AetheriaRuntimeSession>> PutRuntimeSessionAsync(AetheriaRuntimeSession session)
+    {
+        return Database.PutAsync(new CultRecordKey($"runtime:{session.RuntimeId}:aetheria.runtime_session.v1"), session);
+    }
+
+    public Task<AetheriaRuntimeSession?> GetRuntimeSessionAsync(string runtimeId)
+    {
+        return Database.GetAsync<AetheriaRuntimeSession>(
+            new CultRecordKey($"runtime:{runtimeId}:aetheria.runtime_session.v1"));
+    }
+
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);

@@ -6,7 +6,8 @@ using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
-var statePath = AetheriaStatePaths.ResolveDefaultStatePath(root);
+var stateDirectory = Path.Combine(Path.GetTempPath(), "aetheria-state-smoke", Guid.NewGuid().ToString("N"));
+var statePath = Path.Combine(stateDirectory, "aetheria-world.cc");
 var now = DateTimeOffset.UtcNow.ToString("O");
 var itemLegacyId = "smoke:aether-drive";
 var factionLegacyId = "smoke:faction";
@@ -106,6 +107,17 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutRuntimeCommitDrainStatusAsync(drainStatus);
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
     await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
+    await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
+    {
+        RuntimeId = "smoke-runtime",
+        Role = "state-smoke",
+        StartedAtUtc = now,
+        LastSeenAtUtc = now,
+        Status = "running"
+    });
+    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
+        drainStatus,
+        runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
 
     AetheriaRuntimeEveCommandLog.QueueCommand(
         statePath,
@@ -142,7 +154,10 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
     };
     await node.PutEveCommandDrainStatusAsync(eveCommandStatus);
-    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus, eveCommandStatus));
+    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
+        drainStatus,
+        eveCommandStatus,
+        await node.GetRuntimeSessionAsync("smoke-runtime")));
 
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
     {
@@ -298,6 +313,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var eveCommandStatus = await reopened.GetEveCommandDrainStatusAsync();
     var operationsSurface = await reopened.GetOperationsSurfaceAsync();
     var advertisement = await reopened.GetProviderAdvertisementAsync();
+    var runtimeSession = await reopened.GetRuntimeSessionAsync("smoke-runtime");
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
     var runState = await reopened.GetRunStateAsync(runKey);
@@ -342,7 +358,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         eveCommandStatus.AppliedCatalogRefreshes != 1 ||
         !eveCommandStatus.LastRejectedReason.Contains("not advertised", StringComparison.Ordinal) ||
         operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId ||
-        !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandDrain"))
+        !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandDrain") ||
+        !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.runtimeSession"))
     {
         throw new InvalidOperationException("Runtime commit/Eve command drain status or operations surface did not survive flush/reopen.");
     }
@@ -351,9 +368,17 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         advertisement.Surfaces.Length < 2 ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId) ||
+        !advertisement.Schemas.Contains("aetheria.runtime_session.v1") ||
         !advertisement.Schemas.Contains(AetheriaEveCommandBridge.CommandSchema))
     {
         throw new InvalidOperationException("Aetheria Eve provider advertisement did not survive flush/reopen.");
+    }
+
+    if (runtimeSession?.RuntimeId != "smoke-runtime" ||
+        runtimeSession.Role != "state-smoke" ||
+        runtimeSession.Status != "running")
+    {
+        throw new InvalidOperationException("Runtime session document did not survive flush/reopen.");
     }
 
     if (playerSettings?.ActiveRunKey != runKey.ToString() ||

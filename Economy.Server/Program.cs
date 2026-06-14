@@ -17,9 +17,12 @@ internal static class Program
             runtimeId: RuntimeId,
             startServer: true).ConfigureAwait(false);
 
+        var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+        await PublishRuntimeSessionAsync(node, startedAtUtc, "starting").ConfigureAwait(false);
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
         await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
         await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
+        await PublishRuntimeSessionAsync(node, startedAtUtc, "running").ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
         if (HasFlag(args, "--apply-pending-once"))
@@ -29,8 +32,9 @@ internal static class Program
         }
 
         Console.WriteLine("Aetheria CultMesh state host is running. Press Ctrl+C to stop.");
-        await RunUntilShutdownAsync(node, PendingInterval(args)).ConfigureAwait(false);
+        await RunUntilShutdownAsync(node, startedAtUtc, PendingInterval(args)).ConfigureAwait(false);
 
+        await PublishRuntimeSessionAsync(node, startedAtUtc, "stopping").ConfigureAwait(false);
         Console.WriteLine("Aetheria CultMesh state host stopping.");
     }
 
@@ -212,11 +216,29 @@ internal static class Program
                 Status = "idle"
             };
         var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false);
-        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus))
+        var runtimeSession = await node.GetRuntimeSessionAsync(RuntimeId).ConfigureAwait(false);
+        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, runtimeSession))
             .ConfigureAwait(false);
         await node.PutProviderAdvertisementAsync(
             AetheriaProviderAdvertisementProjector.Build(node.StatePath, updatedAtUtc)).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static async Task PublishRuntimeSessionAsync(
+        AetheriaStateNode node,
+        string startedAtUtc,
+        string status)
+    {
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
+        {
+            RuntimeId = RuntimeId,
+            Role = "cultmesh-state-host",
+            StartedAtUtc = startedAtUtc,
+            LastSeenAtUtc = now,
+            Status = status
+        }).ConfigureAwait(false);
+        await PublishOperationsStateAsync(node, now).ConfigureAwait(false);
     }
 
     private static int CountPendingRuntimeCommits(string statePath)
@@ -235,7 +257,10 @@ internal static class Program
             : 0;
     }
 
-    private static async Task RunUntilShutdownAsync(AetheriaStateNode node, TimeSpan pendingInterval)
+    private static async Task RunUntilShutdownAsync(
+        AetheriaStateNode node,
+        string startedAtUtc,
+        TimeSpan pendingInterval)
     {
         var stopped = new TaskCompletionSource<object?>();
         Console.CancelKeyPress += (_, eventArgs) =>
@@ -253,6 +278,7 @@ internal static class Program
 
             await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
             await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
+            await PublishRuntimeSessionAsync(node, startedAtUtc, "running").ConfigureAwait(false);
         }
     }
 

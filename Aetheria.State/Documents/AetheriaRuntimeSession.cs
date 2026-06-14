@@ -20,4 +20,7 @@ public sealed class AetheriaRuntimeSession
 
     [Key(3)]
     public string LastSeenAtUtc { get; set; } = "";
+
+    [Key(4)]
+    public string Status { get; set; } = "running";
 }

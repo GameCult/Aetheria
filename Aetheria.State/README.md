@@ -13,11 +13,11 @@ are migration inputs only.
 
 The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
-bindings, and stat grids. Runtime checkpoints include current action-bar
-bindings as stable typed targets: input control path, binding kind, item
-definition reference, equipment index, behavior index, or weapon-group index.
-They also include current faction relationship rows as typed corporation
-references plus relationship tokens and numeric standings.
+bindings, stat grids, and runtime session documents. Runtime checkpoints
+include current action-bar bindings as stable typed targets: input control
+path, binding kind, item definition reference, equipment index, behavior index,
+or weapon-group index. They also include current faction relationship rows as
+typed corporation references plus relationship tokens and numeric standings.
 Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
 binding overrides, and action-bar inputs. Do not preserve `SavedGame`, Unity
@@ -39,6 +39,11 @@ Unity settings, loadout templates, and run checkpoints now queue typed
 into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
 Unity-side command log is command-only and cannot become durable truth by
 itself.
+`AetheriaRuntimeSession` is the typed Verse signal for the running state host
+or one-shot pending drain. `Economy.Server` owns the long-running
+`cultmesh-state-host` heartbeat and publishes `starting`, `running`, and
+`stopping` states through `Aetheria.State`; drain status remains operation
+telemetry, not daemon-session ownership.
 Unity Eve surfaces also emit typed `gamecult.eve.command.v1` documents under
 `GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
 provider-owned acceptance organ for those commands: it validates the provider,
@@ -108,9 +113,10 @@ field from key 3, name-file and boss-hull legacy IDs, influence distance,
 allegiance count, full allegiance edges, and music bank IDs. Corporation
 documents are `aetheria.corporation.v2` records because runtime generation
 needs actual allegiance weights, not only display counts. Runtime checkpoints
-now persist session faction relationships into typed run state, but broader
-runtime object graphs, typed behavior factory construction, and simulation
-state remain legacy until dedicated typed runtime documents exist.
+now persist session faction relationships into typed run state, and runtime
+sessions publish typed state-host liveness, but broader runtime object graphs,
+typed behavior factory construction, and simulation state remain legacy until
+dedicated typed runtime documents exist.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy
@@ -154,10 +160,12 @@ corporation records.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
 typed loadout template in addition to world, catalog, run state, zone state, and
-an entity snapshot. The run smoke proves a typed run can reference a typed zone,
-the zone can reference typed entity snapshots, and entity snapshots can preserve
-equipment slots, weapon groups, and stat grids without reviving
-`PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
+an entity snapshot. It also writes and reopens `AetheriaRuntimeSession` and
+checks that the Eve provider advertises the runtime-session schema. The run
+smoke proves a typed run can reference a typed zone, the zone can reference
+typed entity snapshots, and entity snapshots can preserve equipment slots,
+weapon groups, and stat grids without reviving `PlayerSettings.msgpack`,
+`.loadout`, or `.zone` serialization.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

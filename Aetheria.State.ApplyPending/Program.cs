@@ -17,6 +17,14 @@ var evePendingBefore = CountPendingEveCommands(statePath);
 var now = DateTimeOffset.UtcNow.ToString("O");
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, runtimeId);
+await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
+{
+    RuntimeId = runtimeId,
+    Role = "pending-drain",
+    StartedAtUtc = now,
+    LastSeenAtUtc = now,
+    Status = "running"
+});
 var report = await AetheriaRuntimeCommitLogApplier.ApplyPendingAsync(node, deleteApplied);
 var eveReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node, deleteApplied);
 var commitStatus = new AetheriaRuntimeCommitDrainStatus
@@ -49,7 +57,16 @@ var eveStatus = new AetheriaEveCommandDrainStatus
 };
 await node.PutRuntimeCommitDrainStatusAsync(commitStatus);
 await node.PutEveCommandDrainStatusAsync(eveStatus);
-await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus));
+var completedSession = new AetheriaRuntimeSession
+{
+    RuntimeId = runtimeId,
+    Role = "pending-drain",
+    StartedAtUtc = now,
+    LastSeenAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+    Status = "completed"
+};
+await node.PutRuntimeSessionAsync(completedSession);
+await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, completedSession));
 await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
 await node.FlushAsync();
 

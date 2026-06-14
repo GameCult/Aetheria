@@ -725,6 +725,10 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      faction relationship rows into `AetheriaRunState` as corporation
      references, relationship tokens, and numeric standings.
+   - Done: make `AetheriaRuntimeSession` a live CultMesh document with state
+     node ports, provider advertisement, server heartbeat publication, and
+     smoke coverage; daemon liveness is no longer only console output or
+     incidental drain status.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, simulation state, and any catalog
      fields not covered by the stable scalar/fingerprint/payload pass.
@@ -1116,7 +1120,9 @@ First Aetheria surfaces to publish:
 - CultCache smoke proves write, flush, reopen, query, and typed reference
   resolution, including full player settings as the `PlayerSettings.msgpack`
   replacement, loadout templates as the `.loadout` replacement, and a run ->
-  zone -> entity snapshot graph as the `.zone` replacement.
+  zone -> entity snapshot graph as the `.zone` replacement. It also proves
+  `aetheria.runtime_session.v1` is advertised and survives reopen as the
+  typed daemon-session signal.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from

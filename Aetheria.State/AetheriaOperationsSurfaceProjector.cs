@@ -10,9 +10,13 @@ public static class AetheriaOperationsSurfaceProjector
     public static EveSurfaceState Build(
         AetheriaRuntimeCommitDrainStatus drainStatus,
         AetheriaEveCommandDrainStatus? eveCommandStatus = null,
+        AetheriaRuntimeSession? runtimeSession = null,
         long version = 1)
     {
-        var updatedAtUtc = LatestTimestamp(drainStatus.LastPollAtUtc, eveCommandStatus?.LastPollAtUtc);
+        var updatedAtUtc = LatestTimestamp(
+            drainStatus.LastPollAtUtc,
+            eveCommandStatus?.LastPollAtUtc,
+            runtimeSession?.LastSeenAtUtc);
         return new EveSurfaceState
         {
             ProviderId = "aetheria",
@@ -62,7 +66,18 @@ public static class AetheriaOperationsSurfaceProjector
                             ("lastAccepted", eveCommandStatus?.LastAcceptedAtUtc ?? ""),
                             ("lastRejected", eveCommandStatus?.LastRejectedCommand ?? ""),
                             ("rejectedReason", eveCommandStatus?.LastRejectedReason ?? ""),
-                            ("error", eveCommandStatus?.LastError ?? ""))))
+                            ("error", eveCommandStatus?.LastError ?? ""))),
+                    Node(
+                        "aetheria.operations.runtimeSession",
+                        "card",
+                        [("title", "Runtime Session")],
+                        Metric("runtimeSession.status", "Status", runtimeSession?.Status ?? "missing"),
+                        Metric("runtimeSession.role", "Role", runtimeSession?.Role ?? ""),
+                        Row(
+                            "runtimeSession.last",
+                            ("runtime", runtimeSession?.RuntimeId ?? ""),
+                            ("started", runtimeSession?.StartedAtUtc ?? ""),
+                            ("lastSeen", runtimeSession?.LastSeenAtUtc ?? ""))))
             },
             Commands =
             [
@@ -76,14 +91,19 @@ public static class AetheriaOperationsSurfaceProjector
         };
     }
 
-    private static string LatestTimestamp(string first, string? second)
+    private static string LatestTimestamp(params string?[] timestamps)
     {
-        if (string.IsNullOrWhiteSpace(second))
-            return first;
-        if (string.IsNullOrWhiteSpace(first))
-            return second;
+        var latest = "";
+        foreach (var timestamp in timestamps)
+        {
+            if (!string.IsNullOrWhiteSpace(timestamp) &&
+                (string.IsNullOrWhiteSpace(latest) || string.CompareOrdinal(timestamp, latest) > 0))
+            {
+                latest = timestamp;
+            }
+        }
 
-        return string.CompareOrdinal(second, first) > 0 ? second : first;
+        return latest;
     }
 
     private static EveSurfaceComponent Metric(string id, string label, string value)
