@@ -1052,6 +1052,9 @@ First Aetheria surfaces to publish:
      targeting, resource scanning, and zone capture now read `PlanetInstances`
      and `AsteroidBelts` runtime wrappers, with DTOs retained only as
      construction/capture payloads.
+   - Done: move `ZoneRenderer` body classification off `BodyData` subclasses;
+     zone rendering now walks runtime orbits and lowers `Planet`, `GasGiant`,
+     `Sun`, and `AsteroidBelt` wrappers directly.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
