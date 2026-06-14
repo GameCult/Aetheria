@@ -284,7 +284,7 @@ public class Ship : Entity
 
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
-            Velocity = normalize(Velocity) * AetheriaMath.Decay(velocityMagnitude, HullData.Drag, delta);
+            Velocity = normalize(Velocity) * AetheriaMath.Decay(velocityMagnitude, (float)(ItemManager.GetRuntimeItem(Hull)?.HullDrag ?? 0), delta);
 
         Position.xz += Velocity * delta;
 

@@ -64,6 +64,23 @@ public class ItemManager
         return itemId == Guid.Empty ? null : _itemProjections.GetRuntimeItem(itemId);
     }
 
+    public Shape GetRuntimeShape(ItemInstance item)
+    {
+        var typedItem = GetRuntimeItem(item);
+        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
+        if (cells == null) return shape;
+
+        foreach (var cell in cells)
+            shape[new int2(cell.X, cell.Y)] = true;
+
+        return shape;
+    }
+
     public RuntimeItemReference CreateReference(ItemData item)
     {
         return new RuntimeItemReference(item);

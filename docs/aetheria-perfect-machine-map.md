@@ -186,9 +186,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Entity.UnoccupiedSpace`, grid-offset placement, and `Entity.UpdateTemperature`
   also read typed hull shape/interior, hardpoints, base armor, mass, specific
   heat, and conductivity from runtime catalog rows. `EquippedItem` inset-shape
-  and behavior construction, docking bay max-size, ship drag, combat/turret
-  prediction, thruster behavior, and loadout generator helper predicates still
-  belong to legacy simulation projections until those owners are rebuilt.
+  and behavior construction, docking bay max-size, and loadout generator helper
+  predicates still belong to legacy simulation projections until those owners
+  are rebuilt. Ship drag, combat/turret shot prediction height, and thruster
+  torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
@@ -708,6 +709,8 @@ First Aetheria surfaces to publish:
      checked-in `.cc` catalog, and move `Entity.MapEntity`,
      `Entity.UnoccupiedSpace`, grid-offset placement, and
      `Entity.UpdateTemperature` onto typed runtime hull rows.
+   - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
+     torque geometry onto typed hull facets and typed shape masks.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

@@ -83,7 +83,7 @@ public class CombatState : BaseState
             var testWeapon = _agent.Ship.WeaponGroups[selectedGroup].weapons.First();
             if(testWeapon.Velocity > 1)
             {
-                var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
+                var targetHull = _agent.ItemManager.GetRuntimeItem(target.Hull);
                 var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
                 var shipVelocity = float3(_agent.Ship.Velocity.x, 0, _agent.Ship.Velocity.y);
                 var predictedPosition = AetheriaMath.FirstOrderIntercept(
@@ -93,7 +93,7 @@ public class CombatState : BaseState
                     target.Position,
                     targetVelocity
                 );
-                predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
+                predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + (float)(targetHull?.HullGridOffset ?? 0);
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
             

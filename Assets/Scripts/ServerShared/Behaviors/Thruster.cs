@@ -52,10 +52,10 @@ public class Thruster : Behavior, IAnalogBehavior
     public Thruster(ThrusterData data, EquippedItem item) : base(data, item)
     {
         _data = data;
-        var hullData = ItemManager.GetData(Entity.Hull) as HullData;
-        var hullCenter = hullData.Shape.CenterOfMass;
-        var itemData = ItemManager.GetData(item.EquippableItem);
-        var itemCenter = hullData.Shape.Inset(itemData.Shape, item.Position, item.EquippableItem.Rotation).CenterOfMass;
+        var hullShape = ItemManager.GetRuntimeShape(Entity.Hull);
+        var itemShape = ItemManager.GetRuntimeShape(item.EquippableItem);
+        var hullCenter = hullShape.CenterOfMass;
+        var itemCenter = hullShape.Inset(itemShape, item.Position, item.EquippableItem.Rotation).CenterOfMass;
         var toCenter = hullCenter - itemCenter;
         Torque = -dot(normalize(toCenter), float2(1, 0).Rotate(item.EquippableItem.Rotation));
         Thrust = Evaluate(_data.Thrust);

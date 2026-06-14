@@ -60,13 +60,13 @@ public class TurretController : Behavior, IInitializableBehavior
             var diff = Entity.Target.Value.Position - Entity.Position;
             if (_predictShots)
             {
-                var targetHullData = Entity.ItemManager.GetData(Entity.Target.Value.Hull) as HullData;
+                var targetHull = Entity.ItemManager.GetRuntimeItem(Entity.Target.Value.Hull);
                 var targetVelocity = float3(Entity.Target.Value.Velocity.x, 0, Entity.Target.Value.Velocity.y);
                 var predictedPosition = AetheriaMath.FirstOrderIntercept(
                     Entity.Position, float3.zero, _shotSpeed,
                     Entity.Target.Value.Position, targetVelocity
                 );
-                predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
+                predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + (float)(targetHull?.HullGridOffset ?? 0);
                 Entity.LookDirection = normalize(predictedPosition - Entity.Position);
             }
             else
