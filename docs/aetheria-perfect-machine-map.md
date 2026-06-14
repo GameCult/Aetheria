@@ -229,7 +229,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog rows. `EquippedItem` and `ConsumableItemEffect` now create behavior
   instances through `ItemManager.CreateRuntimeBehaviors`; the remaining
   `RuntimeBehaviorConfig` bridge is explicitly temporary and internal to
-  behavior construction. `StatModifier` requirement and stat-target lookup now inspects
+  behavior construction. Behavior config construction now switches on stable
+  typed behavior kind and uses an explicit per-kind payload mapper; layout
+  metadata no longer selects or mutates runtime behavior configs.
+  `StatModifier` requirement and stat-target lookup now inspects
   the live equipped behavior instances and asks package-owned typed behavior
   metadata for kind/family matching, not a freshly rebuilt config list or a
   behavior-local class taxonomy. The unused `TradeMenuDebug` script has been
@@ -607,8 +610,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
   item rows only. `ItemManager.CreateRuntimeBehaviors` owns the temporary
   projection from typed behavior payloads into `RuntimeBehaviorConfig` objects
-  required by the current behavior constructors. Direct config reads no longer
-  escape `ItemManager`;
+  required by the current behavior constructors. This projection is an explicit
+  typed behavior-kind switch with per-kind field mapping; it no longer reflects
+  over `LegacyPayloadKeyAttribute` to select or assign config fields. Direct
+  config reads no longer escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
   behavior metadata instead of rebuilding config DTOs for lookup.
   `ItemInstance.ItemId` is the runtime identity surface and
@@ -629,7 +634,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   docking-bay coverage checks instead of hardcoding migrated class-name strings.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
-  metadata. Item properties
+  metadata. That attribute is migration/layout metadata only; runtime behavior
+  construction does not use it as an authority. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation uses
   typed catalog rows for hull type, shape, category, hardpoint type, behavior
   kind prefilters, and selected-item instantiation. The old trade debug UI
@@ -1315,6 +1321,10 @@ First Aetheria surfaces to publish:
      `Behavior` instances expose `Config`, while typed behavior kind strings
      such as `Cockpit`, `TurretController`, and `Capacitor` remain stable
      catalog facts rather than class-name-derived selectors.
+   - Done: replace `ItemManager` behavior config reflection with an explicit
+     typed behavior-kind mapper. `LegacyPayloadKeyAttribute` remains
+     migration/layout metadata only and no longer selects or mutates runtime
+     behavior configs.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.

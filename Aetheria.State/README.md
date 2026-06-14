@@ -97,7 +97,9 @@ simulation APIs still accept DTO objects. The old `RuntimeCatalogEntry` and
 `RuntimeItemProjectionEntry` base names no longer appear in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 typed runtime projection still uses `LegacyPayloadKeyAttribute` only where the
-temporary mapper needs a deterministic field order.
+catalog importer and migration readers need deterministic field layout. Runtime
+behavior config construction uses an explicit typed behavior-kind mapper instead
+of reflecting over that metadata.
 Agent task DTOs no longer inherit the item projection base; they are local
 runtime AI work orders until a typed Verse task document exists.
 
@@ -129,7 +131,7 @@ behavior-private simulation state remain legacy until dedicated typed runtime
 documents exist. Live behavior instances expose typed behavior kind and group
 through `Behavior.Kind` and `Behavior.Group`; the remaining
 `RuntimeBehaviorConfig` objects are construction configs, not runtime identity
-owners.
+owners. `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy
