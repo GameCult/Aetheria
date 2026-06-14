@@ -399,6 +399,15 @@ public class PropertiesPanel : MonoBehaviour
 			: (float)typedItem.Mass;
 	}
 
+	private float GetMaxDurability(ItemInstance item)
+	{
+		var typedItem = FindTypedPropertyItem(item);
+		if (typedItem != null && typedItem.Durability > 0)
+			return (float)typedItem.Durability;
+
+		return GameManager.ItemManager.GetData(item).Durability;
+	}
+
 	private static AetheriaRuntimeCatalogItem FindTypedPropertyItem(ItemInstance item)
 	{
 		var itemId = item?.Data?.ItemId ?? Guid.Empty;
@@ -499,7 +508,7 @@ public class PropertiesPanel : MonoBehaviour
 		var statusSheet = AddStatSheet();
 		if (item.EquippableItem.Durability < .01f)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
-		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / gearData.Durability * 100)}%");
+		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / GetMaxDurability(item.EquippableItem) * 100)}%");
 		statusSheet.AddStat("Temperature", () => ActionGameManager.RuntimePlayerSettings.FormatTemperature(item.Temperature));
 		
 		var heatCurve = AddCurveField();
@@ -541,7 +550,7 @@ public class PropertiesPanel : MonoBehaviour
 			AddSpacer();
 			var gearData = GameManager.ItemManager.GetData(gear);
 			var statusSheet = AddStatSheet();
-			statusSheet.AddStat("Durability", () => $"{(int)(gear.Durability / gearData.Durability * 100)}%");
+			statusSheet.AddStat("Durability", () => $"{(int)(gear.Durability / GetMaxDurability(gear) * 100)}%");
 			var heatCurve = AddCurveField();
 			heatCurve.Show(
 				"Thermal Performance", 
