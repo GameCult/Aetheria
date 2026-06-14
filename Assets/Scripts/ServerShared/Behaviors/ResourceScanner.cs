@@ -71,11 +71,11 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         var planetData = Entity.Zone.Planets[ScanTarget];
         if (planetData != null)
         {
-            if (planetData is AsteroidBeltData beltData)
+            if (Entity.Zone.AsteroidBelts.TryGetValue(ScanTarget, out var belt))
             {
                 if(Asteroid > -1 &&
-                   Asteroid < beltData.Asteroids.Length &&
-                   length(Entity.Position.xz - Entity.Zone.AsteroidBelts[ScanTarget].Transforms[Asteroid].xy) < Range)
+                   belt.ContainsAsteroid(Asteroid) &&
+                   length(Entity.Position.xz - belt.Transforms[Asteroid].xy) < Range)
                 {
                     _scanTime += dt;
                     if (_scanTime > ScanDuration)

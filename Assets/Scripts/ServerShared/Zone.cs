@@ -196,13 +196,12 @@ public class Zone
 
     public int NearestAsteroid(Guid planetDataID, float2 position)
     {
-        var beltData = Planets[planetDataID] as AsteroidBeltData;
-
-        var asteroidPositions = AsteroidBelts[planetDataID].Transforms;
+        var belt = AsteroidBelts[planetDataID];
+        var asteroidPositions = belt.Transforms;
 
         int nearest = 0;
         float nearestDistance = Single.MaxValue;
-        for (int i = 0; i < beltData.Asteroids.Length; i++)
+        for (int i = 0; i < belt.AsteroidCount; i++)
         {
             var dist = lengthsq(asteroidPositions[i].xz - position);
             if (AsteroidExists(planetDataID, i) && dist < nearestDistance)
@@ -215,31 +214,30 @@ public class Zone
         return nearest;
     }
 
-    public bool AsteroidExists(Guid planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
+    public bool AsteroidExists(Guid planetDataID, int asteroid) => AsteroidBelts[planetDataID].ContainsAsteroid(asteroid);
 
     private void UpdateAsteroidTransforms(Guid planetDataID)
     {
-        var beltData = Planets[planetDataID] as AsteroidBeltData;
-        
         var belt = AsteroidBelts[planetDataID];
 
-        var orbit = Orbits[beltData.Orbit];
+        var orbit = Orbits[belt.Orbit];
         belt.NewOrbitPosition = GetOrbitPosition(orbit.Parent);
-        for (var i = 0; i < beltData.Asteroids.Length; i++)
+        for (var i = 0; i < belt.AsteroidCount; i++)
         {
+            var asteroid = belt.GetAsteroid(i);
             float size;
             if(belt.RespawnTimers.ContainsKey(i)) size = 0;
             else if (belt.Damage.ContainsKey(i))
             {
-                var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(beltData.Asteroids[i].Size);
+                var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(asteroid.Size);
                 var damage = (asteroidHitpoints - belt.Damage[i]) / asteroidHitpoints;
-                size = Settings.AsteroidSize.Evaluate(damage * beltData.Asteroids[i].Size);
+                size = Settings.AsteroidSize.Evaluate(damage * asteroid.Size);
             }
-            else size = Settings.AsteroidSize.Evaluate(beltData.Asteroids[i].Size);
+            else size = Settings.AsteroidSize.Evaluate(asteroid.Size);
 
-            var rot = (float) (_time * beltData.Asteroids[i].RotationSpeed % (PI * 2));
-            var pos = OrbitData.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(beltData.Asteroids[i].Distance) +
-                                                      beltData.Asteroids[i].Phase)) * beltData.Asteroids[i].Distance + belt.NewOrbitPosition;
+            var rot = (float) (_time * asteroid.RotationSpeed % (PI * 2));
+            var pos = OrbitData.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(asteroid.Distance) +
+                                                      asteroid.Phase)) * asteroid.Distance + belt.NewOrbitPosition;
             //belt.NewPositions[i] = float3(pos.x, GetHeight(pos) + Settings.AsteroidVerticalOffset, pos.y);
             belt.NewTransforms[i] = float4(pos.x, pos.y, rot, size);
         }
@@ -268,11 +266,10 @@ public class Zone
 
     public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
     {
-        var beltData = Planets[asteroidBelt] as AsteroidBeltData;
         var belt = AsteroidBelts[asteroidBelt];
         //var asteroidTransform = belt.Transforms[asteroid];
 
-        var size = beltData.Asteroids[asteroid].Size;
+        var size = belt.GetAsteroid(asteroid).Size;
         var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(size);
         
         if (!belt.Damage.ContainsKey(asteroid))
@@ -291,8 +288,8 @@ public class Zone
             return;
         }
 
-        var resourceCount = beltData.Resources.Sum(x => x.Value);
-        var resource = beltData.Resources.MaxBy(x => pow(x.Value, 1f / penetration) * _random.NextFloat());
+        var resourceCount = belt.Resources.Sum(x => x.Value);
+        var resource = belt.Resources.MaxBy(x => pow(x.Value, 1f / penetration) * _random.NextFloat());
         if (efficiency * _random.NextFloat() * belt.MiningAccumulator[(miner, asteroid)] * resourceCount / Settings.MiningDifficulty > 1)
         {
             belt.MiningAccumulator.Remove((miner, asteroid));
@@ -473,7 +470,11 @@ public class Sun : GasGiant
 
 public class AsteroidBelt
 {
-    public AsteroidBeltData Data;
+    private readonly AsteroidBeltData _data;
+    private readonly Asteroid[] _asteroids;
+    public Guid ID { get; }
+    public Guid Orbit { get; }
+    public IReadOnlyDictionary<Guid, float> Resources { get; }
     public float4[] Transforms; // x, y, rotation, scale
     public float4[] NewTransforms; // x, y, rotation, scale
     public float Radius { get; }
@@ -485,11 +486,23 @@ public class AsteroidBelt
 
     public AsteroidBelt(AsteroidBeltData data)
     {
-        Data = data;
-        Transforms = new float4[data.Asteroids.Length];
-        NewTransforms = new float4[data.Asteroids.Length];
-        Radius = data.Asteroids.Max(a => a.Distance);
+        _data = data;
+        _asteroids = data.Asteroids;
+        ID = data.ID;
+        Orbit = data.Orbit;
+        Resources = data.Resources;
+        Transforms = new float4[_asteroids.Length];
+        NewTransforms = new float4[_asteroids.Length];
+        Radius = _asteroids.Max(a => a.Distance);
     }
+
+    public int AsteroidCount => _asteroids.Length;
+
+    public bool ContainsAsteroid(int asteroid) => asteroid >= 0 && asteroid < _asteroids.Length;
+
+    public Asteroid GetAsteroid(int asteroid) => _asteroids[asteroid];
+
+    public AsteroidBeltData ToData() => _data;
 }
 
 public class Orbit
