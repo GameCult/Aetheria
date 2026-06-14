@@ -153,6 +153,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   They also carry public runtime session state: velocity, target entity
   reference, active flag, heatsink toggle, shutdown override, tractor power,
   heatstroke/hypothermia accumulators, aggregate visibility/source-count state,
+  contact rows for gathered information, hostility, and visible classification,
   and active consumable item/timer rows.
   Entity equipment, cargo-bay, and docking-bay slot rows preserve item-instance
   facts needed for restore: item key, quality, durability, and quantity. Those
@@ -850,6 +851,9 @@ First Aetheria surfaces to publish:
    - Done: preserve aggregate entity visibility and visibility-source count in
      typed entity snapshots, so `Entity.VisibilitySources` no longer hides
      untyped session pressure.
+   - Done: preserve entity contact rows for gathered info, hostility, and
+     visible classification, so detection/contact state is typed snapshot data
+     instead of only reactive runtime collections.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

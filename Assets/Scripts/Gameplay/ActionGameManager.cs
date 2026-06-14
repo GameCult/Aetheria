@@ -787,6 +787,7 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray() ?? Array.Empty<int>(),
             Visibility = entity.Visibility,
             VisibilitySourceCount = entity.VisibilitySources.Count,
+            Contacts = ProjectEntityContacts(zone, entity),
             ChildEntityIndices = entity.Children?
                 .Select(child => zone.Entities.IndexOf(child))
                 .Where(index => index >= 0)
@@ -800,6 +801,25 @@ public class ActionGameManager : MonoBehaviour
             WeaponStates = ProjectWeaponStates(zone, entity),
             BehaviorStates = ProjectBehaviorStates(entity)
         };
+    }
+
+    private static AetheriaRuntimeEntityContactCommit[] ProjectEntityContacts(Zone zone, Entity entity)
+    {
+        return entity.EntityInfoGathered
+            .Select(contact =>
+            {
+                var targetIndex = zone.Entities.IndexOf(contact.Key);
+                entity.EntityHostility.TryGetValue(contact.Key, out var hostile);
+                return new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = targetIndex,
+                    InfoGathered = contact.Value,
+                    Hostile = hostile,
+                    Visible = entity.VisibleEntities.Contains(contact.Key)
+                };
+            })
+            .Where(contact => contact.TargetEntityIndex >= 0)
+            .ToArray();
     }
 
     private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectRuntimeCargoBays<TBay>(IEnumerable<TBay> bays)

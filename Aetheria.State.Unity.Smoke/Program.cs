@@ -359,6 +359,16 @@ try
                             DockingBayAssignments = new[] { -1 },
                             Visibility = 12.75,
                             VisibilitySourceCount = 3,
+                            Contacts = new[]
+                            {
+                                new AetheriaRuntimeEntityContactCommit
+                                {
+                                    TargetEntityIndex = 0,
+                                    InfoGathered = 0.85,
+                                    Hostile = true,
+                                    Visible = true
+                                }
+                            },
                             WeaponGroups = new[] { new[] { 0 } },
                             ActiveConsumables = new[]
                             {
@@ -693,6 +703,11 @@ try
             entity.DockingBayAssignments[0] == -1 &&
             entity.Visibility == 12.75 &&
             entity.VisibilitySourceCount == 3 &&
+            entity.Contacts.Length == 1 &&
+            entity.Contacts[0].TargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
+            entity.Contacts[0].InfoGathered == 0.85 &&
+            entity.Contacts[0].Hostile &&
+            entity.Contacts[0].Visible &&
             entity.ActiveConsumables[0].ItemKey == "aetheria.item_definition:legacy:smoke:consumable" &&
             entity.ActiveConsumables[0].RemainingDuration == 3.0 &&
             entity.BehaviorProgress.Length == 2 &&
@@ -818,6 +833,11 @@ try
         packageEntities[0].DockingBayAssignments[0] != -1 ||
         packageEntities[0].Visibility != 12.75 ||
         packageEntities[0].VisibilitySourceCount != 3 ||
+        packageEntities[0].Contacts.Count != 1 ||
+        packageEntities[0].Contacts[0].TargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
+        packageEntities[0].Contacts[0].InfoGathered != 0.85 ||
+        !packageEntities[0].Contacts[0].Hostile ||
+        !packageEntities[0].Contacts[0].Visible ||
         packageEntities[0].ActiveConsumables[0].ItemKey != "aetheria.item_definition:legacy:smoke:consumable" ||
         packageEntities[0].BehaviorProgress.Count != 2 ||
         packageEntities[0].WeaponStates.Count != 4 ||

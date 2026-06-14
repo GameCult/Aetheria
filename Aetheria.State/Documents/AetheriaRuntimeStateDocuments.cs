@@ -509,6 +509,26 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(28)]
     public int VisibilitySourceCount { get; set; }
+
+    [Key(29)]
+    public AetheriaEntityContactSnapshot[] Contacts { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaEntityContactSnapshot
+{
+    [Key(0)]
+    [CultReference(typeof(AetheriaEntitySnapshot))]
+    public string TargetEntityKey { get; set; } = "";
+
+    [Key(1)]
+    public double InfoGathered { get; set; }
+
+    [Key(2)]
+    public bool Hostile { get; set; }
+
+    [Key(3)]
+    public bool Visible { get; set; }
 }
 
 [MessagePackObject]

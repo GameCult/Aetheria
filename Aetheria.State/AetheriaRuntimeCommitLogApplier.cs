@@ -460,8 +460,26 @@ public static class AetheriaRuntimeCommitLogApplier
             DockingBayContents = ToCargoBays(entity.DockingBayContents),
             DockingBayAssignments = ToIntArray(entity.DockingBayAssignments),
             Visibility = entity.Visibility,
-            VisibilitySourceCount = entity.VisibilitySourceCount
+            VisibilitySourceCount = entity.VisibilitySourceCount,
+            Contacts = ToEntityContacts(entity.Contacts, runId, zoneIndex)
         };
+    }
+
+    private static AetheriaEntityContactSnapshot[] ToEntityContacts(
+        IReadOnlyList<AetheriaRuntimeEntityContactCommit>? contacts,
+        string runId,
+        int zoneIndex)
+    {
+        return (contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            .Where(contact => contact.TargetEntityIndex >= 0)
+            .Select(contact => new AetheriaEntityContactSnapshot
+            {
+                TargetEntityKey = EntityKey(runId, zoneIndex, contact.TargetEntityIndex).ToString(),
+                InfoGathered = contact.InfoGathered,
+                Hostile = contact.Hostile,
+                Visible = contact.Visible
+            })
+            .ToArray();
     }
 
     private static AetheriaBehaviorStateSnapshot[] ToBehaviorStates(

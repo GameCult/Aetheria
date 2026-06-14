@@ -537,7 +537,8 @@ namespace GameCult.Aetheria.State.Unity
             var dockingBayAssignments = ReadFieldInt32Array(ref reader, fields, 26);
             var visibility = ReadFieldDouble(ref reader, fields, 27);
             var visibilitySourceCount = ReadFieldInt32(ref reader, fields, 28);
-            SkipRemaining(ref reader, fields, 29);
+            var contacts = ReadFieldEntityContacts(ref reader, fields, 29);
+            SkipRemaining(ref reader, fields, 30);
             return new AetheriaRuntimeEntitySnapshot(
                 name,
                 kind,
@@ -571,7 +572,27 @@ namespace GameCult.Aetheria.State.Unity
                 dockingBayContents,
                 dockingBayAssignments,
                 visibility,
-                visibilitySourceCount);
+                visibilitySourceCount,
+                contacts);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> ReadFieldEntityContacts(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeEntityContactSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var contacts = new AetheriaRuntimeEntityContactSnapshot[count];
+            for (var contact = 0; contact < count; contact++)
+            {
+                var contactFields = reader.ReadArrayHeader();
+                var targetEntityKey = ReadFieldString(ref reader, contactFields, 0);
+                var infoGathered = ReadFieldDouble(ref reader, contactFields, 1);
+                var hostile = ReadFieldBool(ref reader, contactFields, 2);
+                var visible = ReadFieldBool(ref reader, contactFields, 3);
+                SkipRemaining(ref reader, contactFields, 4);
+                contacts[contact] = new AetheriaRuntimeEntityContactSnapshot(targetEntityKey, infoGathered, hostile, visible);
+            }
+
+            return contacts;
         }
 
         private static Vector2Value ReadFieldVector2(ref MessagePackReader reader, int fields, int index)

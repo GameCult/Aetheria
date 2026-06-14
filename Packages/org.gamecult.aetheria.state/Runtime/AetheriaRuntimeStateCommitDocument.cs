@@ -585,6 +585,25 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(33)]
         public int VisibilitySourceCount { get; set; }
+
+        [Key(34)]
+        public IReadOnlyList<AetheriaRuntimeEntityContactCommit> Contacts { get; set; } = Array.Empty<AetheriaRuntimeEntityContactCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEntityContactCommit
+    {
+        [Key(0)]
+        public int TargetEntityIndex { get; set; } = -1;
+
+        [Key(1)]
+        public double InfoGathered { get; set; }
+
+        [Key(2)]
+        public bool Hostile { get; set; }
+
+        [Key(3)]
+        public bool Visible { get; set; }
     }
 
     [MessagePackObject]

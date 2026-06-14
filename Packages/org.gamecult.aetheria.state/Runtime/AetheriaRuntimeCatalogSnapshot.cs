@@ -788,7 +788,8 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> dockingBayContents,
             IReadOnlyList<int> dockingBayAssignments,
             double visibility,
-            int visibilitySourceCount)
+            int visibilitySourceCount,
+            IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> contacts)
         {
             Name = name;
             Kind = kind;
@@ -823,6 +824,7 @@ namespace GameCult.Aetheria.State.Unity
             DockingBayAssignments = dockingBayAssignments;
             Visibility = visibility;
             VisibilitySourceCount = visibilitySourceCount;
+            Contacts = contacts;
         }
 
         public string Name { get; }
@@ -858,6 +860,23 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<int> DockingBayAssignments { get; }
         public double Visibility { get; }
         public int VisibilitySourceCount { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> Contacts { get; }
+    }
+
+    public sealed class AetheriaRuntimeEntityContactSnapshot
+    {
+        public AetheriaRuntimeEntityContactSnapshot(string targetEntityKey, double infoGathered, bool hostile, bool visible)
+        {
+            TargetEntityKey = targetEntityKey;
+            InfoGathered = infoGathered;
+            Hostile = hostile;
+            Visible = visible;
+        }
+
+        public string TargetEntityKey { get; }
+        public double InfoGathered { get; }
+        public bool Hostile { get; }
+        public bool Visible { get; }
     }
 
     public sealed class AetheriaRuntimeActionBarBindingSnapshot
