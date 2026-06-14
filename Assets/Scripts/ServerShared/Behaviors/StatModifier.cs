@@ -67,20 +67,27 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                 if (typeof(EquippableItemData).IsAssignableFrom(targetType))
                     _stats = Entity.Equipment
                         .Select(hp => hp.EquippableItem)
-                        .Where(gear => _data.RequireBehavior == null || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType() == _data.RequireBehavior))
+                        .Where(HasRequiredBehavior)
                         .Where(gear => ItemManager.GetData(gear).GetType() == targetType)
                         .Select(gear => statField.GetValue(ItemManager.GetData(gear)) as PerformanceStat)
                         .ToArray();
                 else
                     _stats = Entity.Equipment
                         .Select(hp => hp.EquippableItem)
-                        .Where(gear => _data.RequireBehavior == null || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType() == _data.RequireBehavior))
-                        .SelectMany(gear => ItemManager.GetData(gear).Behaviors)
+                        .Where(HasRequiredBehavior)
+                        .SelectMany(gear => ItemManager.GetRuntimeBehaviorProjections(gear))
                         .Where(behaviorData => behaviorData.GetType() == targetType)
                         .Select(behaviorData => statField.GetValue(behaviorData) as PerformanceStat)
                         .ToArray();
             }
         }
+    }
+
+    private bool HasRequiredBehavior(EquippableItem gear)
+    {
+        return _data.RequireBehavior == null ||
+               ItemManager.GetRuntimeBehaviorProjections(gear)
+                   .Any(behavior => behavior.GetType() == _data.RequireBehavior);
     }
 
     private void ApplyModifier()
