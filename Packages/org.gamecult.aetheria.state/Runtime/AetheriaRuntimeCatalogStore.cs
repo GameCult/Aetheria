@@ -199,7 +199,9 @@ namespace GameCult.Aetheria.State.Unity
             var maximumTemperature = ReadFieldDouble(ref reader, fields, 33);
             var thermalPerformanceCurveKeys = ReadFieldCurveKeys(ref reader, fields, 34);
             var hullPrefab = ReadFieldString(ref reader, fields, 35);
-            SkipRemaining(ref reader, fields, 36);
+            var simpleCommodityCategory = ReadFieldString(ref reader, fields, 36);
+            var compoundCommodityCategory = ReadFieldString(ref reader, fields, 37);
+            SkipRemaining(ref reader, fields, 38);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -233,7 +235,9 @@ namespace GameCult.Aetheria.State.Unity
                 minimumTemperature,
                 maximumTemperature,
                 thermalPerformanceCurveKeys,
-                hullPrefab);
+                hullPrefab,
+                simpleCommodityCategory,
+                compoundCommodityCategory);
         }
 
         private static AetheriaRuntimeCorporation ReadCorporation(byte[] payload)

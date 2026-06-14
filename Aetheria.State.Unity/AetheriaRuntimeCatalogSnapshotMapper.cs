@@ -47,7 +47,9 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.MinimumTemperature,
             item.MaximumTemperature,
             item.ThermalPerformanceCurveKeys.Select(FromState).ToArray(),
-            item.HullPrefab);
+            item.HullPrefab,
+            item.SimpleCommodityCategory,
+            item.CompoundCommodityCategory);
     }
 
     private static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)

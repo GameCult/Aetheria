@@ -198,26 +198,22 @@ public class TradeMenu : MonoBehaviour
             columns.Add(("Type", 2,
                 x => () =>
                 {
-                    if (x.TypedItem != null && x.TypedItem.Category == "SimpleCommodityData" && x.LegacyData is SimpleCommodityData s)
-                        return Enum.GetName(typeof(SimpleCommodityCategory), s.Category);
-                    if (x.TypedItem != null && x.TypedItem.Category == "CompoundCommodityData" && x.LegacyData is CompoundCommodityData c)
-                        return Enum.GetName(typeof(CompoundCommodityCategory), c.Category);
+                    if (x.TryGetTypedSimpleCommodityCategory(out _))
+                        return x.TypedItem.SimpleCommodityCategory;
+                    if (x.TryGetTypedCompoundCommodityCategory(out _))
+                        return x.TypedItem.CompoundCommodityCategory;
                     if (x.TryGetTypedHardpoint(out var hardpointType)) return Enum.GetName(typeof(HardpointType), hardpointType);
-                    if (x.TypedItem == null && x.LegacyData is SimpleCommodityData legacySimple) return Enum.GetName(typeof(SimpleCommodityCategory), legacySimple.Category);
-                    if(x.TypedItem == null && x.LegacyData is CompoundCommodityData legacyCompound) return Enum.GetName(typeof(CompoundCommodityCategory), legacyCompound.Category);
                     return "None";
                 },
                 x =>
                 {
-                    if (x.TypedItem != null && x.TypedItem.Category == "SimpleCommodityData" && x.LegacyData is SimpleCommodityData s)
-                        return (int) s.Category;
+                    if (x.TryGetTypedSimpleCommodityCategory(out var simpleCategory))
+                        return (int)simpleCategory;
                     var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
-                    if(x.TypedItem != null && x.TypedItem.Category == "CompoundCommodityData" && x.LegacyData is CompoundCommodityData c)
-                        return (int) c.Category + offset;
+                    if(x.TryGetTypedCompoundCommodityCategory(out var compoundCategory))
+                        return (int)compoundCategory + offset;
                     offset += Enum.GetValues(typeof(CompoundCommodityCategory)).Length;
                     if (x.TryGetTypedHardpoint(out var hardpointType)) return (int) hardpointType + offset;
-                    if (x.TypedItem == null && x.LegacyData is SimpleCommodityData legacySimple) return (int) legacySimple.Category;
-                    if(x.TypedItem == null && x.LegacyData is CompoundCommodityData legacyCompound) return (int) legacyCompound.Category + Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
                     return 0;
                 }));
         columns.Add(("Mass", 1,
@@ -245,10 +241,10 @@ public class TradeMenu : MonoBehaviour
                  MaximumSizeFilter.Height.text.Length > 0 && i.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)));
         
         if(_commodityFilter.filter != null)
-            items = items.Where(i => i.LegacyData is SimpleCommodityData s && s.Category == _commodityFilter.type);
+            items = items.Where(i => i.TryGetTypedSimpleCommodityCategory(out var category) && category == _commodityFilter.type);
         
         if(_compoundCommodityFilter.filter != null)
-            items = items.Where(i => i.LegacyData is CompoundCommodityData c && c.Category == _compoundCommodityFilter.type);
+            items = items.Where(i => i.TryGetTypedCompoundCommodityCategory(out var category) && category == _compoundCommodityFilter.type);
         
         if (_hardpointFilter.filter != null)
             items = items.Where(i => i.TryGetTypedHardpoint(out var hardpointType) && hardpointType == _hardpointFilter.type);
@@ -428,11 +424,11 @@ public class TradeMenu : MonoBehaviour
 
         public EquippableItemData LegacyEquippableData => LegacyData as EquippableItemData;
 
-        public Guid LegacyId => Item?.Data?.ItemId ?? LegacyData.ID;
+        public Guid LegacyId => Item?.Data?.ItemId ?? Guid.Empty;
 
-        public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : LegacyData.Name;
+        public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : "Unknown Item";
 
-        public float Mass => TypedItem != null ? (float)TypedItem.Mass : LegacyData.Mass;
+        public float Mass => TypedItem != null ? (float)TypedItem.Mass : 0f;
 
         public int Price
         {
@@ -441,15 +437,29 @@ public class TradeMenu : MonoBehaviour
                 if (Item is CraftedItemInstance craftedItemInstance)
                     return _itemManager.GetPrice(craftedItemInstance);
 
-                return TypedItem != null ? TypedItem.Price : LegacyData.Price;
+                return TypedItem != null ? TypedItem.Price : 0;
             }
         }
 
-        public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : LegacyData.Shape.Width;
+        public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : 0;
 
-        public int ShapeHeight => TypedItem != null && TypedItem.ShapeHeight > 0 ? TypedItem.ShapeHeight : LegacyData.Shape.Height;
+        public int ShapeHeight => TypedItem != null && TypedItem.ShapeHeight > 0 ? TypedItem.ShapeHeight : 0;
 
-        public bool IsHull => TypedItem != null ? !string.IsNullOrWhiteSpace(TypedItem.HullType) : LegacyData is HullData;
+        public bool IsHull => !string.IsNullOrWhiteSpace(TypedItem?.HullType);
+
+        public bool TryGetTypedSimpleCommodityCategory(out SimpleCommodityCategory category)
+        {
+            category = SimpleCommodityCategory.Minerals;
+            return !string.IsNullOrWhiteSpace(TypedItem?.SimpleCommodityCategory) &&
+                   Enum.TryParse(TypedItem.SimpleCommodityCategory, true, out category);
+        }
+
+        public bool TryGetTypedCompoundCommodityCategory(out CompoundCommodityCategory category)
+        {
+            category = CompoundCommodityCategory.Wearables;
+            return !string.IsNullOrWhiteSpace(TypedItem?.CompoundCommodityCategory) &&
+                   Enum.TryParse(TypedItem.CompoundCommodityCategory, true, out category);
+        }
 
         public bool TryGetTypedHardpoint(out HardpointType hardpointType)
         {

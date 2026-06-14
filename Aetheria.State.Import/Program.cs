@@ -233,6 +233,23 @@ internal static class LegacyCatalogReader
         "Clockwise"
     ]);
     private static readonly Dictionary<int, string> HullTypes = CreateEnumMap(["Ship", "Station", "Turret"]);
+    private static readonly Dictionary<int, string> SimpleCommodityCategories = CreateEnumMap([
+        "Minerals",
+        "Metals",
+        "Alloys",
+        "Compounds",
+        "Organics",
+        "Ammo",
+        "Consumer"
+    ]);
+    private static readonly Dictionary<int, string> CompoundCommodityCategories = CreateEnumMap([
+        "Wearables",
+        "Consumables",
+        "Luxuries",
+        "Tools",
+        "Manufacturing",
+        "Assemblies"
+    ]);
     private static readonly Dictionary<int, string> WeaponRanges = CreateEnumMap(["Melee", "Short", "Medium", "Long"]);
     private static readonly Dictionary<int, string> WeaponCalibers = CreateEnumMap(["Small", "Medium", "Large", "ExtraLarge"]);
     private static readonly Dictionary<int, string> WeaponTypes = CreateEnumMap([
@@ -395,6 +412,8 @@ internal static class LegacyCatalogReader
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
                     HullPrefab = unionKey == 3 ? GetString(payload, 24) : "",
+                    SimpleCommodityCategory = unionKey == 0 ? GetEnumName(payload, 10, SimpleCommodityCategories) : "",
+                    CompoundCommodityCategory = unionKey == 1 ? GetEnumName(payload, 11, CompoundCommodityCategories) : "",
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
                     WeaponCaliber = unionKey == 31 ? GetEnumName(payload, 25, WeaponCalibers) : "",
                     WeaponType = unionKey == 31 ? GetEnumName(payload, 26, WeaponTypes) : "",

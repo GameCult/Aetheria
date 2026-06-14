@@ -120,6 +120,12 @@ public sealed class AetheriaItemDefinition
 
     [Key(35)]
     public string HullPrefab { get; set; } = "";
+
+    [Key(36)]
+    public string SimpleCommodityCategory { get; set; } = "";
+
+    [Key(37)]
+    public string CompoundCommodityCategory { get; set; } = "";
 }
 
 [MessagePackObject]

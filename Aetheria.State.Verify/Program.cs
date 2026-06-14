@@ -63,6 +63,8 @@ var behaviorLegacyRefCount = items
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
 var hullPrefabItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullPrefab));
+var simpleCommodityCategoryItems = items.Count(item => !string.IsNullOrWhiteSpace(item.SimpleCommodityCategory));
+var compoundCommodityCategoryItems = items.Count(item => !string.IsNullOrWhiteSpace(item.CompoundCommodityCategory));
 var weaponItems = items.Count(item =>
     !string.IsNullOrWhiteSpace(item.WeaponType) &&
     !string.IsNullOrWhiteSpace(item.WeaponRange) &&
@@ -234,6 +236,16 @@ if (hullPrefabItems != hullItems)
     throw new InvalidOperationException($"Typed hull prefab import mismatch: hulls={hullItems}, prefabs={hullPrefabItems}.");
 }
 
+if (simpleCommodityCategoryItems == 0)
+{
+    throw new InvalidOperationException("Typed simple commodity category import produced no categories.");
+}
+
+if (compoundCommodityCategoryItems == 0)
+{
+    throw new InvalidOperationException("Typed compound commodity category import produced no categories.");
+}
+
 if (weaponItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any weapon facets.");
@@ -340,6 +352,7 @@ Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeIte
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Hull prefab items: {hullPrefabItems}");
+Console.WriteLine($"Simple/compound commodity category items: {simpleCommodityCategoryItems}/{compoundCommodityCategoryItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");

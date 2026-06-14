@@ -154,10 +154,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
   wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
-  hull ownership, and behavior-kind filters read typed catalog rows before any
-  legacy projection is hydrated. Legacy `ItemData` hydration is lazy and bounded
-  to commodity subtype filters/type labels, behavior reflection columns, missing
-  typed-row fallback, and buy actions. The sector properties UI also resolves
+  commodity subtype, hull ownership, and behavior-kind filters read typed
+  catalog rows before any legacy projection is hydrated. Legacy `ItemData`
+  hydration is lazy and bounded to behavior reflection columns and buy actions.
+  The sector properties UI also resolves
   station/turret/ship counts only through typed hull classifications from the runtime catalog;
   missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
@@ -638,10 +638,9 @@ First Aetheria surfaces to publish:
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto
      typed catalog row prefilters before row-level `ItemData` hydration.
    - Done: move trade menu row presentation for name, mass, price, size,
-     hardpoint type, hull-owned counts, and behavior-kind filtering onto typed
-     `TradeRow` fields; legacy `ItemData` hydration is lazy and bounded to
-     commodity subtype detail, behavior reflection columns, missing typed rows,
-     and buy mechanics.
+     hardpoint type, commodity subtype, hull-owned counts, and behavior-kind
+     filtering onto typed `TradeRow` fields; legacy `ItemData` hydration is
+     lazy and bounded to behavior reflection columns and buy mechanics.
    - Done: move action-bar consumable drop binding onto typed catalog rows;
      legacy `ConsumableItemData` resolution is lazy and bounded to activation
      and active-duration fill until typed consumable effect execution exists.

@@ -123,7 +123,9 @@ namespace GameCult.Aetheria.State.Unity
             double minimumTemperature,
             double maximumTemperature,
             IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys,
-            string hullPrefab)
+            string hullPrefab,
+            string simpleCommodityCategory,
+            string compoundCommodityCategory)
         {
             LegacyId = legacyId;
             Name = name;
@@ -157,6 +159,8 @@ namespace GameCult.Aetheria.State.Unity
             MaximumTemperature = maximumTemperature;
             ThermalPerformanceCurveKeys = thermalPerformanceCurveKeys;
             HullPrefab = hullPrefab;
+            SimpleCommodityCategory = simpleCommodityCategory;
+            CompoundCommodityCategory = compoundCommodityCategory;
         }
 
         public string LegacyId { get; }
@@ -191,6 +195,8 @@ namespace GameCult.Aetheria.State.Unity
         public double MaximumTemperature { get; }
         public IReadOnlyList<AetheriaRuntimeCurveKey> ThermalPerformanceCurveKeys { get; }
         public string HullPrefab { get; }
+        public string SimpleCommodityCategory { get; }
+        public string CompoundCommodityCategory { get; }
     }
 
     public sealed class AetheriaRuntimeCurveKey
