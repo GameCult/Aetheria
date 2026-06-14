@@ -106,6 +106,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
             return null;
         }
 
+        behavior.Kind = payload.Kind;
         behavior.Group = payload.Group;
 
         foreach (var field in GetKeyedFields(behaviorType))

@@ -136,6 +136,8 @@ public interface IPopulationAssignment
 [Inspectable]
 public abstract class BehaviorData
 {
+    public string Kind { get; set; } = "";
+
     [Inspectable, LegacyPayloadKey(0)]
     public int Group;
 

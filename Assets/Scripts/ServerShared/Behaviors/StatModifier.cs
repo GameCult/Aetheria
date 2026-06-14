@@ -17,7 +17,7 @@ public class StatModifierData : BehaviorData
     public StatModifierType Type;
 
     [InspectableType(typeof(BehaviorData)), LegacyPayloadKey(4)]
-    public Type RequireBehavior;
+    public string RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -37,12 +37,8 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private PerformanceStat[] _stats;
 
-    private static Type[] _statObjects;
-
     private bool _applied;
     private bool _executed;
-
-    private static Type[] StatObjects => _statObjects = _statObjects ?? typeof(BehaviorData).GetAllChildClasses().ToArray();
 
     public StatModifier(StatModifierData data, EquippedItem item) : base(data, item)
     {
@@ -56,29 +52,49 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     public void Initialize()
     {
-        var targetType = StatObjects.FirstOrDefault(so => so.Name == _data.Stat.Target);
-        if (targetType != null)
+        _stats = Entity.Equipment
+            .Select(hp => hp.EquippableItem)
+            .Where(HasRequiredBehavior)
+            .SelectMany(gear => ItemManager.GetRuntimeBehaviorConfigs(gear))
+            .Where(behavior => BehaviorKindMatches(behavior.Kind, _data.Stat.Target))
+            .Select(FindTargetStat)
+            .Where(stat => stat != null)
+            .ToArray();
+    }
+
+    private PerformanceStat FindTargetStat(BehaviorData behavior)
+    {
+        var statField = behavior
+            .GetType()
+            .GetFields()
+            .Where(f => f.FieldType == typeof(PerformanceStat))
+            .FirstOrDefault(f => f.Name == _data.Stat.Stat);
+
+        return statField?.GetValue(behavior) as PerformanceStat;
+    }
+
+    private static bool BehaviorKindMatches(string runtimeKind, string expectedKind)
+    {
+        if (string.IsNullOrWhiteSpace(expectedKind))
         {
-            var statField = targetType.GetFields()
-                .Where(f => f.FieldType == typeof(PerformanceStat)).FirstOrDefault(f => f.Name == _data.Stat.Stat);
-            if (statField != null)
-            {
-                _stats = Entity.Equipment
-                    .Select(hp => hp.EquippableItem)
-                    .Where(HasRequiredBehavior)
-                    .SelectMany(gear => ItemManager.GetRuntimeBehaviorConfigs(gear))
-                    .Where(behaviorData => behaviorData.GetType() == targetType)
-                    .Select(behaviorData => statField.GetValue(behaviorData) as PerformanceStat)
-                    .ToArray();
-            }
+            return false;
         }
+
+        if (string.Equals(runtimeKind, expectedKind, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        const string legacyDataSuffix = "Data";
+        return expectedKind.EndsWith(legacyDataSuffix, StringComparison.Ordinal) &&
+               string.Equals(runtimeKind, expectedKind.Substring(0, expectedKind.Length - legacyDataSuffix.Length), StringComparison.Ordinal);
     }
 
     private bool HasRequiredBehavior(EquippableItem gear)
     {
-        return _data.RequireBehavior == null ||
+        return string.IsNullOrWhiteSpace(_data.RequireBehavior) ||
                ItemManager.GetRuntimeBehaviorConfigs(gear)
-                   .Any(behavior => behavior.GetType() == _data.RequireBehavior);
+                   .Any(behavior => BehaviorKindMatches(behavior.Kind, _data.RequireBehavior));
     }
 
     private void ApplyModifier()

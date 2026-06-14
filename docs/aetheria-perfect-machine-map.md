@@ -211,9 +211,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   through the runtime behavior config bridge before instantiating the
   current `BehaviorData`-backed behavior classes. `BehaviorData` remains the
   temporary behavior-class config bridge, not the runtime behavior payload
-  owner. `StatModifier` behavior requirements and behavior-stat targets also
-  read that typed behavior config bridge instead of hydrating
-  `EquippableItemData.Behaviors`. `ConsumableItemData` and
+  owner; bridge instances carry the typed behavior payload kind so runtime
+  logic does not have to reselect behavior identity from the old class graph.
+  `StatModifier` behavior requirements and behavior-stat targets compare typed
+  behavior kinds from that bridge instead of scanning `BehaviorData` subclasses
+  or hydrating `EquippableItemData.Behaviors`. `ConsumableItemData` and
   `EquippableItemData` no longer expose legacy `Behaviors` lists at all. The
   old item-DTO stat branch was deleted after inspection showed no active
   `PerformanceStat` fields on the live equippable item DTO hierarchy.
@@ -792,9 +794,11 @@ First Aetheria surfaces to publish:
      keys to typed behavior payload kind strings; union keys remain migration
      provenance only for this runtime path.
    - Done: move `StatModifier` behavior requirements and behavior-stat targets
-     off `EquippableItemData.Behaviors` and onto typed runtime behavior config;
-     the obsolete item-DTO stat target branch is deleted because the live
-     equippable item DTO hierarchy has no active `PerformanceStat` fields.
+     off `EquippableItemData.Behaviors` and old `BehaviorData` subclass
+     identity checks. Temporary behavior configs carry typed payload kinds, and
+     `StatModifier` matches those kind strings for target and requirement
+     selection. The obsolete item-DTO stat target branch is deleted because the
+     live equippable item DTO hierarchy has no active `PerformanceStat` fields.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
