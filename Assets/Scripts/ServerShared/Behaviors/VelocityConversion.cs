@@ -4,11 +4,9 @@
 
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-
-[RuntimeInspectable]
 public class VelocityConversionData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Lambda = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

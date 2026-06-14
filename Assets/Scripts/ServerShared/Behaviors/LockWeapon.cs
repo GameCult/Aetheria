@@ -4,16 +4,16 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class LockWeaponData : InstantWeaponData
 {
-    [Inspectable, LegacyPayloadKey(21), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(21)]
     public PerformanceStat LockSpeed = new PerformanceStat();
 
     [Inspectable, LegacyPayloadKey(22)]
     public PerformanceStat SensorImpact = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(23), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(23)]
     public PerformanceStat LockAngle = new PerformanceStat();
 
     [Inspectable, LegacyPayloadKey(24)]

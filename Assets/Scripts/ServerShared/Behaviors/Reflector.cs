@@ -5,10 +5,10 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class ReflectorData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat CrossSection = new PerformanceStat();
 
     // [InspectableAnimationCurve, LegacyPayloadKey(1)]

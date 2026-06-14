@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, Order(1000), RuntimeInspectable]
+[Inspectable, Order(1000)]
 public class WearData : BehaviorData
 {
     [InspectableTemperature, LegacyPayloadKey(1)]

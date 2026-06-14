@@ -7,16 +7,16 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class ResourceScannerData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2)]
     public PerformanceStat MinimumDensity = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(3), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(3)]
     public PerformanceStat ScanDuration = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

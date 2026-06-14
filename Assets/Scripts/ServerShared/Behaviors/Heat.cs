@@ -7,7 +7,7 @@ using System.Linq;
 [Inspectable, Order(10)]
 public class HeatData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Heat = new PerformanceStat();
 
     [Inspectable, LegacyPayloadKey(2)]

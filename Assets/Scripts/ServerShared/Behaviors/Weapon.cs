@@ -8,16 +8,16 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public abstract class WeaponData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public DamageType DamageType;
 
-    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2)]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), LegacyPayloadKey(3), RuntimeInspectable]
+    [InspectableRangedFloat(0,1), LegacyPayloadKey(3)]
     public PerformanceStat Penetration = new PerformanceStat();
 
     [InspectableRangedFloat(0,1), LegacyPayloadKey(4)]
@@ -35,16 +35,16 @@ public abstract class WeaponData : BehaviorData
     [InspectablePrefab, LegacyPayloadKey(8)]
     public string EffectPrefab;
 
-    [InspectablePrefab, LegacyPayloadKey(9), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(9)]
     public PerformanceStat Energy = new PerformanceStat();
 
-    [InspectablePrefab, LegacyPayloadKey(10), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(10)]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [InspectablePrefab, LegacyPayloadKey(11), RuntimeInspectable]
+    [InspectablePrefab, LegacyPayloadKey(11)]
     public PerformanceStat Visibility = new PerformanceStat();
 
-    [LegacyPayloadKey(12), RuntimeInspectable]
+    [LegacyPayloadKey(12)]
     public Guid AmmoType;
 
     [InspectablePrefab, LegacyPayloadKey(13)]

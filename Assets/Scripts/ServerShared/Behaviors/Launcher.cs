@@ -22,7 +22,7 @@ public class LauncherData : LockWeaponData
     [Inspectable, LegacyPayloadKey(30)]
     public float DodgeFrequency;
 
-    [Inspectable, LegacyPayloadKey(31), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(31)]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -49,7 +49,7 @@ public class GuidedWeaponData : InstantWeaponData
     [Inspectable, LegacyPayloadKey(25)]
     public float DodgeFrequency;
 
-    [Inspectable, LegacyPayloadKey(26), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(26)]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

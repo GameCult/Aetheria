@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class InstantWeaponData : WeaponData
 {
     [Inspectable, LegacyPayloadKey(17)]
@@ -13,7 +13,7 @@ public class InstantWeaponData : WeaponData
     [Inspectable, LegacyPayloadKey(18)]
     public PerformanceStat BurstTime = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(19), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(19)]
     public PerformanceStat Cooldown = new PerformanceStat();
 
     [InspectablePrefab, LegacyPayloadKey(20)]

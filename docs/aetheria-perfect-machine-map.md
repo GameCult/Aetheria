@@ -169,7 +169,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   filters store typed behavior kind keys and match typed behavior payloads
   through package-owned typed behavior metadata, including parent-kind matching
   for behavior families. PropertiesPanel and TradeMenu display metadata are now
-  package-owned typed behavior metadata.
+  package-owned typed behavior metadata. The obsolete `RuntimeInspectable`
+  attribute has been deleted from behavior classes and fields.
   Dynamic behavior columns read typed behavior payload fields by legacy payload key
   instead of hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
   ship-hull classification, simple commodity base price, and simple commodity
@@ -775,6 +776,8 @@ First Aetheria surfaces to publish:
    - Done: move TradeMenu behavior filter options, behavior family matching,
      and dynamic behavior columns off `BehaviorData` reflection and onto
      package-owned typed behavior metadata.
+   - Done: delete the dead `RuntimeInspectable` attribute and annotations after
+     the UI behavior metadata owner moved into the typed runtime package.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.

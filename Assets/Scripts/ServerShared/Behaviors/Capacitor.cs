@@ -6,13 +6,13 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class CapacitorData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Capacity = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(2)]
     public PerformanceStat Efficiency = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

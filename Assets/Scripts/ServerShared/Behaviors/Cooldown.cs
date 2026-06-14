@@ -7,10 +7,10 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, Order(-10), RuntimeInspectable]
+[Inspectable, Order(-10)]
 public class CooldownData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Cooldown = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

@@ -8,8 +8,6 @@ using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float3 = Unity.Mathematics.float3;
-
-[RuntimeInspectable]
 public class TurretControllerData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

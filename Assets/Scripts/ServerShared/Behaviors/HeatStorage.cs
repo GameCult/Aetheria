@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class HeatStorageData : BehaviorData
 {
     public override Behavior CreateInstance(EquippedItem item)

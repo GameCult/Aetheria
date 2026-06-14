@@ -4,10 +4,10 @@
 
 using System;
 using System.Linq;
-[Inspectable, Order(-20), RuntimeInspectable]
+[Inspectable, Order(-20)]
 public class EnergyDrawData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat EnergyDraw = new PerformanceStat();
 
     [Inspectable, LegacyPayloadKey(2)]

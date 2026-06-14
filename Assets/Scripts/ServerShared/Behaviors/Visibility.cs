@@ -4,10 +4,10 @@
 
 using System;
 using System.Linq;
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class VisibilityData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(1), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Visibility = new PerformanceStat();
 
     [Inspectable, LegacyPayloadKey(2)]

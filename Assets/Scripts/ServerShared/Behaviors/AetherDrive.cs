@@ -5,7 +5,7 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
+[Inspectable, EntityTypeRestriction(HullType.Ship)]
 public class AetherDriveData : BehaviorData
 {
     [Inspectable, LegacyPayloadKey(1)]
@@ -14,7 +14,7 @@ public class AetherDriveData : BehaviorData
     [Inspectable, LegacyPayloadKey(2)]
     public float3 RotorMass;
 
-    [Inspectable, LegacyPayloadKey(3), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(3)]
     public PerformanceStat MaximumRpm;
 
     [Inspectable, LegacyPayloadKey(4)]
@@ -23,25 +23,25 @@ public class AetherDriveData : BehaviorData
     [Inspectable, LegacyPayloadKey(5)]
     public PerformanceStat LambdaMultiplier;
 
-    [Inspectable, LegacyPayloadKey(6), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(6)]
     public PerformanceStat CouplingEfficiency;
 
-    [Inspectable, LegacyPayloadKey(7), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(7)]
     public PerformanceStat Torque;
 
-    [Inspectable, LegacyPayloadKey(8), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(8)]
     public BezierCurve TorqueProfile;
 
-    [Inspectable, LegacyPayloadKey(9), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(9)]
     public PerformanceStat EnergyDraw;
 
-    [Inspectable, LegacyPayloadKey(10), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(10)]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, LegacyPayloadKey(11), RuntimeInspectable]
+    [InspectableAudioParameter, LegacyPayloadKey(11)]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, LegacyPayloadKey(12), RuntimeInspectable]
+    [InspectableAudioParameter, LegacyPayloadKey(12)]
     public uint TorqueRatioAudioParameter;
 
     [InspectablePrefab, LegacyPayloadKey(13)]

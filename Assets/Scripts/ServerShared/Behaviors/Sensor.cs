@@ -7,28 +7,28 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, RuntimeInspectable]
+[Inspectable]
 public class SensorData : BehaviorData
 {
-    [Inspectable, LegacyPayloadKey(3), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(3)]
     public PerformanceStat Sensitivity = new PerformanceStat();
 
-    [InspectableAnimationCurve, LegacyPayloadKey(4), RuntimeInspectable]
+    [InspectableAnimationCurve, LegacyPayloadKey(4)]
     public BezierCurve SensitivityCurve;
 
-    [Inspectable, LegacyPayloadKey(5), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(5)]
     public PerformanceStat PingBoost;
 
-    [Inspectable, LegacyPayloadKey(6), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(6)]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, LegacyPayloadKey(7), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(7)]
     public PerformanceStat PingVisibility;
 
-    [Inspectable, LegacyPayloadKey(8), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(8)]
     public PerformanceStat PingRange;
 
-    [Inspectable, LegacyPayloadKey(9), RuntimeInspectable]
+    [Inspectable, LegacyPayloadKey(9)]
     public PerformanceStat PingCooldown;
 
     [Inspectable, LegacyPayloadKey(10)]

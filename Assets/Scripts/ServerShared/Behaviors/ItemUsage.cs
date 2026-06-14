@@ -4,10 +4,10 @@
 
 using System;
 using System.Linq;
-[Inspectable, Order(-5), RuntimeInspectable]
+[Inspectable, Order(-5)]
 public class ItemUsageData : BehaviorData
 {
-    [LegacyPayloadKey(1), RuntimeInspectable]
+    [LegacyPayloadKey(1)]
     public Guid Item;
 
     public override Behavior CreateInstance(EquippedItem item)
