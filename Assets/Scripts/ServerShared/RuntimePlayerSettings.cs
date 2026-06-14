@@ -63,6 +63,35 @@ public class RuntimePlayerInputSettings
 {
     public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
     public List<string> ActionBarInputs = new List<string>();
+
+    public void SetBindingOverride(string action, int binding, string inputSystemPath)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+            throw new ArgumentException("Action name is required.", nameof(action));
+        if (binding < 0)
+            throw new ArgumentOutOfRangeException(nameof(binding));
+        if (string.IsNullOrWhiteSpace(inputSystemPath))
+            throw new ArgumentException("Input path is required.", nameof(inputSystemPath));
+
+        InputActionMap[(action, binding)] = inputSystemPath;
+    }
+
+    public void SetActionBarInputEnabled(string inputSystemPath, bool enabled)
+    {
+        if (string.IsNullOrWhiteSpace(inputSystemPath))
+            throw new ArgumentException("Input path is required.", nameof(inputSystemPath));
+
+        var index = ActionBarInputs.IndexOf(inputSystemPath);
+        if (enabled)
+        {
+            if (index < 0)
+                ActionBarInputs.Add(inputSystemPath);
+        }
+        else if (index >= 0)
+        {
+            ActionBarInputs.RemoveAt(index);
+        }
+    }
 }
 
 public enum Quality

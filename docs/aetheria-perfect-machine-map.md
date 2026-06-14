@@ -72,12 +72,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
   input screens mutate `RuntimePlayerSettings` in memory and queue typed Verse
-  commits through the shared player-settings commit primitive; the in-memory
+  commits through shared player-settings commit primitives; the in-memory
   projection is not portable state authority. Aetheria has its own remapping UI
   that calls Unity's InputSystem at the binding/action layer; Unity's generated
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
-  the durable owner. Binding drag/drop and action-bar remapping both queue the
-  same typed player-settings commit after mutating the runtime projection. The
+  the durable owner. Binding drag/drop and action-bar remapping both route
+  through named runtime input commit methods instead of writing the input
+  collections directly. The
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops and creates consumable bindings around typed
   catalog rows. Missing typed rows are rejected for consumable binding instead
@@ -1088,9 +1089,9 @@ First Aetheria surfaces to publish:
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
      queues typed player-settings commits.
-   - Done: route input-screen binding/action-bar edits through the typed
-     player-settings commit primitive now that the Unity state package is live;
-     the stale runtime-only keyboard layout warning is gone.
+   - Done: route input-screen binding/action-bar edits through named typed
+     player-settings commit methods on the Unity runtime boundary, so the UI is
+     no longer a direct writer of input binding or action-bar collections.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
@@ -1148,8 +1149,8 @@ First Aetheria surfaces to publish:
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
 - Input binding and action-bar edits now queue the same typed player-settings
-  commit path as menu settings changes; the old `SaveLayout` runtime-only
-  warning is gone. The generated `AetheriaInput` class still calls Unity's
+  commit path as menu settings changes through named runtime input commit
+  methods; the old `SaveLayout` runtime-only warning is gone. The generated `AetheriaInput` class still calls Unity's
   `InputActionAsset.FromJson`, but that JSON belongs to Unity's generated input
   action lowering under Aetheria's remapping system. It is not durable Aetheria
   state and does not own remapping authority.

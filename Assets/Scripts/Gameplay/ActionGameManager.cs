@@ -73,15 +73,27 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    public static void CommitRuntimeInputBindingOverride(string actionName, int bindingIndex, string inputSystemPath)
+    {
+        RuntimePlayerSettings.InputSettings.SetBindingOverride(actionName, bindingIndex, inputSystemPath);
+        QueueRuntimePlayerSettingsCommit();
+    }
+
+    public static void CommitRuntimeActionBarInput(string inputSystemPath, bool enabled)
+    {
+        RuntimePlayerSettings.InputSettings.SetActionBarInputEnabled(inputSystemPath, enabled);
+        QueueRuntimePlayerSettingsCommit();
+    }
+
     private static RuntimePlayerSettings CreateDefaultRuntimePlayerSettings()
     {
         var settings = new RuntimePlayerSettings();
         settings.Name = Environment.UserName;
-        settings.InputSettings.ActionBarInputs.Add("<Keyboard>/leftShift");
-        settings.InputSettings.ActionBarInputs.Add("<Mouse>/leftButton");
-        settings.InputSettings.ActionBarInputs.Add("<Mouse>/rightButton");
-        settings.InputSettings.ActionBarInputs.Add("<Mouse>/middleButton");
-        for (int i = 1; i < 6; i++) settings.InputSettings.ActionBarInputs.Add($"<Keyboard>/{i}");
+        settings.InputSettings.SetActionBarInputEnabled("<Keyboard>/leftShift", true);
+        settings.InputSettings.SetActionBarInputEnabled("<Mouse>/leftButton", true);
+        settings.InputSettings.SetActionBarInputEnabled("<Mouse>/rightButton", true);
+        settings.InputSettings.SetActionBarInputEnabled("<Mouse>/middleButton", true);
+        for (int i = 1; i < 6; i++) settings.InputSettings.SetActionBarInputEnabled($"<Keyboard>/{i}", true);
         return settings;
     }
 
@@ -138,14 +150,14 @@ public class ActionGameManager : MonoBehaviour
             if (string.IsNullOrWhiteSpace(binding.ActionName) || string.IsNullOrWhiteSpace(binding.BindingPath) || binding.BindingIndex < 0)
                 continue;
 
-            settings.InputSettings.InputActionMap[(binding.ActionName, binding.BindingIndex)] = binding.BindingPath;
+            settings.InputSettings.SetBindingOverride(binding.ActionName, binding.BindingIndex, binding.BindingPath);
         }
 
         settings.InputSettings.ActionBarInputs.Clear();
         foreach (var input in stored.ActionBarInputs)
         {
-            if (!string.IsNullOrWhiteSpace(input) && !settings.InputSettings.ActionBarInputs.Contains(input))
-                settings.InputSettings.ActionBarInputs.Add(input);
+            if (!string.IsNullOrWhiteSpace(input))
+                settings.InputSettings.SetActionBarInputEnabled(input, true);
         }
     }
 

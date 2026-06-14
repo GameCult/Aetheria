@@ -415,10 +415,9 @@ public class InputDisplayLayout : MonoBehaviour
 
     private void CommitBindingOverride(InputAction action, InputBinding binding, string inputSystemPath)
     {
-        binding.overridePath = inputSystemPath;
-        action.ApplyBindingOverride(binding);
-        ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap[(action.name, action.GetBindingIndex(binding))] = inputSystemPath;
-        QueueRuntimeInputSettingsCommit();
+        var bindingIndex = action.GetBindingIndex(binding);
+        action.ApplyBindingOverride(bindingIndex, inputSystemPath);
+        ActionGameManager.CommitRuntimeInputBindingOverride(action.name, bindingIndex, inputSystemPath);
     }
 
     private void OnEnable()
@@ -463,17 +462,10 @@ public class InputDisplayLayout : MonoBehaviour
                 .Subscribe(data =>
             {
                 buttonMapping.IsActionBarButton = !buttonMapping.IsActionBarButton;
+                ActionGameManager.CommitRuntimeActionBarInput(buttonMapping.Button.InputSystemPath, buttonMapping.IsActionBarButton);
                 if (buttonMapping.IsActionBarButton)
-                {
-                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Add(buttonMapping.Button.InputSystemPath);
                     foreach(var overlap in OverlappingLabels(buttonMapping.ButtonRect))
                         PlaceLabel(overlap);
-                }
-                else
-                {
-                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Remove(buttonMapping.Button.InputSystemPath);
-                }
-                QueueRuntimeInputSettingsCommit();
                 AssignColor(buttonMapping);
             });
 
