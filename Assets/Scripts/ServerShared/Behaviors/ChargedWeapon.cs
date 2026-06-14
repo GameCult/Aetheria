@@ -95,6 +95,8 @@ public class ChargedWeapon : InstantWeapon
     {
         get => _charge;
     }
+    public bool Charging => _charging;
+    public bool Charged => _charged;
 
     public ChargedWeapon(ChargedWeaponData data, EquippedItem item) : base(data, item)
     {

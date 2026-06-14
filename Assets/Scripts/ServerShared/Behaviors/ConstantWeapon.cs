@@ -35,6 +35,9 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     {
         get => _ammo;
     }
+    public float AmmoIntervalProgress => _ammoInterval;
+    public float ReloadProgress => _reload;
+    public bool Reloading => _reloading;
 
     public float Progress
     {

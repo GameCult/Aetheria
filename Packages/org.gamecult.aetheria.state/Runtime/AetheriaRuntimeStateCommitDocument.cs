@@ -561,6 +561,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(26)]
         public IReadOnlyList<AetheriaRuntimeBehaviorProgressCommit> BehaviorProgress { get; set; } = Array.Empty<AetheriaRuntimeBehaviorProgressCommit>();
+
+        [Key(27)]
+        public IReadOnlyList<AetheriaRuntimeWeaponStateCommit> WeaponStates { get; set; } = Array.Empty<AetheriaRuntimeWeaponStateCommit>();
     }
 
     [MessagePackObject]
@@ -612,5 +615,60 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(4)]
         public double Progress { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeWeaponStateCommit
+    {
+        [Key(0)]
+        public string OwnerKind { get; set; } = "";
+
+        [Key(1)]
+        public int OwnerIndex { get; set; } = -1;
+
+        [Key(2)]
+        public int BehaviorIndex { get; set; } = -1;
+
+        [Key(3)]
+        public string BehaviorKind { get; set; } = "";
+
+        [Key(4)]
+        public bool Firing { get; set; }
+
+        [Key(5)]
+        public int Ammo { get; set; }
+
+        [Key(6)]
+        public int BurstRemaining { get; set; }
+
+        [Key(7)]
+        public double BurstTimer { get; set; }
+
+        [Key(8)]
+        public double BurstInterval { get; set; }
+
+        [Key(9)]
+        public double CooldownProgress { get; set; }
+
+        [Key(10)]
+        public bool CoolingDown { get; set; }
+
+        [Key(11)]
+        public bool Charging { get; set; }
+
+        [Key(12)]
+        public bool Charged { get; set; }
+
+        [Key(13)]
+        public double Charge { get; set; }
+
+        [Key(14)]
+        public bool Reloading { get; set; }
+
+        [Key(15)]
+        public double ReloadProgress { get; set; }
+
+        [Key(16)]
+        public double AmmoIntervalProgress { get; set; }
     }
 }

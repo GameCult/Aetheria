@@ -59,6 +59,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     {
         get => _ammo;
     }
+    public int BurstRemaining => _burstRemaining;
+    public float BurstTimer => _burstTimer;
+    public float BurstInterval => _burstInterval;
+    public float CooldownProgress => _cooldown;
+    public bool CoolingDown => _coolingDown;
     public virtual float Progress => saturate(_cooldown);
 
     public event Action OnReloadBegin;

@@ -788,8 +788,73 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
             StatGrids = ProjectEntityStatGrids(entity),
             ActiveConsumables = ProjectActiveConsumables(entity),
-            BehaviorProgress = ProjectBehaviorProgress(entity)
+            BehaviorProgress = ProjectBehaviorProgress(entity),
+            WeaponStates = ProjectWeaponStates(entity)
         };
+    }
+
+    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(Entity entity)
+    {
+        var states = new List<AetheriaRuntimeWeaponStateCommit>();
+
+        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
+            states.AddRange(ProjectWeaponStates("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+
+        var activeConsumables = entity.ActiveConsumables;
+        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
+            states.AddRange(ProjectWeaponStates("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+
+        return states.ToArray();
+    }
+
+    private static IEnumerable<AetheriaRuntimeWeaponStateCommit> ProjectWeaponStates(
+        string ownerKind,
+        int ownerIndex,
+        IReadOnlyList<Behavior> behaviors)
+    {
+        if (behaviors == null)
+            yield break;
+
+        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
+        {
+            if (!(behaviors[behaviorIndex] is Weapon weapon))
+                continue;
+
+            var state = new AetheriaRuntimeWeaponStateCommit
+            {
+                OwnerKind = ownerKind,
+                OwnerIndex = ownerIndex,
+                BehaviorIndex = behaviorIndex,
+                BehaviorKind = weapon.Data?.Kind ?? "",
+                Firing = weapon.Firing,
+                Ammo = weapon.Ammo
+            };
+
+            if (weapon is InstantWeapon instant)
+            {
+                state.BurstRemaining = instant.BurstRemaining;
+                state.BurstTimer = instant.BurstTimer;
+                state.BurstInterval = instant.BurstInterval;
+                state.CooldownProgress = instant.CooldownProgress;
+                state.CoolingDown = instant.CoolingDown;
+            }
+
+            if (weapon is ChargedWeapon charged)
+            {
+                state.Charging = charged.Charging;
+                state.Charged = charged.Charged;
+                state.Charge = charged.Charge;
+            }
+
+            if (weapon is ConstantWeapon constant)
+            {
+                state.Reloading = constant.Reloading;
+                state.ReloadProgress = constant.ReloadProgress;
+                state.AmmoIntervalProgress = constant.AmmoIntervalProgress;
+            }
+
+            yield return state;
+        }
     }
 
     private static AetheriaRuntimeBehaviorProgressCommit[] ProjectBehaviorProgress(Entity entity)

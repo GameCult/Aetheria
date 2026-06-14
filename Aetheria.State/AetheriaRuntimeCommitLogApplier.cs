@@ -441,8 +441,36 @@ public static class AetheriaRuntimeCommitLogApplier
                 .ToArray(),
             StatGrids = ToEntityStatGrids(entity.StatGrids),
             ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables),
-            BehaviorProgress = ToBehaviorProgress(entity.BehaviorProgress)
+            BehaviorProgress = ToBehaviorProgress(entity.BehaviorProgress),
+            WeaponStates = ToWeaponStates(entity.WeaponStates)
         };
+    }
+
+    private static AetheriaWeaponStateSnapshot[] ToWeaponStates(
+        IReadOnlyList<AetheriaRuntimeWeaponStateCommit>? states)
+    {
+        return (states ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            .Select(state => new AetheriaWeaponStateSnapshot
+            {
+                OwnerKind = state.OwnerKind ?? "",
+                OwnerIndex = state.OwnerIndex,
+                BehaviorIndex = state.BehaviorIndex,
+                BehaviorKind = state.BehaviorKind ?? "",
+                Firing = state.Firing,
+                Ammo = state.Ammo,
+                BurstRemaining = state.BurstRemaining,
+                BurstTimer = state.BurstTimer,
+                BurstInterval = state.BurstInterval,
+                CooldownProgress = state.CooldownProgress,
+                CoolingDown = state.CoolingDown,
+                Charging = state.Charging,
+                Charged = state.Charged,
+                Charge = state.Charge,
+                Reloading = state.Reloading,
+                ReloadProgress = state.ReloadProgress,
+                AmmoIntervalProgress = state.AmmoIntervalProgress
+            })
+            .ToArray();
     }
 
     private static AetheriaBehaviorProgressSnapshot[] ToBehaviorProgress(

@@ -366,6 +366,46 @@ try
                                     Progress = 0.75
                                 }
                             },
+                            WeaponStates = new[]
+                            {
+                                new AetheriaRuntimeWeaponStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 0,
+                                    BehaviorIndex = 1,
+                                    BehaviorKind = "InstantWeapon",
+                                    Firing = true,
+                                    Ammo = 2,
+                                    BurstRemaining = 3,
+                                    BurstTimer = 0.25,
+                                    BurstInterval = 0.125,
+                                    CooldownProgress = 0.5,
+                                    CoolingDown = true
+                                },
+                                new AetheriaRuntimeWeaponStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 1,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "ChargedWeapon",
+                                    Ammo = 1,
+                                    Charging = true,
+                                    Charged = false,
+                                    Charge = 0.8
+                                },
+                                new AetheriaRuntimeWeaponStateCommit
+                                {
+                                    OwnerKind = "active_consumable",
+                                    OwnerIndex = 0,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "ConstantWeapon",
+                                    Firing = true,
+                                    Ammo = 1,
+                                    Reloading = true,
+                                    ReloadProgress = 0.4,
+                                    AmmoIntervalProgress = 0.6
+                                }
+                            },
                             StatGrids = new[]
                             {
                                 new AetheriaRuntimeEntityStatGridCommit
@@ -459,6 +499,20 @@ try
             entity.BehaviorProgress[0].Progress == 0.5 &&
             entity.BehaviorProgress[1].OwnerKind == "active_consumable" &&
             entity.BehaviorProgress[1].Progress == 0.75 &&
+            entity.WeaponStates.Length == 3 &&
+            entity.WeaponStates[0].BehaviorKind == "InstantWeapon" &&
+            entity.WeaponStates[0].Firing &&
+            entity.WeaponStates[0].Ammo == 2 &&
+            entity.WeaponStates[0].BurstRemaining == 3 &&
+            entity.WeaponStates[0].CooldownProgress == 0.5 &&
+            entity.WeaponStates[0].CoolingDown &&
+            entity.WeaponStates[1].BehaviorKind == "ChargedWeapon" &&
+            entity.WeaponStates[1].Charging &&
+            entity.WeaponStates[1].Charge == 0.8 &&
+            entity.WeaponStates[2].OwnerKind == "active_consumable" &&
+            entity.WeaponStates[2].BehaviorKind == "ConstantWeapon" &&
+            entity.WeaponStates[2].Reloading &&
+            entity.WeaponStates[2].AmmoIntervalProgress == 0.6 &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&
