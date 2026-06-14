@@ -123,12 +123,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   action-bar bindings, and current faction relationship rows through the
   runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
   `RuntimeEntityBlueprint` remain runtime construction/loadout projections
-  rather than durable file formats. Runtime blueprint restore now iterates typed
-  hull shape rows when restoring saved conductivity, and blueprint price
-  aggregation uses typed runtime item prices through `ItemManager` instead of
-  hydrating `HullData.Shape` or `ItemData.Price`. Runtime blueprints no longer
-  capture or restore behavior-private `PersistentBehaviorData` blobs; that dead
-  save-shape hook and its `IPersistentBehavior` interface are deleted.
+  rather than durable file formats. Runtime blueprints no longer capture or
+  restore live temperature, armor, max-armor, or hull-conductivity grids; those
+  grids are typed checkpoint state, not loadout/construction template state.
+  Blueprint price aggregation uses typed runtime item prices through
+  `ItemManager` instead of hydrating `HullData.Shape` or `ItemData.Price`.
+  Runtime blueprints no longer capture or restore behavior-private
+  `PersistentBehaviorData` blobs; that dead save-shape hook and its
+  `IPersistentBehavior` interface are deleted.
 - Run checkpoint zone snapshots include typed orbit and body rows. Orbit IDs,
   parent IDs, distance, phase, fixed positions, body kind/name/orbit,
   resources, gravity/body multipliers, asteroid belt entries, and gas/sun
@@ -138,7 +140,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Run checkpoint entity snapshots include typed simulation stat grids for
   temperature, thermal mass, armor, max armor, and hull-conductivity axes.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
-  but those live hull grids no longer survive only as blueprint fields.
+  but those live hull grids are no longer blueprint fields and cannot be
+  restored by the old blueprint projector path.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -745,6 +748,9 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      entity simulation stat grids into `AetheriaEntitySnapshot`, so
      temperature/armor/conductivity no longer live only in runtime blueprints.
+   - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
+     and construction templates no longer capture or restore temperature,
+     armor, max-armor, or hull-conductivity state.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, behavior-private simulation state,
      and any catalog fields not covered by the stable scalar/fingerprint/

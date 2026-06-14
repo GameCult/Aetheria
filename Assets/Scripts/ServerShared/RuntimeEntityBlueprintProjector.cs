@@ -36,9 +36,6 @@ public static class RuntimeEntityBlueprintProjector
         blueprint.DockingBayAssignments = entity.DockingBays.Select(x => entity.Children.IndexOf(x.DockedShip)).ToArray();
         blueprint.CargoContents = entity.CargoBays.Select(b => b.Cargo.Select(i => (i.Value, i.Key)).ToArray()).ToArray();
         blueprint.DockingBayContents = entity.DockingBays.Select(b => b.Cargo.Select(i => (i.Value, i.Key)).ToArray()).ToArray();
-        blueprint.Armor = entity.Armor;
-        blueprint.Temperature = entity.Temperature;
-        blueprint.Conductivity = entity.HullConductivity;
         blueprint.Children = entity.Children.Select(CaptureBlueprint).ToArray();
         blueprint.WeaponGroups = entity.WeaponGroups.Select(wg => wg.items.Select(item => entity.Equipment.IndexOf(item)).ToArray()).ToArray();
         return blueprint;
@@ -107,17 +104,6 @@ public static class RuntimeEntityBlueprintProjector
                 foreach (var (position, item) in blueprint.DockingBayContents[bayIndex])
                     entity.DockingBays[bayIndex].TryStore(instantiate ? itemManager.Instantiate(item) : item, position);
 
-        if(!instantiate)
-            entity.Temperature = blueprint.Temperature;
-        
-        if(!instantiate)
-            entity.Armor = blueprint.Armor;
-        
-        var hullShape = itemManager.GetRuntimeShape(entity.Hull);
-
-        foreach(var v in hullShape.Coordinates)
-            entity.HullConductivity[v.x,v.y] = blueprint.Conductivity[v.x,v.y];
-
         entity.WeaponGroups = blueprint.WeaponGroups.Select(itemIndices =>
         {
             var items = itemIndices.Select(i => entity.Equipment[i]);
@@ -148,9 +134,6 @@ public abstract class RuntimeEntityBlueprint
     public (int2 position, EquippableItem item)[] Equipment;
     public (int2 position, EquippableItem item)[] CargoBays;
     public (int2 position, EquippableItem item)[] DockingBays;
-    public float[,] Temperature;
-    public float[,] Armor;
-    public bool2[,] Conductivity;
     public int[] DockingBayAssignments;
     public (int2 position, ItemInstance item)[][] CargoContents;
     public (int2 position, ItemInstance item)[][] DockingBayContents;
