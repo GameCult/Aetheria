@@ -14,6 +14,7 @@ public abstract class Behavior
 {
     public BehaviorData Data { get; }
     public string Kind { get; }
+    public int Group { get; }
     public EquippedItem Item { get; }
     private ConsumableItemEffect Consumable { get; }
     protected ItemManager ItemManager { get; }
@@ -47,6 +48,7 @@ public abstract class Behavior
     {
         Data = data;
         Kind = data?.Kind ?? "";
+        Group = data?.Group ?? 0;
         Item = item;
         ItemManager = Item.ItemManager;
     }
@@ -55,6 +57,7 @@ public abstract class Behavior
     {
         Data = data;
         Kind = data?.Kind ?? "";
+        Group = data?.Group ?? 0;
         Consumable = consumable;
         ItemManager = consumable.Entity.ItemManager;
     }

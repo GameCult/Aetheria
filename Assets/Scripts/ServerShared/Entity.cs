@@ -1395,7 +1395,7 @@ public class EquippedItem
         Behaviors = ItemManager.CreateRuntimeBehaviors(this);
 
         BehaviorGroups = Behaviors
-            .GroupBy(b => b.Data.Group)
+            .GroupBy(b => b.Group)
             .OrderBy(g => g.Key)
             .ToDictionary(g => g.Key, g => new BehaviorGroup
             {

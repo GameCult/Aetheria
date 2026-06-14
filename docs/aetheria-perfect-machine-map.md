@@ -618,9 +618,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection, and the temporary behavior config constructor
   map is keyed by typed behavior payload kind rather than legacy union key.
-  Live `Behavior` instances expose their typed payload kind directly, so runtime
-  state projection and stat-modifier matching no longer reach back through
-  `BehaviorData.Kind` for behavior identity.
+  Live `Behavior` instances expose their typed payload kind and group directly,
+  so runtime state projection, stat-modifier matching, and behavior grouping no
+  longer reach back through `BehaviorData` for behavior identity.
   Runtime item category classification uses package-owned
   `AetheriaRuntimeItemCategories` tokens; gameplay code should not ask C#
   legacy DTO class names to classify typed catalog rows. The typed state
@@ -991,8 +991,9 @@ First Aetheria surfaces to publish:
      `AetheriaRuntimeBehaviorMetadataCatalog`; the behavior only normalizes
      migrated `*Data` tokens before asking the package-owned metadata owner.
    - Done: move live behavior identity reads from the temporary `BehaviorData`
-     config bridge onto `Behavior.Kind`, so state snapshots, weapon snapshots,
-     progress rows, and stat-modifier matching use runtime instance identity.
+     config bridge onto `Behavior.Kind` and `Behavior.Group`, so state
+     snapshots, weapon snapshots, progress rows, stat-modifier matching, and
+     behavior grouping use runtime instance identity.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
