@@ -10,13 +10,13 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class ResourceScannerConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Range = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public PerformanceStat MinimumDensity = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(3)]
+    [Inspectable]
     public PerformanceStat ScanDuration = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

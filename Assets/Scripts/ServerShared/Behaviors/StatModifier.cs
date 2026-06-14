@@ -9,16 +9,16 @@ using GameCult.Aetheria.State.Unity;
 [Inspectable]
 public class StatModifierConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public StatReference Stat = new StatReference();
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public PerformanceStat Modifier = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(3)]
+    [Inspectable]
     public StatModifierType Type;
 
-    [InspectableType(typeof(RuntimeBehaviorConfig)), LegacyPayloadKey(4)]
+    [InspectableType(typeof(RuntimeBehaviorConfig))]
     public string RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -153,9 +153,9 @@ public enum StatModifierType
 [Inspectable]
 public class StatReference
 {
-    [InspectableType(typeof(RuntimeBehaviorConfig)), LegacyPayloadKey(1)]
+    [InspectableType(typeof(RuntimeBehaviorConfig))]
     public string Target;
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public string Stat;
 }

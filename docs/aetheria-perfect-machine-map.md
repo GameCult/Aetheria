@@ -533,9 +533,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   DTOs no longer carry MessagePack object/key/ignore metadata. Typed
   corporation/name-file/catalog documents own durable state; these classes are
   inspector/runtime projections only. Item and behavior DTO field layout for
-  `AetheriaRuntimeItemCatalog` no longer depends on MessagePack attributes. The
-  temporary bridge uses `LegacyPayloadKeyAttribute` while typed item instances
-  and behavior factories are being built.
+  `AetheriaRuntimeItemCatalog` no longer depends on live Unity field
+  attributes; importer key maps, typed payload fields, and explicit runtime
+  mappers own migrated layout.
 - The dead `PersonalityAttribute` projection DTO and its unused property-panel
   hook have been deleted; no typed catalog import or runtime caller owned that
   shape.
@@ -634,10 +634,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy DTO class names to classify typed catalog rows. The typed state
   verifier also consumes those package-owned category tokens for consumable and
   docking-bay coverage checks instead of hardcoding migrated class-name strings.
-  Item/behavior DTO field layout for the temporary projection bridge is now
-  marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
-  metadata. That attribute is migration/layout metadata only; runtime behavior
-  construction does not use it as an authority. Item properties
+  Item/behavior DTO field layout is no longer marked in live Unity source with
+  MessagePack or project-owned payload-key attributes. Importer key maps and
+  typed runtime payload fields own migrated layout; runtime behavior
+  construction does not use field attributes as an authority. Item properties
   manufacturer display is a typed snapshot consumer; loadout generation uses
   typed catalog rows for hull type, shape, category, hardpoint type, behavior
   kind prefilters, and selected-item instantiation. The old trade debug UI
@@ -1182,11 +1182,12 @@ First Aetheria surfaces to publish:
    - Done: demote legacy player, faction, name-file, galaxy-map-layer, and
      narrative helper DTOs from MessagePack metadata to plain runtime/inspector
      shapes.
-   - Done: replace remaining item/behavior DTO MessagePack field metadata with
-     `LegacyPayloadKeyAttribute`; no live `Assets/Scripts` source depends on
-     Newtonsoft, RethinkDB, or bespoke save-file serializer symbols. Remaining
-     package-level MessagePack usage is the typed CultCache `.cc` transport
-     boundary, not a gameplay save format.
+   - Done: delete remaining item/behavior DTO MessagePack field metadata and
+     the follow-on `LegacyPayloadKeyAttribute`; no live `Assets/Scripts` source
+     depends on Newtonsoft, RethinkDB, bespoke save-file serializer symbols, or
+     legacy payload-key annotations. Remaining package-level MessagePack usage
+     is the typed CultCache `.cc` transport boundary, not a gameplay save
+     format.
    - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
      remove legacy catalog group/table annotations from surviving runtime DTOs.
    - Done: move loadout generation's selected-item instantiation onto typed
@@ -1327,9 +1328,10 @@ First Aetheria surfaces to publish:
      such as `Cockpit`, `TurretController`, and `Capacitor` remain stable
      catalog facts rather than class-name-derived selectors.
    - Done: replace `ItemManager` behavior config reflection with an explicit
-     typed behavior-kind mapper. `LegacyPayloadKeyAttribute` remains
-     migration/layout metadata only and no longer selects or mutates runtime
-     behavior configs.
+     typed behavior-kind mapper.
+   - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after
+     importer constants and explicit typed mappers became the only migrated
+     field-key authorities.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.
@@ -1420,8 +1422,8 @@ First Aetheria surfaces to publish:
   item instances expose `ItemId` and `Reference`; the old `ItemInstance.Data`
   identity field is deleted.
 - Live Unity source has no `RuntimeCatalogEntry` or `RuntimeItemProjectionEntry`.
-- Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
-  `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.
+- Live Unity source has no `InspectableRuntimeCatalogLinkAttribute` or
+  `LegacyPayloadKeyAttribute`.
 - Unity batchmode compile also returned cleanly after disabling `MessagePack`
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or

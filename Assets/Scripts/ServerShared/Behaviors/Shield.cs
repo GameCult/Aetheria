@@ -8,10 +8,10 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class ShieldConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

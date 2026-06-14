@@ -8,43 +8,43 @@ using static Unity.Mathematics.math;
 [Inspectable, EntityTypeRestriction(HullType.Ship)]
 public class AetherDriveConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public float3 RotorDiameter;
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public float3 RotorMass;
 
-    [Inspectable, LegacyPayloadKey(3)]
+    [Inspectable]
     public PerformanceStat MaximumRpm;
 
-    [Inspectable, LegacyPayloadKey(4)]
+    [Inspectable]
     public float3 CouplingLambda;
 
-    [Inspectable, LegacyPayloadKey(5)]
+    [Inspectable]
     public PerformanceStat LambdaMultiplier;
 
-    [Inspectable, LegacyPayloadKey(6)]
+    [Inspectable]
     public PerformanceStat CouplingEfficiency;
 
-    [Inspectable, LegacyPayloadKey(7)]
+    [Inspectable]
     public PerformanceStat Torque;
 
-    [Inspectable, LegacyPayloadKey(8)]
+    [Inspectable]
     public BezierCurve TorqueProfile;
 
-    [Inspectable, LegacyPayloadKey(9)]
+    [Inspectable]
     public PerformanceStat EnergyDraw;
 
-    [Inspectable, LegacyPayloadKey(10)]
+    [Inspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, LegacyPayloadKey(11)]
+    [InspectableAudioParameter]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, LegacyPayloadKey(12)]
+    [InspectableAudioParameter]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, LegacyPayloadKey(13)]
+    [InspectablePrefab]
     public string Particles;
 
     public override Behavior CreateInstance(EquippedItem item)

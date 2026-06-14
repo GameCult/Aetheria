@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 public class VelocityConversionConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Lambda = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

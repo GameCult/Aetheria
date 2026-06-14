@@ -7,40 +7,40 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class ChargedWeaponConfig : InstantWeaponConfig
 {
-    [Inspectable, LegacyPayloadKey(21)]
+    [Inspectable]
     public PerformanceStat ChargeTime = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(22)]
+    [Inspectable]
     public PerformanceStat ChargeEnergy = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(23)]
+    [Inspectable]
     public PerformanceStat ChargeHeat = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(24)]
+    [Inspectable]
     public bool CanFireEarly;
 
-    [Inspectable, LegacyPayloadKey(25)]
+    [Inspectable]
     public float FailureCharge;
 
-    [Inspectable, LegacyPayloadKey(26)]
+    [Inspectable]
     public float FailureDamage = 1;
 
-    [Inspectable, LegacyPayloadKey(27)]
+    [Inspectable]
     public float ChargeFiringDamageMultiplier = 1;
 
-    [Inspectable, LegacyPayloadKey(28)]
+    [Inspectable]
     public float ChargeFiringSpreadMultiplier = 1;
 
-    [Inspectable, LegacyPayloadKey(29)]
+    [Inspectable]
     public float ChargeFiringBurstCountMultiplier = 1;
 
-    [Inspectable, LegacyPayloadKey(30)]
+    [Inspectable]
     public float ChargeFiringVisibilityMultiplier = 1;
 
-    [Inspectable, LegacyPayloadKey(31)]
+    [Inspectable]
     public float ChargeFiringVelocityMultiplier = 1;
 
-    [Inspectable, LegacyPayloadKey(32)]
+    [Inspectable]
     public float ChargeFiringHeatMultiplier = 1;
 
     public override Behavior CreateInstance(EquippedItem item)

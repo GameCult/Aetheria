@@ -12,16 +12,16 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class ReactorConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Charge = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public PerformanceStat Efficiency = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(3)]
+    [Inspectable]
     public PerformanceStat OverloadEfficiency = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(4)]
+    [Inspectable]
     public PerformanceStat ThrottlingFactor = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

@@ -7,22 +7,22 @@ using Unity.Mathematics;
 [Inspectable]
 public class LauncherConfig : LockWeaponConfig
 {
-    [InspectableAnimationCurve, LegacyPayloadKey(26)]
+    [InspectableAnimationCurve]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, LegacyPayloadKey(27)]
+    [InspectableAnimationCurve]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, LegacyPayloadKey(28)]
+    [InspectableAnimationCurve]
     public float4[] LiftCurve;
 
-    [Inspectable, LegacyPayloadKey(29)]
+    [Inspectable]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(30)]
+    [Inspectable]
     public float DodgeFrequency;
 
-    [Inspectable, LegacyPayloadKey(31)]
+    [Inspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -34,22 +34,22 @@ public class LauncherConfig : LockWeaponConfig
 [Inspectable]
 public class GuidedWeaponConfig : InstantWeaponConfig
 {
-    [InspectableAnimationCurve, LegacyPayloadKey(21)]
+    [InspectableAnimationCurve]
     public float4[] GuidanceCurve;
 
-    [InspectableAnimationCurve, LegacyPayloadKey(22)]
+    [InspectableAnimationCurve]
     public float4[] ThrustCurve;
 
-    [InspectableAnimationCurve, LegacyPayloadKey(23)]
+    [InspectableAnimationCurve]
     public float4[] LiftCurve;
 
-    [Inspectable, LegacyPayloadKey(24)]
+    [Inspectable]
     public PerformanceStat Thrust = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(25)]
+    [Inspectable]
     public float DodgeFrequency;
 
-    [Inspectable, LegacyPayloadKey(26)]
+    [Inspectable]
     public PerformanceStat MissileVelocity = new PerformanceStat();
 
     public override Behavior CreateInstance(EquippedItem item)

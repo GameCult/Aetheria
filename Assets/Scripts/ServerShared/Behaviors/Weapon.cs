@@ -11,52 +11,50 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public abstract class WeaponConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public DamageType DamageType;
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), LegacyPayloadKey(3)]
+    [InspectableRangedFloat(0,1)]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), LegacyPayloadKey(4)]
+    [InspectableRangedFloat(0,1)]
     public PerformanceStat DamageSpread = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(5)]
+    [Inspectable]
     public PerformanceStat MinRange = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(6)]
+    [Inspectable]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, LegacyPayloadKey(7)]
+    [InspectableAnimationCurve]
     public BezierCurve DamageCurve;
 
-    [InspectablePrefab, LegacyPayloadKey(8)]
+    [InspectablePrefab]
     public string EffectPrefab;
 
-    [InspectablePrefab, LegacyPayloadKey(9)]
+    [InspectablePrefab]
     public PerformanceStat Energy = new PerformanceStat();
 
-    [InspectablePrefab, LegacyPayloadKey(10)]
+    [InspectablePrefab]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [InspectablePrefab, LegacyPayloadKey(11)]
+    [InspectablePrefab]
     public PerformanceStat Visibility = new PerformanceStat();
-
-    [LegacyPayloadKey(12)]
     public Guid AmmoType;
 
-    [InspectablePrefab, LegacyPayloadKey(13)]
+    [InspectablePrefab]
     public int MagazineSize;
 
-    [InspectablePrefab, LegacyPayloadKey(14)]
+    [InspectablePrefab]
     public float ReloadTime = 1;
 
-    [InspectablePrefab, LegacyPayloadKey(15)]
+    [InspectablePrefab]
     public PerformanceStat Spread = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(16)]
+    [Inspectable]
     public PerformanceStat Velocity = new PerformanceStat();
 }
 

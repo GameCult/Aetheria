@@ -144,7 +144,7 @@ public abstract class RuntimeBehaviorConfig
 {
     public string Kind { get; set; } = "";
 
-    [Inspectable, LegacyPayloadKey(0)]
+    [Inspectable]
     public int Group;
 
     public abstract Behavior CreateInstance(EquippedItem item);

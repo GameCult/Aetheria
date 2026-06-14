@@ -7,10 +7,10 @@ using System.Linq;
 [Inspectable, Order(10)]
 public class HeatConfig : RuntimeBehaviorConfig
 {
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Heat = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(2)]
+    [Inspectable]
     public bool PerSecond;
 
     public override Behavior CreateInstance(EquippedItem item)

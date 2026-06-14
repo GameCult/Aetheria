@@ -7,16 +7,16 @@ using static Unity.Mathematics.math;
 [Inspectable]
 public class InstantWeaponConfig : WeaponConfig
 {
-    [Inspectable, LegacyPayloadKey(17)]
+    [Inspectable]
     public PerformanceStat Count = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(18)]
+    [Inspectable]
     public PerformanceStat BurstTime = new PerformanceStat();
 
-    [Inspectable, LegacyPayloadKey(19)]
+    [Inspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
 
-    [InspectablePrefab, LegacyPayloadKey(20)]
+    [InspectablePrefab]
     public bool SingleAmmoBurst;
 
     public override Behavior CreateInstance(EquippedItem item)

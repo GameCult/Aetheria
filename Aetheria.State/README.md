@@ -96,10 +96,10 @@ Surviving item catalog Unity DTOs keep local legacy GUID fields only where old
 simulation APIs still accept DTO objects. The old `RuntimeCatalogEntry` and
 `RuntimeItemProjectionEntry` base names no longer appear in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
-typed runtime projection still uses `LegacyPayloadKeyAttribute` only where the
-catalog importer and migration readers need deterministic field layout. Runtime
-behavior config construction uses an explicit typed behavior-kind mapper instead
-of reflecting over that metadata.
+live Unity source no longer carries `LegacyPayloadKeyAttribute` either.
+Catalog import and migration readers own deterministic legacy field layout
+through explicit key maps, while runtime behavior config construction uses an
+explicit typed behavior-kind mapper.
 Agent task DTOs no longer inherit the item projection base; they are local
 runtime AI work orders until a typed Verse task document exists.
 

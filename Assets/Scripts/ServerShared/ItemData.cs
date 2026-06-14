@@ -14,7 +14,7 @@ using int2 = Unity.Mathematics.int2;
 [Inspectable]
 public class Shape
 {
-    [LegacyPayloadKey(0)] public bool[,] Cells;
+    public bool[,] Cells;
 
     private bool _dirty = true;
 
@@ -264,29 +264,27 @@ public abstract class ItemData : INamedEntry
 {
     public Guid ID = Guid.NewGuid();
 
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public string Name;
 
-    [InspectableText, LegacyPayloadKey(2)]
+    [InspectableText]
     public string Description;
-
-    [LegacyPayloadKey(3)]
     public Guid Manufacturer;
 
-    [Inspectable, LegacyPayloadKey(4)]
+    [Inspectable]
     public float Mass;
 
-    [InspectableSchematicShape, LegacyPayloadKey(5)]
+    [InspectableSchematicShape]
     public Shape Shape;
 
     // Heat needed to change temperature of 1 gram by 1 degree
-    [Inspectable, LegacyPayloadKey(6)]
+    [Inspectable]
     public float SpecificHeat = 1;
 
-    [Inspectable, LegacyPayloadKey(7)]
+    [Inspectable]
     public float Conductivity = 1;
 
-    [Inspectable, LegacyPayloadKey(8)]
+    [Inspectable]
     public int Price = 0;
 
     public string EntryName
@@ -311,89 +309,88 @@ public abstract class ItemData : INamedEntry
 public class SimpleCommodityData : ItemData
 {
     // // Types of body where this resource can be found
-    // [InspectableField, LegacyPayloadKey(6)]
+    // [InspectableField]
     // public BodyType ResourceBodyType;
     //
     // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, LegacyPayloadKey(8)]
+    // [InspectableField]
     // public ExponentialLerp Distribution;
     //
     // // Minimum amount of resources needed for presence to register
-    // [InspectableField, LegacyPayloadKey(11)]
+    // [InspectableField]
     // public float Floor = 5f;
 
-    [Inspectable, LegacyPayloadKey(9)]
+    [Inspectable]
     public int MaxStack = 10;
 
-    [Inspectable, LegacyPayloadKey(10)]
+    [Inspectable]
     public SimpleCommodityCategory Category;
 }
 
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, LegacyPayloadKey(9)]
+    // [Inspectable]
     // public float IngredientQualityWeight = .5f;
 }
 
 [Inspectable]
 public class CompoundCommodityData : CraftedItemData
 {
-    [LegacyPayloadKey(10)]
     public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
 
-    [Inspectable, LegacyPayloadKey(11)]
+    [Inspectable]
     public CompoundCommodityCategory Category;
 }
 
 [Inspectable]
 public class ConsumableItemData : CraftedItemData
 {
-    [Inspectable, LegacyPayloadKey(11)]
+    [Inspectable]
     public bool Stackable;
 
-    [Inspectable, LegacyPayloadKey(12)]
+    [Inspectable]
     public float Duration;
 
-    [InspectableTexture, LegacyPayloadKey(13)]
+    [InspectableTexture]
     public string Icon;
 
-    [Inspectable, LegacyPayloadKey(14)]
+    [Inspectable]
     public BezierCurve Effectiveness;
 }
 
 public abstract class EquippableItemData : CraftedItemData
 {
-    [InspectableTexture, LegacyPayloadKey(10)]
+    [InspectableTexture]
     public string Schematic;
 
-    [Inspectable, LegacyPayloadKey(12)]
+    [Inspectable]
     public float Durability;
 
-    [InspectableTemperature, LegacyPayloadKey(13)]
+    [InspectableTemperature]
     public float MinimumTemperature;
 
-    [InspectableTemperature, LegacyPayloadKey(14)]
+    [InspectableTemperature]
     public float MaximumTemperature;
 
-    // [InspectableField, LegacyPayloadKey(15), SimplePerformanceStat]
+    // [InspectableField, SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
     //
-    // [InspectableField, LegacyPayloadKey(16), SimplePerformanceStat]
+    // [InspectableField, SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
 
-    [InspectableAnimationCurve, LegacyPayloadKey(17)]
+    [InspectableAnimationCurve]
     public BezierCurve HeatPerformanceCurve;
 
-    [Inspectable, LegacyPayloadKey(18)]
+    [Inspectable]
     public float ThermalResilience = 1;
 
-    [InspectableTexture, LegacyPayloadKey(20)]
+    [InspectableTexture]
     public string ActionBarIcon;
 
-    [InspectableSoundBank, LegacyPayloadKey(21)]
+    [InspectableSoundBank]
     public uint SoundBank;
 
-    [Inspectable, LegacyPayloadKey(22)]
+    [Inspectable]
     public List<AudioStat> AudioStats = new List<AudioStat>();
 
     public abstract HardpointType HardpointType { get; }
@@ -435,17 +432,17 @@ public abstract class EquippableItemData : CraftedItemData
 [Inspectable]
 public class AudioStat
 {
-    [InspectableAudioParameter, LegacyPayloadKey(0)]
+    [InspectableAudioParameter]
     public uint Parameter;
 
-    [Inspectable, LegacyPayloadKey(1)]
+    [Inspectable]
     public PerformanceStat Stat = new PerformanceStat();
 }
 
 [Inspectable]
 public class GearData : EquippableItemData
 {
-    [Inspectable, LegacyPayloadKey(23)]
+    [Inspectable]
     public HardpointType Hardpoint;
 
     public override HardpointType HardpointType => Hardpoint;
@@ -454,7 +451,7 @@ public class GearData : EquippableItemData
 [Inspectable]
 public class CargoBayData : EquippableItemData
 {
-    [Inspectable, LegacyPayloadKey(24)]
+    [Inspectable]
     public Shape InteriorShape;
 
     public override HardpointType HardpointType => HardpointType.Tool;
@@ -463,51 +460,51 @@ public class CargoBayData : EquippableItemData
 [Inspectable]
 public class DockingBayData : CargoBayData
 {
-    [Inspectable, LegacyPayloadKey(25)]
+    [Inspectable]
     public int2 MaxSize;
 }
 
 
 public class WeaponItemData : GearData
 {
-    [Inspectable, LegacyPayloadKey(24)]
+    [Inspectable]
     public WeaponRange WeaponRange;
 
-    [Inspectable, LegacyPayloadKey(25)]
+    [Inspectable]
     public WeaponCaliber WeaponCaliber;
 
-    [Inspectable, LegacyPayloadKey(26)]
+    [Inspectable]
     public WeaponType WeaponType;
 
-    [Inspectable, LegacyPayloadKey(27)]
+    [Inspectable]
     public WeaponFireType WeaponFireTypes;
 
-    [Inspectable, LegacyPayloadKey(28)]
+    [Inspectable]
     public WeaponModifiers WeaponModifiers;
 }
 
 [Inspectable]
 public class HullData : EquippableItemData
 {
-    [Inspectable, LegacyPayloadKey(23)]
+    [Inspectable]
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [InspectablePrefab, LegacyPayloadKey(24)]
+    [InspectablePrefab]
     public string Prefab;
 
-    [Inspectable, LegacyPayloadKey(25)]
+    [Inspectable]
     public HullType HullType;
 
-    [Inspectable, LegacyPayloadKey(26)]
+    [Inspectable]
     public float GridOffset;
 
-    [Inspectable, LegacyPayloadKey(27)]
+    [Inspectable]
     public float Armor;
 
-    [Inspectable, LegacyPayloadKey(28)]
+    [Inspectable]
     public float Drag;
 
-    [Inspectable, LegacyPayloadKey(29)]
+    [Inspectable]
     public bool CanTow;
 
     public Shape InteriorCells
@@ -531,12 +528,12 @@ public class HullData : EquippableItemData
 [Inspectable]
 public class HardpointData : ITintInspector
 {
-    [Inspectable, LegacyPayloadKey(0)] public HardpointType Type;
-    [Inspectable, LegacyPayloadKey(1)] public int2 Position;
-    [Inspectable, LegacyPayloadKey(2)] public Shape Shape = new Shape();
-    [Inspectable, LegacyPayloadKey(3)] public string Transform;
-    [Inspectable, LegacyPayloadKey(4)] public ItemRotation Rotation;
-    [Inspectable, LegacyPayloadKey(5)] public float Armor;
+    [Inspectable] public HardpointType Type;
+    [Inspectable] public int2 Position;
+    [Inspectable] public Shape Shape = new Shape();
+    [Inspectable] public string Transform;
+    [Inspectable] public ItemRotation Rotation;
+    [Inspectable] public float Armor;
 
     public override string ToString()
     {
@@ -568,22 +565,12 @@ public class HardpointData : ITintInspector
 
 public class PerformanceStat
 {
-    [LegacyPayloadKey(0)]  public float Min;
+    public float Min;
 
-    [LegacyPayloadKey(1)]  public float Max;
-
-    [LegacyPayloadKey(2)]
+    public float Max;
     public float HeatExponentMultiplier;
-
-    [LegacyPayloadKey(3)]
     public float DurabilityExponentMultiplier;
-
-    [LegacyPayloadKey(4)]
     public float QualityExponent;
-
-    //[LegacyPayloadKey(5)]  public Guid ID = Guid.NewGuid();
-
-    // [LegacyPayloadKey(5)]  public Guid? Ingredient;
 
     private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;

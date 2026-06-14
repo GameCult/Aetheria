@@ -7,7 +7,6 @@ using System.Linq;
 [Inspectable, Order(-5)]
 public class ItemUsageConfig : RuntimeBehaviorConfig
 {
-    [LegacyPayloadKey(1)]
     public Guid Item;
 
     public override Behavior CreateInstance(EquippedItem item)
