@@ -94,13 +94,13 @@ public static class ZoneGenerator
 			planets.AddRange(GenerateEntities(zoneSettings, ref random, blueprint.Mass, blueprint.Radius, float2.zero));
 
         // Create collections to map between zone generator output and database entries
-        var orbitMap = new Dictionary<GeneratorPlanet, OrbitData>();
-        var orbitInverseMap = new Dictionary<OrbitData, GeneratorPlanet>();
+        var orbitMap = new Dictionary<GeneratorPlanet, OrbitConstructionData>();
+        var orbitInverseMap = new Dictionary<OrbitConstructionData, GeneratorPlanet>();
 
         // Create orbit database entries
         blueprint.Orbits = planets.Select(planet =>
         {
-            var data = new OrbitData
+            var data = new OrbitConstructionData
             {
 	            FixedPosition = planet.FixedPosition,
                 Distance = planet.Distance,
@@ -112,7 +112,7 @@ public static class ZoneGenerator
             return data;
         }).ToList();
 
-        // Link OrbitData parents to database GUIDs
+        // Link orbit construction parents to generated orbit IDs.
         foreach (var data in blueprint.Orbits)
             data.Parent = orbitInverseMap[data].Parent != null
                 ? orbitMap[orbitInverseMap[data].Parent].ID
@@ -122,7 +122,7 @@ public static class ZoneGenerator
         // var resourceMaps = mapLayers.Values
 	       //  .ToDictionary(m => m.ID, m => m.Evaluate(zone.Position, settings.ShapeSettings));
 
-        blueprint.Planets = planets.Where(p=>!p.Empty).Select(planet =>
+        blueprint.Bodies = planets.Where(p=>!p.Empty).Select(planet =>
         {
 	        // Dictionary<Guid, float> planetResources = new Dictionary<Guid, float>();
 	        BodyType bodyType = planet.Belt ? BodyType.Asteroid :
@@ -139,21 +139,21 @@ public static class ZoneGenerator
 		       //  }
 	        // }
 
-	        BodyData planetData;
+	        BodyConstructionData planetData;
 	        switch (bodyType)
 	        {
 		        case BodyType.Asteroid:
-			        planetData = new AsteroidBeltData();
+			        planetData = new AsteroidBeltConstructionData();
 			        break;
 		        case BodyType.Planetoid:
 		        case BodyType.Planet:
-			        planetData = new PlanetData();
+			        planetData = new PlanetConstructionData();
 			        break;
 		        case BodyType.GasGiant:
-			        planetData = new GasGiantData();
+			        planetData = new GasGiantConstructionData();
 			        break;
 		        case BodyType.Sun:
-			        planetData = new SunData();
+			        planetData = new SunConstructionData();
 			        break;
 		        default:
 			        throw new ArgumentOutOfRangeException();
@@ -163,7 +163,7 @@ public static class ZoneGenerator
 	        planetData.Orbit = orbitMap[planet].ID;
 	        // planetData.Resources = planetResources;
             planetData.Name = planetData.ID.ToString().Substring(0, 8);
-            if (planetData is AsteroidBeltData beltData)
+            if (planetData is AsteroidBeltConstructionData beltData)
             {
 	            beltData.Asteroids =
 		            Enumerable.Range(0, (int) zoneSettings.AsteroidCount.Evaluate(beltData.Mass * orbitMap[planet].Distance))
@@ -177,9 +177,9 @@ public static class ZoneGenerator
 			            //.OrderByDescending(a=>a.Size)
 			            .ToArray();
             }
-            else if (planetData is GasGiantData gas)
+            else if (planetData is GasGiantConstructionData gas)
             {
-	            if (gas is SunData sun)
+	            if (gas is SunConstructionData sun)
 	            {
 		            float primary = random.NextFloat();
 		            float secondary = frac(primary + 1 + zoneSettings.SunSecondaryColorDistance * (random.NextFloat() > .5 ? 1 : -1));
@@ -250,9 +250,9 @@ public static class ZoneGenerator
 	        return loadoutGenerators[faction];
         }
 
-        OrbitData CreateLagrangeOrbit(OrbitData baseOrbit)
+        OrbitConstructionData CreateLagrangeOrbit(OrbitConstructionData baseOrbit)
         {
-	        var lagrangeOrbit = new OrbitData
+	        var lagrangeOrbit = new OrbitConstructionData
 	        {
 		        ID = Guid.NewGuid(),
 		        Parent = baseOrbit.Parent,
@@ -263,11 +263,11 @@ public static class ZoneGenerator
 	        return lagrangeOrbit;
         }
 
-        void PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, int distanceMultiplier)
+        void PlaceTurret(OrbitConstructionData orbit, LoadoutGenerator loadoutGenerator, int distanceMultiplier)
         {
 	        var phase = 20f * distanceMultiplier / orbit.Distance;
 
-	        var turretOrbit = new OrbitData
+	        var turretOrbit = new OrbitConstructionData
 	        {
 		        ID = Guid.NewGuid(),
 		        Parent = orbit.Parent,
@@ -281,7 +281,7 @@ public static class ZoneGenerator
 	        blueprint.Entities.Add(turret);
         }
 
-        void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count)
+        void PlaceTurrets(OrbitConstructionData orbit, LoadoutGenerator loadoutGenerator, int count)
         {
 	        for(int t=0; t<count; t++)
 	        {

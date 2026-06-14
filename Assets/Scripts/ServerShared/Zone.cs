@@ -58,17 +58,17 @@ public class Zone
             Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
         }
         
-        foreach (var planet in blueprint.Planets)
+        foreach (var planet in blueprint.Bodies)
         {
             switch (planet)
             {
-                case AsteroidBeltData belt:
+                case AsteroidBeltConstructionData belt:
                     AsteroidBelts[belt.ID] = new AsteroidBelt(belt);
                     break;
-                case SunData sun:
+                case SunConstructionData sun:
                     PlanetInstances.Add(sun.ID, new Sun(settings, sun, Orbits[planet.Orbit]));
                     break;
-                case GasGiantData gas:
+                case GasGiantConstructionData gas:
                     PlanetInstances.Add(gas.ID, new GasGiant(settings, gas, Orbits[planet.Orbit]));
                     break;
                 default:
@@ -379,7 +379,7 @@ public class Planet
     public float GravityWellRadius;
     public float BodyRadius;
 
-    public Planet(PlanetSettings settings, BodyData data, Orbit orbit)
+    public Planet(PlanetSettings settings, BodyConstructionData data, Orbit orbit)
     {
         Settings = settings;
         Orbit = orbit;
@@ -421,7 +421,7 @@ public class GasGiant : Planet
     public float GravityWavesRadius;
     public float GravityWavesSpeed;
 
-    public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
+    public GasGiant(PlanetSettings settings, GasGiantConstructionData data, Orbit orbit) : base(settings, data, orbit)
     {
         FirstOffsetDomainRotationSpeed = data.FirstOffsetDomainRotationSpeed;
         FirstOffsetRotationSpeed = data.FirstOffsetRotationSpeed;
@@ -453,7 +453,7 @@ public class Sun : GasGiant
     public float LightRadiusMultiplier { get; }
     public float LightRadius;
 
-    public Sun(PlanetSettings settings, SunData data, Orbit orbit) : base(settings, data, orbit)
+    public Sun(PlanetSettings settings, SunConstructionData data, Orbit orbit) : base(settings, data, orbit)
     {
         LightColor = data.LightColor;
         FogTintColor = data.FogTintColor;
@@ -489,7 +489,7 @@ public class AsteroidBelt
     public Dictionary<int, float> Damage = new Dictionary<int, float>();
     public Dictionary<(Entity, int), float> MiningAccumulator = new Dictionary<(Entity, int), float>();
 
-    public AsteroidBelt(AsteroidBeltData data)
+    public AsteroidBelt(AsteroidBeltConstructionData data)
     {
         _asteroids = data.Asteroids;
         ID = data.ID;
@@ -532,7 +532,7 @@ public class Orbit
         return new float2(cos(phase), sin(phase));
     }
 
-    public Orbit(PlanetSettings settings, OrbitData data)
+    public Orbit(PlanetSettings settings, OrbitConstructionData data)
     {
         ID = data.ID;
         Parent = data.Parent;

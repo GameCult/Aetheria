@@ -34,13 +34,17 @@ namespace MessagePack.Resolvers
             ForceSizePrimitiveObjectResolver.Instance, // Preserve particular integer types
             BuiltinResolver.Instance, // Try Builtin
             AttributeFormatterResolver.Instance, // Try use [MessagePackFormatter]
-#if !ENABLE_IL2CPP
+#if !ENABLE_IL2CPP && !NET_STANDARD_2_0
             DynamicEnumResolver.Instance, // Try Enum
+#endif
+#if !ENABLE_IL2CPP
             DynamicGenericResolver.Instance, // Try Array, Tuple, Collection
+#endif
+#if !ENABLE_IL2CPP && !NET_STANDARD_2_0
             DynamicUnionResolver.Instance, // Try Union(Interface)
             DynamicObjectResolver.Instance, // Try Object
-#endif
             DynamicContractlessObjectResolverAllowPrivate.Instance, // Serializes keys as strings
+#endif
             TypelessObjectResolver.Instance,
         };
 

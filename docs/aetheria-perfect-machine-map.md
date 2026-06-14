@@ -540,7 +540,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AgentTask` has been cut loose from the item projection base; AI tasks are
   local runtime work orders and no longer participate in the shared projection
   identity base.
-- `BodyData` and `OrbitData` have also been cut loose from
+- `BodyConstructionData` and `OrbitConstructionData` have also been cut loose from
   the item projection base; they keep local GUID fields for zone runtime lookup,
   but no longer inherit shared projection equality.
 - `Faction` has been cut loose from the item projection base; it keeps local
@@ -1025,27 +1025,27 @@ First Aetheria surfaces to publish:
      commented thruster sound-trigger code; those paths had no live output and
      therefore earned deletion rather than a new runtime metadata owner.
    - Done: move runtime orbit parent/phase/distance/fixed-position reads off
-     `OrbitData`; `Zone`, `ActionGameManager`, and `ZoneRenderer` consume
+     `OrbitConstructionData`; `Zone`, `ActionGameManager`, and `ZoneRenderer` consume
      `Orbit` runtime properties, and the old `Orbit.ToData()` construction
      capture bridge is deleted.
-   - Done: move orbit phase evaluation off `OrbitData`; runtime zone updates,
+   - Done: move orbit phase evaluation off `OrbitConstructionData`; runtime zone updates,
      asteroid transforms, and generator rosette spacing now use `Orbit.Evaluate`,
-     leaving `OrbitData` as a construction row only.
+     leaving `OrbitConstructionData` as a construction input only.
    - Done: rename `OrbitalEntity.OrbitData` to `OrbitId` and delete the unused
      `Zone.CreateOrbit` construction-row writer; runtime entities no longer
      expose an orbit id through DTO-shaped naming.
    - Done: move live asteroid-belt simulation, scanning, and mesh setup reads
-     off `AsteroidBeltData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
+     off `AsteroidBeltConstructionData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
      consume `AsteroidBelt` runtime asteroid/resource/orbit properties, and
      the old `AsteroidBelt.ToData()` construction capture bridge is deleted.
-   - Done: move live planet mass/orbit/gravity reads off `BodyData`; `Zone`
+   - Done: move live planet mass/orbit/gravity reads off `BodyConstructionData`; `Zone`
      gravity evaluation and `ZoneRenderer` consume `Planet` runtime properties,
      and the old `Planet.ToData()` construction capture bridge is deleted.
    - Done: move typed zone orbit snapshot projection off
      construction-blueprint orbit rows; run checkpoint commits now project current
      `Zone.Orbits` runtime wrappers into typed orbit snapshot rows.
-   - Done: move typed zone body snapshot projection off `BodyData` and
-     `AsteroidBeltData`; run checkpoint commits now project `Planet` and
+   - Done: move typed zone body snapshot projection off `BodyConstructionData` and
+     `AsteroidBeltConstructionData`; run checkpoint commits now project `Planet` and
      `AsteroidBelt` runtime wrappers, including body resources, asteroid
      runtime damage/respawn/miner accumulators, and gas/sun visual fields.
    - Done: move visited-sector summary counts off construction-blueprint
@@ -1055,14 +1055,14 @@ First Aetheria surfaces to publish:
    - Done: delete `GalaxyZone.RuntimeBlueprint` as a persistent zone-side cache;
      unvisited zone generation now feeds the `Zone` constructor directly, and
      visited zone state is owned by `GalaxyZone.Contents`/`Zone.CaptureBlueprint`.
-   - Done: delete the `Zone.Planets` `BodyData` shadow dictionary; orbit
+   - Done: delete the `Zone.Planets` `BodyConstructionData` shadow dictionary; orbit
      targeting, resource scanning, and zone capture now read `PlanetInstances`
      and `AsteroidBelts` runtime wrappers, with DTOs retained only as
      construction/capture payloads.
-   - Done: move `ZoneRenderer` body classification off `BodyData` subclasses;
+   - Done: move `ZoneRenderer` body classification off `BodyConstructionData` subclasses;
      zone rendering now walks runtime orbits and lowers `Planet`, `GasGiant`,
      `Sun`, and `AsteroidBelt` wrappers directly.
-   - Done: remove public `GasGiantData`/`SunData` handles from runtime wrappers;
+   - Done: remove public `GasGiantConstructionData`/`SunConstructionData` handles from runtime wrappers;
      wave and light calculations now use copied wrapper fields after
      construction.
    - Done: move saved loadout template ownership off `EntityConstructionBlueprint`;
@@ -1324,9 +1324,14 @@ First Aetheria surfaces to publish:
      `EntityConstructionBlueprintProjector`; it captures/instantiates
      construction blueprint projections and no longer presents itself as a
      serializer or runtime-state owner.
-   - Done: delete the unused `Zone.AddOrbit(OrbitData)` construction-row
+   - Done: delete the unused `Zone.AddOrbit(OrbitConstructionData)` construction-row
      writer; zone orbit construction flows through `ZoneConstructionBlueprint`
      only.
+   - Done: rename zone body/orbit construction DTOs to
+     `BodyConstructionData`/`OrbitConstructionData` and move `ZoneData.cs` to
+     `ZoneConstructionData.cs`; the construction blueprint now exposes
+     `Bodies` rather than a planet list that also contained belts, gas giants,
+     and suns.
    - Done: demote Unity's live `PlayerSettings` runtime object to
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
@@ -1405,6 +1410,15 @@ First Aetheria surfaces to publish:
 - Entity construction blueprint projection no longer uses the `EntitySerializer`
   or runtime-state authority names; live Unity source calls
   `EntityConstructionBlueprintProjector`.
+- Vendored Unity `MessagePack` remains a low-level codec boundary only; its
+  typeless contractless resolver now follows the same `NET_STANDARD_2_0`
+  dynamic-resolver guards as `StandardResolver`, so Unity batchmode cannot
+  resurrect unsupported typeless dynamic code while compiling the quarantined
+  assembly.
+- Vendored Unity `MSAGL` debug timing remains diagnostic-only; `TimeMeasurer`
+  now requires the same `REPORTING` symbol that defines
+  `Microsoft.Msagl.DebugHelpers.Timer`, so `TEST_MSAGL` cannot accidentally
+  summon a missing debug dependency during Unity compilation.
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
 - Input binding and action-bar edits now queue the same typed player-settings

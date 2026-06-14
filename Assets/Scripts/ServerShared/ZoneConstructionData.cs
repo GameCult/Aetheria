@@ -13,15 +13,15 @@ using float3 = Unity.Mathematics.float3;
 
 public class ZoneConstructionBlueprint
 {
-    public List<BodyData> Planets = new List<BodyData>();
-    public List<OrbitData> Orbits = new List<OrbitData>();
+    public List<BodyConstructionData> Bodies = new List<BodyConstructionData>();
+    public List<OrbitConstructionData> Orbits = new List<OrbitConstructionData>();
     public List<EntityConstructionBlueprint> Entities = new List<EntityConstructionBlueprint>();
     public float Radius = 2000;
     public float Mass = 10000;
     public double Time;
 }
 
-public abstract class BodyData : INamedEntry
+public abstract class BodyConstructionData : INamedEntry
 {
     public Guid ID = Guid.NewGuid();
 
@@ -48,17 +48,17 @@ public abstract class BodyData : INamedEntry
     }
 }
 
-public class PlanetData : BodyData
+public class PlanetConstructionData : BodyConstructionData
 {
 
 }
 
-public class AsteroidBeltData : BodyData
+public class AsteroidBeltConstructionData : BodyConstructionData
 {
     public Asteroid[] Asteroids;
 }
 
-public class GasGiantData : BodyData
+public class GasGiantConstructionData : BodyConstructionData
 {
     public float FirstOffsetDomainRotationSpeed = 1;
 
@@ -83,7 +83,7 @@ public class GasGiantData : BodyData
     public float4[] Colors = new float4[0];
 }
 
-public class SunData : GasGiantData
+public class SunConstructionData : GasGiantConstructionData
 {
     public float3 LightColor = float3.zero;
 
@@ -103,7 +103,7 @@ public class Asteroid
     public float RotationSpeed;
 }
 
-public class OrbitData
+public class OrbitConstructionData
 {
     public Guid ID = Guid.NewGuid();
 
