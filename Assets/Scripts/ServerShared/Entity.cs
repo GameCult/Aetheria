@@ -613,13 +613,13 @@ public abstract class Entity
     private static bool IsCargoBay(AetheriaRuntimeCatalogItem typedItem)
     {
         return typedItem != null &&
-               (string.Equals(typedItem.Category, "CargoBayData", StringComparison.Ordinal) ||
-                string.Equals(typedItem.Category, "DockingBayData", StringComparison.Ordinal));
+               (string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) ||
+                string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal));
     }
 
     private static bool IsDockingBay(AetheriaRuntimeCatalogItem typedItem)
     {
-        return typedItem != null && string.Equals(typedItem.Category, "DockingBayData", StringComparison.Ordinal);
+        return typedItem != null && string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal);
     }
 
     private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)

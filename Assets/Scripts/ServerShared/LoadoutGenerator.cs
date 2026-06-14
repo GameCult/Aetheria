@@ -17,12 +17,6 @@ public class LoadoutGenerator
         Hull
     }
 
-    private const string GearCategory = "GearData";
-    private const string WeaponCategory = "WeaponItemData";
-    private const string CargoBayCategory = "CargoBayData";
-    private const string DockingBayCategory = "DockingBayData";
-    private const string HullCategory = "HullData";
-
     public Random Random;
     public ItemManager ItemManager { get; }
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; }
@@ -122,8 +116,8 @@ public class LoadoutGenerator
 
         var cargo = entity.CargoBays.First();
         IEnumerable<AetheriaRuntimeCatalogItem> inventory = RandomCatalogItems(RuntimeItemCandidateKind.Equipment, 16, 1,
-                item => item.Category != CargoBayCategory && item.Category != DockingBayCategory &&
-                    (item.Category != HullCategory || item.HullType == nameof(HullType.Ship)));
+                item => item.Category != AetheriaRuntimeItemCategories.CargoBay && item.Category != AetheriaRuntimeItemCategories.DockingBay &&
+                    (item.Category != AetheriaRuntimeItemCategories.Hull || item.HullType == nameof(HullType.Ship)));
         inventory = inventory
             .Where(item => item != null);
         inventory = inventory
@@ -190,13 +184,13 @@ public class LoadoutGenerator
             case RuntimeItemCandidateKind.Equipment:
                 return !string.IsNullOrWhiteSpace(item.HardpointType);
             case RuntimeItemCandidateKind.Gear:
-                return item.Category == GearCategory || item.Category == WeaponCategory;
+                return item.Category == AetheriaRuntimeItemCategories.Gear || item.Category == AetheriaRuntimeItemCategories.Weapon;
             case RuntimeItemCandidateKind.CargoBay:
-                return item.Category == CargoBayCategory || item.Category == DockingBayCategory;
+                return item.Category == AetheriaRuntimeItemCategories.CargoBay || item.Category == AetheriaRuntimeItemCategories.DockingBay;
             case RuntimeItemCandidateKind.DockingBay:
-                return item.Category == DockingBayCategory;
+                return item.Category == AetheriaRuntimeItemCategories.DockingBay;
             case RuntimeItemCandidateKind.Hull:
-                return item.Category == HullCategory;
+                return item.Category == AetheriaRuntimeItemCategories.Hull;
             default:
                 throw new ArgumentOutOfRangeException(nameof(candidateKind), candidateKind, null);
         }
@@ -365,7 +359,7 @@ public class LoadoutGenerator
 
         var emptyShape = entity.UnoccupiedSpace;
         
-        var cargoRow = RandomCatalogItem(RuntimeItemCandidateKind.CargoBay, 3, item => item.Category != DockingBayCategory && FitsWithin(item, emptyShape));
+        var cargoRow = RandomCatalogItem(RuntimeItemCandidateKind.CargoBay, 3, item => item.Category != AetheriaRuntimeItemCategories.DockingBay && FitsWithin(item, emptyShape));
         if (cargoRow == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
         ToShape(cargoRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);

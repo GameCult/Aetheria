@@ -765,7 +765,7 @@ public class ActionGameManager : MonoBehaviour
         {
             var typedItem = FindTypedActionBarItem(item);
             return typedItem != null &&
-                   string.Equals(typedItem.Category, nameof(ConsumableItemData), StringComparison.Ordinal)
+                   string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
                 ? typedItem
                 : null;
         }

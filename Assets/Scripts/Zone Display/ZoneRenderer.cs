@@ -606,7 +606,7 @@ public class ZoneRenderer : MonoBehaviour
 
     private static bool IsWeaponPickup(AetheriaRuntimeCatalogItem typedItem)
     {
-        return typedItem != null && string.Equals(typedItem.Category, nameof(WeaponItemData), StringComparison.Ordinal);
+        return typedItem != null && string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.Weapon, StringComparison.Ordinal);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedZoneItem(ItemInstance item)

@@ -227,7 +227,7 @@ public class ItemManager
             throw new NullReferenceException("Attempted to create crafted item instance using missing typed item data!");
         }
 
-        if (string.Equals(item.Category, nameof(ConsumableItemData), StringComparison.Ordinal))
+        if (string.Equals(item.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal))
         {
             return new ConsumableItem
             {
@@ -292,7 +292,7 @@ public class ItemManager
     private static bool IsEquippable(AetheriaRuntimeCatalogItem item)
     {
         return !string.IsNullOrWhiteSpace(item?.HardpointType) ||
-               string.Equals(item?.Category, nameof(HullData), StringComparison.Ordinal);
+               string.Equals(item?.Category, AetheriaRuntimeItemCategories.Hull, StringComparison.Ordinal);
     }
 
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)

@@ -529,7 +529,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
   typed catalog row ownership rather than old DTO projection ownership. Behavior
   type selection now uses an explicit runtime catalog map instead of
-  `UnionAttribute` reflection.
+  `UnionAttribute` reflection. Runtime item category classification uses
+  package-owned `AetheriaRuntimeItemCategories` tokens; gameplay code should not
+  ask C# legacy DTO class names to classify typed catalog rows.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties
@@ -711,6 +713,10 @@ First Aetheria surfaces to publish:
      private typed candidate-kind selectors, so loadout code no longer asks for
      `HullData`, `GearData`, `CargoBayData`, or `EquippableItemData` as
      candidate-selection authority.
+   - Done: add package-owned `AetheriaRuntimeItemCategories` tokens and move
+     runtime category checks off `nameof(ConsumableItemData)`,
+     `nameof(HullData)`, `nameof(WeaponItemData)`, and scattered raw category
+     strings in gameplay/loadout/docking classification.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto

@@ -11,6 +11,7 @@
     <Compile Include="..\Packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs" Link="EveSurfaceDocument.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogSnapshot.cs" Link="AetheriaRuntimeCatalogSnapshot.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogStore.cs" Link="AetheriaRuntimeCatalogStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeItemCategories.cs" Link="AetheriaRuntimeItemCategories.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveCommandLog.cs" Link="AetheriaRuntimeEveCommandLog.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateCommitLog.cs" Link="AetheriaRuntimeStateCommitLog.cs" />
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
