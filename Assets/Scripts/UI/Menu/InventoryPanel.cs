@@ -883,7 +883,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         if (typedItem != null && typedItem.ShapeCells.Count > 0)
             return ToShape(typedItem);
 
-        return GameManager.ItemManager.GetData(item).Shape;
+        return new Shape(1, 1);
     }
 
     private static Shape ToShape(AetheriaRuntimeCatalogItem item)

@@ -214,10 +214,7 @@ public class InventoryMenu : MonoBehaviour
                 .ToArray();
         }
 
-        var shape = GameManager.ItemManager.GetData(item).Shape;
-        return shape.Coordinates
-            .Select(cell => shape.Rotate(cell, item.Rotation) + position)
-            .ToArray();
+        return Array.Empty<int2>();
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
