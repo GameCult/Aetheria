@@ -182,8 +182,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
-  DTOs; legacy `ItemData` hydration remains only for behavior reflection and
-  fallback projection when typed curve rows are incomplete. Inventory selection highlighting now uses typed item
+  DTOs; legacy `ItemData` hydration remains only for behavior stat reflection.
+  Incomplete typed thermal curve rows render a neutral fallback curve instead
+  of hydrating legacy `EquippableItemData`. Inventory selection highlighting now uses typed item
   shape cells only for UI tint geometry; incomplete typed rows produce no
   selected-cell mask instead of falling back to legacy `ItemData.Shape`.
   Inventory cargo cell tint now uses typed hardpoint facets only; incomplete
@@ -656,8 +657,8 @@ First Aetheria surfaces to publish:
    - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
      onto typed catalog rows.
    - Done: import typed thermal performance curve keys and move PropertiesPanel
-     thermal curve presentation onto typed catalog rows; legacy thermal curves
-     are fallback projection only for incomplete imported rows.
+     thermal curve presentation onto typed catalog rows; incomplete typed rows
+     use a neutral fallback curve instead of hydrating legacy thermal DTOs.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.

@@ -405,18 +405,15 @@ public class PropertiesPanel : MonoBehaviour
 		return Math.Max(item.Durability, 1f);
 	}
 
-	private static (float minimum, float maximum) GetThermalRange(AetheriaRuntimeCatalogItem typedItem, EquippableItemData legacyData)
+	private static (float minimum, float maximum) GetThermalRange(AetheriaRuntimeCatalogItem typedItem)
 	{
 		if (typedItem != null && typedItem.MaximumTemperature > typedItem.MinimumTemperature)
 			return ((float)typedItem.MinimumTemperature, (float)typedItem.MaximumTemperature);
 
-		if (legacyData != null && legacyData.MaximumTemperature > legacyData.MinimumTemperature)
-			return (legacyData.MinimumTemperature, legacyData.MaximumTemperature);
-
 		return (0f, 1f);
 	}
 
-	private static BezierCurve GetThermalPerformanceCurve(AetheriaRuntimeCatalogItem typedItem, EquippableItemData legacyData)
+	private static BezierCurve GetThermalPerformanceCurve(AetheriaRuntimeCatalogItem typedItem)
 	{
 		if (typedItem?.ThermalPerformanceCurveKeys != null && typedItem.ThermalPerformanceCurveKeys.Count > 0)
 		{
@@ -432,7 +429,7 @@ public class PropertiesPanel : MonoBehaviour
 			};
 		}
 
-		return legacyData?.HeatPerformanceCurve ?? new BezierCurve
+		return new BezierCurve
 		{
 			Keys = new[]
 			{
@@ -540,9 +537,8 @@ public class PropertiesPanel : MonoBehaviour
 		}
 		
 		var typedItem = FindTypedPropertyItem(item.EquippableItem);
-		var gearData = GameManager.ItemManager.GetData(item.EquippableItem);
-		var thermalRange = GetThermalRange(typedItem, gearData);
-		var thermalCurve = GetThermalPerformanceCurve(typedItem, gearData);
+		var thermalRange = GetThermalRange(typedItem);
+		var thermalCurve = GetThermalPerformanceCurve(typedItem);
 		var statusSheet = AddStatSheet();
 		if (item.EquippableItem.Durability < .01f)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
@@ -587,9 +583,8 @@ public class PropertiesPanel : MonoBehaviour
 			Title.text = GetTitle(gear);
 			AddSpacer();
 			var typedItem = FindTypedPropertyItem(gear);
-			var gearData = GameManager.ItemManager.GetData(gear);
-			var thermalRange = GetThermalRange(typedItem, gearData);
-			var thermalCurve = GetThermalPerformanceCurve(typedItem, gearData);
+			var thermalRange = GetThermalRange(typedItem);
+			var thermalCurve = GetThermalPerformanceCurve(typedItem);
 			var statusSheet = AddStatSheet();
 			statusSheet.AddStat("Durability", () => $"{(int)(gear.Durability / GetMaxDurability(gear) * 100)}%");
 			var heatCurve = AddCurveField();
