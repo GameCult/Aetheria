@@ -67,8 +67,7 @@ public class AetherDrive : Behavior
     public float3 Rpm { get; private set; }
     public float MaximumRpm { get; private set; }
     public float2 ThrustDirection { get; private set; }
-
-    public AetherDriveData DriveData => _data;
+    public string Particles { get; }
 
     public float3 Axis
     {
@@ -79,11 +78,13 @@ public class AetherDrive : Behavior
     public AetherDrive(AetherDriveData data, EquippedItem item) : base(data, item)
     {
         _data = data;
+        Particles = data.Particles;
     }
 
     public AetherDrive(AetherDriveData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
+        Particles = data.Particles;
     }
 
     public override bool Execute(float dt)

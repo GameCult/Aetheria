@@ -50,7 +50,7 @@ public class ShipInstance : EntityInstance
         var drive = ship.GetBehavior<AetherDrive>();
         if (drive != null)
         {
-            var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(drive.DriveData.Particles), transform, false);
+            var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(drive.Particles), transform, false);
             var main = particles.main;
             main.customSimulationSpace = LocalSpace;
             _aetherDrive = new AetherDriveInstance

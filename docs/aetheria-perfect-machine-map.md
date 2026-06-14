@@ -1010,6 +1010,9 @@ First Aetheria surfaces to publish:
    - Done: move thruster particle prefab lookup off `ThrusterData`;
      `ShipInstance` now consumes `Thruster.ParticlesPrefab`, so the renderer
      reads live behavior metadata instead of the temporary config bridge.
+   - Done: move AetherDrive particle prefab lookup off `AetherDriveData`;
+     `ShipInstance` now consumes `AetherDrive.Particles`, and the public
+     `DriveData` escape hatch has been removed.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
