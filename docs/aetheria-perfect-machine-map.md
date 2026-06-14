@@ -98,13 +98,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   custom action-bar icon paths, but the typed field is present and owns that
   surface when data appears. Player camera articulation grouping now classifies
   equipped non-launcher weapons through typed behavior kind rows instead of
-  inspecting runtime `BehaviorData` subclasses. Unity boot reads typed player
+  inspecting runtime behavior config classes. Unity boot reads typed player
   settings back through the package-owned CultCache reader before falling back
   to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
-  behavior-kind rows instead of inspecting runtime `BehaviorData` subclasses;
+  behavior-kind rows instead of inspecting runtime behavior config classes;
   live weapon behavior instances still own ammo, cooldown, and active firing
   values until those session facts have typed runtime surfaces.
   Hull and item durability percentages use typed max durability only; incomplete
@@ -228,8 +228,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   station bay fit, hull/category, and behavior-kind prefilters run against typed
   catalog rows. `EquippedItem` and `ConsumableItemEffect` now create behavior
   instances through `ItemManager.CreateRuntimeBehaviors`; the remaining
-  `BehaviorData` config list is explicitly temporary and internal to behavior
-  construction. `StatModifier` requirement and stat-target lookup now inspects
+  `RuntimeBehaviorConfig` bridge is explicitly temporary and internal to
+  behavior construction. `StatModifier` requirement and stat-target lookup now inspects
   the live equipped behavior instances and asks package-owned typed behavior
   metadata for kind/family matching, not a freshly rebuilt config list or a
   behavior-local class taxonomy. The unused `TradeMenuDebug` script has been
@@ -245,7 +245,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   package-owned typed behavior metadata. The obsolete `RuntimeInspectable`
   attribute has been deleted from behavior classes and fields.
   Dynamic behavior columns read typed behavior payload fields by legacy payload key
-  instead of hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
+  instead of hydrating legacy behavior DTOs. Trade buy decisions for crafted price,
   ship-hull classification, simple commodity base price, and simple commodity
   stack size also read typed catalog rows; the existing inventory transfer and
   ship-construction paths still own the actual runtime mutation.
@@ -285,13 +285,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   derives from typed hull/item shape rows. `EquippedItem` and
   `ConsumableItemEffect` behavior construction now read typed behavior payloads
   through the runtime behavior config bridge before instantiating the
-  current `BehaviorData`-backed behavior classes. `BehaviorData` remains the
-  temporary behavior-class config bridge, not the runtime behavior payload
-  owner; bridge instances carry the typed behavior payload kind so runtime
-  logic does not have to reselect behavior identity from the old class graph.
+  current behavior classes. `RuntimeBehaviorConfig` remains the temporary
+  behavior-class construction bridge, not the runtime behavior payload owner;
+  bridge instances carry the typed behavior payload kind so runtime logic does
+  not have to reselect behavior identity from the old class graph.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
-  `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning `BehaviorData`
+  `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
   subclasses, rebuilding temporary configs, or hydrating
   `EquippableItemData.Behaviors`. `ConsumableItemData` and
   `EquippableItemData` no longer expose legacy `Behaviors` lists at all. The
@@ -306,7 +306,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   through package-owned typed behavior display metadata; stat modifier
   presentation checks the package-owned typed `StatModifier` kind instead of a
   legacy data class name. Damage-range payload selection is keyed by
-  package-owned typed weapon behavior metadata; legacy `BehaviorData` ancestry
+  package-owned typed weapon behavior metadata; legacy behavior config ancestry
   is no longer a fallback for weapon payload selection. The old explicit
   `Inspect(ItemData)` DTO inspection overload is deleted; trade row clicks now
   inspect the typed runtime catalog row directly. Incomplete typed thermal
@@ -606,7 +606,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owns simulation. The runtime no longer has a MessagePack catalog cache or
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
   item rows only. `ItemManager.CreateRuntimeBehaviors` owns the temporary
-  projection from typed behavior payloads into `BehaviorData` config objects
+  projection from typed behavior payloads into `RuntimeBehaviorConfig` objects
   required by the current behavior constructors. Direct config reads no longer
   escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
@@ -621,7 +621,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   map is keyed by typed behavior payload kind rather than legacy union key.
   Live `Behavior` instances expose their typed payload kind and group directly,
   so runtime state projection, stat-modifier matching, and behavior grouping no
-  longer reach back through `BehaviorData` for behavior identity.
+  longer reach back through config objects for behavior identity.
   Runtime item category classification uses package-owned
   `AetheriaRuntimeItemCategories` tokens; gameplay code should not ask C#
   legacy DTO class names to classify typed catalog rows. The typed state
@@ -973,8 +973,8 @@ First Aetheria surfaces to publish:
      decide equipped-item temperature footprint geometry.
    - Done: move `EquippedItem` and `ConsumableItemEffect` behavior construction
      off `Data.Behaviors` and onto typed runtime behavior payload config
-     construction; `BehaviorData` remains only the temporary behavior-class
-     config bridge.
+     construction; `RuntimeBehaviorConfig` remains only the temporary
+     behavior-class construction bridge.
    - Done: route `EquippedItem` and `ConsumableItemEffect` behavior instance
      creation through `ItemManager.CreateRuntimeBehaviors`; temporary config
      reads are internal to that construction bridge.
@@ -989,20 +989,20 @@ First Aetheria surfaces to publish:
      live equippable item DTO hierarchy has no active `PerformanceStat` fields.
    - Done: move `StatModifier` target and requirement lookup onto the live
      equipped behavior instances. It now modifies the `PerformanceStat` objects
-     actually held by runtime behavior data instead of rebuilding temporary
+     actually held by runtime behavior configs instead of rebuilding temporary
      config DTOs from the catalog.
    - Done: move `StatModifier` behavior kind/family matching onto
      `AetheriaRuntimeBehaviorMetadataCatalog`; the behavior only normalizes
      migrated `*Data` tokens before asking the package-owned metadata owner.
-   - Done: move live behavior identity reads from the temporary `BehaviorData`
-     config bridge onto `Behavior.Kind` and `Behavior.Group`, so state
+   - Done: move live behavior identity reads from the temporary
+     `RuntimeBehaviorConfig` bridge onto `Behavior.Kind` and `Behavior.Group`, so state
      snapshots, weapon snapshots, progress rows, stat-modifier matching, and
      behavior grouping use runtime instance identity.
    - Done: move TurretController's weapon range/velocity reads off
-     `WeaponData` casts and onto `Weapon.EvaluateRange`/`EvaluateVelocity`;
+     weapon config casts and onto `Weapon.EvaluateRange`/`EvaluateVelocity`;
      weapon config fields remain private inputs to the weapon runtime owner.
    - Done: move projectile, hitscan, beam, lightning, and mine effect damage
-     type reads off `WeaponData` and onto `Weapon.DamageType`; effect managers
+     type reads off weapon configs and onto `Weapon.DamageType`; effect managers
      consume live weapon metadata instead of config DTO fields.
    - Done: move weapon effect prefab lookup and constant weapon visual startup
      off `InstantWeaponData`/`ConstantWeaponData`; `EntityInstance` caches
@@ -1308,8 +1308,13 @@ First Aetheria surfaces to publish:
      old projection vocabulary no longer implies item DTO authority.
    - Done: delete `IRuntimeItemCatalogReader.GetTemporaryBehaviorConfigs`; the
      runtime catalog reader now exposes typed item rows only, and the remaining
-     `BehaviorData` config projection is private `ItemManager` behavior
+     `RuntimeBehaviorConfig` projection is private `ItemManager` behavior
      construction machinery.
+   - Done: rename the temporary behavior construction DTO family from
+     `BehaviorData`/`*Data` to `RuntimeBehaviorConfig`/`*Config`; live
+     `Behavior` instances expose `Config`, while typed behavior kind strings
+     such as `Cockpit`, `TurretController`, and `Capacitor` remain stable
+     catalog facts rather than class-name-derived selectors.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.

@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ConstantWeaponData : WeaponData
+public class ConstantWeaponConfig : WeaponConfig
 {
     [InspectablePrefab, LegacyPayloadKey(17)]
     public float AmmoInterval = 1;
@@ -25,7 +25,7 @@ public class ConstantWeaponData : WeaponData
 
 public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
-    private ConstantWeaponData _data;
+    private ConstantWeaponConfig _data;
     private int _ammo = 1;
     private float _ammoInterval;
     private float _reload;
@@ -63,12 +63,12 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         OnStopFiring = null;
     }
 
-    public ConstantWeapon(ConstantWeaponData data, EquippedItem item) : base(data, item)
+    public ConstantWeapon(ConstantWeaponConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public ConstantWeapon(ConstantWeaponData data, ConsumableItemEffect item) : base(data, item)
+    public ConstantWeapon(ConstantWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

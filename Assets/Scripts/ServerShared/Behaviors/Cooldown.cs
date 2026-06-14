@@ -8,7 +8,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, Order(-10)]
-public class CooldownData : BehaviorData
+public class CooldownConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Cooldown = new PerformanceStat();
@@ -26,18 +26,18 @@ public class CooldownData : BehaviorData
 
 public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 {
-    private CooldownData _data;
+    private CooldownConfig _data;
 
     private float _cooldown; // Normalized
 
     public float Progress => saturate(_cooldown);
 
-    public Cooldown(CooldownData data, EquippedItem item) : base(data, item)
+    public Cooldown(CooldownConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public Cooldown(CooldownData data, ConsumableItemEffect item) : base(data, item)
+    public Cooldown(CooldownConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

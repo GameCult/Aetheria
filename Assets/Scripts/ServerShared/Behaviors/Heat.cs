@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable, Order(10)]
-public class HeatData : BehaviorData
+public class HeatConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Heat = new PerformanceStat();
@@ -26,13 +26,13 @@ public class HeatData : BehaviorData
 
 public class Heat : Behavior
 {
-    private HeatData _data;
+    private HeatConfig _data;
 
-    public Heat(HeatData data, EquippedItem item) : base(data, item)
+    public Heat(HeatConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Heat(HeatData data, ConsumableItemEffect item) : base(data, item)
+    public Heat(HeatConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class VelocityLimitData : BehaviorData
+public class VelocityLimitConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat TopSpeed = new PerformanceStat();
@@ -26,15 +26,15 @@ public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }
 
-    private VelocityLimitData _data;
+    private VelocityLimitConfig _data;
 
-    public VelocityLimit(VelocityLimitData data, EquippedItem item) : base(data, item)
+    public VelocityLimit(VelocityLimitConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         Limit = Evaluate(_data.TopSpeed);
     }
 
-    public VelocityLimit(VelocityLimitData data, ConsumableItemEffect item) : base(data, item)
+    public VelocityLimit(VelocityLimitConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         Limit = Evaluate(_data.TopSpeed);

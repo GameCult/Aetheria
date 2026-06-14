@@ -8,7 +8,7 @@ using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float3 = Unity.Mathematics.float3;
-public class TurretControllerData : BehaviorData
+public class TurretControllerConfig : RuntimeBehaviorConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -30,11 +30,11 @@ public class TurretController : Behavior, IInitializableBehavior
     public float ShotSpeed => _shotSpeed;
     public bool PredictShots => _predictShots;
 
-    public TurretController(TurretControllerData data, EquippedItem item) : base(data, item)
+    public TurretController(TurretControllerConfig data, EquippedItem item) : base(data, item)
     {
     }
 
-    public TurretController(TurretControllerData data, ConsumableItemEffect item) : base(data, item)
+    public TurretController(TurretControllerConfig data, ConsumableItemEffect item) : base(data, item)
     {
     }
 

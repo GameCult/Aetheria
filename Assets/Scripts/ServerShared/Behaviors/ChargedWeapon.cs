@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ChargedWeaponData : InstantWeaponData
+public class ChargedWeaponConfig : InstantWeaponConfig
 {
     [Inspectable, LegacyPayloadKey(21)]
     public PerformanceStat ChargeTime = new PerformanceStat();
@@ -56,7 +56,7 @@ public class ChargedWeaponData : InstantWeaponData
 
 public class ChargedWeapon : InstantWeapon
 {
-    private ChargedWeaponData _data;
+    private ChargedWeaponConfig _data;
     private bool _charging;
     private bool _charged;
     private float _charge;
@@ -98,12 +98,12 @@ public class ChargedWeapon : InstantWeapon
     public bool Charging => _charging;
     public bool Charged => _charged;
 
-    public ChargedWeapon(ChargedWeaponData data, EquippedItem item) : base(data, item)
+    public ChargedWeapon(ChargedWeaponConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public ChargedWeapon(ChargedWeaponData data, ConsumableItemEffect item) : base(data, item)
+    public ChargedWeapon(ChargedWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

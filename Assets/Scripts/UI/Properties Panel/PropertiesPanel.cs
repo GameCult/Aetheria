@@ -631,7 +631,7 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			switch (behavior)
 			{
-				case Thermotoggle thermotoggle when thermotoggle.ThermotoggleData.Adjustable:
+				case Thermotoggle thermotoggle when thermotoggle.ThermotoggleConfig.Adjustable:
 					AddField("Target Temperature",
 						() => thermotoggle.TargetTemperature,
 						temp => thermotoggle.TargetTemperature = temp);

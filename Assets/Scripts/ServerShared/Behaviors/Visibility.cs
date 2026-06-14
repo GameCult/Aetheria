@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable]
-public class VisibilityData : BehaviorData
+public class VisibilityConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Visibility = new PerformanceStat();
@@ -25,13 +25,13 @@ public class VisibilityData : BehaviorData
 
 public class Visibility : Behavior
 {
-    private VisibilityData _data;
+    private VisibilityConfig _data;
 
-    public Visibility(VisibilityData data, EquippedItem item) : base(data, item)
+    public Visibility(VisibilityConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Visibility(VisibilityData data, ConsumableItemEffect item) : base(data, item)
+    public Visibility(VisibilityConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

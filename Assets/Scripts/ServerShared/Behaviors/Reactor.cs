@@ -10,7 +10,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ReactorData : BehaviorData
+public class ReactorConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Charge = new PerformanceStat();
@@ -37,7 +37,7 @@ public class ReactorData : BehaviorData
 
 public class Reactor : Behavior, IOrderedBehavior, IDisposable
 {
-    private ReactorData _data;
+    private ReactorConfig _data;
 
     public float Draw { get; private set; }
 
@@ -49,12 +49,12 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
 
-    public Reactor(ReactorData data, EquippedItem item) : base(data, item)
+    public Reactor(ReactorConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         FindCapacitors();
     }
-    public Reactor(ReactorData data, ConsumableItemEffect item) : base(data, item)
+    public Reactor(ReactorConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         FindCapacitors();

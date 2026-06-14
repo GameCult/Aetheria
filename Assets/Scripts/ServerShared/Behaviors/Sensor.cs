@@ -8,7 +8,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class SensorData : BehaviorData
+public class SensorConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(3)]
     public PerformanceStat Sensitivity = new PerformanceStat();
@@ -50,7 +50,7 @@ public class SensorData : BehaviorData
 
 public class Sensor : Behavior, IEventBehavior
 {
-    private SensorData _data;
+    private SensorConfig _data;
     private float _pingCooldown;
     private float _pingLerp;
     private bool _pinging;
@@ -95,12 +95,12 @@ public class Sensor : Behavior, IEventBehavior
         }
     }
 
-    public Sensor(SensorData data, EquippedItem item) : base(data, item)
+    public Sensor(SensorConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public Sensor(SensorData data, ConsumableItemEffect item) : base(data, item)
+    public Sensor(SensorConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

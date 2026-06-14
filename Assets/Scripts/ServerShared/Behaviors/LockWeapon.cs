@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class LockWeaponData : InstantWeaponData
+public class LockWeaponConfig : InstantWeaponConfig
 {
     [Inspectable, LegacyPayloadKey(21)]
     public PerformanceStat LockSpeed = new PerformanceStat();
@@ -34,7 +34,7 @@ public class LockWeaponData : InstantWeaponData
 
 public class LockWeapon : InstantWeapon
 {
-    private LockWeaponData _data;
+    private LockWeaponConfig _data;
     private float _lock;
     private bool _locking;
     private Entity _target;
@@ -62,11 +62,11 @@ public class LockWeapon : InstantWeapon
 
     public Entity LockTarget => _target;
 
-    public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
+    public LockWeapon(LockWeaponConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public LockWeapon(LockWeaponData data, ConsumableItemEffect item) : base(data, item)
+    public LockWeapon(LockWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

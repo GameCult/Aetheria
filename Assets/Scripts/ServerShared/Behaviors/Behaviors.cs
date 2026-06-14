@@ -12,7 +12,7 @@ using static Unity.Mathematics.noise;
 
 public abstract class Behavior
 {
-    public BehaviorData Data { get; }
+    public RuntimeBehaviorConfig Config { get; }
     public string Kind { get; }
     public int Group { get; }
     public EquippedItem Item { get; }
@@ -44,20 +44,20 @@ public abstract class Behavior
         }
     }
 
-    protected Behavior(BehaviorData data, EquippedItem item)
+    protected Behavior(RuntimeBehaviorConfig config, EquippedItem item)
     {
-        Data = data;
-        Kind = data?.Kind ?? "";
-        Group = data?.Group ?? 0;
+        Config = config;
+        Kind = config?.Kind ?? "";
+        Group = config?.Group ?? 0;
         Item = item;
         ItemManager = Item.ItemManager;
     }
 
-    protected Behavior(BehaviorData data, ConsumableItemEffect consumable)
+    protected Behavior(RuntimeBehaviorConfig config, ConsumableItemEffect consumable)
     {
-        Data = data;
-        Kind = data?.Kind ?? "";
-        Group = data?.Group ?? 0;
+        Config = config;
+        Kind = config?.Kind ?? "";
+        Group = config?.Group ?? 0;
         Consumable = consumable;
         ItemManager = consumable.Entity.ItemManager;
     }
@@ -140,7 +140,7 @@ public interface IPopulationAssignment
 }
 
 [Inspectable]
-public abstract class BehaviorData
+public abstract class RuntimeBehaviorConfig
 {
     public string Kind { get; set; } = "";
 

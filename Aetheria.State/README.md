@@ -127,8 +127,9 @@ persist hull simulation grids into `AetheriaEntitySnapshot`, so
 values. Broader runtime object graphs, typed behavior factory construction, and
 behavior-private simulation state remain legacy until dedicated typed runtime
 documents exist. Live behavior instances expose typed behavior kind and group
-through `Behavior.Kind` and `Behavior.Group`; the remaining `BehaviorData`
-objects are construction configs, not runtime identity owners.
+through `Behavior.Kind` and `Behavior.Group`; the remaining
+`RuntimeBehaviorConfig` objects are construction configs, not runtime identity
+owners.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy

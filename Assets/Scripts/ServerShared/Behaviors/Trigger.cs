@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable, Order(-20)]
-public class TriggerData : BehaviorData
+public class TriggerConfig : RuntimeBehaviorConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -22,8 +22,8 @@ public class Trigger : Behavior, IActivatedBehavior
     public bool _pulled;
     public bool Pulled => _pulled;
 
-    public Trigger(TriggerData data, EquippedItem item) : base(data, item) { }
-    public Trigger(TriggerData data, ConsumableItemEffect item) : base(data, item) { }
+    public Trigger(TriggerConfig data, EquippedItem item) : base(data, item) { }
+    public Trigger(TriggerConfig data, ConsumableItemEffect item) : base(data, item) { }
 
     public override bool Execute(float dt)
     {

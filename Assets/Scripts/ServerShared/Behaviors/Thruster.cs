@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, EntityTypeRestriction(HullType.Ship)]
-public class ThrusterData : BehaviorData
+public class ThrusterConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Thrust = new PerformanceStat();
@@ -46,11 +46,11 @@ public class Thruster : Behavior, IAnalogBehavior
         set => _input = saturate(value);
     }
 
-    private ThrusterData _data;
+    private ThrusterConfig _data;
 
     private float _input;
 
-    public Thruster(ThrusterData data, EquippedItem item) : base(data, item)
+    public Thruster(ThrusterConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         ParticlesPrefab = data.ParticlesPrefab;
@@ -63,7 +63,7 @@ public class Thruster : Behavior, IAnalogBehavior
         Thrust = Evaluate(_data.Thrust);
     }
 
-    public Thruster(ThrusterData data, ConsumableItemEffect item) : base(data, item)
+    public Thruster(ThrusterConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         ParticlesPrefab = data.ParticlesPrefab;

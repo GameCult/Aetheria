@@ -4,7 +4,7 @@
 
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-public class VelocityConversionData : BehaviorData
+public class VelocityConversionConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Lambda = new PerformanceStat();
@@ -21,13 +21,13 @@ public class VelocityConversionData : BehaviorData
 
 public class VelocityConversion : Behavior
 {
-    private VelocityConversionData _data;
+    private VelocityConversionConfig _data;
 
-    public VelocityConversion(VelocityConversionData data, EquippedItem item) : base(data, item)
+    public VelocityConversion(VelocityConversionConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public VelocityConversion(VelocityConversionData data, ConsumableItemEffect item) : base(data, item)
+    public VelocityConversion(VelocityConversionConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

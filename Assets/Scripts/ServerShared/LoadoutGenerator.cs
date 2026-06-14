@@ -317,9 +317,9 @@ public class LoadoutGenerator
             if (hardpoint.Type == nameof(HardpointType.ControlModule))
             {
                 var controllerBehaviorKind = entity is Ship
-                    ? nameof(CockpitData)
+                    ? "Cockpit"
                     : entity is OrbitalEntity
-                        ? nameof(TurretControllerData)
+                        ? "TurretController"
                         : null;
                 var controllerRow = RandomCatalogItem(RuntimeItemCandidateKind.Gear, hardpoint, 2, item => HasBehaviorKind(item, controllerBehaviorKind));
                 if (controllerRow == null)
@@ -371,7 +371,7 @@ public class LoadoutGenerator
         emptyShape = entity.UnoccupiedSpace;
 
         var capacitorRow = RandomCatalogItem(RuntimeItemCandidateKind.Gear, 2,
-            item => item.BehaviorKinds.Contains(nameof(CapacitorData), StringComparer.Ordinal) &&
+            item => item.BehaviorKinds.Contains("Capacitor", StringComparer.Ordinal) &&
                     FitsWithin(item, emptyShape));
         if (capacitorRow == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
 

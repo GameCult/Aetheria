@@ -8,7 +8,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, Order(10)]
-public class MiningToolData : BehaviorData
+public class MiningToolConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat DamagePerSecond = new PerformanceStat();
@@ -37,15 +37,15 @@ public class MiningTool : Behavior
     public Guid AsteroidBelt;
     public int Asteroid;
 
-    private MiningToolData _data;
+    private MiningToolConfig _data;
     public float Range { get; private set; }
 
-    public MiningTool(MiningToolData data, EquippedItem item) : base(data, item)
+    public MiningTool(MiningToolConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public MiningTool(MiningToolData data, ConsumableItemEffect item) : base(data, item)
+    public MiningTool(MiningToolConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

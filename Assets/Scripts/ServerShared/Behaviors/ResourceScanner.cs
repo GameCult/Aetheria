@@ -8,7 +8,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ResourceScannerData : BehaviorData
+public class ResourceScannerConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Range = new PerformanceStat();
@@ -34,7 +34,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
     public int Asteroid = -1;
 
-    private ResourceScannerData _data;
+    private ResourceScannerConfig _data;
     private float _scanTime;
     private Guid _scanTarget;
 
@@ -56,12 +56,12 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         }
     }
 
-    public ResourceScanner(ResourceScannerData data, EquippedItem item) : base(data, item)
+    public ResourceScanner(ResourceScannerConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public ResourceScanner(ResourceScannerData data, ConsumableItemEffect item) : base(data, item)
+    public ResourceScanner(ResourceScannerConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

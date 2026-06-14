@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class CapacitorData : BehaviorData
+public class CapacitorConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Capacity = new PerformanceStat();
@@ -28,7 +28,7 @@ public class CapacitorData : BehaviorData
 
 public class Capacitor : Behavior
 {
-    private CapacitorData _data;
+    private CapacitorConfig _data;
 
     public float Charge { get; private set; }
     public float Capacity { get; private set; }
@@ -40,12 +40,12 @@ public class Capacitor : Behavior
         AddHeat(abs(charge) * (1-Efficiency));
     }
 
-    public Capacitor(CapacitorData data, EquippedItem item) : base(data, item)
+    public Capacitor(CapacitorConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public Capacitor(CapacitorData data, ConsumableItemEffect item) : base(data, item)
+    public Capacitor(CapacitorConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

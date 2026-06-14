@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class AutoWeaponData : InstantWeaponData
+public class AutoWeaponConfig : InstantWeaponConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -16,8 +16,8 @@ public class AutoWeaponData : InstantWeaponData
 public class AutoWeapon : InstantWeapon
 {
 
-    public AutoWeapon(InstantWeaponData data, EquippedItem item) : base(data, item) { }
-    public AutoWeapon(InstantWeaponData data, ConsumableItemEffect item) : base(data, item) { }
+    public AutoWeapon(InstantWeaponConfig data, EquippedItem item) : base(data, item) { }
+    public AutoWeapon(InstantWeaponConfig data, ConsumableItemEffect item) : base(data, item) { }
 
     public override bool Execute(float dt)
     {

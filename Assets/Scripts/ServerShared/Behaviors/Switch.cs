@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable, Order(-25)]
-public class SwitchData : BehaviorData
+public class SwitchConfig : RuntimeBehaviorConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -19,15 +19,15 @@ public class SwitchData : BehaviorData
 
 public class Switch : Behavior, IActivatedBehavior
 {
-    private SwitchData _data;
+    private SwitchConfig _data;
 
     public bool Activated { get; set; }
 
-    public Switch(SwitchData data, EquippedItem item) : base(data, item)
+    public Switch(SwitchConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Switch(SwitchData data, ConsumableItemEffect item) : base(data, item)
+    public Switch(SwitchConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

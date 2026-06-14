@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class HeatStorageData : BehaviorData
+public class HeatStorageConfig : RuntimeBehaviorConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -21,14 +21,14 @@ public class HeatStorageData : BehaviorData
 
 public class HeatStorage : Behavior
 {
-    private HeatStorageData _data;
+    private HeatStorageConfig _data;
 
-    public HeatStorage(HeatStorageData data, EquippedItem item) : base(data, item)
+    public HeatStorage(HeatStorageConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public HeatStorage(HeatStorageData data, ConsumableItemEffect item) : base(data, item)
+    public HeatStorage(HeatStorageConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

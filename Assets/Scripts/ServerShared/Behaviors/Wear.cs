@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, Order(1000)]
-public class WearData : BehaviorData
+public class WearConfig : RuntimeBehaviorConfig
 {
     [InspectableTemperature, LegacyPayloadKey(1)]
     public bool PerSecond = true;
@@ -24,13 +24,13 @@ public class WearData : BehaviorData
 
 public class Wear : Behavior
 {
-    private WearData _data;
+    private WearConfig _data;
 
-    public Wear(WearData data, EquippedItem item) : base(data, item)
+    public Wear(WearConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Wear(WearData data, ConsumableItemEffect item) : base(data, item)
+    public Wear(WearConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

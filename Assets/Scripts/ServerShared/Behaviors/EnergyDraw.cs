@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable, Order(-20)]
-public class EnergyDrawData : BehaviorData
+public class EnergyDrawConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat EnergyDraw = new PerformanceStat();
@@ -26,14 +26,14 @@ public class EnergyDrawData : BehaviorData
 
 public class EnergyDraw : Behavior
 {
-    private EnergyDrawData _data;
+    private EnergyDrawConfig _data;
 
-    public EnergyDraw(EnergyDrawData data, EquippedItem item) : base(data, item)
+    public EnergyDraw(EnergyDrawConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public EnergyDraw(EnergyDrawData data, ConsumableItemEffect item) : base(data, item)
+    public EnergyDraw(EnergyDrawConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

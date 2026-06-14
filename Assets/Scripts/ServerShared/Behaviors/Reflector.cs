@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ReflectorData : BehaviorData
+public class ReflectorConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat CrossSection = new PerformanceStat();
@@ -27,14 +27,14 @@ public class ReflectorData : BehaviorData
 
 public class Reflector : Behavior
 {
-    private ReflectorData _data;
+    private ReflectorConfig _data;
 
-    public Reflector(ReflectorData data, EquippedItem item) : base(data, item)
+    public Reflector(ReflectorConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public Reflector(ReflectorData data, ConsumableItemEffect item) : base(data, item)
+    public Reflector(ReflectorConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

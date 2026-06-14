@@ -5,7 +5,7 @@
 using System;
 using System.Linq;
 [Inspectable, Order(-5)]
-public class ItemUsageData : BehaviorData
+public class ItemUsageConfig : RuntimeBehaviorConfig
 {
     [LegacyPayloadKey(1)]
     public Guid Item;
@@ -23,14 +23,14 @@ public class ItemUsageData : BehaviorData
 
 public class ItemUsage : Behavior
 {
-    private ItemUsageData _data;
+    private ItemUsageConfig _data;
 
-    public ItemUsage(ItemUsageData data, EquippedItem item) : base(data, item)
+    public ItemUsage(ItemUsageConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public ItemUsage(ItemUsageData data, ConsumableItemEffect item) : base(data, item)
+    public ItemUsage(ItemUsageConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

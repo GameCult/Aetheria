@@ -5,7 +5,7 @@
 using Unity.Mathematics;
 
 [Inspectable]
-public class LauncherData : LockWeaponData
+public class LauncherConfig : LockWeaponConfig
 {
     [InspectableAnimationCurve, LegacyPayloadKey(26)]
     public float4[] GuidanceCurve;
@@ -32,7 +32,7 @@ public class LauncherData : LockWeaponData
 }
 
 [Inspectable]
-public class GuidedWeaponData : InstantWeaponData
+public class GuidedWeaponConfig : InstantWeaponConfig
 {
     [InspectableAnimationCurve, LegacyPayloadKey(21)]
     public float4[] GuidanceCurve;

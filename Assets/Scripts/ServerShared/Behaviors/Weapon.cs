@@ -9,7 +9,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public abstract class WeaponData : BehaviorData
+public abstract class WeaponConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public DamageType DamageType;
@@ -62,7 +62,7 @@ public abstract class WeaponData : BehaviorData
 
 public abstract class Weapon : Behavior, IActivatedBehavior
 {
-    private WeaponData _data;
+    private WeaponConfig _data;
     private PerformanceStat _guidedProjectileThrust;
     private PerformanceStat _guidedProjectileVelocity;
 
@@ -99,7 +99,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         get => _firing;
     }
 
-    public Weapon(WeaponData data, EquippedItem item) : base(data, item)
+    public Weapon(WeaponConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         DamageType = data.DamageType;
@@ -109,7 +109,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         InitializeGuidedProjectileProfile(data);
     }
 
-    public Weapon(WeaponData data, ConsumableItemEffect item) : base(data, item)
+    public Weapon(WeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         DamageType = data.DamageType;
@@ -119,9 +119,9 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         InitializeGuidedProjectileProfile(data);
     }
 
-    private void InitializeGuidedProjectileProfile(WeaponData data)
+    private void InitializeGuidedProjectileProfile(WeaponConfig data)
     {
-        if (data is LauncherData launcher)
+        if (data is LauncherConfig launcher)
         {
             GuidedProjectileTargeting = GuidedProjectileTargetMode.TargetEntity;
             GuidedProjectileGuidanceCurve = launcher.GuidanceCurve;
@@ -131,7 +131,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
             _guidedProjectileThrust = launcher.Thrust;
             _guidedProjectileVelocity = launcher.MissileVelocity;
         }
-        else if (data is GuidedWeaponData guidance)
+        else if (data is GuidedWeaponConfig guidance)
         {
             GuidedProjectileTargeting = GuidedProjectileTargetMode.LookDirection;
             GuidedProjectileGuidanceCurve = guidance.GuidanceCurve;

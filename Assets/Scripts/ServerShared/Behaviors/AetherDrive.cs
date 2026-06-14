@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, EntityTypeRestriction(HullType.Ship)]
-public class AetherDriveData : BehaviorData
+public class AetherDriveConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public float3 RotorDiameter;
@@ -60,7 +60,7 @@ public class AetherDriveData : BehaviorData
 
 public class AetherDrive : Behavior
 {
-    private AetherDriveData _data;
+    private AetherDriveConfig _data;
     private float3 _axis;
 
     public float3 Thrust { get; private set; }
@@ -75,13 +75,13 @@ public class AetherDrive : Behavior
         set => _axis = clamp(value, -1, 1);
     }
 
-    public AetherDrive(AetherDriveData data, EquippedItem item) : base(data, item)
+    public AetherDrive(AetherDriveConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         Particles = data.Particles;
     }
 
-    public AetherDrive(AetherDriveData data, ConsumableItemEffect item) : base(data, item)
+    public AetherDrive(AetherDriveConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         Particles = data.Particles;

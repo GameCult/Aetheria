@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class CockpitData : BehaviorData
+public class CockpitConfig : RuntimeBehaviorConfig
 {
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -21,14 +21,14 @@ public class CockpitData : BehaviorData
 
 public class Cockpit : Behavior
 {
-    private CockpitData _data;
+    private CockpitConfig _data;
 
-    public Cockpit(CockpitData data, EquippedItem item) : base(data, item)
+    public Cockpit(CockpitConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public Cockpit(CockpitData data, ConsumableItemEffect item) : base(data, item)
+    public Cockpit(CockpitConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

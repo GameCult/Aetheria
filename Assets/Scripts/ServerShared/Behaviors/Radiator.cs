@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class RadiatorData : BehaviorData
+public class RadiatorConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Emissivity = new PerformanceStat();
@@ -46,13 +46,13 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
     public float WasteHeat { get; private set; }
     public float EnergyUsage { get; private set; }
 
-    private RadiatorData _data;
+    private RadiatorConfig _data;
 
-    public Radiator(RadiatorData data, EquippedItem item) : base(data, item)
+    public Radiator(RadiatorConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Radiator(RadiatorData data, ConsumableItemEffect item) : base(data, item)
+    public Radiator(RadiatorConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }

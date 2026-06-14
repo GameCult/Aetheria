@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class InstantWeaponData : WeaponData
+public class InstantWeaponConfig : WeaponConfig
 {
     [Inspectable, LegacyPayloadKey(17)]
     public PerformanceStat Count = new PerformanceStat();
@@ -32,7 +32,7 @@ public class InstantWeaponData : WeaponData
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
-    private InstantWeaponData _data;
+    private InstantWeaponConfig _data;
 
     protected int _burstRemaining;
     private float _burstTimer;
@@ -79,13 +79,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         OnFire = null;
     }
 
-    public InstantWeapon(InstantWeaponData data, EquippedItem item) : base(data, item)
+    public InstantWeapon(InstantWeaponConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
         _ammo = data.MagazineSize;
     }
 
-    public InstantWeapon(InstantWeaponData data, ConsumableItemEffect item) : base(data, item)
+    public InstantWeapon(InstantWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         _ammo = data.MagazineSize;

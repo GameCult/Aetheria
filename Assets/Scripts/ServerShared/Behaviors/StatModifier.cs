@@ -7,7 +7,7 @@ using System.Linq;
 using GameCult.Aetheria.State.Unity;
 
 [Inspectable]
-public class StatModifierData : BehaviorData
+public class StatModifierConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public StatReference Stat = new StatReference();
@@ -18,7 +18,7 @@ public class StatModifierData : BehaviorData
     [Inspectable, LegacyPayloadKey(3)]
     public StatModifierType Type;
 
-    [InspectableType(typeof(BehaviorData)), LegacyPayloadKey(4)]
+    [InspectableType(typeof(RuntimeBehaviorConfig)), LegacyPayloadKey(4)]
     public string RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -35,7 +35,7 @@ public class StatModifierData : BehaviorData
 [Order(-4)]
 public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwaysUpdatedBehavior
 {
-    private StatModifierData _data;
+    private StatModifierConfig _data;
 
     private PerformanceStat[] _stats;
 
@@ -46,12 +46,12 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     public bool Executed => _executed;
     public int TargetStatCount => _stats?.Length ?? 0;
 
-    public StatModifier(StatModifierData data, EquippedItem item) : base(data, item)
+    public StatModifier(StatModifierConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
 
-    public StatModifier(StatModifierData data, ConsumableItemEffect item) : base(data, item)
+    public StatModifier(StatModifierConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }
@@ -69,7 +69,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private PerformanceStat FindTargetStat(Behavior behavior)
     {
-        var data = behavior.Data;
+        var data = behavior.Config;
         var statField = data
             .GetType()
             .GetFields()
@@ -153,7 +153,7 @@ public enum StatModifierType
 [Inspectable]
 public class StatReference
 {
-    [InspectableType(typeof(BehaviorData)), LegacyPayloadKey(1)]
+    [InspectableType(typeof(RuntimeBehaviorConfig)), LegacyPayloadKey(1)]
     public string Target;
 
     [Inspectable, LegacyPayloadKey(2)]

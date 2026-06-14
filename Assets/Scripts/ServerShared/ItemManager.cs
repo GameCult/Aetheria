@@ -19,7 +19,6 @@ using float4 = Unity.Mathematics.float4;
 public class ItemManager
 {
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
-    // public SimpleCommodityData[] Resources;
     // public Dictionary<Guid, List<IController>> CorporationControllers = new Dictionary<Guid, List<IController>>();
     // public Dictionary<Guid, ZoneDefinition> GalaxyZones;
     
@@ -34,37 +33,37 @@ public class ItemManager
     private readonly IRuntimeItemCatalogReader _runtimeItems;
     private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByKind = new Dictionary<string, Type>(StringComparer.Ordinal)
     {
-        { "GuidedWeapon", typeof(GuidedWeaponData) },
-        { "Launcher", typeof(LauncherData) },
-        { "Reactor", typeof(ReactorData) },
-        { "Radiator", typeof(RadiatorData) },
-        { "StatModifier", typeof(StatModifierData) },
-        { "Sensor", typeof(SensorData) },
-        { "Reflector", typeof(ReflectorData) },
-        { "Shield", typeof(ShieldData) },
-        { "Thruster", typeof(ThrusterData) },
-        { "Wear", typeof(WearData) },
-        { "VelocityConversion", typeof(VelocityConversionData) },
-        { "VelocityLimit", typeof(VelocityLimitData) },
-        { "AetherDrive", typeof(AetherDriveData) },
-        { "Cooldown", typeof(CooldownData) },
-        { "Heat", typeof(HeatData) },
-        { "ItemUsage", typeof(ItemUsageData) },
-        { "Switch", typeof(SwitchData) },
-        { "Trigger", typeof(TriggerData) },
-        { "Visibility", typeof(VisibilityData) },
-        { "Thermotoggle", typeof(ThermotoggleData) },
-        { "EnergyDraw", typeof(EnergyDrawData) },
-        { "MiningTool", typeof(MiningToolData) },
-        { "ResourceScanner", typeof(ResourceScannerData) },
-        { "Capacitor", typeof(CapacitorData) },
-        { "Cockpit", typeof(CockpitData) },
-        { "HeatStorage", typeof(HeatStorageData) },
-        { "TurretController", typeof(TurretControllerData) },
-        { "InstantWeapon", typeof(InstantWeaponData) },
-        { "ConstantWeapon", typeof(ConstantWeaponData) },
-        { "ChargedWeapon", typeof(ChargedWeaponData) },
-        { "AutoWeapon", typeof(AutoWeaponData) }
+        { "GuidedWeapon", typeof(GuidedWeaponConfig) },
+        { "Launcher", typeof(LauncherConfig) },
+        { "Reactor", typeof(ReactorConfig) },
+        { "Radiator", typeof(RadiatorConfig) },
+        { "StatModifier", typeof(StatModifierConfig) },
+        { "Sensor", typeof(SensorConfig) },
+        { "Reflector", typeof(ReflectorConfig) },
+        { "Shield", typeof(ShieldConfig) },
+        { "Thruster", typeof(ThrusterConfig) },
+        { "Wear", typeof(WearConfig) },
+        { "VelocityConversion", typeof(VelocityConversionConfig) },
+        { "VelocityLimit", typeof(VelocityLimitConfig) },
+        { "AetherDrive", typeof(AetherDriveConfig) },
+        { "Cooldown", typeof(CooldownConfig) },
+        { "Heat", typeof(HeatConfig) },
+        { "ItemUsage", typeof(ItemUsageConfig) },
+        { "Switch", typeof(SwitchConfig) },
+        { "Trigger", typeof(TriggerConfig) },
+        { "Visibility", typeof(VisibilityConfig) },
+        { "Thermotoggle", typeof(ThermotoggleConfig) },
+        { "EnergyDraw", typeof(EnergyDrawConfig) },
+        { "MiningTool", typeof(MiningToolConfig) },
+        { "ResourceScanner", typeof(ResourceScannerConfig) },
+        { "Capacitor", typeof(CapacitorConfig) },
+        { "Cockpit", typeof(CockpitConfig) },
+        { "HeatStorage", typeof(HeatStorageConfig) },
+        { "TurretController", typeof(TurretControllerConfig) },
+        { "InstantWeapon", typeof(InstantWeaponConfig) },
+        { "ConstantWeapon", typeof(ConstantWeaponConfig) },
+        { "ChargedWeapon", typeof(ChargedWeaponConfig) },
+        { "AutoWeapon", typeof(AutoWeaponConfig) }
     };
 
     public GameplaySettings GameplaySettings { get; }
@@ -79,8 +78,6 @@ public class ItemManager
     //         //Log($"GameContext delta time: {_deltaTime}");
     //     }
     // }
-
-    // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
 
     public ItemManager(IRuntimeItemCatalogReader runtimeItems, GameplaySettings settings, Action<string> logger)
     {
@@ -113,15 +110,15 @@ public class ItemManager
             .ToArray();
     }
 
-    private IReadOnlyList<BehaviorData> CreateRuntimeBehaviorConfigs(ItemInstance item)
+    private IReadOnlyList<RuntimeBehaviorConfig> CreateRuntimeBehaviorConfigs(ItemInstance item)
     {
         var typedItem = GetRuntimeItem(item);
         return typedItem == null
-            ? Array.Empty<BehaviorData>()
+            ? Array.Empty<RuntimeBehaviorConfig>()
             : BuildBehaviorConfigs(typedItem);
     }
 
-    private static BehaviorData[] BuildBehaviorConfigs(AetheriaRuntimeCatalogItem item)
+    private static RuntimeBehaviorConfig[] BuildBehaviorConfigs(AetheriaRuntimeCatalogItem item)
     {
         return item.BehaviorPayloads
             .Select(BuildBehaviorConfig)
@@ -129,14 +126,14 @@ public class ItemManager
             .ToArray();
     }
 
-    private static BehaviorData BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
+    private static RuntimeBehaviorConfig BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
     {
         if (!BehaviorTypesByKind.TryGetValue(payload.Kind, out var behaviorType))
         {
             return null;
         }
 
-        var behavior = Activator.CreateInstance(behaviorType) as BehaviorData;
+        var behavior = Activator.CreateInstance(behaviorType) as RuntimeBehaviorConfig;
         if (behavior == null)
         {
             return null;

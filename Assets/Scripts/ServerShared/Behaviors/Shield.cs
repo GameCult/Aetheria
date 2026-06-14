@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable]
-public class ShieldData : BehaviorData
+public class ShieldConfig : RuntimeBehaviorConfig
 {
     [Inspectable, LegacyPayloadKey(1)]
     public PerformanceStat Efficiency = new PerformanceStat();
@@ -29,13 +29,13 @@ public class Shield : Behavior, IProgressBehavior
     public float Efficiency { get; private set; }
     public float EnergyUsage { get; private set; }
 
-    private ShieldData _data;
+    private ShieldConfig _data;
 
-    public Shield(ShieldData data, EquippedItem item) : base(data, item)
+    public Shield(ShieldConfig data, EquippedItem item) : base(data, item)
     {
         _data = data;
     }
-    public Shield(ShieldData data, ConsumableItemEffect item) : base(data, item)
+    public Shield(ShieldConfig data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
     }
