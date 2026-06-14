@@ -811,6 +811,9 @@ First Aetheria surfaces to publish:
    - Done: delete `Entity` consumable activation overloads that accepted
      `ConsumableItemData`; active lookup uses item ids and activation commands
      accept typed runtime catalog rows only.
+   - Done: delete dead `Entity.GetBehaviorData<T>()` and stale commented
+     switch/trigger/axis behavior-query helpers; entity-level behavior queries
+     expose live behavior instances, not DTO config.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
