@@ -294,6 +294,16 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 MiningToolAsteroidBeltId = "smoke:body",
                 MiningToolAsteroidIndex = 3,
                 MiningToolRange = 275.0
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 3,
+                BehaviorKind = "Thruster",
+                ThrusterAxis = 0.8,
+                ThrusterThrust = 125.0,
+                ThrusterTorque = -0.4
             }
         ],
         StatGrids =
@@ -557,7 +567,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 3 ||
+        entitySnapshot.BehaviorStates.Length != 4 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
@@ -571,6 +581,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.BehaviorStates[2].MiningToolAsteroidBeltId != "smoke:body" ||
         entitySnapshot.BehaviorStates[2].MiningToolAsteroidIndex != 3 ||
         entitySnapshot.BehaviorStates[2].MiningToolRange != 275.0 ||
+        entitySnapshot.BehaviorStates[3].BehaviorKind != "Thruster" ||
+        entitySnapshot.BehaviorStates[3].ThrusterAxis != 0.8 ||
+        entitySnapshot.BehaviorStates[3].ThrusterThrust != 125.0 ||
+        entitySnapshot.BehaviorStates[3].ThrusterTorque != -0.4 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

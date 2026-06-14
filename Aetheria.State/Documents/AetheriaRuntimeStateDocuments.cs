@@ -766,6 +766,15 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(39)]
     public double MiningToolRange { get; set; }
+
+    [Key(40)]
+    public double ThrusterAxis { get; set; }
+
+    [Key(41)]
+    public double ThrusterThrust { get; set; }
+
+    [Key(42)]
+    public double ThrusterTorque { get; set; }
 }
 
 [MessagePackObject]

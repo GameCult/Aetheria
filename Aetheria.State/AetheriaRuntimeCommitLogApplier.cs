@@ -507,7 +507,10 @@ public static class AetheriaRuntimeCommitLogApplier
                 ResourceScannerScanDuration = state.ResourceScannerScanDuration,
                 MiningToolAsteroidBeltId = state.MiningToolAsteroidBeltId ?? "",
                 MiningToolAsteroidIndex = state.MiningToolAsteroidIndex,
-                MiningToolRange = state.MiningToolRange
+                MiningToolRange = state.MiningToolRange,
+                ThrusterAxis = state.ThrusterAxis,
+                ThrusterThrust = state.ThrusterThrust,
+                ThrusterTorque = state.ThrusterTorque
             })
             .ToArray();
     }

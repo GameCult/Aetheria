@@ -1107,7 +1107,10 @@ namespace GameCult.Aetheria.State.Unity
             double resourceScannerScanDuration,
             string miningToolAsteroidBeltId,
             int miningToolAsteroidIndex,
-            double miningToolRange)
+            double miningToolRange,
+            double thrusterAxis,
+            double thrusterThrust,
+            double thrusterTorque)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1149,6 +1152,9 @@ namespace GameCult.Aetheria.State.Unity
             MiningToolAsteroidBeltId = miningToolAsteroidBeltId;
             MiningToolAsteroidIndex = miningToolAsteroidIndex;
             MiningToolRange = miningToolRange;
+            ThrusterAxis = thrusterAxis;
+            ThrusterThrust = thrusterThrust;
+            ThrusterTorque = thrusterTorque;
         }
 
         public string OwnerKind { get; }
@@ -1191,5 +1197,8 @@ namespace GameCult.Aetheria.State.Unity
         public string MiningToolAsteroidBeltId { get; }
         public int MiningToolAsteroidIndex { get; }
         public double MiningToolRange { get; }
+        public double ThrusterAxis { get; }
+        public double ThrusterThrust { get; }
+        public double ThrusterTorque { get; }
     }
 }

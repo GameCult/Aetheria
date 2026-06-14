@@ -927,6 +927,15 @@ public class ActionGameManager : MonoBehaviour
                     MiningToolRange = miningTool.Range
                 };
             }
+            else if (behavior is Thruster thruster)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    ThrusterAxis = thruster.Axis,
+                    ThrusterThrust = thruster.Thrust,
+                    ThrusterTorque = thruster.Torque
+                };
+            }
 
             if (state == null)
                 continue;
