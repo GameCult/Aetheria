@@ -528,6 +528,36 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(15)]
         public IReadOnlyList<AetheriaRuntimeEntityStatGridCommit> StatGrids { get; set; } = Array.Empty<AetheriaRuntimeEntityStatGridCommit>();
+
+        [Key(16)]
+        public double VelocityX { get; set; }
+
+        [Key(17)]
+        public double VelocityY { get; set; }
+
+        [Key(18)]
+        public int TargetEntityIndex { get; set; } = -1;
+
+        [Key(19)]
+        public bool IsActive { get; set; }
+
+        [Key(20)]
+        public bool HeatsinksEnabled { get; set; }
+
+        [Key(21)]
+        public bool OverrideShutdown { get; set; }
+
+        [Key(22)]
+        public double TractorPower { get; set; }
+
+        [Key(23)]
+        public double Heatstroke { get; set; }
+
+        [Key(24)]
+        public double Hypothermia { get; set; }
+
+        [Key(25)]
+        public IReadOnlyList<AetheriaRuntimeActiveConsumableCommit> ActiveConsumables { get; set; } = Array.Empty<AetheriaRuntimeActiveConsumableCommit>();
     }
 
     [MessagePackObject]
@@ -544,5 +574,21 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(3)]
         public IReadOnlyList<double> Values { get; set; } = Array.Empty<double>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeActiveConsumableCommit
+    {
+        [Key(0)]
+        public string ItemDefinitionLegacyId { get; set; } = "";
+
+        [Key(1)]
+        public double Quality { get; set; } = 1.0;
+
+        [Key(2)]
+        public double RemainingDuration { get; set; }
+
+        [Key(3)]
+        public double Duration { get; set; }
     }
 }

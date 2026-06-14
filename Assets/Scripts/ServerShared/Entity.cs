@@ -67,6 +67,7 @@ public abstract class Entity
     private List<Radiator> _heatsinks = new List<Radiator>();
 
     private List<ConsumableItemEffect> _activeConsumables = new List<ConsumableItemEffect>();
+    public IReadOnlyList<ConsumableItemEffect> ActiveConsumables => _activeConsumables;
     
     protected bool _active;
 

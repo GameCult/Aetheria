@@ -414,6 +414,20 @@ public static class AetheriaRuntimeCommitLogApplier
                 X = entity.DirectionX,
                 Y = entity.DirectionY
             },
+            Velocity = new AetheriaVector2
+            {
+                X = entity.VelocityX,
+                Y = entity.VelocityY
+            },
+            TargetEntityKey = entity.TargetEntityIndex >= 0
+                ? EntityKey(runId, zoneIndex, entity.TargetEntityIndex).ToString()
+                : "",
+            IsActive = entity.IsActive,
+            HeatsinksEnabled = entity.HeatsinksEnabled,
+            OverrideShutdown = entity.OverrideShutdown,
+            TractorPower = entity.TractorPower,
+            Heatstroke = entity.Heatstroke,
+            Hypothermia = entity.Hypothermia,
             FactionKey = ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
             HullItemKey = ReferenceKey("aetheria.item_definition", entity.HullItemDefinitionLegacyId ?? ""),
             Equipment = ToEntityItemSlots(entity.Equipment),
@@ -425,8 +439,23 @@ public static class AetheriaRuntimeCommitLogApplier
             WeaponGroups = ToIntArrayArray(entity.WeaponGroups)
                 .Select(group => new AetheriaWeaponGroupSnapshot { EquipmentIndices = group })
                 .ToArray(),
-            StatGrids = ToEntityStatGrids(entity.StatGrids)
+            StatGrids = ToEntityStatGrids(entity.StatGrids),
+            ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables)
         };
+    }
+
+    private static AetheriaActiveConsumableSnapshot[] ToActiveConsumables(
+        IReadOnlyList<AetheriaRuntimeActiveConsumableCommit>? consumables)
+    {
+        return (consumables ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>())
+            .Select(consumable => new AetheriaActiveConsumableSnapshot
+            {
+                ItemKey = ReferenceKey("aetheria.item_definition", consumable.ItemDefinitionLegacyId ?? ""),
+                Quality = consumable.Quality,
+                RemainingDuration = consumable.RemainingDuration,
+                Duration = consumable.Duration
+            })
+            .ToArray();
     }
 
     private static AetheriaEntityStatGrid[] ToEntityStatGrids(

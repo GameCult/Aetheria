@@ -454,6 +454,34 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(11)]
     public AetheriaEntityStatGrid[] StatGrids { get; set; } = [];
+
+    [Key(12)]
+    public AetheriaVector2 Velocity { get; set; } = new();
+
+    [Key(13)]
+    [CultReference(typeof(AetheriaEntitySnapshot))]
+    public string TargetEntityKey { get; set; } = "";
+
+    [Key(14)]
+    public bool IsActive { get; set; }
+
+    [Key(15)]
+    public bool HeatsinksEnabled { get; set; }
+
+    [Key(16)]
+    public bool OverrideShutdown { get; set; }
+
+    [Key(17)]
+    public double TractorPower { get; set; }
+
+    [Key(18)]
+    public double Heatstroke { get; set; }
+
+    [Key(19)]
+    public double Hypothermia { get; set; }
+
+    [Key(20)]
+    public AetheriaActiveConsumableSnapshot[] ActiveConsumables { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -487,6 +515,23 @@ public sealed class AetheriaEntityStatGrid
 
     [Key(3)]
     public double[] Values { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaActiveConsumableSnapshot
+{
+    [Key(0)]
+    [CultReference(typeof(AetheriaItemDefinition))]
+    public string ItemKey { get; set; } = "";
+
+    [Key(1)]
+    public double Quality { get; set; } = 1.0;
+
+    [Key(2)]
+    public double RemainingDuration { get; set; }
+
+    [Key(3)]
+    public double Duration { get; set; }
 }
 
 [MessagePackObject]

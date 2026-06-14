@@ -765,6 +765,15 @@ public class ActionGameManager : MonoBehaviour
             PositionZ = entity.Position.z,
             DirectionX = entity.Direction.x,
             DirectionY = entity.Direction.y,
+            VelocityX = entity.Velocity.x,
+            VelocityY = entity.Velocity.y,
+            TargetEntityIndex = entity.Target?.Value == null ? -1 : zone.Entities.IndexOf(entity.Target.Value),
+            IsActive = entity.Active,
+            HeatsinksEnabled = entity.HeatsinksEnabled,
+            OverrideShutdown = entity.OverrideShutdown,
+            TractorPower = entity.TractorPower,
+            Heatstroke = entity.Heatstroke,
+            Hypothermia = entity.Hypothermia,
             CorporationLegacyId = entity.Faction?.ID.ToString("D") ?? "",
             HullItemDefinitionLegacyId = entity.Hull?.ItemId == Guid.Empty ? "" : entity.Hull.ItemId.ToString("D"),
             Equipment = ProjectEquippedSlots(entity.Equipment),
@@ -777,8 +786,22 @@ public class ActionGameManager : MonoBehaviour
             WeaponGroups = entity.WeaponGroups?
                 .Select(group => (IReadOnlyList<int>)group.items.Select(item => entity.Equipment.IndexOf(item)).Where(index => index >= 0).ToArray())
                 .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
-            StatGrids = ProjectEntityStatGrids(entity)
+            StatGrids = ProjectEntityStatGrids(entity),
+            ActiveConsumables = ProjectActiveConsumables(entity)
         };
+    }
+
+    private static AetheriaRuntimeActiveConsumableCommit[] ProjectActiveConsumables(Entity entity)
+    {
+        return entity.ActiveConsumables?
+            .Select(effect => new AetheriaRuntimeActiveConsumableCommit
+            {
+                ItemDefinitionLegacyId = effect.Item?.ItemId == Guid.Empty ? "" : effect.Item.ItemId.ToString("D"),
+                Quality = effect.Item?.Quality ?? 1.0,
+                RemainingDuration = effect.RemainingDuration,
+                Duration = effect.Duration
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>();
     }
 
     private static AetheriaRuntimeEntityStatGridCommit[] ProjectEntityStatGrids(Entity entity)
