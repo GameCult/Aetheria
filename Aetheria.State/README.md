@@ -29,8 +29,8 @@ docking item slots, nested child-entity loadouts, and weapon groups.
 and input binding edits; menu and input-screen changes queue typed
 `.cc.pending` player-settings commits and are not portable state authority.
 Unity settings, loadout templates, and run checkpoints now queue typed
-`.cc.pending` runtime commit envelopes beside
-`GameData/aetheria-world.cc`. `Aetheria.State` owns applying those envelopes
+`.cc.pending` runtime commit documents beside
+`GameData/aetheria-world.cc`. `Aetheria.State` owns applying those documents
 into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
 Unity-side command log is command-only and cannot become durable truth by
 itself.

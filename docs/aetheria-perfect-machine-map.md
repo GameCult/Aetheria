@@ -314,14 +314,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.Shared.Unity` references this package directly so `Galaxy` can
   consume typed name files without loading legacy `NameFile` documents. The
   package also owns Unity's typed runtime commit log writer for settings,
-  loadout-template, and run-checkpoint command envelopes under
+  loadout-template, and run-checkpoint command documents under
   `aetheria-world.cc.pending`. This log is command-only: it cannot decide
   canonical state, and the `Aetheria.State` node applicator deletes applied
-  commands after writing typed documents. Run checkpoint envelopes now carry
+  commands after writing typed documents. Run checkpoint documents now carry
   current-zone and entity snapshots so the old `.zone` file path has a live
   typed runtime projection path.
 - `Aetheria.State.ApplyPending` opens the typed state node and applies queued
-  Unity runtime command envelopes from `aetheria-world.cc.pending`, deleting
+  Unity runtime command documents from `aetheria-world.cc.pending`, deleting
   successfully applied command files by default. It is an operational bridge,
   not a second state owner; the applicator delegates all writes to
   `AetheriaStateNode`.
@@ -931,6 +931,9 @@ First Aetheria surfaces to publish:
    - Done: replace warning-only player settings, loadout, shutdown, and
      wormhole save paths with typed `.cc.pending` Verse commit commands and a
      state-node applicator that writes canonical typed documents.
+   - Done: replace the `.cc.pending` runtime commit lane's private raw
+     MessagePack array protocol with `AetheriaRuntimeStateCommitDocument`,
+     shared by the Unity runtime package and the provider applicator.
    - Done: extend run checkpoint commands to carry current-zone and entity
      snapshots into canonical `AetheriaZoneState` and `AetheriaEntitySnapshot`
      documents.
