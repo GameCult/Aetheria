@@ -115,9 +115,4 @@ public class OrbitData
 
     public float2 FixedPosition = float2.zero;
 
-    public static float2 Evaluate(float phase)
-    {
-        phase *= PI * 2;
-        return new float2(cos(phase), sin(phase));
-    }
 }

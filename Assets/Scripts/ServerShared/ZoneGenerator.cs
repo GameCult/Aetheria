@@ -511,7 +511,7 @@ public class GeneratorPlanet
 		var p0 = new float2(0, dist);
 
 		// Position of second child
-		var p1 = OrbitData.Evaluate(1.0f / vertices) * dist;
+		var p1 = Orbit.Evaluate(1.0f / vertices) * dist;
 
 		// Maximum child distance is half the distance to the neighbor minus the neighbor's radius
 		var p0ChildDist = (distance(p0, p1) * proportion - Settings.PlanetSafetyRadius.Evaluate(sharedMass * (1 - proportion))) * .75f;

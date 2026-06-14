@@ -153,7 +153,7 @@ public class Zone
             if (orbit.Period > .01f)
             {
                 var phase = (float) frac(_time / orbit.Period);
-                pos = OrbitData.Evaluate(frac(phase + orbit.Phase)) * orbit.Distance;
+                pos = Orbit.Evaluate(frac(phase + orbit.Phase)) * orbit.Distance;
                 
                 if (float.IsNaN(pos.x))
                 {
@@ -221,7 +221,7 @@ public class Zone
             else size = Settings.AsteroidSize.Evaluate(asteroid.Size);
 
             var rot = (float) (_time * asteroid.RotationSpeed % (PI * 2));
-            var pos = OrbitData.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(asteroid.Distance) +
+            var pos = Orbit.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(asteroid.Distance) +
                                                       asteroid.Phase)) * asteroid.Distance + belt.NewOrbitPosition;
             //belt.NewPositions[i] = float3(pos.x, GetHeight(pos) + Settings.AsteroidVerticalOffset, pos.y);
             belt.NewTransforms[i] = float4(pos.x, pos.y, rot, size);
@@ -551,6 +551,12 @@ public class Orbit
     public float2 Position = float2.zero;
     public float2 PreviousPosition = float2.zero;
     public float Period;
+
+    public static float2 Evaluate(float phase)
+    {
+        phase *= PI * 2;
+        return new float2(cos(phase), sin(phase));
+    }
 
     public Orbit(PlanetSettings settings, OrbitData data)
     {

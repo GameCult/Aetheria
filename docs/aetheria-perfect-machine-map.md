@@ -1028,6 +1028,9 @@ First Aetheria surfaces to publish:
      `OrbitData`; `Zone`, `ActionGameManager`, and `ZoneRenderer` consume
      `Orbit` runtime properties, and the old `Orbit.ToData()` construction
      capture bridge is deleted.
+   - Done: move orbit phase evaluation off `OrbitData`; runtime zone updates,
+     asteroid transforms, and generator rosette spacing now use `Orbit.Evaluate`,
+     leaving `OrbitData` as a construction row only.
    - Done: move live asteroid-belt simulation, scanning, and mesh setup reads
      off `AsteroidBeltData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
      consume `AsteroidBelt` runtime asteroid/resource/orbit properties, and
