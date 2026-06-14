@@ -166,6 +166,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Zone entity scene instantiation also reads typed hull prefab paths and hull
   classifications from the runtime catalog; missing typed hull prefab rows fail
   loudly instead of asking legacy `HullData` to choose the scene prefab.
+  Entity scene instances use typed hull shape cells and typed hardpoint rows for
+  collision damage masks and weapon-barrel presentation setup; behavior effect
+  prefabs still come from behavior DTOs until behavior construction/execution
+  moves to typed payloads.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
@@ -647,6 +651,9 @@ First Aetheria surfaces to publish:
    - Done: import typed hull prefab paths and move `ZoneRenderer` entity scene
      instantiation onto typed hull rows; legacy `HullData` no longer chooses
      zone entity prefabs or station compass classification.
+   - Done: move `EntityInstance` hull shape and hardpoint presentation/damage
+     masks onto typed catalog rows; legacy `HullData` no longer supplies hull
+     shape or hardpoint lists to scene entity instances.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

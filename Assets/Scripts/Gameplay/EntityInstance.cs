@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UniRx;
 using UnityEngine;
 using Unity.Mathematics;
@@ -57,6 +58,26 @@ public class EntityInstance : MonoBehaviour
     {
         _instantWeaponManagers.Clear();
         _constantWeaponManagers.Clear();
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedHull(ItemInstance hull)
+    {
+        var itemId = hull?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(width, height);
+        foreach (var cell in cells)
+        {
+            if (cell.X >= 0 && cell.Y >= 0 && cell.X < width && cell.Y < height)
+                shape[int2(cell.X, cell.Y)] = true;
+        }
+
+        return shape;
     }
 
     public CompassIcon CompassIcon { get; set; }
@@ -162,7 +183,15 @@ public class EntityInstance : MonoBehaviour
         LocalSpace.SetParent(transform.parent);
         Entity = entity;
         ZoneRenderer = zoneRenderer;
-        var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
+        var typedHull = FindTypedHull(entity.Hull);
+        if (typedHull == null || typedHull.ShapeWidth <= 0 || typedHull.ShapeHeight <= 0 || typedHull.ShapeCells.Count == 0)
+        {
+            Debug.LogError($"Cannot bind entity instance for {entity.Name}: missing typed hull shape.");
+            return;
+        }
+
+        var hullShape = ToShape(typedHull.ShapeWidth, typedHull.ShapeHeight, typedHull.ShapeCells);
+        var typedHardpoints = typedHull.Hardpoints.ToArray();
 
         if(Shield)
             Shield.Entity = entity;
@@ -260,7 +289,7 @@ public class EntityInstance : MonoBehaviour
                 }
             }
         }
-        foreach (var hp in hullData.Hardpoints)
+        foreach (var hp in Entity.Hardpoints.Cast<HardpointData>().Where(hp => hp != null).Distinct())
         {
             if(hp.Type == HardpointType.Ballistic || hp.Type == HardpointType.Energy || hp.Type == HardpointType.Launcher)
             {
@@ -276,7 +305,7 @@ public class EntityInstance : MonoBehaviour
         void DamageSchematic(float damage, Shape hitShape)
         {
             foreach (var v in hitShape.Coordinates)
-                hitShape[v] = hitShape[v] && hullData.Shape[v];
+                hitShape[v] = hitShape[v] && hullShape[v];
 
             float hullDamage = 0;
             var damagePerCell = damage / hitShape.Coordinates.Length;
@@ -316,12 +345,12 @@ public class EntityInstance : MonoBehaviour
         {
             collider.Splash.Subscribe(splash =>
             {
-                var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-                foreach (var v in hullData.Shape.Coordinates)
+                var hitShape = new Shape(hullShape.Width, hullShape.Height);
+                foreach (var v in hullShape.Coordinates)
                 {
                     var localHitDirection = transform.InverseTransformDirection(splash.Direction);
                     var direction = normalize(float2(localHitDirection.x, localHitDirection.z));
-                    var cellDot = dot(normalize(v - hullData.Shape.CenterOfMass), direction);
+                    var cellDot = dot(normalize(v - hullShape.CenterOfMass), direction);
                     if (cellDot < 0) hitShape[v] = true;
                 }
                 DamageSchematic(splash.Damage, hitShape);
@@ -332,18 +361,18 @@ public class EntityInstance : MonoBehaviour
                 Entity.IncomingHit.OnNext(hit.Source);
                 var hardpointIndex = (int) hit.TexCoord.x - 1;
                 
-                var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
+                var hitShape = new Shape(hullShape.Width, hullShape.Height);
 
                 // U coordinate between 0-1 indicates a hit that didn't land directly on a hardpoint
                 // Find the 2D position of the hit scaled to the schematic
                 float2 hitPos = float2.zero;
-                if (hardpointIndex < 0 || hardpointIndex >= hullData.Hardpoints.Count)
+                if (hardpointIndex < 0 || hardpointIndex >= typedHardpoints.Length)
                 {
-                    hitPos = float2(hit.TexCoord.x * hullData.Shape.Width, hit.TexCoord.y * hullData.Shape.Height);
+                    hitPos = float2(hit.TexCoord.x * hullShape.Width, hit.TexCoord.y * hullShape.Height);
                     // Search all schematic border cells for the cell which is closest to the hit position
                     var hitCell = int2(-1);
                     var distance = float.MaxValue;
-                    foreach (var v in hullData.Shape.Coordinates)
+                    foreach (var v in hullShape.Coordinates)
                     {
                         var cellDist = lengthsq(hitPos - v);
                         if (cellDist < distance)
@@ -359,10 +388,11 @@ public class EntityInstance : MonoBehaviour
                 else
                 {
                     // Collider UV coordinates starting with 1 correspond to hardpoint index
-                    var hardpoint = hullData.Hardpoints[hardpointIndex];
+                    var hardpoint = typedHardpoints[hardpointIndex];
                     
                     // Obtain the hull coordinates of all cells occupied by the hardpoint
-                    var hardpointCells = hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position);
+                    var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
+                    var hardpointCells = hullShape.Inset(hardpointShape, int2(hardpoint.PositionX, hardpoint.PositionY));
                     hitPos = hardpointCells.CenterOfMass;
                     foreach (var v in hardpointCells.Coordinates)
                         hitShape[v] = true;
@@ -382,7 +412,7 @@ public class EntityInstance : MonoBehaviour
                     // March a ray through the ship from the hit position
                     var penetrationPoint = hitPos;
                     var penetrationDistance = 0f;
-                    while (penetrationDistance < hit.Penetration && hullData.Shape[int2(penetrationPoint)])
+                    while (penetrationDistance < hit.Penetration && hullShape[int2(penetrationPoint)])
                     {
                         penetrationDistance += .5f;
                         hitShape[int2(penetrationPoint)] = true;
