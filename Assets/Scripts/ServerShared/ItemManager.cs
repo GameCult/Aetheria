@@ -52,7 +52,11 @@ public class ItemManager
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
     {
-        return GetRuntimeItem(item?.ItemId ?? Guid.Empty);
+        return item == null
+            ? null
+            : !string.IsNullOrWhiteSpace(item.ItemKey)
+                ? _runtimeItems.GetRuntimeItem(item.ItemKey)
+                : GetRuntimeItem(item.ItemId);
     }
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid itemId)
@@ -532,9 +536,21 @@ public class ItemManager
         return shape;
     }
 
-    public RuntimeItemDefinitionReference CreateReference(Guid itemId)
+    public AetheriaRuntimeItemReference CreateReference(AetheriaRuntimeCatalogItem item)
     {
-        return new RuntimeItemDefinitionReference(itemId);
+        return new AetheriaRuntimeItemReference(ToItemKey(item));
+    }
+
+    public AetheriaRuntimeItemReference CreateReference(Guid itemId)
+    {
+        return new AetheriaRuntimeItemReference(itemId);
+    }
+
+    private static string ToItemKey(AetheriaRuntimeCatalogItem item)
+    {
+        return item != null && Guid.TryParse(item.LegacyId, out var itemId)
+            ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
+            : "";
     }
 
     public void Log(string s)
@@ -628,7 +644,7 @@ public class ItemManager
         {
             return new SimpleCommodity
             {
-                Reference = CreateReference(itemId),
+                Reference = CreateReference(item),
                 Quantity = count
             };
         }
@@ -674,14 +690,14 @@ public class ItemManager
         {
             return new ConsumableItem
             {
-                Reference = CreateReference(itemId),
+                Reference = CreateReference(item),
                 Quality = quality
             };
         }
 
         return new CompoundCommodity
         {
-            Reference = CreateReference(itemId),
+            Reference = CreateReference(item),
             Quality = quality
         };
     }
@@ -701,7 +717,7 @@ public class ItemManager
 
         return new EquippableItem
         {
-            Reference = CreateReference(itemId),
+            Reference = CreateReference(item),
             Quality = quality,
             Durability = item.Durability > 0 ? (float)item.Durability : 1f
         };

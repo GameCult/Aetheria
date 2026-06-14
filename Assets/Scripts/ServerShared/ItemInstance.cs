@@ -12,10 +12,11 @@ using static Unity.Mathematics.math;
 
 public abstract class ItemInstance
 {
-    public RuntimeItemDefinitionReference Reference;
+    public AetheriaRuntimeItemReference Reference;
     public ItemRotation Rotation;
 
-    public Guid ItemId => Reference?.ItemId ?? Guid.Empty;
+    public string ItemKey => Reference?.ItemKey ?? "";
+    public Guid ItemId => Reference?.LegacyItemId ?? Guid.Empty;
 }
 
 public abstract class CraftedItemInstance : ItemInstance

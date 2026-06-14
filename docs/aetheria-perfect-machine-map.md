@@ -52,8 +52,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared item domain state is still partly built around `RuntimeItemDefinitionReference`,
-  `ItemData`, `BehaviorData`, GUID identity, and runtime catalog metadata. Dead
+- Shared item domain state is still partly built around `AetheriaRuntimeItemReference`,
+  `ItemData`, `RuntimeBehaviorConfig`, derived GUID compatibility, and runtime catalog metadata. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -204,8 +204,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
   gives `ItemManager` explicit item lookup authority. Item instances carry
-  `RuntimeItemDefinitionReference`, an item-definition id, not a process-global catalog
-  resolver, hydrated projection cache, or durable item-data owner. The old
+  `AetheriaRuntimeItemReference`, a typed item key, not a process-global catalog
+  resolver, hydrated projection cache, bare GUID owner, or durable item-data owner. The old
   `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
   deleted. The old `DatabaseEntry`/`RuntimeCatalogEntry`/`RuntimeItemProjectionEntry`
@@ -354,8 +354,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Faction` DTOs, including allegiance edges, for the existing simulation shape
   and resolves full name arrays from `aetheria.name_file.v2` records. The
   runtime no longer opens the old `GameData/NameFile/*.msgpack` directory.
-- Item instances carry `RuntimeItemDefinitionReference`, a narrow item-definition id
-  resolved by `ItemManager` against the typed runtime item catalog projected
+- Item instances carry `AetheriaRuntimeItemReference`, a typed item key resolved
+  by `ItemManager` against the typed runtime item catalog projected
   from `aetheria-world.cc`. Runtime item references no longer carry hydrated DTO
   projection caches or global link-resolution authority. MessagePack catalog construction no longer grabs global link-resolution
   authority, and the old generic `RuntimeCatalogLink<T>` abstraction is gone.
@@ -618,8 +618,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   config reads no longer escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
   behavior metadata instead of rebuilding config DTOs for lookup.
-  `ItemInstance.ItemId` is the runtime identity surface and
-  `ItemInstance.Reference` is the explicit item-reference API;
+  `ItemInstance.Reference` stores the typed item key, `ItemInstance.ItemKey`
+  is the runtime identity surface, and `ItemInstance.ItemId` is a derived
+  legacy-GUID compatibility projection;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1197,8 +1198,10 @@ First Aetheria surfaces to publish:
    - Done: remove the stale `MessagePack` assembly reference from
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.
-   - Convert domain references from GUID/base-class patterns to typed record
-     refs.
+   - In progress: convert domain references from GUID/base-class patterns to
+     typed record refs. Item instances now carry typed item keys; remaining
+     cargo/simulation dictionaries still derive legacy GUIDs until those
+     structures move to typed keys.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
@@ -1300,17 +1303,21 @@ First Aetheria surfaces to publish:
    - Done: demote `RuntimeItemReference.Value` to an item-definition id, then
       delete `RuntimeItemReference.Projection`; item references no longer carry
       hydrated `ItemData` DTOs.
-   - Done: add `ItemInstance.ItemId` as the direct runtime identity surface and
-     move live runtime/UI/catalog lookup call sites off `.Data.ItemId`. The old
-     `Data` field is now compatibility backing state rather than the identity
-     API callers use.
+   - Done: add `ItemInstance.ItemId` as an intermediate runtime identity
+     surface and move live runtime/UI/catalog lookup call sites off
+     `.Data.ItemId`. The old `Data` field became compatibility backing state
+     before it was deleted.
    - Done: add `ItemInstance.Reference` as the explicit item-reference API and
      move factories/cargo stacking off direct `.Data` comparisons and
      assignments.
    - Done: rename `RuntimeItemReference` to
      `RuntimeItemDefinitionReference` and delete the `ItemInstance.Data`
-     compatibility field; item instances now expose item identity through
-     `Reference` and `ItemId` only.
+     compatibility field; this was the intermediate reference shape before
+     typed item keys became the owner.
+   - Done: rename `RuntimeItemDefinitionReference` to
+     `AetheriaRuntimeItemReference` and make the reference typed-key-first.
+     `ItemInstance.ItemKey` is now the primary identity surface; `ItemId` is
+     derived legacy compatibility for unfinished cargo and simulation paths.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

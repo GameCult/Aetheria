@@ -81,8 +81,10 @@ Dead legacy catalog roots for user records and galaxy map-layer resources have
 been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
-Item instances now carry `RuntimeItemDefinitionReference`, a narrow
-item-definition id.
+Item instances now carry `AetheriaRuntimeItemReference`, a typed item-key
+facade. `ItemInstance.ItemKey` is the identity surface, while `ItemId` is a
+derived legacy-GUID compatibility projection for unfinished cargo and
+simulation paths.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts
