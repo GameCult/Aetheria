@@ -486,7 +486,19 @@ public static class AetheriaRuntimeCommitLogApplier
                 ReactorLoadRatio = state.ReactorLoadRatio,
                 CapacitorCharge = state.CapacitorCharge,
                 CapacitorCapacity = state.CapacitorCapacity,
-                CapacitorEfficiency = state.CapacitorEfficiency
+                CapacitorEfficiency = state.CapacitorEfficiency,
+                AetherDriveAxisX = state.AetherDriveAxisX,
+                AetherDriveAxisY = state.AetherDriveAxisY,
+                AetherDriveAxisZ = state.AetherDriveAxisZ,
+                AetherDriveThrustX = state.AetherDriveThrustX,
+                AetherDriveThrustY = state.AetherDriveThrustY,
+                AetherDriveThrustZ = state.AetherDriveThrustZ,
+                AetherDriveRpmX = state.AetherDriveRpmX,
+                AetherDriveRpmY = state.AetherDriveRpmY,
+                AetherDriveRpmZ = state.AetherDriveRpmZ,
+                AetherDriveMaximumRpm = state.AetherDriveMaximumRpm,
+                AetherDriveThrustDirectionX = state.AetherDriveThrustDirectionX,
+                AetherDriveThrustDirectionY = state.AetherDriveThrustDirectionY
             })
             .ToArray();
     }

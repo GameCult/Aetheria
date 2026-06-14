@@ -1086,7 +1086,19 @@ namespace GameCult.Aetheria.State.Unity
             double reactorLoadRatio,
             double capacitorCharge,
             double capacitorCapacity,
-            double capacitorEfficiency)
+            double capacitorEfficiency,
+            double aetherDriveAxisX,
+            double aetherDriveAxisY,
+            double aetherDriveAxisZ,
+            double aetherDriveThrustX,
+            double aetherDriveThrustY,
+            double aetherDriveThrustZ,
+            double aetherDriveRpmX,
+            double aetherDriveRpmY,
+            double aetherDriveRpmZ,
+            double aetherDriveMaximumRpm,
+            double aetherDriveThrustDirectionX,
+            double aetherDriveThrustDirectionY)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1107,6 +1119,18 @@ namespace GameCult.Aetheria.State.Unity
             CapacitorCharge = capacitorCharge;
             CapacitorCapacity = capacitorCapacity;
             CapacitorEfficiency = capacitorEfficiency;
+            AetherDriveAxisX = aetherDriveAxisX;
+            AetherDriveAxisY = aetherDriveAxisY;
+            AetherDriveAxisZ = aetherDriveAxisZ;
+            AetherDriveThrustX = aetherDriveThrustX;
+            AetherDriveThrustY = aetherDriveThrustY;
+            AetherDriveThrustZ = aetherDriveThrustZ;
+            AetherDriveRpmX = aetherDriveRpmX;
+            AetherDriveRpmY = aetherDriveRpmY;
+            AetherDriveRpmZ = aetherDriveRpmZ;
+            AetherDriveMaximumRpm = aetherDriveMaximumRpm;
+            AetherDriveThrustDirectionX = aetherDriveThrustDirectionX;
+            AetherDriveThrustDirectionY = aetherDriveThrustDirectionY;
         }
 
         public string OwnerKind { get; }
@@ -1128,5 +1152,17 @@ namespace GameCult.Aetheria.State.Unity
         public double CapacitorCharge { get; }
         public double CapacitorCapacity { get; }
         public double CapacitorEfficiency { get; }
+        public double AetherDriveAxisX { get; }
+        public double AetherDriveAxisY { get; }
+        public double AetherDriveAxisZ { get; }
+        public double AetherDriveThrustX { get; }
+        public double AetherDriveThrustY { get; }
+        public double AetherDriveThrustZ { get; }
+        public double AetherDriveRpmX { get; }
+        public double AetherDriveRpmY { get; }
+        public double AetherDriveRpmZ { get; }
+        public double AetherDriveMaximumRpm { get; }
+        public double AetherDriveThrustDirectionX { get; }
+        public double AetherDriveThrustDirectionY { get; }
     }
 }

@@ -884,6 +884,24 @@ public class ActionGameManager : MonoBehaviour
                     CapacitorEfficiency = capacitor.Efficiency
                 };
             }
+            else if (behavior is AetherDrive drive)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    AetherDriveAxisX = drive.Axis.x,
+                    AetherDriveAxisY = drive.Axis.y,
+                    AetherDriveAxisZ = drive.Axis.z,
+                    AetherDriveThrustX = drive.Thrust.x,
+                    AetherDriveThrustY = drive.Thrust.y,
+                    AetherDriveThrustZ = drive.Thrust.z,
+                    AetherDriveRpmX = drive.Rpm.x,
+                    AetherDriveRpmY = drive.Rpm.y,
+                    AetherDriveRpmZ = drive.Rpm.z,
+                    AetherDriveMaximumRpm = drive.MaximumRpm,
+                    AetherDriveThrustDirectionX = drive.ThrustDirection.x,
+                    AetherDriveThrustDirectionY = drive.ThrustDirection.y
+                };
+            }
 
             if (state == null)
                 continue;

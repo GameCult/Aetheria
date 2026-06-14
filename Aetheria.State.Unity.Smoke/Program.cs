@@ -481,6 +481,25 @@ try
                                     CapacitorCharge = 7.5,
                                     CapacitorCapacity = 10.0,
                                     CapacitorEfficiency = 0.95
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 4,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "AetherDrive",
+                                    AetherDriveAxisX = 0.5,
+                                    AetherDriveAxisY = -0.25,
+                                    AetherDriveAxisZ = 0.75,
+                                    AetherDriveThrustX = 12.0,
+                                    AetherDriveThrustY = 6.0,
+                                    AetherDriveThrustZ = 3.0,
+                                    AetherDriveRpmX = 1200.0,
+                                    AetherDriveRpmY = 900.0,
+                                    AetherDriveRpmZ = 450.0,
+                                    AetherDriveMaximumRpm = 2400.0,
+                                    AetherDriveThrustDirectionX = 1.5,
+                                    AetherDriveThrustDirectionY = -0.5
                                 }
                             },
                             StatGrids = new[]
@@ -601,7 +620,7 @@ try
             entity.WeaponStates[3].BehaviorKind == "LockWeapon" &&
             entity.WeaponStates[3].LockProgress == 0.65 &&
             entity.WeaponStates[3].LockTargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
-            entity.BehaviorStates.Length == 4 &&
+            entity.BehaviorStates.Length == 5 &&
             entity.BehaviorStates[0].BehaviorKind == "Sensor" &&
             entity.BehaviorStates[0].Pinging &&
             entity.BehaviorStates[0].PingRadius == 1200.0 &&
@@ -613,6 +632,11 @@ try
             entity.BehaviorStates[3].BehaviorKind == "Capacitor" &&
             entity.BehaviorStates[3].CapacitorCharge == 7.5 &&
             entity.BehaviorStates[3].CapacitorEfficiency == 0.95 &&
+            entity.BehaviorStates[4].BehaviorKind == "AetherDrive" &&
+            entity.BehaviorStates[4].AetherDriveAxisX == 0.5 &&
+            entity.BehaviorStates[4].AetherDriveRpmY == 900.0 &&
+            entity.BehaviorStates[4].AetherDriveMaximumRpm == 2400.0 &&
+            entity.BehaviorStates[4].AetherDriveThrustDirectionY == -0.5 &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&
@@ -668,8 +692,10 @@ try
         packageEntities[0].WeaponStates[2].AmmoIntervalProgress != 0.6 ||
         packageEntities[0].WeaponStates[3].LockProgress != 0.65 ||
         packageEntities[0].WeaponStates[3].LockTargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
-        packageEntities[0].BehaviorStates.Count != 4 ||
+        packageEntities[0].BehaviorStates.Count != 5 ||
         packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
+        packageEntities[0].BehaviorStates[4].AetherDriveRpmY != 900.0 ||
+        packageEntities[0].BehaviorStates[4].AetherDriveMaximumRpm != 2400.0 ||
         packageEntities[0].StatGrids.Count != 2 ||
         packageEntities[0].StatGrids.All(grid => grid.Name != "temperature" || grid.Values.Count != 2 || grid.Values[1] != 281.0))
     {

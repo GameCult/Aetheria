@@ -876,7 +876,19 @@ namespace GameCult.Aetheria.State.Unity
                 var capacitorCharge = ReadFieldDouble(ref reader, behaviorFields, 16);
                 var capacitorCapacity = ReadFieldDouble(ref reader, behaviorFields, 17);
                 var capacitorEfficiency = ReadFieldDouble(ref reader, behaviorFields, 18);
-                SkipRemaining(ref reader, behaviorFields, 19);
+                var aetherDriveAxisX = ReadFieldDouble(ref reader, behaviorFields, 19);
+                var aetherDriveAxisY = ReadFieldDouble(ref reader, behaviorFields, 20);
+                var aetherDriveAxisZ = ReadFieldDouble(ref reader, behaviorFields, 21);
+                var aetherDriveThrustX = ReadFieldDouble(ref reader, behaviorFields, 22);
+                var aetherDriveThrustY = ReadFieldDouble(ref reader, behaviorFields, 23);
+                var aetherDriveThrustZ = ReadFieldDouble(ref reader, behaviorFields, 24);
+                var aetherDriveRpmX = ReadFieldDouble(ref reader, behaviorFields, 25);
+                var aetherDriveRpmY = ReadFieldDouble(ref reader, behaviorFields, 26);
+                var aetherDriveRpmZ = ReadFieldDouble(ref reader, behaviorFields, 27);
+                var aetherDriveMaximumRpm = ReadFieldDouble(ref reader, behaviorFields, 28);
+                var aetherDriveThrustDirectionX = ReadFieldDouble(ref reader, behaviorFields, 29);
+                var aetherDriveThrustDirectionY = ReadFieldDouble(ref reader, behaviorFields, 30);
+                SkipRemaining(ref reader, behaviorFields, 31);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -896,7 +908,19 @@ namespace GameCult.Aetheria.State.Unity
                     reactorLoadRatio,
                     capacitorCharge,
                     capacitorCapacity,
-                    capacitorEfficiency);
+                    capacitorEfficiency,
+                    aetherDriveAxisX,
+                    aetherDriveAxisY,
+                    aetherDriveAxisZ,
+                    aetherDriveThrustX,
+                    aetherDriveThrustY,
+                    aetherDriveThrustZ,
+                    aetherDriveRpmX,
+                    aetherDriveRpmY,
+                    aetherDriveRpmZ,
+                    aetherDriveMaximumRpm,
+                    aetherDriveThrustDirectionX,
+                    aetherDriveThrustDirectionY);
             }
 
             return behaviorStates;

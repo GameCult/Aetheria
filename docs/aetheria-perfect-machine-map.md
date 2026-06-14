@@ -169,7 +169,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   plus target entity reference.
   Sensor, radiator, reactor, and capacitor behaviors publish typed state rows
   for ping state, radiator temperature/throughput, reactor draw/load, and
-  capacitor charge/capacity/efficiency.
+  capacitor charge/capacity/efficiency. Aether drives publish typed axis,
+  thrust, RPM, maximum RPM, and thrust-direction rows, so rotor simulation
+  state is no longer trapped inside live behavior memory.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -801,6 +803,9 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      behavior state rows for sensor ping state plus radiator, reactor, and
      capacitor runtime internals.
+   - Done: extend behavior state rows for AetherDrive axis, thrust, RPM,
+     maximum RPM, and thrust direction, so drive rotor state has a typed
+     snapshot/readback path.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.

@@ -703,6 +703,42 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(18)]
     public double CapacitorEfficiency { get; set; }
+
+    [Key(19)]
+    public double AetherDriveAxisX { get; set; }
+
+    [Key(20)]
+    public double AetherDriveAxisY { get; set; }
+
+    [Key(21)]
+    public double AetherDriveAxisZ { get; set; }
+
+    [Key(22)]
+    public double AetherDriveThrustX { get; set; }
+
+    [Key(23)]
+    public double AetherDriveThrustY { get; set; }
+
+    [Key(24)]
+    public double AetherDriveThrustZ { get; set; }
+
+    [Key(25)]
+    public double AetherDriveRpmX { get; set; }
+
+    [Key(26)]
+    public double AetherDriveRpmY { get; set; }
+
+    [Key(27)]
+    public double AetherDriveRpmZ { get; set; }
+
+    [Key(28)]
+    public double AetherDriveMaximumRpm { get; set; }
+
+    [Key(29)]
+    public double AetherDriveThrustDirectionX { get; set; }
+
+    [Key(30)]
+    public double AetherDriveThrustDirectionY { get; set; }
 }
 
 [MessagePackObject]

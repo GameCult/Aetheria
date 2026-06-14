@@ -251,6 +251,28 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 LockTargetEntityKey = entityKey.ToString()
             }
         ],
+        BehaviorStates =
+        [
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 0,
+                BehaviorKind = "AetherDrive",
+                AetherDriveAxisX = 0.5,
+                AetherDriveAxisY = -0.25,
+                AetherDriveAxisZ = 0.75,
+                AetherDriveThrustX = 12.0,
+                AetherDriveThrustY = 6.0,
+                AetherDriveThrustZ = 3.0,
+                AetherDriveRpmX = 1200.0,
+                AetherDriveRpmY = 900.0,
+                AetherDriveRpmZ = 450.0,
+                AetherDriveMaximumRpm = 2400.0,
+                AetherDriveThrustDirectionX = 1.5,
+                AetherDriveThrustDirectionY = -0.5
+            }
+        ],
         StatGrids =
         [
             new AetheriaEntityStatGrid
@@ -512,6 +534,11 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
+        entitySnapshot.BehaviorStates.Length != 1 ||
+        entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
+        entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
+        entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
+        entitySnapshot.BehaviorStates[0].AetherDriveMaximumRpm != 2400.0 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {
