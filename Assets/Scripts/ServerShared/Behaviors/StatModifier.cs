@@ -42,8 +42,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private bool _applied;
     private bool _executed;
 
-    private static Type[] StatObjects => _statObjects = _statObjects ?? typeof(BehaviorData).GetAllChildClasses()
-        .Concat(typeof(EquippableItemData).GetAllChildClasses()).ToArray();
+    private static Type[] StatObjects => _statObjects = _statObjects ?? typeof(BehaviorData).GetAllChildClasses().ToArray();
 
     public StatModifier(StatModifierData data, EquippedItem item) : base(data, item)
     {
@@ -64,21 +63,13 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                 .Where(f => f.FieldType == typeof(PerformanceStat)).FirstOrDefault(f => f.Name == _data.Stat.Stat);
             if (statField != null)
             {
-                if (typeof(EquippableItemData).IsAssignableFrom(targetType))
-                    _stats = Entity.Equipment
-                        .Select(hp => hp.EquippableItem)
-                        .Where(HasRequiredBehavior)
-                        .Where(gear => ItemManager.GetData(gear).GetType() == targetType)
-                        .Select(gear => statField.GetValue(ItemManager.GetData(gear)) as PerformanceStat)
-                        .ToArray();
-                else
-                    _stats = Entity.Equipment
-                        .Select(hp => hp.EquippableItem)
-                        .Where(HasRequiredBehavior)
-                        .SelectMany(gear => ItemManager.GetRuntimeBehaviorProjections(gear))
-                        .Where(behaviorData => behaviorData.GetType() == targetType)
-                        .Select(behaviorData => statField.GetValue(behaviorData) as PerformanceStat)
-                        .ToArray();
+                _stats = Entity.Equipment
+                    .Select(hp => hp.EquippableItem)
+                    .Where(HasRequiredBehavior)
+                    .SelectMany(gear => ItemManager.GetRuntimeBehaviorProjections(gear))
+                    .Where(behaviorData => behaviorData.GetType() == targetType)
+                    .Select(behaviorData => statField.GetValue(behaviorData) as PerformanceStat)
+                    .ToArray();
             }
         }
     }

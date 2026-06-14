@@ -210,8 +210,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   temporary behavior-class config bridge, not the runtime behavior payload
   owner. `StatModifier` behavior requirements and behavior-stat targets also
   read that typed behavior projection bridge instead of hydrating
-  `EquippableItemData.Behaviors`; item performance stat fields are still a
-  legacy DTO bridge until those stats move to typed runtime rows.
+  `EquippableItemData.Behaviors`. Its old item-DTO stat branch was deleted
+  after inspection showed no active `PerformanceStat` fields on the live
+  equippable item DTO hierarchy.
   Ship drag, combat/turret shot prediction height, and thruster
   torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
@@ -759,8 +760,9 @@ First Aetheria surfaces to publish:
      `BehaviorData` remains only the temporary behavior-class config bridge.
    - Done: move `StatModifier` behavior requirements and behavior-stat targets
      off `EquippableItemData.Behaviors` and onto typed runtime behavior
-     projections; equippable item performance stat fields remain a separate DTO
-     bridge.
+     projections; the obsolete item-DTO stat target branch is deleted because
+     the live equippable item DTO hierarchy has no active `PerformanceStat`
+     fields.
    - Done: move runtime blueprint price aggregation and conductivity restore
      geometry onto typed runtime item price and hull shape rows; legacy
      `ItemData.Price` and `HullData.Shape` no longer own those blueprint paths.
