@@ -561,12 +561,12 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         if(Title)
             Title.text = cargo.Name;
         
-        // FakeOccupancy = new Shape(cargo.Data.InteriorShape.Width, cargo.Data.InteriorShape.Height);
-        // IgnoreOccupancy = new Shape(cargo.Data.InteriorShape.Width, cargo.Data.InteriorShape.Height);
-        Grid.constraintCount = cargo.Data.InteriorShape.Width;
-        foreach (var v in cargo.Data.InteriorShape.AllCoordinates)
+        // FakeOccupancy = new Shape(cargo.InteriorShape.Width, cargo.InteriorShape.Height);
+        // IgnoreOccupancy = new Shape(cargo.InteriorShape.Width, cargo.InteriorShape.Height);
+        Grid.constraintCount = cargo.InteriorShape.Width;
+        foreach (var v in cargo.InteriorShape.AllCoordinates)
         {
-            if (!cargo.Data.InteriorShape[v])
+            if (!cargo.InteriorShape[v])
             {
                 var empty = new GameObject("Empty Node", typeof(RectTransform));
                 empty.transform.SetParent(Grid.transform);
@@ -593,7 +593,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         if (item != null)
                         {
                             var itemPosition = cargo.Cargo[item];
-                            var originalOccupancy = cargo.Data.InteriorShape.Inset(GetItemShape(item), itemPosition, item.Rotation);
+                            var originalOccupancy = cargo.InteriorShape.Inset(GetItemShape(item), itemPosition, item.Rotation);
                             _dragCells = originalOccupancy.Coordinates
                                 .Select(v1 => Instantiate(CellInstances[v1], DragParent, true).transform).ToArray();
                             foreach(var dragCell in _dragCells)
@@ -644,7 +644,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         {
                             //foreach (var cell in _dragCells) cell.gameObject.SetActive(false);
                             FakeItem = item;
-                            FakeOccupancy = cargo.Data.InteriorShape.Inset(GetItemShape(item), placementPosition, item.Rotation);
+                            FakeOccupancy = cargo.InteriorShape.Inset(GetItemShape(item), placementPosition, item.Rotation);
                             RefreshCells();
                             GameManager.RegisterDragTarget(drag =>
                             {
@@ -784,7 +784,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 bool ItemMatch(int2 offset)
                 {
                     var v2 = v + offset;
-                    return !_displayedCargo.Data.InteriorShape[v2] || item == null ||
+                    return !_displayedCargo.InteriorShape[v2] || item == null ||
                            (FakeOccupancy?[v2]??false ? FakeItem : IgnoreOccupancy?[v2]??false ? null : _displayedCargo.Occupancy[v2.x, v2.y]) != item;
                 }
 

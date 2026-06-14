@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
@@ -1367,8 +1368,8 @@ public class EquippedCargoBay : EquippedItem
 
     public readonly Dictionary<Guid, List<ItemInstance>> ItemsOfType = new Dictionary<Guid, List<ItemInstance>>();
 
-    public new readonly CargoBayData Data;
-    
+    public Shape InteriorShape { get; }
+
     public float Mass { get; private set; }
     public float ThermalMass { get; private set; }
     public string Name { get; }
@@ -1377,7 +1378,7 @@ public class EquippedCargoBay : EquippedItem
     {
         get
         {
-            var unoccupied = new Shape(Data.InteriorShape.Width, Data.InteriorShape.Height);
+            var unoccupied = new Shape(InteriorShape.Width, InteriorShape.Height);
             foreach (var v in unoccupied.AllCoordinates)
                 unoccupied[v] = Occupancy[v.x, v.y] == null;
             return unoccupied;
@@ -1386,25 +1387,29 @@ public class EquippedCargoBay : EquippedItem
 
     public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity)
     {
-        Data = ItemManager.GetData(EquippableItem) as CargoBayData;
+        var typedCargoBay = ItemManager.GetRuntimeItem(EquippableItem);
+        InteriorShape = ToShape(
+            typedCargoBay?.InteriorShapeWidth ?? 1,
+            typedCargoBay?.InteriorShapeHeight ?? 1,
+            typedCargoBay?.InteriorShapeCells);
         Name = name;
 
-        Mass = Data.Mass;
-        ThermalMass = Data.Mass * Data.SpecificHeat;
+        Mass = ItemManager.GetMass(EquippableItem);
+        ThermalMass = ItemManager.GetThermalMass(EquippableItem);
         
-        Occupancy = new ItemInstance[Data.InteriorShape.Width,Data.InteriorShape.Height];
+        Occupancy = new ItemInstance[InteriorShape.Width, InteriorShape.Height];
     }
 
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
-        var itemData = ItemManager.GetData(item);
+        var itemShape = GetItemShape(item);
         // Check every cell of the item's shape
-        foreach (var i in itemData.Shape.Coordinates)
+        foreach (var i in itemShape.Coordinates)
         {
             // If there is an item already occupying that space, it won't fit
-            var itemCargoCoord = cargoCoord + itemData.Shape.Rotate(i, item.Rotation);
-            if (!Data.InteriorShape[itemCargoCoord] || (Occupancy[itemCargoCoord.x, itemCargoCoord.y] != null && Occupancy[itemCargoCoord.x, itemCargoCoord.y] != item)) return false;
+            var itemCargoCoord = cargoCoord + itemShape.Rotate(i, item.Rotation);
+            if (!InteriorShape[itemCargoCoord] || (Occupancy[itemCargoCoord.x, itemCargoCoord.y] != null && Occupancy[itemCargoCoord.x, itemCargoCoord.y] != item)) return false;
         }
 
         return true;
@@ -1425,7 +1430,7 @@ public class EquippedCargoBay : EquippedItem
     public bool TryFindSpace(SimpleCommodity item, out List<int2> positions)
     {
         positions = new List<int2>();
-        var itemData = ItemManager.GetData(item);
+        var maxStack = GetMaxStack(item);
         var remainingQuantity = item.Quantity;
         
         // For simple commodities, search for existing item stacks to add to
@@ -1434,10 +1439,10 @@ public class EquippedCargoBay : EquippedItem
             if (item.Data != cargoItem.Data) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
-            if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
+            if (cargoCommodity.Quantity >= maxStack) continue;
             
             // Subtract remaining space in existing stack from remaining quantity
-            remainingQuantity -= min(itemData.MaxStack - cargoCommodity.Quantity, remainingQuantity);
+            remainingQuantity -= min(maxStack - cargoCommodity.Quantity, remainingQuantity);
             positions.Add(Cargo[cargoItem]);
             
             // If we've moved all of the items into existing stacks, no need to search for empty space!
@@ -1446,7 +1451,7 @@ public class EquippedCargoBay : EquippedItem
         
         // TODO: Try alternate item rotations / use Shape.FitsWithin
         // Search all the space in the cargo bay for an empty space where the item fits
-        foreach (var cargoCoord in Data.InteriorShape.Coordinates)
+        foreach (var cargoCoord in InteriorShape.Coordinates)
         {
             if (ItemFits(item, cargoCoord))
             {
@@ -1462,7 +1467,7 @@ public class EquippedCargoBay : EquippedItem
     public bool TryFindSpace(CraftedItemInstance item, out int2 position)
     {
         // Search all the space in the cargo bay for an empty space where the item fits
-        foreach (var cargoCoord in Data.InteriorShape.Coordinates)
+        foreach (var cargoCoord in InteriorShape.Coordinates)
         {
             if (ItemFits(item, cargoCoord))
             {
@@ -1512,12 +1517,13 @@ public class EquippedCargoBay : EquippedItem
     // Returns true only when ALL of the items are successfully stored
     public bool TryStore(SimpleCommodity item, int2 cargoCoord)
     {
-        var itemData = ItemManager.GetData(item);
+        var itemShape = GetItemShape(item);
+        var maxStack = GetMaxStack(item);
         if (ItemFits(item, cargoCoord))
         {
-            foreach (var p in itemData.Shape.Coordinates)
+            foreach (var p in itemShape.Coordinates)
             {
-                var pos = cargoCoord + itemData.Shape.Rotate(p, item.Rotation);
+                var pos = cargoCoord + itemShape.Rotate(p, item.Rotation);
                 Occupancy[pos.x, pos.y] = item;
             }
             Cargo[item] = cargoCoord;
@@ -1528,18 +1534,18 @@ public class EquippedCargoBay : EquippedItem
         }
         else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
         {
-            if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
+            if (cargoCommodity.Quantity + item.Quantity <= maxStack)
             {
                 cargoCommodity.Quantity += item.Quantity;
             }
             else
             {
-                var quantityTransferred = itemData.MaxStack - cargoCommodity.Quantity;
+                var quantityTransferred = maxStack - cargoCommodity.Quantity;
                 item.Quantity -= quantityTransferred;
-                cargoCommodity.Quantity = itemData.MaxStack;
+                cargoCommodity.Quantity = maxStack;
                 
-                Mass += itemData.Mass * quantityTransferred;
-                ThermalMass += itemData.Mass * itemData.SpecificHeat * quantityTransferred;
+                Mass += GetUnitMass(item) * quantityTransferred;
+                ThermalMass += GetUnitThermalMass(item) * quantityTransferred;
                 return false;
             }
         }
@@ -1558,10 +1564,10 @@ public class EquippedCargoBay : EquippedItem
     {
         if (!ItemFits(item, cargoCoord)) return false;
         
-        var itemData = ItemManager.GetData(item);
-        foreach (var p in itemData.Shape.Coordinates)
+        var itemShape = GetItemShape(item);
+        foreach (var p in itemShape.Coordinates)
         {
-            var pos = cargoCoord + itemData.Shape.Rotate(p, item.Rotation);
+            var pos = cargoCoord + itemShape.Rotate(p, item.Rotation);
             Occupancy[pos.x, pos.y] = item;
         }
         Cargo[item] = cargoCoord;
@@ -1583,10 +1589,9 @@ public class EquippedCargoBay : EquippedItem
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
             return null;
         }
-        var itemData = ItemManager.GetData(item);
         if(quantity >= item.Quantity)
         {
-            foreach(var v in Data.InteriorShape.Coordinates)
+            foreach(var v in InteriorShape.Coordinates)
                 if (Occupancy[v.x, v.y] == item)
                     Occupancy[v.x, v.y] = null;
 
@@ -1602,8 +1607,8 @@ public class EquippedCargoBay : EquippedItem
         }
 
         item.Quantity -= quantity;
-        Mass -= itemData.Mass * quantity;
-        ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
+        Mass -= GetUnitMass(item) * quantity;
+        ThermalMass -= GetUnitThermalMass(item) * quantity;
         return new SimpleCommodity{Data = item.Data, Quantity = quantity, Rotation = item.Rotation};
     }
 
@@ -1614,8 +1619,7 @@ public class EquippedCargoBay : EquippedItem
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
             return;
         }
-        var itemData = ItemManager.GetData(item);
-        foreach(var v in Data.InteriorShape.Coordinates)
+        foreach(var v in InteriorShape.Coordinates)
             if (Occupancy[v.x, v.y] == item)
                 Occupancy[v.x, v.y] = null;
         
@@ -1634,6 +1638,41 @@ public class EquippedCargoBay : EquippedItem
             Remove(simpleCommodity, simpleCommodity.Quantity);
         if (item is CraftedItemInstance craftedItem)
             Remove(craftedItem);
+    }
+
+    private Shape GetItemShape(ItemInstance item)
+    {
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
+    }
+
+    private int GetMaxStack(SimpleCommodity item)
+    {
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        return typedItem != null && typedItem.MaxStack > 0 ? typedItem.MaxStack : 1;
+    }
+
+    private float GetUnitMass(ItemInstance item)
+    {
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        return typedItem != null ? (float)typedItem.Mass : 0f;
+    }
+
+    private float GetUnitThermalMass(ItemInstance item)
+    {
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        return typedItem != null ? (float)(typedItem.Mass * typedItem.SpecificHeat) : 0f;
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
+        if (cells == null) return shape;
+
+        foreach (var cell in cells)
+            shape[new int2(cell.X, cell.Y)] = true;
+
+        return shape;
     }
     
     public bool TryTransferItem(EquippedCargoBay target, SimpleCommodity item, int quantity)
