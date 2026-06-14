@@ -84,8 +84,6 @@ public abstract class Entity
         }
     }
     
-    public HullData HullData { get; }
-    
     public EntitySettings Settings { get; }
     
     public bool OverrideShutdown { get; set; }
@@ -263,8 +261,10 @@ public abstract class Entity
         ItemManager = itemManager;
         Zone = zone;
         Hull = hull;
-        HullData = itemManager.GetData(hull) as HullData;
-        Name = HullData.Name;
+        var typedHull = itemManager.GetRuntimeItem(hull);
+        if (typedHull == null)
+            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.Data?.ItemId}");
+        Name = typedHull.Name;
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
         for(int i=0; i<itemManager.GameplaySettings.WeaponGroupCount; i++)

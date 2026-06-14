@@ -193,7 +193,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   and mass/thermal mass from runtime catalog rows. `Entity.MapEntity`,
   `Entity.UnoccupiedSpace`, grid-offset placement, and `Entity.UpdateTemperature`
   also read typed hull shape/interior, hardpoints, base armor, mass, specific
-  heat, and conductivity from runtime catalog rows. `LoadoutGenerator`
+  heat, and conductivity from runtime catalog rows. Entity construction now
+  names entities from the typed hull row and no longer keeps a `HullData`
+  property just to preserve the old naming bridge. `LoadoutGenerator`
   candidate weighting, hardpoint/cargo/capacitor fit, selected-item reuse, and
   hull conductivity setup now use typed runtime catalog rows; selected DTO
   hydration is only the remaining item-instantiation bridge. Docking bay max
@@ -746,6 +748,8 @@ First Aetheria surfaces to publish:
      checked-in `.cc` catalog, and move `Entity.MapEntity`,
      `Entity.UnoccupiedSpace`, grid-offset placement, and
      `Entity.UpdateTemperature` onto typed runtime hull rows.
+   - Done: move entity default naming onto typed hull rows and delete the
+     entity-level `HullData` property that only preserved legacy name hydration.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
      torque geometry onto typed hull facets and typed shape masks.
    - Done: delete the console `give` command instead of preserving a debug
