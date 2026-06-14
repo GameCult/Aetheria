@@ -79,9 +79,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the durable owner. Binding drag/drop and action-bar remapping both queue the
   same typed player-settings commit after mutating the runtime projection. The
   action bar also uses typed runtime catalog category rows to reject
-  non-consumable inventory drops before hydrating the legacy consumable DTO
-  still required by activation APIs. Missing typed rows are rejected for
-  consumable binding instead of falling through to legacy DTO classification.
+  non-consumable inventory drops and creates consumable bindings around typed
+  catalog rows before hydrating any legacy DTO. Missing typed rows are rejected
+  for consumable binding instead of falling through to legacy DTO classification.
+  Consumable activation and active-duration fill still resolve legacy
+  `ConsumableItemData` lazily because runtime effects and duration are not typed
+  execution surfaces yet; consumable icon projection is hidden until typed icon
+  fields exist.
   Gear action-bar bindings use typed weapon and hardpoint facets for fallback
   icon selection and fall back to a generic tool icon when typed facets are
   incomplete; legacy custom action-bar icon paths remain fallback projection
@@ -622,6 +626,9 @@ First Aetheria surfaces to publish:
      `TradeRow` fields; legacy `ItemData` hydration is lazy and bounded to
      commodity subtype detail, behavior reflection columns, missing typed rows,
      and buy mechanics.
+   - Done: move action-bar consumable drop binding onto typed catalog rows;
+     legacy `ConsumableItemData` resolution is lazy and bounded to activation
+     and active-duration fill until typed consumable effect execution exists.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

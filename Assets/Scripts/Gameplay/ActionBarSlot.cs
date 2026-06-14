@@ -57,25 +57,27 @@ public abstract class ActionBarBinding
 
 public class ActionBarConsumableBinding : ActionBarBinding
 {
-    public ConsumableItemData Target;
+    public AetheriaRuntimeCatalogItem Target { get; }
+    private readonly Func<ConsumableItemData> _resolveLegacyTarget;
 
-    public ActionBarConsumableBinding(Entity entity, ActionBarSlot slot, ConsumableItemData target) : base(entity, slot)
+    public ActionBarConsumableBinding(
+        Entity entity,
+        ActionBarSlot slot,
+        AetheriaRuntimeCatalogItem target,
+        Func<ConsumableItemData> resolveLegacyTarget) : base(entity, slot)
     {
         Target = target;
+        _resolveLegacyTarget = resolveLegacyTarget;
         Slot.QuantityRemaining.gameObject.SetActive(true);
-        var data = Target;
-        if(!string.IsNullOrEmpty(data.Icon))
-        {
-            Slot.Label.gameObject.SetActive(false);
-            Slot.Icon.gameObject.SetActive(true);
-            Slot.Icon.texture = Resources.Load<Texture2D>(data.Icon.Substring("Assets/Resources/".Length).Split('.').First());
-        }
-        else Slot.Icon.gameObject.SetActive(false);
+        Slot.Label.gameObject.SetActive(false);
+        Slot.Icon.gameObject.SetActive(false);
     }
 
     public override void Activate()
     {
-        Entity.TryActivateConsumable(Target);
+        var legacyTarget = ResolveLegacyTarget();
+        if (legacyTarget != null)
+            Entity.TryActivateConsumable(legacyTarget);
     }
 
     public override void Deactivate()
@@ -84,10 +86,25 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Update()
     {
-        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(Target.ID)}";
-        var instance = Entity.FindActiveConsumable(Target);
+        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(TargetLegacyId)}";
+        var legacyTarget = ResolveLegacyTarget();
+        if (legacyTarget == null)
+        {
+            Slot.Fill.fillAmount = 0;
+            return;
+        }
+
+        var instance = Entity.FindActiveConsumable(legacyTarget);
         if (instance == null) Slot.Fill.fillAmount = 0;
         else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Data.Duration;
+    }
+
+    private Guid TargetLegacyId =>
+        Guid.TryParse(Target.LegacyId, out var legacyId) ? legacyId : Guid.Empty;
+
+    private ConsumableItemData ResolveLegacyTarget()
+    {
+        return _resolveLegacyTarget?.Invoke();
     }
 }
 

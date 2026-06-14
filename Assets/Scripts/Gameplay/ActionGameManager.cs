@@ -729,9 +729,13 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
-                            if (!IsRuntimeConsumableItem(itemInstanceDragAction.Item)) return false;
-                            if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
-                            slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
+                            var consumable = FindTypedActionBarConsumable(itemInstanceDragAction.Item);
+                            if (consumable == null) return false;
+                            slot.Binding = new ActionBarConsumableBinding(
+                                CurrentEntity,
+                                slot,
+                                consumable,
+                                () => ItemManager.GetData(itemInstanceDragAction.Item) as ConsumableItemData);
                             return true;
                         case WeaponGroupDragObject weaponGroupDragAction:
                             slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, weaponGroupDragAction.Group);
@@ -749,11 +753,13 @@ public class ActionGameManager : MonoBehaviour
             return slot;
         }
 
-        bool IsRuntimeConsumableItem(ItemInstance item)
+        AetheriaRuntimeCatalogItem FindTypedActionBarConsumable(ItemInstance item)
         {
             var typedItem = FindTypedActionBarItem(item);
             return typedItem != null &&
-                   string.Equals(typedItem.Category, nameof(ConsumableItemData), StringComparison.Ordinal);
+                   string.Equals(typedItem.Category, nameof(ConsumableItemData), StringComparison.Ordinal)
+                ? typedItem
+                : null;
         }
 
         AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
