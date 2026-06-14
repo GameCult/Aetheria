@@ -155,11 +155,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   corporation projection. There is no live console item-spawn command; future
   operator item actions should be typed command documents or Eve/CultUI
   commands, not in-client catalog hydration shortcuts. `LoadoutGenerator` also
-  receives the typed runtime catalog and uses it to own
-  item candidate selection before hydrating selected legacy item DTOs by ID for
-  remaining behavior construction and legacy simulation checks. Hull type,
-  hardpoint type, shape fit, station bay fit, hull/category, and behavior-kind
-  prefilters now run against typed catalog rows before any DTO projection is hydrated. The unused `TradeMenuDebug`
+  receives the typed runtime catalog and uses typed candidate-kind selectors
+  for item selection and instantiation. Hull type, hardpoint type, shape fit,
+  station bay fit, hull/category, and behavior-kind prefilters run against typed
+  catalog rows; the remaining behavior bridge builds temporary `BehaviorData`
+  config from typed payloads only at behavior-constructor boundaries. The unused `TradeMenuDebug`
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
@@ -705,8 +705,12 @@ First Aetheria surfaces to publish:
    - Done: move `LoadoutGenerator` weighted candidate selection, hardpoint fit,
      station bay fit, cargo/capacitor fit, selected-item reuse, hull/category,
      hull type, hull conductivity setup, and behavior-kind prefilters onto typed
-     runtime catalog rows; selected legacy DTO projection remains only as the
-     item-instantiation bridge after a typed row wins.
+     runtime catalog rows; selected item instantiation now receives typed rows
+     directly.
+   - Done: replace `LoadoutGenerator`'s legacy DTO generic selectors with
+     private typed candidate-kind selectors, so loadout code no longer asks for
+     `HullData`, `GearData`, `CargoBayData`, or `EquippableItemData` as
+     candidate-selection authority.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto

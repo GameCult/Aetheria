@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
@@ -9,6 +8,21 @@ using Random = Unity.Mathematics.Random;
 
 public class LoadoutGenerator
 {
+    private enum RuntimeItemCandidateKind
+    {
+        Equipment,
+        Gear,
+        CargoBay,
+        DockingBay,
+        Hull
+    }
+
+    private const string GearCategory = "GearData";
+    private const string WeaponCategory = "WeaponItemData";
+    private const string CargoBayCategory = "CargoBayData";
+    private const string DockingBayCategory = "DockingBayData";
+    private const string HullCategory = "HullData";
+
     public Random Random;
     public ItemManager ItemManager { get; }
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; }
@@ -93,7 +107,7 @@ public class LoadoutGenerator
         
         var emptyShape = entity.UnoccupiedSpace;
         
-        var dockingBayRow = RandomCatalogItem<DockingBayData>(2, item => FitsWithin(item, emptyShape));
+        var dockingBayRow = RandomCatalogItem(RuntimeItemCandidateKind.DockingBay, 2, item => FitsWithin(item, emptyShape));
         if (dockingBayRow == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
 
         ToShape(dockingBayRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -107,9 +121,9 @@ public class LoadoutGenerator
         OutfitEntity(entity);
 
         var cargo = entity.CargoBays.First();
-        IEnumerable<AetheriaRuntimeCatalogItem> inventory = RandomCatalogItems<EquippableItemData>(16, 1,
-                item => item.Category != "CargoBayData" && item.Category != "DockingBayData" &&
-                    (item.Category != "HullData" || item.HullType == nameof(HullType.Ship)));
+        IEnumerable<AetheriaRuntimeCatalogItem> inventory = RandomCatalogItems(RuntimeItemCandidateKind.Equipment, 16, 1,
+                item => item.Category != CargoBayCategory && item.Category != DockingBayCategory &&
+                    (item.Category != HullCategory || item.HullType == nameof(HullType.Ship)));
         inventory = inventory
             .Where(item => item != null);
         inventory = inventory
@@ -127,18 +141,19 @@ public class LoadoutGenerator
 
     public AetheriaRuntimeCatalogItem RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
-        return RandomCatalogItem<HullData>(0, item =>
+        return RandomCatalogItem(RuntimeItemCandidateKind.Hull, 0, item =>
             string.Equals(item.HullType, type.ToString(), StringComparison.Ordinal) &&
             (hullFilter?.Invoke(item) ?? true));
     }
     
-    public AetheriaRuntimeCatalogItem[] RandomCatalogItems<T>(
+    private AetheriaRuntimeCatalogItem[] RandomCatalogItems(
+        RuntimeItemCandidateKind candidateKind,
         int count,
         float sizeExponent,
-        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
+        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null)
     {
         return RuntimeCatalog.EquipmentItems
-            .Where(IsTypedCandidate<T>)
+            .Where(item => IsTypedCandidate(item, candidateKind))
             .Where(item =>
                 item.Price > 0 &&
                 Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer) &&
@@ -168,25 +183,23 @@ public class LoadoutGenerator
             );
     }
 
-    private static bool IsTypedCandidate<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
+    private static bool IsTypedCandidate(AetheriaRuntimeCatalogItem item, RuntimeItemCandidateKind candidateKind)
     {
-        var requestedType = typeof(T);
-        if (requestedType == typeof(EquippableItemData))
+        switch (candidateKind)
         {
-            return !string.IsNullOrWhiteSpace(item.HardpointType);
+            case RuntimeItemCandidateKind.Equipment:
+                return !string.IsNullOrWhiteSpace(item.HardpointType);
+            case RuntimeItemCandidateKind.Gear:
+                return item.Category == GearCategory || item.Category == WeaponCategory;
+            case RuntimeItemCandidateKind.CargoBay:
+                return item.Category == CargoBayCategory || item.Category == DockingBayCategory;
+            case RuntimeItemCandidateKind.DockingBay:
+                return item.Category == DockingBayCategory;
+            case RuntimeItemCandidateKind.Hull:
+                return item.Category == HullCategory;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(candidateKind), candidateKind, null);
         }
-
-        if (requestedType == typeof(GearData))
-        {
-            return item.Category == "GearData" || item.Category == "WeaponItemData";
-        }
-
-        if (requestedType == typeof(CargoBayData))
-        {
-            return item.Category == "CargoBayData" || item.Category == "DockingBayData";
-        }
-
-        return string.Equals(item.Category, requestedType.Name, StringComparison.Ordinal);
     }
 
     private float ManufacturerDistancePenalty(Guid manufacturer)
@@ -202,16 +215,22 @@ public class LoadoutGenerator
             : 1;
     }
 
-    public AetheriaRuntimeCatalogItem RandomCatalogItem<T>(
+    private AetheriaRuntimeCatalogItem RandomCatalogItem(
+        RuntimeItemCandidateKind candidateKind,
         float sizeExponent,
-        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
+        Predicate<AetheriaRuntimeCatalogItem> typedFilter = null)
     {
-        return RandomCatalogItems<T>(1, sizeExponent, typedFilter).FirstOrDefault();
+        return RandomCatalogItems(candidateKind, 1, sizeExponent, typedFilter).FirstOrDefault();
     }
     
-    public AetheriaRuntimeCatalogItem RandomCatalogItem<T>(AetheriaRuntimeHardpoint hardpoint, float sizeExponent, Predicate<AetheriaRuntimeCatalogItem> filter = null) where T : EquippableItemData
+    private AetheriaRuntimeCatalogItem RandomCatalogItem(
+        RuntimeItemCandidateKind candidateKind,
+        AetheriaRuntimeHardpoint hardpoint,
+        float sizeExponent,
+        Predicate<AetheriaRuntimeCatalogItem> filter = null)
     {
-        return RandomCatalogItem<T>(
+        return RandomCatalogItem(
+            candidateKind,
             sizeExponent,
             item => FitsHardpoint(item, hardpoint) && (filter?.Invoke(item) ?? true));
     }
@@ -308,7 +327,7 @@ public class LoadoutGenerator
                     : entity is OrbitalEntity
                         ? nameof(TurretControllerData)
                         : null;
-                var controllerRow = RandomCatalogItem<GearData>(hardpoint, 2, item => HasBehaviorKind(item, controllerBehaviorKind));
+                var controllerRow = RandomCatalogItem(RuntimeItemCandidateKind.Gear, hardpoint, 2, item => HasBehaviorKind(item, controllerBehaviorKind));
                 if (controllerRow == null)
                     throw new InvalidLoadoutException("No compatible controller found for entity!");
                 var controller = ItemManager.CreateEquippableInstance(controllerRow);
@@ -326,7 +345,7 @@ public class LoadoutGenerator
                     : Guid.TryParse(itemRow.LegacyId, out var previousItemId)
                         ? entity.Equipment.FirstOrDefault(item => item.EquippableItem.Data.ItemId == previousItemId)
                         : null;
-                itemRow ??= RandomCatalogItem<GearData>(hardpoint, 2);
+                itemRow ??= RandomCatalogItem(RuntimeItemCandidateKind.Gear, hardpoint, 2);
                 if (itemRow == null) ItemManager.Log($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                 else
                 {
@@ -346,7 +365,7 @@ public class LoadoutGenerator
 
         var emptyShape = entity.UnoccupiedSpace;
         
-        var cargoRow = RandomCatalogItem<CargoBayData>(3, item => item.Category != "DockingBayData" && FitsWithin(item, emptyShape));
+        var cargoRow = RandomCatalogItem(RuntimeItemCandidateKind.CargoBay, 3, item => item.Category != DockingBayCategory && FitsWithin(item, emptyShape));
         if (cargoRow == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
         ToShape(cargoRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -357,7 +376,7 @@ public class LoadoutGenerator
 
         emptyShape = entity.UnoccupiedSpace;
 
-        var capacitorRow = RandomCatalogItem<GearData>(2,
+        var capacitorRow = RandomCatalogItem(RuntimeItemCandidateKind.Gear, 2,
             item => item.BehaviorKinds.Contains(nameof(CapacitorData), StringComparer.Ordinal) &&
                     FitsWithin(item, emptyShape));
         if (capacitorRow == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
