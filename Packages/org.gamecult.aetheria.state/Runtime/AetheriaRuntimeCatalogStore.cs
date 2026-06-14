@@ -532,7 +532,10 @@ namespace GameCult.Aetheria.State.Unity
             var behaviorProgress = ReadFieldBehaviorProgress(ref reader, fields, 21);
             var weaponStates = ReadFieldWeaponStates(ref reader, fields, 22);
             var behaviorStates = ReadFieldBehaviorStates(ref reader, fields, 23);
-            SkipRemaining(ref reader, fields, 24);
+            var cargoContents = ReadFieldCargoBayLoadouts(ref reader, fields, 24);
+            var dockingBayContents = ReadFieldCargoBayLoadouts(ref reader, fields, 25);
+            var dockingBayAssignments = ReadFieldInt32Array(ref reader, fields, 26);
+            SkipRemaining(ref reader, fields, 27);
             return new AetheriaRuntimeEntitySnapshot(
                 name,
                 kind,
@@ -561,7 +564,10 @@ namespace GameCult.Aetheria.State.Unity
                 activeConsumables,
                 behaviorProgress,
                 weaponStates,
-                behaviorStates);
+                behaviorStates,
+                cargoContents,
+                dockingBayContents,
+                dockingBayAssignments);
         }
 
         private static Vector2Value ReadFieldVector2(ref MessagePackReader reader, int fields, int index)

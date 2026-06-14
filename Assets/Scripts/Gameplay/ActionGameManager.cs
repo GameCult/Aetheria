@@ -780,6 +780,11 @@ public class ActionGameManager : MonoBehaviour
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
             DockingBays = ProjectEquippedSlots(entity.DockingBays),
+            CargoContents = ProjectRuntimeCargoBays(entity.CargoBays),
+            DockingBayContents = ProjectRuntimeCargoBays(entity.DockingBays),
+            DockingBayAssignments = entity.DockingBays?
+                .Select(bay => entity.Children.IndexOf(bay.DockedShip))
+                .ToArray() ?? Array.Empty<int>(),
             ChildEntityIndices = entity.Children?
                 .Select(child => zone.Entities.IndexOf(child))
                 .Where(index => index >= 0)
@@ -793,6 +798,24 @@ public class ActionGameManager : MonoBehaviour
             WeaponStates = ProjectWeaponStates(entity),
             BehaviorStates = ProjectBehaviorStates(entity)
         };
+    }
+
+    private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectRuntimeCargoBays<TBay>(IEnumerable<TBay> bays)
+        where TBay : EquippedCargoBay
+    {
+        return bays?
+            .Select(bay => new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = bay.Cargo?
+                    .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = slot.Value.x,
+                        Y = slot.Value.y,
+                        Item = ProjectLoadoutItem(slot.Key)
+                    })
+                    .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
     }
 
     private static AetheriaRuntimeBehaviorStateCommit[] ProjectBehaviorStates(Entity entity)

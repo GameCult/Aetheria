@@ -783,7 +783,10 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<AetheriaRuntimeActiveConsumableSnapshot> activeConsumables,
             IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> behaviorProgress,
             IReadOnlyList<AetheriaRuntimeWeaponStateSnapshot> weaponStates,
-            IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> behaviorStates)
+            IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> behaviorStates,
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> cargoContents,
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> dockingBayContents,
+            IReadOnlyList<int> dockingBayAssignments)
         {
             Name = name;
             Kind = kind;
@@ -813,6 +816,9 @@ namespace GameCult.Aetheria.State.Unity
             BehaviorProgress = behaviorProgress;
             WeaponStates = weaponStates;
             BehaviorStates = behaviorStates;
+            CargoContents = cargoContents;
+            DockingBayContents = dockingBayContents;
+            DockingBayAssignments = dockingBayAssignments;
         }
 
         public string Name { get; }
@@ -843,6 +849,9 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> BehaviorProgress { get; }
         public IReadOnlyList<AetheriaRuntimeWeaponStateSnapshot> WeaponStates { get; }
         public IReadOnlyList<AetheriaRuntimeBehaviorStateSnapshot> BehaviorStates { get; }
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> CargoContents { get; }
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> DockingBayContents { get; }
+        public IReadOnlyList<int> DockingBayAssignments { get; }
     }
 
     public sealed class AetheriaRuntimeActionBarBindingSnapshot

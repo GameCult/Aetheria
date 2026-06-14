@@ -455,7 +455,10 @@ public static class AetheriaRuntimeCommitLogApplier
             ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables),
             BehaviorProgress = ToBehaviorProgress(entity.BehaviorProgress),
             WeaponStates = ToWeaponStates(entity.WeaponStates),
-            BehaviorStates = ToBehaviorStates(entity.BehaviorStates)
+            BehaviorStates = ToBehaviorStates(entity.BehaviorStates),
+            CargoContents = ToCargoBays(entity.CargoContents),
+            DockingBayContents = ToCargoBays(entity.DockingBayContents),
+            DockingBayAssignments = ToIntArray(entity.DockingBayAssignments)
         };
     }
 

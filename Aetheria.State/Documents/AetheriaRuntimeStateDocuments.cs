@@ -494,6 +494,15 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(23)]
     public AetheriaBehaviorStateSnapshot[] BehaviorStates { get; set; } = [];
+
+    [Key(24)]
+    public AetheriaCargoBayLoadout[] CargoContents { get; set; } = [];
+
+    [Key(25)]
+    public AetheriaCargoBayLoadout[] DockingBayContents { get; set; } = [];
+
+    [Key(26)]
+    public int[] DockingBayAssignments { get; set; } = [];
 }
 
 [MessagePackObject]

@@ -337,6 +337,26 @@ try
                                     }
                                 }
                             },
+                            CargoContents = new[]
+                            {
+                                new AetheriaRuntimeCargoBayLoadoutCommit
+                                {
+                                    Items = new[]
+                                    {
+                                        new AetheriaRuntimeLoadoutItemSlotCommit
+                                        {
+                                            X = 2,
+                                            Y = 3,
+                                            Item = new AetheriaRuntimeLoadoutItemCommit
+                                            {
+                                                ItemDefinitionLegacyId = "smoke:ore",
+                                                Quantity = 7
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            DockingBayAssignments = new[] { -1 },
                             WeaponGroups = new[] { new[] { 0 } },
                             ActiveConsumables = new[]
                             {
@@ -542,6 +562,10 @@ try
             entity.Heatstroke == 0.25 &&
             entity.Hypothermia == 0.125 &&
             entity.ActiveConsumables.Length == 1 &&
+            entity.CargoContents.Length == 1 &&
+            entity.CargoContents[0].Items[0].Item.Quantity == 7 &&
+            entity.DockingBayAssignments.Length == 1 &&
+            entity.DockingBayAssignments[0] == -1 &&
             entity.ActiveConsumables[0].ItemKey == "aetheria.item_definition:legacy:smoke:consumable" &&
             entity.ActiveConsumables[0].RemainingDuration == 3.0 &&
             entity.BehaviorProgress.Length == 2 &&
@@ -621,6 +645,10 @@ try
         packageEntities[0].VelocityY != -2.0 ||
         packageEntities[0].TargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
         packageEntities[0].ActiveConsumables.Count != 1 ||
+        packageEntities[0].CargoContents.Count != 1 ||
+        packageEntities[0].CargoContents[0].Items[0].Item.Quantity != 7 ||
+        packageEntities[0].DockingBayAssignments.Count != 1 ||
+        packageEntities[0].DockingBayAssignments[0] != -1 ||
         packageEntities[0].ActiveConsumables[0].ItemKey != "aetheria.item_definition:legacy:smoke:consumable" ||
         packageEntities[0].BehaviorProgress.Count != 2 ||
         packageEntities[0].WeaponStates.Count != 3 ||

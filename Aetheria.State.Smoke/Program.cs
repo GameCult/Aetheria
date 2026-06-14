@@ -212,6 +212,25 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 Quantity = 1
             }
         ],
+        CargoContents =
+        [
+            new AetheriaCargoBayLoadout
+            {
+                Items =
+                [
+                    new AetheriaLoadoutItemSlot
+                    {
+                        Position = new AetheriaGridCoord { X = 2, Y = 3 },
+                        Item = new AetheriaLoadoutItem
+                        {
+                            ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
+                            Quantity = 7
+                        }
+                    }
+                ]
+            }
+        ],
+        DockingBayAssignments = [-1],
         WeaponGroups =
         [
             new AetheriaWeaponGroupSnapshot
@@ -471,6 +490,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.Equipment[0].Quality != 0.9 ||
         entitySnapshot.Equipment[0].Durability != 0.8 ||
         entitySnapshot.Equipment[0].Quantity != 1 ||
+        entitySnapshot.CargoContents.Length != 1 ||
+        entitySnapshot.CargoContents[0].Items[0].Item.Quantity != 7 ||
+        entitySnapshot.DockingBayAssignments.Length != 1 ||
+        entitySnapshot.DockingBayAssignments[0] != -1 ||
         entitySnapshot.WeaponGroups.Length != 1 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)

@@ -157,6 +157,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   facts needed for restore: item key, quality, durability, and quantity. Those
   facts are no longer discarded when pending checkpoint commands become
   canonical `AetheriaEntitySnapshot` documents or package readback DTOs.
+  Cargo bay contents, docking bay contents, and docking bay child assignments
+  also persist as typed snapshot rows, so inventories and docked-child
+  placement do not need a bespoke `.zone` or runtime-blueprint save payload.
   Equipped-item and active-consumable behaviors that intentionally expose
   `IProgressBehavior` now publish typed progress rows keyed by owner kind,
   owner index, behavior index, behavior kind, and progress value.
@@ -807,6 +810,8 @@ First Aetheria surfaces to publish:
    - Done: preserve entity snapshot item-instance facts for equipment,
      cargo-bay, and docking-bay slot rows: item key, quality, durability, and
      quantity now survive canonical state and Unity package readback.
+   - Done: preserve cargo bay contents, docking bay contents, and docking bay
+     child assignments in typed entity snapshots.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

@@ -570,6 +570,15 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(28)]
         public IReadOnlyList<AetheriaRuntimeBehaviorStateCommit> BehaviorStates { get; set; } = Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+
+        [Key(29)]
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit> CargoContents { get; set; } = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+
+        [Key(30)]
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit> DockingBayContents { get; set; } = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+
+        [Key(31)]
+        public IReadOnlyList<int> DockingBayAssignments { get; set; } = Array.Empty<int>();
     }
 
     [MessagePackObject]
