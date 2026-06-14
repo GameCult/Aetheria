@@ -177,16 +177,22 @@ public class ItemManager
     // Returns stat when not equipped
     public float Evaluate(PerformanceStat stat, EquippableItem item)
     {
-        var data = GetData(item);
+        var typedItem = GetRuntimeItem(item);
+        var maxDurability = (float)(typedItem?.Durability ?? 0);
+        if (maxDurability <= 0)
+        {
+            maxDurability = Math.Max(item.Durability, 1f);
+        }
+
         var quality = pow(item.Quality, stat.QualityExponent);
         var durabilityExponent = lerp(
             GameplaySettings.DurabilityQualityMin,
             GameplaySettings.DurabilityQualityMax,
             pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
-        var durability = pow(item.Durability / data.Durability, durabilityExponent * stat.DurabilityExponentMultiplier);
+        var durability = pow(item.Durability / maxDurability, durabilityExponent * stat.DurabilityExponentMultiplier);
         var result = lerp(stat.Min, stat.Max, quality * durability);
         if (float.IsNaN(result)) 
-            throw new InvalidOperationException($"Performance Stat on {data.Name} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {data.Durability}");
+            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.Data?.ItemId.ToString() ?? "unknown item"} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
         return result;
 
     }

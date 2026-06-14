@@ -226,7 +226,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed rows receive the generic tint instead of falling back to legacy
   `EquippableItemData.HardpointType`. Inventory HUD durability tint uses typed
   max durability only, with current runtime durability as the generic
-  denominator for incomplete typed rows.
+  denominator for incomplete typed rows. `ItemManager.Evaluate` also uses typed
+  runtime item max durability and item names when evaluating unequipped
+  performance stats.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
@@ -750,6 +752,9 @@ First Aetheria surfaces to publish:
      `Entity.UpdateTemperature` onto typed runtime hull rows.
    - Done: move entity default naming onto typed hull rows and delete the
      entity-level `HullData` property that only preserved legacy name hydration.
+   - Done: move unequipped `ItemManager.Evaluate` durability/name inputs onto
+     typed runtime item rows; legacy `EquippableItemData.Durability` no longer
+     owns that stat-evaluation path.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
      torque geometry onto typed hull facets and typed shape masks.
    - Done: delete the console `give` command instead of preserving a debug
