@@ -549,7 +549,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   map is keyed by typed behavior payload kind rather than legacy union key.
   Runtime item category classification uses package-owned
   `AetheriaRuntimeItemCategories` tokens; gameplay code should not ask C#
-  legacy DTO class names to classify typed catalog rows.
+  legacy DTO class names to classify typed catalog rows. The typed state
+  verifier also consumes those package-owned category tokens for consumable and
+  docking-bay coverage checks instead of hardcoding migrated class-name strings.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties

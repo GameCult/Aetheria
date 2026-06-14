@@ -1,5 +1,6 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -86,13 +87,13 @@ var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurve
 var thermalResilienceItems = items.Count(item => item.ThermalResilience > 0);
 var audioStatItems = items.Count(item => item.AudioStats.Length > 0);
 var audioStatCount = items.Sum(item => item.AudioStats.Length);
-var consumableItems = items.Count(item => item.Category == "ConsumableItemData");
-var consumableDurationItems = items.Count(item => item.Category == "ConsumableItemData" && item.Duration > 0);
+var consumableItems = items.Count(item => item.Category == AetheriaRuntimeItemCategories.Consumable);
+var consumableDurationItems = items.Count(item => item.Category == AetheriaRuntimeItemCategories.Consumable && item.Duration > 0);
 var consumableEffectivenessItems = items.Count(item => item.EffectivenessCurveKeys.Length > 0);
 var actionBarIconItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ActionBarIcon));
-var dockingBayItems = items.Count(item => item.Category == "DockingBayData");
+var dockingBayItems = items.Count(item => item.Category == AetheriaRuntimeItemCategories.DockingBay);
 var dockingBayMaxSizeItems = items.Count(item =>
-    item.Category == "DockingBayData" &&
+    item.Category == AetheriaRuntimeItemCategories.DockingBay &&
     item.DockingMaxSizeX > 0 &&
     item.DockingMaxSizeY > 0);
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
