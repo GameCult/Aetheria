@@ -65,6 +65,7 @@ namespace GameCult.Aetheria.State.Unity
                 Behavior("AetherDrive", "", Stat("MaximumRpm", 3), Stat("CouplingEfficiency", 6), Stat("Torque", 7), Stat("EnergyDraw", 9), Stat("PassiveCoupling", 10)),
                 Behavior("Capacitor", "", Stat("Capacity", 1), Stat("Efficiency", 2)),
                 Behavior("ChargedWeapon", AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("ChargeTime", 21), Stat("ChargeEnergy", 22), Stat("ChargeHeat", 23))),
+                Behavior("Cockpit", ""),
                 Behavior("ConstantWeapon", "Weapon", WeaponFields),
                 Behavior(AetheriaRuntimeBehaviorKinds.GuidedWeapon, AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("MissileVelocity", 26))),
                 Behavior(AetheriaRuntimeBehaviorKinds.Launcher, "LockWeapon", With(LockWeaponFields, Stat("MissileVelocity", 31))),
@@ -73,6 +74,8 @@ namespace GameCult.Aetheria.State.Unity
                 Behavior(AetheriaRuntimeBehaviorKinds.AutoWeapon, AetheriaRuntimeBehaviorKinds.InstantWeapon, InstantWeaponFields),
                 Behavior("Cooldown", "", Stat("Cooldown", 1)),
                 Behavior("EnergyDraw", "", Stat("EnergyDraw", 1)),
+                Behavior("HeatStorage", ""),
+                Behavior("ItemUsage", ""),
                 Behavior("Radiator", "", Stat("Emissivity", 1), Stat("PumpedHeat", 2), Number("TemperatureFloor", 3), Stat("WasteHeat", 4), Stat("EnergyUsage", 5), Stat("ThermalMass", 6)),
                 Behavior("Reactor", "", Stat("Charge", 1), Stat("Efficiency", 2), Stat("OverloadEfficiency", 3), Stat("ThrottlingFactor", 4)),
                 Behavior("Reflector", "", Stat("CrossSection", 1)),
@@ -80,9 +83,12 @@ namespace GameCult.Aetheria.State.Unity
                 Behavior("Sensor", "", Stat("Sensitivity", 3), Stat("PingBoost", 5), Stat("PingEnergy", 6), Stat("PingVisibility", 7), Stat("PingRange", 8), Stat("PingCooldown", 9)),
                 Behavior("Shield", "", Stat("Efficiency", 1), Stat("EnergyUsage", 2)),
                 Behavior("Thruster", "", Stat("Thrust", 1), Stat("Visibility", 2), Stat("Heat", 3), Stat("EnergyUsage", 4)),
+                Behavior("TurretController", ""),
                 Behavior("VelocityConversion", "", Stat("Lambda", 1)),
                 Behavior("VelocityLimit", "", Stat("TopSpeed", 1)),
-                Behavior("Visibility", "", Stat("Visibility", 1))
+                Behavior("Visibility", "", Stat("Visibility", 1)),
+                Behavior("Weapon", "", WeaponFields),
+                Behavior("Wear", "")
             }
             .ToDictionary(metadata => metadata.Kind, StringComparer.Ordinal);
 
@@ -94,6 +100,29 @@ namespace GameCult.Aetheria.State.Unity
         }
 
         public static IReadOnlyList<AetheriaRuntimeBehaviorMetadata> All => ByKind.Values.ToArray();
+
+        public static bool IsKindOrDescendant(string candidateKind, string expectedKind)
+        {
+            if (string.IsNullOrWhiteSpace(candidateKind) || string.IsNullOrWhiteSpace(expectedKind))
+            {
+                return false;
+            }
+
+            var currentKind = candidateKind;
+            while (!string.IsNullOrWhiteSpace(currentKind))
+            {
+                if (string.Equals(currentKind, expectedKind, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                currentKind = ByKind.TryGetValue(currentKind, out var metadata)
+                    ? metadata.ParentKind
+                    : "";
+            }
+
+            return false;
+        }
 
         private static AetheriaRuntimeBehaviorMetadata Behavior(
             string kind,

@@ -166,9 +166,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
   commodity subtype, hull ownership, and behavior-kind filters read typed
   catalog rows before any legacy projection is hydrated. Active behavior
-  filters store typed behavior kind keys and match typed behavior payloads;
-  `BehaviorData` reflection is only temporary TradeMenu option/column metadata.
-  PropertiesPanel display metadata is now package-owned typed behavior metadata.
+  filters store typed behavior kind keys and match typed behavior payloads
+  through package-owned typed behavior metadata, including parent-kind matching
+  for behavior families. PropertiesPanel and TradeMenu display metadata are now
+  package-owned typed behavior metadata.
   Dynamic behavior columns read typed behavior payload fields by legacy payload key
   instead of hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
   ship-hull classification, simple commodity base price, and simple commodity
@@ -770,8 +771,10 @@ First Aetheria surfaces to publish:
      metadata.
    - Done: move PropertiesPanel generic behavior stat display off
      `BehaviorData` reflection and onto package-owned typed behavior display
-     metadata keyed by behavior kind and payload field key. TradeMenu still has
-     the remaining temporary `BehaviorData` display/filter metadata bridge.
+     metadata keyed by behavior kind and payload field key.
+   - Done: move TradeMenu behavior filter options, behavior family matching,
+     and dynamic behavior columns off `BehaviorData` reflection and onto
+     package-owned typed behavior metadata.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.

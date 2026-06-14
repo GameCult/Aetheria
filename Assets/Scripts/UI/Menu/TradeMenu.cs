@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.Remoting.Contexts;
 using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UnityEngine;
@@ -150,16 +148,18 @@ public class TradeMenu : MonoBehaviour
                     _compoundCommodityFilter.type = x;
                     Populate();
                 }, true)));
-            ContextMenu.AddDropdown("Item Behavior", TypedBehaviorFilterOptions
-                .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Name))
-                .Select<Type, (string, Action, bool)>(x=> (x.Name.FormatTypeName(), () =>
+            ContextMenu.AddDropdown("Item Behavior", AetheriaRuntimeBehaviorMetadataCatalog.All
+                .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
+                .OrderBy(option => option.Kind, StringComparer.Ordinal)
+                .Select<AetheriaRuntimeBehaviorMetadata, (string, Action, bool)>(x=> (x.Kind.FormatTypeName(), () =>
                 {
                     var matchingType = _behaviorFilters.FirstOrDefault(y =>
-                        y.MetadataType.IsAssignableFrom(x) || x.IsAssignableFrom(y.MetadataType));
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(y.Kind, x.Kind) ||
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(x.Kind, y.Kind));
                     if (matchingType?.Filter != null) matchingType.Filter.DisableButton.onClick.Invoke();
                     var filter = FilterPrototype.Instantiate<ItemFilter>();
-                    filter.Label.text = x.Name.FormatTypeName();
-                    var behaviorFilter = new BehaviorFilter(filter, x.Name, x);
+                    filter.Label.text = x.Kind.FormatTypeName();
+                    var behaviorFilter = new BehaviorFilter(filter, x);
                     filter.OnDisable += () =>
                     {
                         _behaviorFilters.Remove(behaviorFilter);
@@ -255,10 +255,9 @@ public class TradeMenu : MonoBehaviour
         {
             items = items.Where(i => HasTypedBehavior(i.TypedItem, behaviorFilter));
             
-			foreach (var field in behaviorFilter.MetadataType.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
+			foreach (var field in behaviorFilter.Metadata.DisplayFields)
 			{
-				var fieldType = field.FieldType;
-				if (fieldType == typeof(float))
+				if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Number)
                     columns.Add((field.Name, 1, x =>
                     {
                         var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
@@ -267,7 +266,7 @@ public class TradeMenu : MonoBehaviour
                     {
                         return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
                     }));
-				else if (fieldType == typeof(int))
+				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Integer)
                     columns.Add((field.Name, 1, x =>
                     {
                         var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
@@ -276,7 +275,7 @@ public class TradeMenu : MonoBehaviour
                     {
                         return (int)GetTypedBehaviorNumber(x, behaviorFilter, field);
                     }));
-				else if (fieldType == typeof(PerformanceStat))
+				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
 				{
                     columns.Add((field.Name, 1, x =>
                     {
@@ -402,22 +401,16 @@ public class TradeMenu : MonoBehaviour
         return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(item.Data.ItemId.ToString("D"));
     }
 
-    private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, FieldInfo field)
+    private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
     {
-        var key = field.GetCustomAttribute<LegacyPayloadKeyAttribute>()?.Key;
-        if (key == null)
-        {
-            return 0;
-        }
-
         var payload = FindTypedBehaviorPayload(row.TypedItem, behaviorFilter);
-        var payloadField = payload?.Fields.FirstOrDefault(candidate => candidate.Key == key.Value);
+        var payloadField = payload?.Fields.FirstOrDefault(candidate => candidate.Key == field.Key);
         if (payloadField == null)
         {
             return 0;
         }
 
-        if (field.FieldType == typeof(PerformanceStat))
+        if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
         {
             return payloadField.Value.Children.Count > 1
                 ? payloadField.Value.Children[1].NumberValue
@@ -444,47 +437,20 @@ public class TradeMenu : MonoBehaviour
 
     private static bool TypedBehaviorMatches(AetheriaRuntimeBehaviorPayload payload, BehaviorFilter behaviorFilter)
     {
-        if (string.Equals(payload.Kind, behaviorFilter.Kind, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        var payloadType = ResolveBehaviorType(payload.Kind);
-        return payloadType != null && behaviorFilter.MetadataType.IsAssignableFrom(payloadType);
+        return AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(payload.Kind, behaviorFilter.Kind);
     }
-
-    private static Type ResolveBehaviorType(string kind)
-    {
-        return string.IsNullOrWhiteSpace(kind)
-            ? null
-            : BehaviorTypesByName.TryGetValue(kind, out var type)
-                ? type
-                : null;
-    }
-
-    private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByName = typeof(BehaviorData)
-        .GetAllChildClasses()
-        .Where(type => !string.IsNullOrWhiteSpace(type.Name))
-        .GroupBy(type => type.Name)
-        .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
-    private static readonly IReadOnlyList<Type> TypedBehaviorFilterOptions = BehaviorTypesByName.Values
-        .Where(type => type.GetCustomAttribute<RuntimeInspectable>() != null)
-        .OrderBy(type => type.Name, StringComparer.Ordinal)
-        .ToArray();
 
     private sealed class BehaviorFilter
     {
-        public BehaviorFilter(ItemFilter filter, string kind, Type metadataType)
+        public BehaviorFilter(ItemFilter filter, AetheriaRuntimeBehaviorMetadata metadata)
         {
             Filter = filter ?? throw new ArgumentNullException(nameof(filter));
-            Kind = string.IsNullOrWhiteSpace(kind) ? "" : kind;
-            MetadataType = metadataType ?? throw new ArgumentNullException(nameof(metadataType));
+            Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         }
 
         public ItemFilter Filter { get; }
-        public string Kind { get; }
-        public Type MetadataType { get; }
+        public AetheriaRuntimeBehaviorMetadata Metadata { get; }
+        public string Kind => Metadata.Kind;
     }
 
     private sealed class TradeRow
