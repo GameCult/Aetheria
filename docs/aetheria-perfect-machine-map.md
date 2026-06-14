@@ -1007,6 +1007,9 @@ First Aetheria surfaces to publish:
      off `InstantWeaponData`/`ConstantWeaponData`; `EntityInstance` caches
      managers by `Weapon.EffectPrefab`, and constant effect managers consume
      live `ConstantWeapon` stats.
+   - Done: move thruster particle prefab lookup off `ThrusterData`;
+     `ShipInstance` now consumes `Thruster.ParticlesPrefab`, so the renderer
+     reads live behavior metadata instead of the temporary config bridge.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

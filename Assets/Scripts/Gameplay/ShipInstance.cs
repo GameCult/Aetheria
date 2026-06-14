@@ -63,8 +63,7 @@ public class ShipInstance : EntityInstance
         }
         _thrusters = ship.GetBehaviors<Thruster>().Select(thruster =>
             {
-                var effectData = (ThrusterData) thruster.Data;
-                var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(effectData.ParticlesPrefab), transform, false);
+                var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(thruster.ParticlesPrefab), transform, false);
                 var particlesShape = particles.shape;
                 var thrusterHardpoint = ThrusterHardpoints
                     .FirstOrDefault(t => t.name == ship.Hardpoints[thruster.Item.Position.x, thruster.Item.Position.y].Transform);

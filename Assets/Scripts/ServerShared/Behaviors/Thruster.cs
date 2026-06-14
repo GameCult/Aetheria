@@ -38,6 +38,7 @@ public class Thruster : Behavior, IAnalogBehavior
 {
     public float Thrust { get; private set; }
     public float Torque { get; }
+    public string ParticlesPrefab { get; }
 
     public float Axis
     {
@@ -52,6 +53,7 @@ public class Thruster : Behavior, IAnalogBehavior
     public Thruster(ThrusterData data, EquippedItem item) : base(data, item)
     {
         _data = data;
+        ParticlesPrefab = data.ParticlesPrefab;
         var hullShape = ItemManager.GetRuntimeShape(Entity.Hull);
         var itemShape = ItemManager.GetRuntimeShape(item.EquippableItem);
         var hullCenter = hullShape.CenterOfMass;
@@ -64,6 +66,7 @@ public class Thruster : Behavior, IAnalogBehavior
     public Thruster(ThrusterData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
+        ParticlesPrefab = data.ParticlesPrefab;
         Torque = 0;
         Thrust = Evaluate(_data.Thrust);
     }
