@@ -64,14 +64,6 @@ public class ItemManager
         return itemId == Guid.Empty ? null : _runtimeItems.GetRuntimeItem(itemId);
     }
 
-    public IReadOnlyList<BehaviorData> GetTemporaryRuntimeBehaviorConfigs(ItemInstance item)
-    {
-        var itemId = item?.Data?.ItemId ?? Guid.Empty;
-        return itemId == Guid.Empty
-            ? Array.Empty<BehaviorData>()
-            : _runtimeItems.GetTemporaryBehaviorConfigs(itemId);
-    }
-
     public Behavior[] CreateRuntimeBehaviors(EquippedItem item)
     {
         return CreateRuntimeBehaviorConfigs(item?.EquippableItem)
@@ -88,7 +80,10 @@ public class ItemManager
 
     private IReadOnlyList<BehaviorData> CreateRuntimeBehaviorConfigs(ItemInstance item)
     {
-        return GetTemporaryRuntimeBehaviorConfigs(item);
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? Array.Empty<BehaviorData>()
+            : _runtimeItems.GetTemporaryBehaviorConfigs(itemId);
     }
 
     public Shape GetRuntimeShape(ItemInstance item)

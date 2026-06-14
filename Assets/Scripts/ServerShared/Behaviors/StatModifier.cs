@@ -53,24 +53,24 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     public void Initialize()
     {
         _stats = Entity.Equipment
-            .Select(hp => hp.EquippableItem)
             .Where(HasRequiredBehavior)
-            .SelectMany(gear => ItemManager.GetTemporaryRuntimeBehaviorConfigs(gear))
-            .Where(behavior => BehaviorKindMatches(behavior.Kind, _data.Stat.Target))
+            .SelectMany(gear => gear.Behaviors ?? Array.Empty<Behavior>())
+            .Where(behavior => BehaviorKindMatches(behavior.Data.Kind, _data.Stat.Target))
             .Select(FindTargetStat)
             .Where(stat => stat != null)
             .ToArray();
     }
 
-    private PerformanceStat FindTargetStat(BehaviorData behavior)
+    private PerformanceStat FindTargetStat(Behavior behavior)
     {
-        var statField = behavior
+        var data = behavior.Data;
+        var statField = data
             .GetType()
             .GetFields()
             .Where(f => f.FieldType == typeof(PerformanceStat))
             .FirstOrDefault(f => f.Name == _data.Stat.Stat);
 
-        return statField?.GetValue(behavior) as PerformanceStat;
+        return statField?.GetValue(data) as PerformanceStat;
     }
 
     private static bool BehaviorKindMatches(string runtimeKind, string expectedKind)
@@ -90,11 +90,11 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                string.Equals(runtimeKind, expectedKind.Substring(0, expectedKind.Length - legacyDataSuffix.Length), StringComparison.Ordinal);
     }
 
-    private bool HasRequiredBehavior(EquippableItem gear)
+    private bool HasRequiredBehavior(EquippedItem gear)
     {
         return string.IsNullOrWhiteSpace(_data.RequireBehavior) ||
-               ItemManager.GetTemporaryRuntimeBehaviorConfigs(gear)
-                   .Any(behavior => BehaviorKindMatches(behavior.Kind, _data.RequireBehavior));
+               (gear?.Behaviors ?? Array.Empty<Behavior>())
+                   .Any(behavior => BehaviorKindMatches(behavior.Data.Kind, _data.RequireBehavior));
     }
 
     private void ApplyModifier()

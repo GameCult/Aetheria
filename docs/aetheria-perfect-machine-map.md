@@ -160,9 +160,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   station bay fit, hull/category, and behavior-kind prefilters run against typed
   catalog rows. `EquippedItem` and `ConsumableItemEffect` now create behavior
   instances through `ItemManager.CreateRuntimeBehaviors`; the remaining
-  `BehaviorData` config list is explicitly temporary and exposed only for the
-  surviving `StatModifier` stat-target bridge. The unused `TradeMenuDebug`
-  script has been deleted instead of preserving an old uGUI debug path that
+  `BehaviorData` config list is explicitly temporary and internal to behavior
+  construction. `StatModifier` requirement and stat-target lookup now inspects
+  the live equipped behavior instances and their typed payload kinds, not a
+  freshly rebuilt config list. The unused `TradeMenuDebug` script has been
+  deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
   wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
@@ -219,8 +221,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   owner; bridge instances carry the typed behavior payload kind so runtime
   logic does not have to reselect behavior identity from the old class graph.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
-  behavior kinds from that bridge instead of scanning `BehaviorData` subclasses
-  or hydrating `EquippableItemData.Behaviors`. `ConsumableItemData` and
+  behavior kinds on the live equipped behavior instances instead of scanning
+  `BehaviorData` subclasses, rebuilding temporary configs, or hydrating
+  `EquippableItemData.Behaviors`. `ConsumableItemData` and
   `EquippableItemData` no longer expose legacy `Behaviors` lists at all. The
   old item-DTO stat branch was deleted after inspection showed no active
   `PerformanceStat` fields on the live equippable item DTO hierarchy.
@@ -533,8 +536,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
   item rows and temporarily builds `BehaviorData` config objects from typed
   behavior payloads behind the `ItemManager.CreateRuntimeBehaviors` runtime
-  construction primitive. Direct config reads are named temporary and remain
-  only where `StatModifier` still needs behavior-stat target lookup.
+  construction primitive. Direct config reads no longer escape `ItemManager`;
+  gameplay stat modifiers target live behavior instances instead of rebuilding
+  config DTOs for lookup.
   `RuntimeItemReference.ItemId` is the only item reference value. The reader
   interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
   typed catalog row ownership rather than old DTO projection ownership. Behavior
@@ -809,9 +813,8 @@ First Aetheria surfaces to publish:
      construction; `BehaviorData` remains only the temporary behavior-class
      config bridge.
    - Done: route `EquippedItem` and `ConsumableItemEffect` behavior instance
-     creation through `ItemManager.CreateRuntimeBehaviors`; direct
-     `GetTemporaryRuntimeBehaviorConfigs` access remains only for the
-     `StatModifier` behavior-stat target bridge.
+     creation through `ItemManager.CreateRuntimeBehaviors`; temporary config
+     reads are internal to that construction bridge.
    - Done: move the temporary behavior config constructor map from legacy union
      keys to typed behavior payload kind strings; union keys remain migration
      provenance only for this runtime path.
@@ -821,6 +824,10 @@ First Aetheria surfaces to publish:
      `StatModifier` matches those kind strings for target and requirement
      selection. The obsolete item-DTO stat target branch is deleted because the
      live equippable item DTO hierarchy has no active `PerformanceStat` fields.
+   - Done: move `StatModifier` target and requirement lookup onto the live
+     equipped behavior instances. It now modifies the `PerformanceStat` objects
+     actually held by runtime behavior data instead of rebuilding temporary
+     config DTOs from the catalog.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
