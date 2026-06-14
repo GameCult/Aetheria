@@ -61,6 +61,11 @@ public class ItemManager
     public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
     {
         var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return GetRuntimeItem(itemId);
+    }
+
+    public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid itemId)
+    {
         return itemId == Guid.Empty ? null : _itemProjections.GetRuntimeItem(itemId);
     }
 

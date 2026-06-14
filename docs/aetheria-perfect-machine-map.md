@@ -185,10 +185,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   and mass/thermal mass from runtime catalog rows. `Entity.MapEntity`,
   `Entity.UnoccupiedSpace`, grid-offset placement, and `Entity.UpdateTemperature`
   also read typed hull shape/interior, hardpoints, base armor, mass, specific
-  heat, and conductivity from runtime catalog rows. `EquippedItem` inset-shape
-  and behavior construction, docking bay max-size, and loadout generator helper
-  predicates still belong to legacy simulation projections until those owners
-  are rebuilt. Ship drag, combat/turret shot prediction height, and thruster
+  heat, and conductivity from runtime catalog rows. `LoadoutGenerator`
+  candidate weighting, hardpoint/cargo/capacitor fit, selected-item reuse, and
+  hull conductivity setup now use typed runtime catalog rows; selected DTO
+  hydration is only the remaining item-instantiation bridge. `EquippedItem`
+  inset-shape and behavior construction plus docking bay max-size still belong
+  to legacy simulation projections until those owners are rebuilt. Ship drag,
+  combat/turret shot prediction height, and thruster
   torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
@@ -648,15 +651,11 @@ First Aetheria surfaces to publish:
    - Done: move entity faction restore and loadout manufacturer-distance
      weighting to `Galaxy.ResolveFaction`, so legacy `Faction` catalog entries
      no longer decide runtime faction references after generation.
-   - Done: move `LoadoutGenerator` item candidate selection to the typed
-     runtime catalog; legacy item DTO hydration remains only for exact fitting
-     checks and behavior construction.
-   - Done: move loadout hardpoint fit, station bay fit, hull/category, and
-     behavior-kind prefilters ahead of DTO hydration so typed catalog rows
-     reject incompatible candidates before `GetRuntimeItemProjection<T>` is
-     called.
-   - Done: move loadout hull type and control-module behavior-kind checks onto
-     typed catalog rows before hydrating `HullData`/`BehaviorData` projections.
+   - Done: move `LoadoutGenerator` weighted candidate selection, hardpoint fit,
+     station bay fit, cargo/capacitor fit, selected-item reuse, hull/category,
+     hull type, hull conductivity setup, and behavior-kind prefilters onto typed
+     runtime catalog rows; selected legacy DTO projection remains only as the
+     item-instantiation bridge after a typed row wins.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto

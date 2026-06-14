@@ -47,7 +47,7 @@ public class LoadoutGenerator
     //     PriceExponent = priceExponent;
     // }
     
-    public RuntimeEntityBlueprint GenerateShipLoadout(Predicate<HullData> hullFilter = null)
+    public RuntimeEntityBlueprint GenerateShipLoadout(Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
         var hullData = RandomHull(HullType.Ship, hullFilter);
         if(hullData==null)
@@ -93,12 +93,11 @@ public class LoadoutGenerator
         
         var emptyShape = entity.UnoccupiedSpace;
         
-        var dockingBayData = RandomItem<DockingBayData>(2,
-            item => item.Shape.FitsWithin(emptyShape, out _, out _),
-            item => FitsWithin(item, emptyShape));
+        var dockingBayRow = RandomCatalogItem<DockingBayData>(2, item => FitsWithin(item, emptyShape));
+        var dockingBayData = ProjectRuntimeItem<DockingBayData>(dockingBayRow);
         if (dockingBayData == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
 
-        dockingBayData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
+        ToShape(dockingBayRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
         var dockingBay = ItemManager.CreateInstance(dockingBayData) as EquippableItem;
         dockingBay.Rotation = cargoRotation;
         if (!entity.TryEquip(dockingBay, cargoPosition))
@@ -109,10 +108,12 @@ public class LoadoutGenerator
         OutfitEntity(entity);
 
         var cargo = entity.CargoBays.First();
-        IEnumerable<EquippableItemData> inventory = RandomItems<EquippableItemData>(16, 1,
-            data => !(data is HullData hull && hull.HullType != HullType.Ship) && !(data is CargoBayData),
-            item => item.Category != "CargoBayData" && item.Category != "DockingBayData" &&
+        IEnumerable<EquippableItemData> inventory = RandomCatalogItems<EquippableItemData>(16, 1,
+                item => item.Category != "CargoBayData" && item.Category != "DockingBayData" &&
                     (item.Category != "HullData" || item.HullType == nameof(HullType.Ship)));
+        inventory = inventory
+            .Select(ProjectRuntimeItem<EquippableItemData>)
+            .Where(item => item != null);
         inventory = inventory
             .OrderByDescending(item=>item.Shape.Coordinates.Length);
         foreach (var item in inventory)
@@ -126,18 +127,17 @@ public class LoadoutGenerator
         return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
     }
 
-    public HullData RandomHull(HullType type, Predicate<HullData> hullFilter = null)
+    public HullData RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
-        return RandomItem<HullData>(0, item =>
-                (hullFilter?.Invoke(item) ?? true) &&
-                item.HullType == type,
-            item => string.Equals(item.HullType, type.ToString(), StringComparison.Ordinal));
+        var hullRow = RandomCatalogItem<HullData>(0, item =>
+            string.Equals(item.HullType, type.ToString(), StringComparison.Ordinal) &&
+            (hullFilter?.Invoke(item) ?? true));
+        return ProjectRuntimeItem<HullData>(hullRow);
     }
     
-    public T[] RandomItems<T>(
+    public AetheriaRuntimeCatalogItem[] RandomCatalogItems<T>(
         int count,
         float sizeExponent,
-        Predicate<T> filter = null,
         Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
     {
         return RuntimeCatalog.EquipmentItems
@@ -149,20 +149,24 @@ public class LoadoutGenerator
                 (Galaxy.IsPrelude || Galaxy.ContainsFaction(manufacturer) &&
                     (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))) &&
                 (typedFilter?.Invoke(item) ?? true))
-            .Select(ProjectRuntimeItem<T>)
-            .Where(item => item != null)
-            .Where(item => 
-                item.Price > 0 &&
-                item.Manufacturer != Guid.Empty &&
-                (Galaxy.IsPrelude || Galaxy.ContainsFaction(item.Manufacturer) &&
-                    (Faction == null || Faction.Allegiance.ContainsKey(item.Manufacturer))) &&
-                (filter?.Invoke(item) ?? true))
             .WeightedRandomElements(ref Random, item =>
-                    Faction == null ? 1 : 
-                        (item.Manufacturer == Faction.ID ? 1 : Faction.Allegiance.ContainsKey(item.Manufacturer) ? Faction.Allegiance[item.Manufacturer] : 0.0f / // Prioritize items from allied manufacturers
-                            ManufacturerDistancePenalty(item.Manufacturer)) * // Penalize distance to manufacturer headquarters
-                    pow(item.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
-                    pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
+            {
+                if (!Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer))
+                {
+                    return 0;
+                }
+
+                var allegianceWeight = Faction == null
+                    ? 1
+                    : manufacturer == Faction.ID
+                        ? 1
+                        : Faction.Allegiance.TryGetValue(manufacturer, out var allegiance)
+                            ? allegiance / ManufacturerDistancePenalty(manufacturer)
+                            : 0;
+                return allegianceWeight *
+                       pow(item.OccupiedCells, sizeExponent) / // Prioritize larger items
+                       pow(item.Price, PriceExponent); // Penalize item price to a controllable degree
+            },
                 count
             );
     }
@@ -190,6 +194,11 @@ public class LoadoutGenerator
 
     private T ProjectRuntimeItem<T>(AetheriaRuntimeCatalogItem item) where T : EquippableItemData
     {
+        if (item == null)
+        {
+            return null;
+        }
+
         return Guid.TryParse(item.LegacyId, out var legacyId)
             ? ItemManager.GetRuntimeItemProjection<T>(legacyId)
             : null;
@@ -208,30 +217,27 @@ public class LoadoutGenerator
             : 1;
     }
 
-    public T RandomItem<T>(
+    public AetheriaRuntimeCatalogItem RandomCatalogItem<T>(
         float sizeExponent,
-        Predicate<T> filter = null,
         Predicate<AetheriaRuntimeCatalogItem> typedFilter = null) where T : EquippableItemData
     {
-        return RandomItems(1, sizeExponent, filter, typedFilter).FirstOrDefault();
+        return RandomCatalogItems<T>(1, sizeExponent, typedFilter).FirstOrDefault();
     }
     
-    public T RandomItem<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
+    public AetheriaRuntimeCatalogItem RandomCatalogItem<T>(AetheriaRuntimeHardpoint hardpoint, float sizeExponent, Predicate<AetheriaRuntimeCatalogItem> filter = null) where T : EquippableItemData
     {
-        return RandomItem<T>(
+        return RandomCatalogItem<T>(
             sizeExponent,
-            item => item.HardpointType == hardpoint.Type &&
-                    (filter?.Invoke(item) ?? true) &&
-                    item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                    item.Shape.Coordinates.Length == hardpoint.Shape.Coordinates.Length,
-            item => FitsHardpoint(item, hardpoint));
+            item => FitsHardpoint(item, hardpoint) && (filter?.Invoke(item) ?? true));
     }
 
-    private static bool FitsHardpoint(AetheriaRuntimeCatalogItem item, HardpointData hardpoint)
+    private static bool FitsHardpoint(AetheriaRuntimeCatalogItem item, AetheriaRuntimeHardpoint hardpoint)
     {
-        return string.Equals(item.HardpointType, hardpoint.Type.ToString(), StringComparison.Ordinal) &&
-               item.OccupiedCells == hardpoint.Shape.Coordinates.Length &&
-               FitsWithin(item, hardpoint.Shape, hardpoint.Rotation);
+        return item != null &&
+               hardpoint != null &&
+               string.Equals(item.HardpointType, hardpoint.Type, StringComparison.Ordinal) &&
+               item.OccupiedCells == hardpoint.OccupiedCells &&
+               FitsWithin(item, ToShape(hardpoint), GetRotation(hardpoint));
     }
 
     private static bool HasBehaviorKind(AetheriaRuntimeCatalogItem item, string behaviorKind)
@@ -242,12 +248,42 @@ public class LoadoutGenerator
 
     private static bool FitsWithin(AetheriaRuntimeCatalogItem item, Shape target)
     {
-        return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells).FitsWithin(target, out _, out _);
+        if (item == null)
+        {
+            return false;
+        }
+
+        return ToShape(item).FitsWithin(target, out _, out _);
     }
 
     private static bool FitsWithin(AetheriaRuntimeCatalogItem item, Shape target, ItemRotation rotation)
     {
-        return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells).FitsWithin(target, rotation, out _);
+        if (item == null)
+        {
+            return false;
+        }
+
+        return ToShape(item).FitsWithin(target, rotation, out _);
+    }
+
+    private static Shape ToShape(AetheriaRuntimeCatalogItem item)
+    {
+        if (item == null)
+        {
+            throw new InvalidLoadoutException("Typed catalog shape was requested before a compatible item was selected.");
+        }
+
+        return ToShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells);
+    }
+
+    private static Shape ToShape(AetheriaRuntimeHardpoint hardpoint)
+    {
+        if (hardpoint == null)
+        {
+            throw new InvalidLoadoutException("Typed hardpoint shape was requested before a hardpoint was selected.");
+        }
+
+        return ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
     }
 
     private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
@@ -261,64 +297,77 @@ public class LoadoutGenerator
         return shape;
     }
 
+    private static ItemRotation GetRotation(AetheriaRuntimeHardpoint hardpoint)
+    {
+        return Enum.TryParse(hardpoint.Rotation, out ItemRotation rotation)
+            ? rotation
+            : ItemRotation.None;
+    }
+
     private void OutfitEntity(Entity entity)
     {
-        var hullData = ItemManager.GetData(entity.Hull) as HullData;
-        foreach (var v in hullData.Shape.Coordinates) entity.HullConductivity[v.x, v.y] = true;
-        var previousItems = new List<EquippableItemData>();
-        foreach (var hardpoint in hullData.Hardpoints.OrderByDescending(h=>h.Shape.Coordinates.Length))
+        var typedHull = ItemManager.GetRuntimeItem(entity.Hull);
+        if (typedHull == null)
         {
-            if (hardpoint.Type == HardpointType.ControlModule)
+            throw new InvalidLoadoutException("Selected hull is missing from the typed runtime catalog.");
+        }
+
+        foreach (var v in ToShape(typedHull).Coordinates) entity.HullConductivity[v.x, v.y] = true;
+        var previousItems = new List<AetheriaRuntimeCatalogItem>();
+        foreach (var hardpoint in typedHull.Hardpoints.OrderByDescending(h=>h.OccupiedCells))
+        {
+            if (hardpoint.Type == nameof(HardpointType.ControlModule))
             {
                 var controllerBehaviorKind = entity is Ship
                     ? nameof(CockpitData)
                     : entity is OrbitalEntity
                         ? nameof(TurretControllerData)
                         : null;
-                var controllerData = RandomItem<GearData>(hardpoint, 2,
-                    item => item.Behaviors.Any(b => entity is Ship && b is CockpitData || entity is OrbitalEntity && b is TurretControllerData),
-                    item => HasBehaviorKind(item, controllerBehaviorKind));
+                var controllerRow = RandomCatalogItem<GearData>(hardpoint, 2, item => HasBehaviorKind(item, controllerBehaviorKind));
+                var controllerData = ProjectRuntimeItem<GearData>(controllerRow);
                 if (controllerData == null) 
                     throw new InvalidLoadoutException("No compatible controller found for entity!");
                 var controller = ItemManager.CreateInstance(controllerData) as EquippableItem;
                 if (!entity.TryEquip(controller))
                 {
-                    throw new InvalidLoadoutException($"Failed to equip selected {Enum.GetName(typeof(HardpointType), hardpoint.Type)}!");
+                    throw new InvalidLoadoutException($"Failed to equip selected {hardpoint.Type}!");
                 }
             }
             else
             {
                 // If a previously selected item fits, use that one (this is why we must process larger hardpoints first)
-                var itemData = previousItems
-                    .FirstOrDefault(i => i.HardpointType == hardpoint.Type && i.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _));
-                var previousItem = entity.Equipment.FirstOrDefault(item => item.Data == itemData);
-                itemData ??= RandomItem<GearData>(hardpoint, 2);
-                if (itemData == null) ItemManager.Log($"No compatible item found for entity {Enum.GetName(typeof(HardpointType), hardpoint.Type)} hardpoint!");
+                var itemRow = previousItems.FirstOrDefault(i => FitsHardpoint(i, hardpoint));
+                var previousItem = itemRow == null
+                    ? null
+                    : Guid.TryParse(itemRow.LegacyId, out var previousItemId)
+                        ? entity.Equipment.FirstOrDefault(item => item.EquippableItem.Data.ItemId == previousItemId)
+                        : null;
+                itemRow ??= RandomCatalogItem<GearData>(hardpoint, 2);
+                var itemData = ProjectRuntimeItem<GearData>(itemRow);
+                if (itemData == null) ItemManager.Log($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                 else
                 {
-                    //throw new InvalidLoadoutException($"No compatible item found for entity {Enum.GetName(typeof(HardpointType), hardpoint.Type)} hardpoint!");
+                    //throw new InvalidLoadoutException($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                     EquippableItem item;
                     if(previousItem!=null)
                         item = ItemManager.CreateInstance(itemData, previousItem.EquippableItem.Quality) as EquippableItem;
                     else item = ItemManager.CreateInstance(itemData) as EquippableItem;
                     if (!entity.TryEquip(item))
                     {
-                        throw new InvalidLoadoutException($"Failed to equip selected {Enum.GetName(typeof(HardpointType), hardpoint.Type)}!");
+                        throw new InvalidLoadoutException($"Failed to equip selected {hardpoint.Type}!");
                     }
-                    previousItems.Add(itemData);
+                    previousItems.Add(itemRow);
                 }
             }
         }
 
         var emptyShape = entity.UnoccupiedSpace;
         
-        var cargoData = RandomItem<CargoBayData>(3,
-            item => !(item is DockingBayData) &&
-                    item.Shape.FitsWithin(emptyShape, out _, out _),
-            item => item.Category != "DockingBayData" && FitsWithin(item, emptyShape));
+        var cargoRow = RandomCatalogItem<CargoBayData>(3, item => item.Category != "DockingBayData" && FitsWithin(item, emptyShape));
+        var cargoData = ProjectRuntimeItem<CargoBayData>(cargoRow);
         if (cargoData == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
-        cargoData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
+        ToShape(cargoRow).FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
         var cargo = ItemManager.CreateInstance(cargoData) as EquippableItem;
         cargo.Rotation = cargoRotation;
         if (!entity.TryEquip(cargo, cargoPosition))
@@ -326,14 +375,13 @@ public class LoadoutGenerator
 
         emptyShape = entity.UnoccupiedSpace;
 
-        var capacitorData = RandomItem<GearData>(2,
-            item => item.Behaviors.Any(b => b is CapacitorData) &&
-                    item.Shape.FitsWithin(emptyShape, out _, out _),
+        var capacitorRow = RandomCatalogItem<GearData>(2,
             item => item.BehaviorKinds.Contains(nameof(CapacitorData), StringComparer.Ordinal) &&
                     FitsWithin(item, emptyShape));
+        var capacitorData = ProjectRuntimeItem<GearData>(capacitorRow);
         if (capacitorData == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
 
-        capacitorData.Shape.FitsWithin(emptyShape, out var capacitorRotation, out var capacitorPosition);
+        ToShape(capacitorRow).FitsWithin(emptyShape, out var capacitorRotation, out var capacitorPosition);
         var capacitor = ItemManager.CreateInstance(capacitorData) as EquippableItem;
         capacitor.Rotation = capacitorRotation;
         if (!entity.TryEquip(capacitor, capacitorPosition))
