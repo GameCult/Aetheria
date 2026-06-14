@@ -27,16 +27,6 @@ public static class RuntimeEntityBlueprintProjector
 
         blueprint.Settings = entity.Settings;
         
-        // Filter item behavior collections by those with any persistent behaviors
-        // For each item create an object containing the item position and a list of persistent behaviors
-        // Then turn that into a dictionary mapping from item position to an array of every behaviors persistent data
-        blueprint.PersistedBehaviors = entity.Equipment
-            .Where(item => item.Behaviors.Any(b=>b is IPersistentBehavior))
-            .Select(item => new {equippable=item, behaviors = item.Behaviors
-                .Where(b=>b is IPersistentBehavior)
-                .Cast<IPersistentBehavior>()})
-            .ToDictionary(x=> x.equippable.Position, x=>x.behaviors.Select(b => b.Store()).ToArray());
-
         blueprint.Hull = entity.Hull;
         blueprint.Name = entity.Name;
         blueprint.Faction = entity.Faction?.ID ?? Guid.Empty;
@@ -117,16 +107,6 @@ public static class RuntimeEntityBlueprintProjector
                 foreach (var (position, item) in blueprint.DockingBayContents[bayIndex])
                     entity.DockingBays[bayIndex].TryStore(instantiate ? itemManager.Instantiate(item) : item, position);
 
-        // Iterate only over the behaviors of items which contain persistent data
-        // Filter the behaviors for each item to get the persistent ones, then cast them and combine with the persisted data array for that item
-        foreach (var persistentBehaviorData in entity.Equipment
-            .Where(item => blueprint.PersistedBehaviors.ContainsKey(item.Position))
-            .SelectMany(item => item.Behaviors
-                .Where(b=> b is IPersistentBehavior)
-                .Cast<IPersistentBehavior>()
-                .Zip(blueprint.PersistedBehaviors[item.Position], (behavior, data) => new{behavior, data})))
-            persistentBehaviorData.behavior.Restore(persistentBehaviorData.data);
-
         if(!instantiate)
             entity.Temperature = blueprint.Temperature;
         
@@ -168,7 +148,6 @@ public abstract class RuntimeEntityBlueprint
     public (int2 position, EquippableItem item)[] Equipment;
     public (int2 position, EquippableItem item)[] CargoBays;
     public (int2 position, EquippableItem item)[] DockingBays;
-    public Dictionary<int2, PersistentBehaviorData[]> PersistedBehaviors;
     public float[,] Temperature;
     public float[,] Armor;
     public bool2[,] Conductivity;

@@ -122,7 +122,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   rather than durable file formats. Runtime blueprint restore now iterates typed
   hull shape rows when restoring saved conductivity, and blueprint price
   aggregation uses typed runtime item prices through `ItemManager` instead of
-  hydrating `HullData.Shape` or `ItemData.Price`.
+  hydrating `HullData.Shape` or `ItemData.Price`. Runtime blueprints no longer
+  capture or restore behavior-private `PersistentBehaviorData` blobs; that dead
+  save-shape hook and its `IPersistentBehavior` interface are deleted.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -775,6 +777,10 @@ First Aetheria surfaces to publish:
      typed runtime item rows; `ItemManager.Instantiate` now clones simple
      commodities, crafted items, consumables, and equippables from
      `AetheriaRuntimeCatalogItem` identity and facets.
+   - Done: delete dead runtime blueprint behavior-private persistence:
+     `PersistedBehaviors`, `IPersistentBehavior`, and `PersistentBehaviorData`
+     no longer exist, so behavior state cannot smuggle itself through the
+     blueprint projection path.
    - Done: delete the runtime item DTO hydration bridge; `ItemManager.GetData`,
      `ItemManager.Hydrate`, `IRuntimeItemProjectionReader.Get`, the
      `AetheriaRuntimeItemCatalog` whole-item DTO cache, and

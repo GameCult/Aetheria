@@ -128,19 +128,9 @@ public interface IOrderedBehavior
     int Order { get; }
 }
 
-public interface IPersistentBehavior//<T> where T : IBehavior
-{
-    PersistentBehaviorData Store();
-    void Restore(PersistentBehaviorData data);
-}
-
 public interface IPopulationAssignment
 {
     int AssignedPopulation { get; set; }
-}
-
-public abstract class PersistentBehaviorData
-{
 }
 
 [Inspectable]
