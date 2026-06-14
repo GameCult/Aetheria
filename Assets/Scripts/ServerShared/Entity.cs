@@ -1262,6 +1262,7 @@ public class EquippedItem
     public Behavior[] Behaviors { get; }
     public Dictionary<int, BehaviorGroup> BehaviorGroups { get; }
     public float Conductivity { get; }
+    public float MaxDurability { get; }
     public float ThermalPerformance { get; private set; }
     public float ThermalExponent { get; }
     public float DurabilityPerformance { get; private set; }
@@ -1371,7 +1372,9 @@ public class EquippedItem
         Entity = entity;
         EquippableItem = item;
         Position = position;
-        Conductivity = Data.Conductivity;
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        Conductivity = typedItem != null ? (float)typedItem.Conductivity : Data.Conductivity;
+        MaxDurability = typedItem?.Durability > 0 ? (float)typedItem.Durability : Math.Max(item.Durability, 1f);
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
@@ -1442,13 +1445,13 @@ public class EquippedItem
         var temp = Temperature;
         ThermalPerformance = Data.Performance(temp);
         var deltaTemp = math.abs(temp - oldTemperature);
-        DurabilityPerformance = EquippableItem.Durability / Data.Durability;
+        DurabilityPerformance = EquippableItem.Durability / MaxDurability;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
                 (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
-            ) * Data.Durability / Data.ThermalResilience;
+            ) * MaxDurability / Data.ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;
         oldTemperature = temp;
