@@ -187,67 +187,75 @@ public class TradeMenu : MonoBehaviour
 
     void Populate()
     {
-        var columns = new List<(string name, int size, Func<(ItemInstance item, ItemData data), Func<string>> output, Func<ItemData, IComparable> sortKey)>();
+        var columns = new List<(string name, int size, Func<TradeRow, Func<string>> output, Func<TradeRow, IComparable> sortKey)>();
         
         columns.Add(("Name", 3,
-            x => () => x.item is CraftedItemInstance craftedItemInstance ? 
-                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.data.Name}" : 
-                x.data.Name, 
-            data => data.Name));
+            x => () => x.Item is CraftedItemInstance craftedItemInstance ?
+                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.Name}" :
+                x.Name,
+            x => x.Name));
         if(_hardpointFilter.filter==null)
             columns.Add(("Type", 2,
                 x => () =>
                 {
-                    if (x.data is SimpleCommodityData s) return Enum.GetName(typeof(SimpleCommodityCategory), s.Category);
-                    if(x.data is CompoundCommodityData c) return Enum.GetName(typeof(CompoundCommodityCategory), c.Category);
-                    if(x.data is EquippableItemData e) return Enum.GetName(typeof(HardpointType), e.HardpointType);
+                    if (x.TypedItem != null && x.TypedItem.Category == "SimpleCommodityData" && x.LegacyData is SimpleCommodityData s)
+                        return Enum.GetName(typeof(SimpleCommodityCategory), s.Category);
+                    if (x.TypedItem != null && x.TypedItem.Category == "CompoundCommodityData" && x.LegacyData is CompoundCommodityData c)
+                        return Enum.GetName(typeof(CompoundCommodityCategory), c.Category);
+                    if (x.TryGetTypedHardpoint(out var hardpointType)) return Enum.GetName(typeof(HardpointType), hardpointType);
+                    if (x.TypedItem == null && x.LegacyData is SimpleCommodityData legacySimple) return Enum.GetName(typeof(SimpleCommodityCategory), legacySimple.Category);
+                    if(x.TypedItem == null && x.LegacyData is CompoundCommodityData legacyCompound) return Enum.GetName(typeof(CompoundCommodityCategory), legacyCompound.Category);
                     return "None";
-                }, 
-                data => 
+                },
+                x =>
                 {
-                    if (data is SimpleCommodityData s) return (int) s.Category;
+                    if (x.TypedItem != null && x.TypedItem.Category == "SimpleCommodityData" && x.LegacyData is SimpleCommodityData s)
+                        return (int) s.Category;
                     var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
-                    if(data is CompoundCommodityData c) return (int) c.Category + offset;
+                    if(x.TypedItem != null && x.TypedItem.Category == "CompoundCommodityData" && x.LegacyData is CompoundCommodityData c)
+                        return (int) c.Category + offset;
                     offset += Enum.GetValues(typeof(CompoundCommodityCategory)).Length;
-                    if(data is EquippableItemData e) return (int) e.HardpointType + offset;
+                    if (x.TryGetTypedHardpoint(out var hardpointType)) return (int) hardpointType + offset;
+                    if (x.TypedItem == null && x.LegacyData is SimpleCommodityData legacySimple) return (int) legacySimple.Category;
+                    if(x.TypedItem == null && x.LegacyData is CompoundCommodityData legacyCompound) return (int) legacyCompound.Category + Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
                     return 0;
                 }));
         columns.Add(("Mass", 1,
-            x => () => ActionGameManager.RuntimePlayerSettings.Format(x.data.Mass), 
-            data => data.Mass));
+            x => () => ActionGameManager.RuntimePlayerSettings.Format(x.Mass),
+            x => x.Mass));
         columns.Add(("Price", 1,
-            x => () => (x.item is CraftedItemInstance craftedItemInstance ? GameManager.ItemManager.GetPrice(craftedItemInstance) : x.data.Price).ToString("N0"),
-            data => data.Price));
+            x => () => x.Price.ToString("N0"),
+            x => x.Price));
         columns.Add(("Size", 1,
-            x => () => $"{x.data.Shape.Width}x{x.data.Shape.Height}", 
-            data => data.Shape.Width*data.Shape.Height));
+            x => () => $"{x.ShapeWidth}x{x.ShapeHeight}",
+            x => x.ShapeWidth * x.ShapeHeight));
         
         var items = Inventory.Cargo.Keys
             .Where(PassesTypedTradeFilters)
-            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
+            .Select(item => new TradeRow(item, FindTypedTradeItem(item), GameManager.ItemManager));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
-                !(MinimumSizeFilter.Width.text.Length > 0 && i.data.Shape.Width < int.Parse(MinimumSizeFilter.Width.text) ||
-                 MinimumSizeFilter.Height.text.Length > 0 && i.data.Shape.Height < int.Parse(MinimumSizeFilter.Height.text)));
+                !(MinimumSizeFilter.Width.text.Length > 0 && i.ShapeWidth < int.Parse(MinimumSizeFilter.Width.text) ||
+                 MinimumSizeFilter.Height.text.Length > 0 && i.ShapeHeight < int.Parse(MinimumSizeFilter.Height.text)));
         
         if (MaximumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
-                !(MaximumSizeFilter.Width.text.Length > 0 && i.data.Shape.Width > int.Parse(MaximumSizeFilter.Width.text) ||
-                 MaximumSizeFilter.Height.text.Length > 0 && i.data.Shape.Height > int.Parse(MaximumSizeFilter.Height.text)));
+                !(MaximumSizeFilter.Width.text.Length > 0 && i.ShapeWidth > int.Parse(MaximumSizeFilter.Width.text) ||
+                 MaximumSizeFilter.Height.text.Length > 0 && i.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)));
         
         if(_commodityFilter.filter != null)
-            items = items.Where(i => i.data is SimpleCommodityData s && s.Category == _commodityFilter.type);
+            items = items.Where(i => i.LegacyData is SimpleCommodityData s && s.Category == _commodityFilter.type);
         
         if(_compoundCommodityFilter.filter != null)
-            items = items.Where(i => i.data is CompoundCommodityData c && c.Category == _compoundCommodityFilter.type);
+            items = items.Where(i => i.LegacyData is CompoundCommodityData c && c.Category == _compoundCommodityFilter.type);
         
         if (_hardpointFilter.filter != null)
-            items = items.Where(i => i.data is EquippableItemData e && e.HardpointType == _hardpointFilter.type);
+            items = items.Where(i => i.TryGetTypedHardpoint(out var hardpointType) && hardpointType == _hardpointFilter.type);
         
         foreach (var (_, type) in _behaviorFilters)
         {
-            items = items.Where(i => i.data is EquippableItemData e && e.Behaviors.Any(b => type.IsInstanceOfType(b)));
+            items = items.Where(i => i.TypedItem?.BehaviorKinds.Contains(type.Name, StringComparer.Ordinal) ?? false);
             
 			foreach (var field in type.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
 			{
@@ -255,32 +263,32 @@ public class TradeMenu : MonoBehaviour
 				if (fieldType == typeof(float))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior));
-                    }, data =>
+                    }, x =>
                     {
-                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return (float) field.GetValue(behavior);
                     }));
 				else if (fieldType == typeof(int))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ((int) field.GetValue(behavior)).ToString();
-                    }, data =>
+                    }, x =>
                     {
-                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return (int) field.GetValue(behavior);
                     }));
 				else if (fieldType == typeof(PerformanceStat))
 				{
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ActionGameManager.RuntimePlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
-                    }, data =>
+                    }, x =>
                     {
-                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return ((PerformanceStat) field.GetValue(behavior)).Max;
                     }));
 				}
@@ -290,19 +298,19 @@ public class TradeMenu : MonoBehaviour
         columns.Add(("Owned", 1,
             x => () =>
             {
-                if (x.data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.data.ID && s is Ship {IsPlayerShip: true}).ToString();
-                if(x.data is SimpleCommodityData)
-                    return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
-                return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Count : 0).ToString();
+                if (x.IsHull)
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true}).ToString();
+                if(x.Item is SimpleCommodity)
+                    return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
+                return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0).ToString();
             }, 
-            data =>
+            x =>
             {
-                if (data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == data.ID && s is Ship {IsPlayerShip: true});
-                if(data is SimpleCommodityData)
-                    return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
-                return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Count : 0;
+                if (x.IsHull)
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true});
+                if(x.Item is SimpleCommodity)
+                    return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
+                return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0;
             }));
         
         Spreadsheet.ShowData(
@@ -313,12 +321,12 @@ public class TradeMenu : MonoBehaviour
                 Columns = columns.Select(x => new SpreadsheetEntryColumn
                 {
                     Output = x.output(i),
-                    SortKey = x.sortKey(i.data)
+                    SortKey = x.sortKey(i)
                 }).ToArray(),
-                OnClick = () => Properties.Inspect(i.item),
+                OnClick = () => Properties.Inspect(i.Item),
                 OnDoubleClick = () =>
                 {
-                    switch (i.item)
+                    switch (i.Item)
                     {
                         case CraftedItemInstance c:
                             Buy(c);
@@ -332,7 +340,7 @@ public class TradeMenu : MonoBehaviour
                 },
                 OnRightClick = () =>
                 {
-                    if (i.item is SimpleCommodity s)
+                    if (i.Item is SimpleCommodity s)
                     {
                         ContextMenu.Clear();
                         ContextMenu.AddOption("Buy Quantity",
@@ -340,10 +348,10 @@ public class TradeMenu : MonoBehaviour
                             {
                                 int quantity = 1;
                                 Dialog.Clear();
-                                Dialog.Title.text = $"Buying {i.data.Name}";
+                                Dialog.Title.text = $"Buying {i.Name}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
-                                    q => quantity = min(min(q, GameManager.Credits / i.data.Price), s.Quantity));
+                                    q => quantity = min(min(q, GameManager.Credits / i.Price), s.Quantity));
                                 Dialog.Show(() =>
                                 {
                                     Buy(s,quantity);
@@ -398,6 +406,57 @@ public class TradeMenu : MonoBehaviour
         }
 
         return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(item.Data.ItemId.ToString("D"));
+    }
+
+    private sealed class TradeRow
+    {
+        private readonly ItemManager _itemManager;
+        private ItemData _legacyData;
+
+        public TradeRow(ItemInstance item, AetheriaRuntimeCatalogItem typedItem, ItemManager itemManager)
+        {
+            Item = item;
+            TypedItem = typedItem;
+            _itemManager = itemManager;
+        }
+
+        public ItemInstance Item { get; }
+
+        public AetheriaRuntimeCatalogItem TypedItem { get; }
+
+        public ItemData LegacyData => _legacyData ?? (_legacyData = _itemManager.GetData(Item));
+
+        public EquippableItemData LegacyEquippableData => LegacyData as EquippableItemData;
+
+        public Guid LegacyId => Item?.Data?.ItemId ?? LegacyData.ID;
+
+        public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : LegacyData.Name;
+
+        public float Mass => TypedItem != null ? (float)TypedItem.Mass : LegacyData.Mass;
+
+        public int Price
+        {
+            get
+            {
+                if (Item is CraftedItemInstance craftedItemInstance)
+                    return _itemManager.GetPrice(craftedItemInstance);
+
+                return TypedItem != null ? TypedItem.Price : LegacyData.Price;
+            }
+        }
+
+        public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : LegacyData.Shape.Width;
+
+        public int ShapeHeight => TypedItem != null && TypedItem.ShapeHeight > 0 ? TypedItem.ShapeHeight : LegacyData.Shape.Height;
+
+        public bool IsHull => TypedItem != null ? !string.IsNullOrWhiteSpace(TypedItem.HullType) : LegacyData is HullData;
+
+        public bool TryGetTypedHardpoint(out HardpointType hardpointType)
+        {
+            hardpointType = HardpointType.Hull;
+            return !string.IsNullOrWhiteSpace(TypedItem?.HardpointType) &&
+                   Enum.TryParse(TypedItem.HardpointType, true, out hardpointType);
+        }
     }
     
     private void UpdateCreditsLabel()

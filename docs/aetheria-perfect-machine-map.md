@@ -146,10 +146,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   script has been deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
-  applies typed row prefilters for size, hardpoint type, and behavior kind before
-  hydrating `ItemData` projections for legacy commodity filters, columns, and
-  buy actions. The sector properties UI also resolves station/turret/ship
-  counts only through typed hull classifications from the runtime catalog;
+  wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
+  hull ownership, and behavior-kind filters read typed catalog rows before any
+  legacy projection is hydrated. Legacy `ItemData` hydration is lazy and bounded
+  to commodity subtype filters/type labels, behavior reflection columns, missing
+  typed-row fallback, and buy actions. The sector properties UI also resolves
+  station/turret/ship counts only through typed hull classifications from the runtime catalog;
   missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
   pickup visuals and scan labels before falling back to legacy item projections.
@@ -614,6 +616,11 @@ First Aetheria surfaces to publish:
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto
      typed catalog row prefilters before row-level `ItemData` hydration.
+   - Done: move trade menu row presentation for name, mass, price, size,
+     hardpoint type, hull-owned counts, and behavior-kind filtering onto typed
+     `TradeRow` fields; legacy `ItemData` hydration is lazy and bounded to
+     commodity subtype detail, behavior reflection columns, missing typed rows,
+     and buy mechanics.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers
