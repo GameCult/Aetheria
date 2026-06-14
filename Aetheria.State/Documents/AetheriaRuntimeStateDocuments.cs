@@ -333,18 +333,21 @@ public sealed class AetheriaEntityStatGrid
 public sealed class AetheriaActionBarBinding
 {
     [Key(0)]
-    public string Kind { get; set; } = "";
+    public string ControlPath { get; set; } = "";
 
     [Key(1)]
-    public string TargetKey { get; set; } = "";
+    public string Kind { get; set; } = "";
 
     [Key(2)]
-    public int EquipmentIndex { get; set; } = -1;
+    public string TargetKey { get; set; } = "";
 
     [Key(3)]
-    public int BehaviorIndex { get; set; } = -1;
+    public int EquipmentIndex { get; set; } = -1;
 
     [Key(4)]
+    public int BehaviorIndex { get; set; } = -1;
+
+    [Key(5)]
     public int WeaponGroup { get; set; } = -1;
 }
 

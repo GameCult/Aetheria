@@ -422,8 +422,49 @@ public class ActionGameManager : MonoBehaviour
                 .Where(index => index >= 0)
                 .OrderBy(index => index)
                 .ToArray() ?? Array.Empty<int>(),
+            ActionBarBindings = ProjectActionBarBindings(),
             Zones = Zone == null ? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>() : new[] { ProjectZoneSnapshot(Zone) }
         };
+    }
+
+    private AetheriaRuntimeActionBarBindingCommit[] ProjectActionBarBindings()
+    {
+        return _actionBarSlots?
+            .Select(ProjectActionBarBinding)
+            .Where(binding => binding != null)
+            .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
+    }
+
+    private static AetheriaRuntimeActionBarBindingCommit ProjectActionBarBinding(ActionBarSlot slot)
+    {
+        switch (slot?.Binding)
+        {
+            case ActionBarConsumableBinding consumable:
+                return new AetheriaRuntimeActionBarBindingCommit
+                {
+                    ControlPath = slot.ControlPath ?? "",
+                    Kind = "consumable",
+                    ItemDefinitionLegacyId = consumable.TargetItemDefinitionLegacyId
+                };
+            case ActionBarGearBinding gear:
+                return new AetheriaRuntimeActionBarBindingCommit
+                {
+                    ControlPath = slot.ControlPath ?? "",
+                    Kind = "gear",
+                    ItemDefinitionLegacyId = gear.TargetItemDefinitionLegacyId,
+                    EquipmentIndex = gear.EquipmentIndex,
+                    BehaviorIndex = gear.BehaviorIndex
+                };
+            case ActionBarWeaponGroupBinding weaponGroup:
+                return new AetheriaRuntimeActionBarBindingCommit
+                {
+                    ControlPath = slot.ControlPath ?? "",
+                    Kind = "weapon_group",
+                    WeaponGroup = weaponGroup.Group
+                };
+            default:
+                return null;
+        }
     }
 
     private AetheriaRuntimeZoneSnapshotCommit ProjectZoneSnapshot(Zone zone)
@@ -718,6 +759,7 @@ public class ActionGameManager : MonoBehaviour
             var action = new InputAction(binding: controlPath);
             _actionBarActions.Add(action);
             var slot = Instantiate(ActionBarSlot, ActionBar);
+            slot.ControlPath = controlPath;
             slot.Binding = null;
             _actionBarSlots.Add(slot);
             action.started += context => slot.Binding?.Activate();

@@ -17,6 +17,7 @@ public class ActionBarSlot : MonoBehaviour
     public ObservablePointerEnterTrigger PointerEnterTrigger;
     public ObservablePointerExitTrigger PointerExitTrigger;
     private ActionBarBinding binding;
+    public string ControlPath { get; set; }
 
     public ActionBarBinding Binding
     {
@@ -96,6 +97,8 @@ public class ActionBarConsumableBinding : ActionBarBinding
     private Guid TargetLegacyId =>
         Guid.TryParse(Target.LegacyId, out var legacyId) ? legacyId : Guid.Empty;
 
+    public string TargetItemDefinitionLegacyId => Target?.LegacyId ?? "";
+
 }
 
 public class ActionBarGearBinding : ActionBarBinding
@@ -104,6 +107,19 @@ public class ActionBarGearBinding : ActionBarBinding
     public IActivatedBehavior Behavior { get; }
 
     public bool Active;
+
+    public int EquipmentIndex => Entity?.Equipment?.IndexOf(Item) ?? -1;
+
+    public int BehaviorIndex => Item?.Behaviors == null ? -1 : Array.IndexOf(Item.Behaviors, Behavior);
+
+    public string TargetItemDefinitionLegacyId
+    {
+        get
+        {
+            var itemId = Item?.EquippableItem?.ItemId ?? Guid.Empty;
+            return itemId == Guid.Empty ? "" : itemId.ToString("D");
+        }
+    }
 
     public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {

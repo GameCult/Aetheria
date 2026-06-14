@@ -54,7 +54,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Economy.Shared` wrapper have been removed from live source. The stale
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
   formatter classes have also been deleted, so the remaining direct
-  `MessagePackSerializer` calls are no longer present in live runtime source.
+  `MessagePackSerializer` calls are no longer present in live gameplay source;
+  the package-owned pending command lanes still use MessagePack as the current
+  CultCache binary transport for typed `.cc` command envelopes.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
   `GameData/NameFile/*.msgpack` as migration inputs only. Unity gameplay no
   longer opens those MessagePack files at runtime. The old
@@ -117,7 +119,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   a zone referencing an entity snapshot, and an entity snapshot carrying
   position, direction, faction, hull, equipment slots, weapon groups, and a stat
   grid. This proves the `.zone` replacement graph is durable typed state. Unity
-  now queues current-zone/current-entity-collection snapshots through the
+  now queues current-zone/current-entity-collection snapshots and current
+  action-bar bindings through the
   runtime commit log during run checkpoints; `RuntimeZoneBlueprint` and
   `RuntimeEntityBlueprint` remain runtime construction/loadout projections
   rather than durable file formats. Runtime blueprint restore now iterates typed
@@ -716,6 +719,9 @@ First Aetheria surfaces to publish:
      `.loadout` no longer lacks a durable Verse replacement.
    - Done: add typed node ports and smoke coverage for run -> zone -> entity
      snapshots so `.zone` no longer lacks a durable Verse replacement graph.
+   - Done: extend run checkpoint commits and smoke coverage to carry typed
+     action-bar bindings into `AetheriaRunState` as stable input-control and
+     target references instead of UI or behavior-object payloads.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, simulation state, and any catalog
      fields not covered by the stable scalar/fingerprint/payload pass.
@@ -944,7 +950,9 @@ First Aetheria surfaces to publish:
      shapes.
    - Done: replace remaining item/behavior DTO MessagePack field metadata with
      `LegacyPayloadKeyAttribute`; no live `Assets/Scripts` source depends on
-     MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
+     Newtonsoft, RethinkDB, or bespoke save-file serializer symbols. Remaining
+     package-level MessagePack usage is the typed CultCache `.cc` transport
+     boundary, not a gameplay save format.
    - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
      remove legacy catalog group/table annotations from surviving runtime DTOs.
    - Done: move loadout generation's selected-item instantiation onto typed

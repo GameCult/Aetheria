@@ -232,6 +232,31 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(7)]
         public IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit> Zones { get; set; } = Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
+
+        [Key(8)]
+        public IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> ActionBarBindings { get; set; } = Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeActionBarBindingCommit
+    {
+        [Key(0)]
+        public string ControlPath { get; set; } = "";
+
+        [Key(1)]
+        public string Kind { get; set; } = "";
+
+        [Key(2)]
+        public string ItemDefinitionLegacyId { get; set; } = "";
+
+        [Key(3)]
+        public int EquipmentIndex { get; set; } = -1;
+
+        [Key(4)]
+        public int BehaviorIndex { get; set; } = -1;
+
+        [Key(5)]
+        public int WeaponGroup { get; set; } = -1;
     }
 
     [MessagePackObject]

@@ -165,6 +165,23 @@ try
             CurrentZoneIndex = 0,
             CurrentZoneEntityIndex = 0,
             DiscoveredZoneIndices = new[] { 0 },
+            ActionBarBindings = new[]
+            {
+                new AetheriaRuntimeActionBarBindingCommit
+                {
+                    ControlPath = "<Keyboard>/1",
+                    Kind = "weapon_group",
+                    WeaponGroup = 0
+                },
+                new AetheriaRuntimeActionBarBindingCommit
+                {
+                    ControlPath = "<Keyboard>/2",
+                    Kind = "gear",
+                    ItemDefinitionLegacyId = "smoke:weapon",
+                    EquipmentIndex = 0,
+                    BehaviorIndex = 1
+                }
+            },
             Zones = new[]
             {
                 new AetheriaRuntimeZoneSnapshotCommit
@@ -230,6 +247,15 @@ try
             settings?.PlayerName == "Unity smoke" &&
             settings.Input.ActionBarInputs.Length == 1 &&
             run?.ZoneKeys.Length == 1 &&
+            run.ActionBarBindings.Length == 2 &&
+            run.ActionBarBindings[0].ControlPath == "<Keyboard>/1" &&
+            run.ActionBarBindings[0].Kind == "weapon_group" &&
+            run.ActionBarBindings[0].WeaponGroup == 0 &&
+            run.ActionBarBindings[1].ControlPath == "<Keyboard>/2" &&
+            run.ActionBarBindings[1].Kind == "gear" &&
+            run.ActionBarBindings[1].TargetKey == "aetheria.item_definition:legacy:smoke:weapon" &&
+            run.ActionBarBindings[1].EquipmentIndex == 0 &&
+            run.ActionBarBindings[1].BehaviorIndex == 1 &&
             zone?.EntityKeys.Length == 1 &&
             entity?.Equipment.Length == 1 &&
             entity.WeaponGroups.Length == 1 &&
@@ -285,5 +311,5 @@ Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayloa
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
 Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
-Console.WriteLine("Runtime state commit log smoke: settings and run zone/entity snapshots queued, applied, and cleared");
+Console.WriteLine("Runtime state commit log smoke: settings, action-bar bindings, and run zone/entity snapshots queued, applied, and cleared");
 Console.WriteLine("Runtime Eve command log smoke: surface command queued separately from state commits");

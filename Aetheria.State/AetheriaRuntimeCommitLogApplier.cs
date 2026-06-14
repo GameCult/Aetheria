@@ -225,6 +225,7 @@ public static class AetheriaRuntimeCommitLogApplier
             CurrentZoneIndex = checkpoint.CurrentZoneIndex,
             CurrentZoneEntityIndex = checkpoint.CurrentZoneEntityIndex,
             DiscoveredZoneIndices = ToIntArray(checkpoint.DiscoveredZoneIndices),
+            ActionBarBindings = ToActionBarBindings(checkpoint.ActionBarBindings),
             UpdatedAtUtc = updatedAtUtc
         };
 
@@ -308,6 +309,22 @@ public static class AetheriaRuntimeCommitLogApplier
     {
         return (values ?? Array.Empty<IReadOnlyList<int>>())
             .Select(ToIntArray)
+            .ToArray();
+    }
+
+    private static AetheriaActionBarBinding[] ToActionBarBindings(
+        IReadOnlyList<AetheriaRuntimeActionBarBindingCommit>? bindings)
+    {
+        return (bindings ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>())
+            .Select(binding => new AetheriaActionBarBinding
+            {
+                ControlPath = binding.ControlPath ?? "",
+                Kind = binding.Kind ?? "",
+                TargetKey = ReferenceKey("aetheria.item_definition", binding.ItemDefinitionLegacyId ?? ""),
+                EquipmentIndex = binding.EquipmentIndex,
+                BehaviorIndex = binding.BehaviorIndex,
+                WeaponGroup = binding.WeaponGroup
+            })
             .ToArray();
     }
 

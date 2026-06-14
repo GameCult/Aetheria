@@ -13,7 +13,10 @@ are migration inputs only.
 
 The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
-bindings, and stat grids. Player settings include player name, tutorial flag,
+bindings, and stat grids. Runtime checkpoints include current action-bar
+bindings as stable typed targets: input control path, binding kind, item
+definition reference, equipment index, behavior index, or weapon-group index.
+Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
 binding overrides, and action-bar inputs. Do not preserve `SavedGame`, Unity
 runtime settings projections, or runtime entity blueprints as opaque payloads in
@@ -66,10 +69,12 @@ Dead legacy catalog roots for user records and galaxy map-layer resources have
 been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
-Item instances now carry `RuntimeItemReference`, a narrow item-definition id.
+Item instances now carry `RuntimeItemDefinitionReference`, a narrow
+item-definition id.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
-hydration path, and `RuntimeItemReference.Projection` cache have been deleted;
-runtime item facts come from typed catalog rows.
+hydration path, vague `ItemInstance.Data` identity field, and old
+`RuntimeItemReference.Projection` cache have been deleted; runtime item facts
+come from typed catalog rows.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.
