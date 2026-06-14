@@ -316,25 +316,65 @@ public abstract class Entity
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
-        return _activeConsumables.FirstOrDefault(ac => ac.Data.ID == data.ID);
+        return data == null ? null : FindActiveConsumable(data.ID);
+    }
+
+    public ConsumableItemEffect FindActiveConsumable(Guid itemId)
+    {
+        return _activeConsumables.FirstOrDefault(ac => ac.Item?.Data?.ItemId == itemId);
     }
 
     public bool CanActivateConsumable(ConsumableItemData data)
     {
-        return data.Stackable || FindActiveConsumable(data) == null;
+        var typedItem = ItemManager.GetRuntimeItem(data?.ID ?? Guid.Empty);
+        if (typedItem == null)
+            return data != null && (data.Stackable || FindActiveConsumable(data) == null);
+
+        return CanActivateConsumable(typedItem);
+    }
+
+    public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
+    {
+        var itemId = GetLegacyGuid(item);
+        return item != null && itemId != Guid.Empty && (item.Stackable || FindActiveConsumable(itemId) == null);
     }
 
     public bool TryActivateConsumable(ConsumableItemData data)
     {
+        var typedItem = ItemManager.GetRuntimeItem(data?.ID ?? Guid.Empty);
+        if (typedItem != null)
+            return TryActivateConsumable(typedItem);
+
         if (!CanActivateConsumable(data)) return false;
-        
+
         var bay = FindItemInCargo(data.ID);
         if (bay == null) return false;
-        
+
         var item = (ConsumableItem) bay.ItemsOfType[data.ID].First();
         ActivateConsumable(item);
         bay.Remove(item);
         return true;
+    }
+
+    public bool TryActivateConsumable(AetheriaRuntimeCatalogItem typedItem)
+    {
+        if (!CanActivateConsumable(typedItem)) return false;
+
+        var itemId = GetLegacyGuid(typedItem);
+        var bay = FindItemInCargo(itemId);
+        if (bay == null) return false;
+
+        var item = (ConsumableItem)bay.ItemsOfType[itemId].First();
+        ActivateConsumable(item);
+        bay.Remove(item);
+        return true;
+    }
+
+    private static Guid GetLegacyGuid(AetheriaRuntimeCatalogItem item)
+    {
+        return item != null && Guid.TryParse(item.LegacyId, out var legacyId)
+            ? legacyId
+            : Guid.Empty;
     }
 
     private void MapEntity()
@@ -1209,13 +1249,21 @@ public class ConsumableItemEffect
     public ConsumableItem Item { get; }
     public ConsumableItemData Data { get; }
     public Behavior[] Behaviors { get; }
+    public AetheriaRuntimeCatalogItem RuntimeItem { get; }
+    public float Duration => Math.Max(_duration, float.Epsilon);
+
+    private readonly float _duration;
+    private readonly BezierCurve _effectiveness;
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
     {
         Item = item;
         Entity = entity;
+        RuntimeItem = entity.ItemManager.GetRuntimeItem(item);
         Data = entity.ItemManager.GetData(item) as ConsumableItemData;
-        RemainingDuration = Data.Duration;
+        _duration = RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : Data?.Duration ?? 0;
+        _effectiveness = CreateEffectivenessCurve(RuntimeItem, Data);
+        RemainingDuration = _duration;
 
         Behaviors = entity.ItemManager.GetRuntimeBehaviorProjections(item)
             .Select(bd => bd.CreateInstance(this))
@@ -1238,7 +1286,8 @@ public class ConsumableItemEffect
 
     public float Evaluate(PerformanceStat stat)
     {
-        var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
+        var duration = Math.Max(_duration, float.Epsilon);
+        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
         var quality = pow(Item.Quality, stat.QualityExponent);
 
         var result = lerp(stat.Min, stat.Max, effectiveness * quality);
@@ -1246,6 +1295,28 @@ public class ConsumableItemEffect
         if (float.IsNaN(result))
             return stat.Min;
         return result;
+    }
+
+    private static BezierCurve CreateEffectivenessCurve(AetheriaRuntimeCatalogItem item, ConsumableItemData fallback)
+    {
+        if (item?.EffectivenessCurveKeys != null && item.EffectivenessCurveKeys.Count > 0)
+        {
+            return new BezierCurve
+            {
+                Keys = item.EffectivenessCurveKeys
+                    .Select(key => new float4(
+                        (float)key.Time,
+                        (float)key.Value,
+                        (float)key.InTangent,
+                        (float)key.OutTangent))
+                    .ToArray()
+            };
+        }
+
+        return fallback?.Effectiveness ?? new BezierCurve
+        {
+            Keys = new[] { new float4(0, 1, 0, 0), new float4(1, 1, 0, 0) }
+        };
     }
 }
 

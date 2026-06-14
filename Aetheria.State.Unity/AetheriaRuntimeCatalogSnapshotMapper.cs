@@ -40,6 +40,8 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.HullType,
             item.BehaviorKinds,
             item.MaxStack,
+            item.Stackable,
+            item.Duration,
             item.Durability,
             item.WeaponRange,
             item.WeaponCaliber,
@@ -59,6 +61,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.DockingMaxSizeY,
             item.ActionBarIcon,
             item.AudioStats.Select(FromState).ToArray(),
+            item.EffectivenessCurveKeys.Select(FromState).ToArray(),
             item.SimpleCommodityCategory,
             item.CompoundCommodityCategory);
     }

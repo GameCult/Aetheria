@@ -239,7 +239,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Thermal resilience is also typed and feeds wear scaling. Audio parameter stat
   bindings are typed item rows and feed equipped-item Wwise parameter updates;
   the legacy equippable DTO is now only an incomplete-row projection fallback
-  for equipped-item simulation.
+  for equipped-item simulation. Consumable stackability, duration, and
+  effectiveness curve slots are part of typed item rows, and action-bar
+  consumable activation/fill now command typed item IDs. The current mapped
+  legacy catalog has no consumable item rows, so `ConsumableItemData` remains a
+  compatibility fallback for any future/unmapped consumable instance until
+  consumable behavior execution is fully typed.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
@@ -704,9 +709,10 @@ First Aetheria surfaces to publish:
    - Done: move TradeMenu dynamic behavior columns onto typed behavior payload
      fields; the menu no longer hydrates `ItemData` or `BehaviorData` for row
      display, filtering, sorting, or buy decisions.
-   - Done: move action-bar consumable drop binding onto typed catalog rows;
-     legacy `ConsumableItemData` resolution is lazy and bounded to activation
-     and active-duration fill until typed consumable effect execution exists.
+   - Done: move action-bar consumable drop binding, activation command, and
+     active-duration fill onto typed catalog item IDs; legacy
+     `ConsumableItemData` is now only a compatibility fallback because the
+     current mapped legacy catalog contains no consumable item rows.
    - Done: move player camera articulation grouping for equipped non-launcher
      weapons onto typed behavior-kind rows instead of runtime `BehaviorData`
      type inspection.
@@ -786,6 +792,10 @@ First Aetheria surfaces to publish:
    - Done: import typed audio parameter stat bindings and move equipped-item
      Wwise parameter updates off `EquippableItemData.AudioStats`; it remains
      only as an incomplete-row fallback.
+   - Done: add typed consumable stackability, duration, and effectiveness curve
+     fields and route action-bar consumable activation through typed item rows;
+     verifier records that the current mapped catalog has `0` consumable item
+     rows, so the old DTO path cannot be fully deleted yet.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster

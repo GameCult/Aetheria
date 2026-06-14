@@ -58,16 +58,13 @@ public abstract class ActionBarBinding
 public class ActionBarConsumableBinding : ActionBarBinding
 {
     public AetheriaRuntimeCatalogItem Target { get; }
-    private readonly Func<ConsumableItemData> _resolveLegacyTarget;
 
     public ActionBarConsumableBinding(
         Entity entity,
         ActionBarSlot slot,
-        AetheriaRuntimeCatalogItem target,
-        Func<ConsumableItemData> resolveLegacyTarget) : base(entity, slot)
+        AetheriaRuntimeCatalogItem target) : base(entity, slot)
     {
         Target = target;
-        _resolveLegacyTarget = resolveLegacyTarget;
         Slot.QuantityRemaining.gameObject.SetActive(true);
         Slot.Label.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(false);
@@ -75,9 +72,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Activate()
     {
-        var legacyTarget = ResolveLegacyTarget();
-        if (legacyTarget != null)
-            Entity.TryActivateConsumable(legacyTarget);
+        Entity.TryActivateConsumable(Target);
     }
 
     public override void Deactivate()
@@ -87,25 +82,20 @@ public class ActionBarConsumableBinding : ActionBarBinding
     public override void Update()
     {
         Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(TargetLegacyId)}";
-        var legacyTarget = ResolveLegacyTarget();
-        if (legacyTarget == null)
+        if (TargetLegacyId == Guid.Empty)
         {
             Slot.Fill.fillAmount = 0;
             return;
         }
 
-        var instance = Entity.FindActiveConsumable(legacyTarget);
+        var instance = Entity.FindActiveConsumable(TargetLegacyId);
         if (instance == null) Slot.Fill.fillAmount = 0;
-        else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Data.Duration;
+        else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Duration;
     }
 
     private Guid TargetLegacyId =>
         Guid.TryParse(Target.LegacyId, out var legacyId) ? legacyId : Guid.Empty;
 
-    private ConsumableItemData ResolveLegacyTarget()
-    {
-        return _resolveLegacyTarget?.Invoke();
-    }
 }
 
 public class ActionBarGearBinding : ActionBarBinding

@@ -116,6 +116,8 @@ namespace GameCult.Aetheria.State.Unity
             string hullType,
             IReadOnlyList<string> behaviorKinds,
             int maxStack,
+            bool stackable,
+            double duration,
             double durability,
             string weaponRange,
             string weaponCaliber,
@@ -135,6 +137,7 @@ namespace GameCult.Aetheria.State.Unity
             int dockingMaxSizeY,
             string actionBarIcon,
             IReadOnlyList<AetheriaRuntimeAudioStat> audioStats,
+            IReadOnlyList<AetheriaRuntimeCurveKey> effectivenessCurveKeys,
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
@@ -162,6 +165,8 @@ namespace GameCult.Aetheria.State.Unity
             HullType = hullType;
             BehaviorKinds = behaviorKinds;
             MaxStack = maxStack;
+            Stackable = stackable;
+            Duration = duration;
             Durability = durability;
             WeaponRange = weaponRange;
             WeaponCaliber = weaponCaliber;
@@ -181,6 +186,7 @@ namespace GameCult.Aetheria.State.Unity
             DockingMaxSizeY = dockingMaxSizeY;
             ActionBarIcon = actionBarIcon;
             AudioStats = audioStats;
+            EffectivenessCurveKeys = effectivenessCurveKeys;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
         }
@@ -209,6 +215,8 @@ namespace GameCult.Aetheria.State.Unity
         public string HullType { get; }
         public IReadOnlyList<string> BehaviorKinds { get; }
         public int MaxStack { get; }
+        public bool Stackable { get; }
+        public double Duration { get; }
         public double Durability { get; }
         public string WeaponRange { get; }
         public string WeaponCaliber { get; }
@@ -228,6 +236,7 @@ namespace GameCult.Aetheria.State.Unity
         public int DockingMaxSizeY { get; }
         public string ActionBarIcon { get; }
         public IReadOnlyList<AetheriaRuntimeAudioStat> AudioStats { get; }
+        public IReadOnlyList<AetheriaRuntimeCurveKey> EffectivenessCurveKeys { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
     }

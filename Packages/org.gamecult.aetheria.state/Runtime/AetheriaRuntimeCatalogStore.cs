@@ -180,8 +180,8 @@ namespace GameCult.Aetheria.State.Unity
             var behaviorKinds = ReadFieldStringArray(ref reader, fields, 14);
             SkipField(ref reader, fields, 15);
             var maxStack = ReadFieldInt32(ref reader, fields, 16);
-            SkipField(ref reader, fields, 17);
-            SkipField(ref reader, fields, 18);
+            var stackable = ReadFieldBool(ref reader, fields, 17);
+            var duration = ReadFieldDouble(ref reader, fields, 18);
             var durability = ReadFieldDouble(ref reader, fields, 19);
             var weaponRange = ReadFieldString(ref reader, fields, 20);
             var weaponCaliber = ReadFieldString(ref reader, fields, 21);
@@ -212,7 +212,8 @@ namespace GameCult.Aetheria.State.Unity
             var actionBarIcon = ReadFieldString(ref reader, fields, 46);
             var thermalResilience = ReadFieldDouble(ref reader, fields, 47, 1);
             var audioStats = ReadFieldAudioStats(ref reader, fields, 48);
-            SkipRemaining(ref reader, fields, 49);
+            var effectivenessCurveKeys = ReadFieldCurveKeys(ref reader, fields, 49);
+            SkipRemaining(ref reader, fields, 50);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -239,6 +240,8 @@ namespace GameCult.Aetheria.State.Unity
                 hullType,
                 behaviorKinds,
                 maxStack,
+                stackable,
+                duration,
                 durability,
                 weaponRange,
                 weaponCaliber,
@@ -258,6 +261,7 @@ namespace GameCult.Aetheria.State.Unity
                 dockingMaxSizeY,
                 actionBarIcon,
                 audioStats,
+                effectivenessCurveKeys,
                 simpleCommodityCategory,
                 compoundCommodityCategory);
         }

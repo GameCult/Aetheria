@@ -159,6 +159,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(48)]
     public AetheriaItemAudioStat[] AudioStats { get; set; } = [];
+
+    [Key(49)]
+    public AetheriaCurveKey[] EffectivenessCurveKeys { get; set; } = [];
 }
 
 [MessagePackObject]

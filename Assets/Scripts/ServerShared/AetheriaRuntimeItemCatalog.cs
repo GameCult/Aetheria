@@ -121,6 +121,14 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             simple.MaxStack = item.MaxStack;
         }
 
+        if (projected is ConsumableItemData consumable)
+        {
+            consumable.Stackable = item.Stackable;
+            consumable.Duration = (float)item.Duration;
+            consumable.Effectiveness = ProjectCurve(item.EffectivenessCurveKeys);
+            consumable.Behaviors = ProjectBehaviors(item).ToList();
+        }
+
         if (projected is EquippableItemData equippable)
         {
             equippable.Durability = (float)item.Durability;
@@ -173,6 +181,20 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             .Select(ProjectBehavior)
             .Where(behavior => behavior != null)
             .ToArray();
+    }
+
+    private static BezierCurve ProjectCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+    {
+        return new BezierCurve
+        {
+            Keys = keys == null || keys.Count == 0
+                ? new[] { new float4(0, 1, 0, 0), new float4(1, 1, 0, 0) }
+                : keys.Select(key => new float4(
+                    (float)key.Time,
+                    (float)key.Value,
+                    (float)key.InTangent,
+                    (float)key.OutTangent)).ToArray()
+        };
     }
 
     private static IEnumerable<AudioStat> ProjectAudioStats(AetheriaRuntimeCatalogItem item)

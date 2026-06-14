@@ -743,8 +743,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarConsumableBinding(
                                 CurrentEntity,
                                 slot,
-                                consumable,
-                                () => ItemManager.GetData(itemInstanceDragAction.Item) as ConsumableItemData);
+                                consumable);
                             return true;
                         case WeaponGroupDragObject weaponGroupDragAction:
                             slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, weaponGroupDragAction.Group);
