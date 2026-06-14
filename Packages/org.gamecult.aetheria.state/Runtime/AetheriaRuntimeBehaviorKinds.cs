@@ -5,6 +5,7 @@ namespace GameCult.Aetheria.State.Unity
 {
     public static class AetheriaRuntimeBehaviorKinds
     {
+        public const string StatModifier = "StatModifier";
         public const string GuidedWeapon = "GuidedWeapon";
         public const string Launcher = "Launcher";
         public const string InstantWeapon = "InstantWeapon";

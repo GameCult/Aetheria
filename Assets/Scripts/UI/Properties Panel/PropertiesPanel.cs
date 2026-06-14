@@ -439,7 +439,7 @@ public class PropertiesPanel : MonoBehaviour
 		var sheet = AddStatSheet();
 		foreach (var behavior in typedItem?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
 		{
-			if (string.Equals(behavior.Kind, nameof(StatModifierData), StringComparison.Ordinal))
+			if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
 			{
 				var statReference = ReadTypedStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
 				var modifier = ReadTypedPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
