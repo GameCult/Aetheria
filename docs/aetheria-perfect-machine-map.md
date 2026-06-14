@@ -96,7 +96,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   before falling back to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
-  legacy `WeaponItemData`.
+  legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
+  behavior-kind rows instead of inspecting runtime `BehaviorData` subclasses;
+  live weapon behavior instances still own ammo, cooldown, and active firing
+  values until those session facts have typed runtime surfaces.
   Hull and item durability percentages use typed max durability only; incomplete
   typed rows use current runtime durability as the generic denominator instead
   of falling back to legacy `ItemData.Durability`.
@@ -691,6 +694,9 @@ First Aetheria surfaces to publish:
      type inspection.
    - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
      onto typed catalog rows.
+   - Done: move schematic HUD weapon-row classification onto typed behavior-kind
+     rows; runtime `Weapon` instances remain the owner for live ammo/cooldown
+     display values.
    - Done: import typed item specific heat and move `ItemManager` generic mass,
      thermal-mass, and crafted-price helpers onto typed runtime catalog rows.
    - Done: import typed thermal performance curve keys and move PropertiesPanel

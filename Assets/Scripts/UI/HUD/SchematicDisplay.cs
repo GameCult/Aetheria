@@ -12,6 +12,16 @@ using static Unity.Mathematics.math;
 
 public class SchematicDisplay : MonoBehaviour
 {
+    private static readonly HashSet<string> WeaponBehaviorKinds = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "GuidedWeapon",
+        "Launcher",
+        "InstantWeapon",
+        "ConstantWeapon",
+        "ChargedWeapon",
+        "AutoWeapon"
+    };
+
     public GameSettings Settings;
     public Prototype ListElementPrototype;
 
@@ -108,7 +118,7 @@ public class SchematicDisplay : MonoBehaviour
         }
         
         _schematicItems = entity.Equipment
-            .Where(x => x.Behaviors.Any(b => b.Data is WeaponData))
+            .Where(HasTypedWeaponBehavior)
             .Select(x => new SchematicDisplayItem
             {
                 Item = x, 
@@ -143,6 +153,12 @@ public class SchematicDisplay : MonoBehaviour
             : null;
     }
 
+
+    private static bool HasTypedWeaponBehavior(EquippedItem item)
+    {
+        var typedItem = FindTypedItem(item.EquippableItem);
+        return typedItem?.BehaviorKinds.Any(WeaponBehaviorKinds.Contains) == true;
+    }
 
     void Update()
     {
