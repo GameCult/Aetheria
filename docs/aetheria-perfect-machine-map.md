@@ -89,9 +89,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Gear action-bar bindings use typed weapon and hardpoint facets for fallback
   icon selection and fall back to a generic tool icon when typed facets are
   incomplete; legacy custom action-bar icon paths remain fallback projection
-  data because typed icon fields are not yet present. Unity boot reads typed
-  player settings back through the package-owned CultCache reader before falling
-  back to defaults.
+  data because typed icon fields are not yet present. Player camera articulation
+  grouping now classifies equipped non-launcher weapons through typed behavior
+  kind rows instead of inspecting runtime `BehaviorData` subclasses. Unity boot
+  reads typed player settings back through the package-owned CultCache reader
+  before falling back to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`.
@@ -684,6 +686,9 @@ First Aetheria surfaces to publish:
    - Done: move action-bar consumable drop binding onto typed catalog rows;
      legacy `ConsumableItemData` resolution is lazy and bounded to activation
      and active-duration fill until typed consumable effect execution exists.
+   - Done: move player camera articulation grouping for equipped non-launcher
+     weapons onto typed behavior-kind rows instead of runtime `BehaviorData`
+     type inspection.
    - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
      onto typed catalog rows.
    - Done: import typed item specific heat and move `ItemManager` generic mass,

@@ -28,6 +28,15 @@ using Random = UnityEngine.Random;
 
 public class ActionGameManager : MonoBehaviour
 {
+    private static readonly HashSet<string> ArticulatedWeaponBehaviorKinds = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "GuidedWeapon",
+        "InstantWeapon",
+        "ConstantWeapon",
+        "ChargedWeapon",
+        "AutoWeapon"
+    };
+
     // Always check for null if accessing from anywhere that might not be in-game (e.g. menu UI)
     public static ActionGameManager Instance { get; private set; }
     private static DirectoryInfo _gameDataDirectory;
@@ -1253,7 +1262,7 @@ public class ActionGameManager : MonoBehaviour
         FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
         FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
         _articulationGroups = CurrentEntity.Equipment
-            .Where(item => item.Behaviors.Any(x => x.Data is WeaponData && !(x.Data is LauncherData)))
+            .Where(HasArticulatedWeaponBehavior)
             .GroupBy(item => ZoneRenderer.EntityInstances[CurrentEntity]
                 .GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])
                 .GetComponentInParent<ArticulationPoint>()?.Group ?? -1)
@@ -1351,6 +1360,12 @@ public class ActionGameManager : MonoBehaviour
                 var i = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
                 return (x, i, i.GetComponent<Rotate>());
             }).ToArray();
+    }
+
+    private bool HasArticulatedWeaponBehavior(EquippedItem item)
+    {
+        var typedItem = ItemManager.GetRuntimeItem(item.EquippableItem);
+        return typedItem?.BehaviorKinds.Any(ArticulatedWeaponBehaviorKinds.Contains) == true;
     }
 
     private void UpdatePlayerPanel()
