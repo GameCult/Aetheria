@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,44 +9,9 @@ using MessagePack;
 
 namespace GameCult.Aetheria.State.Unity
 {
-    public sealed class AetheriaRuntimeEveCommandEnvelope
-    {
-        public AetheriaRuntimeEveCommandEnvelope(
-            string schema,
-            string commandId,
-            string providerId,
-            string surfaceId,
-            string command,
-            string issuedAtUtc,
-            string clientId,
-            IReadOnlyDictionary<string, string> payload,
-            string path)
-        {
-            Schema = schema;
-            CommandId = commandId;
-            ProviderId = providerId;
-            SurfaceId = surfaceId;
-            Command = command;
-            IssuedAtUtc = issuedAtUtc;
-            ClientId = clientId;
-            Payload = payload;
-            Path = path;
-        }
-
-        public string Schema { get; }
-        public string CommandId { get; }
-        public string ProviderId { get; }
-        public string SurfaceId { get; }
-        public string Command { get; }
-        public string IssuedAtUtc { get; }
-        public string ClientId { get; }
-        public IReadOnlyDictionary<string, string> Payload { get; }
-        public string Path { get; }
-    }
-
     public static class AetheriaRuntimeEveCommandLog
     {
-        public const string CommandSchema = "gamecult.eve.command.v1";
+        public const string CommandSchema = AetheriaRuntimeEveCommandDocument.SchemaId;
 
         public static string GetPendingDirectory(string stateFilePath)
         {
@@ -73,33 +37,32 @@ namespace GameCult.Aetheria.State.Unity
                 $"{issuedAtUtc.Replace(':', '-')}.{StableToken(request.SurfaceId)}.{StableToken(request.Command)}.{commandId}.cc");
             var tempPath = finalPath + ".tmp";
 
-            var buffer = new ArrayBufferWriter<byte>();
-            var writer = new MessagePackWriter(buffer);
-            writer.WriteArrayHeader(8);
-            writer.Write(CommandSchema);
-            writer.Write(commandId);
-            writer.Write(request.ProviderId ?? "");
-            writer.Write(request.SurfaceId ?? "");
-            writer.Write(request.Command ?? "");
-            writer.Write(issuedAtUtc);
-            writer.Write(request.ClientId ?? "");
-            WritePayload(ref writer, request.Payload);
-            writer.Flush();
+            var document = new AetheriaRuntimeEveCommandDocument
+            {
+                Schema = CommandSchema,
+                CommandId = commandId,
+                ProviderId = request.ProviderId ?? "",
+                SurfaceId = request.SurfaceId ?? "",
+                Command = request.Command ?? "",
+                IssuedAtUtc = issuedAtUtc,
+                ClientId = request.ClientId ?? "",
+                Payload = CopyPayload(request.Payload)
+            };
 
-            File.WriteAllBytes(tempPath, buffer.WrittenSpan.ToArray());
+            File.WriteAllBytes(tempPath, MessagePackSerializer.Serialize(document));
             if (File.Exists(finalPath))
                 File.Delete(finalPath);
             File.Move(tempPath, finalPath);
 
             return new AetheriaRuntimeEveCommandEnvelope(
-                CommandSchema,
-                commandId,
-                request.ProviderId ?? "",
-                request.SurfaceId ?? "",
-                request.Command ?? "",
-                issuedAtUtc,
-                request.ClientId ?? "",
-                new Dictionary<string, string>(request.Payload, StringComparer.Ordinal),
+                document.Schema,
+                document.CommandId,
+                document.ProviderId,
+                document.SurfaceId,
+                document.Command,
+                document.IssuedAtUtc,
+                document.ClientId,
+                document.Payload,
                 finalPath);
         }
 
@@ -118,61 +81,33 @@ namespace GameCult.Aetheria.State.Unity
 
         private static AetheriaRuntimeEveCommandEnvelope ReadEnvelope(string path)
         {
-            var reader = new MessagePackReader(File.ReadAllBytes(path));
-            var fields = reader.ReadArrayHeader();
-            var schema = fields > 0 ? ReadString(ref reader) : "";
-            var commandId = fields > 1 ? ReadString(ref reader) : "";
-            var providerId = fields > 2 ? ReadString(ref reader) : "";
-            var surfaceId = fields > 3 ? ReadString(ref reader) : "";
-            var command = fields > 4 ? ReadString(ref reader) : "";
-            var issuedAtUtc = fields > 5 ? ReadString(ref reader) : "";
-            var clientId = fields > 6 ? ReadString(ref reader) : "";
-            var payload = fields > 7 ? ReadPayload(ref reader) : EmptyPayload();
-            for (var field = 8; field < fields; field++)
-                reader.Skip();
+            var document = MessagePackSerializer.Deserialize<AetheriaRuntimeEveCommandDocument>(File.ReadAllBytes(path));
 
             return new AetheriaRuntimeEveCommandEnvelope(
-                schema,
-                commandId,
-                providerId,
-                surfaceId,
-                command,
-                issuedAtUtc,
-                clientId,
-                payload,
+                document.Schema ?? "",
+                document.CommandId ?? "",
+                document.ProviderId ?? "",
+                document.SurfaceId ?? "",
+                document.Command ?? "",
+                document.IssuedAtUtc ?? "",
+                document.ClientId ?? "",
+                document.Payload ?? EmptyPayload(),
                 path);
         }
 
-        private static void WritePayload(ref MessagePackWriter writer, IReadOnlyDictionary<string, string>? payload)
+        private static Dictionary<string, string> CopyPayload(IReadOnlyDictionary<string, string>? payload)
         {
-            payload ??= EmptyPayload();
-            writer.WriteMapHeader(payload.Count);
-            foreach (var entry in payload.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            var copy = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in (payload ?? EmptyPayload()).OrderBy(entry => entry.Key, StringComparer.Ordinal))
             {
-                writer.Write(entry.Key ?? "");
-                writer.Write(entry.Value ?? "");
-            }
-        }
-
-        private static IReadOnlyDictionary<string, string> ReadPayload(ref MessagePackReader reader)
-        {
-            var count = reader.ReadMapHeader();
-            if (count == 0)
-                return EmptyPayload();
-
-            var payload = new Dictionary<string, string>(count, StringComparer.Ordinal);
-            for (var index = 0; index < count; index++)
-            {
-                var key = ReadString(ref reader);
-                var value = ReadString(ref reader);
-                if (!string.IsNullOrWhiteSpace(key))
-                    payload[key] = value;
+                if (!string.IsNullOrWhiteSpace(entry.Key))
+                    copy[entry.Key] = entry.Value ?? "";
             }
 
-            return payload;
+            return copy;
         }
 
-        private static IReadOnlyDictionary<string, string> EmptyPayload()
+        private static Dictionary<string, string> EmptyPayload()
         {
             return new Dictionary<string, string>(0, StringComparer.Ordinal);
         }
@@ -191,9 +126,5 @@ namespace GameCult.Aetheria.State.Unity
             return string.IsNullOrWhiteSpace(token) ? "empty" : token;
         }
 
-        private static string ReadString(ref MessagePackReader reader)
-        {
-            return reader.ReadString() ?? "";
-        }
     }
 }

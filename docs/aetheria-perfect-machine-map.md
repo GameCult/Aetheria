@@ -32,9 +32,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   from the `.cc` directory store before constructing the temporary legacy
   `ItemManager`. Player settings saves, loadout saves, shutdown checkpoints,
   and wormhole transition checkpoints now queue typed `.cc.pending` Verse
-  commit commands through the embedded runtime state package. Run checkpoint
-  commands include the current zone plus its runtime entity snapshots.
-  `Aetheria.State` owns applying those command envelopes into canonical
+  commit documents through the embedded runtime state package. Run checkpoint
+  documents include the current zone plus its runtime entity snapshots.
+  `Aetheria.State` owns applying those command documents into canonical
   `AetheriaPlayerSettings`, `AetheriaLoadoutTemplate`, `AetheriaRunState`,
   `AetheriaZoneState`, and `AetheriaEntitySnapshot` documents through
   `AetheriaStateNode`. Local run saves, loadouts, player settings files, zone
@@ -42,8 +42,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy
   `RuntimePlayerSettings` runtime object is no longer named or decorated as a
   MessagePack persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
-  into canonical typed state and drains `aetheria-world.cc.eve.pending` through
-  the provider-owned Eve command bridge on startup and on a daemon polling loop
+  into canonical typed state and drains typed `aetheria-world.cc.eve.pending`
+  command documents through the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
 - Shared item domain state is still partly built around `RuntimeItemReference`,
@@ -325,6 +325,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   successfully applied command files by default. It is an operational bridge,
   not a second state owner; the applicator delegates all writes to
   `AetheriaStateNode`.
+- `AetheriaRuntimeEveCommandLog` emits typed
+  `AetheriaRuntimeEveCommandDocument` files under
+  `aetheria-world.cc.eve.pending`; `AetheriaEveCommandBridge` consumes the
+  same shared document type, validates provider/surface/command authority, and
+  deletes accounted command files. The Eve pending lane is command transport,
+  not renderer-owned state.
 - `Economy.Server` hosts the CultMesh state node and now owns the long-running
   pending runtime commit drain loop. `--apply-pending-once` runs the same drain
   path once for smoke/operator use without keeping the process alive.
@@ -893,7 +899,7 @@ First Aetheria surfaces to publish:
      presenter that mounts typed Eve surfaces from `GameData/aetheria-world.cc`
      through UI Toolkit without giving the renderer state authority.
    - Done: queue renderer-emitted Eve commands as typed
-     `gamecult.eve.command.v1` envelopes under `.eve.pending`, separate from
+     `gamecult.eve.command.v1` documents under `.eve.pending`, separate from
      runtime state commits so the existing state applicator cannot accidentally
      accept commands it does not own.
    - Done: add the provider-owned Eve command bridge that drains `.eve.pending`,
@@ -904,6 +910,8 @@ First Aetheria surfaces to publish:
      `AetheriaEveCommandBridge`; renderer/runtime command files are queued
      through `AetheriaRuntimeEveCommandLog`, while the provider bridge only
      validates, applies, reports, and deletes accounted commands.
+   - Done: replace the `.eve.pending` command lane's private raw MessagePack
+     array protocol with shared `AetheriaRuntimeEveCommandDocument` files.
    - Extend the command bridge beyond refresh commands as gameplay/editor Eve
      surfaces acquire provider-owned handlers.
    - Wire the presenter into a Unity scene/prefab for the first runtime surface

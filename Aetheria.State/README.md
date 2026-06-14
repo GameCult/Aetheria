@@ -34,7 +34,7 @@ Unity settings, loadout templates, and run checkpoints now queue typed
 into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
 Unity-side command log is command-only and cannot become durable truth by
 itself.
-Unity Eve surfaces also emit `gamecult.eve.command.v1` envelopes under
+Unity Eve surfaces also emit typed `gamecult.eve.command.v1` documents under
 `GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
 provider-owned acceptance organ for those commands: it validates the provider,
 surface, and command template before running the narrow refresh handlers for

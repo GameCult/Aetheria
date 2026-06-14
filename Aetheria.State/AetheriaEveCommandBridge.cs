@@ -1,4 +1,5 @@
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 using MessagePack;
 
 namespace Aetheria.State;
@@ -79,29 +80,12 @@ public static class AetheriaEveCommandBridge
         return report;
     }
 
-    private static AetheriaPendingEveCommand ReadCommand(string path)
+    private static AetheriaRuntimeEveCommandDocument ReadCommand(string path)
     {
-        var reader = new MessagePackReader(File.ReadAllBytes(path));
-        var fields = reader.ReadArrayHeader();
-        var command = new AetheriaPendingEveCommand
-        {
-            Schema = fields > 0 ? ReadString(ref reader) : "",
-            CommandId = fields > 1 ? ReadString(ref reader) : "",
-            ProviderId = fields > 2 ? ReadString(ref reader) : "",
-            SurfaceId = fields > 3 ? ReadString(ref reader) : "",
-            Command = fields > 4 ? ReadString(ref reader) : "",
-            IssuedAtUtc = fields > 5 ? ReadString(ref reader) : "",
-            ClientId = fields > 6 ? ReadString(ref reader) : "",
-            Payload = fields > 7 ? ReadPayload(ref reader) : new Dictionary<string, string>(0, StringComparer.Ordinal),
-            Path = path
-        };
-        for (var field = 8; field < fields; field++)
-            reader.Skip();
-
-        return command;
+        return MessagePackSerializer.Deserialize<AetheriaRuntimeEveCommandDocument>(File.ReadAllBytes(path));
     }
 
-    private static string Validate(AetheriaPendingEveCommand command)
+    private static string Validate(AetheriaRuntimeEveCommandDocument command)
     {
         if (!string.Equals(command.Schema, CommandSchema, StringComparison.Ordinal))
             return $"Unexpected Eve command schema '{command.Schema}'.";
@@ -123,7 +107,7 @@ public static class AetheriaEveCommandBridge
 
     private static void RecordRejection(
         AetheriaEveCommandApplyReport report,
-        AetheriaPendingEveCommand command,
+        AetheriaRuntimeEveCommandDocument command,
         string reason,
         string path,
         List<string> rejected,
@@ -161,37 +145,4 @@ public static class AetheriaEveCommandBridge
         };
     }
 
-    private static IReadOnlyDictionary<string, string> ReadPayload(ref MessagePackReader reader)
-    {
-        var count = reader.ReadMapHeader();
-        var payload = new Dictionary<string, string>(count, StringComparer.Ordinal);
-        for (var index = 0; index < count; index++)
-        {
-            var key = ReadString(ref reader);
-            var value = ReadString(ref reader);
-            if (!string.IsNullOrWhiteSpace(key))
-                payload[key] = value;
-        }
-
-        return payload;
-    }
-
-    private static string ReadString(ref MessagePackReader reader)
-    {
-        return reader.ReadString() ?? "";
-    }
-
-    private sealed class AetheriaPendingEveCommand
-    {
-        public string Schema { get; set; } = "";
-        public string CommandId { get; set; } = "";
-        public string ProviderId { get; set; } = "";
-        public string SurfaceId { get; set; } = "";
-        public string Command { get; set; } = "";
-        public string IssuedAtUtc { get; set; } = "";
-        public string ClientId { get; set; } = "";
-        public IReadOnlyDictionary<string, string> Payload { get; set; } =
-            new Dictionary<string, string>(0, StringComparer.Ordinal);
-        public string Path { get; set; } = "";
-    }
 }
