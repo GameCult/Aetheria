@@ -30,7 +30,7 @@ public class ItemManager
 
     // private Guid _forceLoadZone;
     
-    private readonly IRuntimeItemProjectionReader _itemProjections;
+    private readonly IRuntimeItemCatalogReader _runtimeItems;
     public GameplaySettings GameplaySettings { get; }
 
     // public double Time
@@ -46,9 +46,9 @@ public class ItemManager
 
     // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
 
-    public ItemManager(IRuntimeItemProjectionReader itemProjections, GameplaySettings settings, Action<string> logger)
+    public ItemManager(IRuntimeItemCatalogReader runtimeItems, GameplaySettings settings, Action<string> logger)
     {
-        _itemProjections = itemProjections;
+        _runtimeItems = runtimeItems;
         GameplaySettings = settings;
         _logger = logger;
     }
@@ -61,15 +61,15 @@ public class ItemManager
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid itemId)
     {
-        return itemId == Guid.Empty ? null : _itemProjections.GetRuntimeItem(itemId);
+        return itemId == Guid.Empty ? null : _runtimeItems.GetRuntimeItem(itemId);
     }
 
-    public IReadOnlyList<BehaviorData> GetRuntimeBehaviorProjections(ItemInstance item)
+    public IReadOnlyList<BehaviorData> GetRuntimeBehaviorConfigs(ItemInstance item)
     {
         var itemId = item?.Data?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? Array.Empty<BehaviorData>()
-            : _itemProjections.GetBehaviorProjections(itemId);
+            : _runtimeItems.GetRuntimeBehaviorConfigs(itemId);
     }
 
     public Shape GetRuntimeShape(ItemInstance item)

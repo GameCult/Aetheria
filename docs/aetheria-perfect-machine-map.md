@@ -147,7 +147,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   gameplay/UI API, and its old `GetData`/`Hydrate` item DTO projection path has
   been deleted. `AetheriaRuntimeItemCatalog` no longer materializes whole
   `ItemData` DTOs as a runtime cache; it exposes typed item rows plus the
-  temporary behavior payload projection bridge. The item properties UI no longer uses
+  temporary behavior config bridge. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot. Entity
   restore and loadout manufacturer-distance weighting no longer use `ItemManager`
@@ -208,11 +208,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   derives from the typed runtime catalog row. `EquippedItem.InsetShape` now
   derives from typed hull/item shape rows. `EquippedItem` and
   `ConsumableItemEffect` behavior construction now read typed behavior payloads
-  through the runtime behavior projection bridge before instantiating the
+  through the runtime behavior config bridge before instantiating the
   current `BehaviorData`-backed behavior classes. `BehaviorData` remains the
   temporary behavior-class config bridge, not the runtime behavior payload
   owner. `StatModifier` behavior requirements and behavior-stat targets also
-  read that typed behavior projection bridge instead of hydrating
+  read that typed behavior config bridge instead of hydrating
   `EquippableItemData.Behaviors`. Its old item-DTO stat branch was deleted
   after inspection showed no active `PerformanceStat` fields on the live
   equippable item DTO hierarchy.
@@ -415,15 +415,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
   over the typed corporation projection.
 - The `give` command no longer enumerates legacy item catalog entries; typed
-  catalog selection owns the command match, with runtime item projection kept
-  as an instantiation-only bridge.
+  catalog selection owned the command match before the command was deleted.
 - `LoadoutGenerator` no longer enumerates legacy item catalog entries for its
   candidate pool; typed catalog filtering owns the first item selection pass,
-  with runtime item projection kept as a fitting/instantiation bridge.
-- `LoadoutGenerator` names the post-selection bridge as runtime item
-  projection: typed catalog rows own candidate selection, and `ItemManager`
-  only projects the selected row into the temporary DTO shape needed by fitting
-  and instantiation.
+  and typed runtime item rows are passed directly to `ItemManager` for
+  instantiation. The remaining post-selection bridge is behavior config
+  construction for old behavior constructors, not whole-item DTO hydration.
 - `TradeMenuDebug` no longer enumerates legacy item catalog entries for its
   table rows; typed trade catalog records own the row set, with legacy DTO
   hydration kept for the old debug UI callbacks.
@@ -525,19 +522,19 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache or
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
-  item rows and temporarily projects typed behavior payloads into `BehaviorData`
-  objects for the old behavior class constructors. `RuntimeItemReference.ItemId`
-  is the only item reference value. The reader interface for this bridge is named
-  `IRuntimeItemProjectionReader` so callers cannot mistake it for catalog
-  ownership. Behavior type selection now uses an explicit runtime catalog map
-  instead of `UnionAttribute` reflection.
+  item rows and temporarily builds `BehaviorData` config objects from typed
+  behavior payloads for the old behavior class constructors.
+  `RuntimeItemReference.ItemId` is the only item reference value. The reader
+  interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
+  typed catalog row ownership rather than old DTO projection ownership. Behavior
+  type selection now uses an explicit runtime catalog map instead of
+  `UnionAttribute` reflection.
   Item/behavior DTO field layout for the temporary projection bridge is now
   marked with project-owned `LegacyPayloadKeyAttribute`, not MessagePack
   metadata. Item properties
-  manufacturer display is a typed snapshot consumer; loadout generation is the
-  remaining runtime single-ID item projection bridge, but typed catalog rows own
-  the loadout candidate prefilters for hull type, shape, category, hardpoint
-  type, and behavior kind before that bridge is invoked. The old trade debug UI
+  manufacturer display is a typed snapshot consumer; loadout generation uses
+  typed catalog rows for hull type, shape, category, hardpoint type, behavior
+  kind prefilters, and selected-item instantiation. The old trade debug UI
   and console `give` command have been deleted. The surviving trade menu also
   uses typed catalog rows for first-pass size, hardpoint, and behavior filters
   before hydrating row projections. No live caller can enumerate
@@ -569,7 +566,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   file save, and migration all need to converge on one typed commit primitive.
 - Deletion line: no new behavior should be added to old `ItemData` DTO
   metadata or MessagePack catalog paths except bounded migration readers and the
-  current typed behavior projection bridge.
+  current typed behavior config bridge.
 
 ## Target Authority Map
 
@@ -794,7 +791,7 @@ First Aetheria surfaces to publish:
      no longer exist, so behavior state cannot smuggle itself through the
      blueprint projection path.
    - Done: delete the runtime item DTO hydration bridge; `ItemManager.GetData`,
-     `ItemManager.Hydrate`, `IRuntimeItemProjectionReader.Get`, the
+     `ItemManager.Hydrate`, the old projection reader item DTO API, the
      `AetheriaRuntimeItemCatalog` whole-item DTO cache, and
      `RuntimeItemReference.Projection` are gone.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
@@ -886,9 +883,8 @@ First Aetheria surfaces to publish:
      MessagePack, Newtonsoft, RethinkDB, or bespoke save-file serializer symbols.
    - Done: delete dead `PlayerData` and `GalaxyMapLayerData` catalog roots, and
      remove legacy catalog group/table annotations from surviving runtime DTOs.
-   - Done: rename loadout generation's selected-item bridge from legacy
-     hydration to runtime item projection; typed catalog filtering remains the
-     selection owner.
+   - Done: move loadout generation's selected-item instantiation onto typed
+     runtime item rows; typed catalog filtering remains the selection owner.
    - Done: remove stale main-menu/editor database vocabulary from Unity UI
      surfaces; galaxy generation now reports typed catalog loading.
    - Done: remove the stale `MessagePack` assembly reference from
@@ -997,6 +993,10 @@ First Aetheria surfaces to publish:
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.
+   - Done: rename the surviving runtime item read port from
+     `IRuntimeItemProjectionReader` to `IRuntimeItemCatalogReader`, and rename
+     behavior config methods to temporary behavior config construction so
+     old projection vocabulary no longer implies item DTO authority.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.

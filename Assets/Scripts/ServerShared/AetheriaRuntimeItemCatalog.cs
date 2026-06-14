@@ -6,13 +6,13 @@ using System.Reflection;
 using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 
-public interface IRuntimeItemProjectionReader
+public interface IRuntimeItemCatalogReader
 {
     AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
-    IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid);
+    IReadOnlyList<BehaviorData> GetRuntimeBehaviorConfigs(Guid guid);
 }
 
-public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
+public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
 {
     private readonly Dictionary<Guid, AetheriaRuntimeCatalogItem> _typedItems;
     private static readonly IReadOnlyDictionary<int, Type> BehaviorTypesByUnionKey = new Dictionary<int, Type>
@@ -65,18 +65,18 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         return item;
     }
 
-    public IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid)
+    public IReadOnlyList<BehaviorData> GetRuntimeBehaviorConfigs(Guid guid)
     {
         var item = GetRuntimeItem(guid);
         return item == null
             ? Array.Empty<BehaviorData>()
-            : ProjectBehaviors(item);
+            : BuildBehaviorConfigs(item);
     }
 
-    private static BehaviorData[] ProjectBehaviors(AetheriaRuntimeCatalogItem item)
+    private static BehaviorData[] BuildBehaviorConfigs(AetheriaRuntimeCatalogItem item)
     {
         return item.BehaviorPayloads
-            .Select(ProjectBehavior)
+            .Select(BuildBehaviorConfig)
             .Where(behavior => behavior != null)
             .ToArray();
     }
@@ -93,7 +93,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         };
     }
 
-    private static BehaviorData ProjectBehavior(AetheriaRuntimeBehaviorPayload payload)
+    private static BehaviorData BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
     {
         if (!BehaviorTypesByUnionKey.TryGetValue(payload.UnionKey, out var behaviorType))
         {
