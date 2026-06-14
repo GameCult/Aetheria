@@ -1013,6 +1013,10 @@ First Aetheria surfaces to publish:
    - Done: move AetherDrive particle prefab lookup off `AetherDriveData`;
      `ShipInstance` now consumes `AetherDrive.Particles`, and the public
      `DriveData` escape hatch has been removed.
+   - Done: move guided missile profile reads off `LauncherData` and
+     `GuidedWeaponData`; `GuidedProjectileManager` now consumes
+     `Weapon`-owned target mode, curve keys, dodge frequency, and evaluated
+     thrust/top-speed values.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

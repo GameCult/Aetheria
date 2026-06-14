@@ -63,6 +63,8 @@ public abstract class WeaponData : BehaviorData
 public abstract class Weapon : Behavior, IActivatedBehavior
 {
     private WeaponData _data;
+    private PerformanceStat _guidedProjectileThrust;
+    private PerformanceStat _guidedProjectileVelocity;
 
     public abstract float DamagePerSecond { get; }
     public abstract float RangeDamagePerSecond(float range);
@@ -70,6 +72,12 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public WeaponData WeaponData => _data;
     public DamageType DamageType { get; }
     public string EffectPrefab { get; }
+    public GuidedProjectileTargetMode GuidedProjectileTargeting { get; private set; }
+    public bool HasGuidedProjectileProfile => GuidedProjectileTargeting != GuidedProjectileTargetMode.None;
+    public float4[] GuidedProjectileGuidanceCurve { get; private set; }
+    public float4[] GuidedProjectileLiftCurve { get; private set; }
+    public float4[] GuidedProjectileThrustCurve { get; private set; }
+    public float GuidedProjectileDodgeFrequency { get; private set; }
 
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
@@ -94,6 +102,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        InitializeGuidedProjectileProfile(data);
     }
 
     public Weapon(WeaponData data, ConsumableItemEffect item) : base(data, item)
@@ -101,6 +110,31 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        InitializeGuidedProjectileProfile(data);
+    }
+
+    private void InitializeGuidedProjectileProfile(WeaponData data)
+    {
+        if (data is LauncherData launcher)
+        {
+            GuidedProjectileTargeting = GuidedProjectileTargetMode.TargetEntity;
+            GuidedProjectileGuidanceCurve = launcher.GuidanceCurve;
+            GuidedProjectileLiftCurve = launcher.LiftCurve;
+            GuidedProjectileThrustCurve = launcher.ThrustCurve;
+            GuidedProjectileDodgeFrequency = launcher.DodgeFrequency;
+            _guidedProjectileThrust = launcher.Thrust;
+            _guidedProjectileVelocity = launcher.MissileVelocity;
+        }
+        else if (data is GuidedWeaponData guidance)
+        {
+            GuidedProjectileTargeting = GuidedProjectileTargetMode.LookDirection;
+            GuidedProjectileGuidanceCurve = guidance.GuidanceCurve;
+            GuidedProjectileLiftCurve = guidance.LiftCurve;
+            GuidedProjectileThrustCurve = guidance.ThrustCurve;
+            GuidedProjectileDodgeFrequency = guidance.DodgeFrequency;
+            _guidedProjectileThrust = guidance.Thrust;
+            _guidedProjectileVelocity = guidance.MissileVelocity;
+        }
     }
 
     protected virtual void UpdateStats()
@@ -142,4 +176,21 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     {
         return Evaluate(_data.Velocity);
     }
+
+    public float EvaluateGuidedProjectileThrust()
+    {
+        return _guidedProjectileThrust == null ? 0 : Evaluate(_guidedProjectileThrust);
+    }
+
+    public float EvaluateGuidedProjectileVelocity()
+    {
+        return _guidedProjectileVelocity == null ? 0 : Evaluate(_guidedProjectileVelocity);
+    }
+}
+
+public enum GuidedProjectileTargetMode
+{
+    None,
+    TargetEntity,
+    LookDirection
 }

@@ -14,14 +14,20 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
 
     public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
     {
-        if(weapon.Data is LauncherData launcher)
+        if(!weapon.HasGuidedProjectileProfile)
+        {
+            Debug.LogError($"Weapon {item.RuntimeItem?.Name ?? "Unknown item"} linked to {name} effect, but has no guided projectile profile!");
+            return;
+        }
+
+        if(weapon.GuidedProjectileTargeting == GuidedProjectileTargetMode.TargetEntity)
         {
             if (target == null) return;
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
             p.Target = target.transform;
-            p.Frequency = launcher.DodgeFrequency;
+            p.Frequency = weapon.GuidedProjectileDodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = p.transform.position = barrel.position;
@@ -30,20 +36,20 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Penetration = weapon.Penetration;
             p.Spread = weapon.DamageSpread;
             p.DamageType = weapon.DamageType;
-            p.GuidanceCurve = launcher.GuidanceCurve.ToCurve();
-            p.LiftCurve = launcher.LiftCurve.ToCurve();
-            p.ThrustCurve = launcher.ThrustCurve.ToCurve();
+            p.GuidanceCurve = weapon.GuidedProjectileGuidanceCurve.ToCurve();
+            p.LiftCurve = weapon.GuidedProjectileLiftCurve.ToCurve();
+            p.ThrustCurve = weapon.GuidedProjectileThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(launcher.Thrust);
-            p.TopSpeed = item.Evaluate(launcher.MissileVelocity);
+            p.Thrust = weapon.EvaluateGuidedProjectileThrust();
+            p.TopSpeed = weapon.EvaluateGuidedProjectileVelocity();
             OnFireGuided.OnNext((source.Entity, target.transform, p));
         }
-        else if(weapon.Data is GuidedWeaponData guidance)
+        else if(weapon.GuidedProjectileTargeting == GuidedProjectileTargetMode.LookDirection)
         {
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
-            p.Frequency = guidance.DodgeFrequency;
+            p.Frequency = weapon.GuidedProjectileDodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = p.transform.position = barrel.position;
@@ -52,14 +58,13 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Penetration = weapon.Penetration;
             p.Spread = weapon.DamageSpread;
             p.DamageType = weapon.DamageType;
-            p.GuidanceCurve = guidance.GuidanceCurve.ToCurve();
-            p.LiftCurve = guidance.LiftCurve.ToCurve();
-            p.ThrustCurve = guidance.ThrustCurve.ToCurve();
+            p.GuidanceCurve = weapon.GuidedProjectileGuidanceCurve.ToCurve();
+            p.LiftCurve = weapon.GuidedProjectileLiftCurve.ToCurve();
+            p.ThrustCurve = weapon.GuidedProjectileThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(guidance.Thrust);
-            p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
+            p.Thrust = weapon.EvaluateGuidedProjectileThrust();
+            p.TopSpeed = weapon.EvaluateGuidedProjectileVelocity();
             p.TargetPosition = () => source.Entity.Position + length( (float3)source.LookAtPoint.position - source.Entity.Position) * source.Entity.LookDirection;
         }
-        else Debug.LogError($"Weapon {item.RuntimeItem?.Name ?? "Unknown item"} linked to {name} effect, but is not a Launcher!");
     }
 }
