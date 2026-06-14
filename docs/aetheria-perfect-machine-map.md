@@ -146,8 +146,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
   gameplay/UI API, and its old `GetData`/`Hydrate` item DTO projection path has
   been deleted. `AetheriaRuntimeItemCatalog` no longer materializes whole
-  `ItemData` DTOs as a runtime cache; it exposes typed item rows plus the
-  temporary behavior config bridge. The item properties UI no longer uses
+  `ItemData` DTOs as a runtime cache; it exposes typed item rows only. The
+  temporary behavior config bridge has moved under `ItemManager` behavior
+  construction. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
   the package-owned `ActionGameManager.RuntimeCatalog` typed snapshot. Entity
   restore and loadout manufacturer-distance weighting no longer use `ItemManager`
@@ -536,14 +537,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache or
   whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
-  item rows and temporarily builds `BehaviorData` config objects from typed
-  behavior payloads behind the `ItemManager.CreateRuntimeBehaviors` runtime
-  construction primitive. Direct config reads no longer escape `ItemManager`;
+  item rows only. `ItemManager.CreateRuntimeBehaviors` owns the temporary
+  projection from typed behavior payloads into `BehaviorData` config objects
+  required by the current behavior constructors. Direct config reads no longer
+  escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
   behavior metadata instead of rebuilding config DTOs for lookup.
   `RuntimeItemReference.ItemId` is the only item reference value. The reader
-  interface for this bridge is named `IRuntimeItemCatalogReader` so callers see
-  typed catalog row ownership rather than old DTO projection ownership. Behavior
+  interface for this bridge is named `IRuntimeItemCatalogReader` and exposes
+  only typed catalog row lookup. Behavior
   type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection, and the temporary behavior config constructor
   map is keyed by typed behavior payload kind rather than legacy union key.
@@ -1055,6 +1057,10 @@ First Aetheria surfaces to publish:
      `IRuntimeItemProjectionReader` to `IRuntimeItemCatalogReader`, and rename
      behavior config methods to temporary behavior config construction so
      old projection vocabulary no longer implies item DTO authority.
+   - Done: delete `IRuntimeItemCatalogReader.GetTemporaryBehaviorConfigs`; the
+     runtime catalog reader now exposes typed item rows only, and the remaining
+     `BehaviorData` config projection is private `ItemManager` behavior
+     construction machinery.
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.
