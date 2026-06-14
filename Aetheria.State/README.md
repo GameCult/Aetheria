@@ -66,22 +66,18 @@ Dead legacy catalog roots for user records and galaxy map-layer resources have
 been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
-Item instances now carry `RuntimeItemReference`, a narrow item-definition id plus
-optional hydrated projection cache. The old generic `RuntimeCatalogLink<T>`
-abstraction has been deleted; item data projection is routed through
-`ItemManager` and a runtime item projection reader over the typed catalog.
-`Projection` is not durable state; it is a bridge for surviving simulation and
-UI code. The remaining single-item bridge is explicit `GetData` projection
-hydration, not catalog entry access.
+Item instances now carry `RuntimeItemReference`, a narrow item-definition id.
+The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
+hydration path, and `RuntimeItemReference.Projection` cache have been deleted;
+runtime item facts come from typed catalog rows.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.
 The surviving trade menu also applies typed catalog prefilters for row size,
 hardpoint type, and behavior kind before legacy buy actions.
-Surviving item catalog Unity DTOs inherit `RuntimeItemProjectionEntry`; the old
-`RuntimeCatalogEntry` base name no longer appears in live source. Temporary
-faction/corporation projections and zone body/orbit DTOs keep local GUID fields
-but no longer inherit the shared projection identity base.
+Surviving item catalog Unity DTOs keep local legacy GUID fields only where old
+simulation APIs still accept DTO objects. The old `RuntimeCatalogEntry` and
+`RuntimeItemProjectionEntry` base names no longer appear in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 typed runtime projection still uses `LegacyPayloadKeyAttribute` only where the
 temporary mapper needs a deterministic field order.

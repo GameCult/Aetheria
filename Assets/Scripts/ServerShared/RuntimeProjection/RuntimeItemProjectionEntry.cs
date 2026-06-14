@@ -10,22 +10,6 @@ public interface INamedEntry
     string EntryName { get; set; }
 }
 
-public abstract class RuntimeItemProjectionEntry
-{
-    public Guid ID = Guid.NewGuid();
-
-    public override int GetHashCode()
-    {
-        return ID.GetHashCode();
-    }
-
-    public override bool Equals(object obj)
-    {
-        if (obj is RuntimeItemProjectionEntry entry) return entry.ID == ID;
-        return false;
-    }
-}
-
 public class RuntimeItemReference
 {
     public Guid ItemId;

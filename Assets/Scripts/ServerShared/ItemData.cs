@@ -260,8 +260,10 @@ public class Shape
 
 }
 
-public abstract class ItemData : RuntimeItemProjectionEntry, INamedEntry
+public abstract class ItemData : INamedEntry
 {
+    public Guid ID = Guid.NewGuid();
+
     [Inspectable, LegacyPayloadKey(1)]
     public string Name;
 
@@ -291,6 +293,16 @@ public abstract class ItemData : RuntimeItemProjectionEntry, INamedEntry
     {
         get => Name;
         set => Name = value;
+    }
+
+    public override int GetHashCode()
+    {
+        return ID.GetHashCode();
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is ItemData item && item.ID == ID;
     }
 
 }
