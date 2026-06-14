@@ -1041,7 +1041,7 @@ public class ActionGameManager : MonoBehaviour
             state.OwnerKind = ownerKind;
             state.OwnerIndex = ownerIndex;
             state.BehaviorIndex = behaviorIndex;
-            state.BehaviorKind = behavior.Data?.Kind ?? "";
+            state.BehaviorKind = behavior.Kind;
             yield return state;
         }
     }
@@ -1079,7 +1079,7 @@ public class ActionGameManager : MonoBehaviour
                 OwnerKind = ownerKind,
                 OwnerIndex = ownerIndex,
                 BehaviorIndex = behaviorIndex,
-                BehaviorKind = weapon.Data?.Kind ?? "",
+                BehaviorKind = weapon.Kind,
                 Firing = weapon.Firing,
                 Ammo = weapon.Ammo
             };
@@ -1149,7 +1149,7 @@ public class ActionGameManager : MonoBehaviour
                 OwnerKind = ownerKind,
                 OwnerIndex = ownerIndex,
                 BehaviorIndex = behaviorIndex,
-                BehaviorKind = behaviors[behaviorIndex].Data?.Kind ?? "",
+                BehaviorKind = behaviors[behaviorIndex].Kind,
                 Progress = progressBehavior.Progress
             };
         }

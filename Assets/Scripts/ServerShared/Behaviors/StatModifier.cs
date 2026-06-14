@@ -61,7 +61,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
         _stats = Entity.Equipment
             .Where(HasRequiredBehavior)
             .SelectMany(gear => gear.Behaviors ?? Array.Empty<Behavior>())
-            .Where(behavior => BehaviorKindMatches(behavior.Data.Kind, _data.Stat.Target))
+            .Where(behavior => BehaviorKindMatches(behavior.Kind, _data.Stat.Target))
             .Select(FindTargetStat)
             .Where(stat => stat != null)
             .ToArray();
@@ -103,7 +103,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     {
         return string.IsNullOrWhiteSpace(_data.RequireBehavior) ||
                (gear?.Behaviors ?? Array.Empty<Behavior>())
-                   .Any(behavior => BehaviorKindMatches(behavior.Data.Kind, _data.RequireBehavior));
+                   .Any(behavior => BehaviorKindMatches(behavior.Kind, _data.RequireBehavior));
     }
 
     private void ApplyModifier()

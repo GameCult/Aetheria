@@ -13,6 +13,7 @@ using static Unity.Mathematics.noise;
 public abstract class Behavior
 {
     public BehaviorData Data { get; }
+    public string Kind { get; }
     public EquippedItem Item { get; }
     private ConsumableItemEffect Consumable { get; }
     protected ItemManager ItemManager { get; }
@@ -45,6 +46,7 @@ public abstract class Behavior
     protected Behavior(BehaviorData data, EquippedItem item)
     {
         Data = data;
+        Kind = data?.Kind ?? "";
         Item = item;
         ItemManager = Item.ItemManager;
     }
@@ -52,6 +54,7 @@ public abstract class Behavior
     protected Behavior(BehaviorData data, ConsumableItemEffect consumable)
     {
         Data = data;
+        Kind = data?.Kind ?? "";
         Consumable = consumable;
         ItemManager = consumable.Entity.ItemManager;
     }
