@@ -843,6 +843,10 @@ First Aetheria surfaces to publish:
      was removed; surviving `ItemData` DTOs own only their local legacy GUID.
    - Done: delete unused `InspectableRuntimeCatalogLinkAttribute` metadata from
      runtime DTOs; link inspection no longer masquerades as catalog authority.
+   - Done: delete the empty `RuntimeProjection/Serialization` folder marker and
+     unused projection-era attributes (`GlobalSettings`, `RangedFloat`,
+     `Tooltip`, `Name`, and the commented `ExternalEntry`) from live Unity
+     source.
    - Done: replace behavior union reflection with an explicit runtime catalog
      behavior map and remove all live `Union(...)` annotations.
    - Done: demote agent task runtime shapes from MessagePack object/key/union

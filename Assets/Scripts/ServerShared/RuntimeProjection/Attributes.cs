@@ -1,11 +1,5 @@
 using System;
 
-[AttributeUsage(AttributeTargets.Class)]
-public class GlobalSettingsAttribute : Attribute { }
-
-// [AttributeUsage(AttributeTargets.Class)]
-// public class ExternalEntryAttribute : Attribute { }
-
 [AttributeUsage(AttributeTargets.All, Inherited = false)]
 public class InspectableAttribute : Attribute { }
 
@@ -62,47 +56,6 @@ public class InspectableTypeAttribute : PreferredInspectorAttribute
     public InspectableTypeAttribute(Type type)
     {
         Type = type;
-    }
-}
-
-[AttributeUsage(AttributeTargets.Field)]
-public class RangedFloatAttribute : Attribute
-{
-    public readonly float Min, Max;
-
-    public RangedFloatAttribute(float min, float max)
-    {
-        Min = min;
-        Max = max;
-    }
-}
-
-
-/// <summary>
-///   <para>Specify a tooltip for a field in the Inspector window.</para>
-/// </summary>
-[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
-public class TooltipAttribute : Attribute
-{
-    /// <summary>
-    ///   <para>The tooltip text.</para>
-    /// </summary>
-    public readonly string tooltip;
-
-    /// <summary>
-    ///   <para>Specify a tooltip for a field.</para>
-    /// </summary>
-    /// <param name="tooltip">The tooltip text.</param>
-    public TooltipAttribute(string tooltip) => this.tooltip = tooltip;
-}
-
-public class NameAttribute : Attribute
-{
-    public string Name;
-
-    public NameAttribute(string name)
-    {
-        Name = name;
     }
 }
 
