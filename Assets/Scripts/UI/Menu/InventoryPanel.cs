@@ -63,6 +63,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private Entity _displayedEntity;
     private EquippedCargoBay _displayedCargo;
+    private Shape _displayedHullShape;
+    private Shape _displayedHullInterior;
     private Texture2D _temperatureTexture;
     private RectTransform _firstRect;
 
@@ -211,12 +213,11 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 MinTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MinTemp);
                 MaxTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MaxTemp);
             }
-            var hullData = GameManager.ItemManager.GetData(_displayedEntity.Hull) as HullData;
             for(var x = 0; x < _temperatureTexture.width; x++)
             {
                 for (var y = 0; y < _temperatureTexture.height; y++)
                 {
-                    if (hullData.Shape[int2(x-1, y-1)])
+                    if (_displayedHullShape[int2(x-1, y-1)])
                     {
                         var temp = (_displayedEntity.Temperature[x - 1, y - 1] - _displayedEntity.MinTemp) / (_displayedEntity.MaxTemp-_displayedEntity.MinTemp);
                         var color = TemperatureColor.GetPixelBilinear(TemperatureColorCurve.Evaluate(temp), 0);
@@ -242,6 +243,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         _displayedCargo = null;
         _displayedEntity = null;
+        _displayedHullShape = null;
+        _displayedHullInterior = null;
         
         foreach(var empty in EmptyCells)
             Destroy(empty);
@@ -291,27 +294,31 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             EditName.gameObject.SetActive(true);
         }
 
-        var hullData = GameManager.ItemManager.GetData(entity.Hull) as HullData;
+        if (!TryResolveTypedHullGeometry(entity.Hull, out _displayedHullShape, out _displayedHullInterior))
+        {
+            Debug.LogError($"Cannot display inventory for {entity.Name}: missing typed hull geometry.");
+            return;
+        }
         
         if (FitToContent)
         {
             var gridRect = Grid.GetComponent<RectTransform>();
             var rect = gridRect.rect;
-            Grid.cellSize = Vector2.one * (int) min(rect.width / (hullData.Shape.Width + 1), rect.height / (hullData.Shape.Height + 1));
+            Grid.cellSize = Vector2.one * (int) min(rect.width / (_displayedHullShape.Width + 1), rect.height / (_displayedHullShape.Height + 1));
         }
         
         if(TemperatureDisplay)
         {
             _temperatureTexture = new Texture2D(
-                hullData.Shape.Width + 2,
-                hullData.Shape.Height + 2,
+                _displayedHullShape.Width + 2,
+                _displayedHullShape.Height + 2,
                 TextureFormat.RGBA32,
                 false,
                 false);
             TemperatureDisplay.gameObject.SetActive(true);
             TemperatureDisplay.texture = _temperatureTexture;
             var tempRect = TemperatureDisplay.rectTransform;
-            tempRect.sizeDelta = Grid.cellSize * new Vector2(hullData.Shape.Width + 2, hullData.Shape.Height + 2);
+            tempRect.sizeDelta = Grid.cellSize * new Vector2(_displayedHullShape.Width + 2, _displayedHullShape.Height + 2);
         }
         
         if (Current)
@@ -325,10 +332,10 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             Thermal.targetGraphic.color = thermal ? ToggleEnabledColor : ToggleDisabledColor;
         }
         
-        Grid.constraintCount = hullData.Shape.Width;
-        foreach (var v in hullData.Shape.AllCoordinates)
+        Grid.constraintCount = _displayedHullShape.Width;
+        foreach (var v in _displayedHullShape.AllCoordinates)
         {
-            if (!hullData.Shape[v])
+            if (!_displayedHullShape[v])
             {
                 var empty = new GameObject("Empty Node", typeof(RectTransform));
                 empty.transform.SetParent(Grid.transform);
@@ -363,7 +370,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                 var item = entity.GearOccupancy[v.x, v.y];
                                 if (item != null)
                                 {
-                                    var originalOccupancy = hullData.Shape.Inset(GetItemShape(item.EquippableItem), item.Position, item.EquippableItem.Rotation);
+                                    var originalOccupancy = _displayedHullShape.Inset(GetItemShape(item.EquippableItem), item.Position, item.EquippableItem.Rotation);
                                     _dragCells = originalOccupancy.Coordinates
                                         .Select(v1 => Instantiate(CellInstances[v1], DragParent, true).transform).ToArray();
                                     foreach(var dragCell in _dragCells)
@@ -417,7 +424,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                 {
                                     //foreach (var cell in _dragCells) cell.gameObject.SetActive(false);
                                     FakeItem = item;
-                                    FakeOccupancy = hullData.Shape.Inset(GetItemShape(item), placementPosition, item.Rotation);
+                                    FakeOccupancy = _displayedHullShape.Inset(GetItemShape(item), placementPosition, item.Rotation);
                                     RefreshCells();
                                     GameManager.RegisterDragTarget(drag =>
                                     {
@@ -467,22 +474,22 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         var rect = cell.GetComponent<RectTransform>();
                         var point = Rect.PointToNormalized(rect.rect, rect.InverseTransformPoint(data.position));
 //                        Debug.Log($"Clicked at pos {data.position}, normalized {point}");
-                        if (hullData.Shape[int2(v.x - 1, v.y)] && point.x < ThermalToggleRegionSize)
+                        if (_displayedHullShape[int2(v.x - 1, v.y)] && point.x < ThermalToggleRegionSize)
                         {
                             entity.HullConductivity[v.x - 1, v.y].x = !entity.HullConductivity[v.x - 1, v.y].x;
                             RefreshCells(new []{v,int2(v.x - 1, v.y)});
                         }
-                        if (hullData.Shape[int2(v.x + 1, v.y)] && point.x > 1 - ThermalToggleRegionSize)
+                        if (_displayedHullShape[int2(v.x + 1, v.y)] && point.x > 1 - ThermalToggleRegionSize)
                         {
                             entity.HullConductivity[v.x, v.y].x = !entity.HullConductivity[v.x, v.y].x;
                             RefreshCells(new []{v,int2(v.x + 1, v.y)});
                         }
-                        if (hullData.Shape[int2(v.x, v.y - 1)] && point.y < ThermalToggleRegionSize)
+                        if (_displayedHullShape[int2(v.x, v.y - 1)] && point.y < ThermalToggleRegionSize)
                         {
                             entity.HullConductivity[v.x, v.y - 1].y = !entity.HullConductivity[v.x, v.y - 1].y;
                             RefreshCells(new []{v,int2(v.x, v.y - 1)});
                         }
-                        if (hullData.Shape[int2(v.x, v.y + 1)] && point.y > 1 - ThermalToggleRegionSize)
+                        if (_displayedHullShape[int2(v.x, v.y + 1)] && point.y > 1 - ThermalToggleRegionSize)
                         {
                             entity.HullConductivity[v.x, v.y].y = !entity.HullConductivity[v.x, v.y].y;
                             RefreshCells(new []{v,int2(v.x, v.y + 1)});
@@ -694,10 +701,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             {
                 if(!CellInstances.ContainsKey(v)) continue;
                 
-                var hullData = GameManager.ItemManager.GetData(_displayedEntity.Hull) as HullData;
-            
                 var spriteIndex = 0;
-                var interior = hullData.InteriorCells[v];
+                var interior = _displayedHullInterior[v];
                 var item = FakeOccupancy?[v]??false ? FakeItem : IgnoreOccupancy?[v]??false ? null : _displayedEntity.GearOccupancy[v.x, v.y]?.EquippableItem;
                 var hardpoint = _displayedEntity.Hardpoints[v.x, v.y];
 
@@ -705,7 +710,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     var v2 = v + offset * (Flip ? -1 : 1);
                     return !(
-                        hullData.Shape[v2] &&
+                        _displayedHullShape[v2] &&
                         _displayedEntity.Hardpoints[v2.x, v2.y] == hardpoint &&
                         (FakeOccupancy?[v2]??false ? FakeItem : IgnoreOccupancy?[v2]??false ? null : _displayedEntity.GearOccupancy[v2.x, v2.y]?.EquippableItem) == item
                     );
@@ -715,8 +720,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     var v2 = v + offset * (Flip ? -1 : 1);
                     return !(
-                        hullData.Shape[v2] && (
-                            !interior && !hullData.InteriorCells[v2] && _displayedEntity.Hardpoints[v2.x, v2.y] == null ||
+                        _displayedHullShape[v2] && (
+                            !interior && !_displayedHullInterior[v2] && _displayedEntity.Hardpoints[v2.x, v2.y] == null ||
                             interior && item != null && 
                             (FakeOccupancy?[v2]??false ? FakeItem : IgnoreOccupancy?[v2]??false ? null : _displayedEntity.GearOccupancy[v2.x, v2.y]?.EquippableItem) == item
                         )
@@ -745,7 +750,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     bool ThermalMatch(int2 offset)
                     {
-                        if (!hullData.Shape[v + offset]) return false;
+                        if (!_displayedHullShape[v + offset]) return false;
                         var i = (offset.x, offset.y);
                         return i switch
                         {
@@ -803,8 +808,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         if (_displayedEntity != null)
         {
-            var hullData = GameManager.ItemManager.GetData(_displayedEntity.Hull) as HullData;
-            var interior = hullData.InteriorCells[position];
+            var interior = _displayedHullInterior[position];
             var hardpoint = _displayedEntity.Hardpoints[position.x, position.y];
             var item = (FakeOccupancy?[position] ?? false ? FakeItem :
                 IgnoreOccupancy?[position] ?? false ? null : _displayedEntity.GearOccupancy[position.x, position.y]?.EquippableItem) as EquippableItem;
@@ -881,16 +885,40 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         var typedItem = FindTypedInventoryItem(item);
         if (typedItem != null && typedItem.ShapeCells.Count > 0)
-            return ToShape(typedItem);
+            return ToShape(typedItem.ShapeWidth, typedItem.ShapeHeight, typedItem.ShapeCells);
 
         return new Shape(1, 1);
     }
 
-    private static Shape ToShape(AetheriaRuntimeCatalogItem item)
+    private static bool TryResolveTypedHullGeometry(ItemInstance hull, out Shape hullShape, out Shape interiorShape)
     {
-        var shape = new Shape(Math.Max(item.ShapeWidth, 1), Math.Max(item.ShapeHeight, 1));
-        foreach (var cell in item.ShapeCells)
-            shape[new int2(cell.X, cell.Y)] = true;
+        hullShape = null;
+        interiorShape = null;
+        var typedHull = FindTypedInventoryItem(hull);
+        if (typedHull == null ||
+            typedHull.ShapeCells.Count == 0 ||
+            typedHull.InteriorShapeCells.Count == 0 ||
+            typedHull.ShapeWidth <= 0 ||
+            typedHull.ShapeHeight <= 0 ||
+            typedHull.InteriorShapeWidth <= 0 ||
+            typedHull.InteriorShapeHeight <= 0)
+        {
+            return false;
+        }
+
+        hullShape = ToShape(typedHull.ShapeWidth, typedHull.ShapeHeight, typedHull.ShapeCells);
+        interiorShape = ToShape(typedHull.InteriorShapeWidth, typedHull.InteriorShapeHeight, typedHull.InteriorShapeCells);
+        return true;
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
+        foreach (var cell in cells)
+        {
+            if (cell.X >= 0 && cell.Y >= 0 && cell.X < shape.Width && cell.Y < shape.Height)
+                shape[int2(cell.X, cell.Y)] = true;
+        }
 
         return shape;
     }
