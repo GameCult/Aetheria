@@ -729,7 +729,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
-                            if (!IsTypedConsumable(itemInstanceDragAction.Item)) return false;
+                            if (!IsRuntimeConsumableItem(itemInstanceDragAction.Item)) return false;
                             if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
                             slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
                             return true;
@@ -749,10 +749,10 @@ public class ActionGameManager : MonoBehaviour
             return slot;
         }
 
-        bool IsTypedConsumable(ItemInstance item)
+        bool IsRuntimeConsumableItem(ItemInstance item)
         {
             var typedItem = FindTypedActionBarItem(item);
-            return typedItem == null ||
+            return typedItem != null &&
                    string.Equals(typedItem.Category, nameof(ConsumableItemData), StringComparison.Ordinal);
         }
 

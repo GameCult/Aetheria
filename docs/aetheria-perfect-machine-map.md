@@ -80,11 +80,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   same typed player-settings commit after mutating the runtime projection. The
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops before hydrating the legacy consumable DTO
-  still required by activation APIs. Gear action-bar bindings use typed weapon
-  and hardpoint facets for fallback icon selection instead of hydrating item
-  DTOs to classify the icon; legacy custom action-bar icon paths remain fallback
-  projection data. Unity boot reads typed player settings back through the
-  package-owned CultCache reader before falling back to defaults.
+  still required by activation APIs. Missing typed rows are rejected for
+  consumable binding instead of falling through to legacy DTO classification.
+  Gear action-bar bindings use typed weapon and hardpoint facets for fallback
+  icon selection instead of hydrating item DTOs to classify the icon; legacy
+  custom action-bar icon paths remain fallback projection data. Unity boot reads
+  typed player settings back through the package-owned CultCache reader before
+  falling back to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip before falling back to legacy `WeaponItemData`.
   Runtime weapon behavior still owns ammo counts, active range, cooldowns,
