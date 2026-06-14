@@ -180,9 +180,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now reads cargo interior shape, item fit shape, simple commodity max stack,
   cargo bay mass, and cargo bay thermal mass from typed runtime catalog rows;
   `InventoryPanel` lowers cargo-grid display from that typed `InteriorShape`.
-  Final equipment fit/equip acceptance, docking bay max-size, and behavior
-  construction still belong to legacy simulation projections until those owners
-  are rebuilt.
+  Final equipment fit/equip acceptance also reads typed item shape, hardpoint
+  type, hull shape, hull interior, hardpoint masks, cargo/docking categories,
+  and mass/thermal mass from runtime catalog rows. Hull initialization,
+  `Entity.UnoccupiedSpace` loadout preselection, shield/thermal simulation,
+  docking bay max-size, and behavior construction still belong to legacy
+  simulation projections until those owners are rebuilt.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
@@ -199,9 +202,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   max durability only, with current runtime durability as the generic
   denominator for incomplete typed rows.
   Inventory drag preview occupancy now projects typed item shape cells only into
-  the local `Shape` grid; final fit and equip acceptance still belong to
-  `ItemFits`, `TryEquip`, and inventory mutation paths until those simulation
-  owners are rebuilt.
+  the local `Shape` grid, and final fit/equip acceptance shares the typed
+  runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
@@ -686,14 +688,18 @@ First Aetheria surfaces to publish:
    - Done: move `EntityInstance` hull shape and hardpoint presentation/damage
      masks onto typed catalog rows; legacy `HullData` no longer supplies hull
      shape or hardpoint lists to scene entity instances.
-  - Done: move `InventoryPanel` entity-grid hull shape/interior rendering and
-    thermal overlay masking onto typed catalog rows; legacy `HullData` no
-    longer supplies equipment-grid display geometry.
-  - Done: move `EquippedCargoBay` cargo geometry, item fit shape, simple stack
-    limits, cargo mass, cargo thermal mass, and `InventoryPanel` cargo-grid
-    lowering onto typed catalog rows; legacy `CargoBayData` remains only in
-    later simulation projections such as docking max-size and behavior
-    construction.
+   - Done: move `InventoryPanel` entity-grid hull shape/interior rendering and
+     thermal overlay masking onto typed catalog rows; legacy `HullData` no
+     longer supplies equipment-grid display geometry.
+   - Done: move `EquippedCargoBay` cargo geometry, item fit shape, simple stack
+     limits, cargo mass, cargo thermal mass, and `InventoryPanel` cargo-grid
+     lowering onto typed catalog rows; legacy `CargoBayData` remains only in
+     later simulation projections such as docking max-size and behavior
+     construction.
+   - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
+     `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
+     shape, hull shape/interior, hardpoint masks, cargo/docking category, and
+     mass/thermal mass.
   - Done: delete the console `give` command instead of preserving a debug
     operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

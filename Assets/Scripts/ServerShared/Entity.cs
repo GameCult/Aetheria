@@ -489,15 +489,15 @@ public abstract class Entity
         Equipment.Remove(item);
         _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
         
-        var hullData = ItemManager.GetData(Hull) as HullData;
-        var itemData = ItemManager.GetData(item.EquippableItem);
-        foreach (var i in hullData.Shape.Coordinates)
+        var itemShape = GetItemShape(item.EquippableItem);
+        var itemCellCount = Math.Max(itemShape.Coordinates.Length, 1);
+        foreach (var i in GetHullShape().Coordinates)
             if (GearOccupancy[i.x, i.y] == item)
             {
-                ThermalMass[i.x, i.y] -= ItemManager.GetThermalMass(item.EquippableItem) / itemData.Shape.Coordinates.Length;
+                ThermalMass[i.x, i.y] -= ItemManager.GetThermalMass(item.EquippableItem) / itemCellCount;
                 GearOccupancy[i.x, i.y] = null;
             }
-        Mass -= itemData.Mass;
+        Mass -= ItemManager.GetMass(item.EquippableItem);
         foreach (var b in item.Behaviors)
         {
             if (b is Weapon weapon)
@@ -519,44 +519,136 @@ public abstract class Entity
         return item.EquippableItem;
     }
 
-    // Check whether the given item will fit when its origin is placed at the given coordinate
-    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord)
+    private Shape GetHullShape()
     {
+        return GetHullShape(ItemManager.GetRuntimeItem(Hull));
+    }
+
+    private static Shape GetHullShape(AetheriaRuntimeCatalogItem typedHull)
+    {
+        return ToShape(typedHull?.ShapeWidth ?? 1, typedHull?.ShapeHeight ?? 1, typedHull?.ShapeCells);
+    }
+
+    private static Shape GetHullInteriorShape(AetheriaRuntimeCatalogItem typedHull)
+    {
+        return ToShape(typedHull?.InteriorShapeWidth ?? 1, typedHull?.InteriorShapeHeight ?? 1, typedHull?.InteriorShapeCells);
+    }
+
+    private Shape GetItemShape(EquippableItem item)
+    {
+        return GetItemShape(ItemManager.GetRuntimeItem(item));
+    }
+
+    private static Shape GetItemShape(AetheriaRuntimeCatalogItem typedItem)
+    {
+        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
+    }
+
+    private static AetheriaRuntimeHardpoint GetHardpointAt(AetheriaRuntimeCatalogItem typedHull, int2 hullCoord)
+    {
+        if (typedHull == null) return null;
+
+        foreach (var hardpoint in typedHull.Hardpoints)
+        {
+            var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
+            var localCoord = hullCoord - new int2(hardpoint.PositionX, hardpoint.PositionY);
+            if (hardpointShape[localCoord])
+                return hardpoint;
+        }
+
+        return null;
+    }
+
+    private static HardpointType GetHardpointType(AetheriaRuntimeCatalogItem typedItem, HardpointType fallback)
+    {
+        return typedItem != null && Enum.TryParse(typedItem.HardpointType, out HardpointType hardpointType)
+            ? hardpointType
+            : fallback;
+    }
+
+    private static HardpointType GetHardpointType(AetheriaRuntimeHardpoint hardpoint, HardpointType fallback)
+    {
+        return hardpoint != null && Enum.TryParse(hardpoint.Type, out HardpointType hardpointType)
+            ? hardpointType
+            : fallback;
+    }
+
+    private static ItemRotation GetRotation(AetheriaRuntimeHardpoint hardpoint)
+    {
+        return hardpoint != null && Enum.TryParse(hardpoint.Rotation, out ItemRotation rotation)
+            ? rotation
+            : ItemRotation.None;
+    }
+
+    private static bool IsCargoBay(AetheriaRuntimeCatalogItem typedItem)
+    {
+        return typedItem != null &&
+               (string.Equals(typedItem.Category, "CargoBayData", StringComparison.Ordinal) ||
+                string.Equals(typedItem.Category, "DockingBayData", StringComparison.Ordinal));
+    }
+
+    private static bool IsDockingBay(AetheriaRuntimeCatalogItem typedItem)
+    {
+        return typedItem != null && string.Equals(typedItem.Category, "DockingBayData", StringComparison.Ordinal);
+    }
+
+    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
+    {
+        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
+        if (cells == null) return shape;
+
+        foreach (var cell in cells)
+            shape[new int2(cell.X, cell.Y)] = true;
+
+        return shape;
+    }
+
+    // Check whether the given item will fit when its origin is placed at the given coordinate
+    private bool ItemFits(AetheriaRuntimeCatalogItem typedItem, AetheriaRuntimeCatalogItem typedHull, EquippableItem item, int2 hullCoord)
+    {
+        var hullShape = GetHullShape(typedHull);
+        var itemShape = GetItemShape(typedItem);
+        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
+        if (itemShape.Coordinates.Length == 0) return false;
+
         // If the given coordinate isn't even in the ship it obviously won't fit
-        if (!hullData.Shape[hullCoord]) return false;
+        if (!hullShape[hullCoord]) return false;
         
         // Items without specific hardpoints on the ship can be freely rotated and placed anywhere
-        if (itemData.HardpointType == HardpointType.Tool)
+        if (itemHardpointType == HardpointType.Tool)
         {
+            var hullInterior = GetHullInteriorShape(typedHull);
             // Check every cell of the item's shape
-            foreach (var i in itemData.Shape.Coordinates)
+            foreach (var i in itemShape.Coordinates)
             {
                 // If there is any gear already occupying that space, it won't fit
                 // If there's a hardpoint there, it won't fit
                 // Thermal items have their own layer and do not collide with gear
-                var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
-                if (!hullData.InteriorCells[itemCoord] || 
-                    itemData.HardpointType == HardpointType.Tool && Hardpoints[itemCoord.x, itemCoord.y] != null || 
+                var itemCoord = hullCoord + itemShape.Rotate(i, item.Rotation);
+                if (!hullInterior[itemCoord] ||
+                    GetHardpointAt(typedHull, itemCoord) != null ||
                     GearOccupancy[itemCoord.x, itemCoord.y] != null) 
                     return false;
             }
         }
         else
         {
-            var hardpoint = Hardpoints[hullCoord.x, hullCoord.y];
+            var hardpoint = GetHardpointAt(typedHull, hullCoord);
             
             // If there's no hardpoint there, it won't fit
             if (hardpoint == null) return false;
 
             // If the hardpoint type doesn't match the item, it won't fit
-            if (hardpoint.Type != itemData.HardpointType) return false;
+            if (GetHardpointType(hardpoint, HardpointType.Hull) != itemHardpointType) return false;
             
             // Items placed in hardpoints are automatically aligned to hardpoint rotation
-            item.Rotation = hardpoint.Rotation;
+            item.Rotation = GetRotation(hardpoint);
 
             // Inset the shapes of both item and hardpoint
-            var itemShapeInset = hullData.Shape.Inset(itemData.Shape, hullCoord, item.Rotation);
-            var hardpointShapeInset = hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position);
+            var itemShapeInset = hullShape.Inset(itemShape, hullCoord, item.Rotation);
+            var hardpointShapeInset = hullShape.Inset(
+                ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells),
+                new int2(hardpoint.PositionX, hardpoint.PositionY));
             
             // Check every cell of the hardpoint shape for existing items
             foreach(var v in hardpointShapeInset.Coordinates)
@@ -583,9 +675,9 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active) return false;
 
-        var itemData = ItemManager.GetData(item);
-        var hullData = ItemManager.GetData(Hull) as HullData;
-        return ItemFits(itemData, hullData, item, hullCoord);
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        var typedHull = ItemManager.GetRuntimeItem(Hull);
+        return typedItem != null && typedHull != null && ItemFits(typedItem, typedHull, item, hullCoord);
     }
 
     public bool TryFindSpace(EquippableItem item, out int2 hullCoord)
@@ -596,16 +688,23 @@ public abstract class Entity
             hullCoord = int2.zero;
             return false;
         }
-        var itemData = ItemManager.GetData(item);
-        var hullData = ItemManager.GetData(Hull) as HullData;
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        var typedHull = ItemManager.GetRuntimeItem(Hull);
+        if (typedItem == null || typedHull == null)
+        {
+            hullCoord = int2.zero;
+            return false;
+        }
+
+        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
         
         // Tools and thermal equipment can be installed anywhere on the ship
         // Search the whole ship for somewhere the item will fit
-        if (itemData.HardpointType == HardpointType.Tool)
+        if (itemHardpointType == HardpointType.Tool)
         {
-            foreach (var hullCoord2 in hullData.InteriorCells.Coordinates)
+            foreach (var hullCoord2 in GetHullInteriorShape(typedHull).Coordinates)
             {
-                if (ItemFits(itemData, hullData, item, hullCoord2))
+                if (ItemFits(typedItem, typedHull, item, hullCoord2))
                 {
                     hullCoord = hullCoord2;
                     return true;
@@ -617,14 +716,15 @@ public abstract class Entity
         // Search the ship for an empty hardpoint that matches the type and shape of the item
         else
         {
-            foreach (var hardpoint in hullData.Hardpoints)
+            foreach (var hardpoint in typedHull.Hardpoints)
             {
-                if(hardpoint.Type == itemData.HardpointType)
+                if(GetHardpointType(hardpoint, HardpointType.Hull) == itemHardpointType)
                 {
-                    foreach (var hardpointCoord in hardpoint.Shape.Coordinates)
+                    var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
+                    foreach (var hardpointCoord in hardpointShape.Coordinates)
                     {
-                        var hullCoord2 = hardpoint.Position + hardpointCoord;
-                        if (ItemFits(itemData, hullData, item, hullCoord2))
+                        var hullCoord2 = new int2(hardpoint.PositionX, hardpoint.PositionY) + hardpointCoord;
+                        if (ItemFits(typedItem, typedHull, item, hullCoord2))
                         {
                             hullCoord = hullCoord2;
                             return true;
@@ -647,17 +747,20 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active) return false;
         
-        var itemData = ItemManager.GetData(item);
-        var hullData = ItemManager.GetData(Hull) as HullData;
+        var typedItem = ItemManager.GetRuntimeItem(item);
+        var typedHull = ItemManager.GetRuntimeItem(Hull);
+        if (typedItem == null || typedHull == null) return false;
+        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
+        var itemShape = GetItemShape(typedItem);
 
-        if (!ItemFits(itemData, hullData, item, hullCoord)) return false;
+        if (!ItemFits(typedItem, typedHull, item, hullCoord)) return false;
         
         EquippedItem equippedItem;
-        if (itemData.HardpointType == HardpointType.Tool)
+        if (itemHardpointType == HardpointType.Tool)
         {
-            if(itemData is CargoBayData)
+            if(IsCargoBay(typedItem))
             {
-                if (itemData is DockingBayData)
+                if (IsDockingBay(typedItem))
                 {
                     equippedItem = new EquippedDockingBay(ItemManager, item, hullCoord, this, $"{Name} Docking Bay {DockingBays.Count + 1}");
                     DockingBays.Add((EquippedDockingBay) equippedItem);
@@ -701,15 +804,15 @@ public abstract class Entity
         // equippedItem.OnOnline += () => ItemOnline.OnNext(equippedItem);
         // equippedItem.OnOffline += () => ItemOffline.OnNext(equippedItem);
             
-        foreach (var i in itemData.Shape.Coordinates)
+        foreach (var i in itemShape.Coordinates)
         {
-            var occupiedCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
+            var occupiedCoord = hullCoord + itemShape.Rotate(i, item.Rotation);
             // TODO: Track thermal mass of cargo bay contents as reactive property
-            ThermalMass[occupiedCoord.x, occupiedCoord.y] += ItemManager.GetThermalMass(item) / itemData.Shape.Coordinates.Length;
+            ThermalMass[occupiedCoord.x, occupiedCoord.y] += ItemManager.GetThermalMass(item) / itemShape.Coordinates.Length;
             GearOccupancy[occupiedCoord.x, occupiedCoord.y] = equippedItem;
         }
                 
-        Mass += itemData.Mass;
+        Mass += ItemManager.GetMass(item);
         _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
         return true;
     }
