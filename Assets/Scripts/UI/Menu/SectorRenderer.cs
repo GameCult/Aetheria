@@ -117,11 +117,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private bool HasHullType(RuntimeEntityBlueprint entity, HullType hullType)
     {
         var typedItem = FindTypedHull(entity);
-        if (typedItem != null)
-            return string.Equals(typedItem.HullType, hullType.ToString(), StringComparison.Ordinal);
-
-        return GameManager.ItemManager.GetData(entity.Hull) is HullData hullData &&
-               hullData.HullType == hullType;
+        return typedItem != null &&
+               string.Equals(typedItem.HullType, hullType.ToString(), StringComparison.Ordinal);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedHull(RuntimeEntityBlueprint entity)

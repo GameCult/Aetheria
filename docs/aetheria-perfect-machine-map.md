@@ -143,8 +143,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   applies typed row prefilters for size, hardpoint type, and behavior kind before
   hydrating `ItemData` projections for legacy commodity filters, columns, and
   buy actions. The sector properties UI also resolves station/turret/ship
-  counts through typed hull classifications from the runtime catalog before
-  falling back to legacy `HullData` projection for missing rows. Loot pickup
+  counts only through typed hull classifications from the runtime catalog;
+  missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
   pickup visuals and scan labels before falling back to legacy item projections.
   The item properties panel also reads typed catalog description, manufacturer,
