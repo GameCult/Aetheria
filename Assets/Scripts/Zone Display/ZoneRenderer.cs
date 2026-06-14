@@ -287,26 +287,32 @@ public class ZoneRenderer : MonoBehaviour
 
     void LoadEntity(Entity entity)
     {
-        var hullData = ItemManager.GetData(entity.Hull) as HullData;
+        var typedHull = FindTypedZoneItem(entity.Hull);
+        if (typedHull == null || string.IsNullOrWhiteSpace(typedHull.HullPrefab))
+        {
+            ItemManager.Log($"Failed to instantiate {entity.Name} with missing typed hull prefab.");
+            return;
+        }
+
         EntityInstance instance;
         if (entity is Ship)
         {
-            instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(hullData.Prefab), ZoneRoot).GetComponent<ShipInstance>();
+            instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(typedHull.HullPrefab), ZoneRoot).GetComponent<ShipInstance>();
             if (instance == null)
             {
-                ItemManager.Log($"Failed to instantiate {hullData.Name} ship with invalid prefab: no ShipInstance component!");
+                ItemManager.Log($"Failed to instantiate {typedHull.Name} ship with invalid prefab: no ShipInstance component!");
                 return;
             }
         }
         else
         {
-            instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(hullData.Prefab), ZoneRoot).GetComponent<EntityInstance>();
+            instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(typedHull.HullPrefab), ZoneRoot).GetComponent<EntityInstance>();
             if (instance == null)
             {
-                ItemManager.Log($"Failed to instantiate {hullData.Name} entity with invalid prefab: no EntityInstance component!");
+                ItemManager.Log($"Failed to instantiate {typedHull.Name} entity with invalid prefab: no EntityInstance component!");
                 return;
             }
-            if (entity.HullData.HullType == HullType.Station)
+            if (string.Equals(typedHull.HullType, nameof(HullType.Station), StringComparison.Ordinal))
             {
                 instance.CompassIcon = CompassIconPrototype.Instantiate<CompassIcon>();
                 instance.CompassIcon.Icon.sprite = OrbitalIcon;
@@ -569,7 +575,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public void DropItem(Vector3 position, Vector3 velocity, ItemInstance item)
     {
-        var typedItem = FindTypedPickupItem(item);
+        var typedItem = FindTypedZoneItem(item);
         var gridObject = item switch
         {
             SimpleCommodity _ => Instantiate(SimpleCommodityPickup),
@@ -603,7 +609,7 @@ public class ZoneRenderer : MonoBehaviour
         return typedItem != null && string.Equals(typedItem.Category, nameof(WeaponItemData), StringComparison.Ordinal);
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedPickupItem(ItemInstance item)
+    private static AetheriaRuntimeCatalogItem FindTypedZoneItem(ItemInstance item)
     {
         var itemId = item?.Data?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty

@@ -117,6 +117,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(34)]
     public AetheriaCurveKey[] ThermalPerformanceCurveKeys { get; set; } = [];
+
+    [Key(35)]
+    public string HullPrefab { get; set; } = "";
 }
 
 [MessagePackObject]

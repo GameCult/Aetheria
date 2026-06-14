@@ -62,6 +62,7 @@ var behaviorLegacyRefCount = items
     .Count(field => ContainsBehaviorValueKind(field.Value, "legacy-id"));
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
+var hullPrefabItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullPrefab));
 var weaponItems = items.Count(item =>
     !string.IsNullOrWhiteSpace(item.WeaponType) &&
     !string.IsNullOrWhiteSpace(item.WeaponRange) &&
@@ -228,6 +229,11 @@ if (hullItems == 0)
     throw new InvalidOperationException("Typed item definitions did not import any hull types.");
 }
 
+if (hullPrefabItems != hullItems)
+{
+    throw new InvalidOperationException($"Typed hull prefab import mismatch: hulls={hullItems}, prefabs={hullPrefabItems}.");
+}
+
 if (weaponItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any weapon facets.");
@@ -333,6 +339,7 @@ Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
+Console.WriteLine($"Hull prefab items: {hullPrefabItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");

@@ -122,7 +122,8 @@ namespace GameCult.Aetheria.State.Unity
             string weaponModifiers,
             double minimumTemperature,
             double maximumTemperature,
-            IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys)
+            IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys,
+            string hullPrefab)
         {
             LegacyId = legacyId;
             Name = name;
@@ -155,6 +156,7 @@ namespace GameCult.Aetheria.State.Unity
             MinimumTemperature = minimumTemperature;
             MaximumTemperature = maximumTemperature;
             ThermalPerformanceCurveKeys = thermalPerformanceCurveKeys;
+            HullPrefab = hullPrefab;
         }
 
         public string LegacyId { get; }
@@ -188,6 +190,7 @@ namespace GameCult.Aetheria.State.Unity
         public double MinimumTemperature { get; }
         public double MaximumTemperature { get; }
         public IReadOnlyList<AetheriaRuntimeCurveKey> ThermalPerformanceCurveKeys { get; }
+        public string HullPrefab { get; }
     }
 
     public sealed class AetheriaRuntimeCurveKey
