@@ -188,18 +188,10 @@ public class ZoneRenderer : MonoBehaviour
         SectorBrushes.localScale = zone.Blueprint.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Blueprint.Radius;
         SlimeRenderer.ZoneRadius = zone.Blueprint.Radius;
-        foreach (var p in zone.Planets.Values)
+        foreach (var p in zone.CaptureBodyData())
             LoadPlanet(p);
 
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
-
-        // foreach (var x in Planets)
-        // {
-        //     if (!(zone.Planets[x.Key] is GasGiantData))
-        //     {
-        //         
-        //     }
-        // }
 
         foreach (var entity in zone.Entities)
         {

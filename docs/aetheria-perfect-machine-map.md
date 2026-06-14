@@ -1048,6 +1048,10 @@ First Aetheria surfaces to publish:
    - Done: delete `GalaxyZone.RuntimeBlueprint` as a persistent zone-side cache;
      unvisited zone generation now feeds the `Zone` constructor directly, and
      visited zone state is owned by `GalaxyZone.Contents`/`Zone.CaptureBlueprint`.
+   - Done: delete the `Zone.Planets` `BodyData` shadow dictionary; orbit
+     targeting, resource scanning, and zone capture now read `PlanetInstances`
+     and `AsteroidBelts` runtime wrappers, with DTOs retained only as
+     construction/capture payloads.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

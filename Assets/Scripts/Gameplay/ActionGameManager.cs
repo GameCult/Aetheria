@@ -1867,12 +1867,14 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.PerspectiveEntity = ship;
         var entityPosition = ship.Position.xz;
         var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == followOrbit).Key];
+        var followPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitId == followOrbit).ID;
+        var followPlanet = ZoneRenderer.Planets[followPlanetId];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
         while (Zone.Orbits[rootOrbit].Parent != Guid.Empty)
             rootOrbit = Zone.Orbits[rootOrbit].Parent;
-        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == rootOrbit).Key];
+        var rootPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitId == rootOrbit).ID;
+        var rootPlanet = ZoneRenderer.Planets[rootPlanetId];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
         var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
@@ -1926,7 +1928,7 @@ public class ActionGameManager : MonoBehaviour
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
         var parentOrbit = Zone.Orbits[orbital.OrbitData].Parent;
-        var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit == parentOrbit).Key;
+        var parentOrbitPlanet = Zone.PlanetInstances.Values.FirstOrDefault(planet => planet.OrbitId == parentOrbit)?.ID ?? Guid.Empty;
         if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;

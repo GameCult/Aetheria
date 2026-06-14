@@ -17,10 +17,7 @@ using Random = Unity.Mathematics.Random;
 public class Zone
 {
     public Action<string> Log;
-    //public HashSet<Guid> Planets = new HashSet<Guid>();
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
-    //public Dictionary<Guid, OrbitData> Orbits = new Dictionary<Guid, OrbitData>();
-    public Dictionary<Guid, BodyData> Planets = new Dictionary<Guid, BodyData>();
     public Dictionary<Guid, Planet> PlanetInstances = new Dictionary<Guid, Planet>();
 
     public Dictionary<Guid, Orbit> Orbits = new Dictionary<Guid, Orbit>();
@@ -61,7 +58,6 @@ public class Zone
         
         foreach (var planet in blueprint.Planets)
         {
-            Planets.Add(planet.ID, planet);
             switch (planet)
             {
                 case AsteroidBeltData belt:
@@ -112,9 +108,25 @@ public class Zone
             Mass = Blueprint.Mass,
             Entities = Entities.Select(RuntimeEntityBlueprintProjector.CaptureBlueprint).ToList(),
             Orbits = Orbits.Values.Select(o=>o.ToData()).ToList(),
-            Planets = Planets.Values.ToList(),
+            Planets = CaptureBodyData().ToList(),
             Time = _time
         };
+    }
+
+    public IEnumerable<BodyData> CaptureBodyData()
+    {
+        foreach (var orbit in Orbits.Values)
+        {
+            var planet = PlanetInstances.Values.FirstOrDefault(body => body.OrbitId == orbit.ID);
+            if (planet != null)
+            {
+                yield return planet.ToData();
+                continue;
+            }
+
+            var belt = AsteroidBelts.Values.FirstOrDefault(body => body.Orbit == orbit.ID);
+            if (belt != null) yield return belt.ToData();
+        }
     }
 
     public void AddOrbit(OrbitData orbit)

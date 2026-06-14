@@ -68,35 +68,31 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 
     public override bool Execute(float dt)
     {
-        var planetData = Entity.Zone.Planets[ScanTarget];
-        if (planetData != null)
+        if (Entity.Zone.AsteroidBelts.TryGetValue(ScanTarget, out var belt))
         {
-            if (Entity.Zone.AsteroidBelts.TryGetValue(ScanTarget, out var belt))
+            if (Asteroid > -1 &&
+               belt.ContainsAsteroid(Asteroid) &&
+               length(Entity.Position.xz - belt.Transforms[Asteroid].xy) < Range)
             {
-                if(Asteroid > -1 &&
-                   belt.ContainsAsteroid(Asteroid) &&
-                   length(Entity.Position.xz - belt.Transforms[Asteroid].xy) < Range)
+                _scanTime += dt;
+                if (_scanTime > ScanDuration)
                 {
-                    _scanTime += dt;
-                    if (_scanTime > ScanDuration)
-                    {
-                        // TODO: Implement Scanning!
-                        _scanTime = 0;
-                    }
-                    return true;
+                    // TODO: Implement Scanning!
+                    _scanTime = 0;
                 }
+                return true;
             }
-            else
+        }
+        else if (Entity.Zone.PlanetInstances.TryGetValue(ScanTarget, out var planet))
+        {
+            if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planet.OrbitId)) < Range)
             {
-                if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planetData.Orbit)) < Range)
+                _scanTime += dt;
+                if (_scanTime > ScanDuration)
                 {
-                    _scanTime += dt;
-                    if (_scanTime > ScanDuration)
-                    {
-                        _scanTime = 0;
-                    }
-                    return true;
+                    _scanTime = 0;
                 }
+                return true;
             }
         }
         return false;
