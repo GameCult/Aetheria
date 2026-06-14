@@ -142,6 +142,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   They also carry public runtime session state: velocity, target entity
   reference, active flag, heatsink toggle, shutdown override, tractor power,
   heatstroke/hypothermia accumulators, and active consumable item/timer rows.
+  Equipped-item and active-consumable behaviors that intentionally expose
+  `IProgressBehavior` now publish typed progress rows keyed by owner kind,
+  owner index, behavior index, behavior kind, and progress value.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -761,13 +764,17 @@ First Aetheria surfaces to publish:
      entity session state into `AetheriaEntitySnapshot`: velocity, target
      references, active/toggle scalars, thermal injury accumulators, and active
      consumable timers.
+   - Done: extend run checkpoint commits and smoke coverage to carry typed
+     behavior progress rows for equipped-item and active-consumable behaviors
+     that expose `IProgressBehavior`.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, behavior-private simulation state
-     such as weapon cooldown/charge/ammo and sensor/shield progress, and any
-     catalog fields not covered by the stable scalar/fingerprint/payload pass.
+     such as weapon cooldown/charge/ammo internals and sensor ping state, and
+     any catalog fields not covered by the stable scalar/fingerprint/payload
+     pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
@@ -1159,7 +1166,8 @@ First Aetheria surfaces to publish:
   zone -> entity snapshot graph as the `.zone` replacement. The zone smoke
   includes orbit/body rows for generated celestial state, and the entity smoke
   includes typed simulation stat grids, public entity session scalars, and
-  active consumable timer rows. The Unity runtime smoke also proves
+  active consumable timer rows, plus typed behavior progress rows for
+  `IProgressBehavior` surfaces. The Unity runtime smoke also proves
   package-owned readback of typed loadout templates from `.cc` records. It also
   proves `aetheria.runtime_session.v1` is advertised and survives reopen as the
   typed daemon-session signal.

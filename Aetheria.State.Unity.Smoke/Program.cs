@@ -347,6 +347,25 @@ try
                                     Duration = 5.0
                                 }
                             },
+                            BehaviorProgress = new[]
+                            {
+                                new AetheriaRuntimeBehaviorProgressCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 0,
+                                    BehaviorIndex = 1,
+                                    BehaviorKind = "Cooldown",
+                                    Progress = 0.5
+                                },
+                                new AetheriaRuntimeBehaviorProgressCommit
+                                {
+                                    OwnerKind = "active_consumable",
+                                    OwnerIndex = 0,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Shield",
+                                    Progress = 0.75
+                                }
+                            },
                             StatGrids = new[]
                             {
                                 new AetheriaRuntimeEntityStatGridCommit
@@ -434,6 +453,12 @@ try
             entity.ActiveConsumables.Length == 1 &&
             entity.ActiveConsumables[0].ItemKey == "aetheria.item_definition:legacy:smoke:consumable" &&
             entity.ActiveConsumables[0].RemainingDuration == 3.0 &&
+            entity.BehaviorProgress.Length == 2 &&
+            entity.BehaviorProgress[0].OwnerKind == "equipment" &&
+            entity.BehaviorProgress[0].BehaviorKind == "Cooldown" &&
+            entity.BehaviorProgress[0].Progress == 0.5 &&
+            entity.BehaviorProgress[1].OwnerKind == "active_consumable" &&
+            entity.BehaviorProgress[1].Progress == 0.75 &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&

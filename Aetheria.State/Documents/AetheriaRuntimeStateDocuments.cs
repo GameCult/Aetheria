@@ -482,6 +482,9 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(20)]
     public AetheriaActiveConsumableSnapshot[] ActiveConsumables { get; set; } = [];
+
+    [Key(21)]
+    public AetheriaBehaviorProgressSnapshot[] BehaviorProgress { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -532,6 +535,25 @@ public sealed class AetheriaActiveConsumableSnapshot
 
     [Key(3)]
     public double Duration { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaBehaviorProgressSnapshot
+{
+    [Key(0)]
+    public string OwnerKind { get; set; } = "";
+
+    [Key(1)]
+    public int OwnerIndex { get; set; } = -1;
+
+    [Key(2)]
+    public int BehaviorIndex { get; set; } = -1;
+
+    [Key(3)]
+    public string BehaviorKind { get; set; } = "";
+
+    [Key(4)]
+    public double Progress { get; set; }
 }
 
 [MessagePackObject]

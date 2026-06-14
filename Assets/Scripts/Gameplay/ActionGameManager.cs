@@ -787,8 +787,47 @@ public class ActionGameManager : MonoBehaviour
                 .Select(group => (IReadOnlyList<int>)group.items.Select(item => entity.Equipment.IndexOf(item)).Where(index => index >= 0).ToArray())
                 .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
             StatGrids = ProjectEntityStatGrids(entity),
-            ActiveConsumables = ProjectActiveConsumables(entity)
+            ActiveConsumables = ProjectActiveConsumables(entity),
+            BehaviorProgress = ProjectBehaviorProgress(entity)
         };
+    }
+
+    private static AetheriaRuntimeBehaviorProgressCommit[] ProjectBehaviorProgress(Entity entity)
+    {
+        var progress = new List<AetheriaRuntimeBehaviorProgressCommit>();
+
+        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
+            progress.AddRange(ProjectBehaviorProgress("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+
+        var activeConsumables = entity.ActiveConsumables;
+        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
+            progress.AddRange(ProjectBehaviorProgress("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+
+        return progress.ToArray();
+    }
+
+    private static IEnumerable<AetheriaRuntimeBehaviorProgressCommit> ProjectBehaviorProgress(
+        string ownerKind,
+        int ownerIndex,
+        IReadOnlyList<Behavior> behaviors)
+    {
+        if (behaviors == null)
+            yield break;
+
+        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
+        {
+            if (!(behaviors[behaviorIndex] is IProgressBehavior progressBehavior))
+                continue;
+
+            yield return new AetheriaRuntimeBehaviorProgressCommit
+            {
+                OwnerKind = ownerKind,
+                OwnerIndex = ownerIndex,
+                BehaviorIndex = behaviorIndex,
+                BehaviorKind = behaviors[behaviorIndex].Data?.Kind ?? "",
+                Progress = progressBehavior.Progress
+            };
+        }
     }
 
     private static AetheriaRuntimeActiveConsumableCommit[] ProjectActiveConsumables(Entity entity)

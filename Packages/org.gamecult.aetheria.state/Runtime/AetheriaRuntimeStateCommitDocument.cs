@@ -558,6 +558,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(25)]
         public IReadOnlyList<AetheriaRuntimeActiveConsumableCommit> ActiveConsumables { get; set; } = Array.Empty<AetheriaRuntimeActiveConsumableCommit>();
+
+        [Key(26)]
+        public IReadOnlyList<AetheriaRuntimeBehaviorProgressCommit> BehaviorProgress { get; set; } = Array.Empty<AetheriaRuntimeBehaviorProgressCommit>();
     }
 
     [MessagePackObject]
@@ -590,5 +593,24 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(3)]
         public double Duration { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeBehaviorProgressCommit
+    {
+        [Key(0)]
+        public string OwnerKind { get; set; } = "";
+
+        [Key(1)]
+        public int OwnerIndex { get; set; } = -1;
+
+        [Key(2)]
+        public int BehaviorIndex { get; set; } = -1;
+
+        [Key(3)]
+        public string BehaviorKind { get; set; } = "";
+
+        [Key(4)]
+        public double Progress { get; set; }
     }
 }

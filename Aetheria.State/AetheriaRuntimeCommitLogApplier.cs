@@ -440,8 +440,24 @@ public static class AetheriaRuntimeCommitLogApplier
                 .Select(group => new AetheriaWeaponGroupSnapshot { EquipmentIndices = group })
                 .ToArray(),
             StatGrids = ToEntityStatGrids(entity.StatGrids),
-            ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables)
+            ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables),
+            BehaviorProgress = ToBehaviorProgress(entity.BehaviorProgress)
         };
+    }
+
+    private static AetheriaBehaviorProgressSnapshot[] ToBehaviorProgress(
+        IReadOnlyList<AetheriaRuntimeBehaviorProgressCommit>? progress)
+    {
+        return (progress ?? Array.Empty<AetheriaRuntimeBehaviorProgressCommit>())
+            .Select(entry => new AetheriaBehaviorProgressSnapshot
+            {
+                OwnerKind = entry.OwnerKind ?? "",
+                OwnerIndex = entry.OwnerIndex,
+                BehaviorIndex = entry.BehaviorIndex,
+                BehaviorKind = entry.BehaviorKind ?? "",
+                Progress = entry.Progress
+            })
+            .ToArray();
     }
 
     private static AetheriaActiveConsumableSnapshot[] ToActiveConsumables(
