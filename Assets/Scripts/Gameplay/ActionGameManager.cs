@@ -388,7 +388,7 @@ public class ActionGameManager : MonoBehaviour
 
         return new AetheriaRuntimeLoadoutItemCommit
         {
-            ItemDefinitionLegacyId = item.Data?.ItemId.ToString("D") ?? "",
+            ItemDefinitionLegacyId = item.ItemId == Guid.Empty ? "" : item.ItemId.ToString("D"),
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1
@@ -453,7 +453,7 @@ public class ActionGameManager : MonoBehaviour
             DirectionX = entity.Direction.x,
             DirectionY = entity.Direction.y,
             CorporationLegacyId = entity.Faction?.ID.ToString("D") ?? "",
-            HullItemDefinitionLegacyId = entity.Hull?.Data?.ItemId.ToString("D") ?? "",
+            HullItemDefinitionLegacyId = entity.Hull?.ItemId == Guid.Empty ? "" : entity.Hull.ItemId.ToString("D"),
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
             DockingBays = ProjectEquippedSlots(entity.DockingBays),
@@ -772,7 +772,7 @@ public class ActionGameManager : MonoBehaviour
 
         AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
         {
-            var itemId = item?.Data?.ItemId ?? Guid.Empty;
+            var itemId = item?.ItemId ?? Guid.Empty;
             return itemId == Guid.Empty
                 ? null
                 : RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

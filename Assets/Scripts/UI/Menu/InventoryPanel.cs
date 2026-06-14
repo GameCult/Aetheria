@@ -925,7 +925,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        var itemId = item?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? null
             : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

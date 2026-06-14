@@ -611,7 +611,7 @@ public class ZoneRenderer : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedZoneItem(ItemInstance item)
     {
-        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        var itemId = item?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? null
             : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

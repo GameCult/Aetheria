@@ -123,7 +123,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private static AetheriaRuntimeCatalogItem FindTypedHull(RuntimeEntityBlueprint entity)
     {
-        var itemId = entity?.Hull?.Data?.ItemId ?? Guid.Empty;
+        var itemId = entity?.Hull?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? null
             : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

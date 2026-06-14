@@ -263,7 +263,7 @@ public abstract class Entity
         Hull = hull;
         var typedHull = itemManager.GetRuntimeItem(hull);
         if (typedHull == null)
-            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.Data?.ItemId}");
+            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.ItemId}");
         Name = typedHull.Name;
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
@@ -316,7 +316,7 @@ public abstract class Entity
 
     public ConsumableItemEffect FindActiveConsumable(Guid itemId)
     {
-        return _activeConsumables.FirstOrDefault(ac => ac.Item?.Data?.ItemId == itemId);
+        return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemId == itemId);
     }
 
     public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
@@ -350,7 +350,7 @@ public abstract class Entity
     {
         var typedHull = ItemManager.GetRuntimeItem(Hull);
         if (typedHull == null)
-            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.Data?.ItemId}");
+            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.ItemId}");
 
         var hullShape = GetHullShape(typedHull);
         EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
@@ -391,7 +391,7 @@ public abstract class Entity
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.Data.ItemId)
+            .GroupBy(w => w.Item.EquippableItem.ItemId)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {
@@ -1718,9 +1718,9 @@ public class EquippedCargoBay : EquippedItem
             }
             Cargo[item] = cargoCoord;
             
-            if(!ItemsOfType.ContainsKey(item.Data.ItemId))
-                ItemsOfType[item.Data.ItemId] = new List<ItemInstance>();
-            ItemsOfType[item.Data.ItemId].Add(item);
+            if(!ItemsOfType.ContainsKey(item.ItemId))
+                ItemsOfType[item.ItemId] = new List<ItemInstance>();
+            ItemsOfType[item.ItemId].Add(item);
         }
         else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
         {
@@ -1762,9 +1762,9 @@ public class EquippedCargoBay : EquippedItem
         }
         Cargo[item] = cargoCoord;
         
-        if(!ItemsOfType.ContainsKey(item.Data.ItemId))
-            ItemsOfType[item.Data.ItemId] = new List<ItemInstance>();
-        ItemsOfType[item.Data.ItemId].Add(item);
+        if(!ItemsOfType.ContainsKey(item.ItemId))
+            ItemsOfType[item.ItemId] = new List<ItemInstance>();
+        ItemsOfType[item.ItemId].Add(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -1786,9 +1786,9 @@ public class EquippedCargoBay : EquippedItem
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            ItemsOfType[item.Data.ItemId].Remove(item);
-            if (!ItemsOfType[item.Data.ItemId].Any())
-                ItemsOfType.Remove(item.Data.ItemId);
+            ItemsOfType[item.ItemId].Remove(item);
+            if (!ItemsOfType[item.ItemId].Any())
+                ItemsOfType.Remove(item.ItemId);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1814,9 +1814,9 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        ItemsOfType[item.Data.ItemId].Remove(item);
-        if (!ItemsOfType[item.Data.ItemId].Any())
-            ItemsOfType.Remove(item.Data.ItemId);
+        ItemsOfType[item.ItemId].Remove(item);
+        if (!ItemsOfType[item.ItemId].Any())
+            ItemsOfType.Remove(item.ItemId);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);

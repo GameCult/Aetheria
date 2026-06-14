@@ -148,7 +148,7 @@ public class ShipInstance : EntityInstance
 
     private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        var itemId = item?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? null
             : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

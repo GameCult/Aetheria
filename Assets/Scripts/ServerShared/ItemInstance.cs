@@ -14,6 +14,7 @@ public abstract class ItemInstance
 {
     public RuntimeItemReference Data;
     public ItemRotation Rotation;
+    public Guid ItemId => Data?.ItemId ?? Guid.Empty;
 }
 
 public abstract class CraftedItemInstance : ItemInstance

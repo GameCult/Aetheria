@@ -293,7 +293,7 @@ public class TradeMenu : MonoBehaviour
             x => () =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true}).ToString();
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true}).ToString();
                 if(x.Item is SimpleCommodity)
                     return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
                 return (_targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0).ToString();
@@ -301,7 +301,7 @@ public class TradeMenu : MonoBehaviour
             x =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true});
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemId == x.LegacyId && s is Ship {IsPlayerShip: true});
                 if(x.Item is SimpleCommodity)
                     return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
                 return _targetCargo.ItemsOfType.ContainsKey(x.LegacyId) ? _targetCargo.ItemsOfType[x.LegacyId].Count : 0;
@@ -393,12 +393,13 @@ public class TradeMenu : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedTradeItem(ItemInstance item)
     {
-        if (item?.Data == null || item.Data.ItemId == Guid.Empty)
+        var itemId = item?.ItemId ?? Guid.Empty;
+        if (itemId == Guid.Empty)
         {
             return null;
         }
 
-        return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(item.Data.ItemId.ToString("D"));
+        return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 
     private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
@@ -468,7 +469,7 @@ public class TradeMenu : MonoBehaviour
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
 
-        public Guid LegacyId => Item?.Data?.ItemId ?? Guid.Empty;
+        public Guid LegacyId => Item?.ItemId ?? Guid.Empty;
 
         public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : "Unknown Item";
 

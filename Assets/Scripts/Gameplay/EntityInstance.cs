@@ -62,7 +62,7 @@ public class EntityInstance : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedHull(ItemInstance hull)
     {
-        var itemId = hull?.Data?.ItemId ?? Guid.Empty;
+        var itemId = hull?.ItemId ?? Guid.Empty;
         return itemId == Guid.Empty
             ? null
             : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));

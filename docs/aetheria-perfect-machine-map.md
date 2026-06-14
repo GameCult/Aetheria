@@ -545,9 +545,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
   behavior metadata instead of rebuilding config DTOs for lookup.
-  `RuntimeItemReference.ItemId` is the only item reference value. The reader
-  interface for this bridge is named `IRuntimeItemCatalogReader` and exposes
-  only typed catalog row lookup. Behavior
+  `ItemInstance.ItemId` is the runtime identity surface; `RuntimeItemReference`
+  remains only the backing compatibility reference until native typed item
+  instances replace it. The reader interface for this bridge is named
+  `IRuntimeItemCatalogReader` and exposes only typed catalog row lookup. Behavior
   type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection, and the temporary behavior config constructor
   map is keyed by typed behavior payload kind rather than legacy union key.
@@ -1052,6 +1053,10 @@ First Aetheria surfaces to publish:
    - Done: demote `RuntimeItemReference.Value` to an item-definition id, then
       delete `RuntimeItemReference.Projection`; item references no longer carry
       hydrated `ItemData` DTOs.
+   - Done: add `ItemInstance.ItemId` as the direct runtime identity surface and
+     move live runtime/UI/catalog lookup call sites off `.Data.ItemId`. The old
+     `Data` field is now compatibility backing state rather than the identity
+     API callers use.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

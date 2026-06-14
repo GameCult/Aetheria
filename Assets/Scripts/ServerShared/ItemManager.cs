@@ -91,8 +91,7 @@ public class ItemManager
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
     {
-        var itemId = item?.Data?.ItemId ?? Guid.Empty;
-        return GetRuntimeItem(itemId);
+        return GetRuntimeItem(item?.ItemId ?? Guid.Empty);
     }
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid itemId)
@@ -363,7 +362,7 @@ public class ItemManager
         var durability = pow(item.Durability / maxDurability, durabilityExponent * stat.DurabilityExponentMultiplier);
         var result = lerp(stat.Min, stat.Max, quality * durability);
         if (float.IsNaN(result)) 
-            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.Data?.ItemId.ToString() ?? "unknown item"} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
+            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.ItemId.ToString()} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
         return result;
 
     }
@@ -413,7 +412,7 @@ public class ItemManager
         var typedItem = GetRuntimeItem(item);
         if (typedItem == null)
         {
-            _logger($"Attempted to instantiate missing item id {item?.Data?.ItemId}");
+            _logger($"Attempted to instantiate missing item id {item?.ItemId}");
             return null;
         }
 
