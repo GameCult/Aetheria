@@ -62,10 +62,7 @@ public class EntityInstance : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedHull(ItemInstance hull)
     {
-        var itemId = hull?.ItemId ?? Guid.Empty;
-        return itemId == Guid.Empty
-            ? null
-            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        return ActionGameManager.RuntimeCatalog?.FindItem(hull?.ItemKey ?? "");
     }
 
     private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)

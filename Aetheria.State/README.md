@@ -91,6 +91,9 @@ Unity runtime commit DTOs also carry typed `ItemKey`/`HullItemKey` fields for
 loadout items, action-bar targets, body resources, entity hulls, and active
 consumables. Their old `*LegacyId` fields remain import/export compatibility
 only; the commit applier prefers typed keys whenever present.
+The package runtime catalog snapshot indexes items by canonical item key; Unity
+gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
+directly instead of deriving `ItemId` and searching by legacy GUID.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts

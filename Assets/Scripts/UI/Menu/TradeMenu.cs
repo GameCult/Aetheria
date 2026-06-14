@@ -393,13 +393,7 @@ public class TradeMenu : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedTradeItem(ItemInstance item)
     {
-        var itemId = item?.ItemId ?? Guid.Empty;
-        if (itemId == Guid.Empty)
-        {
-            return null;
-        }
-
-        return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
     private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
@@ -468,8 +462,6 @@ public class TradeMenu : MonoBehaviour
         public ItemInstance Item { get; }
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
-
-        public Guid LegacyId => Item?.ItemId ?? Guid.Empty;
 
         public string ItemKey => Item?.ItemKey ?? "";
 

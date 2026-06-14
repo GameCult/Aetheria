@@ -631,7 +631,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   references are also typed-key-first (`AmmoItemKey`/`ItemKey`), with
   `AmmoType`/`Item` only derived GUID compatibility. Runtime commit DTOs now
   publish item and hull identity through `ItemKey`/`HullItemKey`, with legacy
-  ID fields demoted to compatibility;
+  ID fields demoted to compatibility. The package runtime catalog snapshot now
+  indexes items by canonical item key, and Unity gameplay/UI/zone helper
+  lookups resolve `ItemKey` directly rather than deriving legacy GUIDs for
+  `FindItemByLegacyId`;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1342,6 +1345,10 @@ First Aetheria surfaces to publish:
      Loadout items, action-bar targets, body resources, entity hulls, cargo
      contents, and active consumables now prove typed-key ownership in the
      Unity smoke by carrying intentionally stale legacy IDs.
+   - Done: add package runtime catalog lookup by canonical item key and move
+     Unity gameplay, HUD, inventory, trade, ship, and zone helper lookups off
+     `ItemId`/`FindItemByLegacyId` detours. Legacy item lookup remains only as
+     a catalog/migration compatibility API.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

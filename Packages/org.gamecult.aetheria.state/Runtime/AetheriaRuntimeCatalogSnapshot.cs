@@ -9,6 +9,7 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeCatalogSnapshot
     {
         private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByLegacyId;
+        private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByKey;
         private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByLegacyId;
         private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByLegacyId;
 
@@ -26,6 +27,9 @@ namespace GameCult.Aetheria.State.Unity
             _itemsByLegacyId = items
                 .Where(item => !string.IsNullOrWhiteSpace(item.LegacyId))
                 .ToDictionary(item => item.LegacyId, StringComparer.OrdinalIgnoreCase);
+            _itemsByKey = items
+                .Where(item => !string.IsNullOrWhiteSpace(item.ItemKey))
+                .ToDictionary(item => item.ItemKey, StringComparer.OrdinalIgnoreCase);
             _corporationsByLegacyId = corporations
                 .Where(corporation => !string.IsNullOrWhiteSpace(corporation.LegacyId))
                 .ToDictionary(corporation => corporation.LegacyId, StringComparer.OrdinalIgnoreCase);
@@ -47,6 +51,11 @@ namespace GameCult.Aetheria.State.Unity
         public AetheriaRuntimeCatalogItem? FindItemByLegacyId(string legacyId)
         {
             return TryGet(_itemsByLegacyId, legacyId);
+        }
+
+        public AetheriaRuntimeCatalogItem? FindItem(string itemKey)
+        {
+            return TryGet(_itemsByKey, itemKey);
         }
 
         public AetheriaRuntimeCorporation? FindCorporationByLegacyId(string legacyId)
@@ -142,6 +151,7 @@ namespace GameCult.Aetheria.State.Unity
             string compoundCommodityCategory)
         {
             LegacyId = legacyId;
+            ItemKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.item_definition:legacy:{legacyId}";
             Name = name;
             Category = category;
             Description = description;
@@ -192,6 +202,7 @@ namespace GameCult.Aetheria.State.Unity
         }
 
         public string LegacyId { get; }
+        public string ItemKey { get; }
         public string Name { get; }
         public string Category { get; }
         public string Description { get; }

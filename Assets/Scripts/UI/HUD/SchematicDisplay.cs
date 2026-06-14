@@ -144,10 +144,7 @@ public class SchematicDisplay : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedWeapon(ItemInstance item)
     {
-        var itemId = item?.ItemId ?? Guid.Empty;
-        var typedItem = itemId == Guid.Empty
-            ? null
-            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        var typedItem = ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
         return typedItem != null && !string.IsNullOrWhiteSpace(typedItem.WeaponType)
             ? typedItem
             : null;
@@ -288,9 +285,6 @@ public class SchematicDisplay : MonoBehaviour
 
     private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        var itemId = item?.ItemId ?? Guid.Empty;
-        return itemId == Guid.Empty
-            ? null
-            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 }

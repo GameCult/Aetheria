@@ -418,10 +418,7 @@ public class PropertiesPanel : MonoBehaviour
 
 	private static AetheriaRuntimeCatalogItem FindTypedPropertyItem(ItemInstance item)
 	{
-		var itemId = item?.ItemId ?? Guid.Empty;
-		return itemId == Guid.Empty
-			? null
-			: ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+		return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
 	}
 
 	private void AddEquippableItemProperties(EquippableItem item, Func<PerformanceStat, float> statValueFunction)

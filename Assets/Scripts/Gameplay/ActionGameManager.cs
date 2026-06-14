@@ -249,8 +249,7 @@ public class ActionGameManager : MonoBehaviour
 
     private ItemInstance CreateLoadoutItem(AetheriaRuntimeLoadoutItemSnapshot item)
     {
-        var legacyId = ParseLegacyIdFromReferenceKey(item.ItemKey, "aetheria.item_definition");
-        var typedItem = RuntimeCatalog?.FindItemByLegacyId(legacyId);
+        var typedItem = RuntimeCatalog?.FindItem(item.ItemKey);
         if (typedItem == null)
             return null;
 
@@ -1648,10 +1647,7 @@ public class ActionGameManager : MonoBehaviour
 
         AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
         {
-            var itemId = item?.ItemId ?? Guid.Empty;
-            return itemId == Guid.Empty
-                ? null
-                : RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+            return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
         }
 
         var bindings = RuntimePlayerSettings.InputSettings.ActionBarInputs.OrderBy(i => i)

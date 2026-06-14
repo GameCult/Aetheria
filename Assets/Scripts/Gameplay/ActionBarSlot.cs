@@ -169,10 +169,7 @@ public class ActionBarGearBinding : ActionBarBinding
 
     private static AetheriaRuntimeCatalogItem FindTypedGearItem(ItemInstance item)
     {
-        var itemId = item?.ItemId ?? Guid.Empty;
-        return itemId == Guid.Empty
-            ? null
-            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
+        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
     public override void Activate()
