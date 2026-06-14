@@ -1835,11 +1835,14 @@ public class EquippedCargoBay : EquippedItem
 public class EquippedDockingBay : EquippedCargoBay
 {
     public Ship DockedShip;
-    public int2 MaxSize => _data.MaxSize;
-    private DockingBayData _data;
+    public int2 MaxSize { get; }
+
     public EquippedDockingBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity, name)
     {
-        _data = ItemManager.GetData(EquippableItem) as DockingBayData;
+        var typedDockingBay = ItemManager.GetRuntimeItem(EquippableItem);
+        MaxSize = typedDockingBay != null
+            ? new int2(typedDockingBay.DockingMaxSizeX, typedDockingBay.DockingMaxSizeY)
+            : int2.zero;
     }
 }
 

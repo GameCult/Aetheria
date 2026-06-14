@@ -144,6 +144,12 @@ public sealed class AetheriaItemDefinition
 
     [Key(43)]
     public bool HullCanTow { get; set; }
+
+    [Key(44)]
+    public int DockingMaxSizeX { get; set; }
+
+    [Key(45)]
+    public int DockingMaxSizeY { get; set; }
 }
 
 [MessagePackObject]

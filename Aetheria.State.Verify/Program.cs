@@ -83,6 +83,11 @@ var maxDurabilityItems = items
 var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
 var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
 var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurveKeys.Length > 0);
+var dockingBayItems = items.Count(item => item.Category == "DockingBayData");
+var dockingBayMaxSizeItems = items.Count(item =>
+    item.Category == "DockingBayData" &&
+    item.DockingMaxSizeX > 0 &&
+    item.DockingMaxSizeY > 0);
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
@@ -277,6 +282,12 @@ if (weaponItems == 0)
     throw new InvalidOperationException("Typed item definitions did not import any weapon facets.");
 }
 
+if (dockingBayItems == 0 || dockingBayMaxSizeItems != dockingBayItems)
+{
+    throw new InvalidOperationException(
+        $"Typed docking bay max-size import mismatch: dockingBays={dockingBayItems}, maxSizes={dockingBayMaxSizeItems}.");
+}
+
 if (describedCorporations == 0)
 {
     throw new InvalidOperationException("Typed corporations did not import descriptions from legacy key 3.");
@@ -382,6 +393,7 @@ Console.WriteLine($"Hull armor/physical facet items: {hullArmorItems}/{hullPhysi
 Console.WriteLine($"Simple/compound commodity category items: {simpleCommodityCategoryItems}/{compoundCommodityCategoryItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");
+Console.WriteLine($"Docking bay max-size items: {dockingBayMaxSizeItems}/{dockingBayItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");

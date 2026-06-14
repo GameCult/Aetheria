@@ -188,10 +188,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   heat, and conductivity from runtime catalog rows. `LoadoutGenerator`
   candidate weighting, hardpoint/cargo/capacitor fit, selected-item reuse, and
   hull conductivity setup now use typed runtime catalog rows; selected DTO
-  hydration is only the remaining item-instantiation bridge. `EquippedItem`
-  inset-shape and behavior construction plus docking bay max-size still belong
-  to legacy simulation projections until those owners are rebuilt. Ship drag,
-  combat/turret shot prediction height, and thruster
+  hydration is only the remaining item-instantiation bridge. Docking bay max
+  ship size is imported as typed item state and `EquippedDockingBay.MaxSize`
+  derives from the typed runtime catalog row. `EquippedItem` inset-shape and
+  behavior construction still belong to legacy simulation projections until
+  those owners are rebuilt. Ship drag, combat/turret shot prediction height,
+  and thruster
   torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
@@ -698,8 +700,10 @@ First Aetheria surfaces to publish:
    - Done: move `EquippedCargoBay` cargo geometry, item fit shape, simple stack
      limits, cargo mass, cargo thermal mass, and `InventoryPanel` cargo-grid
      lowering onto typed catalog rows; legacy `CargoBayData` remains only in
-     later simulation projections such as docking max-size and behavior
-     construction.
+     later simulation projections such as behavior construction.
+   - Done: import docking bay max ship size into typed item rows and move
+     `EquippedDockingBay.MaxSize` onto the typed runtime catalog row; legacy
+     `DockingBayData.MaxSize` is no longer the runtime docking-limit owner.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and

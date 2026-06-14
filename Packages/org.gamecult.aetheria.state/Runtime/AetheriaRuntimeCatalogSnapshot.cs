@@ -130,6 +130,8 @@ namespace GameCult.Aetheria.State.Unity
             double hullArmor,
             double hullDrag,
             bool hullCanTow,
+            int dockingMaxSizeX,
+            int dockingMaxSizeY,
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
@@ -171,6 +173,8 @@ namespace GameCult.Aetheria.State.Unity
             HullArmor = hullArmor;
             HullDrag = hullDrag;
             HullCanTow = hullCanTow;
+            DockingMaxSizeX = dockingMaxSizeX;
+            DockingMaxSizeY = dockingMaxSizeY;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
         }
@@ -213,6 +217,8 @@ namespace GameCult.Aetheria.State.Unity
         public double HullArmor { get; }
         public double HullDrag { get; }
         public bool HullCanTow { get; }
+        public int DockingMaxSizeX { get; }
+        public int DockingMaxSizeY { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
     }

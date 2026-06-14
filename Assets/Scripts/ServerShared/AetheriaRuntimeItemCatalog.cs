@@ -131,6 +131,11 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             cargoBay.InteriorShape = ProjectShape(item.InteriorShapeWidth, item.InteriorShapeHeight, item.InteriorShapeCells);
         }
 
+        if (projected is DockingBayData dockingBay)
+        {
+            dockingBay.MaxSize = new int2(item.DockingMaxSizeX, item.DockingMaxSizeY);
+        }
+
         if (projected is WeaponItemData weapon)
         {
             weapon.WeaponRange = ParseEnum(item.WeaponRange, WeaponRange.Short);

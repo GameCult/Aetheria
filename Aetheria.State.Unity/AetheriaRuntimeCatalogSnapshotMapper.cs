@@ -54,6 +54,8 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.HullArmor,
             item.HullDrag,
             item.HullCanTow,
+            item.DockingMaxSizeX,
+            item.DockingMaxSizeY,
             item.SimpleCommodityCategory,
             item.CompoundCommodityCategory);
     }

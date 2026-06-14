@@ -359,6 +359,7 @@ internal static class LegacyCatalogReader
         var description = GetString(payload, 2);
         var shape = ReadShape(payload, 5);
         var interiorShape = ReadInteriorShape(unionKey, payload, shape);
+        var dockingMaxSize = unionKey == 30 ? ReadPoint(payload, 25) : PointFacts.Empty;
         var hardpoints = unionKey == 3 ? ReadHardpoints(payload, 23) : [];
         var behaviorKey = unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10;
         var behaviorPayloads = ReadBehaviorPayloads(payload, behaviorKey);
@@ -418,6 +419,8 @@ internal static class LegacyCatalogReader
                     HullArmor = unionKey == 3 ? GetDouble(payload, 27) : 0,
                     HullDrag = unionKey == 3 ? GetDouble(payload, 28) : 0,
                     HullCanTow = unionKey == 3 && GetBool(payload, 29),
+                    DockingMaxSizeX = dockingMaxSize.X,
+                    DockingMaxSizeY = dockingMaxSize.Y,
                     SimpleCommodityCategory = unionKey == 0 ? GetEnumName(payload, 10, SimpleCommodityCategories) : "",
                     CompoundCommodityCategory = unionKey == 1 ? GetEnumName(payload, 11, CompoundCommodityCategories) : "",
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
@@ -1017,6 +1020,13 @@ internal static class LegacyCatalogReader
         return new PointFacts(
             ReadIntValue(coordinates.ElementAtOrDefault(0)),
             ReadIntValue(coordinates.ElementAtOrDefault(1)));
+    }
+
+    private static PointFacts ReadPoint(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        return payload.TryGetValue(key, out var value)
+            ? ReadPoint(value)
+            : PointFacts.Empty;
     }
 
     private static string ReadEnumName(object? value, IReadOnlyDictionary<int, string> names)

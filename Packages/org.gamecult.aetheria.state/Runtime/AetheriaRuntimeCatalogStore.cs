@@ -207,7 +207,9 @@ namespace GameCult.Aetheria.State.Unity
             var hullArmor = ReadFieldDouble(ref reader, fields, 41);
             var hullDrag = ReadFieldDouble(ref reader, fields, 42);
             var hullCanTow = ReadFieldBool(ref reader, fields, 43);
-            SkipRemaining(ref reader, fields, 44);
+            var dockingMaxSizeX = ReadFieldInt32(ref reader, fields, 44);
+            var dockingMaxSizeY = ReadFieldInt32(ref reader, fields, 45);
+            SkipRemaining(ref reader, fields, 46);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -248,6 +250,8 @@ namespace GameCult.Aetheria.State.Unity
                 hullArmor,
                 hullDrag,
                 hullCanTow,
+                dockingMaxSizeX,
+                dockingMaxSizeY,
                 simpleCommodityCategory,
                 compoundCommodityCategory);
         }
