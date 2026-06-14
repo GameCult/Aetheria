@@ -435,7 +435,9 @@ public class TradeMenu : MonoBehaviour
             get
             {
                 if (Item is CraftedItemInstance craftedItemInstance)
-                    return _itemManager.GetPrice(craftedItemInstance);
+                    return TypedItem != null
+                        ? (int)(_itemManager.GameplaySettings.QualityPriceModifier.Evaluate(craftedItemInstance.Quality) * TypedItem.Price)
+                        : 0;
 
                 return TypedItem != null ? TypedItem.Price : 0;
             }
@@ -479,18 +481,25 @@ public class TradeMenu : MonoBehaviour
 
     private void Buy(CraftedItemInstance item)
     {
-        var data = GameManager.ItemManager.GetData(item);
-        var price = GameManager.ItemManager.GetPrice(item);
+        var typedItem = FindTypedTradeItem(item);
+        if (typedItem == null)
+        {
+            ShowUnableToBuy("Missing typed trade row!");
+            return;
+        }
+
+        var price = GetTypedTradePrice(item, typedItem);
         if (price < GameManager.Credits)
         {
-            if (data is HullData hullData)
+            if (!string.IsNullOrWhiteSpace(typedItem?.HullType))
             {
-                if (hullData.HullType != HullType.Ship) throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
+                if (!string.Equals(typedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
+                    throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
 
                 var ship = new Ship(GameManager.ItemManager, GameManager.Zone, item as EquippableItem, GameManager.NewEntitySettings) { IsPlayerShip = true };
                 ship.SetParent(GameManager.DockedEntity);
 
-                GameManager.Credits -= data.Price;
+                GameManager.Credits -= price;
                 UpdateCreditsLabel();
             }
             else if (Inventory.TryTransferItem(_targetCargo, item))
@@ -519,18 +528,26 @@ public class TradeMenu : MonoBehaviour
 
     private void Buy(SimpleCommodity simpleCommodity, int quantity)
     {
-        var data = GameManager.ItemManager.GetData(simpleCommodity);
+        var typedItem = FindTypedTradeItem(simpleCommodity);
+        if (typedItem == null)
+        {
+            ShowUnableToBuy("Missing typed trade row!");
+            return;
+        }
+
+        var maxStack = typedItem.MaxStack > 0 ? typedItem.MaxStack : 1;
+        var price = typedItem.Price;
         // Up-rounded integer division from https://stackoverflow.com/a/503201
-        int lots = (quantity - 1) / data.MaxStack + 1;
+        int lots = (quantity - 1) / maxStack + 1;
         int remaining = quantity;
         for (int i = 0; i < lots; i++)
         {
-            int q = min(remaining, data.MaxStack);
-            if (q * data.Price < GameManager.Credits)
+            int q = min(remaining, maxStack);
+            if (q * price < GameManager.Credits)
             {
                 if (Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity))
                 {
-                    GameManager.Credits -= q * data.Price;
+                    GameManager.Credits -= q * price;
                     UpdateCreditsLabel();
                     remaining -= q;
                 }
@@ -551,9 +568,20 @@ public class TradeMenu : MonoBehaviour
                 Dialog.MoveToCursor();
                 return;
             }
-
-            
         }
+    }
+
+    private int GetTypedTradePrice(CraftedItemInstance item, AetheriaRuntimeCatalogItem typedItem)
+    {
+        return (int)(GameManager.ItemManager.GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * typedItem.Price);
+    }
+
+    private void ShowUnableToBuy(string reason)
+    {
+        Dialog.Clear();
+        Dialog.Title.text = $"Unable to buy: {reason}";
+        Dialog.Show();
+        Dialog.MoveToCursor();
     }
 
     void Start()
