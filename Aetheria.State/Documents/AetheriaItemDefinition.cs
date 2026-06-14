@@ -114,6 +114,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(33)]
     public double MaximumTemperature { get; set; }
+
+    [Key(34)]
+    public AetheriaCurveKey[] ThermalPerformanceCurveKeys { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -158,6 +161,22 @@ public sealed class AetheriaItemHardpoint
 
     [Key(9)]
     public double Armor { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaCurveKey
+{
+    [Key(0)]
+    public double Time { get; set; }
+
+    [Key(1)]
+    public double Value { get; set; }
+
+    [Key(2)]
+    public double InTangent { get; set; }
+
+    [Key(3)]
+    public double OutTangent { get; set; }
 }
 
 [MessagePackObject]

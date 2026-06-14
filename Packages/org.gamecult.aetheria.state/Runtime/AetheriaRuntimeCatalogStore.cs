@@ -197,7 +197,8 @@ namespace GameCult.Aetheria.State.Unity
             var behaviorPayloads = ReadFieldBehaviorPayloads(ref reader, fields, 31);
             var minimumTemperature = ReadFieldDouble(ref reader, fields, 32);
             var maximumTemperature = ReadFieldDouble(ref reader, fields, 33);
-            SkipRemaining(ref reader, fields, 34);
+            var thermalPerformanceCurveKeys = ReadFieldCurveKeys(ref reader, fields, 34);
+            SkipRemaining(ref reader, fields, 35);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -229,7 +230,8 @@ namespace GameCult.Aetheria.State.Unity
                 weaponFireTypes,
                 weaponModifiers,
                 minimumTemperature,
-                maximumTemperature);
+                maximumTemperature,
+                thermalPerformanceCurveKeys);
         }
 
         private static AetheriaRuntimeCorporation ReadCorporation(byte[] payload)
@@ -416,6 +418,25 @@ namespace GameCult.Aetheria.State.Unity
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadFieldShapeCells(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? Array.Empty<AetheriaRuntimeShapeCell>() : ReadShapeCells(ref reader);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey> ReadFieldCurveKeys(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeCurveKey>();
+            var count = reader.ReadArrayHeader();
+            var keys = new AetheriaRuntimeCurveKey[count];
+            for (var key = 0; key < count; key++)
+            {
+                var keyFields = reader.ReadArrayHeader();
+                var time = ReadFieldDouble(ref reader, keyFields, 0);
+                var value = ReadFieldDouble(ref reader, keyFields, 1);
+                var inTangent = ReadFieldDouble(ref reader, keyFields, 2);
+                var outTangent = ReadFieldDouble(ref reader, keyFields, 3);
+                SkipRemaining(ref reader, keyFields, 4);
+                keys[key] = new AetheriaRuntimeCurveKey(time, value, inTangent, outTangent);
+            }
+
+            return keys;
         }
 
         private static IReadOnlyList<AetheriaRuntimeCorporationAllegiance> ReadFieldCorporationAllegiances(ref MessagePackReader reader, int fields, int index)

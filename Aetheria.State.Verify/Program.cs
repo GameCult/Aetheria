@@ -71,6 +71,7 @@ var maxDurabilityItems = items
     .ToArray();
 var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
 var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
+var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurveKeys.Length > 0);
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
@@ -148,6 +149,19 @@ if (missingMaxDurability.Length > 0)
 if (importedThermalRangeItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any thermal ranges.");
+}
+
+if (importedThermalCurveItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any thermal performance curves.");
+}
+
+foreach (var item in items.Where(item => item.ThermalPerformanceCurveKeys.Length > 0))
+{
+    if (item.ThermalPerformanceCurveKeys.Any(key => key.Time < 0 || key.Time > 1))
+    {
+        throw new InvalidOperationException($"Typed thermal performance curve has out-of-range key time for {item.Name}.");
+    }
 }
 
 foreach (var item in items.Where(item => item.Hardpoints.Length > 0))
@@ -320,7 +334,7 @@ Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeIte
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
-Console.WriteLine($"Thermal-range items: {importedThermalRangeItems}");
+Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");

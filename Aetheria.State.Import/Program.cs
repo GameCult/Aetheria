@@ -393,6 +393,7 @@ internal static class LegacyCatalogReader
                     Durability = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 12) : 0,
                     MinimumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 13) : 0,
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
+                    ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
                     WeaponCaliber = unionKey == 31 ? GetEnumName(payload, 25, WeaponCalibers) : "",
                     WeaponType = unionKey == 31 ? GetEnumName(payload, 26, WeaponTypes) : "",
@@ -714,6 +715,66 @@ internal static class LegacyCatalogReader
             Rotation = ReadEnumName(fields.ElementAtOrDefault(4), ItemRotations),
             Armor = ReadDoubleValue(fields.ElementAtOrDefault(5))
         };
+    }
+
+    private static AetheriaCurveKey[] ReadCurveKeys(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value))
+        {
+            return [];
+        }
+
+        return ExtractCurveKeyTuples(value)
+            .Select(tuple => new AetheriaCurveKey
+            {
+                Time = ReadDoubleValue(tuple.ElementAtOrDefault(0)),
+                Value = ReadDoubleValue(tuple.ElementAtOrDefault(1)),
+                InTangent = ReadDoubleValue(tuple.ElementAtOrDefault(2)),
+                OutTangent = ReadDoubleValue(tuple.ElementAtOrDefault(3))
+            })
+            .OrderBy(curveKey => curveKey.Time)
+            .ToArray();
+    }
+
+    private static IEnumerable<object?[]> ExtractCurveKeyTuples(object? value)
+    {
+        if (value is not object?[] values)
+        {
+            return [];
+        }
+
+        if (LooksLikeCurveKey(values))
+        {
+            return [values];
+        }
+
+        var directKeys = values
+            .OfType<object?[]>()
+            .Where(LooksLikeCurveKey)
+            .ToArray();
+        if (directKeys.Length > 0)
+        {
+            return directKeys;
+        }
+
+        return values
+            .OfType<object?[]>()
+            .SelectMany(ExtractCurveKeyTuples)
+            .ToArray();
+    }
+
+    private static bool LooksLikeCurveKey(object?[] values)
+    {
+        return values.Length >= 4 &&
+               IsNumber(values[0]) &&
+               IsNumber(values[1]) &&
+               IsNumber(values[2]) &&
+               IsNumber(values[3]);
+    }
+
+    private static bool IsNumber(object? value)
+    {
+        return value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
 
     private static AetheriaBehaviorPayload[] ReadBehaviorPayloads(IReadOnlyDictionary<int, object?> payload, int key)

@@ -163,10 +163,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   presentation now uses typed catalog category/name rows to choose weapon-vs-gear
   pickup visuals and scan labels before falling back to legacy item projections.
   The item properties panel also reads typed catalog title names, descriptions,
-  manufacturer, base mass, and max durability for basic item presentation without
-  hydrating legacy DTOs; legacy `ItemData` hydration remains only for behavior
-  reflection and thermal curves that have not yet moved to typed behavior
-  surfaces. Inventory selection highlighting now uses typed item
+  manufacturer, base mass, max durability, thermal bounds, and thermal
+  performance curve keys for basic item presentation without hydrating legacy
+  DTOs; legacy `ItemData` hydration remains only for behavior reflection and
+  fallback projection when typed curve rows are incomplete. Inventory selection highlighting now uses typed item
   shape cells only for UI tint geometry; incomplete typed rows produce no
   selected-cell mask instead of falling back to legacy `ItemData.Shape`.
   Inventory cargo cell tint now uses typed hardpoint facets only; incomplete
@@ -633,8 +633,10 @@ First Aetheria surfaces to publish:
      legacy `ConsumableItemData` resolution is lazy and bounded to activation
      and active-duration fill until typed consumable effect execution exists.
    - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
-     onto typed catalog rows; legacy thermal curve DTOs remain only where curves
-     themselves are still required.
+     onto typed catalog rows.
+   - Done: import typed thermal performance curve keys and move PropertiesPanel
+     thermal curve presentation onto typed catalog rows; legacy thermal curves
+     are fallback projection only for incomplete imported rows.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

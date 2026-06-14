@@ -45,12 +45,18 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.WeaponFireTypes,
             item.WeaponModifiers,
             item.MinimumTemperature,
-            item.MaximumTemperature);
+            item.MaximumTemperature,
+            item.ThermalPerformanceCurveKeys.Select(FromState).ToArray());
     }
 
     private static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)
     {
         return new AetheriaRuntimeShapeCell(cell.X, cell.Y);
+    }
+
+    private static AetheriaRuntimeCurveKey FromState(AetheriaCurveKey key)
+    {
+        return new AetheriaRuntimeCurveKey(key.Time, key.Value, key.InTangent, key.OutTangent);
     }
 
     private static AetheriaRuntimeBehaviorPayload FromState(AetheriaBehaviorPayload payload)

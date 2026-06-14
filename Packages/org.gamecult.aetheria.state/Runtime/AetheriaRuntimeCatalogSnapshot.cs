@@ -121,7 +121,8 @@ namespace GameCult.Aetheria.State.Unity
             string weaponFireTypes,
             string weaponModifiers,
             double minimumTemperature,
-            double maximumTemperature)
+            double maximumTemperature,
+            IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys)
         {
             LegacyId = legacyId;
             Name = name;
@@ -153,6 +154,7 @@ namespace GameCult.Aetheria.State.Unity
             WeaponModifiers = weaponModifiers;
             MinimumTemperature = minimumTemperature;
             MaximumTemperature = maximumTemperature;
+            ThermalPerformanceCurveKeys = thermalPerformanceCurveKeys;
         }
 
         public string LegacyId { get; }
@@ -185,6 +187,23 @@ namespace GameCult.Aetheria.State.Unity
         public string WeaponModifiers { get; }
         public double MinimumTemperature { get; }
         public double MaximumTemperature { get; }
+        public IReadOnlyList<AetheriaRuntimeCurveKey> ThermalPerformanceCurveKeys { get; }
+    }
+
+    public sealed class AetheriaRuntimeCurveKey
+    {
+        public AetheriaRuntimeCurveKey(double time, double value, double inTangent, double outTangent)
+        {
+            Time = time;
+            Value = value;
+            InTangent = inTangent;
+            OutTangent = outTangent;
+        }
+
+        public double Time { get; }
+        public double Value { get; }
+        public double InTangent { get; }
+        public double OutTangent { get; }
     }
 
     public sealed class AetheriaRuntimeShapeCell

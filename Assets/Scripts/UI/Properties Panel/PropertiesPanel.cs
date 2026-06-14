@@ -405,6 +405,43 @@ public class PropertiesPanel : MonoBehaviour
 		return Math.Max(item.Durability, 1f);
 	}
 
+	private static (float minimum, float maximum) GetThermalRange(AetheriaRuntimeCatalogItem typedItem, EquippableItemData legacyData)
+	{
+		if (typedItem != null && typedItem.MaximumTemperature > typedItem.MinimumTemperature)
+			return ((float)typedItem.MinimumTemperature, (float)typedItem.MaximumTemperature);
+
+		if (legacyData != null && legacyData.MaximumTemperature > legacyData.MinimumTemperature)
+			return (legacyData.MinimumTemperature, legacyData.MaximumTemperature);
+
+		return (0f, 1f);
+	}
+
+	private static BezierCurve GetThermalPerformanceCurve(AetheriaRuntimeCatalogItem typedItem, EquippableItemData legacyData)
+	{
+		if (typedItem?.ThermalPerformanceCurveKeys != null && typedItem.ThermalPerformanceCurveKeys.Count > 0)
+		{
+			return new BezierCurve
+			{
+				Keys = typedItem.ThermalPerformanceCurveKeys
+					.Select(key => new float4(
+						(float)key.Time,
+						(float)key.Value,
+						(float)key.InTangent,
+						(float)key.OutTangent))
+					.ToArray()
+			};
+		}
+
+		return legacyData?.HeatPerformanceCurve ?? new BezierCurve
+		{
+			Keys = new[]
+			{
+				new float4(0f, 1f, 0f, 0f),
+				new float4(1f, 1f, 0f, 0f)
+			}
+		};
+	}
+
 	private static AetheriaRuntimeCatalogItem FindTypedPropertyItem(ItemInstance item)
 	{
 		var itemId = item?.Data?.ItemId ?? Guid.Empty;
@@ -502,7 +539,10 @@ public class PropertiesPanel : MonoBehaviour
 			OnPropertyAdded?.Invoke(weaponGroups.gameObject);
 		}
 		
+		var typedItem = FindTypedPropertyItem(item.EquippableItem);
 		var gearData = GameManager.ItemManager.GetData(item.EquippableItem);
+		var thermalRange = GetThermalRange(typedItem, gearData);
+		var thermalCurve = GetThermalPerformanceCurve(typedItem, gearData);
 		var statusSheet = AddStatSheet();
 		if (item.EquippableItem.Durability < .01f)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
@@ -511,11 +551,11 @@ public class PropertiesPanel : MonoBehaviour
 		
 		var heatCurve = AddCurveField();
 		heatCurve.Show(
-			"Thermal Performance", 
-			gearData.HeatPerformanceCurve, 
-			t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
+			"Thermal Performance",
+			thermalCurve,
+			t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(thermalRange.minimum, thermalRange.maximum, t)),
 			true);
-		RefreshPropertyValues += () => heatCurve.SetCurrent(unlerp(gearData.MinimumTemperature, gearData.MaximumTemperature, item.Temperature));
+		RefreshPropertyValues += () => heatCurve.SetCurrent(unlerp(thermalRange.minimum, thermalRange.maximum, item.Temperature));
 		AddEquippableItemProperties(item.EquippableItem, item.Evaluate);
 		AddSpacer();
 		
@@ -546,14 +586,17 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			Title.text = GetTitle(gear);
 			AddSpacer();
+			var typedItem = FindTypedPropertyItem(gear);
 			var gearData = GameManager.ItemManager.GetData(gear);
+			var thermalRange = GetThermalRange(typedItem, gearData);
+			var thermalCurve = GetThermalPerformanceCurve(typedItem, gearData);
 			var statusSheet = AddStatSheet();
 			statusSheet.AddStat("Durability", () => $"{(int)(gear.Durability / GetMaxDurability(gear) * 100)}%");
 			var heatCurve = AddCurveField();
 			heatCurve.Show(
-				"Thermal Performance", 
-				gearData.HeatPerformanceCurve, 
-				t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
+				"Thermal Performance",
+				thermalCurve,
+				t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(thermalRange.minimum, thermalRange.maximum, t)),
 				true);
 			AddEquippableItemProperties(gear, stat => GameManager.ItemManager.Evaluate(stat, gear));
 		}
