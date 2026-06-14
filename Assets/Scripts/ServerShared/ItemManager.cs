@@ -302,9 +302,9 @@ public class ItemManager
         return shape;
     }
 
-    public RuntimeItemReference CreateReference(Guid itemId)
+    public RuntimeItemDefinitionReference CreateReference(Guid itemId)
     {
-        return new RuntimeItemReference(itemId);
+        return new RuntimeItemDefinitionReference(itemId);
     }
 
     public void Log(string s)

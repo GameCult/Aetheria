@@ -46,7 +46,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   command documents through the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared item domain state is still partly built around `RuntimeItemReference`,
+- Shared item domain state is still partly built around `RuntimeItemDefinitionReference`,
   `ItemData`, `BehaviorData`, GUID identity, and runtime catalog metadata. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
@@ -136,7 +136,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
   gives `ItemManager` explicit item lookup authority. Item instances carry
-  `RuntimeItemReference`, an item-definition id, not a process-global catalog
+  `RuntimeItemDefinitionReference`, an item-definition id, not a process-global catalog
   resolver, hydrated projection cache, or durable item-data owner. The old
   `LegacyItemCatalogBoundary`,
   `LegacyItemCatalogCache`, and runtime MessagePack deserializer path have been
@@ -283,11 +283,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Faction` DTOs, including allegiance edges, for the existing simulation shape
   and resolves full name arrays from `aetheria.name_file.v2` records. The
   runtime no longer opens the old `GameData/NameFile/*.msgpack` directory.
-- Item instances carry `RuntimeItemReference`, a narrow item-definition id
+- Item instances carry `RuntimeItemDefinitionReference`, a narrow item-definition id
   resolved by `ItemManager` against the typed runtime item catalog projected
-  from `aetheria-world.cc`. The optional `Projection` on the reference is a
-  hydrated DTO cache for legacy simulation/UI code, not state authority.
-  MessagePack catalog construction no longer grabs global link-resolution
+  from `aetheria-world.cc`. Runtime item references no longer carry hydrated DTO
+  projection caches or global link-resolution authority. MessagePack catalog construction no longer grabs global link-resolution
   authority, and the old generic `RuntimeCatalogLink<T>` abstraction is gone.
 - `Economy.Server` now starts the modern `Aetheria.State` CultMesh node, drains
   pending Unity runtime commits through the typed state applicator, and no
@@ -548,8 +547,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   behavior metadata instead of rebuilding config DTOs for lookup.
   `ItemInstance.ItemId` is the runtime identity surface and
   `ItemInstance.Reference` is the explicit item-reference API;
-  `RuntimeItemReference Data` remains only the backing compatibility field
-  until native typed item instances replace it. The reader interface for this
+  there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
   type selection now uses an explicit runtime catalog map instead of
@@ -1062,8 +1060,11 @@ First Aetheria surfaces to publish:
      API callers use.
    - Done: add `ItemInstance.Reference` as the explicit item-reference API and
      move factories/cargo stacking off direct `.Data` comparisons and
-     assignments. `Data` remains only the serialized/backing compatibility
-     field.
+     assignments.
+   - Done: rename `RuntimeItemReference` to
+     `RuntimeItemDefinitionReference` and delete the `ItemInstance.Data`
+     compatibility field; item instances now expose item identity through
+     `Reference` and `ItemId` only.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.
@@ -1131,8 +1132,8 @@ First Aetheria surfaces to publish:
 - `rg ".Data.Value|SetValue|GetCatalogEntry|IRuntimeItemCatalogReader|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
   `Assets/Scripts` is zero for the old item value/catalog-entry/resolver path.
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
-  item instances expose `ItemId` and `Reference`; direct `Data.ItemId` reads are
-  contained inside the `ItemInstance.ItemId` bridge.
+  item instances expose `ItemId` and `Reference`; the old `ItemInstance.Data`
+  identity field is deleted.
 - Live Unity source has no `RuntimeCatalogEntry` or `RuntimeItemProjectionEntry`.
 - Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
   `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.

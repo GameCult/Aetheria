@@ -10,15 +10,15 @@ public interface INamedEntry
     string EntryName { get; set; }
 }
 
-public class RuntimeItemReference
+public class RuntimeItemDefinitionReference
 {
     public Guid ItemId;
 
-    public RuntimeItemReference()
+    public RuntimeItemDefinitionReference()
     {
     }
 
-    public RuntimeItemReference(Guid itemId)
+    public RuntimeItemDefinitionReference(Guid itemId)
     {
         ItemId = itemId;
     }
