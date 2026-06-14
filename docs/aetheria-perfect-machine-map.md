@@ -165,9 +165,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
   wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
   commodity subtype, hull ownership, and behavior-kind filters read typed
-  catalog rows before any legacy projection is hydrated. Dynamic behavior
-  columns read typed behavior payload fields by legacy payload key instead of
-  hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
+  catalog rows before any legacy projection is hydrated. Active behavior
+  filters store typed behavior kind keys and match typed behavior payloads;
+  `BehaviorData` reflection is only temporary option/column metadata. Dynamic
+  behavior columns read typed behavior payload fields by legacy payload key
+  instead of hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
   ship-hull classification, simple commodity base price, and simple commodity
   stack size also read typed catalog rows; the existing inventory transfer and
   ship-construction paths still own the actual runtime mutation.
@@ -711,6 +713,10 @@ First Aetheria surfaces to publish:
    - Done: move trade menu row presentation for name, mass, price, size,
      hardpoint type, commodity subtype, hull-owned counts, and behavior-kind
      filtering onto typed `TradeRow` fields.
+   - Done: demote TradeMenu behavior filters from `BehaviorData` `Type`
+     authority to typed behavior kind keys matched against typed payloads;
+     `BehaviorData` reflection remains only for temporary filter labels and
+     dynamic column metadata.
    - Done: move trade menu buy price, ship-hull classification, and simple
      commodity stack-size decisions onto typed catalog rows; inventory transfer
      and ship construction remain the runtime mutation owners.
