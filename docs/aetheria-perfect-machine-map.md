@@ -1000,6 +1000,9 @@ First Aetheria surfaces to publish:
    - Done: move TurretController's weapon range/velocity reads off
      `WeaponData` casts and onto `Weapon.EvaluateRange`/`EvaluateVelocity`;
      weapon config fields remain private inputs to the weapon runtime owner.
+   - Done: move projectile, hitscan, beam, lightning, and mine effect damage
+     type reads off `WeaponData` and onto `Weapon.DamageType`; effect managers
+     consume live weapon metadata instead of config DTO fields.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

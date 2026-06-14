@@ -68,6 +68,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
     public WeaponData WeaponData => _data;
+    public DamageType DamageType { get; }
 
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
@@ -90,11 +91,13 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;
+        DamageType = data.DamageType;
     }
 
     public Weapon(WeaponData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
+        DamageType = data.DamageType;
     }
 
     protected virtual void UpdateStats()

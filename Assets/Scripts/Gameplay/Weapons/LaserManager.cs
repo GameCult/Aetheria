@@ -20,6 +20,6 @@ public class LaserManager : InstantWeaponEffectManager
         p.Range = weapon.Range;
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.DamageType = weapon.DamageType;
     }
 }

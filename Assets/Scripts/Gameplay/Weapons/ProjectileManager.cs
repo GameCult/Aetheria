@@ -30,7 +30,7 @@ public class ProjectileManager : InstantWeaponEffectManager
         p.Range = weapon.Range;
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.DamageType = weapon.DamageType;
         p.Zone = source.Entity.Zone;
         p.AirburstDistance = target != null ? length(source.Entity.Position - target.Entity.Position) : (weapon.Range * .75f);
         p.Trail.Clear();

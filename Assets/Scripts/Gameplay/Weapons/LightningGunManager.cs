@@ -17,7 +17,7 @@ public class LightningGunManager : InstantWeaponEffectManager
         p.Range = weapon.Range;
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.DamageType = weapon.DamageType;
         p.Target = target;
         p.Fire();
     }

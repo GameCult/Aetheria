@@ -28,7 +28,7 @@ public class MineManager : InstantWeaponEffectManager
             p.GridObject.Velocity += new Vector3(source.Entity.Velocity.x, 0, source.Entity.Velocity.y);
         p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.DamageType = weapon.DamageType;
         p.GridObject.Zone = source.Entity.Zone;
     }
 }

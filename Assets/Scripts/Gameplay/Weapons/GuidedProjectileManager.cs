@@ -29,7 +29,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Range = weapon.Range;
             p.Penetration = weapon.Penetration;
             p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
+            p.DamageType = weapon.DamageType;
             p.GuidanceCurve = launcher.GuidanceCurve.ToCurve();
             p.LiftCurve = launcher.LiftCurve.ToCurve();
             p.ThrustCurve = launcher.ThrustCurve.ToCurve();
@@ -51,7 +51,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Range = weapon.Range;
             p.Penetration = weapon.Penetration;
             p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
+            p.DamageType = weapon.DamageType;
             p.GuidanceCurve = guidance.GuidanceCurve.ToCurve();
             p.LiftCurve = guidance.LiftCurve.ToCurve();
             p.ThrustCurve = guidance.ThrustCurve.ToCurve();

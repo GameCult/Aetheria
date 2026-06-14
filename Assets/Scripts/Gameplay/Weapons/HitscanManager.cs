@@ -19,7 +19,7 @@ public class HitscanManager : InstantWeaponEffectManager
         p.Damage = weapon.Damage;
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.DamageType = weapon.DamageType;
         p.Zone = source.Entity.Zone;
         p.Fire();
     }
