@@ -161,6 +161,127 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    private void LoadRuntimeLoadoutTemplates(string stateFilePath)
+    {
+        try
+        {
+            var loadouts = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);
+            LoadoutBlueprints.Clear();
+            foreach (var loadout in loadouts)
+            {
+                var blueprint = CreateRuntimeBlueprint(loadout.RootEntity);
+                if (blueprint == null)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(blueprint.Name))
+                    blueprint.Name = loadout.Name;
+
+                LoadoutBlueprints.Add(blueprint);
+            }
+
+            if (LoadoutBlueprints.Count > 0)
+                Debug.Log($"Loaded {LoadoutBlueprints.Count} Aetheria Verse loadout templates from typed state.");
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to load Aetheria Verse loadout templates from typed state: {ex}");
+        }
+    }
+
+    private RuntimeEntityBlueprint CreateRuntimeBlueprint(AetheriaRuntimeEntityLoadoutSnapshot entity)
+    {
+        var hull = CreateEquippableLoadoutItem(entity.Hull);
+        if (hull == null)
+            return null;
+
+        RuntimeEntityBlueprint blueprint = string.Equals(entity.Kind, "orbital", StringComparison.OrdinalIgnoreCase)
+            ? new RuntimeOrbitalEntityBlueprint()
+            : new RuntimeShipBlueprint
+            {
+                Direction = new float2(0, 1)
+            };
+
+        blueprint.Name = entity.Name;
+        blueprint.Faction = ParseLegacyGuidFromReferenceKey(entity.FactionKey, "aetheria.corporation");
+        blueprint.Hull = hull;
+        blueprint.Equipment = CreateEquippableSlots(entity.Equipment);
+        blueprint.CargoBays = CreateEquippableSlots(entity.CargoBays);
+        blueprint.DockingBays = CreateEquippableSlots(entity.DockingBays);
+        blueprint.CargoContents = CreateCargoBayContents(entity.CargoContents);
+        blueprint.DockingBayContents = CreateCargoBayContents(entity.DockingBayContents);
+        blueprint.DockingBayAssignments = entity.DockingBayAssignments.ToArray();
+        blueprint.WeaponGroups = entity.WeaponGroups.Select(group => group.ToArray()).ToArray();
+        blueprint.Children = entity.Children
+            .Select(CreateRuntimeBlueprint)
+            .Where(child => child != null)
+            .ToArray();
+        return blueprint;
+    }
+
+    private (int2 position, EquippableItem item)[] CreateEquippableSlots(
+        IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> slots)
+    {
+        return slots
+            .Select(slot => (position: new int2(slot.X, slot.Y), item: CreateEquippableLoadoutItem(slot.Item)))
+            .Where(slot => slot.item != null)
+            .ToArray();
+    }
+
+    private (int2 position, ItemInstance item)[][] CreateCargoBayContents(
+        IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> bays)
+    {
+        return bays
+            .Select(bay => bay.Items
+                .Select(slot => (position: new int2(slot.X, slot.Y), item: CreateLoadoutItem(slot.Item)))
+                .Where(slot => slot.item != null)
+                .ToArray())
+            .ToArray();
+    }
+
+    private EquippableItem CreateEquippableLoadoutItem(AetheriaRuntimeLoadoutItemSnapshot item)
+    {
+        var instance = CreateLoadoutItem(item) as EquippableItem;
+        if (instance != null && item.Durability > 0)
+            instance.Durability = (float)item.Durability;
+        return instance;
+    }
+
+    private ItemInstance CreateLoadoutItem(AetheriaRuntimeLoadoutItemSnapshot item)
+    {
+        var legacyId = ParseLegacyIdFromReferenceKey(item.ItemKey, "aetheria.item_definition");
+        var typedItem = RuntimeCatalog?.FindItemByLegacyId(legacyId);
+        if (typedItem == null)
+            return null;
+
+        if (typedItem.Stackable)
+            return ItemManager.CreateSimpleCommodityInstance(typedItem, Math.Max(1, item.Quantity));
+
+        var instance = ItemManager.CreateCraftedInstance(typedItem, (float)item.Quality);
+        if (instance is EquippableItem equippable && item.Durability > 0)
+            equippable.Durability = (float)item.Durability;
+        return instance;
+    }
+
+    private static Guid ParseLegacyGuidFromReferenceKey(string key, string documentName)
+    {
+        var legacyId = ParseLegacyIdFromReferenceKey(key, documentName);
+        return Guid.TryParse(legacyId, out var id) ? id : Guid.Empty;
+    }
+
+    private static string ParseLegacyIdFromReferenceKey(string key, string documentName)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return "";
+
+        var prefix = $"{documentName}:legacy:";
+        return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? key.Substring(prefix.Length)
+            : key;
+    }
+
     public static Galaxy CurrentGalaxy;
     public static bool IsTutorial;
     public static AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; private set; }
@@ -819,6 +940,7 @@ public class ActionGameManager : MonoBehaviour
             runtimeItemCatalog,
             Settings.GameplaySettings,
             Debug.Log);
+        LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with

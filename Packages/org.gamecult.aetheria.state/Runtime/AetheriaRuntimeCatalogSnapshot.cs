@@ -566,4 +566,111 @@ namespace GameCult.Aetheria.State.Unity
         public int BindingIndex { get; }
         public string BindingPath { get; }
     }
+
+    public sealed class AetheriaRuntimeLoadoutTemplateSnapshot
+    {
+        public AetheriaRuntimeLoadoutTemplateSnapshot(
+            string name,
+            string ownerPlayerKey,
+            AetheriaRuntimeEntityLoadoutSnapshot rootEntity,
+            string createdAtUtc,
+            string updatedAtUtc)
+        {
+            Name = name;
+            OwnerPlayerKey = ownerPlayerKey;
+            RootEntity = rootEntity;
+            CreatedAtUtc = createdAtUtc;
+            UpdatedAtUtc = updatedAtUtc;
+        }
+
+        public string Name { get; }
+        public string OwnerPlayerKey { get; }
+        public AetheriaRuntimeEntityLoadoutSnapshot RootEntity { get; }
+        public string CreatedAtUtc { get; }
+        public string UpdatedAtUtc { get; }
+    }
+
+    public sealed class AetheriaRuntimeEntityLoadoutSnapshot
+    {
+        public AetheriaRuntimeEntityLoadoutSnapshot(
+            string name,
+            string kind,
+            string factionKey,
+            AetheriaRuntimeLoadoutItemSnapshot hull,
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> equipment,
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> cargoBays,
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> dockingBays,
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> cargoContents,
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> dockingBayContents,
+            IReadOnlyList<int> dockingBayAssignments,
+            IReadOnlyList<IReadOnlyList<int>> weaponGroups,
+            IReadOnlyList<AetheriaRuntimeEntityLoadoutSnapshot> children)
+        {
+            Name = name;
+            Kind = kind;
+            FactionKey = factionKey;
+            Hull = hull;
+            Equipment = equipment;
+            CargoBays = cargoBays;
+            DockingBays = dockingBays;
+            CargoContents = cargoContents;
+            DockingBayContents = dockingBayContents;
+            DockingBayAssignments = dockingBayAssignments;
+            WeaponGroups = weaponGroups;
+            Children = children;
+        }
+
+        public string Name { get; }
+        public string Kind { get; }
+        public string FactionKey { get; }
+        public AetheriaRuntimeLoadoutItemSnapshot Hull { get; }
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> Equipment { get; }
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> CargoBays { get; }
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> DockingBays { get; }
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> CargoContents { get; }
+        public IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> DockingBayContents { get; }
+        public IReadOnlyList<int> DockingBayAssignments { get; }
+        public IReadOnlyList<IReadOnlyList<int>> WeaponGroups { get; }
+        public IReadOnlyList<AetheriaRuntimeEntityLoadoutSnapshot> Children { get; }
+    }
+
+    public sealed class AetheriaRuntimeLoadoutItemSnapshot
+    {
+        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity)
+        {
+            ItemKey = itemKey;
+            Quality = quality;
+            Durability = durability;
+            Quantity = quantity;
+        }
+
+        public string ItemKey { get; }
+        public double Quality { get; }
+        public double Durability { get; }
+        public int Quantity { get; }
+    }
+
+    public sealed class AetheriaRuntimeLoadoutItemSlotSnapshot
+    {
+        public AetheriaRuntimeLoadoutItemSlotSnapshot(int x, int y, AetheriaRuntimeLoadoutItemSnapshot item)
+        {
+            X = x;
+            Y = y;
+            Item = item;
+        }
+
+        public int X { get; }
+        public int Y { get; }
+        public AetheriaRuntimeLoadoutItemSnapshot Item { get; }
+    }
+
+    public sealed class AetheriaRuntimeCargoBayLoadoutSnapshot
+    {
+        public AetheriaRuntimeCargoBayLoadoutSnapshot(IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> items)
+        {
+            Items = items;
+        }
+
+        public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> Items { get; }
+    }
 }

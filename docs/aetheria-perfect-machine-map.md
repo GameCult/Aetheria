@@ -147,8 +147,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
   state through record-key references and typed value slots instead of opaque
   runtime blueprint serialization. Unity's save/loadout UI now projects its
-  in-memory `RuntimeEntityBlueprint` into a typed Verse commit command; the
-  in-memory list remains a UI/session cache, not durable authority.
+  in-memory `RuntimeEntityBlueprint` into a typed Verse commit command, and
+  gameplay boot reads typed loadout templates back from `aetheria-world.cc`
+  through `AetheriaRuntimeCatalogStore` before lowering them into runtime
+  construction blueprints for the restore menu. The in-memory list remains a
+  UI/session cache, not durable authority.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
   `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
   gives `ItemManager` explicit item lookup authority. Item instances carry
@@ -730,6 +733,9 @@ First Aetheria surfaces to publish:
      values.
    - Done: add typed `AetheriaLoadoutTemplate` documents and smoke coverage so
      `.loadout` no longer lacks a durable Verse replacement.
+   - Done: add the Unity runtime read projection for typed loadout templates,
+     so the restore menu can rehydrate saved loadouts from CultCache instead
+     of relying on the in-memory session list after restart.
    - Done: add typed node ports and smoke coverage for run -> zone -> entity
      snapshots so `.zone` no longer lacks a durable Verse replacement graph.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
@@ -1145,8 +1151,10 @@ First Aetheria surfaces to publish:
   replacement, loadout templates as the `.loadout` replacement, and a run ->
   zone -> entity snapshot graph as the `.zone` replacement. The zone smoke
   includes orbit/body rows for generated celestial state, and the entity smoke
-  includes typed simulation stat grids. It also proves `aetheria.runtime_session.v1`
-  is advertised and survives reopen as the typed daemon-session signal.
+  includes typed simulation stat grids. The Unity runtime smoke also proves
+  package-owned readback of typed loadout templates from `.cc` records. It also
+  proves `aetheria.runtime_session.v1` is advertised and survives reopen as the
+  typed daemon-session signal.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from

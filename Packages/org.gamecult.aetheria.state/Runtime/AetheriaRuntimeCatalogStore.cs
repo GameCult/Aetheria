@@ -17,6 +17,7 @@ namespace GameCult.Aetheria.State.Unity
         private const string NameFileSchema = "aetheria.name_file";
         private const string EveSurfaceSchema = "gamecult.eve.surface";
         private const string PlayerSettingsSchema = "aetheria.player_settings";
+        private const string LoadoutTemplateSchema = "aetheria.loadout_template";
         private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
 
         public static AetheriaRuntimeCatalogSnapshot OpenReadOnly(string stateFilePath)
@@ -84,6 +85,27 @@ namespace GameCult.Aetheria.State.Unity
             }
 
             return settings;
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot> ReadLoadoutTemplates(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            var loadouts = new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != LoadoutTemplateSchema)
+                    continue;
+
+                loadouts.Add(ReadLoadoutTemplatePayload(record.Payload));
+            }
+
+            return loadouts
+                .OrderBy(loadout => loadout.Name, StringComparer.Ordinal)
+                .ToArray();
         }
 
         private static Dictionary<string, string> ReadSchemaCatalog(string stateFilePath)
@@ -347,6 +369,24 @@ namespace GameCult.Aetheria.State.Unity
                 input.ActionBarInputs);
         }
 
+        private static AetheriaRuntimeLoadoutTemplateSnapshot ReadLoadoutTemplatePayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            var name = ReadFieldString(ref reader, fields, 0);
+            var ownerPlayerKey = ReadFieldString(ref reader, fields, 1);
+            var rootEntity = ReadFieldEntityLoadout(ref reader, fields, 2);
+            var createdAtUtc = ReadFieldString(ref reader, fields, 3);
+            var updatedAtUtc = ReadFieldString(ref reader, fields, 4);
+            SkipRemaining(ref reader, fields, 5);
+            return new AetheriaRuntimeLoadoutTemplateSnapshot(
+                name,
+                ownerPlayerKey,
+                rootEntity,
+                createdAtUtc,
+                updatedAtUtc);
+        }
+
         private static string ReadFieldString(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? "" : ReadString(ref reader);
@@ -455,6 +495,159 @@ namespace GameCult.Aetheria.State.Unity
             }
 
             return bindings;
+        }
+
+        private static AetheriaRuntimeEntityLoadoutSnapshot ReadFieldEntityLoadout(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return EmptyEntityLoadout();
+            return ReadEntityLoadout(ref reader);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeEntityLoadoutSnapshot> ReadFieldEntityLoadouts(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeEntityLoadoutSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var entities = new AetheriaRuntimeEntityLoadoutSnapshot[count];
+            for (var entity = 0; entity < count; entity++)
+                entities[entity] = ReadEntityLoadout(ref reader);
+            return entities;
+        }
+
+        private static AetheriaRuntimeEntityLoadoutSnapshot ReadEntityLoadout(ref MessagePackReader reader)
+        {
+            var fields = reader.ReadArrayHeader();
+            var name = ReadFieldString(ref reader, fields, 0);
+            var kind = ReadFieldString(ref reader, fields, 1);
+            var factionKey = ReadFieldString(ref reader, fields, 2);
+            var hull = ReadFieldLoadoutItem(ref reader, fields, 3);
+            var equipment = ReadFieldLoadoutItemSlots(ref reader, fields, 4);
+            var cargoBays = ReadFieldLoadoutItemSlots(ref reader, fields, 5);
+            var dockingBays = ReadFieldLoadoutItemSlots(ref reader, fields, 6);
+            var cargoContents = ReadFieldCargoBayLoadouts(ref reader, fields, 7);
+            var dockingBayContents = ReadFieldCargoBayLoadouts(ref reader, fields, 8);
+            var dockingBayAssignments = ReadFieldInt32Array(ref reader, fields, 9);
+            var weaponGroups = ReadFieldInt32Arrays(ref reader, fields, 10);
+            var children = ReadFieldEntityLoadouts(ref reader, fields, 11);
+            SkipRemaining(ref reader, fields, 12);
+            return new AetheriaRuntimeEntityLoadoutSnapshot(
+                name,
+                kind,
+                factionKey,
+                hull,
+                equipment,
+                cargoBays,
+                dockingBays,
+                cargoContents,
+                dockingBayContents,
+                dockingBayAssignments,
+                weaponGroups,
+                children);
+        }
+
+        private static AetheriaRuntimeEntityLoadoutSnapshot EmptyEntityLoadout()
+        {
+            return new AetheriaRuntimeEntityLoadoutSnapshot(
+                "",
+                "",
+                "",
+                EmptyLoadoutItem(),
+                Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>(),
+                Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>(),
+                Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>(),
+                Array.Empty<AetheriaRuntimeCargoBayLoadoutSnapshot>(),
+                Array.Empty<AetheriaRuntimeCargoBayLoadoutSnapshot>(),
+                Array.Empty<int>(),
+                Array.Empty<IReadOnlyList<int>>(),
+                Array.Empty<AetheriaRuntimeEntityLoadoutSnapshot>());
+        }
+
+        private static AetheriaRuntimeLoadoutItemSnapshot ReadFieldLoadoutItem(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return EmptyLoadoutItem();
+            var itemFields = reader.ReadArrayHeader();
+            var itemKey = ReadFieldString(ref reader, itemFields, 0);
+            var quality = ReadFieldDouble(ref reader, itemFields, 1, 1);
+            var durability = ReadFieldDouble(ref reader, itemFields, 2, 1);
+            var quantity = ReadFieldInt32(ref reader, itemFields, 3);
+            SkipRemaining(ref reader, itemFields, 4);
+            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity);
+        }
+
+        private static AetheriaRuntimeLoadoutItemSnapshot EmptyLoadoutItem()
+        {
+            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> ReadFieldLoadoutItemSlots(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var slots = new AetheriaRuntimeLoadoutItemSlotSnapshot[count];
+            for (var slot = 0; slot < count; slot++)
+                slots[slot] = ReadLoadoutItemSlot(ref reader);
+            return slots;
+        }
+
+        private static AetheriaRuntimeLoadoutItemSlotSnapshot ReadLoadoutItemSlot(ref MessagePackReader reader)
+        {
+            var slotFields = reader.ReadArrayHeader();
+            var position = ReadFieldGridCoord(ref reader, slotFields, 0);
+            var item = ReadFieldLoadoutItem(ref reader, slotFields, 1);
+            SkipRemaining(ref reader, slotFields, 2);
+            return new AetheriaRuntimeLoadoutItemSlotSnapshot(position.X, position.Y, item);
+        }
+
+        private static GridCoord ReadFieldGridCoord(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return new GridCoord(0, 0);
+            var coordFields = reader.ReadArrayHeader();
+            var x = ReadFieldInt32(ref reader, coordFields, 0);
+            var y = ReadFieldInt32(ref reader, coordFields, 1);
+            SkipRemaining(ref reader, coordFields, 2);
+            return new GridCoord(x, y);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> ReadFieldCargoBayLoadouts(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeCargoBayLoadoutSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var bays = new AetheriaRuntimeCargoBayLoadoutSnapshot[count];
+            for (var bay = 0; bay < count; bay++)
+            {
+                var bayFields = reader.ReadArrayHeader();
+                var items = ReadFieldLoadoutItemSlots(ref reader, bayFields, 0);
+                SkipRemaining(ref reader, bayFields, 1);
+                bays[bay] = new AetheriaRuntimeCargoBayLoadoutSnapshot(items);
+            }
+
+            return bays;
+        }
+
+        private static IReadOnlyList<int> ReadFieldInt32Array(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<int>();
+            var count = reader.ReadArrayHeader();
+            var values = new int[count];
+            for (var item = 0; item < count; item++)
+                values[item] = reader.ReadInt32();
+            return values;
+        }
+
+        private static IReadOnlyList<IReadOnlyList<int>> ReadFieldInt32Arrays(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<IReadOnlyList<int>>();
+            var count = reader.ReadArrayHeader();
+            var values = new IReadOnlyList<int>[count];
+            for (var item = 0; item < count; item++)
+            {
+                var groupCount = reader.ReadArrayHeader();
+                var group = new int[groupCount];
+                for (var groupItem = 0; groupItem < groupCount; groupItem++)
+                    group[groupItem] = reader.ReadInt32();
+                values[item] = group;
+            }
+
+            return values;
         }
 
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadFieldShapeCells(ref MessagePackReader reader, int fields, int index)
@@ -858,6 +1051,19 @@ namespace GameCult.Aetheria.State.Unity
             public IReadOnlyList<AetheriaRuntimeInputBindingOverride> BindingOverrides { get; }
 
             public IReadOnlyList<string> ActionBarInputs { get; }
+        }
+
+        private readonly struct GridCoord
+        {
+            public GridCoord(int x, int y)
+            {
+                X = x;
+                Y = y;
+            }
+
+            public int X { get; }
+
+            public int Y { get; }
         }
     }
 }
