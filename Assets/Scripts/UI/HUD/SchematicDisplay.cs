@@ -259,7 +259,7 @@ public class SchematicDisplay : MonoBehaviour
         if (typedItem != null && typedItem.Durability > 0)
             return (float)typedItem.Durability;
 
-        return _entity.ItemManager.GetData(item).Durability;
+        return Math.Max(item.Durability, 1f);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)

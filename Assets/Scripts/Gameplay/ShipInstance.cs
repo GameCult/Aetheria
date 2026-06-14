@@ -143,7 +143,7 @@ public class ShipInstance : EntityInstance
         if (typedItem != null && typedItem.Durability > 0)
             return (float)typedItem.Durability;
 
-        return Entity.ItemManager.GetData(item).Durability;
+        return Math.Max(item.Durability, 1f);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)

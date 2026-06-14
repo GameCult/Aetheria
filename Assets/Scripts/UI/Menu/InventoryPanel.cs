@@ -874,7 +874,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         if (typedItem != null && typedItem.Durability > 0)
             return (float)typedItem.Durability;
 
-        return _displayedEntity.ItemManager.GetData(item).Durability;
+        return Math.Max(item.Durability, 1f);
     }
 
     private Shape GetItemShape(ItemInstance item)

@@ -405,7 +405,7 @@ public class PropertiesPanel : MonoBehaviour
 		if (typedItem != null && typedItem.Durability > 0)
 			return (float)typedItem.Durability;
 
-		return GameManager.ItemManager.GetData(item).Durability;
+		return Math.Max(item.Durability, 1f);
 	}
 
 	private static AetheriaRuntimeCatalogItem FindTypedPropertyItem(ItemInstance item)

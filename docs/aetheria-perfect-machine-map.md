@@ -91,13 +91,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`.
-  Hull and item durability percentages use typed max durability before falling
-  back to legacy `ItemData.Durability`.
-  Ship thruster VFX emission scaling also uses typed max durability before
-  falling back to legacy `ItemData.Durability`.
+  Hull and item durability percentages use typed max durability only; incomplete
+  typed rows use current runtime durability as the generic denominator instead
+  of falling back to legacy `ItemData.Durability`.
+  Ship thruster VFX emission scaling also uses typed max durability only.
   Runtime weapon behavior still owns ammo counts, active range, cooldowns,
-  temperature, and durability display until those session facts have typed
-  runtime surfaces.
+  temperature, and current durability values until those session facts have
+  typed runtime surfaces.
 - `Aetheria.State` now exposes typed node put/get ports for run state, zone
   state, and entity snapshots. The state smoke writes a run referencing a zone,
   a zone referencing an entity snapshot, and an entity snapshot carrying
@@ -162,7 +162,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Inventory cargo cell tint now uses typed hardpoint facets only; incomplete
   typed rows receive the generic tint instead of falling back to legacy
   `EquippableItemData.HardpointType`. Inventory HUD durability tint uses typed
-  max durability before falling back to legacy `ItemData.Durability`.
+  max durability only, with current runtime durability as the generic
+  denominator for incomplete typed rows.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid; final fit and equip acceptance still belong to
   `ItemFits`, `TryEquip`, and inventory mutation paths until those simulation

@@ -66,6 +66,10 @@ var weaponItems = items.Count(item =>
     !string.IsNullOrWhiteSpace(item.WeaponType) &&
     !string.IsNullOrWhiteSpace(item.WeaponRange) &&
     !string.IsNullOrWhiteSpace(item.WeaponCaliber));
+var maxDurabilityItems = items
+    .Where(item => !string.IsNullOrWhiteSpace(item.HullType) || !string.IsNullOrWhiteSpace(item.WeaponType))
+    .ToArray();
+var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
@@ -128,6 +132,16 @@ if (interiorShapeItems == 0)
 if (hardpointHostItems == 0 || hardpointCount == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any hull hardpoints.");
+}
+
+var missingMaxDurability = maxDurabilityItems
+    .Where(item => item.Durability <= 0)
+    .Select(item => item.Name)
+    .ToArray();
+if (missingMaxDurability.Length > 0)
+{
+    throw new InvalidOperationException(
+        $"Typed hull/weapon max durability missing for: {string.Join(", ", missingMaxDurability)}.");
 }
 
 foreach (var item in items.Where(item => item.Hardpoints.Length > 0))
@@ -299,6 +313,7 @@ Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
+Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");
