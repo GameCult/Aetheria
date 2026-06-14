@@ -1041,6 +1041,10 @@ First Aetheria surfaces to publish:
      `AsteroidBeltData`; run checkpoint commits now project `Planet` and
      `AsteroidBelt` runtime wrappers, including body resources, asteroid
      runtime damage/respawn/miner accumulators, and gas/sun visual fields.
+   - Done: move visited-sector summary counts off `RuntimeZoneBlueprint`
+     body/entity DTOs; `SectorRenderer` now counts planets, belts, gas giants,
+     stars, stations, turrets, and ships from `GalaxyZone.Contents` runtime
+     wrappers and live entities.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
@@ -1336,6 +1340,9 @@ First Aetheria surfaces to publish:
   can apply them into canonical typed settings/run/zone/entity state, and
   commands are cleared after application. It also proves renderer-emitted Eve
   commands are queued as typed command envelopes separately from state commits.
+- Current Unity batchmode compile probes are blocked while another Unity editor
+  instance has `E:/Projects/Aetheria` open; typed state builds and smokes remain
+  the available verification until the editor lock is released.
 - Unity batchmode compile with Editor `6000.4.2f1` returned cleanly after the
   runtime catalog resolver cut; `Logs/codex-unity-compile.log` has no compiler
   error hits.

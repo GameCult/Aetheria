@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using GameCult.Aetheria.State.Unity;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -73,35 +72,37 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
             Properties.AddProperty("Mass", () => ActionGameManager.RuntimePlayerSettings.Format(mass));
             Properties.AddProperty("Radius", () => ActionGameManager.RuntimePlayerSettings.Format(radius));
-            if (zone.RuntimeBlueprint == null)
+            if (zone.Contents == null)
             {
                 Properties.AddProperty(() => "Has not been visited");
             }
             else
             {
-                var planetCount = zone.RuntimeBlueprint.Planets.Count(body => body is PlanetData).ToString();
+                var runtimeZone = zone.Contents;
+
+                var planetCount = runtimeZone.PlanetInstances.Values.Count(body => !(body is GasGiant)).ToString();
                 Properties.AddProperty("Planets", () => planetCount);
 
-                var beltCount = zone.RuntimeBlueprint.Planets.Count(body => body is AsteroidBeltData).ToString();
+                var beltCount = runtimeZone.AsteroidBelts.Count.ToString();
                 Properties.AddProperty("Asteroid Belts", () => beltCount);
 
-                var giantCount = zone.RuntimeBlueprint.Planets.Count(body => body is GasGiantData && !(body is SunData)).ToString();
+                var giantCount = runtimeZone.PlanetInstances.Values.Count(body => body is GasGiant && !(body is Sun)).ToString();
                 Properties.AddProperty("Gas Giants", () => giantCount);
 
-                var starCount = zone.RuntimeBlueprint.Planets.Count(body => body is SunData).ToString();
+                var starCount = runtimeZone.PlanetInstances.Values.Count(body => body is Sun).ToString();
                 Properties.AddProperty("Stars", () => starCount);
                 
-                var stationCount = zone.RuntimeBlueprint.Entities
+                var stationCount = runtimeZone.Entities
                     .Count(entity => HasHullType(entity, HullType.Station))
                     .ToString();
                 Properties.AddProperty("Stations", () => stationCount);
                 
-                var turretCount = zone.RuntimeBlueprint.Entities
+                var turretCount = runtimeZone.Entities
                     .Count(entity => HasHullType(entity, HullType.Turret))
                     .ToString();
                 Properties.AddProperty("Turrets", () => turretCount);
                 
-                var shipCount = zone.RuntimeBlueprint.Entities
+                var shipCount = runtimeZone.Entities
                     .Count(entity => HasHullType(entity, HullType.Ship))
                     .ToString();
                 Properties.AddProperty("Ships", () => shipCount);
@@ -114,19 +115,11 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         // });
     }
 
-    private bool HasHullType(RuntimeEntityBlueprint entity, HullType hullType)
+    private bool HasHullType(Entity entity, HullType hullType)
     {
-        var typedItem = FindTypedHull(entity);
+        var typedItem = entity?.ItemManager.GetRuntimeItem(entity.Hull);
         return typedItem != null &&
                string.Equals(typedItem.HullType, hullType.ToString(), StringComparison.Ordinal);
-    }
-
-    private static AetheriaRuntimeCatalogItem FindTypedHull(RuntimeEntityBlueprint entity)
-    {
-        var itemId = entity?.Hull?.ItemId ?? Guid.Empty;
-        return itemId == Guid.Empty
-            ? null
-            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 
     // private IEnumerator AnimatePath()
