@@ -1058,6 +1058,10 @@ First Aetheria surfaces to publish:
    - Done: remove public `GasGiantData`/`SunData` handles from runtime wrappers;
      wave and light calculations now use copied wrapper fields after
      construction.
+   - Done: move saved loadout template ownership off `RuntimeEntityBlueprint`;
+     `ActionGameManager` keeps typed `AetheriaRuntimeLoadoutTemplateSnapshot`
+     documents and projects blueprints only for pricing, instantiation, and
+     commit boundaries.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore

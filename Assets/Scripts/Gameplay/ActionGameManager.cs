@@ -166,21 +166,11 @@ public class ActionGameManager : MonoBehaviour
         try
         {
             var loadouts = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);
-            LoadoutBlueprints.Clear();
-            foreach (var loadout in loadouts)
-            {
-                var blueprint = CreateRuntimeBlueprint(loadout.RootEntity);
-                if (blueprint == null)
-                    continue;
+            LoadoutTemplates.Clear();
+            LoadoutTemplates.AddRange(loadouts);
 
-                if (string.IsNullOrWhiteSpace(blueprint.Name))
-                    blueprint.Name = loadout.Name;
-
-                LoadoutBlueprints.Add(blueprint);
-            }
-
-            if (LoadoutBlueprints.Count > 0)
-                Debug.Log($"Loaded {LoadoutBlueprints.Count} Aetheria Verse loadout templates from typed state.");
+            if (LoadoutTemplates.Count > 0)
+                Debug.Log($"Loaded {LoadoutTemplates.Count} Aetheria Verse loadout templates from typed state.");
         }
         catch (FileNotFoundException)
         {
@@ -189,6 +179,14 @@ public class ActionGameManager : MonoBehaviour
         {
             Debug.LogWarning($"Failed to load Aetheria Verse loadout templates from typed state: {ex}");
         }
+    }
+
+    public RuntimeEntityBlueprint CreateRuntimeBlueprint(AetheriaRuntimeLoadoutTemplateSnapshot template)
+    {
+        var blueprint = CreateRuntimeBlueprint(template.RootEntity);
+        if (blueprint != null && string.IsNullOrWhiteSpace(blueprint.Name))
+            blueprint.Name = template.Name;
+        return blueprint;
     }
 
     private RuntimeEntityBlueprint CreateRuntimeBlueprint(AetheriaRuntimeEntityLoadoutSnapshot entity)
@@ -407,7 +405,7 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public List<RuntimeEntityBlueprint> LoadoutBlueprints { get; } = new List<RuntimeEntityBlueprint>();
+    public List<AetheriaRuntimeLoadoutTemplateSnapshot> LoadoutTemplates { get; } = new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -1281,19 +1279,92 @@ public class ActionGameManager : MonoBehaviour
 
     public void QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprint blueprint)
     {
-        LoadoutBlueprints.RemoveAll(loadout => loadout.Name == blueprint.Name);
-        LoadoutBlueprints.Add(blueprint);
+        var loadout = ProjectLoadoutTemplate(blueprint);
+        LoadoutTemplates.RemoveAll(template => template.Name == loadout.Name);
+        LoadoutTemplates.Add(CreateRuntimeLoadoutTemplateSnapshot(loadout));
         try
         {
             var commit = AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate(
                 RuntimeStateFilePath,
-                ProjectLoadoutTemplate(blueprint));
+                loadout);
             Debug.Log($"Queued Aetheria Verse loadout commit: {commit.Path}");
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to queue Aetheria Verse loadout commit: {ex}");
         }
+    }
+
+    private static AetheriaRuntimeLoadoutTemplateSnapshot CreateRuntimeLoadoutTemplateSnapshot(
+        AetheriaRuntimeLoadoutTemplateCommit template)
+    {
+        var timestamp = DateTime.UtcNow.ToString("O");
+        return new AetheriaRuntimeLoadoutTemplateSnapshot(
+            template.Name ?? "",
+            template.OwnerPlayerKey ?? "",
+            CreateRuntimeEntityLoadoutSnapshot(template.RootEntity),
+            timestamp,
+            timestamp);
+    }
+
+    private static AetheriaRuntimeEntityLoadoutSnapshot CreateRuntimeEntityLoadoutSnapshot(
+        AetheriaRuntimeEntityLoadoutCommit entity)
+    {
+        entity ??= new AetheriaRuntimeEntityLoadoutCommit();
+        return new AetheriaRuntimeEntityLoadoutSnapshot(
+            entity.Name ?? "",
+            entity.Kind ?? "",
+            ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            CreateRuntimeLoadoutItemSnapshot(entity.Hull),
+            CreateRuntimeLoadoutItemSlotSnapshots(entity.Equipment),
+            CreateRuntimeLoadoutItemSlotSnapshots(entity.CargoBays),
+            CreateRuntimeLoadoutItemSlotSnapshots(entity.DockingBays),
+            CreateRuntimeCargoBayLoadoutSnapshots(entity.CargoContents),
+            CreateRuntimeCargoBayLoadoutSnapshots(entity.DockingBayContents),
+            (entity.DockingBayAssignments ?? Array.Empty<int>()).ToArray(),
+            (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>())
+                .Select(group => (IReadOnlyList<int>)group.ToArray())
+                .ToArray(),
+            (entity.Children ?? Array.Empty<AetheriaRuntimeEntityLoadoutCommit>())
+                .Select(CreateRuntimeEntityLoadoutSnapshot)
+                .ToArray());
+    }
+
+    private static AetheriaRuntimeLoadoutItemSnapshot CreateRuntimeLoadoutItemSnapshot(
+        AetheriaRuntimeLoadoutItemCommit item)
+    {
+        item ??= new AetheriaRuntimeLoadoutItemCommit();
+        return new AetheriaRuntimeLoadoutItemSnapshot(
+            ReferenceKey("aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
+            item.Quality,
+            item.Durability,
+            item.Quantity,
+            item.Enabled);
+    }
+
+    private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> CreateRuntimeLoadoutItemSlotSnapshots(
+        IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> slots)
+    {
+        return (slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            .Select(slot => new AetheriaRuntimeLoadoutItemSlotSnapshot(
+                slot.X,
+                slot.Y,
+                CreateRuntimeLoadoutItemSnapshot(slot.Item)))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot> CreateRuntimeCargoBayLoadoutSnapshots(
+        IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit> cargoBays)
+    {
+        return (cargoBays ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+            .Select(bay => new AetheriaRuntimeCargoBayLoadoutSnapshot(
+                CreateRuntimeLoadoutItemSlotSnapshots(bay.Items)))
+            .ToArray();
+    }
+
+    private static string ReferenceKey(string prefix, string legacyId)
+    {
+        return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{prefix}:{legacyId}";
     }
 
     private void OnApplicationQuit() => QueueRunCheckpoint("application-quit");
@@ -1852,7 +1923,6 @@ public class ActionGameManager : MonoBehaviour
                 Zone,
                 loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),
                 true);
-            // RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, LoadoutBlueprints.First(x => x.Name == StarterShipTemplate), true);
             ((Ship) ship).IsPlayerShip = true;
             ship.Position = float3.zero;
             ship.Zone = Zone;

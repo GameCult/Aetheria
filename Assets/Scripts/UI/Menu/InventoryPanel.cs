@@ -176,30 +176,37 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         GameManager.QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprintProjector.CaptureBlueprint(_displayedEntity));
                     });
 
-                if (GameManager.LoadoutBlueprints.Any())
+                if (GameManager.LoadoutTemplates.Any())
                 {
                     ContextMenu.AddDropdown("Restore Loadout",
-                        GameManager.LoadoutBlueprints.Select<RuntimeEntityBlueprint, (string text, Action action, bool enabled)>(blueprint =>
-                            (
-                                $"{blueprint.Name} - {blueprint.Price(GameManager.ItemManager):n0}", () =>
-                                {
-                                    var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
-                                    entity.SetParent(GameManager.DockedEntity);
-                                    GameManager.Credits -= blueprint.Price(GameManager.ItemManager);
-                                    GameManager.CurrentEntity = entity;
-                                    if(entity is Ship ship)
-                                    {
-                                        ship.IsPlayerShip = true;
-                                        GameManager.DockingBay.DockedShip = ship;
-                                    }
-                                    Display(entity);
-                                }, blueprint.Price(GameManager.ItemManager) < GameManager.Credits
-                                )));
+                        GameManager.LoadoutTemplates.Select(LoadoutOption));
                 }
 
                 ContextMenu.Show();
             });
         }
+    }
+
+    private (string text, Action action, bool enabled) LoadoutOption(AetheriaRuntimeLoadoutTemplateSnapshot template)
+    {
+        var blueprint = GameManager.CreateRuntimeBlueprint(template);
+        if (blueprint == null)
+            return ($"{template.Name} - unavailable", () => { }, false);
+
+        var price = blueprint.Price(GameManager.ItemManager);
+        return ($"{template.Name} - {price:n0}", () =>
+        {
+            var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
+            entity.SetParent(GameManager.DockedEntity);
+            GameManager.Credits -= price;
+            GameManager.CurrentEntity = entity;
+            if(entity is Ship ship)
+            {
+                ship.IsPlayerShip = true;
+                GameManager.DockingBay.DockedShip = ship;
+            }
+            Display(entity);
+        }, price < GameManager.Credits);
     }
 
     private void Update()
