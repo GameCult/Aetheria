@@ -325,13 +325,13 @@ public class Zone
         var result = -PowerPulse(length(position)/(Blueprint.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
         foreach (var body in PlanetInstances.Values)
         {
-            var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
+            var p = position - body.Orbit.Position;
             var distSqr = lengthsq(p);
             var gravityRadius = body.GravityWellRadius;
             if (distSqr < gravityRadius*gravityRadius)
             {
                 var depth = body.GravityWellDepth;
-                result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
+                result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.GravityDepthExponent) * depth;
             }
 
             if (body is GasGiant gas)
@@ -340,7 +340,7 @@ public class Zone
                 if(distSqr < waveRadius*waveRadius)
                 {
                     var depth = gas.GravityWavesDepth;
-                    var frequency = Settings.WaveFrequency.Evaluate(body.BodyData.Mass);
+                    var frequency = Settings.WaveFrequency.Evaluate(body.Mass);
                     var speed = gas.GravityWavesSpeed;
                     result -= RadialWaves(sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
                 }
@@ -407,7 +407,14 @@ public class Planet
 {
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
-    public BodyData BodyData;
+    private readonly BodyData _data;
+    public Guid ID { get; }
+    public Guid OrbitId { get; }
+    public float Mass { get; }
+    public float BodyRadiusMultiplier { get; }
+    public float GravityRadiusMultiplier { get; }
+    public float GravityDepthMultiplier { get; }
+    public float GravityDepthExponent { get; }
     public float GravityWellDepth;
     public float GravityWellRadius;
     public float BodyRadius;
@@ -416,16 +423,25 @@ public class Planet
     {
         Settings = settings;
         Orbit = orbit;
-        BodyData = data;
+        _data = data;
+        ID = data.ID;
+        OrbitId = data.Orbit;
+        Mass = data.Mass;
+        BodyRadiusMultiplier = data.BodyRadiusMultiplier;
+        GravityRadiusMultiplier = data.GravityRadiusMultiplier;
+        GravityDepthMultiplier = data.GravityDepthMultiplier;
+        GravityDepthExponent = data.GravityDepthExponent;
         CalculateProperties();
     }
 
     public void CalculateProperties()
     {
-        BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
-        GravityWellRadius = Settings.GravityRadius.Evaluate(BodyData.Mass) * BodyData.GravityRadiusMultiplier;
-        GravityWellDepth = Settings.GravityDepth.Evaluate(BodyData.Mass) * BodyData.GravityDepthMultiplier;
+        BodyRadius = Settings.BodyRadius.Evaluate(Mass) * BodyRadiusMultiplier;
+        GravityWellRadius = Settings.GravityRadius.Evaluate(Mass) * GravityRadiusMultiplier;
+        GravityWellDepth = Settings.GravityDepth.Evaluate(Mass) * GravityDepthMultiplier;
     }
+
+    public BodyData ToData() => _data;
 }
 
 public class GasGiant : Planet
@@ -444,9 +460,9 @@ public class GasGiant : Planet
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(BodyData.Mass) * GasGiantData.WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(BodyData.Mass) * GasGiantData.WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(BodyData.Mass) * GasGiantData.WaveSpeedMultiplier;
+        GravityWavesDepth = Settings.WaveDepth.Evaluate(Mass) * GasGiantData.WaveDepthMultiplier;
+        GravityWavesRadius = Settings.WaveRadius.Evaluate(Mass) * GasGiantData.WaveRadiusMultiplier;
+        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(Mass) * GasGiantData.WaveSpeedMultiplier;
     }
 }
 
@@ -464,7 +480,7 @@ public class Sun : GasGiant
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        LightRadius = Settings.LightRadius.Evaluate(BodyData.Mass) * SunData.LightRadiusMultiplier;
+        LightRadius = Settings.LightRadius.Evaluate(Mass) * SunData.LightRadiusMultiplier;
     }
 }
 

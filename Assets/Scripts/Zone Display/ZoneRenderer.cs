@@ -415,7 +415,7 @@ public class ZoneRenderer : MonoBehaviour
             // if (depth > _maxDepth) _maxDepth = depth;
             planet.GravityWell.material.SetFloat("_Depth", planetInstance.GravityWellDepth);
             planet.Icon.transform.position = new Vector3(0, -planetInstance.GravityWellDepth, 0);
-            planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.BodyData.Mass) * Vector3.one;
+            planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.Mass) * Vector3.one;
 
 
             Planets[planetData.ID] = planet;
@@ -510,7 +510,7 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var planet in Planets)
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.BodyData.Orbit);
+            var p = Zone.GetOrbitPosition(planetInstance.OrbitId);
             var height = Zone.GetHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
@@ -521,7 +521,7 @@ public class ZoneRenderer : MonoBehaviour
                     Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit].Parent) - p);
+                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.OrbitId].Parent) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }

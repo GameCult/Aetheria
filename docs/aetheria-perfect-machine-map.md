@@ -1031,6 +1031,9 @@ First Aetheria surfaces to publish:
      off `AsteroidBeltData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
      consume `AsteroidBelt` runtime asteroid/resource/orbit properties, with
      `AsteroidBelt.ToData()` retained for future capture/migration cuts.
+   - Done: move live planet mass/orbit/gravity reads off `BodyData`; `Zone`
+     gravity evaluation and `ZoneRenderer` consume `Planet` runtime properties,
+     with `Planet.ToData()` retained as the temporary capture/config bridge.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
