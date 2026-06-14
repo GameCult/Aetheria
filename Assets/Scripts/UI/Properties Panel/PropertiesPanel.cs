@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
@@ -378,7 +379,7 @@ public class PropertiesPanel : MonoBehaviour
 		if (typedItem != null && typedItem.Durability > 0)
 			return (float)typedItem.Durability;
 
-		return Math.Max(item.Durability, 1f);
+		return item is EquippableItem equippable ? Math.Max(equippable.Durability, 1f) : 1f;
 	}
 
 	private static (float minimum, float maximum) GetThermalRange(AetheriaRuntimeCatalogItem typedItem)

@@ -75,6 +75,12 @@ public class SchematicListElement : MonoBehaviour
         out WeaponFireType fireTypes,
         out WeaponModifiers modifiers)
     {
+        caliber = default;
+        range = default;
+        type = default;
+        fireTypes = default;
+        modifiers = default;
+
         return
             Enum.TryParse(weapon.WeaponCaliber, out caliber) &&
             Enum.TryParse(weapon.WeaponRange, out range) &&

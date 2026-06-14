@@ -55,7 +55,7 @@ public class LoadoutGenerator
     //     PriceExponent = priceExponent;
     // }
     
-    public RuntimeEntityBlueprint GenerateShipLoadout(Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
+    public EntityConstructionBlueprint GenerateShipLoadout(Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)
     {
         var hullRow = RandomHull(HullType.Ship, hullFilter);
         if(hullRow==null)
@@ -69,10 +69,10 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity);
+        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity);
     }
 
-    public RuntimeOrbitalEntityBlueprint GenerateTurretLoadout()
+    public OrbitalEntityConstructionBlueprint GenerateTurretLoadout()
     {
         var hullRow = RandomHull(HullType.Turret);
         if(hullRow==null)
@@ -84,10 +84,10 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
+        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity) as OrbitalEntityConstructionBlueprint;
     }
 
-    public RuntimeOrbitalEntityBlueprint GenerateStationLoadout()
+    public OrbitalEntityConstructionBlueprint GenerateStationLoadout()
     {
         var hullRow = RandomHull(HullType.Station);
         if(hullRow==null)
@@ -130,7 +130,7 @@ public class LoadoutGenerator
 
         entity.CanTow = hullRow.HullCanTow;
         
-        return RuntimeEntityBlueprintProjector.CaptureBlueprint(entity) as RuntimeOrbitalEntityBlueprint;
+        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity) as OrbitalEntityConstructionBlueprint;
     }
 
     public AetheriaRuntimeCatalogItem RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)

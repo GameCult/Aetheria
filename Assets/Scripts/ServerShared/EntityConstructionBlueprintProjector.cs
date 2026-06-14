@@ -4,20 +4,20 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.Mathematics;
 
-public static class RuntimeEntityBlueprintProjector
+public static class EntityConstructionBlueprintProjector
 {
-    public static RuntimeEntityBlueprint CaptureBlueprint(Entity entity)
+    public static EntityConstructionBlueprint CaptureBlueprint(Entity entity)
     {
-        RuntimeEntityBlueprint blueprint;
+        EntityConstructionBlueprint blueprint;
         if (entity is OrbitalEntity orbital)
-            blueprint = new RuntimeOrbitalEntityBlueprint
+            blueprint = new OrbitalEntityConstructionBlueprint
             {
                 Orbit = orbital.OrbitId,
                 SecurityLevel = orbital.SecurityLevel,
                 SecurityRadius = orbital.SecurityRadius
             };
         else if (entity is Ship ship)
-            blueprint = new RuntimeShipBlueprint
+            blueprint = new ShipConstructionBlueprint
             {
                 Position = ship.Position,
                 Direction = ship.Direction,
@@ -41,19 +41,19 @@ public static class RuntimeEntityBlueprintProjector
         return blueprint;
     }
 
-    public static Entity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, RuntimeEntityBlueprint blueprint, bool instantiate = false)
+    public static Entity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint, bool instantiate = false)
     {
         blueprint.Settings ??= itemManager.GameplaySettings.DefaultEntitySettings.Copy();
         return blueprint switch
         {
-            RuntimeShipBlueprint shipBlueprint => InstantiateFromBlueprint(itemManager, zone, shipBlueprint, instantiate),
-            RuntimeOrbitalEntityBlueprint orbitalBlueprint => InstantiateFromBlueprint(itemManager, zone, orbitalBlueprint, instantiate),
+            ShipConstructionBlueprint shipBlueprint => InstantiateFromBlueprint(itemManager, zone, shipBlueprint, instantiate),
+            OrbitalEntityConstructionBlueprint orbitalBlueprint => InstantiateFromBlueprint(itemManager, zone, orbitalBlueprint, instantiate),
             _ => null
         };
     }
 
 
-    private static Ship InstantiateFromBlueprint(ItemManager itemManager, Zone zone, RuntimeShipBlueprint blueprint, bool instantiate = false)
+    private static Ship InstantiateFromBlueprint(ItemManager itemManager, Zone zone, ShipConstructionBlueprint blueprint, bool instantiate = false)
     {
         
         var entity = new Ship(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.Settings);
@@ -64,7 +64,7 @@ public static class RuntimeEntityBlueprintProjector
         return entity;
     }
 
-    private static OrbitalEntity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, RuntimeOrbitalEntityBlueprint blueprint, bool instantiate = false)
+    private static OrbitalEntity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, OrbitalEntityConstructionBlueprint blueprint, bool instantiate = false)
     {
         var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.Orbit, blueprint.Settings);
         Restore(itemManager, zone, blueprint, entity, instantiate);
@@ -74,7 +74,7 @@ public static class RuntimeEntityBlueprintProjector
         return entity;
     }
 
-    private static void Restore(ItemManager itemManager, Zone zone, RuntimeEntityBlueprint blueprint, Entity entity, bool instantiate = false)
+    private static void Restore(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint, Entity entity, bool instantiate = false)
     {
         entity.Name = blueprint.Name;
         entity.Faction = zone?.Galaxy?.ResolveFaction(blueprint.Faction);
@@ -112,14 +112,14 @@ public static class RuntimeEntityBlueprintProjector
     }
 }
 
-public class RuntimeShipBlueprint : RuntimeEntityBlueprint
+public class ShipConstructionBlueprint : EntityConstructionBlueprint
 {
     public float3 Position;
     public float2 Direction;
     public bool IsPlayerShip;
 }
 
-public class RuntimeOrbitalEntityBlueprint : RuntimeEntityBlueprint
+public class OrbitalEntityConstructionBlueprint : EntityConstructionBlueprint
 {
     public Guid Orbit;
     public int Story = -1;
@@ -127,7 +127,7 @@ public class RuntimeOrbitalEntityBlueprint : RuntimeEntityBlueprint
     public float SecurityRadius;
 }
 
-public abstract class RuntimeEntityBlueprint
+public abstract class EntityConstructionBlueprint
 {
     public string Name;
     public EquippableItem Hull;
@@ -137,7 +137,7 @@ public abstract class RuntimeEntityBlueprint
     public int[] DockingBayAssignments;
     public (int2 position, ItemInstance item)[][] CargoContents;
     public (int2 position, ItemInstance item)[][] DockingBayContents;
-    public RuntimeEntityBlueprint[] Children;
+    public EntityConstructionBlueprint[] Children;
     public EntitySettings Settings;
     public Guid Faction;
     public int[][] WeaponGroups;

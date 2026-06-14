@@ -127,7 +127,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now queues current-zone/current-entity-collection snapshots, current
   action-bar bindings, and current faction relationship rows through the
   runtime commit log during run checkpoints; `ZoneConstructionBlueprint` and
-  `RuntimeEntityBlueprint` remain runtime construction/loadout projections
+  `EntityConstructionBlueprint` remain one-shot construction/loadout projections
   rather than durable file formats. Runtime blueprints no longer capture or
   restore live temperature, armor, max-armor, or hull-conductivity grids; those
   grids are typed checkpoint state, not loadout/construction template state.
@@ -186,7 +186,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   triggers publish pending pulled state, and stat modifiers publish
   applied/executed flags plus target-stat count. Turret controllers publish
   initialized weapon count, shot speed, and predictive-aim flag.
-  `RuntimeEntityBlueprint` still exists for construction/loadout projection,
+  `EntityConstructionBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
@@ -194,7 +194,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
   state through record-key references and typed value slots instead of opaque
   runtime blueprint serialization. Unity's save/loadout UI now projects its
-  in-memory `RuntimeEntityBlueprint` into a typed Verse commit command, and
+  in-memory `EntityConstructionBlueprint` into a typed Verse commit command, and
   gameplay boot reads typed loadout templates back from `aetheria-world.cc`
   through `AetheriaRuntimeCatalogStore` before lowering them into runtime
   construction blueprints for the restore menu. The in-memory list remains a
@@ -842,7 +842,7 @@ First Aetheria surfaces to publish:
    - Done: move TurretController weapon range and shot-speed evaluation behind
      `Weapon` runtime methods, so turret AI no longer casts weapon config DTOs
      to decide firing range or predictive aim.
-   - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
+   - Done: cut live simulation grids out of `EntityConstructionBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
    - Done: add Unity package readback for canonical typed run, zone, and
@@ -1065,7 +1065,7 @@ First Aetheria surfaces to publish:
    - Done: remove public `GasGiantData`/`SunData` handles from runtime wrappers;
      wave and light calculations now use copied wrapper fields after
      construction.
-   - Done: move saved loadout template ownership off `RuntimeEntityBlueprint`;
+   - Done: move saved loadout template ownership off `EntityConstructionBlueprint`;
      `ActionGameManager` keeps typed `AetheriaRuntimeLoadoutTemplateSnapshot`
      documents and projects blueprints only for pricing, instantiation, and
      commit boundaries.
@@ -1313,16 +1313,20 @@ First Aetheria surfaces to publish:
    - Done: quarantine the vendored Unity `MessagePack` assembly by disabling
      asmdef auto-reference; only explicit state-spine assemblies should see it
      while the Unity CultCache bridge still needs a low-level `.cc` codec.
-   - Done: demote `ZonePack`/`EntityPack` runtime names to
-     `RuntimeZoneBlueprint`/`RuntimeEntityBlueprint`, and rename loadout
-     collections away from save-payload vocabulary. These are now explicitly
-     runtime construction projections, not portable state authority.
+   - Done: demote `ZonePack`/`EntityPack` save-payload names to
+     construction blueprint vocabulary, and rename loadout collections away
+     from save-payload vocabulary. These are now explicitly construction
+     projections, not portable state authority.
    - Done: continue the zone demotion by renaming `RuntimeZoneBlueprint` to
      `ZoneConstructionBlueprint`; the old intermediate name no longer appears
      in live Unity source.
-   - Done: rename the old `EntitySerializer` runtime helper to
-     `RuntimeEntityBlueprintProjector`; it captures/instantiates runtime
-     blueprint projections and no longer presents itself as a serializer.
+   - Done: rename the old `EntitySerializer` helper to
+     `EntityConstructionBlueprintProjector`; it captures/instantiates
+     construction blueprint projections and no longer presents itself as a
+     serializer or runtime-state owner.
+   - Done: delete the unused `Zone.AddOrbit(OrbitData)` construction-row
+     writer; zone orbit construction flows through `ZoneConstructionBlueprint`
+     only.
    - Done: demote Unity's live `PlayerSettings` runtime object to
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
@@ -1398,8 +1402,9 @@ First Aetheria surfaces to publish:
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
   `EntitySerializer.Unpack` hits.
-- Runtime entity blueprint projection no longer uses the `EntitySerializer`
-  authority name; live Unity source calls `RuntimeEntityBlueprintProjector`.
+- Entity construction blueprint projection no longer uses the `EntitySerializer`
+  or runtime-state authority names; live Unity source calls
+  `EntityConstructionBlueprintProjector`.
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
 - Input binding and action-bar edits now queue the same typed player-settings

@@ -79,7 +79,7 @@ public class Zone
 
         foreach (var entityBlueprint in blueprint.Entities)
         {
-            var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(_itemManager, this, entityBlueprint);
+            var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(_itemManager, this, entityBlueprint);
             Entities.Add(entity);
             entity.Activate();
             if (entity is Ship {IsPlayerShip: false} ship)
@@ -100,11 +100,6 @@ public class Zone
         task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
         agent.Task = task;
         return agent;
-    }
-
-    public void AddOrbit(OrbitData orbit)
-    {
-        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
     }
 
     public void Update(float deltaTime)

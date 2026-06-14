@@ -38,7 +38,7 @@ public class Faction : INamedEntry
     [Inspectable]
     public int InfluenceDistance = 4;
 
-    [RangedFloat(0, 1)]
+    [InspectableRangedFloat(0, 1)]
     public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
 
     [InspectableSoundBank]

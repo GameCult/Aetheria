@@ -15,7 +15,7 @@ public class ZoneConstructionBlueprint
 {
     public List<BodyData> Planets = new List<BodyData>();
     public List<OrbitData> Orbits = new List<OrbitData>();
-    public List<RuntimeEntityBlueprint> Entities = new List<RuntimeEntityBlueprint>();
+    public List<EntityConstructionBlueprint> Entities = new List<EntityConstructionBlueprint>();
     public float Radius = 2000;
     public float Mass = 10000;
     public double Time;

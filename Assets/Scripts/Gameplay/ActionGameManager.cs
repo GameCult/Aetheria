@@ -181,23 +181,23 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public RuntimeEntityBlueprint CreateRuntimeBlueprint(AetheriaRuntimeLoadoutTemplateSnapshot template)
+    public EntityConstructionBlueprint CreateEntityConstructionBlueprint(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
-        var blueprint = CreateRuntimeBlueprint(template.RootEntity);
+        var blueprint = CreateEntityConstructionBlueprint(template.RootEntity);
         if (blueprint != null && string.IsNullOrWhiteSpace(blueprint.Name))
             blueprint.Name = template.Name;
         return blueprint;
     }
 
-    private RuntimeEntityBlueprint CreateRuntimeBlueprint(AetheriaRuntimeEntityLoadoutSnapshot entity)
+    private EntityConstructionBlueprint CreateEntityConstructionBlueprint(AetheriaRuntimeEntityLoadoutSnapshot entity)
     {
         var hull = CreateEquippableLoadoutItem(entity.Hull);
         if (hull == null)
             return null;
 
-        RuntimeEntityBlueprint blueprint = string.Equals(entity.Kind, "orbital", StringComparison.OrdinalIgnoreCase)
-            ? new RuntimeOrbitalEntityBlueprint()
-            : new RuntimeShipBlueprint
+        EntityConstructionBlueprint blueprint = string.Equals(entity.Kind, "orbital", StringComparison.OrdinalIgnoreCase)
+            ? new OrbitalEntityConstructionBlueprint()
+            : new ShipConstructionBlueprint
             {
                 Direction = new float2(0, 1)
             };
@@ -213,7 +213,7 @@ public class ActionGameManager : MonoBehaviour
         blueprint.DockingBayAssignments = entity.DockingBayAssignments.ToArray();
         blueprint.WeaponGroups = entity.WeaponGroups.Select(group => group.ToArray()).ToArray();
         blueprint.Children = entity.Children
-            .Select(CreateRuntimeBlueprint)
+            .Select(CreateEntityConstructionBlueprint)
             .Where(child => child != null)
             .ToArray();
         return blueprint;
@@ -260,7 +260,6 @@ public class ActionGameManager : MonoBehaviour
         var instance = ItemManager.CreateCraftedInstance(typedItem, (float)item.Quality);
         if (instance is EquippableItem equippable)
         {
-            equippable.Enabled.Value = item.Enabled;
             if (item.Durability > 0)
                 equippable.Durability = (float)item.Durability;
         }
@@ -458,7 +457,7 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(RuntimeEntityBlueprint blueprint)
+    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(EntityConstructionBlueprint blueprint)
     {
         return new AetheriaRuntimeLoadoutTemplateCommit
         {
@@ -468,12 +467,12 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(RuntimeEntityBlueprint blueprint)
+    private AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(EntityConstructionBlueprint blueprint)
     {
         return new AetheriaRuntimeEntityLoadoutCommit
         {
             Name = blueprint.Name ?? "",
-            Kind = blueprint is RuntimeShipBlueprint ? "ship" : blueprint is RuntimeOrbitalEntityBlueprint ? "orbital" : "entity",
+            Kind = blueprint is ShipConstructionBlueprint ? "ship" : blueprint is OrbitalEntityConstructionBlueprint ? "orbital" : "entity",
             CorporationLegacyId = blueprint.Faction == Guid.Empty ? "" : blueprint.Faction.ToString("D"),
             Hull = ProjectLoadoutItem(blueprint.Hull),
             Equipment = ProjectSlots(blueprint.Equipment),
@@ -527,7 +526,7 @@ public class ActionGameManager : MonoBehaviour
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1,
-            Enabled = item is not EquippableItem enabledItem || enabledItem.Enabled.Value
+            Enabled = true
         };
     }
 
@@ -1277,7 +1276,7 @@ public class ActionGameManager : MonoBehaviour
         return CurrentGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(CurrentGalaxy.Factions, faction);
     }
 
-    public void QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprint blueprint)
+    public void QueueRuntimeLoadoutTemplateCommit(EntityConstructionBlueprint blueprint)
     {
         var loadout = ProjectLoadoutTemplate(blueprint);
         LoadoutTemplates.RemoveAll(template => template.Name == loadout.Name);
@@ -1711,7 +1710,7 @@ public class ActionGameManager : MonoBehaviour
                     nearestFaction,
                     .5f);
 
-                var turret = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+                var turret = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 turret.Zone = Zone;
@@ -1743,7 +1742,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var ship = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
+        //                     var ship = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
         //                     ship.Position.xz = _currentEntity.Position.xz +
         //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     ship.Zone = Zone;
@@ -1753,7 +1752,7 @@ public class ActionGameManager : MonoBehaviour
         //
         //                 for (int i = 0; i < 8; i++)
         //                 {
-        //                     var turret = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+        //                     var turret = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
         //                     turret.Position.xz = _currentEntity.Position.xz +
         //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
         //                     turret.Zone = Zone;
@@ -1918,7 +1917,7 @@ public class ActionGameManager : MonoBehaviour
             SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
             PopulateLevel(CurrentGalaxy.Entrance);
             var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-            var ship = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(
+            var ship = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(
                 ItemManager,
                 Zone,
                 loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),

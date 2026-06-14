@@ -173,7 +173,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 ContextMenu.AddOption("Save Loadout",
                     () =>
                     {
-                        GameManager.QueueRuntimeLoadoutTemplateCommit(RuntimeEntityBlueprintProjector.CaptureBlueprint(_displayedEntity));
+                        GameManager.QueueRuntimeLoadoutTemplateCommit(EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity));
                     });
 
                 if (GameManager.LoadoutTemplates.Any())
@@ -189,14 +189,14 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private (string text, Action action, bool enabled) LoadoutOption(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
-        var blueprint = GameManager.CreateRuntimeBlueprint(template);
+        var blueprint = GameManager.CreateEntityConstructionBlueprint(template);
         if (blueprint == null)
             return ($"{template.Name} - unavailable", () => { }, false);
 
         var price = blueprint.Price(GameManager.ItemManager);
         return ($"{template.Name} - {price:n0}", () =>
         {
-            var entity = RuntimeEntityBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
+            var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
             entity.SetParent(GameManager.DockedEntity);
             GameManager.Credits -= price;
             GameManager.CurrentEntity = entity;
@@ -885,7 +885,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         if (typedItem != null && typedItem.Durability > 0)
             return (float)typedItem.Durability;
 
-        return Math.Max(item.Durability, 1f);
+        return item is EquippableItem equippable ? Math.Max(equippable.Durability, 1f) : 1f;
     }
 
     private Shape GetItemShape(ItemInstance item)
