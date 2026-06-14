@@ -69,6 +69,14 @@ public class ItemManager
         return itemId == Guid.Empty ? null : _itemProjections.GetRuntimeItem(itemId);
     }
 
+    public IReadOnlyList<BehaviorData> GetRuntimeBehaviorProjections(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? Array.Empty<BehaviorData>()
+            : _itemProjections.GetBehaviorProjections(itemId);
+    }
+
     public Shape GetRuntimeShape(ItemInstance item)
     {
         var typedItem = GetRuntimeItem(item);

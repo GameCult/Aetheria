@@ -191,8 +191,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   hydration is only the remaining item-instantiation bridge. Docking bay max
   ship size is imported as typed item state and `EquippedDockingBay.MaxSize`
   derives from the typed runtime catalog row. `EquippedItem.InsetShape` now
-  derives from typed hull/item shape rows. `EquippedItem` behavior construction
-  still belongs to legacy simulation projections until that owner is rebuilt.
+  derives from typed hull/item shape rows. `EquippedItem` and
+  `ConsumableItemEffect` behavior construction now read typed behavior payloads
+  through the runtime behavior projection bridge before instantiating the
+  current `BehaviorData`-backed behavior classes. `BehaviorData` remains the
+  temporary behavior-class config bridge, not the runtime behavior payload
+  owner.
   Ship drag, combat/turret shot prediction height, and thruster
   torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
@@ -707,6 +711,9 @@ First Aetheria surfaces to publish:
    - Done: move `EquippedItem.InsetShape` construction onto typed hull and item
      shape rows; legacy `HullData.Shape`/`EquippableItemData.Shape` no longer
      decide equipped-item temperature footprint geometry.
+   - Done: move `EquippedItem` and `ConsumableItemEffect` behavior construction
+     off `Data.Behaviors` and onto typed runtime behavior payload projection;
+     `BehaviorData` remains only the temporary behavior-class config bridge.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and

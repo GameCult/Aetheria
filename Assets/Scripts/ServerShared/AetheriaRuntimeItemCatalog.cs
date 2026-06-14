@@ -9,6 +9,7 @@ using Unity.Mathematics;
 public interface IRuntimeItemProjectionReader
 {
     AetheriaRuntimeCatalogItem GetRuntimeItem(Guid guid);
+    IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid);
     ItemData Get(Guid guid);
     T Get<T>(Guid guid) where T : ItemData;
 }
@@ -72,6 +73,14 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         return item;
     }
 
+    public IReadOnlyList<BehaviorData> GetBehaviorProjections(Guid guid)
+    {
+        var item = GetRuntimeItem(guid);
+        return item == null
+            ? Array.Empty<BehaviorData>()
+            : ProjectBehaviors(item);
+    }
+
     public ItemData Get(Guid guid)
     {
         ItemData item;
@@ -115,10 +124,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         if (projected is EquippableItemData equippable)
         {
             equippable.Durability = (float)item.Durability;
-            equippable.Behaviors = item.BehaviorPayloads
-                .Select(ProjectBehavior)
-                .Where(behavior => behavior != null)
-                .ToList();
+            equippable.Behaviors = ProjectBehaviors(item).ToList();
         }
 
         if (projected is GearData gear)
@@ -156,6 +162,14 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         }
 
         return projected;
+    }
+
+    private static BehaviorData[] ProjectBehaviors(AetheriaRuntimeCatalogItem item)
+    {
+        return item.BehaviorPayloads
+            .Select(ProjectBehavior)
+            .Where(behavior => behavior != null)
+            .ToArray();
     }
 
     private static ItemData CreateItemData(AetheriaRuntimeCatalogItem item)
