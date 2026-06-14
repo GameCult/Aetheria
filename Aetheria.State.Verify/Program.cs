@@ -83,6 +83,7 @@ var maxDurabilityItems = items
 var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
 var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
 var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurveKeys.Length > 0);
+var actionBarIconItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ActionBarIcon));
 var dockingBayItems = items.Count(item => item.Category == "DockingBayData");
 var dockingBayMaxSizeItems = items.Count(item =>
     item.Category == "DockingBayData" &&
@@ -393,6 +394,7 @@ Console.WriteLine($"Hull armor/physical facet items: {hullArmorItems}/{hullPhysi
 Console.WriteLine($"Simple/compound commodity category items: {simpleCommodityCategoryItems}/{compoundCommodityCategoryItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");
+Console.WriteLine($"Action-bar icon items: {actionBarIconItems}");
 Console.WriteLine($"Docking bay max-size items: {dockingBayMaxSizeItems}/{dockingBayItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");

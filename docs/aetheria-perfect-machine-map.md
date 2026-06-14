@@ -84,16 +84,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   for consumable binding instead of falling through to legacy DTO classification.
   Consumable activation and active-duration fill still resolve legacy
   `ConsumableItemData` lazily because runtime effects and duration are not typed
-  execution surfaces yet; consumable icon projection is hidden until typed icon
-  fields exist.
-  Gear action-bar bindings use typed weapon and hardpoint facets for fallback
-  icon selection and fall back to a generic tool icon when typed facets are
-  incomplete; legacy custom action-bar icon paths remain fallback projection
-  data because typed icon fields are not yet present. Player camera articulation
-  grouping now classifies equipped non-launcher weapons through typed behavior
-  kind rows instead of inspecting runtime `BehaviorData` subclasses. Unity boot
-  reads typed player settings back through the package-owned CultCache reader
-  before falling back to defaults.
+  execution surfaces yet. Gear action-bar bindings read custom icon resource
+  paths from typed item rows, then use typed weapon and hardpoint facets for
+  fallback icon selection, and finally fall back to a generic tool icon when
+  typed facets are incomplete. The current legacy catalog has zero populated
+  custom action-bar icon paths, but the typed field is present and owns that
+  surface when data appears. Player camera articulation grouping now classifies
+  equipped non-launcher weapons through typed behavior kind rows instead of
+  inspecting runtime `BehaviorData` subclasses. Unity boot reads typed player
+  settings back through the package-owned CultCache reader before falling back
+  to defaults.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -240,6 +240,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
+  Action-bar gear slots now resolve custom icon resource paths from typed
+  runtime item rows before falling back to typed weapon/hardpoint facets; legacy
+  `EquippableItemData.ActionBarIcon` is no longer a UI owner.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
@@ -771,6 +774,8 @@ First Aetheria surfaces to publish:
    - Done: move `EquippedItem` conductivity and max-durability performance/wear
      inputs onto typed runtime item rows; legacy thermal resilience and audio
      stats remain explicit DTO residues.
+   - Done: import action-bar icon resource paths into typed item definitions and
+     move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
      torque geometry onto typed hull facets and typed shape masks.
    - Done: delete the console `give` command instead of preserving a debug

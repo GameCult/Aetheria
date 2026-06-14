@@ -132,6 +132,7 @@ namespace GameCult.Aetheria.State.Unity
             bool hullCanTow,
             int dockingMaxSizeX,
             int dockingMaxSizeY,
+            string actionBarIcon,
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
@@ -175,6 +176,7 @@ namespace GameCult.Aetheria.State.Unity
             HullCanTow = hullCanTow;
             DockingMaxSizeX = dockingMaxSizeX;
             DockingMaxSizeY = dockingMaxSizeY;
+            ActionBarIcon = actionBarIcon;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
         }
@@ -219,6 +221,7 @@ namespace GameCult.Aetheria.State.Unity
         public bool HullCanTow { get; }
         public int DockingMaxSizeX { get; }
         public int DockingMaxSizeY { get; }
+        public string ActionBarIcon { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
     }

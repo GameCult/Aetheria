@@ -124,6 +124,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         if (projected is EquippableItemData equippable)
         {
             equippable.Durability = (float)item.Durability;
+            equippable.ActionBarIcon = item.ActionBarIcon;
             equippable.Behaviors = ProjectBehaviors(item).ToList();
         }
 

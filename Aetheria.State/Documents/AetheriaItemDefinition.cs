@@ -150,6 +150,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(45)]
     public int DockingMaxSizeY { get; set; }
+
+    [Key(46)]
+    public string ActionBarIcon { get; set; } = "";
 }
 
 [MessagePackObject]

@@ -209,7 +209,8 @@ namespace GameCult.Aetheria.State.Unity
             var hullCanTow = ReadFieldBool(ref reader, fields, 43);
             var dockingMaxSizeX = ReadFieldInt32(ref reader, fields, 44);
             var dockingMaxSizeY = ReadFieldInt32(ref reader, fields, 45);
-            SkipRemaining(ref reader, fields, 46);
+            var actionBarIcon = ReadFieldString(ref reader, fields, 46);
+            SkipRemaining(ref reader, fields, 47);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -252,6 +253,7 @@ namespace GameCult.Aetheria.State.Unity
                 hullCanTow,
                 dockingMaxSizeX,
                 dockingMaxSizeY,
+                actionBarIcon,
                 simpleCommodityCategory,
                 compoundCommodityCategory);
         }

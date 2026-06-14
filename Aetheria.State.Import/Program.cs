@@ -421,6 +421,7 @@ internal static class LegacyCatalogReader
                     HullCanTow = unionKey == 3 && GetBool(payload, 29),
                     DockingMaxSizeX = dockingMaxSize.X,
                     DockingMaxSizeY = dockingMaxSize.Y,
+                    ActionBarIcon = unionKey is 2 or 3 or 29 or 30 or 31 ? GetString(payload, 20) : "",
                     SimpleCommodityCategory = unionKey == 0 ? GetEnumName(payload, 10, SimpleCommodityCategories) : "",
                     CompoundCommodityCategory = unionKey == 1 ? GetEnumName(payload, 11, CompoundCommodityCategories) : "",
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",

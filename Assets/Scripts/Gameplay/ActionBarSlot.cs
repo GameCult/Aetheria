@@ -122,9 +122,7 @@ public class ActionBarGearBinding : ActionBarBinding
         Slot.QuantityRemaining.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(true);
         Slot.Label.gameObject.SetActive(false);
-        if (!string.IsNullOrEmpty(Item.Data.ActionBarIcon))
-            Slot.Icon.texture = Resources.Load<Texture2D>(Item.Data.ActionBarIcon.Substring("Assets/Resources/".Length).Split('.').First());
-        else Slot.Icon.texture = ResolveIconTexture();
+        Slot.Icon.texture = ResolveIconTexture();
     }
 
     private Texture2D ResolveIconTexture()
@@ -132,6 +130,10 @@ public class ActionBarGearBinding : ActionBarBinding
         var typedItem = FindTypedGearItem(Item.EquippableItem);
         if (typedItem != null)
         {
+            var actionBarIcon = LoadActionBarIcon(typedItem.ActionBarIcon);
+            if (actionBarIcon != null)
+                return actionBarIcon;
+
             if (Enum.TryParse<WeaponType>(typedItem.WeaponType, out var weaponType))
                 return ActionGameManager.Instance.Settings.GetIcon(weaponType).texture;
 
@@ -140,6 +142,20 @@ public class ActionBarGearBinding : ActionBarBinding
         }
 
         return ActionGameManager.Instance.Settings.GetIcon(HardpointType.Tool).texture;
+    }
+
+    private static Texture2D LoadActionBarIcon(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        const string resourcesPrefix = "Assets/Resources/";
+        var resourcePath = path.StartsWith(resourcesPrefix, StringComparison.Ordinal)
+            ? path.Substring(resourcesPrefix.Length)
+            : path;
+
+        resourcePath = resourcePath.Split('.').First();
+        return Resources.Load<Texture2D>(resourcePath);
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedGearItem(ItemInstance item)
