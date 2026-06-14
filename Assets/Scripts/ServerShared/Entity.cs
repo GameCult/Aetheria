@@ -1286,6 +1286,7 @@ public class EquippedItem
     public Dictionary<uint, float> AudioParameterValues { get; } = new Dictionary<uint, float>();
 
     private readonly BezierCurve _thermalPerformanceCurve;
+    private readonly EquippedItemAudioStatBinding[] _audioStats;
     private float oldTemperature;
     public float Temperature
     {
@@ -1380,6 +1381,7 @@ public class EquippedItem
         MaxDurability = RuntimeItem?.Durability > 0 ? (float)RuntimeItem.Durability : Math.Max(item.Durability, 1f);
         ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : Data.ThermalResilience;
         _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
+        _audioStats = CreateAudioStatBindings(RuntimeItem, Data);
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
@@ -1492,7 +1494,7 @@ public class EquippedItem
 
     public void Update(float delta)
     {
-        foreach (var audioStat in Data.AudioStats)
+        foreach (var audioStat in _audioStats)
         {
             SetAudioParameter(audioStat.Parameter, Evaluate(audioStat.Stat));
         }
@@ -1519,6 +1521,48 @@ public class EquippedItem
             if (behavior is T b)
                 return b;
         return null;
+    }
+
+    private static EquippedItemAudioStatBinding[] CreateAudioStatBindings(
+        AetheriaRuntimeCatalogItem item,
+        EquippableItemData fallback)
+    {
+        if (item?.AudioStats != null)
+        {
+            return item.AudioStats
+                .Select(audioStat => new EquippedItemAudioStatBinding(
+                    audioStat.Parameter,
+                    CreatePerformanceStat(audioStat.Stat)))
+                .ToArray();
+        }
+
+        return fallback.AudioStats
+            .Select(audioStat => new EquippedItemAudioStatBinding(audioStat.Parameter, audioStat.Stat))
+            .ToArray();
+    }
+
+    private static PerformanceStat CreatePerformanceStat(AetheriaRuntimePerformanceStat stat)
+    {
+        return new PerformanceStat
+        {
+            Min = (float)stat.Min,
+            Max = (float)stat.Max,
+            HeatExponentMultiplier = (float)stat.HeatExponentMultiplier,
+            DurabilityExponentMultiplier = (float)stat.DurabilityExponentMultiplier,
+            QualityExponent = (float)stat.QualityExponent
+        };
+    }
+
+    private readonly struct EquippedItemAudioStatBinding
+    {
+        public EquippedItemAudioStatBinding(uint parameter, PerformanceStat stat)
+        {
+            Parameter = parameter;
+            Stat = stat;
+        }
+
+        public uint Parameter { get; }
+        public PerformanceStat Stat { get; }
     }
 }
 

@@ -156,6 +156,9 @@ public sealed class AetheriaItemDefinition
 
     [Key(47)]
     public double ThermalResilience { get; set; } = 1;
+
+    [Key(48)]
+    public AetheriaItemAudioStat[] AudioStats { get; set; } = [];
 }
 
 [MessagePackObject]
@@ -216,6 +219,35 @@ public sealed class AetheriaCurveKey
 
     [Key(3)]
     public double OutTangent { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaItemAudioStat
+{
+    [Key(0)]
+    public uint Parameter { get; set; }
+
+    [Key(1)]
+    public AetheriaItemPerformanceStat Stat { get; set; } = new();
+}
+
+[MessagePackObject]
+public sealed class AetheriaItemPerformanceStat
+{
+    [Key(0)]
+    public double Min { get; set; }
+
+    [Key(1)]
+    public double Max { get; set; }
+
+    [Key(2)]
+    public double HeatExponentMultiplier { get; set; }
+
+    [Key(3)]
+    public double DurabilityExponentMultiplier { get; set; }
+
+    [Key(4)]
+    public double QualityExponent { get; set; }
 }
 
 [MessagePackObject]

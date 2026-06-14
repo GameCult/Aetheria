@@ -134,6 +134,7 @@ namespace GameCult.Aetheria.State.Unity
             int dockingMaxSizeX,
             int dockingMaxSizeY,
             string actionBarIcon,
+            IReadOnlyList<AetheriaRuntimeAudioStat> audioStats,
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
@@ -179,6 +180,7 @@ namespace GameCult.Aetheria.State.Unity
             DockingMaxSizeX = dockingMaxSizeX;
             DockingMaxSizeY = dockingMaxSizeY;
             ActionBarIcon = actionBarIcon;
+            AudioStats = audioStats;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
         }
@@ -225,8 +227,44 @@ namespace GameCult.Aetheria.State.Unity
         public int DockingMaxSizeX { get; }
         public int DockingMaxSizeY { get; }
         public string ActionBarIcon { get; }
+        public IReadOnlyList<AetheriaRuntimeAudioStat> AudioStats { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
+    }
+
+    public sealed class AetheriaRuntimeAudioStat
+    {
+        public AetheriaRuntimeAudioStat(uint parameter, AetheriaRuntimePerformanceStat stat)
+        {
+            Parameter = parameter;
+            Stat = stat;
+        }
+
+        public uint Parameter { get; }
+        public AetheriaRuntimePerformanceStat Stat { get; }
+    }
+
+    public sealed class AetheriaRuntimePerformanceStat
+    {
+        public AetheriaRuntimePerformanceStat(
+            double min,
+            double max,
+            double heatExponentMultiplier,
+            double durabilityExponentMultiplier,
+            double qualityExponent)
+        {
+            Min = min;
+            Max = max;
+            HeatExponentMultiplier = heatExponentMultiplier;
+            DurabilityExponentMultiplier = durabilityExponentMultiplier;
+            QualityExponent = qualityExponent;
+        }
+
+        public double Min { get; }
+        public double Max { get; }
+        public double HeatExponentMultiplier { get; }
+        public double DurabilityExponentMultiplier { get; }
+        public double QualityExponent { get; }
     }
 
     public sealed class AetheriaRuntimeCurveKey

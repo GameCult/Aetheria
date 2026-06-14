@@ -415,6 +415,7 @@ internal static class LegacyCatalogReader
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
                     ThermalResilience = unionKey is 2 or 3 or 29 or 30 or 31 ? GetPositiveDoubleOrDefault(payload, 18, 1) : 1,
+                    AudioStats = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadAudioStats(payload, 22) : [],
                     HullPrefab = unionKey == 3 ? GetString(payload, 24) : "",
                     HullGridOffset = unionKey == 3 ? GetDouble(payload, 26) : 0,
                     HullArmor = unionKey == 3 ? GetDouble(payload, 27) : 0,
@@ -773,6 +774,51 @@ internal static class LegacyCatalogReader
             .ToArray();
     }
 
+    private static AetheriaItemAudioStat[] ReadAudioStats(IReadOnlyDictionary<int, object?> payload, int key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value is not object?[] audioStats)
+        {
+            return [];
+        }
+
+        return audioStats
+            .Select(ReadAudioStat)
+            .Where(audioStat => audioStat != null)
+            .Cast<AetheriaItemAudioStat>()
+            .ToArray();
+    }
+
+    private static AetheriaItemAudioStat? ReadAudioStat(object? value)
+    {
+        if (value is not object?[] fields)
+        {
+            return null;
+        }
+
+        return new AetheriaItemAudioStat
+        {
+            Parameter = ReadUIntValue(fields.ElementAtOrDefault(0)),
+            Stat = ReadPerformanceStat(fields.ElementAtOrDefault(1))
+        };
+    }
+
+    private static AetheriaItemPerformanceStat ReadPerformanceStat(object? value)
+    {
+        if (value is not object?[] fields)
+        {
+            return new AetheriaItemPerformanceStat();
+        }
+
+        return new AetheriaItemPerformanceStat
+        {
+            Min = ReadDoubleValue(fields.ElementAtOrDefault(0)),
+            Max = ReadDoubleValue(fields.ElementAtOrDefault(1)),
+            HeatExponentMultiplier = ReadDoubleValue(fields.ElementAtOrDefault(2)),
+            DurabilityExponentMultiplier = ReadDoubleValue(fields.ElementAtOrDefault(3)),
+            QualityExponent = ReadDoubleValue(fields.ElementAtOrDefault(4))
+        };
+    }
+
     private static IEnumerable<object?[]> ExtractCurveKeyTuples(object? value)
     {
         if (value is not object?[] values)
@@ -1045,6 +1091,18 @@ internal static class LegacyCatalogReader
             int integerValue => integerValue,
             double doubleValue => checked((int) doubleValue),
             float floatValue => checked((int) floatValue),
+            _ => 0
+        };
+    }
+
+    private static uint ReadUIntValue(object? value)
+    {
+        return value switch
+        {
+            long integerValue when integerValue >= 0 => checked((uint)integerValue),
+            int integerValue when integerValue >= 0 => checked((uint)integerValue),
+            double doubleValue when doubleValue >= 0 => checked((uint)doubleValue),
+            float floatValue when floatValue >= 0 => checked((uint)floatValue),
             _ => 0
         };
     }

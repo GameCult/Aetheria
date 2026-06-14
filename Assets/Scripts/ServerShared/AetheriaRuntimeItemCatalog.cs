@@ -126,6 +126,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             equippable.Durability = (float)item.Durability;
             equippable.ActionBarIcon = item.ActionBarIcon;
             equippable.ThermalResilience = (float)item.ThermalResilience;
+            equippable.AudioStats = ProjectAudioStats(item).ToList();
             equippable.Behaviors = ProjectBehaviors(item).ToList();
         }
 
@@ -172,6 +173,27 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
             .Select(ProjectBehavior)
             .Where(behavior => behavior != null)
             .ToArray();
+    }
+
+    private static IEnumerable<AudioStat> ProjectAudioStats(AetheriaRuntimeCatalogItem item)
+    {
+        return item.AudioStats.Select(audioStat => new AudioStat
+        {
+            Parameter = audioStat.Parameter,
+            Stat = ProjectPerformanceStat(audioStat.Stat)
+        });
+    }
+
+    private static PerformanceStat ProjectPerformanceStat(AetheriaRuntimePerformanceStat stat)
+    {
+        return new PerformanceStat
+        {
+            Min = (float)stat.Min,
+            Max = (float)stat.Max,
+            HeatExponentMultiplier = (float)stat.HeatExponentMultiplier,
+            DurabilityExponentMultiplier = (float)stat.DurabilityExponentMultiplier,
+            QualityExponent = (float)stat.QualityExponent
+        };
     }
 
     private static ItemData CreateItemData(AetheriaRuntimeCatalogItem item)

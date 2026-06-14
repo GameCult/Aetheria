@@ -211,7 +211,8 @@ namespace GameCult.Aetheria.State.Unity
             var dockingMaxSizeY = ReadFieldInt32(ref reader, fields, 45);
             var actionBarIcon = ReadFieldString(ref reader, fields, 46);
             var thermalResilience = ReadFieldDouble(ref reader, fields, 47, 1);
-            SkipRemaining(ref reader, fields, 48);
+            var audioStats = ReadFieldAudioStats(ref reader, fields, 48);
+            SkipRemaining(ref reader, fields, 49);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -256,6 +257,7 @@ namespace GameCult.Aetheria.State.Unity
                 dockingMaxSizeX,
                 dockingMaxSizeY,
                 actionBarIcon,
+                audioStats,
                 simpleCommodityCategory,
                 compoundCommodityCategory);
         }
@@ -349,6 +351,11 @@ namespace GameCult.Aetheria.State.Unity
         private static int ReadFieldInt32(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? 0 : reader.ReadInt32();
+        }
+
+        private static uint ReadFieldUInt32(ref MessagePackReader reader, int fields, int index)
+        {
+            return index >= fields ? 0 : reader.ReadUInt32();
         }
 
         private static bool ReadFieldBool(ref MessagePackReader reader, int fields, int index)
@@ -654,6 +661,46 @@ namespace GameCult.Aetheria.State.Unity
             }
 
             return payloads;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeAudioStat> ReadFieldAudioStats(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeAudioStat>();
+            var count = reader.ReadArrayHeader();
+            var audioStats = new AetheriaRuntimeAudioStat[count];
+            for (var audioStat = 0; audioStat < count; audioStat++)
+            {
+                var audioStatFields = reader.ReadArrayHeader();
+                var parameter = ReadFieldUInt32(ref reader, audioStatFields, 0);
+                var stat = ReadFieldPerformanceStat(ref reader, audioStatFields, 1);
+                SkipRemaining(ref reader, audioStatFields, 2);
+                audioStats[audioStat] = new AetheriaRuntimeAudioStat(parameter, stat);
+            }
+
+            return audioStats;
+        }
+
+        private static AetheriaRuntimePerformanceStat ReadFieldPerformanceStat(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return EmptyPerformanceStat();
+            var statFields = reader.ReadArrayHeader();
+            var min = ReadFieldDouble(ref reader, statFields, 0);
+            var max = ReadFieldDouble(ref reader, statFields, 1);
+            var heatExponentMultiplier = ReadFieldDouble(ref reader, statFields, 2);
+            var durabilityExponentMultiplier = ReadFieldDouble(ref reader, statFields, 3);
+            var qualityExponent = ReadFieldDouble(ref reader, statFields, 4);
+            SkipRemaining(ref reader, statFields, 5);
+            return new AetheriaRuntimePerformanceStat(
+                min,
+                max,
+                heatExponentMultiplier,
+                durabilityExponentMultiplier,
+                qualityExponent);
+        }
+
+        private static AetheriaRuntimePerformanceStat EmptyPerformanceStat()
+        {
+            return new AetheriaRuntimePerformanceStat(0, 0, 0, 0, 0);
         }
 
         private static IReadOnlyList<AetheriaRuntimeBehaviorField> ReadFieldBehaviorFields(ref MessagePackReader reader, int fields, int index)

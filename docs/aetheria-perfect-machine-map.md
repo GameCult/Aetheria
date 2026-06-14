@@ -236,8 +236,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `EquippedItem` also takes conductivity, max durability, thermal bounds, and
   thermal performance curve keys from the typed runtime item row for heat
   conduction, durability performance, thermal performance, and wear scaling.
-  Thermal resilience is also typed and feeds wear scaling; the legacy
-  equippable DTO still owns audio-stat residue until that surface is imported.
+  Thermal resilience is also typed and feeds wear scaling. Audio parameter stat
+  bindings are typed item rows and feed equipped-item Wwise parameter updates;
+  the legacy equippable DTO is now only an incomplete-row projection fallback
+  for equipped-item simulation.
   Inventory drag preview occupancy now projects typed item shape cells only into
   the local `Shape` grid, and final fit/equip acceptance shares the typed
   runtime catalog geometry path in `Entity.ItemFits` and `TryEquip`.
@@ -779,8 +781,11 @@ First Aetheria surfaces to publish:
      runtime item thermal bounds and curve keys; legacy `Data.Performance`
      remains only as an incomplete-row fallback.
    - Done: import typed thermal resilience and move equipped-item wear scaling
-     off `EquippableItemData.ThermalResilience`; legacy audio stats remain the
-     only equipped-item DTO simulation residue.
+     off `EquippableItemData.ThermalResilience`; it remains only as an
+     incomplete-row fallback.
+   - Done: import typed audio parameter stat bindings and move equipped-item
+     Wwise parameter updates off `EquippableItemData.AudioStats`; it remains
+     only as an incomplete-row fallback.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster

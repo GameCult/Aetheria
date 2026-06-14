@@ -58,8 +58,24 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.DockingMaxSizeX,
             item.DockingMaxSizeY,
             item.ActionBarIcon,
+            item.AudioStats.Select(FromState).ToArray(),
             item.SimpleCommodityCategory,
             item.CompoundCommodityCategory);
+    }
+
+    private static AetheriaRuntimeAudioStat FromState(AetheriaItemAudioStat stat)
+    {
+        return new AetheriaRuntimeAudioStat(stat.Parameter, FromState(stat.Stat));
+    }
+
+    private static AetheriaRuntimePerformanceStat FromState(AetheriaItemPerformanceStat stat)
+    {
+        return new AetheriaRuntimePerformanceStat(
+            stat.Min,
+            stat.Max,
+            stat.HeatExponentMultiplier,
+            stat.DurabilityExponentMultiplier,
+            stat.QualityExponent);
     }
 
     private static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)

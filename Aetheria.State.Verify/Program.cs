@@ -84,6 +84,8 @@ var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability
 var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
 var importedThermalCurveItems = items.Count(item => item.ThermalPerformanceCurveKeys.Length > 0);
 var thermalResilienceItems = items.Count(item => item.ThermalResilience > 0);
+var audioStatItems = items.Count(item => item.AudioStats.Length > 0);
+var audioStatCount = items.Sum(item => item.AudioStats.Length);
 var actionBarIconItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ActionBarIcon));
 var dockingBayItems = items.Count(item => item.Category == "DockingBayData");
 var dockingBayMaxSizeItems = items.Count(item =>
@@ -393,6 +395,7 @@ Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
 Console.WriteLine($"Priced/manufactured/specific-heat/conductive/shaped items: {pricedItems}/{manufacturedItems}/{specificHeatItems}/{conductiveItems}/{shapedItems}");
 Console.WriteLine($"Thermal resilience items: {thermalResilienceItems}");
+Console.WriteLine($"Audio stat items/stats: {audioStatItems}/{audioStatCount}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
