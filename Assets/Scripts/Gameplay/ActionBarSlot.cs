@@ -122,9 +122,7 @@ public class ActionBarGearBinding : ActionBarBinding
                 return ActionGameManager.Instance.Settings.GetIcon(hardpointType).texture;
         }
 
-        return Item.Data is WeaponItemData weaponItemData
-            ? ActionGameManager.Instance.Settings.GetIcon(weaponItemData.WeaponType).texture
-            : ActionGameManager.Instance.Settings.GetIcon(Item.Data.HardpointType).texture;
+        return ActionGameManager.Instance.Settings.GetIcon(HardpointType.Tool).texture;
     }
 
     private static AetheriaRuntimeCatalogItem FindTypedGearItem(ItemInstance item)
