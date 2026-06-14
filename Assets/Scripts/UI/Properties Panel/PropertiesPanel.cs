@@ -474,7 +474,7 @@ public class PropertiesPanel : MonoBehaviour
 			}
 		}
 
-		var weaponPayload = typedItem?.BehaviorPayloads.FirstOrDefault(payload => TypedBehaviorMatches(payload, WeaponBehaviorMatcher));
+		var weaponPayload = typedItem?.BehaviorPayloads.FirstOrDefault(payload => AetheriaRuntimeBehaviorKinds.IsWeapon(payload.Kind));
 		if (weaponPayload != null)
 		{
 			var damageCurve = ReadTypedBezierCurve(FindTypedBehaviorField(weaponPayload, 7)?.Value);
@@ -561,17 +561,6 @@ public class PropertiesPanel : MonoBehaviour
 			: fallback;
 	}
 
-	private static bool TypedBehaviorMatches(AetheriaRuntimeBehaviorPayload payload, BehaviorKindMatcher matcher)
-	{
-		if (string.Equals(payload.Kind, matcher.Kind, StringComparison.Ordinal))
-		{
-			return true;
-		}
-
-		var payloadType = ResolveBehaviorType(payload.Kind);
-		return payloadType != null && matcher.MetadataType.IsAssignableFrom(payloadType);
-	}
-
 	private static Type ResolveBehaviorType(string kind)
 	{
 		return string.IsNullOrWhiteSpace(kind)
@@ -586,22 +575,6 @@ public class PropertiesPanel : MonoBehaviour
 		.Where(type => !string.IsNullOrWhiteSpace(type.Name))
 		.GroupBy(type => type.Name)
 		.ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-
-	private static readonly BehaviorKindMatcher WeaponBehaviorMatcher = new BehaviorKindMatcher(
-		nameof(WeaponData),
-		typeof(WeaponData));
-
-	private readonly struct BehaviorKindMatcher
-	{
-		public BehaviorKindMatcher(string kind, Type metadataType)
-		{
-			Kind = string.IsNullOrWhiteSpace(kind) ? "" : kind;
-			MetadataType = metadataType ?? throw new ArgumentNullException(nameof(metadataType));
-		}
-
-		public string Kind { get; }
-		public Type MetadataType { get; }
-	}
 
 	private string GetTitle(EquippableItem item)
 	{
