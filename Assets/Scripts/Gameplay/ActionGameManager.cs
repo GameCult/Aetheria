@@ -785,6 +785,8 @@ public class ActionGameManager : MonoBehaviour
             DockingBayAssignments = entity.DockingBays?
                 .Select(bay => entity.Children.IndexOf(bay.DockedShip))
                 .ToArray() ?? Array.Empty<int>(),
+            Visibility = entity.Visibility,
+            VisibilitySourceCount = entity.VisibilitySources.Count,
             ChildEntityIndices = entity.Children?
                 .Select(child => zone.Entities.IndexOf(child))
                 .Where(index => index >= 0)

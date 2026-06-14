@@ -579,6 +579,12 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(31)]
         public IReadOnlyList<int> DockingBayAssignments { get; set; } = Array.Empty<int>();
+
+        [Key(32)]
+        public double Visibility { get; set; }
+
+        [Key(33)]
+        public int VisibilitySourceCount { get; set; }
     }
 
     [MessagePackObject]

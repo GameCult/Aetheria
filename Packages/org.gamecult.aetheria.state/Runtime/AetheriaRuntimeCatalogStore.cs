@@ -535,7 +535,9 @@ namespace GameCult.Aetheria.State.Unity
             var cargoContents = ReadFieldCargoBayLoadouts(ref reader, fields, 24);
             var dockingBayContents = ReadFieldCargoBayLoadouts(ref reader, fields, 25);
             var dockingBayAssignments = ReadFieldInt32Array(ref reader, fields, 26);
-            SkipRemaining(ref reader, fields, 27);
+            var visibility = ReadFieldDouble(ref reader, fields, 27);
+            var visibilitySourceCount = ReadFieldInt32(ref reader, fields, 28);
+            SkipRemaining(ref reader, fields, 29);
             return new AetheriaRuntimeEntitySnapshot(
                 name,
                 kind,
@@ -567,7 +569,9 @@ namespace GameCult.Aetheria.State.Unity
                 behaviorStates,
                 cargoContents,
                 dockingBayContents,
-                dockingBayAssignments);
+                dockingBayAssignments,
+                visibility,
+                visibilitySourceCount);
         }
 
         private static Vector2Value ReadFieldVector2(ref MessagePackReader reader, int fields, int index)

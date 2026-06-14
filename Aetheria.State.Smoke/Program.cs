@@ -231,6 +231,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             }
         ],
         DockingBayAssignments = [-1],
+        Visibility = 12.75,
+        VisibilitySourceCount = 3,
         WeaponGroups =
         [
             new AetheriaWeaponGroupSnapshot
@@ -623,6 +625,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.CargoContents[0].Items[0].Item.Quantity != 7 ||
         entitySnapshot.DockingBayAssignments.Length != 1 ||
         entitySnapshot.DockingBayAssignments[0] != -1 ||
+        entitySnapshot.Visibility != 12.75 ||
+        entitySnapshot.VisibilitySourceCount != 3 ||
         entitySnapshot.WeaponGroups.Length != 1 ||
         entitySnapshot.WeaponStates.Length != 1 ||
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||

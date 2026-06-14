@@ -503,6 +503,12 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(26)]
     public int[] DockingBayAssignments { get; set; } = [];
+
+    [Key(27)]
+    public double Visibility { get; set; }
+
+    [Key(28)]
+    public int VisibilitySourceCount { get; set; }
 }
 
 [MessagePackObject]

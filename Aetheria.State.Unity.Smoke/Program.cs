@@ -357,6 +357,8 @@ try
                                 }
                             },
                             DockingBayAssignments = new[] { -1 },
+                            Visibility = 12.75,
+                            VisibilitySourceCount = 3,
                             WeaponGroups = new[] { new[] { 0 } },
                             ActiveConsumables = new[]
                             {
@@ -689,6 +691,8 @@ try
             entity.CargoContents[0].Items[0].Item.Quantity == 7 &&
             entity.DockingBayAssignments.Length == 1 &&
             entity.DockingBayAssignments[0] == -1 &&
+            entity.Visibility == 12.75 &&
+            entity.VisibilitySourceCount == 3 &&
             entity.ActiveConsumables[0].ItemKey == "aetheria.item_definition:legacy:smoke:consumable" &&
             entity.ActiveConsumables[0].RemainingDuration == 3.0 &&
             entity.BehaviorProgress.Length == 2 &&
@@ -812,6 +816,8 @@ try
         packageEntities[0].CargoContents[0].Items[0].Item.Quantity != 7 ||
         packageEntities[0].DockingBayAssignments.Count != 1 ||
         packageEntities[0].DockingBayAssignments[0] != -1 ||
+        packageEntities[0].Visibility != 12.75 ||
+        packageEntities[0].VisibilitySourceCount != 3 ||
         packageEntities[0].ActiveConsumables[0].ItemKey != "aetheria.item_definition:legacy:smoke:consumable" ||
         packageEntities[0].BehaviorProgress.Count != 2 ||
         packageEntities[0].WeaponStates.Count != 4 ||

@@ -152,7 +152,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   temperature, thermal mass, armor, max armor, and hull-conductivity axes.
   They also carry public runtime session state: velocity, target entity
   reference, active flag, heatsink toggle, shutdown override, tractor power,
-  heatstroke/hypothermia accumulators, and active consumable item/timer rows.
+  heatstroke/hypothermia accumulators, aggregate visibility/source-count state,
+  and active consumable item/timer rows.
   Entity equipment, cargo-bay, and docking-bay slot rows preserve item-instance
   facts needed for restore: item key, quality, durability, and quantity. Those
   facts are no longer discarded when pending checkpoint commands become
@@ -846,6 +847,9 @@ First Aetheria surfaces to publish:
      quantity now survive canonical state and Unity package readback.
    - Done: preserve cargo bay contents, docking bay contents, and docking bay
      child assignments in typed entity snapshots.
+   - Done: preserve aggregate entity visibility and visibility-source count in
+     typed entity snapshots, so `Entity.VisibilitySources` no longer hides
+     untyped session pressure.
    - Remaining: add typed documents/mappers for runtime object graphs,
      typed behavior factory construction, remaining behavior-private state not
      covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,

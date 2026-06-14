@@ -458,7 +458,9 @@ public static class AetheriaRuntimeCommitLogApplier
             BehaviorStates = ToBehaviorStates(entity.BehaviorStates),
             CargoContents = ToCargoBays(entity.CargoContents),
             DockingBayContents = ToCargoBays(entity.DockingBayContents),
-            DockingBayAssignments = ToIntArray(entity.DockingBayAssignments)
+            DockingBayAssignments = ToIntArray(entity.DockingBayAssignments),
+            Visibility = entity.Visibility,
+            VisibilitySourceCount = entity.VisibilitySourceCount
         };
     }
 
