@@ -7,7 +7,8 @@ using System.Linq;
 [Inspectable, Order(-5)]
 public class ItemUsageConfig : RuntimeBehaviorConfig
 {
-    public Guid Item;
+    public string ItemKey;
+    public Guid Item => AetheriaRuntimeItemReference.ToLegacyId(ItemKey);
 
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -36,10 +37,10 @@ public class ItemUsage : Behavior
 
     public override bool Execute(float dt)
     {
-        var cargo = Entity.FindItemInCargo(_data.Item);
+        var cargo = Entity.FindItemInCargo(_data.ItemKey);
         if (cargo == null) return false;
 
-        var item = cargo.GetFirstItem(_data.Item);
+        var item = cargo.GetFirstItem(_data.ItemKey);
         if (item is SimpleCommodity simpleCommodity)
             cargo.Remove(simpleCommodity, 1);
         if (item is CraftedItemInstance craftedItemInstance)

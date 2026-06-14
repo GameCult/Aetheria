@@ -38,6 +38,11 @@ public class AetheriaRuntimeItemReference
         return legacyItemId == Guid.Empty ? "" : $"{LegacyItemDefinitionPrefix}{legacyItemId:D}";
     }
 
+    public static Guid ToLegacyId(string itemKey)
+    {
+        return TryParseLegacyId(itemKey, out var itemId) ? itemId : Guid.Empty;
+    }
+
     private static bool TryParseLegacyId(string itemKey, out Guid itemId)
     {
         itemId = Guid.Empty;

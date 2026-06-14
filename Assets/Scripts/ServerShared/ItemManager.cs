@@ -185,7 +185,7 @@ public class ItemManager
 
     private static void ApplyItemUsageConfig(ItemUsageConfig config, BehaviorPayloadReader reader)
     {
-        config.Item = reader.Guid(1, config.Item);
+        config.ItemKey = reader.ItemKey(1, config.ItemKey);
     }
 
     private static void ApplyMiningToolConfig(MiningToolConfig config, BehaviorPayloadReader reader)
@@ -303,7 +303,7 @@ public class ItemManager
         config.Energy = reader.PerformanceStat(9, config.Energy);
         config.Heat = reader.PerformanceStat(10, config.Heat);
         config.Visibility = reader.PerformanceStat(11, config.Visibility);
-        config.AmmoType = reader.Guid(12, config.AmmoType);
+        config.AmmoItemKey = reader.ItemKey(12, config.AmmoItemKey);
         config.MagazineSize = reader.Int(13, config.MagazineSize);
         config.ReloadTime = reader.Float(14, config.ReloadTime);
         config.Spread = reader.PerformanceStat(15, config.Spread);
@@ -421,6 +421,13 @@ public class ItemManager
         {
             return _fields.TryGetValue(key, out var value) && System.Guid.TryParse(value.LegacyIdValue, out var result)
                 ? result
+                : fallback;
+        }
+
+        public string ItemKey(int key, string fallback = "")
+        {
+            return Guid(key) is var itemId && itemId != System.Guid.Empty
+                ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
                 : fallback;
         }
 

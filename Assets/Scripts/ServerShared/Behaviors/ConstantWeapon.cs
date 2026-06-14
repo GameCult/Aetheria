@@ -84,7 +84,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                 OnStopFiring?.Invoke();
                 return false;
             }
-            if (_data.AmmoType != Guid.Empty)
+            if (!string.IsNullOrWhiteSpace(_data.AmmoItemKey))
             {
                 if (_reloading)
                 {
@@ -104,10 +104,10 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                     if (_data.MagazineSize > 1 && _ammo > 0) _ammo--;
                     else
                     {
-                        var cargo = Entity.FindItemInCargo(_data.AmmoType);
+                        var cargo = Entity.FindItemInCargo(_data.AmmoItemKey);
                         if (cargo != null)
                         {
-                            var item = cargo.GetFirstItem(_data.AmmoType);
+                            var item = cargo.GetFirstItem(_data.AmmoItemKey);
                             if (item is SimpleCommodity simpleCommodity)
                                 cargo.Remove(simpleCommodity, 1);
 

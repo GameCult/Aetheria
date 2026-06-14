@@ -256,7 +256,7 @@ public class SchematicDisplay : MonoBehaviour
                         if(x.Weapon.MagazineSize > 1)
                             x.ListElement.AmmoLabel.text = x.Weapon.Ammo.ToString();
                         else
-                            x.ListElement.AmmoLabel.text = _entity.CountItemsInCargo(x.Weapon.AmmoType).ToString();
+                            x.ListElement.AmmoLabel.text = _entity.CountItemsInCargo(x.Weapon.AmmoItemKey).ToString();
                     }
                 }
 

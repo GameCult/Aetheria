@@ -43,7 +43,8 @@ public abstract class WeaponConfig : RuntimeBehaviorConfig
 
     [InspectablePrefab]
     public PerformanceStat Visibility = new PerformanceStat();
-    public Guid AmmoType;
+    public string AmmoItemKey;
+    public Guid AmmoType => AetheriaRuntimeItemReference.ToLegacyId(AmmoItemKey);
 
     [InspectablePrefab]
     public int MagazineSize;
@@ -69,9 +70,10 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract int Ammo { get; }
     public DamageType DamageType { get; }
     public string EffectPrefab { get; }
+    public string AmmoItemKey { get; }
     public Guid AmmoType { get; }
     public int MagazineSize { get; }
-    public bool UsesAmmo => AmmoType != Guid.Empty;
+    public bool UsesAmmo => !string.IsNullOrWhiteSpace(AmmoItemKey);
     public GuidedProjectileTargetMode GuidedProjectileTargeting { get; private set; }
     public bool HasGuidedProjectileProfile => GuidedProjectileTargeting != GuidedProjectileTargetMode.None;
     public float4[] GuidedProjectileGuidanceCurve { get; private set; }
@@ -102,6 +104,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        AmmoItemKey = data.AmmoItemKey;
         AmmoType = data.AmmoType;
         MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
@@ -112,6 +115,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        AmmoItemKey = data.AmmoItemKey;
         AmmoType = data.AmmoType;
         MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
