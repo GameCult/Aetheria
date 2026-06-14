@@ -119,7 +119,9 @@ namespace GameCult.Aetheria.State.Unity
             string weaponCaliber,
             string weaponType,
             string weaponFireTypes,
-            string weaponModifiers)
+            string weaponModifiers,
+            double minimumTemperature,
+            double maximumTemperature)
         {
             LegacyId = legacyId;
             Name = name;
@@ -149,6 +151,8 @@ namespace GameCult.Aetheria.State.Unity
             WeaponType = weaponType;
             WeaponFireTypes = weaponFireTypes;
             WeaponModifiers = weaponModifiers;
+            MinimumTemperature = minimumTemperature;
+            MaximumTemperature = maximumTemperature;
         }
 
         public string LegacyId { get; }
@@ -179,6 +183,8 @@ namespace GameCult.Aetheria.State.Unity
         public string WeaponType { get; }
         public string WeaponFireTypes { get; }
         public string WeaponModifiers { get; }
+        public double MinimumTemperature { get; }
+        public double MaximumTemperature { get; }
     }
 
     public sealed class AetheriaRuntimeShapeCell

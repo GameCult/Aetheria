@@ -195,7 +195,9 @@ namespace GameCult.Aetheria.State.Unity
             var interiorShapeCells = ReadFieldShapeCells(ref reader, fields, 29);
             var hardpoints = ReadFieldHardpoints(ref reader, fields, 30);
             var behaviorPayloads = ReadFieldBehaviorPayloads(ref reader, fields, 31);
-            SkipRemaining(ref reader, fields, 32);
+            var minimumTemperature = ReadFieldDouble(ref reader, fields, 32);
+            var maximumTemperature = ReadFieldDouble(ref reader, fields, 33);
+            SkipRemaining(ref reader, fields, 34);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -225,7 +227,9 @@ namespace GameCult.Aetheria.State.Unity
                 weaponCaliber,
                 weaponType,
                 weaponFireTypes,
-                weaponModifiers);
+                weaponModifiers,
+                minimumTemperature,
+                maximumTemperature);
         }
 
         private static AetheriaRuntimeCorporation ReadCorporation(byte[] payload)

@@ -391,6 +391,8 @@ internal static class LegacyCatalogReader
                     Stackable = false,
                     Duration = 0,
                     Durability = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 12) : 0,
+                    MinimumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 13) : 0,
+                    MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
                     WeaponCaliber = unionKey == 31 ? GetEnumName(payload, 25, WeaponCalibers) : "",
                     WeaponType = unionKey == 31 ? GetEnumName(payload, 26, WeaponTypes) : "",

@@ -230,8 +230,8 @@ public class SchematicDisplay : MonoBehaviour
             {
                 if (!_enemy)
                 {
-                    var itemData = _entity.ItemManager.GetData(x.Item.EquippableItem);
-                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Item.Temperature), 0);
+                    var thermalRange = GetThermalRange(x.Item.EquippableItem, x.Item.Temperature);
+                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(thermalRange.minimum, thermalRange.maximum, x.Item.Temperature), 0);
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
                     x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / GetMaxDurability(x.Item.EquippableItem) * 100)}%";
@@ -253,6 +253,14 @@ public class SchematicDisplay : MonoBehaviour
         }
     }
 
+    private static (float minimum, float maximum) GetThermalRange(ItemInstance item, float currentTemperature)
+    {
+        var typedItem = FindTypedItem(item);
+        if (typedItem != null && typedItem.MaximumTemperature > typedItem.MinimumTemperature)
+            return ((float)typedItem.MinimumTemperature, (float)typedItem.MaximumTemperature);
+
+        return (currentTemperature, currentTemperature + 1f);
+    }
     private float GetMaxDurability(ItemInstance item)
     {
         var typedItem = FindTypedItem(item);

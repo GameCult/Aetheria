@@ -43,7 +43,9 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.WeaponCaliber,
             item.WeaponType,
             item.WeaponFireTypes,
-            item.WeaponModifiers);
+            item.WeaponModifiers,
+            item.MinimumTemperature,
+            item.MaximumTemperature);
     }
 
     private static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)

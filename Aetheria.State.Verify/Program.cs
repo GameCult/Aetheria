@@ -70,6 +70,7 @@ var maxDurabilityItems = items
     .Where(item => !string.IsNullOrWhiteSpace(item.HullType) || !string.IsNullOrWhiteSpace(item.WeaponType))
     .ToArray();
 var durableMaxDurabilityItems = maxDurabilityItems.Count(item => item.Durability > 0);
+var importedThermalRangeItems = items.Count(item => item.MaximumTemperature > item.MinimumTemperature);
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
@@ -142,6 +143,11 @@ if (missingMaxDurability.Length > 0)
 {
     throw new InvalidOperationException(
         $"Typed hull/weapon max durability missing for: {string.Join(", ", missingMaxDurability)}.");
+}
+
+if (importedThermalRangeItems == 0)
+{
+    throw new InvalidOperationException("Typed item definitions did not import any thermal ranges.");
 }
 
 foreach (var item in items.Where(item => item.Hardpoints.Length > 0))
@@ -314,6 +320,7 @@ Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeIte
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
+Console.WriteLine($"Thermal-range items: {importedThermalRangeItems}");
 Console.WriteLine($"Typed catalog trade items: {tradeItems.Length}");
 Console.WriteLine($"Eve catalog surface: {surface.Surface.Id} ({surface.Surface.Root.Children.Length} root children)");
 Console.WriteLine($"Corporations: {corporations.Length}");

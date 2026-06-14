@@ -98,6 +98,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Hull and item durability percentages use typed max durability only; incomplete
   typed rows use current runtime durability as the generic denominator instead
   of falling back to legacy `ItemData.Durability`.
+  Gear heat-fill ranges in the schematic HUD also read typed catalog thermal
+  bounds; rows without typed thermal bounds use a neutral current-temperature
+  range instead of hydrating legacy `ItemData`.
   Ship thruster VFX emission scaling also uses typed max durability only.
   Runtime weapon behavior still owns ammo counts, active range, cooldowns,
   temperature, and current durability values until those session facts have
@@ -629,6 +632,9 @@ First Aetheria surfaces to publish:
    - Done: move action-bar consumable drop binding onto typed catalog rows;
      legacy `ConsumableItemData` resolution is lazy and bounded to activation
      and active-duration fill until typed consumable effect execution exists.
+   - Done: import typed thermal bounds and move schematic HUD heat-fill ranges
+     onto typed catalog rows; legacy thermal curve DTOs remain only where curves
+     themselves are still required.
    - Done: delete the console `give` command instead of preserving a debug
      operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers

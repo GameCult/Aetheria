@@ -108,6 +108,12 @@ public sealed class AetheriaItemDefinition
 
     [Key(31)]
     public AetheriaBehaviorPayload[] BehaviorPayloads { get; set; } = [];
+
+    [Key(32)]
+    public double MinimumTemperature { get; set; }
+
+    [Key(33)]
+    public double MaximumTemperature { get; set; }
 }
 
 [MessagePackObject]
