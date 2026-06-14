@@ -220,8 +220,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
   DTOs. Runtime behavior stat display and damage-range curves read typed
-  behavior payload fields by legacy payload key; the explicit `Inspect(ItemData)`
-  overload remains a legacy DTO inspection surface. Incomplete typed thermal
+  behavior payload fields by legacy payload key. The old explicit
+  `Inspect(ItemData)` DTO inspection overload is deleted; trade row clicks now
+  inspect the typed runtime catalog row directly. Incomplete typed thermal
   curve rows render a neutral fallback curve instead of hydrating legacy
   `EquippableItemData`. Inventory selection highlighting now uses typed item
   shape cells only for UI tint geometry; incomplete typed rows produce no
@@ -731,9 +732,9 @@ First Aetheria surfaces to publish:
      thermal curve presentation onto typed catalog rows; incomplete typed rows
      use a neutral fallback curve instead of hydrating legacy thermal DTOs.
    - Done: move PropertiesPanel runtime behavior stat display and damage-range
-     curves onto typed behavior payload fields; only the explicit
-     `Inspect(ItemData)` projection inspector still reflects legacy behavior
-     DTOs.
+     curves onto typed behavior payload fields, and delete the explicit
+     `Inspect(ItemData)` projection inspector after moving trade row inspection
+     onto typed runtime catalog rows.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.

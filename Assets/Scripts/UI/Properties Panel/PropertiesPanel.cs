@@ -454,8 +454,11 @@ public class PropertiesPanel : MonoBehaviour
 			return;
 		}
 
-		var typedItem = FindTypedPropertyItem(item);
+		AddTypedBehaviorProperties(FindTypedPropertyItem(item), statValueFunction);
+	}
 
+	private void AddTypedBehaviorProperties(AetheriaRuntimeCatalogItem typedItem, Func<PerformanceStat, float> statValueFunction)
+	{
 		var sheet = AddStatSheet();
 		foreach (var behavior in typedItem?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
 		{
@@ -716,45 +719,38 @@ public class PropertiesPanel : MonoBehaviour
 		RefreshValues();
 	}
 
-	public void Inspect(ItemData data)
+	public void Inspect(AetheriaRuntimeCatalogItem item)
 	{
-		AddProperty("Type", () => data.Name);
-		AddProperty(data.Description).Label.fontStyle = FontStyles.Normal;
-		if (data is EquippableItemData gearData)
+		Clear();
+		if (item == null)
 		{
-			AddProperty("Durability", () => ActionGameManager.RuntimePlayerSettings.Format(gearData.Durability));
-			var sheet = AddStatSheet();
-			foreach (var behavior in gearData.Behaviors)
-			{
-				if (behavior is StatModifierData statMod)
-				{
-					if(Math.Abs(statMod.Modifier.Min - statMod.Modifier.Max) < .001f)
-						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Min)}");
-					else
-						sheet.AddStat($"{statMod.Stat.Target}:{statMod.Stat.Stat}", () => $"{(statMod.Type == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Min)}-{ActionGameManager.RuntimePlayerSettings.Format(statMod.Modifier.Max)}");
-				}
-				var type = behavior.GetType();
-				if (type.GetCustomAttribute(typeof(RuntimeInspectable)) != null)
-				{
-					foreach (var field in type.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
-					{
-						var fieldType = field.FieldType;
-						if (fieldType == typeof(float))
-							sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior))}");
-						else if (fieldType == typeof(int))
-							sheet.AddStat(field.Name, () => $"{(int) field.GetValue(behavior)}");
-						else if (fieldType == typeof(PerformanceStat))
-						{
-							var stat = (PerformanceStat) field.GetValue(behavior);
-							if(Math.Abs(stat.Min - stat.Max) < .001f)
-								sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format(stat.Min)}");
-							else
-								sheet.AddStat(field.Name, () => $"{ActionGameManager.RuntimePlayerSettings.Format(stat.Min)}-{ActionGameManager.RuntimePlayerSettings.Format(stat.Max)}");
-						}
-					}
-				}
-			}
+			RefreshValues();
+			return;
 		}
+
+		Title.text = item.Name;
+		AddProperty(item.Description).Label.fontStyle = FontStyles.Normal;
+
+		var sheet = AddStatSheet();
+		var manufacturer = ActionGameManager.RuntimeCatalog?.GetManufacturer(item);
+		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
+		sheet.AddStat("Mass", () => ActionGameManager.RuntimePlayerSettings.Format((float)item.Mass));
+		sheet.AddStat("Price", () => item.Price.ToString("N0"));
+
+		if (!string.IsNullOrWhiteSpace(item.HardpointType))
+		{
+			sheet.AddStat("Durability", () => ActionGameManager.RuntimePlayerSettings.Format((float)item.Durability));
+			var thermalRange = GetThermalRange(item);
+			var heatCurve = AddCurveField();
+			heatCurve.Show(
+				"Thermal Performance",
+				GetThermalPerformanceCurve(item),
+				t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(thermalRange.minimum, thermalRange.maximum, t)),
+				true);
+			AddTypedBehaviorProperties(item, stat => stat.Min);
+		}
+
+		RefreshValues();
 	}
 
 	public void Inspect(object obj, bool inspectablesOnly = false, bool readWrite = false, bool topLevel = true)
