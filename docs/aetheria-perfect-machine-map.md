@@ -213,9 +213,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   temporary behavior-class config bridge, not the runtime behavior payload
   owner. `StatModifier` behavior requirements and behavior-stat targets also
   read that typed behavior config bridge instead of hydrating
-  `EquippableItemData.Behaviors`. Its old item-DTO stat branch was deleted
-  after inspection showed no active `PerformanceStat` fields on the live
-  equippable item DTO hierarchy.
+  `EquippableItemData.Behaviors`. `ConsumableItemData` and
+  `EquippableItemData` no longer expose legacy `Behaviors` lists at all. The
+  old item-DTO stat branch was deleted after inspection showed no active
+  `PerformanceStat` fields on the live equippable item DTO hierarchy.
   Ship drag, combat/turret shot prediction height, and thruster
   torque geometry now consume typed hull facets and typed shape masks.
   The item properties panel also reads typed catalog title names, descriptions,
@@ -772,13 +773,15 @@ First Aetheria surfaces to publish:
      shape rows; legacy `HullData.Shape`/`EquippableItemData.Shape` no longer
      decide equipped-item temperature footprint geometry.
    - Done: move `EquippedItem` and `ConsumableItemEffect` behavior construction
-     off `Data.Behaviors` and onto typed runtime behavior payload projection;
-     `BehaviorData` remains only the temporary behavior-class config bridge.
+     off `Data.Behaviors` and onto typed runtime behavior payload config
+     construction; `BehaviorData` remains only the temporary behavior-class
+     config bridge.
    - Done: move `StatModifier` behavior requirements and behavior-stat targets
-     off `EquippableItemData.Behaviors` and onto typed runtime behavior
-     projections; the obsolete item-DTO stat target branch is deleted because
-     the live equippable item DTO hierarchy has no active `PerformanceStat`
-     fields.
+     off `EquippableItemData.Behaviors` and onto typed runtime behavior config;
+     the obsolete item-DTO stat target branch is deleted because the live
+     equippable item DTO hierarchy has no active `PerformanceStat` fields.
+   - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
+     `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
      geometry onto typed runtime item price and hull shape rows; legacy
      `ItemData.Price` and `HullData.Shape` no longer own those blueprint paths.

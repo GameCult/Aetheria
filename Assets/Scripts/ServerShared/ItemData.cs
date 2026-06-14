@@ -348,9 +348,6 @@ public class CompoundCommodityData : CraftedItemData
 [Inspectable]
 public class ConsumableItemData : CraftedItemData
 {
-    [Inspectable, LegacyPayloadKey(10)]
-    public List<BehaviorData> Behaviors = new List<BehaviorData>();
-
     [Inspectable, LegacyPayloadKey(11)]
     public bool Stackable;
 
@@ -368,9 +365,6 @@ public abstract class EquippableItemData : CraftedItemData
 {
     [InspectableTexture, LegacyPayloadKey(10)]
     public string Schematic;
-
-    [Inspectable, LegacyPayloadKey(11)]
-    public List<BehaviorData> Behaviors = new List<BehaviorData>();
 
     [Inspectable, LegacyPayloadKey(12)]
     public float Durability;
