@@ -21,7 +21,8 @@ typed corporation references plus relationship tokens and numeric standings.
 Zone checkpoints include typed orbit and body rows for generated celestial
 state: orbit IDs, parent IDs, distance, phase, fixed positions, body kind,
 resources, gravity/body multipliers, asteroid entries, and gas/sun visual
-parameters.
+parameters. Entity checkpoints include typed simulation stat grids for
+temperature, thermal mass, armor, max armor, and hull-conductivity axes.
 Player settings include player name, tutorial flag,
 story-file hash cursors, gameplay formatting, graphics preferences, input
 binding overrides, and action-bar inputs. Do not preserve `SavedGame`, Unity
@@ -120,9 +121,12 @@ needs actual allegiance weights, not only display counts. Runtime checkpoints
 now persist session faction relationships into typed run state, and runtime
 sessions publish typed state-host liveness. Zone checkpoints persist generated
 orbit/body rows into `AetheriaZoneState`, so `RuntimeZoneBlueprint` is no
-longer the only surface carrying celestial graph facts. Broader runtime object
-graphs, typed behavior factory construction, and simulation state remain legacy
-until dedicated typed runtime documents exist.
+longer the only surface carrying celestial graph facts. Entity checkpoints
+persist hull simulation grids into `AetheriaEntitySnapshot`, so
+`RuntimeEntityBlueprint` is no longer the only surface carrying those live
+values. Broader runtime object graphs, typed behavior factory construction, and
+behavior-private simulation state remain legacy until dedicated typed runtime
+documents exist.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array needed to move `Galaxy`/Markov name generation off legacy
@@ -170,8 +174,8 @@ an entity snapshot. It also writes and reopens `AetheriaRuntimeSession` and
 checks that the Eve provider advertises the runtime-session schema. The run
 smoke proves a typed run can reference a typed zone, the zone can preserve
 orbit/body rows and reference typed entity snapshots, and entity snapshots can
-preserve equipment slots, weapon groups, and stat grids without reviving
-`PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
+preserve equipment slots, weapon groups, and simulation stat grids without
+reviving `PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

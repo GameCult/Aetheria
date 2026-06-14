@@ -273,7 +273,24 @@ try
                                     }
                                 }
                             },
-                            WeaponGroups = new[] { new[] { 0 } }
+                            WeaponGroups = new[] { new[] { 0 } },
+                            StatGrids = new[]
+                            {
+                                new AetheriaRuntimeEntityStatGridCommit
+                                {
+                                    Name = "temperature",
+                                    Width = 2,
+                                    Height = 1,
+                                    Values = new[] { 280.0, 281.0 }
+                                },
+                                new AetheriaRuntimeEntityStatGridCommit
+                                {
+                                    Name = "hull_conductivity_x",
+                                    Width = 2,
+                                    Height = 1,
+                                    Values = new[] { 1.0, 0.0 }
+                                }
+                            }
                         }
                     }
                 }
@@ -325,6 +342,9 @@ try
             zone.Bodies[0].Asteroids.Length == 1 &&
             entity?.Equipment.Length == 1 &&
             entity.WeaponGroups.Length == 1 &&
+            entity.StatGrids.Length == 2 &&
+            entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&
+            entity.StatGrids.Any(grid => grid.Name == "hull_conductivity_x" && grid.Values.Length == 2 && grid.Values[0] == 1.0) &&
             AetheriaRuntimeStateCommitLog.ReadPending(commitSmokeStatePath).Count == 0;
     }
 

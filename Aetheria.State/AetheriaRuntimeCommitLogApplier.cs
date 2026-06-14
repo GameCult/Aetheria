@@ -424,8 +424,23 @@ public static class AetheriaRuntimeCommitLogApplier
                 .ToArray(),
             WeaponGroups = ToIntArrayArray(entity.WeaponGroups)
                 .Select(group => new AetheriaWeaponGroupSnapshot { EquipmentIndices = group })
-                .ToArray()
+                .ToArray(),
+            StatGrids = ToEntityStatGrids(entity.StatGrids)
         };
+    }
+
+    private static AetheriaEntityStatGrid[] ToEntityStatGrids(
+        IReadOnlyList<AetheriaRuntimeEntityStatGridCommit>? grids)
+    {
+        return (grids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
+            .Select(grid => new AetheriaEntityStatGrid
+            {
+                Name = grid.Name ?? "",
+                Width = grid.Width,
+                Height = grid.Height,
+                Values = (grid.Values ?? Array.Empty<double>()).ToArray()
+            })
+            .ToArray();
     }
 
     private static int[] ToIntArray(IReadOnlyList<int>? values)

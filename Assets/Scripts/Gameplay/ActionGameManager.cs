@@ -655,7 +655,67 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray() ?? Array.Empty<int>(),
             WeaponGroups = entity.WeaponGroups?
                 .Select(group => (IReadOnlyList<int>)group.items.Select(item => entity.Equipment.IndexOf(item)).Where(index => index >= 0).ToArray())
-                .ToArray() ?? Array.Empty<IReadOnlyList<int>>()
+                .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
+            StatGrids = ProjectEntityStatGrids(entity)
+        };
+    }
+
+    private static AetheriaRuntimeEntityStatGridCommit[] ProjectEntityStatGrids(Entity entity)
+    {
+        return new[]
+            {
+                ProjectFloatGrid("temperature", entity.Temperature),
+                ProjectFloatGrid("thermal_mass", entity.ThermalMass),
+                ProjectFloatGrid("armor", entity.Armor),
+                ProjectFloatGrid("max_armor", entity.MaxArmor),
+                ProjectBool2Grid("hull_conductivity_x", entity.HullConductivity, axis: 0),
+                ProjectBool2Grid("hull_conductivity_y", entity.HullConductivity, axis: 1)
+            }
+            .Where(grid => grid != null)
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeEntityStatGridCommit ProjectFloatGrid(string name, float[,] values)
+    {
+        if (values == null)
+            return null;
+
+        var width = values.GetLength(0);
+        var height = values.GetLength(1);
+        var flattened = new double[width * height];
+        var index = 0;
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+            flattened[index++] = values[x, y];
+
+        return new AetheriaRuntimeEntityStatGridCommit
+        {
+            Name = name,
+            Width = width,
+            Height = height,
+            Values = flattened
+        };
+    }
+
+    private static AetheriaRuntimeEntityStatGridCommit ProjectBool2Grid(string name, bool2[,] values, int axis)
+    {
+        if (values == null)
+            return null;
+
+        var width = values.GetLength(0);
+        var height = values.GetLength(1);
+        var flattened = new double[width * height];
+        var index = 0;
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+            flattened[index++] = (axis == 0 ? values[x, y].x : values[x, y].y) ? 1.0 : 0.0;
+
+        return new AetheriaRuntimeEntityStatGridCommit
+        {
+            Name = name,
+            Width = width,
+            Height = height,
+            Values = flattened
         };
     }
 

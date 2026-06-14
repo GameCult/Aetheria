@@ -525,5 +525,24 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(14)]
         public IReadOnlyList<IReadOnlyList<int>> WeaponGroups { get; set; } = Array.Empty<IReadOnlyList<int>>();
+
+        [Key(15)]
+        public IReadOnlyList<AetheriaRuntimeEntityStatGridCommit> StatGrids { get; set; } = Array.Empty<AetheriaRuntimeEntityStatGridCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEntityStatGridCommit
+    {
+        [Key(0)]
+        public string Name { get; set; } = "";
+
+        [Key(1)]
+        public int Width { get; set; }
+
+        [Key(2)]
+        public int Height { get; set; }
+
+        [Key(3)]
+        public IReadOnlyList<double> Values { get; set; } = Array.Empty<double>();
     }
 }

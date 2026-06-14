@@ -135,6 +135,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   visual parameters now survive through the typed pending commit lane into
   `AetheriaZoneState`. `RuntimeZoneBlueprint` feeds this projector, but it is
   no longer the only place generated celestial graph facts can live.
+- Run checkpoint entity snapshots include typed simulation stat grids for
+  temperature, thermal mass, armor, max armor, and hull-conductivity axes.
+  `RuntimeEntityBlueprint` still exists for construction/loadout projection,
+  but those live hull grids no longer survive only as blueprint fields.
 - `Aetheria.State` now defines `AetheriaLoadoutTemplate` as the typed Verse
   replacement for bespoke `.loadout` files. It stores structured hull,
   equipment, cargo bay, docking bay, child-entity, assignment, and weapon-group
@@ -738,9 +742,13 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      zone orbit/body rows into `AetheriaZoneState`, so generated celestial
      graph facts no longer live only inside `RuntimeZoneBlueprint`.
+   - Done: extend run checkpoint commits and smoke coverage to carry typed
+     entity simulation stat grids into `AetheriaEntitySnapshot`, so
+     temperature/armor/conductivity no longer live only in runtime blueprints.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     typed behavior factory construction, simulation state, and any catalog
-     fields not covered by the stable scalar/fingerprint/payload pass.
+     typed behavior factory construction, behavior-private simulation state,
+     and any catalog fields not covered by the stable scalar/fingerprint/
+     payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
@@ -1130,9 +1138,9 @@ First Aetheria surfaces to publish:
   resolution, including full player settings as the `PlayerSettings.msgpack`
   replacement, loadout templates as the `.loadout` replacement, and a run ->
   zone -> entity snapshot graph as the `.zone` replacement. The zone smoke
-  includes orbit/body rows for generated celestial state. It also proves
-  `aetheria.runtime_session.v1` is advertised and survives reopen as the typed
-  daemon-session signal.
+  includes orbit/body rows for generated celestial state, and the entity smoke
+  includes typed simulation stat grids. It also proves `aetheria.runtime_session.v1`
+  is advertised and survives reopen as the typed daemon-session signal.
 - CultMesh smoke proves node start, typed put/get, subscription, flush, and
   reopen.
 - Eve surface smoke proves provider-owned surface documents are generated from
