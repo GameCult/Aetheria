@@ -123,8 +123,6 @@ public class SchematicDisplay : MonoBehaviour
             var typedWeapon = FindTypedWeapon(x.Item.EquippableItem);
             if (typedWeapon != null)
                 x.ListElement.ShowWeapon(typedWeapon);
-            else if(x.Item.Data is WeaponItemData weaponItemData)
-                x.ListElement.ShowWeapon(weaponItemData);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
             {

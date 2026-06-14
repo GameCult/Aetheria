@@ -30,16 +30,6 @@ public class SchematicListElement : MonoBehaviour
             ShowWeapon(caliber, range, type, fireTypes, modifiers);
     }
 
-    public void ShowWeapon(WeaponItemData weapon)
-    {
-        ShowWeapon(
-            weapon.WeaponCaliber,
-            weapon.WeaponRange,
-            weapon.WeaponType,
-            weapon.WeaponFireTypes,
-            weapon.WeaponModifiers);
-    }
-
     private void ShowWeapon(
         WeaponCaliber caliber,
         WeaponRange range,
