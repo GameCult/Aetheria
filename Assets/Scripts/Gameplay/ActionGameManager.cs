@@ -1845,8 +1845,8 @@ public class ActionGameManager : MonoBehaviour
         var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == followOrbit).Key];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Data.Parent != Guid.Empty)
-            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent;
+        while (Zone.Orbits[rootOrbit].Parent != Guid.Empty)
+            rootOrbit = Zone.Orbits[rootOrbit].Parent;
         var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == rootOrbit).Key];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
@@ -1900,7 +1900,7 @@ public class ActionGameManager : MonoBehaviour
         FollowCamera.enabled = false;
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
-        var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent;
+        var parentOrbit = Zone.Orbits[orbital.OrbitData].Parent;
         var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit == parentOrbit).Key;
         if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;

@@ -520,7 +520,7 @@ public class ZoneRenderer : MonoBehaviour
                     Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit].Data.Parent) - p);
+                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit].Parent) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -654,7 +654,7 @@ public class AsteroidBeltUI
         Filter = meshFilter;
         _collider = collider;
         var orbit = zone.Orbits[belt.Data.Orbit];
-        _orbitParent = orbit.Data.Parent;
+        _orbitParent = orbit.Parent;
         _vertices = new Vector3[_belt.Data.Asteroids.Length * 4];
         _normals = new Vector3[_belt.Data.Asteroids.Length * 4];
         _uvs = new Vector2[_belt.Data.Asteroids.Length * 4];

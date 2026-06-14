@@ -111,7 +111,7 @@ public class Zone
             Radius = Blueprint.Radius,
             Mass = Blueprint.Mass,
             Entities = Entities.Select(RuntimeEntityBlueprintProjector.CaptureBlueprint).ToList(),
-            Orbits = Orbits.Values.Select(o=>o.Data).ToList(),
+            Orbits = Orbits.Values.Select(o=>o.ToData()).ToList(),
             Planets = Planets.Values.ToList(),
             Time = _time
         };
@@ -168,7 +168,7 @@ public class Zone
             if (orbit.Period > .01f)
             {
                 var phase = (float) frac(_time / orbit.Period);
-                pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
+                pos = OrbitData.Evaluate(frac(phase + orbit.Phase)) * orbit.Distance;
                 
                 if (float.IsNaN(pos.x))
                 {
@@ -177,9 +177,9 @@ public class Zone
                 }
             }
 
-            var parentPosition = Orbits[orbitID].Data.Parent == Guid.Empty 
-                ? Orbits[orbitID].Data.FixedPosition : 
-                GetOrbitPosition(orbit.Data.Parent);
+            var parentPosition = orbit.Parent == Guid.Empty
+                ? orbit.FixedPosition
+                : GetOrbitPosition(orbit.Parent);
             Orbits[orbitID].Position = parentPosition + pos;
             _updatedOrbits.Add(orbitID);
         }
@@ -223,8 +223,8 @@ public class Zone
         
         var belt = AsteroidBelts[planetDataID];
 
-        var orbitData = Orbits[beltData.Orbit].Data;
-        belt.NewOrbitPosition = GetOrbitPosition(orbitData.Parent);
+        var orbit = Orbits[beltData.Orbit];
+        belt.NewOrbitPosition = GetOrbitPosition(orbit.Parent);
         for (var i = 0; i < beltData.Asteroids.Length; i++)
         {
             float size;
@@ -494,7 +494,12 @@ public class AsteroidBelt
 
 public class Orbit
 {
-    public OrbitData Data { get; }
+    private readonly OrbitData _data;
+    public Guid ID { get; }
+    public Guid Parent { get; }
+    public float Distance { get; }
+    public float Phase { get; }
+    public float2 FixedPosition { get; }
     public float2 Velocity = float2.zero;
     public float2 Position = float2.zero;
     public float2 PreviousPosition = float2.zero;
@@ -502,7 +507,14 @@ public class Orbit
 
     public Orbit(PlanetSettings settings, OrbitData data)
     {
-        Data = data;
+        _data = data;
+        ID = data.ID;
+        Parent = data.Parent;
+        Distance = data.Distance;
+        Phase = data.Phase;
+        FixedPosition = data.FixedPosition;
         Period = settings.OrbitPeriod.Evaluate(data.Distance);
     }
+
+    public OrbitData ToData() => _data;
 }

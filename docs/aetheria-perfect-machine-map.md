@@ -1023,6 +1023,10 @@ First Aetheria surfaces to publish:
    - Done: delete dormant legacy item audio reads in `EntityInstance` and stale
      commented thruster sound-trigger code; those paths had no live output and
      therefore earned deletion rather than a new runtime metadata owner.
+   - Done: move runtime orbit parent/phase/distance/fixed-position reads off
+     `OrbitData`; `Zone`, `ActionGameManager`, and `ZoneRenderer` consume
+     `Orbit` runtime properties, with `Orbit.ToData()` retained only for
+     blueprint capture.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
