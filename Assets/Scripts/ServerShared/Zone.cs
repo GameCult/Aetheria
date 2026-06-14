@@ -462,7 +462,6 @@ public class Planet
 
 public class GasGiant : Planet
 {
-    public GasGiantData GasGiantData;
     public float FirstOffsetDomainRotationSpeed { get; }
     public float FirstOffsetRotationSpeed { get; }
     public float SecondOffsetDomainRotationSpeed { get; }
@@ -480,7 +479,6 @@ public class GasGiant : Planet
 
     public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
-        GasGiantData = data;
         FirstOffsetDomainRotationSpeed = data.FirstOffsetDomainRotationSpeed;
         FirstOffsetRotationSpeed = data.FirstOffsetRotationSpeed;
         SecondOffsetDomainRotationSpeed = data.SecondOffsetDomainRotationSpeed;
@@ -498,15 +496,14 @@ public class GasGiant : Planet
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(Mass) * GasGiantData.WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(Mass) * GasGiantData.WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(Mass) * GasGiantData.WaveSpeedMultiplier;
+        GravityWavesDepth = Settings.WaveDepth.Evaluate(Mass) * WaveDepthMultiplier;
+        GravityWavesRadius = Settings.WaveRadius.Evaluate(Mass) * WaveRadiusMultiplier;
+        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(Mass) * WaveSpeedMultiplier;
     }
 }
 
 public class Sun : GasGiant
 {
-    public SunData SunData;
     public float3 LightColor { get; }
     public float3 FogTintColor { get; }
     public float LightRadiusMultiplier { get; }
@@ -514,7 +511,6 @@ public class Sun : GasGiant
 
     public Sun(PlanetSettings settings, SunData data, Orbit orbit) : base(settings, data, orbit)
     {
-        SunData = data;
         LightColor = data.LightColor;
         FogTintColor = data.FogTintColor;
         LightRadiusMultiplier = data.LightRadiusMultiplier;
@@ -524,7 +520,7 @@ public class Sun : GasGiant
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        LightRadius = Settings.LightRadius.Evaluate(Mass) * SunData.LightRadiusMultiplier;
+        LightRadius = Settings.LightRadius.Evaluate(Mass) * LightRadiusMultiplier;
     }
 }
 

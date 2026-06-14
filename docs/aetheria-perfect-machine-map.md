@@ -1055,6 +1055,9 @@ First Aetheria surfaces to publish:
    - Done: move `ZoneRenderer` body classification off `BodyData` subclasses;
      zone rendering now walks runtime orbits and lowers `Planet`, `GasGiant`,
      `Sun`, and `AsteroidBelt` wrappers directly.
+   - Done: remove public `GasGiantData`/`SunData` handles from runtime wrappers;
+     wave and light calculations now use copied wrapper fields after
+     construction.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
