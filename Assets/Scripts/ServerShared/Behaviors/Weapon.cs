@@ -126,4 +126,14 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     {
         _firing = false;
     }
+
+    public float EvaluateRange()
+    {
+        return Evaluate(_data.Range);
+    }
+
+    public float EvaluateVelocity()
+    {
+        return Evaluate(_data.Velocity);
+    }
 }

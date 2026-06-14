@@ -22,7 +22,6 @@ public class TurretControllerData : BehaviorData
 
 public class TurretController : Behavior, IInitializableBehavior
 {
-    private TurretControllerData _data;
     private List<Weapon> _weapons = new List<Weapon>();
     private float _shotSpeed;
     private bool _predictShots;
@@ -33,12 +32,10 @@ public class TurretController : Behavior, IInitializableBehavior
 
     public TurretController(TurretControllerData data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
 
     public TurretController(TurretControllerData data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
     }
 
     public void Initialize()
@@ -46,7 +43,7 @@ public class TurretController : Behavior, IInitializableBehavior
         foreach (var weapon in Entity.GetBehaviors<Weapon>())
         {
             _weapons.Add(weapon);
-            var vel = weapon.Evaluate(weapon.WeaponData.Velocity);
+            var vel = weapon.EvaluateVelocity();
             if (vel > .1f)
             {
                 _predictShots = true;
@@ -77,11 +74,10 @@ public class TurretController : Behavior, IInitializableBehavior
 
             foreach (var x in _weapons)
             {
-                var data = x.Data as WeaponData;
                 var fire = dot(
                     x.Direction,
                     Entity.LookDirection) > .99f;
-                if (x.Evaluate(data.Range) > dist && fire)
+                if (x.EvaluateRange() > dist && fire)
                 {
                     x.Activate();
                 }

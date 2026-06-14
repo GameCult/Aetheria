@@ -838,6 +838,9 @@ First Aetheria surfaces to publish:
      and target-stat count.
    - Done: extend behavior state rows for TurretController initialized weapon
      count, shot speed, and predictive-aim flag.
+   - Done: move TurretController weapon range and shot-speed evaluation behind
+     `Weapon` runtime methods, so turret AI no longer casts weapon config DTOs
+     to decide firing range or predictive aim.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
@@ -994,6 +997,9 @@ First Aetheria surfaces to publish:
      config bridge onto `Behavior.Kind` and `Behavior.Group`, so state
      snapshots, weapon snapshots, progress rows, stat-modifier matching, and
      behavior grouping use runtime instance identity.
+   - Done: move TurretController's weapon range/velocity reads off
+     `WeaponData` casts and onto `Weapon.EvaluateRange`/`EvaluateVelocity`;
+     weapon config fields remain private inputs to the weapon runtime owner.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
