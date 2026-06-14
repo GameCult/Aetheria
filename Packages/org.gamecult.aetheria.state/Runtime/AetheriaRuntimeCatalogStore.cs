@@ -904,7 +904,9 @@ namespace GameCult.Aetheria.State.Unity
                 var shieldEnergyUsage = ReadFieldDouble(ref reader, behaviorFields, 44);
                 var velocityLimit = ReadFieldDouble(ref reader, behaviorFields, 45);
                 var thermotoggleTargetTemperature = ReadFieldDouble(ref reader, behaviorFields, 46);
-                SkipRemaining(ref reader, behaviorFields, 47);
+                var switchActivated = ReadFieldBool(ref reader, behaviorFields, 47);
+                var triggerPulled = ReadFieldBool(ref reader, behaviorFields, 48);
+                SkipRemaining(ref reader, behaviorFields, 49);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -952,7 +954,9 @@ namespace GameCult.Aetheria.State.Unity
                     shieldEfficiency,
                     shieldEnergyUsage,
                     velocityLimit,
-                    thermotoggleTargetTemperature);
+                    thermotoggleTargetTemperature,
+                    switchActivated,
+                    triggerPulled);
             }
 
             return behaviorStates;

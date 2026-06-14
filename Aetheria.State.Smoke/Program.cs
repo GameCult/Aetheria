@@ -329,6 +329,22 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 BehaviorIndex = 6,
                 BehaviorKind = "Thermotoggle",
                 ThermotoggleTargetTemperature = 315.5
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 7,
+                BehaviorKind = "Switch",
+                SwitchActivated = true
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 8,
+                BehaviorKind = "Trigger",
+                TriggerPulled = true
             }
         ],
         StatGrids =
@@ -592,7 +608,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 7 ||
+        entitySnapshot.BehaviorStates.Length != 9 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
@@ -617,6 +633,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.BehaviorStates[5].VelocityLimit != 42.0 ||
         entitySnapshot.BehaviorStates[6].BehaviorKind != "Thermotoggle" ||
         entitySnapshot.BehaviorStates[6].ThermotoggleTargetTemperature != 315.5 ||
+        entitySnapshot.BehaviorStates[7].BehaviorKind != "Switch" ||
+        !entitySnapshot.BehaviorStates[7].SwitchActivated ||
+        entitySnapshot.BehaviorStates[8].BehaviorKind != "Trigger" ||
+        !entitySnapshot.BehaviorStates[8].TriggerPulled ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

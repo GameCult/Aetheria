@@ -1114,7 +1114,9 @@ namespace GameCult.Aetheria.State.Unity
             double shieldEfficiency,
             double shieldEnergyUsage,
             double velocityLimit,
-            double thermotoggleTargetTemperature)
+            double thermotoggleTargetTemperature,
+            bool switchActivated,
+            bool triggerPulled)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1163,6 +1165,8 @@ namespace GameCult.Aetheria.State.Unity
             ShieldEnergyUsage = shieldEnergyUsage;
             VelocityLimit = velocityLimit;
             ThermotoggleTargetTemperature = thermotoggleTargetTemperature;
+            SwitchActivated = switchActivated;
+            TriggerPulled = triggerPulled;
         }
 
         public string OwnerKind { get; }
@@ -1212,5 +1216,7 @@ namespace GameCult.Aetheria.State.Unity
         public double ShieldEnergyUsage { get; }
         public double VelocityLimit { get; }
         public double ThermotoggleTargetTemperature { get; }
+        public bool SwitchActivated { get; }
+        public bool TriggerPulled { get; }
     }
 }

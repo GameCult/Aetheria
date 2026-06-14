@@ -177,7 +177,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   index, and evaluated range rows. Thrusters publish analog axis input,
   evaluated thrust, and torque rows. Shields publish evaluated efficiency and
   energy usage, velocity limiters publish evaluated limit, and thermotoggles
-  publish their active target temperature.
+  publish their active target temperature. Switches publish activated state,
+  and triggers publish pending pulled state.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -822,6 +823,8 @@ First Aetheria surfaces to publish:
      so analog propulsion state is typed snapshot/readback state.
    - Done: extend behavior state rows for Shield efficiency/energy usage,
      VelocityLimit limit, and Thermotoggle target temperature.
+   - Done: extend behavior state rows for Switch activation and Trigger
+     pending pull state.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.

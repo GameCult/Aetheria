@@ -836,5 +836,11 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(46)]
         public double ThermotoggleTargetTemperature { get; set; }
+
+        [Key(47)]
+        public bool SwitchActivated { get; set; }
+
+        [Key(48)]
+        public bool TriggerPulled { get; set; }
     }
 }

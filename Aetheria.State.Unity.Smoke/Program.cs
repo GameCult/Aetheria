@@ -558,6 +558,22 @@ try
                                     BehaviorIndex = 0,
                                     BehaviorKind = "Thermotoggle",
                                     ThermotoggleTargetTemperature = 315.5
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 11,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Switch",
+                                    SwitchActivated = true
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 12,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Trigger",
+                                    TriggerPulled = true
                                 }
                             },
                             StatGrids = new[]
@@ -678,7 +694,7 @@ try
             entity.WeaponStates[3].BehaviorKind == "LockWeapon" &&
             entity.WeaponStates[3].LockProgress == 0.65 &&
             entity.WeaponStates[3].LockTargetEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
-            entity.BehaviorStates.Length == 11 &&
+            entity.BehaviorStates.Length == 13 &&
             entity.BehaviorStates[0].BehaviorKind == "Sensor" &&
             entity.BehaviorStates[0].Pinging &&
             entity.BehaviorStates[0].PingRadius == 1200.0 &&
@@ -715,6 +731,10 @@ try
             entity.BehaviorStates[9].VelocityLimit == 42.0 &&
             entity.BehaviorStates[10].BehaviorKind == "Thermotoggle" &&
             entity.BehaviorStates[10].ThermotoggleTargetTemperature == 315.5 &&
+            entity.BehaviorStates[11].BehaviorKind == "Switch" &&
+            entity.BehaviorStates[11].SwitchActivated &&
+            entity.BehaviorStates[12].BehaviorKind == "Trigger" &&
+            entity.BehaviorStates[12].TriggerPulled &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&
@@ -770,7 +790,7 @@ try
         packageEntities[0].WeaponStates[2].AmmoIntervalProgress != 0.6 ||
         packageEntities[0].WeaponStates[3].LockProgress != 0.65 ||
         packageEntities[0].WeaponStates[3].LockTargetEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
-        packageEntities[0].BehaviorStates.Count != 11 ||
+        packageEntities[0].BehaviorStates.Count != 13 ||
         packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
         packageEntities[0].BehaviorStates[4].AetherDriveRpmY != 900.0 ||
         packageEntities[0].BehaviorStates[4].AetherDriveMaximumRpm != 2400.0 ||
@@ -783,6 +803,8 @@ try
         packageEntities[0].BehaviorStates[8].ShieldEfficiency != 0.7 ||
         packageEntities[0].BehaviorStates[9].VelocityLimit != 42.0 ||
         packageEntities[0].BehaviorStates[10].ThermotoggleTargetTemperature != 315.5 ||
+        !packageEntities[0].BehaviorStates[11].SwitchActivated ||
+        !packageEntities[0].BehaviorStates[12].TriggerPulled ||
         packageEntities[0].StatGrids.Count != 2 ||
         packageEntities[0].StatGrids.All(grid => grid.Name != "temperature" || grid.Values.Count != 2 || grid.Values[1] != 281.0))
     {

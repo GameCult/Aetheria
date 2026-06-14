@@ -514,7 +514,9 @@ public static class AetheriaRuntimeCommitLogApplier
                 ShieldEfficiency = state.ShieldEfficiency,
                 ShieldEnergyUsage = state.ShieldEnergyUsage,
                 VelocityLimit = state.VelocityLimit,
-                ThermotoggleTargetTemperature = state.ThermotoggleTargetTemperature
+                ThermotoggleTargetTemperature = state.ThermotoggleTargetTemperature,
+                SwitchActivated = state.SwitchActivated,
+                TriggerPulled = state.TriggerPulled
             })
             .ToArray();
     }

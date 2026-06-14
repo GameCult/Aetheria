@@ -958,6 +958,20 @@ public class ActionGameManager : MonoBehaviour
                     ThermotoggleTargetTemperature = thermotoggle.TargetTemperature
                 };
             }
+            else if (behavior is Switch switchBehavior)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    SwitchActivated = switchBehavior.Activated
+                };
+            }
+            else if (behavior is Trigger trigger)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    TriggerPulled = trigger.Pulled
+                };
+            }
 
             if (state == null)
                 continue;

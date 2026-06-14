@@ -20,6 +20,7 @@ public class TriggerData : BehaviorData
 public class Trigger : Behavior, IActivatedBehavior
 {
     public bool _pulled;
+    public bool Pulled => _pulled;
 
     public Trigger(TriggerData data, EquippedItem item) : base(data, item) { }
     public Trigger(TriggerData data, ConsumableItemEffect item) : base(data, item) { }
