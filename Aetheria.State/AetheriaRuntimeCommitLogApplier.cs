@@ -442,8 +442,38 @@ public static class AetheriaRuntimeCommitLogApplier
             StatGrids = ToEntityStatGrids(entity.StatGrids),
             ActiveConsumables = ToActiveConsumables(entity.ActiveConsumables),
             BehaviorProgress = ToBehaviorProgress(entity.BehaviorProgress),
-            WeaponStates = ToWeaponStates(entity.WeaponStates)
+            WeaponStates = ToWeaponStates(entity.WeaponStates),
+            BehaviorStates = ToBehaviorStates(entity.BehaviorStates)
         };
+    }
+
+    private static AetheriaBehaviorStateSnapshot[] ToBehaviorStates(
+        IReadOnlyList<AetheriaRuntimeBehaviorStateCommit>? states)
+    {
+        return (states ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+            .Select(state => new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = state.OwnerKind ?? "",
+                OwnerIndex = state.OwnerIndex,
+                BehaviorIndex = state.BehaviorIndex,
+                BehaviorKind = state.BehaviorKind ?? "",
+                Pinging = state.Pinging,
+                PingCooldown = state.PingCooldown,
+                PingLerp = state.PingLerp,
+                PingRadius = state.PingRadius,
+                PingedEntityCount = state.PingedEntityCount,
+                RadiatorTemperature = state.RadiatorTemperature,
+                Emissivity = state.Emissivity,
+                PumpedHeat = state.PumpedHeat,
+                WasteHeat = state.WasteHeat,
+                EnergyUsage = state.EnergyUsage,
+                ReactorDraw = state.ReactorDraw,
+                ReactorLoadRatio = state.ReactorLoadRatio,
+                CapacitorCharge = state.CapacitorCharge,
+                CapacitorCapacity = state.CapacitorCapacity,
+                CapacitorEfficiency = state.CapacitorEfficiency
+            })
+            .ToArray();
     }
 
     private static AetheriaWeaponStateSnapshot[] ToWeaponStates(

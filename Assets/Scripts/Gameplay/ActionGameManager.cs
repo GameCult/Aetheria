@@ -789,8 +789,87 @@ public class ActionGameManager : MonoBehaviour
             StatGrids = ProjectEntityStatGrids(entity),
             ActiveConsumables = ProjectActiveConsumables(entity),
             BehaviorProgress = ProjectBehaviorProgress(entity),
-            WeaponStates = ProjectWeaponStates(entity)
+            WeaponStates = ProjectWeaponStates(entity),
+            BehaviorStates = ProjectBehaviorStates(entity)
         };
+    }
+
+    private static AetheriaRuntimeBehaviorStateCommit[] ProjectBehaviorStates(Entity entity)
+    {
+        var states = new List<AetheriaRuntimeBehaviorStateCommit>();
+
+        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
+            states.AddRange(ProjectBehaviorStates("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+
+        var activeConsumables = entity.ActiveConsumables;
+        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
+            states.AddRange(ProjectBehaviorStates("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+
+        return states.ToArray();
+    }
+
+    private static IEnumerable<AetheriaRuntimeBehaviorStateCommit> ProjectBehaviorStates(
+        string ownerKind,
+        int ownerIndex,
+        IReadOnlyList<Behavior> behaviors)
+    {
+        if (behaviors == null)
+            yield break;
+
+        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
+        {
+            var behavior = behaviors[behaviorIndex];
+            AetheriaRuntimeBehaviorStateCommit state = null;
+
+            if (behavior is Sensor sensor)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    Pinging = sensor.Pinging,
+                    PingCooldown = sensor.Cooldown,
+                    PingLerp = sensor.PingLerp,
+                    PingRadius = sensor.PingRadius,
+                    PingedEntityCount = sensor.PingedEntityCount
+                };
+            }
+            else if (behavior is Radiator radiator)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    RadiatorTemperature = radiator.RadiatorTemperature,
+                    Emissivity = radiator.Emissivity,
+                    PumpedHeat = radiator.PumpedHeat,
+                    WasteHeat = radiator.WasteHeat,
+                    EnergyUsage = radiator.EnergyUsage
+                };
+            }
+            else if (behavior is Reactor reactor)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    ReactorDraw = reactor.Draw,
+                    ReactorLoadRatio = reactor.CurrentLoadRatio
+                };
+            }
+            else if (behavior is Capacitor capacitor)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    CapacitorCharge = capacitor.Charge,
+                    CapacitorCapacity = capacitor.Capacity,
+                    CapacitorEfficiency = capacitor.Efficiency
+                };
+            }
+
+            if (state == null)
+                continue;
+
+            state.OwnerKind = ownerKind;
+            state.OwnerIndex = ownerIndex;
+            state.BehaviorIndex = behaviorIndex;
+            state.BehaviorKind = behavior.Data?.Kind ?? "";
+            yield return state;
+        }
     }
 
     private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(Entity entity)

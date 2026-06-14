@@ -148,6 +148,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Weapon behaviors now also publish typed runtime rows for firing state, ammo,
   burst timing, cooldown progress, charged-weapon charging/charge state, and
   constant-weapon reload/ammo-interval state.
+  Sensor, radiator, reactor, and capacitor behaviors publish typed state rows
+  for ping state, radiator temperature/throughput, reactor draw/load, and
+  capacitor charge/capacity/efficiency.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -773,12 +776,15 @@ First Aetheria surfaces to publish:
    - Done: extend run checkpoint commits and smoke coverage to carry typed
      weapon behavior state rows for instant, charged, and constant weapon
      runtime internals.
+   - Done: extend run checkpoint commits and smoke coverage to carry typed
+     behavior state rows for sensor ping state plus radiator, reactor, and
+     capacitor runtime internals.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     typed behavior factory construction, behavior-private simulation state
-     such as sensor ping state, radiator/reactor/capacitor runtime internals,
+     typed behavior factory construction, remaining behavior-private state not
+     covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,
      and any catalog fields not covered by the stable scalar/fingerprint/
      payload pass.
 
@@ -1173,7 +1179,8 @@ First Aetheria surfaces to publish:
   includes orbit/body rows for generated celestial state, and the entity smoke
   includes typed simulation stat grids, public entity session scalars, and
   active consumable timer rows, plus typed behavior progress rows for
-  `IProgressBehavior` surfaces and typed weapon runtime rows. The Unity runtime smoke also proves
+  `IProgressBehavior` surfaces, typed weapon runtime rows, and typed
+  sensor/radiator/reactor/capacitor behavior state rows. The Unity runtime smoke also proves
   package-owned readback of typed loadout templates from `.cc` records. It also
   proves `aetheria.runtime_session.v1` is advertised and survives reopen as the
   typed daemon-session signal.

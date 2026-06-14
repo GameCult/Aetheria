@@ -564,6 +564,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(27)]
         public IReadOnlyList<AetheriaRuntimeWeaponStateCommit> WeaponStates { get; set; } = Array.Empty<AetheriaRuntimeWeaponStateCommit>();
+
+        [Key(28)]
+        public IReadOnlyList<AetheriaRuntimeBehaviorStateCommit> BehaviorStates { get; set; } = Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
     }
 
     [MessagePackObject]
@@ -670,5 +673,66 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(16)]
         public double AmmoIntervalProgress { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeBehaviorStateCommit
+    {
+        [Key(0)]
+        public string OwnerKind { get; set; } = "";
+
+        [Key(1)]
+        public int OwnerIndex { get; set; } = -1;
+
+        [Key(2)]
+        public int BehaviorIndex { get; set; } = -1;
+
+        [Key(3)]
+        public string BehaviorKind { get; set; } = "";
+
+        [Key(4)]
+        public bool Pinging { get; set; }
+
+        [Key(5)]
+        public double PingCooldown { get; set; }
+
+        [Key(6)]
+        public double PingLerp { get; set; }
+
+        [Key(7)]
+        public double PingRadius { get; set; }
+
+        [Key(8)]
+        public int PingedEntityCount { get; set; }
+
+        [Key(9)]
+        public double RadiatorTemperature { get; set; }
+
+        [Key(10)]
+        public double Emissivity { get; set; }
+
+        [Key(11)]
+        public double PumpedHeat { get; set; }
+
+        [Key(12)]
+        public double WasteHeat { get; set; }
+
+        [Key(13)]
+        public double EnergyUsage { get; set; }
+
+        [Key(14)]
+        public double ReactorDraw { get; set; }
+
+        [Key(15)]
+        public double ReactorLoadRatio { get; set; }
+
+        [Key(16)]
+        public double CapacitorCharge { get; set; }
+
+        [Key(17)]
+        public double CapacitorCapacity { get; set; }
+
+        [Key(18)]
+        public double CapacitorEfficiency { get; set; }
     }
 }

@@ -406,6 +406,52 @@ try
                                     AmmoIntervalProgress = 0.6
                                 }
                             },
+                            BehaviorStates = new[]
+                            {
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 0,
+                                    BehaviorIndex = 2,
+                                    BehaviorKind = "Sensor",
+                                    Pinging = true,
+                                    PingCooldown = 0.25,
+                                    PingLerp = 0.5,
+                                    PingRadius = 1200.0,
+                                    PingedEntityCount = 3
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 1,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Radiator",
+                                    RadiatorTemperature = 450.0,
+                                    Emissivity = 0.8,
+                                    PumpedHeat = 12.0,
+                                    WasteHeat = 1.5,
+                                    EnergyUsage = 2.25
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 2,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Reactor",
+                                    ReactorDraw = 4.5,
+                                    ReactorLoadRatio = 1.25
+                                },
+                                new AetheriaRuntimeBehaviorStateCommit
+                                {
+                                    OwnerKind = "equipment",
+                                    OwnerIndex = 3,
+                                    BehaviorIndex = 0,
+                                    BehaviorKind = "Capacitor",
+                                    CapacitorCharge = 7.5,
+                                    CapacitorCapacity = 10.0,
+                                    CapacitorEfficiency = 0.95
+                                }
+                            },
                             StatGrids = new[]
                             {
                                 new AetheriaRuntimeEntityStatGridCommit
@@ -513,6 +559,18 @@ try
             entity.WeaponStates[2].BehaviorKind == "ConstantWeapon" &&
             entity.WeaponStates[2].Reloading &&
             entity.WeaponStates[2].AmmoIntervalProgress == 0.6 &&
+            entity.BehaviorStates.Length == 4 &&
+            entity.BehaviorStates[0].BehaviorKind == "Sensor" &&
+            entity.BehaviorStates[0].Pinging &&
+            entity.BehaviorStates[0].PingRadius == 1200.0 &&
+            entity.BehaviorStates[1].BehaviorKind == "Radiator" &&
+            entity.BehaviorStates[1].RadiatorTemperature == 450.0 &&
+            entity.BehaviorStates[1].PumpedHeat == 12.0 &&
+            entity.BehaviorStates[2].BehaviorKind == "Reactor" &&
+            entity.BehaviorStates[2].ReactorLoadRatio == 1.25 &&
+            entity.BehaviorStates[3].BehaviorKind == "Capacitor" &&
+            entity.BehaviorStates[3].CapacitorCharge == 7.5 &&
+            entity.BehaviorStates[3].CapacitorEfficiency == 0.95 &&
             entity.WeaponGroups.Length == 1 &&
             entity.StatGrids.Length == 2 &&
             entity.StatGrids.Any(grid => grid.Name == "temperature" && grid.Values.Length == 2 && grid.Values[1] == 281.0) &&

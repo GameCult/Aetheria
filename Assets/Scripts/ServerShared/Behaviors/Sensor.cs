@@ -66,6 +66,9 @@ public class Sensor : Behavior, IEventBehavior
     {
         get => _pingRadius;
     }
+    public float PingLerp => _pingLerp;
+    public bool Pinging => _pinging;
+    public int PingedEntityCount => _pingedEntities.Count;
 
     public float PingBrightness => pow(1 - _pingLerp, _data.PingRadiusExponent);
 
