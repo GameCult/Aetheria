@@ -24,6 +24,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.Price,
             item.Mass,
             item.SpecificHeat,
+            item.Conductivity,
             item.Volume,
             item.ShapeWidth,
             item.ShapeHeight,
@@ -49,6 +50,10 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             item.MaximumTemperature,
             item.ThermalPerformanceCurveKeys.Select(FromState).ToArray(),
             item.HullPrefab,
+            item.HullGridOffset,
+            item.HullArmor,
+            item.HullDrag,
+            item.HullCanTow,
             item.SimpleCommodityCategory,
             item.CompoundCommodityCategory);
     }

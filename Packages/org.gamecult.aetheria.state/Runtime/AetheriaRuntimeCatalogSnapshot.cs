@@ -100,6 +100,7 @@ namespace GameCult.Aetheria.State.Unity
             int price,
             double mass,
             double specificHeat,
+            double conductivity,
             double volume,
             int shapeWidth,
             int shapeHeight,
@@ -125,6 +126,10 @@ namespace GameCult.Aetheria.State.Unity
             double maximumTemperature,
             IReadOnlyList<AetheriaRuntimeCurveKey> thermalPerformanceCurveKeys,
             string hullPrefab,
+            double hullGridOffset,
+            double hullArmor,
+            double hullDrag,
+            bool hullCanTow,
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
@@ -136,6 +141,7 @@ namespace GameCult.Aetheria.State.Unity
             Price = price;
             Mass = mass;
             SpecificHeat = specificHeat;
+            Conductivity = conductivity;
             Volume = volume;
             ShapeWidth = shapeWidth;
             ShapeHeight = shapeHeight;
@@ -161,6 +167,10 @@ namespace GameCult.Aetheria.State.Unity
             MaximumTemperature = maximumTemperature;
             ThermalPerformanceCurveKeys = thermalPerformanceCurveKeys;
             HullPrefab = hullPrefab;
+            HullGridOffset = hullGridOffset;
+            HullArmor = hullArmor;
+            HullDrag = hullDrag;
+            HullCanTow = hullCanTow;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
         }
@@ -173,6 +183,7 @@ namespace GameCult.Aetheria.State.Unity
         public int Price { get; }
         public double Mass { get; }
         public double SpecificHeat { get; }
+        public double Conductivity { get; }
         public double Volume { get; }
         public int ShapeWidth { get; }
         public int ShapeHeight { get; }
@@ -198,6 +209,10 @@ namespace GameCult.Aetheria.State.Unity
         public double MaximumTemperature { get; }
         public IReadOnlyList<AetheriaRuntimeCurveKey> ThermalPerformanceCurveKeys { get; }
         public string HullPrefab { get; }
+        public double HullGridOffset { get; }
+        public double HullArmor { get; }
+        public double HullDrag { get; }
+        public bool HullCanTow { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
     }

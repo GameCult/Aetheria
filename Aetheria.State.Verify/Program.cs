@@ -48,6 +48,7 @@ if (nameFiles.Any(nameFile => nameFile.Names.Length == 0 || nameFile.Names.Lengt
 var pricedItems = items.Count(item => item.Price > 0);
 var manufacturedItems = items.Count(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId));
 var specificHeatItems = items.Count(item => item.SpecificHeat > 0);
+var conductiveItems = items.Count(item => item.Conductivity > 0);
 var shapedItems = items.Count(item => item.ShapeWidth > 0 && item.ShapeHeight > 0 && item.OccupiedCells > 0);
 var shapedMaskItems = items.Count(item => item.ShapeCells.Length > 0);
 var interiorShapeItems = items.Count(item => item.InteriorShapeCells.Length > 0);
@@ -64,6 +65,12 @@ var behaviorLegacyRefCount = items
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
 var hullPrefabItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullPrefab));
+var hullArmorItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType) && item.HullArmor > 0);
+var hullPhysicalFacetItems = items.Count(item =>
+    !string.IsNullOrWhiteSpace(item.HullType) &&
+    item.HullArmor > 0 &&
+    item.HullDrag >= 0 &&
+    !double.IsNaN(item.HullGridOffset));
 var simpleCommodityCategoryItems = items.Count(item => !string.IsNullOrWhiteSpace(item.SimpleCommodityCategory));
 var compoundCommodityCategoryItems = items.Count(item => !string.IsNullOrWhiteSpace(item.CompoundCommodityCategory));
 var weaponItems = items.Count(item =>
@@ -94,6 +101,12 @@ if (specificHeatItems != items.Length)
 {
     throw new InvalidOperationException(
         $"Typed item definitions did not import positive specific heat for every item: {specificHeatItems}/{items.Length}.");
+}
+
+if (conductiveItems != items.Length)
+{
+    throw new InvalidOperationException(
+        $"Typed item definitions did not import positive conductivity for every item: {conductiveItems}/{items.Length}.");
 }
 
 if (shapedItems == 0)
@@ -243,6 +256,12 @@ if (hullPrefabItems != hullItems)
     throw new InvalidOperationException($"Typed hull prefab import mismatch: hulls={hullItems}, prefabs={hullPrefabItems}.");
 }
 
+if (hullArmorItems != hullItems || hullPhysicalFacetItems != hullItems)
+{
+    throw new InvalidOperationException(
+        $"Typed hull physical facet import mismatch: hulls={hullItems}, armor={hullArmorItems}, physical={hullPhysicalFacetItems}.");
+}
+
 if (simpleCommodityCategoryItems == 0)
 {
     throw new InvalidOperationException("Typed simple commodity category import produced no categories.");
@@ -353,12 +372,13 @@ if (string.IsNullOrWhiteSpace(quarantine.CatalogFingerprint))
 Console.WriteLine($"Aetheria typed state verify passed: {statePath}");
 Console.WriteLine($"Catalog fingerprint: {quarantine.CatalogFingerprint}");
 Console.WriteLine($"Item definitions: {items.Length}");
-Console.WriteLine($"Priced/manufactured/specific-heat/shaped items: {pricedItems}/{manufacturedItems}/{specificHeatItems}/{shapedItems}");
+Console.WriteLine($"Priced/manufactured/specific-heat/conductive/shaped items: {pricedItems}/{manufacturedItems}/{specificHeatItems}/{conductiveItems}/{shapedItems}");
 Console.WriteLine($"Shape masks: {shapedMaskItems}");
 Console.WriteLine($"Interior masks/hardpoint hosts/hardpoints: {interiorShapeItems}/{hardpointHostItems}/{hardpointCount}");
 Console.WriteLine($"Behavior payload items/payloads/fields/legacy refs: {behaviorPayloadItems}/{behaviorPayloadCount}/{behaviorFieldCount}/{behaviorLegacyRefCount}");
 Console.WriteLine($"Behavior/hardpoint/hull/weapon items: {behaviorItems}/{hardpointItems}/{hullItems}/{weaponItems}");
 Console.WriteLine($"Hull prefab items: {hullPrefabItems}");
+Console.WriteLine($"Hull armor/physical facet items: {hullArmorItems}/{hullPhysicalFacetItems}");
 Console.WriteLine($"Simple/compound commodity category items: {simpleCommodityCategoryItems}/{compoundCommodityCategoryItems}");
 Console.WriteLine($"Durable hull/weapon items: {durableMaxDurabilityItems}/{maxDurabilityItems.Length}");
 Console.WriteLine($"Thermal range/curve items: {importedThermalRangeItems}/{importedThermalCurveItems}");

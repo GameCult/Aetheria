@@ -129,6 +129,21 @@ public sealed class AetheriaItemDefinition
 
     [Key(38)]
     public double SpecificHeat { get; set; } = 1;
+
+    [Key(39)]
+    public double Conductivity { get; set; } = 1;
+
+    [Key(40)]
+    public double HullGridOffset { get; set; }
+
+    [Key(41)]
+    public double HullArmor { get; set; }
+
+    [Key(42)]
+    public double HullDrag { get; set; }
+
+    [Key(43)]
+    public bool HullCanTow { get; set; }
 }
 
 [MessagePackObject]

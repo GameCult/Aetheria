@@ -103,6 +103,7 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         projected.Manufacturer = ParseGuid(item.ManufacturerLegacyId);
         projected.Mass = (float)item.Mass;
         projected.SpecificHeat = (float)item.SpecificHeat;
+        projected.Conductivity = (float)item.Conductivity;
         projected.Shape = ProjectShape(item.ShapeWidth, item.ShapeHeight, item.ShapeCells);
         projected.Price = item.Price;
 
@@ -143,6 +144,10 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemProjectionReader
         {
             hull.HullType = ParseEnum(item.HullType, HullType.Ship);
             hull.Hardpoints = item.Hardpoints.Select(ProjectHardpoint).ToList();
+            hull.GridOffset = (float)item.HullGridOffset;
+            hull.Armor = (float)item.HullArmor;
+            hull.Drag = (float)item.HullDrag;
+            hull.CanTow = item.HullCanTow;
         }
 
         return projected;

@@ -202,7 +202,12 @@ namespace GameCult.Aetheria.State.Unity
             var simpleCommodityCategory = ReadFieldString(ref reader, fields, 36);
             var compoundCommodityCategory = ReadFieldString(ref reader, fields, 37);
             var specificHeat = ReadFieldDouble(ref reader, fields, 38, 1);
-            SkipRemaining(ref reader, fields, 39);
+            var conductivity = ReadFieldDouble(ref reader, fields, 39, 1);
+            var hullGridOffset = ReadFieldDouble(ref reader, fields, 40);
+            var hullArmor = ReadFieldDouble(ref reader, fields, 41);
+            var hullDrag = ReadFieldDouble(ref reader, fields, 42);
+            var hullCanTow = ReadFieldBool(ref reader, fields, 43);
+            SkipRemaining(ref reader, fields, 44);
 
             return new AetheriaRuntimeCatalogItem(
                 legacyId,
@@ -213,6 +218,7 @@ namespace GameCult.Aetheria.State.Unity
                 price,
                 mass,
                 specificHeat,
+                conductivity,
                 volume,
                 shapeWidth,
                 shapeHeight,
@@ -238,6 +244,10 @@ namespace GameCult.Aetheria.State.Unity
                 maximumTemperature,
                 thermalPerformanceCurveKeys,
                 hullPrefab,
+                hullGridOffset,
+                hullArmor,
+                hullDrag,
+                hullCanTow,
                 simpleCommodityCategory,
                 compoundCommodityCategory);
         }

@@ -182,10 +182,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `InventoryPanel` lowers cargo-grid display from that typed `InteriorShape`.
   Final equipment fit/equip acceptance also reads typed item shape, hardpoint
   type, hull shape, hull interior, hardpoint masks, cargo/docking categories,
-  and mass/thermal mass from runtime catalog rows. Hull initialization,
-  `Entity.UnoccupiedSpace` loadout preselection, shield/thermal simulation,
-  docking bay max-size, and behavior construction still belong to legacy
-  simulation projections until those owners are rebuilt.
+  and mass/thermal mass from runtime catalog rows. `Entity.MapEntity`,
+  `Entity.UnoccupiedSpace`, grid-offset placement, and `Entity.UpdateTemperature`
+  also read typed hull shape/interior, hardpoints, base armor, mass, specific
+  heat, and conductivity from runtime catalog rows. `EquippedItem` inset-shape
+  and behavior construction, docking bay max-size, ship drag, combat/turret
+  prediction, thruster behavior, and loadout generator helper predicates still
+  belong to legacy simulation projections until those owners are rebuilt.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
@@ -228,7 +231,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   dimensions, occupied cell counts, full typed shape-cell masks, hardpoint
   type, hull type, interior shape masks for hull/cargo equipment, hull
   hardpoint definitions, behavior kind fingerprints, typed recursive behavior
-  payloads, stack size, specific heat, durability, and weapon
+  payloads, stack size, specific heat, conductivity, hull grid offset, hull
+  armor, hull drag, hull towing flag, durability, and weapon
   range/caliber/type/fire/modifier classifications. Corporation documents now carry the legacy short name, true
   description from key 3, name-file and boss-hull legacy IDs, influence
   distance, allegiance count, full allegiance edges, and music bank IDs. Empty
@@ -700,8 +704,12 @@ First Aetheria surfaces to publish:
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
      shape, hull shape/interior, hardpoint masks, cargo/docking category, and
      mass/thermal mass.
-  - Done: delete the console `give` command instead of preserving a debug
-    operator path that hydrated typed item rows back into legacy item DTOs.
+   - Done: import typed conductivity and hull physical facets, regenerate the
+     checked-in `.cc` catalog, and move `Entity.MapEntity`,
+     `Entity.UnoccupiedSpace`, grid-offset placement, and
+     `Entity.UpdateTemperature` onto typed runtime hull rows.
+   - Done: delete the console `give` command instead of preserving a debug
+     operator path that hydrated typed item rows back into legacy item DTOs.
    - Done: delete `ItemManager.GetCatalogEntries<T>` after all live callers
      moved to typed catalog selection.
    - Done: delete `ILegacyItemCatalogReader.GetAll<T>` and the type/global indexes

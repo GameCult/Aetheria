@@ -339,39 +339,44 @@ public abstract class Entity
 
     private void MapEntity()
     {
-        var hullData = ItemManager.GetData(Hull) as HullData;
+        var typedHull = ItemManager.GetRuntimeItem(Hull);
+        if (typedHull == null)
+            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.Data?.ItemId}");
+
+        var hullShape = GetHullShape(typedHull);
         EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
         Equipment.Add(EquippedHull);
-        Mass = hullData.Mass;
-        Temperature = new float[hullData.Shape.Width, hullData.Shape.Height];
-        NewTemperature = new float[hullData.Shape.Width, hullData.Shape.Height];
-        HullConductivity = new bool2[hullData.Shape.Width,hullData.Shape.Height];
-        ThermalMass = new float[hullData.Shape.Width, hullData.Shape.Height];
-        Armor = new float[hullData.Shape.Width, hullData.Shape.Height];
-        MaxArmor = new float[hullData.Shape.Width, hullData.Shape.Height];
-        Hardpoints = new HardpointData[hullData.Shape.Width, hullData.Shape.Height];
-        foreach (var hardpoint in hullData.Hardpoints)
+        Mass = ItemManager.GetMass(Hull);
+        Temperature = new float[hullShape.Width, hullShape.Height];
+        NewTemperature = new float[hullShape.Width, hullShape.Height];
+        HullConductivity = new bool2[hullShape.Width, hullShape.Height];
+        ThermalMass = new float[hullShape.Width, hullShape.Height];
+        Armor = new float[hullShape.Width, hullShape.Height];
+        MaxArmor = new float[hullShape.Width, hullShape.Height];
+        Hardpoints = new HardpointData[hullShape.Width, hullShape.Height];
+        foreach (var typedHardpoint in typedHull.Hardpoints)
         {
+            var hardpoint = ProjectHardpoint(typedHardpoint);
             foreach (var hardpointCoord in hardpoint.Shape.Coordinates)
             {
                 var hullCoord = hardpoint.Position + hardpointCoord;
                 Hardpoints[hullCoord.x, hullCoord.y] = hardpoint;
             }
         }
-        var cellCount = hullData.Shape.Coordinates.Length;
-        foreach (var v in hullData.Shape.Coordinates)
+        var cellCount = Math.Max(hullShape.Coordinates.Length, 1);
+        foreach (var v in hullShape.Coordinates)
         {
-            Armor[v.x, v.y] = hullData.Armor;
-            MaxArmor[v.x, v.y] = hullData.Armor;
+            Armor[v.x, v.y] = (float)typedHull.HullArmor;
+            MaxArmor[v.x, v.y] = (float)typedHull.HullArmor;
             if (Hardpoints[v.x, v.y] != null)
             {
                 Armor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
                 MaxArmor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
             }
             Temperature[v.x, v.y] = 280;
-            ThermalMass[v.x, v.y] = hullData.Mass * hullData.SpecificHeat / cellCount;
+            ThermalMass[v.x, v.y] = (float)(typedHull.Mass * typedHull.SpecificHeat / cellCount);
         }
-        GearOccupancy = new EquippedItem[hullData.Shape.Width, hullData.Shape.Height];
+        GearOccupancy = new EquippedItem[hullShape.Width, hullShape.Height];
     }
 
     public void GenerateWeaponGroups()
@@ -417,10 +422,13 @@ public abstract class Entity
     {
         get
         {
-            var emptyShape = new Shape(HullData.Shape.Width, HullData.Shape.Height);
-            foreach (var v in HullData.Shape.Coordinates)
+            var typedHull = ItemManager.GetRuntimeItem(Hull);
+            var hullShape = GetHullShape(typedHull);
+            var hullInterior = GetHullInteriorShape(typedHull);
+            var emptyShape = new Shape(hullShape.Width, hullShape.Height);
+            foreach (var v in hullShape.Coordinates)
             {
-                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x,v.y] == null)
+                if (hullInterior[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x, v.y] == null)
                     emptyShape[v] = true;
             }
 
@@ -578,6 +586,19 @@ public abstract class Entity
         return hardpoint != null && Enum.TryParse(hardpoint.Rotation, out ItemRotation rotation)
             ? rotation
             : ItemRotation.None;
+    }
+
+    private static HardpointData ProjectHardpoint(AetheriaRuntimeHardpoint hardpoint)
+    {
+        return new HardpointData
+        {
+            Type = GetHardpointType(hardpoint, HardpointType.Hull),
+            Position = new int2(hardpoint.PositionX, hardpoint.PositionY),
+            Shape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells),
+            Transform = hardpoint.Transform,
+            Rotation = GetRotation(hardpoint),
+            Armor = (float)hardpoint.Armor
+        };
     }
 
     private static bool IsCargoBay(AetheriaRuntimeCatalogItem typedItem)
@@ -986,8 +1007,6 @@ public abstract class Entity
 
     public virtual void Update(float delta)
     {
-        var hullData = ItemManager.GetData(Hull) as HullData;
-
         TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
 
         var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
@@ -1084,61 +1103,64 @@ public abstract class Entity
             Position = Parent.Position;
             Velocity = Parent.Velocity;
         }
-        else Position.y = Zone.GetHeight(Position.xz) + hullData.GridOffset;
+        else Position.y = Zone.GetHeight(Position.xz) + (float)(ItemManager.GetRuntimeItem(Hull)?.HullGridOffset ?? 0);
     }
 
     private void UpdateTemperature(float delta)
     {
-        var hullData = ItemManager.GetData(Hull) as HullData;
+        var typedHull = ItemManager.GetRuntimeItem(Hull);
+        var hullShape = GetHullShape(typedHull);
+        var hullInterior = GetHullInteriorShape(typedHull);
+        var hullConductivity = (float)(typedHull?.Conductivity ?? 1);
         
         MaxTemp = Single.MinValue;
         MinTemp = Single.MaxValue;
         
-        //float[,] newTemp = new float[hullData.Shape.Width,hullData.Shape.Height];
+        //float[,] newTemp = new float[hullShape.Width,hullShape.Height];
         var radiation = 0f;
-        foreach (var v in hullData.Shape.Coordinates)
+        foreach (var v in hullShape.Coordinates)
         {
             var temp = Temperature[v.x, v.y];
             var totalTemp = temp / ItemManager.GameplaySettings.HeatConductionMultiplier;
             var totalConductivity = 1f / ItemManager.GameplaySettings.HeatConductionMultiplier;
             
-            if (hullData.Shape[int2(v.x - 1, v.y)])
+            if (hullShape[int2(v.x - 1, v.y)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x - 1, v.y]?.Conductivity ?? 1) *
-                                   (HullConductivity[v.x - 1, v.y].x ? hullData.Conductivity : 1 / hullData.Conductivity) *
+                                   (HullConductivity[v.x - 1, v.y].x ? hullConductivity : 1 / hullConductivity) *
                                    (ThermalMass[v.x - 1, v.y] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x - 1, v.y] * conductivity;
             }
 
-            if (hullData.Shape[int2(v.x + 1, v.y)])
+            if (hullShape[int2(v.x + 1, v.y)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x + 1, v.y]?.Conductivity ?? 1) *
-                                   (HullConductivity[v.x, v.y].x ? hullData.Conductivity : 1 / hullData.Conductivity) *
+                                   (HullConductivity[v.x, v.y].x ? hullConductivity : 1 / hullConductivity) *
                                    (ThermalMass[v.x + 1, v.y] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x + 1, v.y] * conductivity;
             }
 
 
-            if (hullData.Shape[int2(v.x, v.y - 1)])
+            if (hullShape[int2(v.x, v.y - 1)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y - 1]?.Conductivity ?? 1) * 
-                                   (HullConductivity[v.x, v.y - 1].y ? hullData.Conductivity : 1 / hullData.Conductivity) *
+                                   (HullConductivity[v.x, v.y - 1].y ? hullConductivity : 1 / hullConductivity) *
                                    (ThermalMass[v.x, v.y - 1] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x, v.y - 1] * conductivity;
             }
 
 
-            if (hullData.Shape[int2(v.x, v.y + 1)])
+            if (hullShape[int2(v.x, v.y + 1)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y + 1]?.Conductivity ?? 1) * 
-                                   (HullConductivity[v.x, v.y].y ? hullData.Conductivity : 1 / hullData.Conductivity) *
+                                   (HullConductivity[v.x, v.y].y ? hullConductivity : 1 / hullConductivity) *
                                    (ThermalMass[v.x, v.y + 1] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x, v.y + 1] * conductivity;
@@ -1148,7 +1170,7 @@ public abstract class Entity
 
             var r = 0f;
             // For all cells on the border of the entity, radiate some heat into space, increasing the visibility of the ship
-            if (Parent==null && !hullData.InteriorCells[v])
+            if (Parent==null && !hullInterior[v])
             {
                 var rad = pow(NewTemperature[v.x, v.y], ItemManager.GameplaySettings.HeatRadiationExponent) *
                           ItemManager.GameplaySettings.HeatRadiationMultiplier;
