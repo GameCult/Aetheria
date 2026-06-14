@@ -7,7 +7,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
@@ -449,23 +448,22 @@ public class PropertiesPanel : MonoBehaviour
 			}
 			else
 			{
-				var type = ResolveBehaviorType(behavior.Kind);
-				if (type == null || type.GetCustomAttribute(typeof(RuntimeInspectable)) == null) continue;
-				foreach (var field in type.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
+				var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
+				if (metadata == null) continue;
+				foreach (var field in metadata.DisplayFields)
 				{
-					var fieldType = field.FieldType;
-					var payloadField = FindTypedBehaviorField(behavior, field.GetCustomAttribute<LegacyPayloadKeyAttribute>()?.Key);
-					if (fieldType == typeof(float))
+					var payloadField = FindTypedBehaviorField(behavior, field.Key);
+					if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Number)
 					{
 						var value = (float)(payloadField?.Value.NumberValue ?? 0);
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(value)}");
 					}
-					else if (fieldType == typeof(int))
+					else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Integer)
 					{
 						var value = (int)(payloadField?.Value.NumberValue ?? 0);
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{value}");
 					}
-					else if (fieldType == typeof(PerformanceStat))
+					else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
 					{
 						var stat = ReadTypedPerformanceStat(payloadField?.Value);
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(statValueFunction(stat))}");
@@ -560,21 +558,6 @@ public class PropertiesPanel : MonoBehaviour
 			? (T)Enum.ToObject(typeof(T), (int)value.NumberValue)
 			: fallback;
 	}
-
-	private static Type ResolveBehaviorType(string kind)
-	{
-		return string.IsNullOrWhiteSpace(kind)
-			? null
-			: BehaviorTypesByName.TryGetValue(kind, out var type)
-				? type
-				: null;
-	}
-
-	private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByName = typeof(BehaviorData)
-		.GetAllChildClasses()
-		.Where(type => !string.IsNullOrWhiteSpace(type.Name))
-		.GroupBy(type => type.Name)
-		.ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
 	private string GetTitle(EquippableItem item)
 	{

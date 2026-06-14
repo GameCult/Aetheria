@@ -167,8 +167,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   commodity subtype, hull ownership, and behavior-kind filters read typed
   catalog rows before any legacy projection is hydrated. Active behavior
   filters store typed behavior kind keys and match typed behavior payloads;
-  `BehaviorData` reflection is only temporary option/column metadata. Dynamic
-  behavior columns read typed behavior payload fields by legacy payload key
+  `BehaviorData` reflection is only temporary TradeMenu option/column metadata.
+  PropertiesPanel display metadata is now package-owned typed behavior metadata.
+  Dynamic behavior columns read typed behavior payload fields by legacy payload key
   instead of hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
   ship-hull classification, simple commodity base price, and simple commodity
   stack size also read typed catalog rows; the existing inventory transfer and
@@ -224,12 +225,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   The item properties panel also reads typed catalog title names, descriptions,
   manufacturer, base mass, max durability, thermal bounds, and thermal
   performance curve keys for basic item presentation without hydrating legacy
-  DTOs. Runtime behavior stat display and damage-range curves read typed
-  behavior payload fields by legacy payload key; stat modifier presentation
-  checks the package-owned typed `StatModifier` kind instead of a legacy data
-  class name. Damage-range payload selection is keyed by package-owned typed
-  weapon behavior metadata; legacy `BehaviorData` ancestry is no longer a
-  fallback for weapon payload selection. The old explicit
+  DTOs. Runtime behavior stat display reads typed behavior payload fields
+  through package-owned typed behavior display metadata; stat modifier
+  presentation checks the package-owned typed `StatModifier` kind instead of a
+  legacy data class name. Damage-range payload selection is keyed by
+  package-owned typed weapon behavior metadata; legacy `BehaviorData` ancestry
+  is no longer a fallback for weapon payload selection. The old explicit
   `Inspect(ItemData)` DTO inspection overload is deleted; trade row clicks now
   inspect the typed runtime catalog row directly. Incomplete typed thermal
   curve rows render a neutral fallback curve instead of hydrating legacy
@@ -766,8 +767,11 @@ First Aetheria surfaces to publish:
      package-owned typed `StatModifier` behavior kind.
    - Done: demote PropertiesPanel weapon damage-range payload matching from
      `BehaviorData` `Type` authority to package-owned typed weapon behavior
-     metadata; `BehaviorData` reflection remains display/filter metadata-only
-     until typed behavior metadata/factory documents exist.
+     metadata.
+   - Done: move PropertiesPanel generic behavior stat display off
+     `BehaviorData` reflection and onto package-owned typed behavior display
+     metadata keyed by behavior kind and payload field key. TradeMenu still has
+     the remaining temporary `BehaviorData` display/filter metadata bridge.
    - Done: remove the loot pickup presentation fallback to legacy `ItemData`;
      typed category/name rows now decide pickup visuals and scan labels, and
      missing typed rows render generic unknown gear pickup presentation.
