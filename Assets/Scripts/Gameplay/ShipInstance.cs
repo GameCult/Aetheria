@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
@@ -129,11 +130,27 @@ public class ShipInstance : EntityInstance
         {
             var emissionModule = thrusterInstance.System.emission;
             var item = thrusterInstance.Thruster.Item.EquippableItem;
-            var data = Entity.ItemManager.GetData(item);
             thrusterInstance.MaxParticleCount = thrusterInstance.System.particleCount;
-            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / data.Durability);
+            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / GetMaxDurability(item));
         }
 
         transform.rotation = Ship.Rotation;
+    }
+
+    private float GetMaxDurability(ItemInstance item)
+    {
+        var typedItem = FindTypedItem(item);
+        if (typedItem != null && typedItem.Durability > 0)
+            return (float)typedItem.Durability;
+
+        return Entity.ItemManager.GetData(item).Durability;
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
+    {
+        var itemId = item?.Data?.ItemId ?? Guid.Empty;
+        return itemId == Guid.Empty
+            ? null
+            : ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(itemId.ToString("D"));
     }
 }
