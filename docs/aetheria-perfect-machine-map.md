@@ -545,10 +545,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   escape `ItemManager`;
   gameplay stat modifiers target live behavior instances and package-owned
   behavior metadata instead of rebuilding config DTOs for lookup.
-  `ItemInstance.ItemId` is the runtime identity surface; `RuntimeItemReference`
-  remains only the backing compatibility reference until native typed item
-  instances replace it. The reader interface for this bridge is named
-  `IRuntimeItemCatalogReader` and exposes only typed catalog row lookup. Behavior
+  `ItemInstance.ItemId` is the runtime identity surface and
+  `ItemInstance.Reference` is the explicit item-reference API;
+  `RuntimeItemReference Data` remains only the backing compatibility field
+  until native typed item instances replace it. The reader interface for this
+  bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
+  row lookup. Behavior
   type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection, and the temporary behavior config constructor
   map is keyed by typed behavior payload kind rather than legacy union key.
@@ -1057,6 +1059,10 @@ First Aetheria surfaces to publish:
      move live runtime/UI/catalog lookup call sites off `.Data.ItemId`. The old
      `Data` field is now compatibility backing state rather than the identity
      API callers use.
+   - Done: add `ItemInstance.Reference` as the explicit item-reference API and
+     move factories/cargo stacking off direct `.Data` comparisons and
+     assignments. `Data` remains only the serialized/backing compatibility
+     field.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.
@@ -1124,7 +1130,8 @@ First Aetheria surfaces to publish:
 - `rg ".Data.Value|SetValue|GetCatalogEntry|IRuntimeItemCatalogReader|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
   `Assets/Scripts` is zero for the old item value/catalog-entry/resolver path.
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
-  item instances use `RuntimeItemReference` and expose `Data.ItemId`.
+  item instances expose `ItemId` and `Reference`; direct `Data.ItemId` reads are
+  contained inside the `ItemInstance.ItemId` bridge.
 - Live Unity source has no `RuntimeCatalogEntry` or `RuntimeItemProjectionEntry`.
 - Live Unity source has no `InspectableRuntimeCatalogLinkAttribute`;
   `LegacyPayloadKeyAttribute` remains only as the temporary mapper key.

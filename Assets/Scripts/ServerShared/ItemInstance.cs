@@ -14,6 +14,12 @@ public abstract class ItemInstance
 {
     public RuntimeItemReference Data;
     public ItemRotation Rotation;
+    public RuntimeItemReference Reference
+    {
+        get => Data;
+        set => Data = value;
+    }
+
     public Guid ItemId => Data?.ItemId ?? Guid.Empty;
 }
 

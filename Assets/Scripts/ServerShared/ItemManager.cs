@@ -398,7 +398,7 @@ public class ItemManager
         {
             return new SimpleCommodity
             {
-                Data = CreateReference(itemId),
+                Reference = CreateReference(itemId),
                 Quantity = count
             };
         }
@@ -444,14 +444,14 @@ public class ItemManager
         {
             return new ConsumableItem
             {
-                Data = CreateReference(itemId),
+                Reference = CreateReference(itemId),
                 Quality = quality
             };
         }
 
         return new CompoundCommodity
         {
-            Data = CreateReference(itemId),
+            Reference = CreateReference(itemId),
             Quality = quality
         };
     }
@@ -471,7 +471,7 @@ public class ItemManager
 
         return new EquippableItem
         {
-            Data = CreateReference(itemId),
+            Reference = CreateReference(itemId),
             Quality = quality,
             Durability = item.Durability > 0 ? (float)item.Durability : 1f
         };
