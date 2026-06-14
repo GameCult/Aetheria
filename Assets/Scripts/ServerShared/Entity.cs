@@ -1380,8 +1380,9 @@ public class EquippedItem
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
             pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
-        var hullData = itemManager.GetData(entity.Hull);
-        InsetShape = hullData.Shape.Inset(Data.Shape, position, item.Rotation);
+        var hullShape = ItemManager.GetRuntimeShape(entity.Hull);
+        var itemShape = ItemManager.GetRuntimeShape(item);
+        InsetShape = hullShape.Inset(itemShape, position, item.Rotation);
         if (Entity.Temperature != null) oldTemperature = Temperature;
 
         Online = new ReadOnlyReactiveProperty<bool>(ThermalOnline
