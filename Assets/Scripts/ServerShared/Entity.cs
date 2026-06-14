@@ -314,46 +314,15 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this));
     }
 
-    public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
-    {
-        return data == null ? null : FindActiveConsumable(data.ID);
-    }
-
     public ConsumableItemEffect FindActiveConsumable(Guid itemId)
     {
         return _activeConsumables.FirstOrDefault(ac => ac.Item?.Data?.ItemId == itemId);
-    }
-
-    public bool CanActivateConsumable(ConsumableItemData data)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(data?.ID ?? Guid.Empty);
-        if (typedItem == null)
-            return data != null && (data.Stackable || FindActiveConsumable(data) == null);
-
-        return CanActivateConsumable(typedItem);
     }
 
     public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
     {
         var itemId = GetLegacyGuid(item);
         return item != null && itemId != Guid.Empty && (item.Stackable || FindActiveConsumable(itemId) == null);
-    }
-
-    public bool TryActivateConsumable(ConsumableItemData data)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(data?.ID ?? Guid.Empty);
-        if (typedItem != null)
-            return TryActivateConsumable(typedItem);
-
-        if (!CanActivateConsumable(data)) return false;
-
-        var bay = FindItemInCargo(data.ID);
-        if (bay == null) return false;
-
-        var item = (ConsumableItem) bay.ItemsOfType[data.ID].First();
-        ActivateConsumable(item);
-        bay.Remove(item);
-        return true;
     }
 
     public bool TryActivateConsumable(AetheriaRuntimeCatalogItem typedItem)

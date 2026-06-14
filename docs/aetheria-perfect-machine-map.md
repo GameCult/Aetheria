@@ -804,10 +804,13 @@ First Aetheria surfaces to publish:
       Wwise parameter updates off `EquippableItemData.AudioStats`; missing
       typed audio stat bindings produce no parameter updates.
    - Done: add typed consumable stackability, duration, and effectiveness curve
-      fields and route action-bar consumable activation/runtime evaluation
-      through typed item rows; verifier records that the current mapped catalog
-      has `0` consumable item rows, so future consumable content still needs
-      typed coverage.
+     fields and route action-bar consumable activation/runtime evaluation
+     through typed item rows; verifier records that the current mapped catalog
+     has `0` consumable item rows, so future consumable content still needs
+     typed coverage.
+   - Done: delete `Entity` consumable activation overloads that accepted
+     `ConsumableItemData`; active lookup uses item ids and activation commands
+     accept typed runtime catalog rows only.
    - Done: import action-bar icon resource paths into typed item definitions and
      move `ActionBarSlot` custom gear icon lookup onto typed runtime item rows.
    - Done: move `Ship` drag, combat/turret predicted shot height, and thruster
