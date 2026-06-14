@@ -69,9 +69,11 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract float DamagePerSecond { get; }
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
-    public WeaponData WeaponData => _data;
     public DamageType DamageType { get; }
     public string EffectPrefab { get; }
+    public Guid AmmoType { get; }
+    public int MagazineSize { get; }
+    public bool UsesAmmo => AmmoType != Guid.Empty;
     public GuidedProjectileTargetMode GuidedProjectileTargeting { get; private set; }
     public bool HasGuidedProjectileProfile => GuidedProjectileTargeting != GuidedProjectileTargetMode.None;
     public float4[] GuidedProjectileGuidanceCurve { get; private set; }
@@ -102,6 +104,8 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        AmmoType = data.AmmoType;
+        MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
     }
 
@@ -110,6 +114,8 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _data = data;
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
+        AmmoType = data.AmmoType;
+        MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
     }
 

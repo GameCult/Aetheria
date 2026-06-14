@@ -1017,6 +1017,9 @@ First Aetheria surfaces to publish:
      `GuidedWeaponData`; `GuidedProjectileManager` now consumes
      `Weapon`-owned target mode, curve keys, dodge frequency, and evaluated
      thrust/top-speed values.
+   - Done: move HUD ammo display reads off `WeaponData`; `SchematicDisplay`
+     consumes `Weapon.AmmoType`, `Weapon.MagazineSize`, and `Weapon.UsesAmmo`,
+     and the public `WeaponData` escape hatch has been removed.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
