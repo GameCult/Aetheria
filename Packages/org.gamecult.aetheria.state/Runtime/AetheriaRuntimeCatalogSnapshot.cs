@@ -1098,7 +1098,13 @@ namespace GameCult.Aetheria.State.Unity
             double aetherDriveRpmZ,
             double aetherDriveMaximumRpm,
             double aetherDriveThrustDirectionX,
-            double aetherDriveThrustDirectionY)
+            double aetherDriveThrustDirectionY,
+            string resourceScannerTargetBodyId,
+            int resourceScannerAsteroidIndex,
+            double resourceScannerScanTime,
+            double resourceScannerRange,
+            double resourceScannerMinimumDensity,
+            double resourceScannerScanDuration)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1131,6 +1137,12 @@ namespace GameCult.Aetheria.State.Unity
             AetherDriveMaximumRpm = aetherDriveMaximumRpm;
             AetherDriveThrustDirectionX = aetherDriveThrustDirectionX;
             AetherDriveThrustDirectionY = aetherDriveThrustDirectionY;
+            ResourceScannerTargetBodyId = resourceScannerTargetBodyId;
+            ResourceScannerAsteroidIndex = resourceScannerAsteroidIndex;
+            ResourceScannerScanTime = resourceScannerScanTime;
+            ResourceScannerRange = resourceScannerRange;
+            ResourceScannerMinimumDensity = resourceScannerMinimumDensity;
+            ResourceScannerScanDuration = resourceScannerScanDuration;
         }
 
         public string OwnerKind { get; }
@@ -1164,5 +1176,11 @@ namespace GameCult.Aetheria.State.Unity
         public double AetherDriveMaximumRpm { get; }
         public double AetherDriveThrustDirectionX { get; }
         public double AetherDriveThrustDirectionY { get; }
+        public string ResourceScannerTargetBodyId { get; }
+        public int ResourceScannerAsteroidIndex { get; }
+        public double ResourceScannerScanTime { get; }
+        public double ResourceScannerRange { get; }
+        public double ResourceScannerMinimumDensity { get; }
+        public double ResourceScannerScanDuration { get; }
     }
 }

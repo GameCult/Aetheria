@@ -739,6 +739,24 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(30)]
     public double AetherDriveThrustDirectionY { get; set; }
+
+    [Key(31)]
+    public string ResourceScannerTargetBodyId { get; set; } = "";
+
+    [Key(32)]
+    public int ResourceScannerAsteroidIndex { get; set; } = -1;
+
+    [Key(33)]
+    public double ResourceScannerScanTime { get; set; }
+
+    [Key(34)]
+    public double ResourceScannerRange { get; set; }
+
+    [Key(35)]
+    public double ResourceScannerMinimumDensity { get; set; }
+
+    [Key(36)]
+    public double ResourceScannerScanDuration { get; set; }
 }
 
 [MessagePackObject]

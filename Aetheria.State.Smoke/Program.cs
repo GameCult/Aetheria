@@ -271,6 +271,19 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 AetherDriveMaximumRpm = 2400.0,
                 AetherDriveThrustDirectionX = 1.5,
                 AetherDriveThrustDirectionY = -0.5
+            },
+            new AetheriaBehaviorStateSnapshot
+            {
+                OwnerKind = "equipment",
+                OwnerIndex = 0,
+                BehaviorIndex = 1,
+                BehaviorKind = "ResourceScanner",
+                ResourceScannerTargetBodyId = "smoke:body",
+                ResourceScannerAsteroidIndex = 2,
+                ResourceScannerScanTime = 1.25,
+                ResourceScannerRange = 500.0,
+                ResourceScannerMinimumDensity = 0.2,
+                ResourceScannerScanDuration = 3.5
             }
         ],
         StatGrids =
@@ -534,11 +547,16 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.WeaponStates[0].BehaviorKind != "LockWeapon" ||
         entitySnapshot.WeaponStates[0].LockProgress != 0.65 ||
         entitySnapshot.WeaponStates[0].LockTargetEntityKey != entityKey.ToString() ||
-        entitySnapshot.BehaviorStates.Length != 1 ||
+        entitySnapshot.BehaviorStates.Length != 2 ||
         entitySnapshot.BehaviorStates[0].BehaviorKind != "AetherDrive" ||
         entitySnapshot.BehaviorStates[0].AetherDriveAxisX != 0.5 ||
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
         entitySnapshot.BehaviorStates[0].AetherDriveMaximumRpm != 2400.0 ||
+        entitySnapshot.BehaviorStates[1].BehaviorKind != "ResourceScanner" ||
+        entitySnapshot.BehaviorStates[1].ResourceScannerTargetBodyId != "smoke:body" ||
+        entitySnapshot.BehaviorStates[1].ResourceScannerAsteroidIndex != 2 ||
+        entitySnapshot.BehaviorStates[1].ResourceScannerScanTime != 1.25 ||
+        entitySnapshot.BehaviorStates[1].ResourceScannerScanDuration != 3.5 ||
         entitySnapshot.StatGrids.Length != 1 ||
         entitySnapshot.StatGrids[0].Values.Length != 4)
     {

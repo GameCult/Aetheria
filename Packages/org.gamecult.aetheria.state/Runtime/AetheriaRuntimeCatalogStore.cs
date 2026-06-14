@@ -888,7 +888,13 @@ namespace GameCult.Aetheria.State.Unity
                 var aetherDriveMaximumRpm = ReadFieldDouble(ref reader, behaviorFields, 28);
                 var aetherDriveThrustDirectionX = ReadFieldDouble(ref reader, behaviorFields, 29);
                 var aetherDriveThrustDirectionY = ReadFieldDouble(ref reader, behaviorFields, 30);
-                SkipRemaining(ref reader, behaviorFields, 31);
+                var resourceScannerTargetBodyId = ReadFieldString(ref reader, behaviorFields, 31);
+                var resourceScannerAsteroidIndex = ReadFieldInt32(ref reader, behaviorFields, 32);
+                var resourceScannerScanTime = ReadFieldDouble(ref reader, behaviorFields, 33);
+                var resourceScannerRange = ReadFieldDouble(ref reader, behaviorFields, 34);
+                var resourceScannerMinimumDensity = ReadFieldDouble(ref reader, behaviorFields, 35);
+                var resourceScannerScanDuration = ReadFieldDouble(ref reader, behaviorFields, 36);
+                SkipRemaining(ref reader, behaviorFields, 37);
                 behaviorStates[behavior] = new AetheriaRuntimeBehaviorStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -920,7 +926,13 @@ namespace GameCult.Aetheria.State.Unity
                     aetherDriveRpmZ,
                     aetherDriveMaximumRpm,
                     aetherDriveThrustDirectionX,
-                    aetherDriveThrustDirectionY);
+                    aetherDriveThrustDirectionY,
+                    resourceScannerTargetBodyId,
+                    resourceScannerAsteroidIndex,
+                    resourceScannerScanTime,
+                    resourceScannerRange,
+                    resourceScannerMinimumDensity,
+                    resourceScannerScanDuration);
             }
 
             return behaviorStates;

@@ -498,7 +498,13 @@ public static class AetheriaRuntimeCommitLogApplier
                 AetherDriveRpmZ = state.AetherDriveRpmZ,
                 AetherDriveMaximumRpm = state.AetherDriveMaximumRpm,
                 AetherDriveThrustDirectionX = state.AetherDriveThrustDirectionX,
-                AetherDriveThrustDirectionY = state.AetherDriveThrustDirectionY
+                AetherDriveThrustDirectionY = state.AetherDriveThrustDirectionY,
+                ResourceScannerTargetBodyId = state.ResourceScannerTargetBodyId ?? "",
+                ResourceScannerAsteroidIndex = state.ResourceScannerAsteroidIndex,
+                ResourceScannerScanTime = state.ResourceScannerScanTime,
+                ResourceScannerRange = state.ResourceScannerRange,
+                ResourceScannerMinimumDensity = state.ResourceScannerMinimumDensity,
+                ResourceScannerScanDuration = state.ResourceScannerScanDuration
             })
             .ToArray();
     }

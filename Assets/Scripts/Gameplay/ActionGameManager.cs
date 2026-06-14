@@ -902,6 +902,20 @@ public class ActionGameManager : MonoBehaviour
                     AetherDriveThrustDirectionY = drive.ThrustDirection.y
                 };
             }
+            else if (behavior is ResourceScanner resourceScanner)
+            {
+                state = new AetheriaRuntimeBehaviorStateCommit
+                {
+                    ResourceScannerTargetBodyId = resourceScanner.ScanTarget == Guid.Empty
+                        ? ""
+                        : resourceScanner.ScanTarget.ToString("D"),
+                    ResourceScannerAsteroidIndex = resourceScanner.Asteroid,
+                    ResourceScannerScanTime = resourceScanner.ScanTime,
+                    ResourceScannerRange = resourceScanner.Range,
+                    ResourceScannerMinimumDensity = resourceScanner.MinimumDensity,
+                    ResourceScannerScanDuration = resourceScanner.ScanDuration
+                };
+            }
 
             if (state == null)
                 continue;

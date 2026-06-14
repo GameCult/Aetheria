@@ -41,6 +41,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
     public float Range { get; private set; }
     public float MinimumDensity { get; private set; }
     public float ScanDuration { get; private set; }
+    public float ScanTime => _scanTime;
 
     public Guid ScanTarget
     {

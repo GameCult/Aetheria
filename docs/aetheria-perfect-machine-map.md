@@ -171,7 +171,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   for ping state, radiator temperature/throughput, reactor draw/load, and
   capacitor charge/capacity/efficiency. Aether drives publish typed axis,
   thrust, RPM, maximum RPM, and thrust-direction rows, so rotor simulation
-  state is no longer trapped inside live behavior memory.
+  state is no longer trapped inside live behavior memory. Resource scanners
+  publish target body id, asteroid index, scan timer, range, minimum density,
+  and scan duration rows.
   `RuntimeEntityBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -806,6 +808,9 @@ First Aetheria surfaces to publish:
    - Done: extend behavior state rows for AetherDrive axis, thrust, RPM,
      maximum RPM, and thrust direction, so drive rotor state has a typed
      snapshot/readback path.
+   - Done: extend behavior state rows for ResourceScanner target body,
+     asteroid index, scan timer, range, minimum density, and duration, so
+     scanner progress is typed state instead of live-only behavior memory.
    - Done: cut live simulation grids out of `RuntimeEntityBlueprint`; loadout
      and construction templates no longer capture or restore temperature,
      armor, max-armor, or hull-conductivity state.
