@@ -1045,6 +1045,9 @@ First Aetheria surfaces to publish:
      body/entity DTOs; `SectorRenderer` now counts planets, belts, gas giants,
      stars, stations, turrets, and ships from `GalaxyZone.Contents` runtime
      wrappers and live entities.
+   - Done: delete `GalaxyZone.RuntimeBlueprint` as a persistent zone-side cache;
+     unvisited zone generation now feeds the `Zone` constructor directly, and
+     visited zone state is owned by `GalaxyZone.Contents`/`Zone.CaptureBlueprint`.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
