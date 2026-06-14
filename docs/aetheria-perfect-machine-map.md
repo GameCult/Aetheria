@@ -155,12 +155,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
   wraps rows in a typed `TradeRow`: name, mass, price, size, hardpoint type,
   commodity subtype, hull ownership, and behavior-kind filters read typed
-  catalog rows before any legacy projection is hydrated. Legacy `ItemData`
-  hydration is lazy and bounded to behavior reflection columns. Trade buy
-  decisions for crafted price, ship-hull classification, simple commodity base
-  price, and simple commodity stack size now read typed catalog rows; the
-  existing inventory transfer and ship-construction paths still own the actual
-  runtime mutation.
+  catalog rows before any legacy projection is hydrated. Dynamic behavior
+  columns read typed behavior payload fields by legacy payload key instead of
+  hydrating `BehaviorData` DTOs. Trade buy decisions for crafted price,
+  ship-hull classification, simple commodity base price, and simple commodity
+  stack size also read typed catalog rows; the existing inventory transfer and
+  ship-construction paths still own the actual runtime mutation.
   The sector properties UI also resolves
   station/turret/ship counts only through typed hull classifications from the runtime catalog;
   missing typed hull rows no longer fall back to legacy `HullData`. Loot pickup
@@ -643,11 +643,13 @@ First Aetheria surfaces to publish:
      typed catalog row prefilters before row-level `ItemData` hydration.
    - Done: move trade menu row presentation for name, mass, price, size,
      hardpoint type, commodity subtype, hull-owned counts, and behavior-kind
-     filtering onto typed `TradeRow` fields; legacy `ItemData` hydration is
-     lazy and bounded to behavior reflection columns.
+     filtering onto typed `TradeRow` fields.
    - Done: move trade menu buy price, ship-hull classification, and simple
      commodity stack-size decisions onto typed catalog rows; inventory transfer
      and ship construction remain the runtime mutation owners.
+   - Done: move TradeMenu dynamic behavior columns onto typed behavior payload
+     fields; the menu no longer hydrates `ItemData` or `BehaviorData` for row
+     display, filtering, sorting, or buy decisions.
    - Done: move action-bar consumable drop binding onto typed catalog rows;
      legacy `ConsumableItemData` resolution is lazy and bounded to activation
      and active-duration fill until typed consumable effect execution exists.

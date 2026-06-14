@@ -259,33 +259,30 @@ public class TradeMenu : MonoBehaviour
 				if (fieldType == typeof(float))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return () => ActionGameManager.RuntimePlayerSettings.Format((float) field.GetValue(behavior));
+                        var value = GetTypedBehaviorNumber(x, type, field);
+                        return () => ActionGameManager.RuntimePlayerSettings.Format((float)value);
                     }, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return (float) field.GetValue(behavior);
+                        return (float)GetTypedBehaviorNumber(x, type, field);
                     }));
 				else if (fieldType == typeof(int))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return () => ((int) field.GetValue(behavior)).ToString();
+                        var value = GetTypedBehaviorNumber(x, type, field);
+                        return () => ((int)value).ToString();
                     }, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return (int) field.GetValue(behavior);
+                        return (int)GetTypedBehaviorNumber(x, type, field);
                     }));
 				else if (fieldType == typeof(PerformanceStat))
 				{
                     columns.Add((field.Name, 1, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return () => ActionGameManager.RuntimePlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
+                        var value = GetTypedBehaviorNumber(x, type, field);
+                        return () => ActionGameManager.RuntimePlayerSettings.Format((float)value);
                     }, x =>
                     {
-                        var behavior = x.LegacyEquippableData.Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
-                        return ((PerformanceStat) field.GetValue(behavior)).Max;
+                        return (float)GetTypedBehaviorNumber(x, type, field);
                     }));
 				}
 			}
@@ -404,10 +401,70 @@ public class TradeMenu : MonoBehaviour
         return ActionGameManager.RuntimeCatalog?.FindItemByLegacyId(item.Data.ItemId.ToString("D"));
     }
 
+    private static double GetTypedBehaviorNumber(TradeRow row, Type behaviorType, FieldInfo field)
+    {
+        var key = field.GetCustomAttribute<LegacyPayloadKeyAttribute>()?.Key;
+        if (key == null)
+        {
+            return 0;
+        }
+
+        var payload = FindTypedBehaviorPayload(row.TypedItem, behaviorType);
+        var payloadField = payload?.Fields.FirstOrDefault(candidate => candidate.Key == key.Value);
+        if (payloadField == null)
+        {
+            return 0;
+        }
+
+        if (field.FieldType == typeof(PerformanceStat))
+        {
+            return payloadField.Value.Children.Count > 1
+                ? payloadField.Value.Children[1].NumberValue
+                : 0;
+        }
+
+        return payloadField.Value.NumberValue;
+    }
+
+    private static AetheriaRuntimeBehaviorPayload FindTypedBehaviorPayload(AetheriaRuntimeCatalogItem typedItem, Type behaviorType)
+    {
+        if (typedItem == null)
+        {
+            return null;
+        }
+
+        return typedItem.BehaviorPayloads.FirstOrDefault(payload => TypedBehaviorMatches(payload, behaviorType));
+    }
+
+    private static bool TypedBehaviorMatches(AetheriaRuntimeBehaviorPayload payload, Type behaviorType)
+    {
+        if (string.Equals(payload.Kind, behaviorType.Name, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var payloadType = ResolveBehaviorType(payload.Kind);
+        return payloadType != null && behaviorType.IsAssignableFrom(payloadType);
+    }
+
+    private static Type ResolveBehaviorType(string kind)
+    {
+        return string.IsNullOrWhiteSpace(kind)
+            ? null
+            : BehaviorTypesByName.TryGetValue(kind, out var type)
+                ? type
+                : null;
+    }
+
+    private static readonly IReadOnlyDictionary<string, Type> BehaviorTypesByName = typeof(BehaviorData)
+        .GetAllChildClasses()
+        .Where(type => !string.IsNullOrWhiteSpace(type.Name))
+        .GroupBy(type => type.Name)
+        .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
     private sealed class TradeRow
     {
         private readonly ItemManager _itemManager;
-        private ItemData _legacyData;
 
         public TradeRow(ItemInstance item, AetheriaRuntimeCatalogItem typedItem, ItemManager itemManager)
         {
@@ -419,10 +476,6 @@ public class TradeMenu : MonoBehaviour
         public ItemInstance Item { get; }
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
-
-        public ItemData LegacyData => _legacyData ?? (_legacyData = _itemManager.GetData(Item));
-
-        public EquippableItemData LegacyEquippableData => LegacyData as EquippableItemData;
 
         public Guid LegacyId => Item?.Data?.ItemId ?? Guid.Empty;
 
