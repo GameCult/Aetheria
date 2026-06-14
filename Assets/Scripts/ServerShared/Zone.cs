@@ -409,8 +409,10 @@ public class Planet
     protected readonly PlanetSettings Settings;
     private readonly BodyData _data;
     public Guid ID { get; }
+    public string Name { get; }
     public Guid OrbitId { get; }
     public float Mass { get; }
+    public IReadOnlyDictionary<Guid, float> Resources { get; }
     public float BodyRadiusMultiplier { get; }
     public float GravityRadiusMultiplier { get; }
     public float GravityDepthMultiplier { get; }
@@ -425,8 +427,10 @@ public class Planet
         Orbit = orbit;
         _data = data;
         ID = data.ID;
+        Name = data.Name ?? "";
         OrbitId = data.Orbit;
         Mass = data.Mass;
+        Resources = data.Resources;
         BodyRadiusMultiplier = data.BodyRadiusMultiplier;
         GravityRadiusMultiplier = data.GravityRadiusMultiplier;
         GravityDepthMultiplier = data.GravityDepthMultiplier;
@@ -447,6 +451,17 @@ public class Planet
 public class GasGiant : Planet
 {
     public GasGiantData GasGiantData;
+    public float FirstOffsetDomainRotationSpeed { get; }
+    public float FirstOffsetRotationSpeed { get; }
+    public float SecondOffsetDomainRotationSpeed { get; }
+    public float SecondOffsetRotationSpeed { get; }
+    public float AlbedoRotationSpeed { get; }
+    public float WaveRadiusMultiplier { get; }
+    public float WaveDepthMultiplier { get; }
+    public float WaveDepthExponent { get; }
+    public float WaveSpeedMultiplier { get; }
+    public IReadOnlyList<string> MaterialOverrides { get; }
+    public float4[] Colors { get; }
     public float GravityWavesDepth;
     public float GravityWavesRadius;
     public float GravityWavesSpeed;
@@ -454,6 +469,17 @@ public class GasGiant : Planet
     public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
         GasGiantData = data;
+        FirstOffsetDomainRotationSpeed = data.FirstOffsetDomainRotationSpeed;
+        FirstOffsetRotationSpeed = data.FirstOffsetRotationSpeed;
+        SecondOffsetDomainRotationSpeed = data.SecondOffsetDomainRotationSpeed;
+        SecondOffsetRotationSpeed = data.SecondOffsetRotationSpeed;
+        AlbedoRotationSpeed = data.AlbedoRotationSpeed;
+        WaveRadiusMultiplier = data.WaveRadiusMultiplier;
+        WaveDepthMultiplier = data.WaveDepthMultiplier;
+        WaveDepthExponent = data.WaveDepthExponent;
+        WaveSpeedMultiplier = data.WaveSpeedMultiplier;
+        MaterialOverrides = data.MaterialOverrides;
+        Colors = data.Colors;
         CalculateProperties();
     }
 
@@ -469,11 +495,17 @@ public class GasGiant : Planet
 public class Sun : GasGiant
 {
     public SunData SunData;
+    public float3 LightColor { get; }
+    public float3 FogTintColor { get; }
+    public float LightRadiusMultiplier { get; }
     public float LightRadius;
 
     public Sun(PlanetSettings settings, SunData data, Orbit orbit) : base(settings, data, orbit)
     {
         SunData = data;
+        LightColor = data.LightColor;
+        FogTintColor = data.FogTintColor;
+        LightRadiusMultiplier = data.LightRadiusMultiplier;
         CalculateProperties();
     }
 
@@ -489,8 +521,14 @@ public class AsteroidBelt
     private readonly AsteroidBeltData _data;
     private readonly Asteroid[] _asteroids;
     public Guid ID { get; }
+    public string Name { get; }
     public Guid Orbit { get; }
+    public float Mass { get; }
     public IReadOnlyDictionary<Guid, float> Resources { get; }
+    public float BodyRadiusMultiplier { get; }
+    public float GravityRadiusMultiplier { get; }
+    public float GravityDepthMultiplier { get; }
+    public float GravityDepthExponent { get; }
     public float4[] Transforms; // x, y, rotation, scale
     public float4[] NewTransforms; // x, y, rotation, scale
     public float Radius { get; }
@@ -505,8 +543,14 @@ public class AsteroidBelt
         _data = data;
         _asteroids = data.Asteroids;
         ID = data.ID;
+        Name = data.Name ?? "";
         Orbit = data.Orbit;
+        Mass = data.Mass;
         Resources = data.Resources;
+        BodyRadiusMultiplier = data.BodyRadiusMultiplier;
+        GravityRadiusMultiplier = data.GravityRadiusMultiplier;
+        GravityDepthMultiplier = data.GravityDepthMultiplier;
+        GravityDepthExponent = data.GravityDepthExponent;
         Transforms = new float4[_asteroids.Length];
         NewTransforms = new float4[_asteroids.Length];
         Radius = _asteroids.Max(a => a.Distance);

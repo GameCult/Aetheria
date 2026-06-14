@@ -629,7 +629,7 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(index => index)
                 .ToArray() ?? Array.Empty<int>(),
             OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
-            Orbits = ProjectZoneOrbits(zone.Blueprint),
+            Orbits = ProjectZoneOrbits(zone),
             Bodies = ProjectZoneBodies(zone),
             Entities = zone.Entities
                 .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
@@ -637,9 +637,9 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(RuntimeZoneBlueprint blueprint)
+    private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(Zone zone)
     {
-        return blueprint?.Orbits?
+        return zone?.Orbits?.Values
             .OrderBy(orbit => orbit.ID)
             .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
             {
@@ -655,23 +655,26 @@ public class ActionGameManager : MonoBehaviour
 
     private static AetheriaRuntimeBodySnapshotCommit[] ProjectZoneBodies(Zone zone)
     {
-        return zone?.Blueprint?.Planets?
-            .OrderBy(body => body.ID)
-            .Select(body => ProjectZoneBody(zone, body))
-            .ToArray() ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+        if (zone == null)
+            return Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+
+        return zone.PlanetInstances.Values
+            .Select(planet => ProjectZoneBody(planet))
+            .Concat(zone.AsteroidBelts.Values.Select(belt => ProjectZoneBody(zone, belt)))
+            .OrderBy(body => body.BodyLegacyId)
+            .ToArray();
     }
 
-    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Zone zone, BodyData body)
+    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Planet planet)
     {
-        zone.AsteroidBelts.TryGetValue(body.ID, out var asteroidBelt);
         return new AetheriaRuntimeBodySnapshotCommit
         {
-            BodyLegacyId = LegacyId(body.ID),
-            Kind = BodyKind(body),
-            Name = body.Name ?? "",
-            OrbitLegacyId = LegacyId(body.Orbit),
-            Mass = body.Mass,
-            Resources = body.Resources?
+            BodyLegacyId = LegacyId(planet.ID),
+            Kind = BodyKind(planet),
+            Name = planet.Name,
+            OrbitLegacyId = LegacyId(planet.OrbitId),
+            Mass = planet.Mass,
+            Resources = planet.Resources?
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AetheriaRuntimeBodyResourceCommit
                 {
@@ -679,39 +682,62 @@ public class ActionGameManager : MonoBehaviour
                     Amount = pair.Value
                 })
                 .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
-            BodyRadiusMultiplier = body.BodyRadiusMultiplier,
-            GravityRadiusMultiplier = body.GravityRadiusMultiplier,
-            GravityDepthMultiplier = body.GravityDepthMultiplier,
-            GravityDepthExponent = body.GravityDepthExponent,
-            Asteroids = body is AsteroidBeltData belt
-                ? ProjectAsteroids(zone, belt, asteroidBelt)
-                : Array.Empty<AetheriaRuntimeAsteroidCommit>(),
-            GasGiantVisual = body is GasGiantData gas
+            BodyRadiusMultiplier = planet.BodyRadiusMultiplier,
+            GravityRadiusMultiplier = planet.GravityRadiusMultiplier,
+            GravityDepthMultiplier = planet.GravityDepthMultiplier,
+            GravityDepthExponent = planet.GravityDepthExponent,
+            Asteroids = Array.Empty<AetheriaRuntimeAsteroidCommit>(),
+            GasGiantVisual = planet is GasGiant gas
                 ? ProjectGasGiantVisual(gas)
                 : new AetheriaRuntimeGasGiantVisualCommit(),
-            SunVisual = body is SunData sun
+            SunVisual = planet is Sun sun
                 ? ProjectSunVisual(sun)
                 : new AetheriaRuntimeSunVisualCommit()
         };
     }
 
-    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(
-        Zone zone,
-        AsteroidBeltData beltData,
-        AsteroidBelt asteroidBelt)
+    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Zone zone, AsteroidBelt belt)
     {
-        return beltData.Asteroids?
-            .Select((asteroid, asteroidIndex) => new AetheriaRuntimeAsteroidCommit
+        return new AetheriaRuntimeBodySnapshotCommit
+        {
+            BodyLegacyId = LegacyId(belt.ID),
+            Kind = "asteroid_belt",
+            Name = belt.Name,
+            OrbitLegacyId = LegacyId(belt.Orbit),
+            Mass = belt.Mass,
+            Resources = belt.Resources?
+                .OrderBy(pair => pair.Key)
+                .Select(pair => new AetheriaRuntimeBodyResourceCommit
+                {
+                    ItemDefinitionLegacyId = LegacyId(pair.Key),
+                    Amount = pair.Value
+                })
+                .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
+            BodyRadiusMultiplier = belt.BodyRadiusMultiplier,
+            GravityRadiusMultiplier = belt.GravityRadiusMultiplier,
+            GravityDepthMultiplier = belt.GravityDepthMultiplier,
+            GravityDepthExponent = belt.GravityDepthExponent,
+            Asteroids = ProjectAsteroids(zone, belt),
+            GasGiantVisual = new AetheriaRuntimeGasGiantVisualCommit(),
+            SunVisual = new AetheriaRuntimeSunVisualCommit()
+        };
+    }
+
+    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(Zone zone, AsteroidBelt asteroidBelt)
+    {
+        return Enumerable.Range(0, asteroidBelt.AsteroidCount)
+            .Select(asteroidIndex =>
             {
-                Distance = asteroid.Distance,
-                Phase = asteroid.Phase,
-                Size = asteroid.Size,
-                RotationSpeed = asteroid.RotationSpeed,
-                Damage = asteroidBelt != null && asteroidBelt.Damage.TryGetValue(asteroidIndex, out var damage) ? damage : 0,
-                RespawnTimer = asteroidBelt != null && asteroidBelt.RespawnTimers.TryGetValue(asteroidIndex, out var respawnTimer) ? respawnTimer : 0,
-                MiningAccumulators = asteroidBelt == null
-                    ? Array.Empty<AetheriaRuntimeAsteroidMiningAccumulatorCommit>()
-                    : asteroidBelt.MiningAccumulator
+                var asteroid = asteroidBelt.GetAsteroid(asteroidIndex);
+                return new AetheriaRuntimeAsteroidCommit
+                {
+                    Distance = asteroid.Distance,
+                    Phase = asteroid.Phase,
+                    Size = asteroid.Size,
+                    RotationSpeed = asteroid.RotationSpeed,
+                    Damage = asteroidBelt.Damage.TryGetValue(asteroidIndex, out var damage) ? damage : 0,
+                    RespawnTimer = asteroidBelt.RespawnTimers.TryGetValue(asteroidIndex, out var respawnTimer) ? respawnTimer : 0,
+                    MiningAccumulators = asteroidBelt.MiningAccumulator
                         .Where(pair => pair.Key.Item2 == asteroidIndex)
                         .Select(pair => new AetheriaRuntimeAsteroidMiningAccumulatorCommit
                         {
@@ -720,11 +746,12 @@ public class ActionGameManager : MonoBehaviour
                         })
                         .Where(accumulator => accumulator.MinerEntityIndex >= 0)
                         .ToArray()
+                };
             })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
+            .ToArray();
     }
 
-    private static AetheriaRuntimeGasGiantVisualCommit ProjectGasGiantVisual(GasGiantData gas)
+    private static AetheriaRuntimeGasGiantVisualCommit ProjectGasGiantVisual(GasGiant gas)
     {
         return new AetheriaRuntimeGasGiantVisualCommit
         {
@@ -750,7 +777,7 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeSunVisualCommit ProjectSunVisual(SunData sun)
+    private static AetheriaRuntimeSunVisualCommit ProjectSunVisual(Sun sun)
     {
         return new AetheriaRuntimeSunVisualCommit
         {
@@ -764,15 +791,13 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private static string BodyKind(BodyData body)
+    private static string BodyKind(Planet body)
     {
         return body switch
         {
-            SunData => "sun",
-            GasGiantData => "gas_giant",
-            AsteroidBeltData => "asteroid_belt",
-            PlanetData => "planet",
-            _ => "body"
+            Sun => "sun",
+            GasGiant => "gas_giant",
+            _ => "planet"
         };
     }
 

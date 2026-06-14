@@ -1034,6 +1034,13 @@ First Aetheria surfaces to publish:
    - Done: move live planet mass/orbit/gravity reads off `BodyData`; `Zone`
      gravity evaluation and `ZoneRenderer` consume `Planet` runtime properties,
      with `Planet.ToData()` retained as the temporary capture/config bridge.
+   - Done: move typed zone orbit snapshot projection off
+     `RuntimeZoneBlueprint.Orbits`; run checkpoint commits now project current
+     `Zone.Orbits` runtime wrappers into typed orbit snapshot rows.
+   - Done: move typed zone body snapshot projection off `BodyData` and
+     `AsteroidBeltData`; run checkpoint commits now project `Planet` and
+     `AsteroidBelt` runtime wrappers, including body resources, asteroid
+     runtime damage/respawn/miner accumulators, and gas/sun visual fields.
    - Done: delete the legacy `Behaviors` lists from `ConsumableItemData` and
      `EquippableItemData`; item DTOs can no longer carry behavior config state.
    - Done: move runtime blueprint price aggregation and conductivity restore
