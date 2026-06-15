@@ -333,9 +333,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Capacitor, Shield, MiningTool, ResourceScanner, Thermotoggle, and Thruster now
   follow the same direct-definition path, so the temporary config bridge no
   longer constructs those medium behavior classes.
-  Reactor, Radiator, Sensor, and StatModifier also read typed payload fields
-  through `RuntimeBehaviorDefinition`; their live stat surfaces are registered
-  explicitly rather than recovered through config reflection.
+  Reactor, Radiator, Sensor, StatModifier, and AetherDrive also read typed
+  payload fields through `RuntimeBehaviorDefinition`; their live stat surfaces
+  are registered explicitly rather than recovered through config reflection.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
@@ -1485,6 +1485,10 @@ First Aetheria surfaces to publish:
      stats, curves, enum, scalar, and stat-reference fields directly, and live
      behavior instances explicitly expose the stat names used by
      `StatModifier`.
+   - Done: delete `AetherDriveConfig`. `RuntimeBehaviorDefinition` now reads
+     rotor geometry, RPM/coupling/torque/energy/passive-coupling stats, torque
+     curve, audio parameters, and particle prefab path directly; the remaining
+     `RuntimeBehaviorConfig` bridge is weapon-family-only.
    - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after
      importer constants and explicit typed mappers became the only migrated
      field-key authorities.

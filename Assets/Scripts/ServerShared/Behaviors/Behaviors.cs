@@ -229,6 +229,16 @@ public sealed class RuntimeBehaviorDefinition
         return _fields.TryGetValue(key, out var value) ? (float)value.NumberValue : fallback;
     }
 
+    public uint UInt(int key, uint fallback = 0)
+    {
+        return _fields.TryGetValue(key, out var value) ? checked((uint)value.NumberValue) : fallback;
+    }
+
+    public float3 Float3(int key, float3 fallback = default)
+    {
+        return _fields.TryGetValue(key, out var value) ? ToFloat3(value) : fallback;
+    }
+
     public string String(int key, string fallback = "")
     {
         return _fields.TryGetValue(key, out var value) ? value.StringValue ?? "" : fallback;
@@ -307,6 +317,11 @@ public sealed class RuntimeBehaviorDefinition
     private static float4 ToFloat4(AetheriaRuntimeBehaviorValue value)
     {
         return new float4(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
+    }
+
+    private static float3 ToFloat3(AetheriaRuntimeBehaviorValue value)
+    {
+        return new float3(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2));
     }
 
     private static float ChildFloat(AetheriaRuntimeBehaviorValue value, int index)

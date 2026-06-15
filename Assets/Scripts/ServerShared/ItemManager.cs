@@ -93,6 +93,7 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, item);
+            case "AetherDrive": return new AetherDrive(definition, item);
             case "Capacitor": return new Capacitor(definition, item);
             case "Cooldown": return new Cooldown(definition, item);
             case "EnergyDraw": return new EnergyDraw(definition, item);
@@ -126,6 +127,7 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, effect);
+            case "AetherDrive": return new AetherDrive(definition, effect);
             case "Capacitor": return new Capacitor(definition, effect);
             case "Cooldown": return new Cooldown(definition, effect);
             case "EnergyDraw": return new EnergyDraw(definition, effect);
@@ -157,7 +159,6 @@ public class ItemManager
     {
         switch (payload.Kind)
         {
-            case "AetherDrive": return Configure(new AetherDriveConfig(), payload, ApplyAetherDriveConfig);
             case "AutoWeapon": return Configure(new AutoWeaponConfig(), payload, ApplyInstantWeaponConfig);
             case "ChargedWeapon": return Configure(new ChargedWeaponConfig(), payload, ApplyChargedWeaponConfig);
             case "ConstantWeapon": return Configure(new ConstantWeaponConfig(), payload, ApplyConstantWeaponConfig);
@@ -176,23 +177,6 @@ public class ItemManager
         config.Group = payload.Group;
         apply?.Invoke(config, reader);
         return config;
-    }
-
-    private static void ApplyAetherDriveConfig(AetherDriveConfig config, BehaviorPayloadReader reader)
-    {
-        config.RotorDiameter = reader.Float3(1, config.RotorDiameter);
-        config.RotorMass = reader.Float3(2, config.RotorMass);
-        config.MaximumRpm = reader.PerformanceStat(3, config.MaximumRpm);
-        config.CouplingLambda = reader.Float3(4, config.CouplingLambda);
-        config.LambdaMultiplier = reader.PerformanceStat(5, config.LambdaMultiplier);
-        config.CouplingEfficiency = reader.PerformanceStat(6, config.CouplingEfficiency);
-        config.Torque = reader.PerformanceStat(7, config.Torque);
-        config.TorqueProfile = reader.BezierCurve(8, config.TorqueProfile);
-        config.EnergyDraw = reader.PerformanceStat(9, config.EnergyDraw);
-        config.PassiveCoupling = reader.PerformanceStat(10, config.PassiveCoupling);
-        config.RpmAudioParameter = reader.UInt(11, config.RpmAudioParameter);
-        config.TorqueRatioAudioParameter = reader.UInt(12, config.TorqueRatioAudioParameter);
-        config.Particles = reader.String(13, config.Particles);
     }
 
     private static void ApplyWeaponConfig(WeaponConfig config, BehaviorPayloadReader reader)
@@ -317,11 +301,6 @@ public class ItemManager
             return _fields.TryGetValue(key, out var value) ? checked((int)value.NumberValue) : fallback;
         }
 
-        public uint UInt(int key, uint fallback = 0)
-        {
-            return _fields.TryGetValue(key, out var value) ? checked((uint)value.NumberValue) : fallback;
-        }
-
         public string ItemKey(int key, string fallback = "")
         {
             return _fields.TryGetValue(key, out var value) &&
@@ -344,11 +323,6 @@ public class ItemManager
             }
 
             return (T)System.Enum.ToObject(typeof(T), checked((int)value.NumberValue));
-        }
-
-        public float3 Float3(int key, float3 fallback = default)
-        {
-            return _fields.TryGetValue(key, out var value) ? ToFloat3(value) : fallback;
         }
 
         public float4[] Float4Array(int key, float4[] fallback)
@@ -402,11 +376,6 @@ public class ItemManager
                 DurabilityExponentMultiplier = ChildFloat(value, 3),
                 QualityExponent = ChildFloat(value, 4)
             };
-        }
-
-        private static float3 ToFloat3(AetheriaRuntimeBehaviorValue value)
-        {
-            return new float3(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2));
         }
 
         private static float4 ToFloat4(AetheriaRuntimeBehaviorValue value)

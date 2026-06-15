@@ -208,10 +208,12 @@ runtime performance stats explicitly for `StatModifier`.
 Capacitor, Shield, MiningTool, ResourceScanner, Thermotoggle, and Thruster now
 follow the same direct-definition path; the temporary config bridge no longer
 constructs those medium behavior classes.
-Reactor, Radiator, Sensor, and StatModifier also read typed payload fields
-through `RuntimeBehaviorDefinition`; the bridge no longer owns their
-construction or stat reflection.
-`ItemManager` currently owns the explicit typed-payload-to-config bridge.
+Reactor, Radiator, Sensor, StatModifier, and AetherDrive also read typed
+payload fields through `RuntimeBehaviorDefinition`; the bridge no longer owns
+their construction or stat reflection. AetherDrive registers its live
+performance-stat names explicitly for `StatModifier`.
+`ItemManager` currently owns the remaining weapon-family typed-payload-to-config
+bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array used by `Galaxy`/Markov name generation through typed name-file

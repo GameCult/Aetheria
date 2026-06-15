@@ -6,58 +6,6 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 [Inspectable, EntityTypeRestriction(HullType.Ship)]
-public class AetherDriveConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public float3 RotorDiameter;
-
-    [Inspectable]
-    public float3 RotorMass;
-
-    [Inspectable]
-    public PerformanceStat MaximumRpm;
-
-    [Inspectable]
-    public float3 CouplingLambda;
-
-    [Inspectable]
-    public PerformanceStat LambdaMultiplier;
-
-    [Inspectable]
-    public PerformanceStat CouplingEfficiency;
-
-    [Inspectable]
-    public PerformanceStat Torque;
-
-    [Inspectable]
-    public BezierCurve TorqueProfile;
-
-    [Inspectable]
-    public PerformanceStat EnergyDraw;
-
-    [Inspectable]
-    public PerformanceStat PassiveCoupling;
-
-    [InspectableAudioParameter]
-    public uint RpmAudioParameter;
-
-    [InspectableAudioParameter]
-    public uint TorqueRatioAudioParameter;
-
-    [InspectablePrefab]
-    public string Particles;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new AetherDrive(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new AetherDrive(this, item);
-    }
-}
-
 public class AetherDrive : Behavior
 {
     private readonly float3 _rotorDiameter;
@@ -86,38 +34,50 @@ public class AetherDrive : Behavior
         set => _axis = clamp(value, -1, 1);
     }
 
-    public AetherDrive(AetherDriveConfig data, EquippedItem item) : base(data, item)
+    public AetherDrive(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _rotorDiameter = data.RotorDiameter;
-        _rotorMass = data.RotorMass;
-        _maximumRpm = data.MaximumRpm;
-        _couplingLambda = data.CouplingLambda;
-        _lambdaMultiplier = data.LambdaMultiplier;
-        _couplingEfficiency = data.CouplingEfficiency;
-        _torque = data.Torque;
-        _torqueProfile = data.TorqueProfile;
-        _energyDraw = data.EnergyDraw;
-        _passiveCoupling = data.PassiveCoupling;
-        _rpmAudioParameter = data.RpmAudioParameter;
-        _torqueRatioAudioParameter = data.TorqueRatioAudioParameter;
-        Particles = data.Particles;
+        _rotorDiameter = definition.Float3(1);
+        _rotorMass = definition.Float3(2);
+        _maximumRpm = definition.PerformanceStat(3, null);
+        _couplingLambda = definition.Float3(4);
+        _lambdaMultiplier = definition.PerformanceStat(5, null);
+        _couplingEfficiency = definition.PerformanceStat(6, null);
+        _torque = definition.PerformanceStat(7, null);
+        _torqueProfile = definition.BezierCurve(8, null);
+        _energyDraw = definition.PerformanceStat(9, null);
+        _passiveCoupling = definition.PerformanceStat(10, null);
+        _rpmAudioParameter = definition.UInt(11);
+        _torqueRatioAudioParameter = definition.UInt(12);
+        Particles = definition.String(13);
+        RegisterAetherDriveStats();
     }
 
-    public AetherDrive(AetherDriveConfig data, ConsumableItemEffect item) : base(data, item)
+    public AetherDrive(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _rotorDiameter = data.RotorDiameter;
-        _rotorMass = data.RotorMass;
-        _maximumRpm = data.MaximumRpm;
-        _couplingLambda = data.CouplingLambda;
-        _lambdaMultiplier = data.LambdaMultiplier;
-        _couplingEfficiency = data.CouplingEfficiency;
-        _torque = data.Torque;
-        _torqueProfile = data.TorqueProfile;
-        _energyDraw = data.EnergyDraw;
-        _passiveCoupling = data.PassiveCoupling;
-        _rpmAudioParameter = data.RpmAudioParameter;
-        _torqueRatioAudioParameter = data.TorqueRatioAudioParameter;
-        Particles = data.Particles;
+        _rotorDiameter = definition.Float3(1);
+        _rotorMass = definition.Float3(2);
+        _maximumRpm = definition.PerformanceStat(3, null);
+        _couplingLambda = definition.Float3(4);
+        _lambdaMultiplier = definition.PerformanceStat(5, null);
+        _couplingEfficiency = definition.PerformanceStat(6, null);
+        _torque = definition.PerformanceStat(7, null);
+        _torqueProfile = definition.BezierCurve(8, null);
+        _energyDraw = definition.PerformanceStat(9, null);
+        _passiveCoupling = definition.PerformanceStat(10, null);
+        _rpmAudioParameter = definition.UInt(11);
+        _torqueRatioAudioParameter = definition.UInt(12);
+        Particles = definition.String(13);
+        RegisterAetherDriveStats();
+    }
+
+    private void RegisterAetherDriveStats()
+    {
+        RegisterPerformanceStat(nameof(MaximumRpm), _maximumRpm);
+        RegisterPerformanceStat("LambdaMultiplier", _lambdaMultiplier);
+        RegisterPerformanceStat("CouplingEfficiency", _couplingEfficiency);
+        RegisterPerformanceStat("Torque", _torque);
+        RegisterPerformanceStat("EnergyDraw", _energyDraw);
+        RegisterPerformanceStat("PassiveCoupling", _passiveCoupling);
     }
 
     public override bool Execute(float dt)
