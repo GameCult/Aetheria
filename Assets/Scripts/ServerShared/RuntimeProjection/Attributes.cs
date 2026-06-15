@@ -49,16 +49,6 @@ public class InspectableRangedIntAttribute : PreferredInspectorAttribute
     }
 }
 
-public class InspectableTypeAttribute : PreferredInspectorAttribute
-{
-    public readonly Type Type;
-
-    public InspectableTypeAttribute(Type type)
-    {
-        Type = type;
-    }
-}
-
 public class OrderAttribute : Attribute
 {
     public int Order;

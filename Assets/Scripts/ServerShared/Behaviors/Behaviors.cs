@@ -12,7 +12,7 @@ using static Unity.Mathematics.noise;
 
 public abstract class Behavior
 {
-    public RuntimeBehaviorConfig Config { get; }
+    private readonly RuntimeBehaviorConfig _config;
     public string Kind { get; }
     public int Group { get; }
     public EquippedItem Item { get; }
@@ -46,7 +46,7 @@ public abstract class Behavior
 
     protected Behavior(RuntimeBehaviorConfig config, EquippedItem item)
     {
-        Config = config;
+        _config = config;
         Kind = config?.Kind ?? "";
         Group = config?.Group ?? 0;
         Item = item;
@@ -55,7 +55,7 @@ public abstract class Behavior
 
     protected Behavior(RuntimeBehaviorConfig config, ConsumableItemEffect consumable)
     {
-        Config = config;
+        _config = config;
         Kind = config?.Kind ?? "";
         Group = config?.Group ?? 0;
         Consumable = consumable;
@@ -63,6 +63,23 @@ public abstract class Behavior
     }
 
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
+
+    public bool TryGetPerformanceStat(string statName, out PerformanceStat stat)
+    {
+        stat = null;
+        if (_config == null || string.IsNullOrWhiteSpace(statName))
+        {
+            return false;
+        }
+
+        var statField = _config
+            .GetType()
+            .GetFields()
+            .FirstOrDefault(field => field.FieldType == typeof(PerformanceStat) && field.Name == statName);
+        stat = statField?.GetValue(_config) as PerformanceStat;
+        return stat != null;
+    }
+
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables
 
     protected void CauseDamage(float damage)

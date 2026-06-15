@@ -243,7 +243,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `StatModifier` requirement and stat-target lookup now inspects
   the live equipped behavior instances and asks package-owned typed behavior
   metadata for kind/family matching, not a freshly rebuilt config list or a
-  behavior-local class taxonomy. The unused `TradeMenuDebug` script has been
+  behavior-local class taxonomy. Live behaviors no longer expose their
+  construction config object as a public runtime authority; stat targeting now
+  crosses a behavior-owned stat lookup. The unused `TradeMenuDebug` script has been
   deleted instead of preserving an old uGUI debug path that
   turned typed trade rows back into legacy `ItemData` objects. That hydration
   now comes from typed state, not `AetherDB.msgpack`. The surviving trade menu
@@ -1402,9 +1404,12 @@ First Aetheria surfaces to publish:
      construction machinery.
    - Done: rename the temporary behavior construction DTO family from
      `BehaviorData`/`*Data` to `RuntimeBehaviorConfig`/`*Config`; live
-     `Behavior` instances expose `Config`, while typed behavior kind strings
-     such as `Cockpit`, `TurretController`, and `Capacitor` remain stable
-     catalog facts rather than class-name-derived selectors.
+     `Behavior` instances expose typed kind/group values while typed behavior
+     kind strings such as `Cockpit`, `TurretController`, and `Capacitor` remain
+     stable catalog facts rather than class-name-derived selectors.
+   - Done: remove the public `Behavior.Config` runtime API; stat modifiers ask
+     behavior instances for target performance stats instead of reflecting over
+     exposed construction config objects.
    - Done: replace `ItemManager` behavior config reflection with an explicit
      typed behavior-kind mapper.
    - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after

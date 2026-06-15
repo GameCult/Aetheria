@@ -18,7 +18,6 @@ public class StatModifierConfig : RuntimeBehaviorConfig
     [Inspectable]
     public StatModifierType Type;
 
-    [InspectableType(typeof(RuntimeBehaviorConfig))]
     public string RequireBehavior;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -69,14 +68,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private PerformanceStat FindTargetStat(Behavior behavior)
     {
-        var data = behavior.Config;
-        var statField = data
-            .GetType()
-            .GetFields()
-            .Where(f => f.FieldType == typeof(PerformanceStat))
-            .FirstOrDefault(f => f.Name == _data.Stat.Stat);
-
-        return statField?.GetValue(data) as PerformanceStat;
+        return behavior.TryGetPerformanceStat(_data.Stat.Stat, out var stat) ? stat : null;
     }
 
     private static bool BehaviorKindMatches(string runtimeKind, string expectedKind)
@@ -153,7 +145,6 @@ public enum StatModifierType
 [Inspectable]
 public class StatReference
 {
-    [InspectableType(typeof(RuntimeBehaviorConfig))]
     public string Target;
 
     [Inspectable]
