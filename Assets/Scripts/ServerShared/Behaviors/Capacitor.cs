@@ -6,26 +6,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class CapacitorConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Capacity = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Efficiency = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Capacitor(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Capacitor(this, item);
-    }
-}
-
 public class Capacitor : Behavior
 {
     private readonly PerformanceStat _capacity;
@@ -41,16 +21,20 @@ public class Capacitor : Behavior
         AddHeat(abs(charge) * (1-Efficiency));
     }
 
-    public Capacitor(CapacitorConfig data, EquippedItem item) : base(data, item)
+    public Capacitor(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _capacity = data.Capacity;
-        _efficiency = data.Efficiency;
+        _capacity = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Capacity), _capacity);
+        RegisterPerformanceStat(nameof(Efficiency), _efficiency);
     }
 
-    public Capacitor(CapacitorConfig data, ConsumableItemEffect item) : base(data, item)
+    public Capacitor(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _capacity = data.Capacity;
-        _efficiency = data.Efficiency;
+        _capacity = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Capacity), _capacity);
+        RegisterPerformanceStat(nameof(Efficiency), _efficiency);
     }
 
     public override bool Execute(float dt)

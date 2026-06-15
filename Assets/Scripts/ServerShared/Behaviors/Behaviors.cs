@@ -224,6 +224,16 @@ public sealed class RuntimeBehaviorDefinition
         return _fields.TryGetValue(key, out var value) ? value.BoolValue : fallback;
     }
 
+    public float Float(int key, float fallback = 0)
+    {
+        return _fields.TryGetValue(key, out var value) ? (float)value.NumberValue : fallback;
+    }
+
+    public string String(int key, string fallback = "")
+    {
+        return _fields.TryGetValue(key, out var value) ? value.StringValue ?? "" : fallback;
+    }
+
     public string ItemKey(int key, string fallback = "")
     {
         return _fields.TryGetValue(key, out var value) &&

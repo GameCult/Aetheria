@@ -5,35 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, EntityTypeRestriction(HullType.Ship)]
-public class ThrusterConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Thrust = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Visibility = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Heat = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat EnergyUsage = new PerformanceStat();
-
-    [InspectablePrefab]
-    public string ParticlesPrefab;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Thruster(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Thruster(this, item);
-    }
-}
-
 public class Thruster : Behavior, IAnalogBehavior
 {
     public float Thrust { get; private set; }
@@ -53,13 +24,17 @@ public class Thruster : Behavior, IAnalogBehavior
 
     private float _input;
 
-    public Thruster(ThrusterConfig data, EquippedItem item) : base(data, item)
+    public Thruster(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _thrust = data.Thrust;
-        _visibility = data.Visibility;
-        _heat = data.Heat;
-        _energyUsage = data.EnergyUsage;
-        ParticlesPrefab = data.ParticlesPrefab;
+        _thrust = definition.PerformanceStat(1, new PerformanceStat());
+        _visibility = definition.PerformanceStat(2, new PerformanceStat());
+        _heat = definition.PerformanceStat(3, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(4, new PerformanceStat());
+        ParticlesPrefab = definition.String(5);
+        RegisterPerformanceStat(nameof(Thrust), _thrust);
+        RegisterPerformanceStat(nameof(Visibility), _visibility);
+        RegisterPerformanceStat(nameof(Heat), _heat);
+        RegisterPerformanceStat("EnergyUsage", _energyUsage);
         var hullShape = ItemManager.GetRuntimeShape(Entity.Hull);
         var itemShape = ItemManager.GetRuntimeShape(item.EquippableItem);
         var hullCenter = hullShape.CenterOfMass;
@@ -69,13 +44,17 @@ public class Thruster : Behavior, IAnalogBehavior
         Thrust = Evaluate(_thrust);
     }
 
-    public Thruster(ThrusterConfig data, ConsumableItemEffect item) : base(data, item)
+    public Thruster(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _thrust = data.Thrust;
-        _visibility = data.Visibility;
-        _heat = data.Heat;
-        _energyUsage = data.EnergyUsage;
-        ParticlesPrefab = data.ParticlesPrefab;
+        _thrust = definition.PerformanceStat(1, new PerformanceStat());
+        _visibility = definition.PerformanceStat(2, new PerformanceStat());
+        _heat = definition.PerformanceStat(3, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(4, new PerformanceStat());
+        ParticlesPrefab = definition.String(5);
+        RegisterPerformanceStat(nameof(Thrust), _thrust);
+        RegisterPerformanceStat(nameof(Visibility), _visibility);
+        RegisterPerformanceStat(nameof(Heat), _heat);
+        RegisterPerformanceStat("EnergyUsage", _energyUsage);
         Torque = 0;
         Thrust = Evaluate(_thrust);
     }

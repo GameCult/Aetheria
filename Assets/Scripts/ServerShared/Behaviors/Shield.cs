@@ -5,25 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class ShieldConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Efficiency = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat EnergyUsage = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Shield(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Shield(this, item);
-    }
-}
-
 public class Shield : Behavior, IProgressBehavior
 {
     public float Efficiency { get; private set; }
@@ -32,15 +13,20 @@ public class Shield : Behavior, IProgressBehavior
     private readonly PerformanceStat _efficiency;
     private readonly PerformanceStat _energyUsage;
 
-    public Shield(ShieldConfig data, EquippedItem item) : base(data, item)
+    public Shield(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _efficiency = data.Efficiency;
-        _energyUsage = data.EnergyUsage;
+        _efficiency = definition.PerformanceStat(1, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(2, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Efficiency), _efficiency);
+        RegisterPerformanceStat(nameof(EnergyUsage), _energyUsage);
     }
-    public Shield(ShieldConfig data, ConsumableItemEffect item) : base(data, item)
+
+    public Shield(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _efficiency = data.Efficiency;
-        _energyUsage = data.EnergyUsage;
+        _efficiency = definition.PerformanceStat(1, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(2, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Efficiency), _efficiency);
+        RegisterPerformanceStat(nameof(EnergyUsage), _energyUsage);
     }
 
     public override bool Execute(float dt)

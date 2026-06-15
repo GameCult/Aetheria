@@ -330,6 +330,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   read typed behavior fields through `RuntimeBehaviorDefinition`; stat-bearing
   behaviors register their runtime performance stats explicitly for
   `StatModifier` rather than relying on config reflection.
+  Capacitor, Shield, MiningTool, ResourceScanner, Thermotoggle, and Thruster now
+  follow the same direct-definition path, so the temporary config bridge no
+  longer constructs those medium behavior classes.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
@@ -1469,6 +1472,11 @@ First Aetheria surfaces to publish:
      classes. `RuntimeBehaviorDefinition` now owns the typed field reads for
      those behavior kinds, and the live behaviors explicitly register their
      performance stats for `StatModifier`.
+   - Done: delete `CapacitorConfig`, `ShieldConfig`, `MiningToolConfig`,
+     `ResourceScannerConfig`, `ThermotoggleConfig`, and `ThrusterConfig`.
+     `RuntimeBehaviorDefinition` reads their typed stats, scalar flags, and
+     prefab path directly, and live stat-bearing behavior instances explicitly
+     register the performance-stat names used by `StatModifier`.
    - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after
      importer constants and explicit typed mappers became the only migrated
      field-key authorities.

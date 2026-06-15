@@ -7,31 +7,6 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, Order(10)]
-public class MiningToolConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat DamagePerSecond = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Efficiency = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Penetration = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Range = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new MiningTool(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new MiningTool(this, item);
-    }
-}
-
 public class MiningTool : Behavior
 {
     public Guid AsteroidBelt;
@@ -43,20 +18,28 @@ public class MiningTool : Behavior
     private readonly PerformanceStat _range;
     public float Range { get; private set; }
 
-    public MiningTool(MiningToolConfig data, EquippedItem item) : base(data, item)
+    public MiningTool(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _damagePerSecond = data.DamagePerSecond;
-        _efficiency = data.Efficiency;
-        _penetration = data.Penetration;
-        _range = data.Range;
+        _damagePerSecond = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        _penetration = definition.PerformanceStat(3, new PerformanceStat());
+        _range = definition.PerformanceStat(4, new PerformanceStat());
+        RegisterPerformanceStat("DamagePerSecond", _damagePerSecond);
+        RegisterPerformanceStat("Efficiency", _efficiency);
+        RegisterPerformanceStat("Penetration", _penetration);
+        RegisterPerformanceStat(nameof(Range), _range);
     }
 
-    public MiningTool(MiningToolConfig data, ConsumableItemEffect item) : base(data, item)
+    public MiningTool(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _damagePerSecond = data.DamagePerSecond;
-        _efficiency = data.Efficiency;
-        _penetration = data.Penetration;
-        _range = data.Range;
+        _damagePerSecond = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        _penetration = definition.PerformanceStat(3, new PerformanceStat());
+        _range = definition.PerformanceStat(4, new PerformanceStat());
+        RegisterPerformanceStat("DamagePerSecond", _damagePerSecond);
+        RegisterPerformanceStat("Efficiency", _efficiency);
+        RegisterPerformanceStat("Penetration", _penetration);
+        RegisterPerformanceStat(nameof(Range), _range);
     }
 
     public override bool Execute(float dt)

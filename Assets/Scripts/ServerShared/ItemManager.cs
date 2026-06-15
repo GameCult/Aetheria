@@ -93,13 +93,19 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, item);
+            case "Capacitor": return new Capacitor(definition, item);
             case "Cooldown": return new Cooldown(definition, item);
             case "EnergyDraw": return new EnergyDraw(definition, item);
             case "Heat": return new Heat(definition, item);
             case "HeatStorage": return new HeatStorage(definition, item);
             case "ItemUsage": return new ItemUsage(definition, item);
+            case "MiningTool": return new MiningTool(definition, item);
             case "Reflector": return new Reflector(definition, item);
+            case "ResourceScanner": return new ResourceScanner(definition, item);
+            case "Shield": return new Shield(definition, item);
             case "Switch": return new Switch(definition, item);
+            case "Thermotoggle": return new Thermotoggle(definition, item);
+            case "Thruster": return new Thruster(definition, item);
             case "Trigger": return new Trigger(definition, item);
             case "TurretController": return new TurretController(definition, item);
             case "VelocityConversion": return new VelocityConversion(definition, item);
@@ -116,13 +122,19 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, effect);
+            case "Capacitor": return new Capacitor(definition, effect);
             case "Cooldown": return new Cooldown(definition, effect);
             case "EnergyDraw": return new EnergyDraw(definition, effect);
             case "Heat": return new Heat(definition, effect);
             case "HeatStorage": return new HeatStorage(definition, effect);
             case "ItemUsage": return new ItemUsage(definition, effect);
+            case "MiningTool": return new MiningTool(definition, effect);
             case "Reflector": return new Reflector(definition, effect);
+            case "ResourceScanner": return new ResourceScanner(definition, effect);
+            case "Shield": return new Shield(definition, effect);
             case "Switch": return new Switch(definition, effect);
+            case "Thermotoggle": return new Thermotoggle(definition, effect);
+            case "Thruster": return new Thruster(definition, effect);
             case "Trigger": return new Trigger(definition, effect);
             case "TurretController": return new TurretController(definition, effect);
             case "VelocityConversion": return new VelocityConversion(definition, effect);
@@ -139,21 +151,15 @@ public class ItemManager
         {
             case "AetherDrive": return Configure(new AetherDriveConfig(), payload, ApplyAetherDriveConfig);
             case "AutoWeapon": return Configure(new AutoWeaponConfig(), payload, ApplyInstantWeaponConfig);
-            case "Capacitor": return Configure(new CapacitorConfig(), payload, ApplyCapacitorConfig);
             case "ChargedWeapon": return Configure(new ChargedWeaponConfig(), payload, ApplyChargedWeaponConfig);
             case "ConstantWeapon": return Configure(new ConstantWeaponConfig(), payload, ApplyConstantWeaponConfig);
             case "GuidedWeapon": return Configure(new GuidedWeaponConfig(), payload, ApplyGuidedWeaponConfig);
             case "InstantWeapon": return Configure(new InstantWeaponConfig(), payload, ApplyInstantWeaponConfig);
             case "Launcher": return Configure(new LauncherConfig(), payload, ApplyLauncherConfig);
-            case "MiningTool": return Configure(new MiningToolConfig(), payload, ApplyMiningToolConfig);
             case "Radiator": return Configure(new RadiatorConfig(), payload, ApplyRadiatorConfig);
             case "Reactor": return Configure(new ReactorConfig(), payload, ApplyReactorConfig);
-            case "ResourceScanner": return Configure(new ResourceScannerConfig(), payload, ApplyResourceScannerConfig);
             case "Sensor": return Configure(new SensorConfig(), payload, ApplySensorConfig);
-            case "Shield": return Configure(new ShieldConfig(), payload, ApplyShieldConfig);
             case "StatModifier": return Configure(new StatModifierConfig(), payload, ApplyStatModifierConfig);
-            case "Thermotoggle": return Configure(new ThermotoggleConfig(), payload, ApplyThermotoggleConfig);
-            case "Thruster": return Configure(new ThrusterConfig(), payload, ApplyThrusterConfig);
             default: return null;
         }
     }
@@ -185,20 +191,6 @@ public class ItemManager
         config.Particles = reader.String(13, config.Particles);
     }
 
-    private static void ApplyCapacitorConfig(CapacitorConfig config, BehaviorPayloadReader reader)
-    {
-        config.Capacity = reader.PerformanceStat(1, config.Capacity);
-        config.Efficiency = reader.PerformanceStat(2, config.Efficiency);
-    }
-
-    private static void ApplyMiningToolConfig(MiningToolConfig config, BehaviorPayloadReader reader)
-    {
-        config.DamagePerSecond = reader.PerformanceStat(1, config.DamagePerSecond);
-        config.Efficiency = reader.PerformanceStat(2, config.Efficiency);
-        config.Penetration = reader.PerformanceStat(3, config.Penetration);
-        config.Range = reader.PerformanceStat(4, config.Range);
-    }
-
     private static void ApplyRadiatorConfig(RadiatorConfig config, BehaviorPayloadReader reader)
     {
         config.Emissivity = reader.PerformanceStat(1, config.Emissivity);
@@ -217,13 +209,6 @@ public class ItemManager
         config.ThrottlingFactor = reader.PerformanceStat(4, config.ThrottlingFactor);
     }
 
-    private static void ApplyResourceScannerConfig(ResourceScannerConfig config, BehaviorPayloadReader reader)
-    {
-        config.Range = reader.PerformanceStat(1, config.Range);
-        config.MinimumDensity = reader.PerformanceStat(2, config.MinimumDensity);
-        config.ScanDuration = reader.PerformanceStat(3, config.ScanDuration);
-    }
-
     private static void ApplySensorConfig(SensorConfig config, BehaviorPayloadReader reader)
     {
         config.Sensitivity = reader.PerformanceStat(3, config.Sensitivity);
@@ -237,34 +222,12 @@ public class ItemManager
         config.PingRadiusExponent = reader.Float(11, config.PingRadiusExponent);
     }
 
-    private static void ApplyShieldConfig(ShieldConfig config, BehaviorPayloadReader reader)
-    {
-        config.Efficiency = reader.PerformanceStat(1, config.Efficiency);
-        config.EnergyUsage = reader.PerformanceStat(2, config.EnergyUsage);
-    }
-
     private static void ApplyStatModifierConfig(StatModifierConfig config, BehaviorPayloadReader reader)
     {
         config.Stat = reader.StatReference(1, config.Stat);
         config.Modifier = reader.PerformanceStat(2, config.Modifier);
         config.Type = reader.Enum(3, config.Type);
         config.RequireBehavior = reader.String(4, config.RequireBehavior);
-    }
-
-    private static void ApplyThermotoggleConfig(ThermotoggleConfig config, BehaviorPayloadReader reader)
-    {
-        config.TargetTemperature = reader.Float(1, config.TargetTemperature);
-        config.HighPass = reader.Bool(2, config.HighPass);
-        config.Adjustable = reader.Bool(3, config.Adjustable);
-    }
-
-    private static void ApplyThrusterConfig(ThrusterConfig config, BehaviorPayloadReader reader)
-    {
-        config.Thrust = reader.PerformanceStat(1, config.Thrust);
-        config.Visibility = reader.PerformanceStat(2, config.Visibility);
-        config.Heat = reader.PerformanceStat(3, config.Heat);
-        config.EnergyUsage = reader.PerformanceStat(4, config.EnergyUsage);
-        config.ParticlesPrefab = reader.String(5, config.ParticlesPrefab);
     }
 
     private static void ApplyWeaponConfig(WeaponConfig config, BehaviorPayloadReader reader)

@@ -7,29 +7,6 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class ResourceScannerConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Range = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat MinimumDensity = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat ScanDuration = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new ResourceScanner(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new ResourceScanner(this, item);
-    }
-}
-
 public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
     public int Asteroid = -1;
@@ -58,18 +35,24 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         }
     }
 
-    public ResourceScanner(ResourceScannerConfig data, EquippedItem item) : base(data, item)
+    public ResourceScanner(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _range = data.Range;
-        _minimumDensity = data.MinimumDensity;
-        _scanDuration = data.ScanDuration;
+        _range = definition.PerformanceStat(1, new PerformanceStat());
+        _minimumDensity = definition.PerformanceStat(2, new PerformanceStat());
+        _scanDuration = definition.PerformanceStat(3, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Range), _range);
+        RegisterPerformanceStat(nameof(MinimumDensity), _minimumDensity);
+        RegisterPerformanceStat(nameof(ScanDuration), _scanDuration);
     }
 
-    public ResourceScanner(ResourceScannerConfig data, ConsumableItemEffect item) : base(data, item)
+    public ResourceScanner(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _range = data.Range;
-        _minimumDensity = data.MinimumDensity;
-        _scanDuration = data.ScanDuration;
+        _range = definition.PerformanceStat(1, new PerformanceStat());
+        _minimumDensity = definition.PerformanceStat(2, new PerformanceStat());
+        _scanDuration = definition.PerformanceStat(3, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Range), _range);
+        RegisterPerformanceStat(nameof(MinimumDensity), _minimumDensity);
+        RegisterPerformanceStat(nameof(ScanDuration), _scanDuration);
     }
 
     public override bool Execute(float dt)
