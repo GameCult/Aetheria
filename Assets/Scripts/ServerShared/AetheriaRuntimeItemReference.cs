@@ -26,11 +26,6 @@ public class AetheriaRuntimeItemReference
         ItemKey = itemKey;
     }
 
-    public AetheriaRuntimeItemReference(Guid legacyItemId)
-        : this(FromLegacyId(legacyItemId))
-    {
-    }
-
     public Guid LegacyItemId => TryParseLegacyId(ItemKey, out var itemId) ? itemId : Guid.Empty;
 
     public static string FromLegacyId(Guid legacyItemId)

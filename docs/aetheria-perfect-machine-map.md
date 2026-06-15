@@ -634,7 +634,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   ID fields demoted to compatibility. The package runtime catalog snapshot now
   indexes items by canonical item key, and Unity gameplay/UI/zone helper
   lookups resolve `ItemKey` directly rather than deriving legacy GUIDs for
-  `FindItemByLegacyId`;
+  `FindItemByLegacyId`. The shared runtime item catalog reader no longer has a
+  GUID index or `GetRuntimeItem(Guid)` entry point; item-key strings are the
+  only lookup authority;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1352,6 +1354,10 @@ First Aetheria surfaces to publish:
    - Done: move server-shared weapon grouping, generated loadout previous-item
      reuse, and hauling task item target identity off derived item GUIDs and
      onto typed `ItemKey` strings.
+   - Done: delete the shared runtime item catalog GUID index, `GetRuntimeItem(Guid)`
+     reader path, `ItemManager` item-ID fallback, and unused
+     `AetheriaRuntimeItemReference(Guid)` constructor. Runtime item lookup is
+     item-key-only outside explicit compatibility projection helpers.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

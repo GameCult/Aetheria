@@ -347,16 +347,7 @@ public abstract class Entity
 
     private static string GetItemKey(AetheriaRuntimeCatalogItem item)
     {
-        return GetLegacyGuid(item) is var itemId && itemId != Guid.Empty
-            ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
-            : "";
-    }
-
-    private static Guid GetLegacyGuid(AetheriaRuntimeCatalogItem item)
-    {
-        return item != null && Guid.TryParse(item.LegacyId, out var legacyId)
-            ? legacyId
-            : Guid.Empty;
+        return item?.ItemKey ?? "";
     }
 
     private void MapEntity()

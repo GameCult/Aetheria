@@ -56,12 +56,7 @@ public class ItemManager
             ? null
             : !string.IsNullOrWhiteSpace(item.ItemKey)
                 ? _runtimeItems.GetRuntimeItem(item.ItemKey)
-                : GetRuntimeItem(item.ItemId);
-    }
-
-    public AetheriaRuntimeCatalogItem GetRuntimeItem(Guid itemId)
-    {
-        return itemId == Guid.Empty ? null : _runtimeItems.GetRuntimeItem(itemId);
+                : null;
     }
 
     public Behavior[] CreateRuntimeBehaviors(EquippedItem item)
@@ -548,16 +543,9 @@ public class ItemManager
         return new AetheriaRuntimeItemReference(ToItemKey(item));
     }
 
-    public AetheriaRuntimeItemReference CreateReference(Guid itemId)
-    {
-        return new AetheriaRuntimeItemReference(itemId);
-    }
-
     private static string ToItemKey(AetheriaRuntimeCatalogItem item)
     {
-        return item != null && Guid.TryParse(item.LegacyId, out var itemId)
-            ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
-            : "";
+        return item?.ItemKey ?? "";
     }
 
     public void Log(string s)
@@ -646,8 +634,7 @@ public class ItemManager
 
     public SimpleCommodity CreateSimpleCommodityInstance(AetheriaRuntimeCatalogItem item, int count)
     {
-        var itemId = GetLegacyGuid(item);
-        if (itemId != Guid.Empty)
+        if (!string.IsNullOrWhiteSpace(item?.ItemKey))
         {
             return new SimpleCommodity
             {
@@ -687,8 +674,7 @@ public class ItemManager
         if (IsEquippable(item))
             return CreateEquippableInstance(item, quality);
 
-        var itemId = GetLegacyGuid(item);
-        if (itemId == Guid.Empty)
+        if (string.IsNullOrWhiteSpace(item?.ItemKey))
         {
             throw new NullReferenceException("Attempted to create crafted item instance using missing typed item data!");
         }
@@ -716,8 +702,7 @@ public class ItemManager
 
     public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item, float quality)
     {
-        var itemId = GetLegacyGuid(item);
-        if (itemId == Guid.Empty)
+        if (string.IsNullOrWhiteSpace(item?.ItemKey))
         {
             throw new NullReferenceException("Attempted to create equippable item instance using missing typed item data!");
         }
@@ -746,13 +731,6 @@ public class ItemManager
         }
 
         return tier.Quality;
-    }
-
-    private static Guid GetLegacyGuid(AetheriaRuntimeCatalogItem item)
-    {
-        return item != null && Guid.TryParse(item.LegacyId, out var itemId)
-            ? itemId
-            : Guid.Empty;
     }
 
     private static bool IsEquippable(AetheriaRuntimeCatalogItem item)
