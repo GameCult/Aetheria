@@ -60,7 +60,18 @@ public class AetherDriveConfig : RuntimeBehaviorConfig
 
 public class AetherDrive : Behavior
 {
-    private AetherDriveConfig _data;
+    private readonly float3 _rotorDiameter;
+    private readonly float3 _rotorMass;
+    private readonly PerformanceStat _maximumRpm;
+    private readonly float3 _couplingLambda;
+    private readonly PerformanceStat _lambdaMultiplier;
+    private readonly PerformanceStat _couplingEfficiency;
+    private readonly PerformanceStat _torque;
+    private readonly BezierCurve _torqueProfile;
+    private readonly PerformanceStat _energyDraw;
+    private readonly PerformanceStat _passiveCoupling;
+    private readonly uint _rpmAudioParameter;
+    private readonly uint _torqueRatioAudioParameter;
     private float3 _axis;
 
     public float3 Thrust { get; private set; }
@@ -77,36 +88,58 @@ public class AetherDrive : Behavior
 
     public AetherDrive(AetherDriveConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _rotorDiameter = data.RotorDiameter;
+        _rotorMass = data.RotorMass;
+        _maximumRpm = data.MaximumRpm;
+        _couplingLambda = data.CouplingLambda;
+        _lambdaMultiplier = data.LambdaMultiplier;
+        _couplingEfficiency = data.CouplingEfficiency;
+        _torque = data.Torque;
+        _torqueProfile = data.TorqueProfile;
+        _energyDraw = data.EnergyDraw;
+        _passiveCoupling = data.PassiveCoupling;
+        _rpmAudioParameter = data.RpmAudioParameter;
+        _torqueRatioAudioParameter = data.TorqueRatioAudioParameter;
         Particles = data.Particles;
     }
 
     public AetherDrive(AetherDriveConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _rotorDiameter = data.RotorDiameter;
+        _rotorMass = data.RotorMass;
+        _maximumRpm = data.MaximumRpm;
+        _couplingLambda = data.CouplingLambda;
+        _lambdaMultiplier = data.LambdaMultiplier;
+        _couplingEfficiency = data.CouplingEfficiency;
+        _torque = data.Torque;
+        _torqueProfile = data.TorqueProfile;
+        _energyDraw = data.EnergyDraw;
+        _passiveCoupling = data.PassiveCoupling;
+        _rpmAudioParameter = data.RpmAudioParameter;
+        _torqueRatioAudioParameter = data.TorqueRatioAudioParameter;
         Particles = data.Particles;
     }
 
     public override bool Execute(float dt)
     {
-        var rotorSpeed = Rpm * _data.RotorDiameter / 100;
+        var rotorSpeed = Rpm * _rotorDiameter / 100;
 
         var forward = normalize(Entity.Direction);
         var right = forward.Rotate(ItemRotation.Clockwise);
 
         var speed = float2(dot(Entity.Velocity, forward), dot(Entity.Velocity, right));
-        var couplingEfficiency = Evaluate(_data.CouplingEfficiency);
+        var couplingEfficiency = Evaluate(_couplingEfficiency);
         var efficiency = float3(saturate(1 - speed / max(rotorSpeed.xy, 1) * sign(_axis.xy)) * couplingEfficiency, 1);
 
-        Thrust = (Rpm - AetheriaMath.Decay(Rpm, _data.CouplingLambda, dt)) * _data.RotorMass * efficiency;
+        Thrust = (Rpm - AetheriaMath.Decay(Rpm, _couplingLambda, dt)) * _rotorMass * efficiency;
 
-        var couplingLambda = _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * max(abs(_axis), Evaluate(_data.PassiveCoupling));
+        var couplingLambda = _couplingLambda * Item.Evaluate(_lambdaMultiplier) * max(abs(_axis), Evaluate(_passiveCoupling));
         var previousRpm = Rpm;
         Rpm = AetheriaMath.Decay(Rpm, couplingLambda, dt);
         var rpmLoss = previousRpm - Rpm;
-        var force = rpmLoss * _data.RotorMass * efficiency;
+        var force = rpmLoss * _rotorMass * efficiency;
 
-        var heat = rpmLoss * _data.RotorMass * (1 - couplingEfficiency);
+        var heat = rpmLoss * _rotorMass * (1 - couplingEfficiency);
         AddHeat((heat.x + heat.y + heat.z)*ItemManager.GameplaySettings.AetherHeatMultiplier);
 
         ThrustDirection = forward * (_axis.x * force.x / Entity.Mass) + right * (_axis.y * force.y / Entity.Mass);
@@ -118,20 +151,20 @@ public class AetherDrive : Behavior
         if(float.IsNaN(Entity.Velocity.x))
             ItemManager.Log("FUCK FUCK FUCK FUCK");
 
-        MaximumRpm = Evaluate(_data.MaximumRpm);
+        MaximumRpm = Evaluate(_maximumRpm);
         var torqueProfile = float3(
-            _data.TorqueProfile.Evaluate(Rpm.x / MaximumRpm),
-            _data.TorqueProfile.Evaluate(Rpm.y / MaximumRpm),
-            _data.TorqueProfile.Evaluate(Rpm.z / MaximumRpm));
-        var potentialTorque = Evaluate(_data.Torque) * torqueProfile;
-        var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
+            _torqueProfile.Evaluate(Rpm.x / MaximumRpm),
+            _torqueProfile.Evaluate(Rpm.y / MaximumRpm),
+            _torqueProfile.Evaluate(Rpm.z / MaximumRpm));
+        var potentialTorque = Evaluate(_torque) * torqueProfile;
+        var potentialRpmDelta = potentialTorque / length(_rotorMass) * dt;
         var actualRpmDelta = min(MaximumRpm - Rpm, potentialRpmDelta);
         var torqueRatio = actualRpmDelta / potentialRpmDelta;
-        var draw = torqueRatio * Evaluate(_data.EnergyDraw) / 3;
+        var draw = torqueRatio * Evaluate(_energyDraw) / 3;
 
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(max(abs(_axis.x), abs(_axis.y)), abs(_axis.z)));
-        Item.SetAudioParameter(_data.RpmAudioParameter, (Rpm.x + Rpm.y + Rpm.z) / 3 / MaximumRpm);
-        Item.SetAudioParameter(_data.TorqueRatioAudioParameter, max(max(torqueRatio.x, torqueRatio.y), torqueRatio.z));
+        Item.SetAudioParameter(_rpmAudioParameter, (Rpm.x + Rpm.y + Rpm.z) / 3 / MaximumRpm);
+        Item.SetAudioParameter(_torqueRatioAudioParameter, max(max(torqueRatio.x, torqueRatio.y), torqueRatio.z));
 
         if (Entity.TryConsumeEnergy((draw.x + draw.y + draw.z)*dt))
         {

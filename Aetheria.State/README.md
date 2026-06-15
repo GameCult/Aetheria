@@ -191,6 +191,9 @@ adjustability is exposed on the live behavior instance, not through its config.
 Reactor, Radiator, Sensor, and StatModifier now copy their constructor
 performance stats, curves, flags, and target strings into explicit runtime
 fields; those live behaviors no longer retain their config subclasses.
+AetherDrive now follows the same rule for rotor geometry, performance stats,
+torque curve, audio parameters, and prefab path. Remaining runtime config
+retention is concentrated in the weapon family.
 `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full

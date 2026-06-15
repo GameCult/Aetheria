@@ -315,6 +315,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Reactor, Radiator, Sensor, and StatModifier now copy constructor performance
   stats, curves, flags, and target strings into explicit runtime fields instead
   of retaining config subclasses.
+  AetherDrive now copies rotor geometry, performance stats, torque curve, audio
+  parameters, and prefab path into explicit runtime fields; remaining runtime
+  config retention is concentrated in the weapon family.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
