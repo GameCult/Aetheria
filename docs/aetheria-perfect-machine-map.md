@@ -1364,6 +1364,10 @@ First Aetheria surfaces to publish:
      `FieldShieldTest.unity` script binding. Future field prototype controls
      should be provider-owned Eve/prototype commands or local simulation code,
      not a `PropertiesPanel` mutating `FieldDriver` directly.
+   - Done: delete `PropertiesPanel` reflection write authority. The legacy
+     inspector can still project object fields for display, but `readWrite`
+     mode and `FieldInfo.SetValue` mutation are gone; renderer-local object
+     edits must become provider-owned typed commands or local simulation code.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1675,7 +1679,9 @@ Do not add behavior to `ItemData` or resurrect `RuntimeItemProjectionEntry`.
 The typed state spine, direct behavior factories, and migration quarantine
 exist; the next cuts should remove remaining live predicates that still need
 legacy DTO vocabulary, keep package-level MessagePack/JSON at explicit
-boundaries, and replace runtime/operator UI truth with Eve surfaces. Any
+boundaries, and replace runtime/operator UI truth with Eve surfaces. The old
+`PropertiesPanel` reflection inspector is display-only; do not restore writable
+inspection as a shortcut around typed command/state ownership. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

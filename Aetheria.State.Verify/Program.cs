@@ -13,6 +13,7 @@ RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
+RequirePropertiesPanelReadOnlyInspector(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -455,6 +456,7 @@ Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI T
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
+Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -714,6 +716,36 @@ static void RequireMainMenuSettingsCommit(string root)
     {
         throw new InvalidOperationException(
             "MainMenu gameplay settings can return without queuing the typed player-settings commit.");
+    }
+}
+
+static void RequirePropertiesPanelReadOnlyInspector(string root)
+{
+    var propertiesPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs");
+    if (!File.Exists(propertiesPanelPath))
+    {
+        throw new InvalidOperationException("Cannot verify PropertiesPanel inspector authority; PropertiesPanel.cs is missing.");
+    }
+
+    var source = File.ReadAllText(propertiesPanelPath);
+    var forbiddenSymbols = new[]
+    {
+        "readWrite",
+        "field.SetValue",
+        "f => field.SetValue",
+        "i => field.SetValue",
+        "b => field.SetValue"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "PropertiesPanel reflection inspection still has renderer-local write authority: " +
+            string.Join(", ", hits));
     }
 }
 

@@ -700,11 +700,11 @@ public class PropertiesPanel : MonoBehaviour
 		RefreshValues();
 	}
 
-	public void Inspect(object obj, bool inspectablesOnly = false, bool readWrite = false, bool topLevel = true)
+	public void Inspect(object obj, bool inspectablesOnly = false, bool topLevel = true)
 	{
 		var fields = obj.GetType().GetFields();
 		foreach (var field in fields)
-			Inspect(obj, field, inspectablesOnly, readWrite);
+			Inspect(obj, field, inspectablesOnly);
 		
 		// if(topLevel)
 		// 	foreach (var field in _propertyFields) 
@@ -713,7 +713,7 @@ public class PropertiesPanel : MonoBehaviour
 		RefreshValues();
 	}
 	
-	public void Inspect(object obj, FieldInfo field, bool inspectablesOnly = false, bool readWrite = false)
+	public void Inspect(object obj, FieldInfo field, bool inspectablesOnly = false)
 	{
 		var inspectable = field.GetCustomAttribute<InspectableAttribute>();
 		if (inspectable == null && inspectablesOnly) return;
@@ -721,49 +721,27 @@ public class PropertiesPanel : MonoBehaviour
 		
 		if (type == typeof(float))
 		{
-			if (readWrite)
-			{
-				if (inspectable is InspectableRangedFloatAttribute ranged)
-					AddField(field.Name.SplitCamelCase(), () => (float) field.GetValue(obj), f => field.SetValue(obj, f),
-						ranged.Min, ranged.Max);
-				else
-					AddField(field.Name.SplitCamelCase(), () => (float) field.GetValue(obj), f => field.SetValue(obj, f));
-			} else AddProperty(field.Name.SplitCamelCase(), () => ((float) field.GetValue(obj)).ToString("0.##"));
+			AddProperty(field.Name.SplitCamelCase(), () => ((float) field.GetValue(obj)).ToString("0.##"));
 		} 
 		else if (type == typeof(int))
 		{
-			if (readWrite)
-			{
-				if (inspectable is InspectableRangedIntAttribute ranged)
-					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f),
-						ranged.Min, ranged.Max);
-				else
-					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f));
-			} else AddProperty(field.Name.SplitCamelCase(), () => ((int) field.GetValue(obj)).ToString());
+			AddProperty(field.Name.SplitCamelCase(), () => ((int) field.GetValue(obj)).ToString());
 		}
 		else if (type.IsEnum)
 		{
-			if (readWrite)
-				AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), i => field.SetValue(obj, i),
-					Enum.GetNames(field.FieldType));
-			else
-				AddProperty(field.Name.SplitCamelCase(), () => Enum.GetName(type, field.GetValue(obj)).SplitCamelCase());
+			AddProperty(field.Name.SplitCamelCase(), () => Enum.GetName(type, field.GetValue(obj)).SplitCamelCase());
 		}
 		else if (type == typeof(string))
 		{
-			if (readWrite)
-				AddField(field.Name.SplitCamelCase(), () => (string) field.GetValue(obj), i => field.SetValue(obj, i));
-			else
-				AddProperty(field.Name.SplitCamelCase(), () => (string) field.GetValue(obj));
+			AddProperty(field.Name.SplitCamelCase(), () => (string) field.GetValue(obj));
 		}
-		//else if (field.FieldType == typeof(Color)) Inspect(field.Name, () => (Color) field.GetValue(obj), c => field.SetValue(obj, c));
-		else if (field.FieldType == typeof(bool)) AddField(field.Name, () => (bool) field.GetValue(obj), b => field.SetValue(obj, b));
+		else if (field.FieldType == typeof(bool)) AddProperty(field.Name.SplitCamelCase(), () => ((bool) field.GetValue(obj)).ToString());
 		else if (type.GetCustomAttribute<InspectableAttribute>() != null)
 		{
 			// 	if(!_propertyFields.Any() || !_propertyFields.Last().gameObject.name.ToUpper().Contains("DIVIDER"))
 			// 		_propertyFields.Add(Divider.Instantiate<Prototype>());
 			var list = AddList(field.Name);
-			list.Inspect(field.GetValue(obj), inspectablesOnly, readWrite, false);
+			list.Inspect(field.GetValue(obj), inspectablesOnly, false);
 		}
 		else 
 			Debug.Log($"Field \"{field.Name}\" has unknown type {field.FieldType.Name}. No inspector was generated.");
