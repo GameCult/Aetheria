@@ -34,7 +34,9 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
     public int Asteroid = -1;
 
-    private ResourceScannerConfig _data;
+    private readonly PerformanceStat _range;
+    private readonly PerformanceStat _minimumDensity;
+    private readonly PerformanceStat _scanDuration;
     private float _scanTime;
     private Guid _scanTarget;
 
@@ -58,12 +60,16 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 
     public ResourceScanner(ResourceScannerConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _range = data.Range;
+        _minimumDensity = data.MinimumDensity;
+        _scanDuration = data.ScanDuration;
     }
 
     public ResourceScanner(ResourceScannerConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _range = data.Range;
+        _minimumDensity = data.MinimumDensity;
+        _scanDuration = data.ScanDuration;
     }
 
     public override bool Execute(float dt)
@@ -100,8 +106,8 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 
     public void Update(float delta)
     {
-        Range = Evaluate(_data.Range);
-        MinimumDensity = Evaluate(_data.MinimumDensity);
-        ScanDuration = Evaluate(_data.ScanDuration);
+        Range = Evaluate(_range);
+        MinimumDensity = Evaluate(_minimumDensity);
+        ScanDuration = Evaluate(_scanDuration);
     }
 }

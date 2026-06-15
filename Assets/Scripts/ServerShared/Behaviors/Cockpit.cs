@@ -21,15 +21,11 @@ public class CockpitConfig : RuntimeBehaviorConfig
 
 public class Cockpit : Behavior
 {
-    private CockpitConfig _data;
-
     public Cockpit(CockpitConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
 
     public Cockpit(CockpitConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
     }
 }

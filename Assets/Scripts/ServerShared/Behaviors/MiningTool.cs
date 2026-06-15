@@ -37,22 +37,31 @@ public class MiningTool : Behavior
     public Guid AsteroidBelt;
     public int Asteroid;
 
-    private MiningToolConfig _data;
+    private readonly PerformanceStat _damagePerSecond;
+    private readonly PerformanceStat _efficiency;
+    private readonly PerformanceStat _penetration;
+    private readonly PerformanceStat _range;
     public float Range { get; private set; }
 
     public MiningTool(MiningToolConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _damagePerSecond = data.DamagePerSecond;
+        _efficiency = data.Efficiency;
+        _penetration = data.Penetration;
+        _range = data.Range;
     }
 
     public MiningTool(MiningToolConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _damagePerSecond = data.DamagePerSecond;
+        _efficiency = data.Efficiency;
+        _penetration = data.Penetration;
+        _range = data.Range;
     }
 
     public override bool Execute(float dt)
     {
-        Range = Evaluate(_data.Range);
+        Range = Evaluate(_range);
         var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
         if (AsteroidBelt != Guid.Empty &&
             Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) &&
@@ -62,9 +71,9 @@ public class MiningTool : Behavior
                 Entity,
                 AsteroidBelt,
                 Asteroid,
-                Evaluate(_data.DamagePerSecond) * dt,
-                Evaluate(_data.Efficiency),
-                Evaluate(_data.Penetration));
+                Evaluate(_damagePerSecond) * dt,
+                Evaluate(_efficiency),
+                Evaluate(_penetration));
             return true;
         }
 

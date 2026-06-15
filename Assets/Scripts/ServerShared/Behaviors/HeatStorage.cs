@@ -21,15 +21,11 @@ public class HeatStorageConfig : RuntimeBehaviorConfig
 
 public class HeatStorage : Behavior
 {
-    private HeatStorageConfig _data;
-
     public HeatStorage(HeatStorageConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
 
     public HeatStorage(HeatStorageConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
     }
 }

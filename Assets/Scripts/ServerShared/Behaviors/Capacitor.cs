@@ -28,7 +28,8 @@ public class CapacitorConfig : RuntimeBehaviorConfig
 
 public class Capacitor : Behavior
 {
-    private CapacitorConfig _data;
+    private readonly PerformanceStat _capacity;
+    private readonly PerformanceStat _efficiency;
 
     public float Charge { get; private set; }
     public float Capacity { get; private set; }
@@ -42,18 +43,20 @@ public class Capacitor : Behavior
 
     public Capacitor(CapacitorConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _capacity = data.Capacity;
+        _efficiency = data.Efficiency;
     }
 
     public Capacitor(CapacitorConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _capacity = data.Capacity;
+        _efficiency = data.Efficiency;
     }
 
     public override bool Execute(float dt)
     {
-        Capacity = Evaluate(_data.Capacity);
-        Efficiency = Evaluate(_data.Efficiency);
+        Capacity = Evaluate(_capacity);
+        Efficiency = Evaluate(_efficiency);
         return true;
     }
 }

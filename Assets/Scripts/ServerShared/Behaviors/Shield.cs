@@ -29,21 +29,24 @@ public class Shield : Behavior, IProgressBehavior
     public float Efficiency { get; private set; }
     public float EnergyUsage { get; private set; }
 
-    private ShieldConfig _data;
+    private readonly PerformanceStat _efficiency;
+    private readonly PerformanceStat _energyUsage;
 
     public Shield(ShieldConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _efficiency = data.Efficiency;
+        _energyUsage = data.EnergyUsage;
     }
     public Shield(ShieldConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _efficiency = data.Efficiency;
+        _energyUsage = data.EnergyUsage;
     }
 
     public override bool Execute(float dt)
     {
-        Efficiency = Evaluate(_data.Efficiency);
-        EnergyUsage = Evaluate(_data.EnergyUsage);
+        Efficiency = Evaluate(_efficiency);
+        EnergyUsage = Evaluate(_energyUsage);
         return true;
     }
 

@@ -46,13 +46,19 @@ public class Thruster : Behavior, IAnalogBehavior
         set => _input = saturate(value);
     }
 
-    private ThrusterConfig _data;
+    private readonly PerformanceStat _thrust;
+    private readonly PerformanceStat _visibility;
+    private readonly PerformanceStat _heat;
+    private readonly PerformanceStat _energyUsage;
 
     private float _input;
 
     public Thruster(ThrusterConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _thrust = data.Thrust;
+        _visibility = data.Visibility;
+        _heat = data.Heat;
+        _energyUsage = data.EnergyUsage;
         ParticlesPrefab = data.ParticlesPrefab;
         var hullShape = ItemManager.GetRuntimeShape(Entity.Hull);
         var itemShape = ItemManager.GetRuntimeShape(item.EquippableItem);
@@ -60,28 +66,31 @@ public class Thruster : Behavior, IAnalogBehavior
         var itemCenter = hullShape.Inset(itemShape, item.Position, item.EquippableItem.Rotation).CenterOfMass;
         var toCenter = hullCenter - itemCenter;
         Torque = -dot(normalize(toCenter), float2(1, 0).Rotate(item.EquippableItem.Rotation));
-        Thrust = Evaluate(_data.Thrust);
+        Thrust = Evaluate(_thrust);
     }
 
     public Thruster(ThrusterConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _thrust = data.Thrust;
+        _visibility = data.Visibility;
+        _heat = data.Heat;
+        _energyUsage = data.EnergyUsage;
         ParticlesPrefab = data.ParticlesPrefab;
         Torque = 0;
-        Thrust = Evaluate(_data.Thrust);
+        Thrust = Evaluate(_thrust);
     }
 
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
-        if(_input > .01f && Entity.TryConsumeEnergy(_input * Evaluate(_data.EnergyUsage)))
+        if(_input > .01f && Entity.TryConsumeEnergy(_input * Evaluate(_energyUsage)))
         {
-            Thrust = Evaluate(_data.Thrust);
+            Thrust = Evaluate(_thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
             Entity.Direction = mul(Entity.Direction,
                 Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
-            AddHeat(_input * Evaluate(_data.Heat) * dt);
-            var vis = _input * Evaluate(_data.Visibility);
+            AddHeat(_input * Evaluate(_heat) * dt);
+            var vis = _input * Evaluate(_visibility);
             if (!Entity.VisibilitySources.TryGetValue(this, out var existingVisibility) || vis > existingVisibility)
                 Entity.VisibilitySources[this] = vis;
             return true;

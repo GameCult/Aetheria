@@ -19,17 +19,13 @@ public class SwitchConfig : RuntimeBehaviorConfig
 
 public class Switch : Behavior, IActivatedBehavior
 {
-    private SwitchConfig _data;
-
     public bool Activated { get; set; }
 
     public Switch(SwitchConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
     public Switch(SwitchConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
     }
 
     public override bool Execute(float dt)

@@ -29,23 +29,24 @@ public class ThermotoggleConfig : RuntimeBehaviorConfig
 public class Thermotoggle : Behavior
 {
     public float TargetTemperature;
-    private ThermotoggleConfig _data;
-
-    public ThermotoggleConfig ThermotoggleConfig => _data;
+    public bool Adjustable { get; }
+    private readonly bool _highPass;
 
     public Thermotoggle(ThermotoggleConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
         TargetTemperature = data.TargetTemperature;
+        _highPass = data.HighPass;
+        Adjustable = data.Adjustable;
     }
     public Thermotoggle(ThermotoggleConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
         TargetTemperature = data.TargetTemperature;
+        _highPass = data.HighPass;
+        Adjustable = data.Adjustable;
     }
 
     public override bool Execute(float dt)
     {
-        return Temperature < TargetTemperature ^ _data.HighPass;
+        return Temperature < TargetTemperature ^ _highPass;
     }
 }
