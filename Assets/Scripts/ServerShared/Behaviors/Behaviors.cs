@@ -12,7 +12,7 @@ using static Unity.Mathematics.noise;
 
 public abstract class Behavior
 {
-    private readonly RuntimeBehaviorConfig _config;
+    private readonly Dictionary<string, PerformanceStat> _performanceStats;
     public string Kind { get; }
     public int Group { get; }
     public EquippedItem Item { get; }
@@ -46,7 +46,7 @@ public abstract class Behavior
 
     protected Behavior(RuntimeBehaviorConfig config, EquippedItem item)
     {
-        _config = config;
+        _performanceStats = CapturePerformanceStats(config);
         Kind = config?.Kind ?? "";
         Group = config?.Group ?? 0;
         Item = item;
@@ -55,7 +55,7 @@ public abstract class Behavior
 
     protected Behavior(RuntimeBehaviorConfig config, ConsumableItemEffect consumable)
     {
-        _config = config;
+        _performanceStats = CapturePerformanceStats(config);
         Kind = config?.Kind ?? "";
         Group = config?.Group ?? 0;
         Consumable = consumable;
@@ -66,18 +66,21 @@ public abstract class Behavior
 
     public bool TryGetPerformanceStat(string statName, out PerformanceStat stat)
     {
-        stat = null;
-        if (_config == null || string.IsNullOrWhiteSpace(statName))
-        {
-            return false;
-        }
+        return !string.IsNullOrWhiteSpace(statName) &&
+               _performanceStats.TryGetValue(statName, out stat);
+    }
 
-        var statField = _config
-            .GetType()
-            .GetFields()
-            .FirstOrDefault(field => field.FieldType == typeof(PerformanceStat) && field.Name == statName);
-        stat = statField?.GetValue(_config) as PerformanceStat;
-        return stat != null;
+    private static Dictionary<string, PerformanceStat> CapturePerformanceStats(RuntimeBehaviorConfig config)
+    {
+        return config == null
+            ? new Dictionary<string, PerformanceStat>(StringComparer.Ordinal)
+            : config
+                .GetType()
+                .GetFields()
+                .Where(field => field.FieldType == typeof(PerformanceStat))
+                .Select(field => (field.Name, Stat: field.GetValue(config) as PerformanceStat))
+                .Where(entry => entry.Stat != null)
+                .ToDictionary(entry => entry.Name, entry => entry.Stat, StringComparer.Ordinal);
     }
 
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables

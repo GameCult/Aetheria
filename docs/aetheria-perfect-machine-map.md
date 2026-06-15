@@ -302,6 +302,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   behavior-class construction bridge, not the runtime behavior payload owner;
   bridge instances carry the typed behavior payload kind so runtime logic does
   not have to reselect behavior identity from the old class graph.
+  Base `Behavior` now captures a runtime performance-stat table during
+  construction and no longer retains the config object for later stat lookup.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config

@@ -176,7 +176,9 @@ documents exist. Live behavior instances expose typed behavior kind and group
 through `Behavior.Kind` and `Behavior.Group`; the remaining
 `RuntimeBehaviorConfig` objects are private construction configs, not runtime
 identity owners or a public behavior API. Stat modifiers ask live behavior
-instances for target stats instead of reading behavior config objects directly.
+instances for target stats instead of reading behavior config objects directly;
+base `Behavior` captures a runtime stat table at construction and no longer
+retains the config object for later reflection.
 `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
