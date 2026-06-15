@@ -26,20 +26,23 @@ public class EnergyDrawConfig : RuntimeBehaviorConfig
 
 public class EnergyDraw : Behavior
 {
-    private EnergyDrawConfig _data;
+    private readonly PerformanceStat _energyDraw;
+    private readonly bool _perSecond;
 
     public EnergyDraw(EnergyDrawConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _energyDraw = data.EnergyDraw;
+        _perSecond = data.PerSecond;
     }
 
     public EnergyDraw(EnergyDrawConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _energyDraw = data.EnergyDraw;
+        _perSecond = data.PerSecond;
     }
 
     public override bool Execute(float dt)
     {
-        return Entity.TryConsumeEnergy(Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1));
+        return Entity.TryConsumeEnergy(Evaluate(_energyDraw) * (_perSecond ? dt : 1));
     }
 }

@@ -26,20 +26,23 @@ public class HeatConfig : RuntimeBehaviorConfig
 
 public class Heat : Behavior
 {
-    private HeatConfig _data;
+    private readonly PerformanceStat _heat;
+    private readonly bool _perSecond;
 
     public Heat(HeatConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _heat = data.Heat;
+        _perSecond = data.PerSecond;
     }
     public Heat(HeatConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _heat = data.Heat;
+        _perSecond = data.PerSecond;
     }
 
     public override bool Execute(float dt)
     {
-        AddHeat(Evaluate(_data.Heat) * (_data.PerSecond ? dt : 1));
+        AddHeat(Evaluate(_heat) * (_perSecond ? dt : 1));
 
         return true;
     }

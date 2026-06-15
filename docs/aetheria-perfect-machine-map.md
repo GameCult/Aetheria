@@ -304,6 +304,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   not have to reselect behavior identity from the old class graph.
   Base `Behavior` now captures a runtime performance-stat table during
   construction and no longer retains the config object for later stat lookup.
+  Heat, EnergyDraw, and Cooldown behavior instances now copy constructor
+  stat/scalar inputs into explicit runtime fields and no longer retain their
+  config subclasses after construction.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config

@@ -26,7 +26,7 @@ public class CooldownConfig : RuntimeBehaviorConfig
 
 public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 {
-    private CooldownConfig _data;
+    private readonly PerformanceStat _cooldownDuration;
 
     private float _cooldown; // Normalized
 
@@ -34,12 +34,12 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 
     public Cooldown(CooldownConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _cooldownDuration = data.Cooldown;
     }
 
     public Cooldown(CooldownConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _cooldownDuration = data.Cooldown;
     }
 
     public override bool Execute(float dt)
@@ -55,6 +55,6 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 
     public void Update(float delta)
     {
-        _cooldown -= delta / Evaluate(_data.Cooldown);
+        _cooldown -= delta / Evaluate(_cooldownDuration);
     }
 }
