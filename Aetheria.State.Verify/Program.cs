@@ -16,6 +16,7 @@ RequireMainMenuSettingsCommit(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
+RequireInventoryEntityRenameCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -461,6 +462,7 @@ Console.WriteLine("Main-menu settings authority: gameplay and graphics settings 
 Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
+Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -835,6 +837,37 @@ static void RequireHullConductivityCommitAuthority(string root)
         throw new InvalidOperationException(
             "Hull conductivity still has renderer-local UI write authority: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireInventoryEntityRenameCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify inventory entity rename authority; ActionGameManager.cs is missing.");
+
+    if (!actionGameManager.Contains("CommitEntityName", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("QueueRunCheckpoint(\"entity-name\")", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Entity rename no longer has a gameplay-owned checkpoint commit primitive.");
+    }
+
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryPanel = File.Exists(inventoryPanelPath)
+        ? File.ReadAllText(inventoryPanelPath)
+        : throw new InvalidOperationException("Cannot verify inventory entity rename authority; InventoryPanel.cs is missing.");
+
+    if (inventoryPanel.Contains("_displayedEntity.Name =", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still renames entities directly instead of using the gameplay checkpoint commit primitive.");
+    }
+
+    if (!inventoryPanel.Contains("GameManager.CommitEntityName", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("InventoryPanel no longer routes entity rename through ActionGameManager.");
     }
 }
 

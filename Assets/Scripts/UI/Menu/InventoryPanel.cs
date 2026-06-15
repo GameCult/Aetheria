@@ -141,7 +141,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 Dialog.AddField("Name", () => entityName, s => entityName = s);
                 Dialog.Show(() =>
                 {
-                    _displayedEntity.Name = entityName;
+                    GameManager.CommitEntityName(_displayedEntity, entityName);
                     Title.text = _displayedEntity.Name;
                 });
                 Dialog.MoveToCursor();

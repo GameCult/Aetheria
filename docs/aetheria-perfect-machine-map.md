@@ -1380,6 +1380,10 @@ First Aetheria surfaces to publish:
      `ActionGameManager.CommitHullConductivityToggle`; the gameplay owner mutates
      `Entity.HullConductivity` and queues the typed run checkpoint that already
      projects `hull_conductivity_x` and `hull_conductivity_y` grids.
+   - Done: route inventory entity renames through
+     `ActionGameManager.CommitEntityName`. `InventoryPanel` may collect the name
+     in a dialog, but gameplay owns the entity `Name` mutation and queues the
+     typed entity snapshot checkpoint.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1698,7 +1702,8 @@ tuning controls may remain temporarily on uGUI only when they delegate to
 gameplay-owned commit methods that queue typed checkpoint state; direct UI
 mutation of entity/item/behavior settings is obsolete authority. Hull
 conductivity changes follow the same rule: UI requests the toggle, gameplay owns
-the grid mutation and checkpoint. Any
+the grid mutation and checkpoint. Entity renames follow the same rule: UI
+collects text, gameplay owns the name mutation and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

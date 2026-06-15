@@ -1415,6 +1415,15 @@ public class ActionGameManager : MonoBehaviour
         QueueRunCheckpoint("entity-override-shutdown");
     }
 
+    public void CommitEntityName(Entity entity, string name)
+    {
+        if (entity == null)
+            return;
+
+        entity.Name = name ?? "";
+        QueueRunCheckpoint("entity-name");
+    }
+
     public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
     {
         if (item?.EquippableItem == null)
