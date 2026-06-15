@@ -8,11 +8,9 @@ using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
 using Random = Unity.Mathematics.Random;
 using JM.LinqFaster;
 using UniRx;
-using float4 = Unity.Mathematics.float4;
 
 public class ItemManager
 {
@@ -77,14 +75,12 @@ public class ItemManager
 
     private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
     {
-        var directBehavior = CreateDirectRuntimeBehavior(payload, item);
-        return directBehavior ?? BuildBehaviorConfig(payload)?.CreateInstance(item);
+        return CreateDirectRuntimeBehavior(payload, item);
     }
 
     private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, ConsumableItemEffect effect)
     {
-        var directBehavior = CreateDirectRuntimeBehavior(payload, effect);
-        return directBehavior ?? BuildBehaviorConfig(payload)?.CreateInstance(effect);
+        return CreateDirectRuntimeBehavior(payload, effect);
     }
 
     private static Behavior CreateDirectRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
@@ -94,12 +90,19 @@ public class ItemManager
         {
             case "Cockpit": return new Cockpit(definition, item);
             case "AetherDrive": return new AetherDrive(definition, item);
+            case "AutoWeapon": return new AutoWeapon(definition, item);
             case "Capacitor": return new Capacitor(definition, item);
+            case "ChargedWeapon": return new ChargedWeapon(definition, item);
             case "Cooldown": return new Cooldown(definition, item);
+            case "ConstantWeapon": return new ConstantWeapon(definition, item);
             case "EnergyDraw": return new EnergyDraw(definition, item);
+            case "GuidedWeapon": return new InstantWeapon(definition, item);
             case "Heat": return new Heat(definition, item);
             case "HeatStorage": return new HeatStorage(definition, item);
+            case "InstantWeapon": return new InstantWeapon(definition, item);
             case "ItemUsage": return new ItemUsage(definition, item);
+            case "Launcher": return new LockWeapon(definition, item);
+            case "LockWeapon": return new LockWeapon(definition, item);
             case "MiningTool": return new MiningTool(definition, item);
             case "Radiator": return new Radiator(definition, item);
             case "Reactor": return new Reactor(definition, item);
@@ -128,12 +131,19 @@ public class ItemManager
         {
             case "Cockpit": return new Cockpit(definition, effect);
             case "AetherDrive": return new AetherDrive(definition, effect);
+            case "AutoWeapon": return new InstantWeapon(definition, effect);
             case "Capacitor": return new Capacitor(definition, effect);
+            case "ChargedWeapon": return new ChargedWeapon(definition, effect);
             case "Cooldown": return new Cooldown(definition, effect);
+            case "ConstantWeapon": return new ConstantWeapon(definition, effect);
             case "EnergyDraw": return new EnergyDraw(definition, effect);
+            case "GuidedWeapon": return new InstantWeapon(definition, effect);
             case "Heat": return new Heat(definition, effect);
             case "HeatStorage": return new HeatStorage(definition, effect);
+            case "InstantWeapon": return new InstantWeapon(definition, effect);
             case "ItemUsage": return new ItemUsage(definition, effect);
+            case "Launcher": return new LockWeapon(definition, effect);
+            case "LockWeapon": return new LockWeapon(definition, effect);
             case "MiningTool": return new MiningTool(definition, effect);
             case "Radiator": return new Radiator(definition, effect);
             case "Reactor": return new Reactor(definition, effect);
@@ -152,245 +162,6 @@ public class ItemManager
             case "Visibility": return new Visibility(definition, effect);
             case "Wear": return new Wear(definition, effect);
             default: return null;
-        }
-    }
-
-    private static RuntimeBehaviorConfig BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
-    {
-        switch (payload.Kind)
-        {
-            case "AutoWeapon": return Configure(new AutoWeaponConfig(), payload, ApplyInstantWeaponConfig);
-            case "ChargedWeapon": return Configure(new ChargedWeaponConfig(), payload, ApplyChargedWeaponConfig);
-            case "ConstantWeapon": return Configure(new ConstantWeaponConfig(), payload, ApplyConstantWeaponConfig);
-            case "GuidedWeapon": return Configure(new GuidedWeaponConfig(), payload, ApplyGuidedWeaponConfig);
-            case "InstantWeapon": return Configure(new InstantWeaponConfig(), payload, ApplyInstantWeaponConfig);
-            case "Launcher": return Configure(new LauncherConfig(), payload, ApplyLauncherConfig);
-            default: return null;
-        }
-    }
-
-    private static T Configure<T>(T config, AetheriaRuntimeBehaviorPayload payload, Action<T, BehaviorPayloadReader> apply)
-        where T : RuntimeBehaviorConfig
-    {
-        var reader = new BehaviorPayloadReader(payload);
-        config.Kind = payload.Kind;
-        config.Group = payload.Group;
-        apply?.Invoke(config, reader);
-        return config;
-    }
-
-    private static void ApplyWeaponConfig(WeaponConfig config, BehaviorPayloadReader reader)
-    {
-        config.DamageType = reader.Enum(1, config.DamageType);
-        config.Damage = reader.PerformanceStat(2, config.Damage);
-        config.Penetration = reader.PerformanceStat(3, config.Penetration);
-        config.DamageSpread = reader.PerformanceStat(4, config.DamageSpread);
-        config.MinRange = reader.PerformanceStat(5, config.MinRange);
-        config.Range = reader.PerformanceStat(6, config.Range);
-        config.DamageCurve = reader.BezierCurve(7, config.DamageCurve);
-        config.EffectPrefab = reader.String(8, config.EffectPrefab);
-        config.Energy = reader.PerformanceStat(9, config.Energy);
-        config.Heat = reader.PerformanceStat(10, config.Heat);
-        config.Visibility = reader.PerformanceStat(11, config.Visibility);
-        config.AmmoItemKey = reader.ItemKey(12, config.AmmoItemKey);
-        config.MagazineSize = reader.Int(13, config.MagazineSize);
-        config.ReloadTime = reader.Float(14, config.ReloadTime);
-        config.Spread = reader.PerformanceStat(15, config.Spread);
-        config.Velocity = reader.PerformanceStat(16, config.Velocity);
-    }
-
-    private static void ApplyInstantWeaponConfig(InstantWeaponConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyWeaponConfig(config, reader);
-        config.Count = reader.PerformanceStat(17, config.Count);
-        config.BurstTime = reader.PerformanceStat(18, config.BurstTime);
-        config.Cooldown = reader.PerformanceStat(19, config.Cooldown);
-        config.SingleAmmoBurst = reader.Bool(20, config.SingleAmmoBurst);
-    }
-
-    private static void ApplyConstantWeaponConfig(ConstantWeaponConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyWeaponConfig(config, reader);
-        config.AmmoInterval = reader.Float(17, config.AmmoInterval);
-    }
-
-    private static void ApplyChargedWeaponConfig(ChargedWeaponConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyInstantWeaponConfig(config, reader);
-        config.ChargeTime = reader.PerformanceStat(21, config.ChargeTime);
-        config.ChargeEnergy = reader.PerformanceStat(22, config.ChargeEnergy);
-        config.ChargeHeat = reader.PerformanceStat(23, config.ChargeHeat);
-        config.CanFireEarly = reader.Bool(24, config.CanFireEarly);
-        config.FailureCharge = reader.Float(25, config.FailureCharge);
-        config.FailureDamage = reader.Float(26, config.FailureDamage);
-        config.ChargeFiringDamageMultiplier = reader.Float(27, config.ChargeFiringDamageMultiplier);
-        config.ChargeFiringSpreadMultiplier = reader.Float(28, config.ChargeFiringSpreadMultiplier);
-        config.ChargeFiringBurstCountMultiplier = reader.Float(29, config.ChargeFiringBurstCountMultiplier);
-        config.ChargeFiringVisibilityMultiplier = reader.Float(30, config.ChargeFiringVisibilityMultiplier);
-        config.ChargeFiringVelocityMultiplier = reader.Float(31, config.ChargeFiringVelocityMultiplier);
-        config.ChargeFiringHeatMultiplier = reader.Float(32, config.ChargeFiringHeatMultiplier);
-    }
-
-    private static void ApplyLockWeaponConfig(LockWeaponConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyInstantWeaponConfig(config, reader);
-        config.LockSpeed = reader.PerformanceStat(21, config.LockSpeed);
-        config.SensorImpact = reader.PerformanceStat(22, config.SensorImpact);
-        config.LockAngle = reader.PerformanceStat(23, config.LockAngle);
-        config.DirectionImpact = reader.PerformanceStat(24, config.DirectionImpact);
-        config.Decay = reader.PerformanceStat(25, config.Decay);
-    }
-
-    private static void ApplyLauncherConfig(LauncherConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyLockWeaponConfig(config, reader);
-        config.GuidanceCurve = reader.Float4Array(26, config.GuidanceCurve);
-        config.ThrustCurve = reader.Float4Array(27, config.ThrustCurve);
-        config.LiftCurve = reader.Float4Array(28, config.LiftCurve);
-        config.Thrust = reader.PerformanceStat(29, config.Thrust);
-        config.DodgeFrequency = reader.Float(30, config.DodgeFrequency);
-        config.MissileVelocity = reader.PerformanceStat(31, config.MissileVelocity);
-    }
-
-    private static void ApplyGuidedWeaponConfig(GuidedWeaponConfig config, BehaviorPayloadReader reader)
-    {
-        ApplyInstantWeaponConfig(config, reader);
-        config.GuidanceCurve = reader.Float4Array(21, config.GuidanceCurve);
-        config.ThrustCurve = reader.Float4Array(22, config.ThrustCurve);
-        config.LiftCurve = reader.Float4Array(23, config.LiftCurve);
-        config.Thrust = reader.PerformanceStat(24, config.Thrust);
-        config.DodgeFrequency = reader.Float(25, config.DodgeFrequency);
-        config.MissileVelocity = reader.PerformanceStat(26, config.MissileVelocity);
-    }
-
-    private sealed class BehaviorPayloadReader
-    {
-        private readonly IReadOnlyDictionary<int, AetheriaRuntimeBehaviorValue> _fields;
-
-        public BehaviorPayloadReader(AetheriaRuntimeBehaviorPayload payload)
-        {
-            var fields = new Dictionary<int, AetheriaRuntimeBehaviorValue>();
-            foreach (var field in payload.Fields)
-            {
-                if (!fields.ContainsKey(field.Key))
-                {
-                    fields.Add(field.Key, field.Value);
-                }
-            }
-
-            _fields = fields;
-        }
-
-        public string String(int key, string fallback = "")
-        {
-            return _fields.TryGetValue(key, out var value) ? value.StringValue ?? "" : fallback;
-        }
-
-        public bool Bool(int key, bool fallback = false)
-        {
-            return _fields.TryGetValue(key, out var value) ? value.BoolValue : fallback;
-        }
-
-        public float Float(int key, float fallback = 0)
-        {
-            return _fields.TryGetValue(key, out var value) ? (float)value.NumberValue : fallback;
-        }
-
-        public int Int(int key, int fallback = 0)
-        {
-            return _fields.TryGetValue(key, out var value) ? checked((int)value.NumberValue) : fallback;
-        }
-
-        public string ItemKey(int key, string fallback = "")
-        {
-            return _fields.TryGetValue(key, out var value) &&
-                   !string.IsNullOrWhiteSpace(value.ItemKeyValue)
-                ? value.ItemKeyValue
-                : fallback;
-        }
-
-        public T Enum<T>(int key, T fallback) where T : struct
-        {
-            if (!_fields.TryGetValue(key, out var value))
-            {
-                return fallback;
-            }
-
-            if (!string.IsNullOrWhiteSpace(value.StringValue) &&
-                System.Enum.TryParse(value.StringValue, true, out T parsed))
-            {
-                return parsed;
-            }
-
-            return (T)System.Enum.ToObject(typeof(T), checked((int)value.NumberValue));
-        }
-
-        public float4[] Float4Array(int key, float4[] fallback)
-        {
-            return _fields.TryGetValue(key, out var value)
-                ? value.Children.Select(ToFloat4).ToArray()
-                : fallback;
-        }
-
-        public PerformanceStat PerformanceStat(int key, PerformanceStat fallback)
-        {
-            return _fields.TryGetValue(key, out var value) ? ToPerformanceStat(value) : fallback;
-        }
-
-        public BezierCurve BezierCurve(int key, BezierCurve fallback)
-        {
-            if (!_fields.TryGetValue(key, out var value))
-            {
-                return fallback;
-            }
-
-            return new BezierCurve
-            {
-                Keys = value.Children.Count > 0
-                    ? value.Children[0].Children.Select(ToFloat4).ToArray()
-                    : Array.Empty<float4>()
-            };
-        }
-
-        public StatReference StatReference(int key, StatReference fallback)
-        {
-            if (!_fields.TryGetValue(key, out var value))
-            {
-                return fallback;
-            }
-
-            return new StatReference
-            {
-                Target = ChildString(value, 1),
-                Stat = ChildString(value, 2)
-            };
-        }
-
-        private static PerformanceStat ToPerformanceStat(AetheriaRuntimeBehaviorValue value)
-        {
-            return new PerformanceStat
-            {
-                Min = ChildFloat(value, 0),
-                Max = ChildFloat(value, 1),
-                HeatExponentMultiplier = ChildFloat(value, 2),
-                DurabilityExponentMultiplier = ChildFloat(value, 3),
-                QualityExponent = ChildFloat(value, 4)
-            };
-        }
-
-        private static float4 ToFloat4(AetheriaRuntimeBehaviorValue value)
-        {
-            return new float4(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
-        }
-
-        private static float ChildFloat(AetheriaRuntimeBehaviorValue value, int index)
-        {
-            return value.Children.Count > index ? (float)value.Children[index].NumberValue : 0;
-        }
-
-        private static string ChildString(AetheriaRuntimeBehaviorValue value, int index)
-        {
-            return value.Children.Count > index ? value.Children[index].StringValue ?? "" : "";
         }
     }
 

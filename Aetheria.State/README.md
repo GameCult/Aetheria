@@ -170,15 +170,14 @@ orbit/body rows into `AetheriaZoneState`, so `ZoneConstructionBlueprint` is a
 one-shot construction input rather than the retained surface carrying celestial graph facts. Entity checkpoints
 persist hull simulation grids into `AetheriaEntitySnapshot`, so
 `RuntimeEntityBlueprint` is no longer the only surface carrying those live
-values. Broader runtime object graphs, typed behavior factory construction, and
-behavior-private simulation state remain legacy until dedicated typed runtime
-documents exist. Live behavior instances expose typed behavior kind and group
-through `Behavior.Kind` and `Behavior.Group`; the remaining
-`RuntimeBehaviorConfig` objects are private construction configs, not runtime
-identity owners or a public behavior API. Stat modifiers ask live behavior
-instances for target stats instead of reading behavior config objects directly;
-base `Behavior` captures a runtime stat table at construction and no longer
-retains the config object for later reflection.
+values. Broader runtime object graphs and behavior-private simulation state
+remain legacy until dedicated typed runtime documents exist. Live behavior
+instances expose typed behavior kind and group through `Behavior.Kind` and
+`Behavior.Group`; behavior construction now reads typed payload fields through
+`RuntimeBehaviorDefinition` instead of projecting through config DTOs. Stat
+modifiers ask live behavior instances for target stats instead of reading
+behavior config objects directly; base `Behavior` captures a runtime stat table
+at construction without config reflection.
 Heat, EnergyDraw, and Cooldown behavior instances now copy their constructor
 stat/scalar inputs into explicit runtime fields and no longer retain their
 config subclasses after construction.
@@ -196,24 +195,23 @@ torque curve, audio parameters, and prefab path. Weapon, InstantWeapon,
 ConstantWeapon, ChargedWeapon, and LockWeapon now copy constructor stats,
 curves, ammo/reload fields, guided projectile profile fields, burst/cooldown
 fields, charge multipliers, and lock parameters into runtime-owned fields.
-Behavior instances no longer retain their `RuntimeBehaviorConfig` subclasses
-after construction.
-Cockpit, HeatStorage, Switch, Trigger, and TurretController no longer have
-`RuntimeBehaviorConfig` subclasses at all; `ItemManager` constructs them
-directly from typed runtime behavior definitions.
+Behavior instances no longer retain construction config DTOs after
+construction.
+Cockpit, HeatStorage, Switch, Trigger, and TurretController read directly from
+typed runtime behavior definitions.
 Heat, EnergyDraw, Cooldown, Wear, Visibility, Reflector, VelocityLimit,
 VelocityConversion, and ItemUsage also bypass the temporary config bridge and
 read typed behavior fields through `RuntimeBehaviorDefinition`, registering
 runtime performance stats explicitly for `StatModifier`.
 Capacitor, Shield, MiningTool, ResourceScanner, Thermotoggle, and Thruster now
-follow the same direct-definition path; the temporary config bridge no longer
-constructs those medium behavior classes.
+follow the same direct-definition path.
 Reactor, Radiator, Sensor, StatModifier, and AetherDrive also read typed
-payload fields through `RuntimeBehaviorDefinition`; the bridge no longer owns
-their construction or stat reflection. AetherDrive registers its live
-performance-stat names explicitly for `StatModifier`.
-`ItemManager` currently owns the remaining weapon-family typed-payload-to-config
-bridge.
+payload fields through `RuntimeBehaviorDefinition`; AetherDrive registers its
+live performance-stat names explicitly for `StatModifier`.
+Weapon, InstantWeapon, AutoWeapon, ConstantWeapon, ChargedWeapon, LockWeapon,
+Launcher, and GuidedWeapon payloads also construct directly from
+`RuntimeBehaviorDefinition`. The old `RuntimeBehaviorConfig` bridge,
+`BehaviorPayloadReader`, and weapon config hierarchy are deleted.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
 name array used by `Galaxy`/Markov name generation through typed name-file

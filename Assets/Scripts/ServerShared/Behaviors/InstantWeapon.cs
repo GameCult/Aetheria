@@ -4,32 +4,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class InstantWeaponConfig : WeaponConfig
-{
-    [Inspectable]
-    public PerformanceStat Count = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat BurstTime = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Cooldown = new PerformanceStat();
-
-    [InspectablePrefab]
-    public bool SingleAmmoBurst;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new InstantWeapon(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new InstantWeapon(this, item);
-    }
-}
-
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
     private readonly PerformanceStat _count;
@@ -82,22 +56,31 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         OnFire = null;
     }
 
-    public InstantWeapon(InstantWeaponConfig data, EquippedItem item) : base(data, item)
+    public InstantWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _count = data.Count;
-        _burstTime = data.BurstTime;
-        _cooldownDuration = data.Cooldown;
-        _singleAmmoBurst = data.SingleAmmoBurst;
-        _ammo = data.MagazineSize;
+        _count = definition.PerformanceStat(17, new PerformanceStat());
+        _burstTime = definition.PerformanceStat(18, new PerformanceStat());
+        _cooldownDuration = definition.PerformanceStat(19, new PerformanceStat());
+        _singleAmmoBurst = definition.Bool(20);
+        _ammo = MagazineSize;
+        RegisterInstantWeaponStats();
     }
 
-    public InstantWeapon(InstantWeaponConfig data, ConsumableItemEffect item) : base(data, item)
+    public InstantWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _count = data.Count;
-        _burstTime = data.BurstTime;
-        _cooldownDuration = data.Cooldown;
-        _singleAmmoBurst = data.SingleAmmoBurst;
-        _ammo = data.MagazineSize;
+        _count = definition.PerformanceStat(17, new PerformanceStat());
+        _burstTime = definition.PerformanceStat(18, new PerformanceStat());
+        _cooldownDuration = definition.PerformanceStat(19, new PerformanceStat());
+        _singleAmmoBurst = definition.Bool(20);
+        _ammo = MagazineSize;
+        RegisterInstantWeaponStats();
+    }
+
+    private void RegisterInstantWeaponStats()
+    {
+        RegisterPerformanceStat("Count", _count);
+        RegisterPerformanceStat(nameof(BurstTime), _burstTime);
+        RegisterPerformanceStat(nameof(Cooldown), _cooldownDuration);
     }
 
     protected void Trigger()

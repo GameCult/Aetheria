@@ -4,20 +4,11 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class AutoWeaponConfig : InstantWeaponConfig
-{
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new AutoWeapon(this, item);
-    }
-}
-
 public class AutoWeapon : InstantWeapon
 {
 
-    public AutoWeapon(InstantWeaponConfig data, EquippedItem item) : base(data, item) { }
-    public AutoWeapon(InstantWeaponConfig data, ConsumableItemEffect item) : base(data, item) { }
+    public AutoWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item) { }
+    public AutoWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item) { }
 
     public override bool Execute(float dt)
     {

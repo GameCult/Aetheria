@@ -4,34 +4,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class LockWeaponConfig : InstantWeaponConfig
-{
-    [Inspectable]
-    public PerformanceStat LockSpeed = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat SensorImpact = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat LockAngle = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat DirectionImpact = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Decay = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new LockWeapon(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new LockWeapon(this, item);
-    }
-}
-
 public class LockWeapon : InstantWeapon
 {
     private readonly PerformanceStat _lockSpeed;
@@ -66,21 +38,32 @@ public class LockWeapon : InstantWeapon
 
     public Entity LockTarget => _target;
 
-    public LockWeapon(LockWeaponConfig data, EquippedItem item) : base(data, item)
+    public LockWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _lockSpeed = data.LockSpeed;
-        _sensorImpact = data.SensorImpact;
-        _lockAngle = data.LockAngle;
-        _directionImpact = data.DirectionImpact;
-        _decay = data.Decay;
+        _lockSpeed = definition.PerformanceStat(21, new PerformanceStat());
+        _sensorImpact = definition.PerformanceStat(22, new PerformanceStat());
+        _lockAngle = definition.PerformanceStat(23, new PerformanceStat());
+        _directionImpact = definition.PerformanceStat(24, new PerformanceStat());
+        _decay = definition.PerformanceStat(25, new PerformanceStat());
+        RegisterLockWeaponStats();
     }
-    public LockWeapon(LockWeaponConfig data, ConsumableItemEffect item) : base(data, item)
+    public LockWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _lockSpeed = data.LockSpeed;
-        _sensorImpact = data.SensorImpact;
-        _lockAngle = data.LockAngle;
-        _directionImpact = data.DirectionImpact;
-        _decay = data.Decay;
+        _lockSpeed = definition.PerformanceStat(21, new PerformanceStat());
+        _sensorImpact = definition.PerformanceStat(22, new PerformanceStat());
+        _lockAngle = definition.PerformanceStat(23, new PerformanceStat());
+        _directionImpact = definition.PerformanceStat(24, new PerformanceStat());
+        _decay = definition.PerformanceStat(25, new PerformanceStat());
+        RegisterLockWeaponStats();
+    }
+
+    private void RegisterLockWeaponStats()
+    {
+        RegisterPerformanceStat(nameof(LockSpeed), _lockSpeed);
+        RegisterPerformanceStat(nameof(SensorImpact), _sensorImpact);
+        RegisterPerformanceStat(nameof(LockAngle), _lockAngle);
+        RegisterPerformanceStat(nameof(DirectionImpact), _directionImpact);
+        RegisterPerformanceStat(nameof(Decay), _decay);
     }
 
     public override bool Execute(float dt)

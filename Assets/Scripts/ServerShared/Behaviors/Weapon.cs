@@ -7,56 +7,6 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public abstract class WeaponConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public DamageType DamageType;
-
-    [Inspectable]
-    public PerformanceStat Damage = new PerformanceStat();
-
-    [InspectableRangedFloat(0,1)]
-    public PerformanceStat Penetration = new PerformanceStat();
-
-    [InspectableRangedFloat(0,1)]
-    public PerformanceStat DamageSpread = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat MinRange = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Range = new PerformanceStat();
-
-    [InspectableAnimationCurve]
-    public BezierCurve DamageCurve;
-
-    [InspectablePrefab]
-    public string EffectPrefab;
-
-    [InspectablePrefab]
-    public PerformanceStat Energy = new PerformanceStat();
-
-    [InspectablePrefab]
-    public PerformanceStat Heat = new PerformanceStat();
-
-    [InspectablePrefab]
-    public PerformanceStat Visibility = new PerformanceStat();
-    public string AmmoItemKey;
-
-    [InspectablePrefab]
-    public int MagazineSize;
-
-    [InspectablePrefab]
-    public float ReloadTime = 1;
-
-    [InspectablePrefab]
-    public PerformanceStat Spread = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Velocity = new PerformanceStat();
-}
-
 public abstract class Weapon : Behavior, IActivatedBehavior
 {
     private readonly PerformanceStat _damage;
@@ -107,70 +57,89 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         get => _firing;
     }
 
-    public Weapon(WeaponConfig data, EquippedItem item) : base(data, item)
+    public Weapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _damage = data.Damage;
-        _penetration = data.Penetration;
-        _damageSpread = data.DamageSpread;
-        _minRange = data.MinRange;
-        _range = data.Range;
-        _energy = data.Energy;
-        _heat = data.Heat;
-        _visibility = data.Visibility;
-        _spread = data.Spread;
-        _velocity = data.Velocity;
-        DamageType = data.DamageType;
-        DamageCurve = data.DamageCurve;
-        EffectPrefab = data.EffectPrefab ?? "";
-        AmmoItemKey = data.AmmoItemKey;
-        MagazineSize = data.MagazineSize;
-        ReloadTime = data.ReloadTime;
-        InitializeGuidedProjectileProfile(data);
+        _damage = definition.PerformanceStat(2, new PerformanceStat());
+        _penetration = definition.PerformanceStat(3, new PerformanceStat());
+        _damageSpread = definition.PerformanceStat(4, new PerformanceStat());
+        _minRange = definition.PerformanceStat(5, new PerformanceStat());
+        _range = definition.PerformanceStat(6, new PerformanceStat());
+        _energy = definition.PerformanceStat(9, new PerformanceStat());
+        _heat = definition.PerformanceStat(10, new PerformanceStat());
+        _visibility = definition.PerformanceStat(11, new PerformanceStat());
+        _spread = definition.PerformanceStat(15, new PerformanceStat());
+        _velocity = definition.PerformanceStat(16, new PerformanceStat());
+        DamageType = definition.Enum(1, default(DamageType));
+        DamageCurve = definition.BezierCurve(7, null);
+        EffectPrefab = definition.String(8);
+        AmmoItemKey = definition.ItemKey(12);
+        MagazineSize = definition.Int(13);
+        ReloadTime = definition.Float(14, 1);
+        RegisterWeaponStats();
+        InitializeGuidedProjectileProfile(definition);
     }
 
-    public Weapon(WeaponConfig data, ConsumableItemEffect item) : base(data, item)
+    public Weapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _damage = data.Damage;
-        _penetration = data.Penetration;
-        _damageSpread = data.DamageSpread;
-        _minRange = data.MinRange;
-        _range = data.Range;
-        _energy = data.Energy;
-        _heat = data.Heat;
-        _visibility = data.Visibility;
-        _spread = data.Spread;
-        _velocity = data.Velocity;
-        DamageType = data.DamageType;
-        DamageCurve = data.DamageCurve;
-        EffectPrefab = data.EffectPrefab ?? "";
-        AmmoItemKey = data.AmmoItemKey;
-        MagazineSize = data.MagazineSize;
-        ReloadTime = data.ReloadTime;
-        InitializeGuidedProjectileProfile(data);
+        _damage = definition.PerformanceStat(2, new PerformanceStat());
+        _penetration = definition.PerformanceStat(3, new PerformanceStat());
+        _damageSpread = definition.PerformanceStat(4, new PerformanceStat());
+        _minRange = definition.PerformanceStat(5, new PerformanceStat());
+        _range = definition.PerformanceStat(6, new PerformanceStat());
+        _energy = definition.PerformanceStat(9, new PerformanceStat());
+        _heat = definition.PerformanceStat(10, new PerformanceStat());
+        _visibility = definition.PerformanceStat(11, new PerformanceStat());
+        _spread = definition.PerformanceStat(15, new PerformanceStat());
+        _velocity = definition.PerformanceStat(16, new PerformanceStat());
+        DamageType = definition.Enum(1, default(DamageType));
+        DamageCurve = definition.BezierCurve(7, null);
+        EffectPrefab = definition.String(8);
+        AmmoItemKey = definition.ItemKey(12);
+        MagazineSize = definition.Int(13);
+        ReloadTime = definition.Float(14, 1);
+        RegisterWeaponStats();
+        InitializeGuidedProjectileProfile(definition);
     }
 
-    private void InitializeGuidedProjectileProfile(WeaponConfig data)
+    private void RegisterWeaponStats()
     {
-        if (data is LauncherConfig launcher)
+        RegisterPerformanceStat(nameof(Damage), _damage);
+        RegisterPerformanceStat(nameof(Penetration), _penetration);
+        RegisterPerformanceStat(nameof(DamageSpread), _damageSpread);
+        RegisterPerformanceStat(nameof(MinRange), _minRange);
+        RegisterPerformanceStat(nameof(Range), _range);
+        RegisterPerformanceStat(nameof(Energy), _energy);
+        RegisterPerformanceStat(nameof(Heat), _heat);
+        RegisterPerformanceStat(nameof(Visibility), _visibility);
+        RegisterPerformanceStat(nameof(Spread), _spread);
+        RegisterPerformanceStat(nameof(Velocity), _velocity);
+    }
+
+    private void InitializeGuidedProjectileProfile(RuntimeBehaviorDefinition definition)
+    {
+        if (string.Equals(definition.Kind, "Launcher"))
         {
             GuidedProjectileTargeting = GuidedProjectileTargetMode.TargetEntity;
-            GuidedProjectileGuidanceCurve = launcher.GuidanceCurve;
-            GuidedProjectileLiftCurve = launcher.LiftCurve;
-            GuidedProjectileThrustCurve = launcher.ThrustCurve;
-            GuidedProjectileDodgeFrequency = launcher.DodgeFrequency;
-            _guidedProjectileThrust = launcher.Thrust;
-            _guidedProjectileVelocity = launcher.MissileVelocity;
+            GuidedProjectileGuidanceCurve = definition.Float4Array(26, null);
+            GuidedProjectileThrustCurve = definition.Float4Array(27, null);
+            GuidedProjectileLiftCurve = definition.Float4Array(28, null);
+            _guidedProjectileThrust = definition.PerformanceStat(29, new PerformanceStat());
+            GuidedProjectileDodgeFrequency = definition.Float(30);
+            _guidedProjectileVelocity = definition.PerformanceStat(31, new PerformanceStat());
         }
-        else if (data is GuidedWeaponConfig guidance)
+        else if (string.Equals(definition.Kind, "GuidedWeapon"))
         {
             GuidedProjectileTargeting = GuidedProjectileTargetMode.LookDirection;
-            GuidedProjectileGuidanceCurve = guidance.GuidanceCurve;
-            GuidedProjectileLiftCurve = guidance.LiftCurve;
-            GuidedProjectileThrustCurve = guidance.ThrustCurve;
-            GuidedProjectileDodgeFrequency = guidance.DodgeFrequency;
-            _guidedProjectileThrust = guidance.Thrust;
-            _guidedProjectileVelocity = guidance.MissileVelocity;
+            GuidedProjectileGuidanceCurve = definition.Float4Array(21, null);
+            GuidedProjectileThrustCurve = definition.Float4Array(22, null);
+            GuidedProjectileLiftCurve = definition.Float4Array(23, null);
+            _guidedProjectileThrust = definition.PerformanceStat(24, new PerformanceStat());
+            GuidedProjectileDodgeFrequency = definition.Float(25);
+            _guidedProjectileVelocity = definition.PerformanceStat(26, new PerformanceStat());
         }
+
+        RegisterPerformanceStat("Thrust", _guidedProjectileThrust);
+        RegisterPerformanceStat("MissileVelocity", _guidedProjectileVelocity);
     }
 
     protected virtual void UpdateStats()

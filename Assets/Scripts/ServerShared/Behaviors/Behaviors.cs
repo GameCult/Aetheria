@@ -45,24 +45,6 @@ public abstract class Behavior
         }
     }
 
-    protected Behavior(RuntimeBehaviorConfig config, EquippedItem item)
-    {
-        _performanceStats = CapturePerformanceStats(config);
-        Kind = config?.Kind ?? "";
-        Group = config?.Group ?? 0;
-        Item = item;
-        ItemManager = Item.ItemManager;
-    }
-
-    protected Behavior(RuntimeBehaviorConfig config, ConsumableItemEffect consumable)
-    {
-        _performanceStats = CapturePerformanceStats(config);
-        Kind = config?.Kind ?? "";
-        Group = config?.Group ?? 0;
-        Consumable = consumable;
-        ItemManager = consumable.Entity.ItemManager;
-    }
-
     protected Behavior(RuntimeBehaviorDefinition definition, EquippedItem item)
     {
         _performanceStats = new Dictionary<string, PerformanceStat>(StringComparer.Ordinal);
@@ -101,19 +83,6 @@ public abstract class Behavior
         {
             _performanceStats[statName] = stat;
         }
-    }
-
-    private static Dictionary<string, PerformanceStat> CapturePerformanceStats(RuntimeBehaviorConfig config)
-    {
-        return config == null
-            ? new Dictionary<string, PerformanceStat>(StringComparer.Ordinal)
-            : config
-                .GetType()
-                .GetFields()
-                .Where(field => field.FieldType == typeof(PerformanceStat))
-                .Select(field => (field.Name, Stat: field.GetValue(config) as PerformanceStat))
-                .Where(entry => entry.Stat != null)
-                .ToDictionary(entry => entry.Name, entry => entry.Stat, StringComparer.Ordinal);
     }
 
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables
@@ -229,6 +198,11 @@ public sealed class RuntimeBehaviorDefinition
         return _fields.TryGetValue(key, out var value) ? (float)value.NumberValue : fallback;
     }
 
+    public int Int(int key, int fallback = 0)
+    {
+        return _fields.TryGetValue(key, out var value) ? checked((int)value.NumberValue) : fallback;
+    }
+
     public uint UInt(int key, uint fallback = 0)
     {
         return _fields.TryGetValue(key, out var value) ? checked((uint)value.NumberValue) : fallback;
@@ -270,6 +244,13 @@ public sealed class RuntimeBehaviorDefinition
                 ? value.Children[0].Children.Select(ToFloat4).ToArray()
                 : Array.Empty<float4>()
         };
+    }
+
+    public float4[] Float4Array(int key, float4[] fallback)
+    {
+        return _fields.TryGetValue(key, out var value)
+            ? value.Children.Select(ToFloat4).ToArray()
+            : fallback;
     }
 
     public StatReference StatReference(int key, StatReference fallback)
@@ -332,22 +313,5 @@ public sealed class RuntimeBehaviorDefinition
     private static string ChildString(AetheriaRuntimeBehaviorValue value, int index)
     {
         return value.Children.Count > index ? value.Children[index].StringValue ?? "" : "";
-    }
-}
-
-[Inspectable]
-public abstract class RuntimeBehaviorConfig
-{
-    public string Kind { get; set; } = "";
-
-    [Inspectable]
-    public int Group;
-
-    public abstract Behavior CreateInstance(EquippedItem item);
-    public abstract Behavior CreateInstance(ConsumableItemEffect consumable);
-
-    public override string ToString()
-    {
-        return base.ToString().FormatTypeName();
     }
 }
