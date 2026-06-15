@@ -312,4 +312,7 @@ public sealed class AetheriaBehaviorValue
 
     [Key(6)]
     public AetheriaBehaviorMapEntry[] MapEntries { get; set; } = [];
+
+    [Key(7)]
+    public string ItemKeyValue { get; set; } = "";
 }

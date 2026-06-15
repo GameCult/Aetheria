@@ -919,11 +919,7 @@ internal static class LegacyCatalogReader
         {
             bool boolValue => new AetheriaBehaviorValue { Kind = "bool", BoolValue = boolValue },
             string stringValue => new AetheriaBehaviorValue { Kind = "string", StringValue = stringValue },
-            byte[] bytes when bytes.Length == 16 => new AetheriaBehaviorValue
-            {
-                Kind = "legacy-id",
-                LegacyIdValue = new Guid(bytes).ToString("D")
-            },
+            byte[] bytes when bytes.Length == 16 => ReadLegacyBehaviorId(bytes),
             byte[] bytes => new AetheriaBehaviorValue
             {
                 Kind = "binary",
@@ -955,7 +951,23 @@ internal static class LegacyCatalogReader
                 Kind = "unknown",
                 StringValue = value.ToString() ?? ""
             }
+            };
+    }
+
+    private static AetheriaBehaviorValue ReadLegacyBehaviorId(byte[] bytes)
+    {
+        var legacyId = new Guid(bytes);
+        return new AetheriaBehaviorValue
+        {
+            Kind = "legacy-id",
+            LegacyIdValue = legacyId.ToString("D"),
+            ItemKeyValue = ProjectLegacyItemKey(legacyId)
         };
+    }
+
+    private static string ProjectLegacyItemKey(Guid legacyItemId)
+    {
+        return legacyItemId == Guid.Empty ? "" : $"aetheria.item_definition:legacy:{legacyItemId:D}";
     }
 
     private static Dictionary<int, string> CreateEnumMap(string[] names)

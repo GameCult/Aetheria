@@ -118,6 +118,7 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             value.NumberValue,
             value.BoolValue,
             value.LegacyIdValue,
+            value.ItemKeyValue,
             value.Children.Select(FromState).ToArray(),
             value.MapEntries.Select(FromState).ToArray());
     }

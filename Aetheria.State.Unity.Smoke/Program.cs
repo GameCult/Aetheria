@@ -101,6 +101,15 @@ if (behaviorPayload.Fields.Count == 0)
     throw new InvalidOperationException($"Runtime behavior payload has no fields for {behaviorHost.Name}.");
 }
 
+var behaviorItemRefsMissingItemKeys = packageCatalog.Items
+    .SelectMany(item => item.BehaviorPayloads)
+    .Sum(CountRequiredBehaviorItemRefsMissingItemKeys);
+if (behaviorItemRefsMissingItemKeys > 0)
+{
+    throw new InvalidOperationException(
+        $"Runtime behavior payload item refs missing item-key projections: {behaviorItemRefsMissingItemKeys}.");
+}
+
 var equipment = catalog.EquipmentItems.First();
 if (!catalog.FindItemsByHardpoint(equipment.HardpointType).Any())
 {
@@ -989,4 +998,35 @@ static void AssertPendingCultCacheEnvelope(string path, string expectedSchemaId)
     {
         throw new InvalidOperationException($"Pending file {path} does not publish a typed CultCache record for {expectedSchemaId}.");
     }
+}
+
+static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaRuntimeBehaviorPayload payload)
+{
+    return payload.Fields.Count(field =>
+        IsBehaviorItemRefField(payload.Kind, field.Key) &&
+        IsNonEmptyLegacyRefMissingItemKey(field.Value));
+}
+
+static bool IsBehaviorItemRefField(string behaviorKind, int fieldKey)
+{
+    return (string.Equals(behaviorKind, "ItemUsage", StringComparison.OrdinalIgnoreCase) && fieldKey == 1) ||
+           (IsWeaponBehavior(behaviorKind) && fieldKey == 12);
+}
+
+static bool IsWeaponBehavior(string behaviorKind)
+{
+    return behaviorKind is "GuidedWeapon" or "InstantWeapon" or "ConstantWeapon" or "ChargedWeapon" or "AutoWeapon" or "LockWeapon";
+}
+
+static bool IsNonEmptyLegacyRefMissingItemKey(AetheriaRuntimeBehaviorValue value)
+{
+    return string.Equals(value.Kind, "legacy-id", StringComparison.OrdinalIgnoreCase) &&
+           !IsEmptyLegacyId(value.LegacyIdValue) &&
+           string.IsNullOrWhiteSpace(value.ItemKeyValue);
+}
+
+static bool IsEmptyLegacyId(string legacyId)
+{
+    return string.IsNullOrWhiteSpace(legacyId) ||
+           (Guid.TryParse(legacyId, out var parsed) && parsed == Guid.Empty);
 }

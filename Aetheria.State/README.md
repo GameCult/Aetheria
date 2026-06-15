@@ -103,16 +103,16 @@ gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.
 The shared runtime item catalog reader is also item-key-only now: its GUID index,
 `GetRuntimeItem(Guid)` entry point, raw GUID string fallback,
-`AetheriaRuntimeItemReference(Guid)` constructor, and reverse legacy-GUID
-projections have been deleted. `FromLegacyId` remains only as an explicit
-migration/projection helper.
+`AetheriaRuntimeItemReference(Guid)` constructor, `FromLegacyId`, and reverse
+legacy-GUID projections have been deleted.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts
 come from typed catalog rows.
-ItemManager's behavior payload bridge no longer exposes a generic GUID reader;
-migrated legacy-id behavior payload fields cross only through the explicit
-item-key projection helper.
+ItemManager's behavior payload bridge no longer exposes a generic GUID reader
+or item GUID projection helper. Migrated legacy-id behavior payload fields carry
+`LegacyIdValue` as provenance/backfill only; gameplay item behavior config reads
+the typed `ItemKeyValue` emitted by import/runtime projection.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.

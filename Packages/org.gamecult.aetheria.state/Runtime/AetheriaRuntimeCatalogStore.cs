@@ -1599,8 +1599,11 @@ namespace GameCult.Aetheria.State.Unity
             var legacyIdValue = ReadFieldString(ref reader, valueFields, 4);
             var children = ReadFieldBehaviorValues(ref reader, valueFields, 5);
             var mapEntries = ReadFieldBehaviorMapEntries(ref reader, valueFields, 6);
-            SkipRemaining(ref reader, valueFields, 7);
-            return new AetheriaRuntimeBehaviorValue(kind, stringValue, numberValue, boolValue, legacyIdValue, children, mapEntries);
+            var itemKeyValue = ReadFieldString(ref reader, valueFields, 7);
+            SkipRemaining(ref reader, valueFields, 8);
+            if (string.IsNullOrWhiteSpace(itemKeyValue))
+                itemKeyValue = ProjectLegacyItemKey(legacyIdValue);
+            return new AetheriaRuntimeBehaviorValue(kind, stringValue, numberValue, boolValue, legacyIdValue, itemKeyValue, children, mapEntries);
         }
 
         private static IReadOnlyList<AetheriaRuntimeBehaviorValue> ReadFieldBehaviorValues(ref MessagePackReader reader, int fields, int index)
@@ -1638,8 +1641,16 @@ namespace GameCult.Aetheria.State.Unity
                 0,
                 false,
                 "",
+                "",
                 Array.Empty<AetheriaRuntimeBehaviorValue>(),
                 Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static string ProjectLegacyItemKey(string legacyItemId)
+        {
+            return string.IsNullOrWhiteSpace(legacyItemId)
+                ? ""
+                : $"aetheria.item_definition:legacy:{legacyItemId.Trim()}";
         }
 
         private static string ReadString(ref MessagePackReader reader)

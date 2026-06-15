@@ -373,6 +373,7 @@ namespace GameCult.Aetheria.State.Unity
             double numberValue,
             bool boolValue,
             string legacyIdValue,
+            string itemKeyValue,
             IReadOnlyList<AetheriaRuntimeBehaviorValue> children,
             IReadOnlyList<AetheriaRuntimeBehaviorMapEntry> mapEntries)
         {
@@ -381,6 +382,7 @@ namespace GameCult.Aetheria.State.Unity
             NumberValue = numberValue;
             BoolValue = boolValue;
             LegacyIdValue = legacyIdValue;
+            ItemKeyValue = itemKeyValue;
             Children = children;
             MapEntries = mapEntries;
         }
@@ -394,6 +396,8 @@ namespace GameCult.Aetheria.State.Unity
         public bool BoolValue { get; }
 
         public string LegacyIdValue { get; }
+
+        public string ItemKeyValue { get; }
 
         public IReadOnlyList<AetheriaRuntimeBehaviorValue> Children { get; }
 

@@ -63,6 +63,9 @@ var behaviorLegacyRefCount = items
     .SelectMany(item => item.BehaviorPayloads)
     .SelectMany(behavior => behavior.Fields)
     .Count(field => ContainsBehaviorValueKind(field.Value, "legacy-id"));
+var behaviorItemRefsMissingItemKeys = items
+    .SelectMany(item => item.BehaviorPayloads)
+    .Sum(CountRequiredBehaviorItemRefsMissingItemKeys);
 var hardpointItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HardpointType));
 var hullItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullType));
 var hullPrefabItems = items.Count(item => !string.IsNullOrWhiteSpace(item.HullPrefab));
@@ -241,6 +244,12 @@ if (behaviorPayloadItems != behaviorItems || behaviorPayloadCount == 0 || behavi
 {
     throw new InvalidOperationException(
         $"Typed behavior payload import mismatch: payloadItems={behaviorPayloadItems}, behaviorItems={behaviorItems}, payloads={behaviorPayloadCount}, fields={behaviorFieldCount}.");
+}
+
+if (behaviorItemRefsMissingItemKeys > 0)
+{
+    throw new InvalidOperationException(
+        $"Typed behavior payload item refs missing item-key projections: {behaviorItemRefsMissingItemKeys}.");
 }
 
 foreach (var item in items.Where(item => item.BehaviorPayloads.Length > 0))
@@ -439,6 +448,37 @@ static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)
     return string.Equals(value.Kind, kind, StringComparison.OrdinalIgnoreCase) ||
            value.Children.Any(child => ContainsBehaviorValueKind(child, kind)) ||
            value.MapEntries.Any(entry => ContainsBehaviorValueKind(entry.Value, kind));
+}
+
+static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaBehaviorPayload payload)
+{
+    return payload.Fields.Count(field =>
+        IsBehaviorItemRefField(payload.Kind, field.Key) &&
+        IsNonEmptyLegacyRefMissingItemKey(field.Value));
+}
+
+static bool IsBehaviorItemRefField(string behaviorKind, int fieldKey)
+{
+    return (string.Equals(behaviorKind, "ItemUsage", StringComparison.OrdinalIgnoreCase) && fieldKey == 1) ||
+           (IsWeaponBehavior(behaviorKind) && fieldKey == 12);
+}
+
+static bool IsWeaponBehavior(string behaviorKind)
+{
+    return behaviorKind is "GuidedWeapon" or "InstantWeapon" or "ConstantWeapon" or "ChargedWeapon" or "AutoWeapon" or "LockWeapon";
+}
+
+static bool IsNonEmptyLegacyRefMissingItemKey(AetheriaBehaviorValue value)
+{
+    return string.Equals(value.Kind, "legacy-id", StringComparison.OrdinalIgnoreCase) &&
+           !IsEmptyLegacyId(value.LegacyIdValue) &&
+           string.IsNullOrWhiteSpace(value.ItemKeyValue);
+}
+
+static bool IsEmptyLegacyId(string legacyId)
+{
+    return string.IsNullOrWhiteSpace(legacyId) ||
+           (Guid.TryParse(legacyId, out var parsed) && parsed == Guid.Empty);
 }
 
 static async Task RequireLegacyLookupAsync<T>(

@@ -415,9 +415,8 @@ public class ItemManager
         public string ItemKey(int key, string fallback = "")
         {
             return _fields.TryGetValue(key, out var value) &&
-                   System.Guid.TryParse(value.LegacyIdValue, out var itemId) &&
-                   itemId != System.Guid.Empty
-                ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
+                   !string.IsNullOrWhiteSpace(value.ItemKeyValue)
+                ? value.ItemKeyValue
                 : fallback;
         }
 
