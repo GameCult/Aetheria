@@ -632,8 +632,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   consumable activation, action-bar consumable fill/quantity display, item
   transfer lookup, and trade owned-count rows now use item keys rather than
   GUID-owned cargo indexes. Weapon ammo and item-use behavior config item
-  references are also typed-key-first (`AmmoItemKey`/`ItemKey`), with
-  `AmmoType`/`Item` only derived GUID compatibility. Runtime commit DTOs now
+  references are also item-key-only at the behavior API surface
+  (`AmmoItemKey`/`ItemKey`); the derived `AmmoType` and `Item` GUID
+  compatibility properties have been deleted. Runtime commit DTOs now
   publish item and hull identity through `ItemKey`/`HullItemKey`, with legacy
   ID fields demoted to compatibility. The package runtime catalog snapshot now
   indexes items by canonical item key, and Unity gameplay/UI/zone helper
@@ -1048,7 +1049,7 @@ First Aetheria surfaces to publish:
      `Weapon`-owned target mode, curve keys, dodge frequency, and evaluated
      thrust/top-speed values.
    - Done: move HUD ammo display reads off `WeaponData`; `SchematicDisplay`
-     consumes `Weapon.AmmoType`, `Weapon.MagazineSize`, and `Weapon.UsesAmmo`,
+     consumes `Weapon.AmmoItemKey`, `Weapon.MagazineSize`, and `Weapon.UsesAmmo`,
      and the public `WeaponData` escape hatch has been removed.
    - Done: delete dormant legacy item audio reads in `EntityInstance` and stale
      commented thruster sound-trigger code; those paths had no live output and
@@ -1346,11 +1347,11 @@ First Aetheria surfaces to publish:
      action-bar consumable quantity/fill, item transfer lookup, and trade owned
      counts from derived `Guid ItemId` keys to typed `ItemKey` strings.
    - Done: move weapon ammo and `ItemUsage` config references from GUID fields
-     to typed item-key fields. `AmmoType` and `Item` remain derived compatibility
-     properties, but runtime ammo consumption, item use, and HUD ammo counts use
-     `AmmoItemKey`/`ItemKey`.
-   - Done: add typed `ItemKey`/`HullItemKey` fields to runtime commit item
-     surfaces and make the applier prefer them over stale legacy-ID fields.
+     to typed item-key fields. The derived `AmmoType` and `Item` compatibility
+     properties have been deleted; runtime ammo consumption, item use, and HUD
+     ammo counts use `AmmoItemKey`/`ItemKey`.
+   - Done: make runtime commit item surfaces item-key-only through
+     `ItemKey`/`HullItemKey`; stale legacy-ID commit fields were deleted.
      Loadout items, action-bar targets, body resources, entity hulls, cargo
      contents, and active consumables now prove typed-key ownership in the
      Unity smoke without any item legacy-ID commit fields.

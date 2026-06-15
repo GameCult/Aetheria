@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Mathematics;
@@ -44,7 +43,6 @@ public abstract class WeaponConfig : RuntimeBehaviorConfig
     [InspectablePrefab]
     public PerformanceStat Visibility = new PerformanceStat();
     public string AmmoItemKey;
-    public Guid AmmoType => AetheriaRuntimeItemReference.ToLegacyId(AmmoItemKey);
 
     [InspectablePrefab]
     public int MagazineSize;
@@ -71,7 +69,6 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public DamageType DamageType { get; }
     public string EffectPrefab { get; }
     public string AmmoItemKey { get; }
-    public Guid AmmoType { get; }
     public int MagazineSize { get; }
     public bool UsesAmmo => !string.IsNullOrWhiteSpace(AmmoItemKey);
     public GuidedProjectileTargetMode GuidedProjectileTargeting { get; private set; }
@@ -105,7 +102,6 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
         AmmoItemKey = data.AmmoItemKey;
-        AmmoType = data.AmmoType;
         MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
     }
@@ -116,7 +112,6 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         DamageType = data.DamageType;
         EffectPrefab = data.EffectPrefab ?? "";
         AmmoItemKey = data.AmmoItemKey;
-        AmmoType = data.AmmoType;
         MagazineSize = data.MagazineSize;
         InitializeGuidedProjectileProfile(data);
     }
