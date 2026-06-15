@@ -87,9 +87,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
   input screens mutate `RuntimePlayerSettings` in memory and queue typed Verse
-  commits through shared player-settings commit primitives; the in-memory
-  projection is not portable state authority. Aetheria has its own remapping UI
-  that calls Unity's InputSystem at the binding/action layer; Unity's generated
+  commits through shared player-settings commit primitives. Gameplay and
+  graphics settings now return through the same main-menu commit primitive; the
+  in-memory projection is not portable state authority. Aetheria has its own
+  remapping UI that calls Unity's InputSystem at the binding/action layer;
+  Unity's generated
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
   the durable owner. Binding drag/drop and action-bar remapping both route
   through named runtime input commit methods instead of writing the input
@@ -1549,6 +1551,9 @@ First Aetheria surfaces to publish:
    - Done: route input-screen binding/action-bar edits through named typed
      player-settings commit methods on the Unity runtime boundary, so the UI is
      no longer a direct writer of input binding or action-bar collections.
+   - Done: route main-menu graphics settings returns through the same typed
+     player-settings commit primitive as gameplay settings, so graphics edits
+     no longer survive only as session-local `RuntimePlayerSettings`.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 

@@ -12,6 +12,7 @@ RequirePackageSerializerBoundary(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
+RequireMainMenuSettingsCommit(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -453,6 +454,7 @@ Console.WriteLine("Package serializer boundary: MessagePack symbols remain in na
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
+Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -682,6 +684,64 @@ static void RequireNoRendererLocalDebugPanels(string root)
             "Renderer-local FieldTester authority is still wired in Assets: " +
             string.Join("; ", hits));
     }
+}
+
+static void RequireMainMenuSettingsCommit(string root)
+{
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    if (!File.Exists(mainMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu settings commit path; MainMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(mainMenuPath);
+    if (!source.Contains("private void CommitRuntimeSettingsAndReturn()", StringComparison.Ordinal) ||
+        !source.Contains("ActionGameManager.QueueRuntimePlayerSettingsCommit();", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer exposes a shared typed player-settings commit return path.");
+    }
+
+    var graphicsSettings = ExtractMethodBody(source, "ShowGraphicsSettings");
+    if (!graphicsSettings.Contains("CommitRuntimeSettingsAndReturn", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu graphics settings can return without queuing the typed player-settings commit.");
+    }
+
+    var gameplaySettings = ExtractMethodBody(source, "ShowGameplaySettings");
+    if (!gameplaySettings.Contains("CommitRuntimeSettingsAndReturn", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu gameplay settings can return without queuing the typed player-settings commit.");
+    }
+}
+
+static string ExtractMethodBody(string source, string methodName)
+{
+    var signature = "private void " + methodName + "()";
+    var signatureIndex = source.IndexOf(signature, StringComparison.Ordinal);
+    if (signatureIndex < 0)
+        throw new InvalidOperationException($"Cannot find MainMenu.{methodName} for settings authority verification.");
+
+    var braceIndex = source.IndexOf('{', signatureIndex);
+    if (braceIndex < 0)
+        throw new InvalidOperationException($"Cannot find MainMenu.{methodName} body for settings authority verification.");
+
+    var depth = 0;
+    for (var index = braceIndex; index < source.Length; index++)
+    {
+        if (source[index] == '{')
+            depth++;
+        else if (source[index] == '}')
+        {
+            depth--;
+            if (depth == 0)
+                return source.Substring(braceIndex, index - braceIndex + 1);
+        }
+    }
+
+    throw new InvalidOperationException($"MainMenu.{methodName} body is not balanced.");
 }
 
 static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)

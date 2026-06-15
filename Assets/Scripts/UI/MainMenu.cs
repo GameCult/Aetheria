@@ -222,12 +222,7 @@ public class MainMenu : MonoBehaviour
             () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits,
             i => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits = i);
         _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ActionGameManager.QueueRuntimePlayerSettingsCommit();
-                ShowSettings();
-                Fade(false);
-            });
+            CommitRuntimeSettingsAndReturn);
     }
 
     private void ShowGraphicsSettings()
@@ -246,11 +241,7 @@ public class MainMenu : MonoBehaviour
             () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
             b => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
         _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowSettings();
-                Fade(false);
-            });
+            CommitRuntimeSettingsAndReturn);
     }
 
     private void ShowInputSettings()
@@ -275,5 +266,12 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 Fade(false);
             });
+    }
+
+    private void CommitRuntimeSettingsAndReturn()
+    {
+        ActionGameManager.QueueRuntimePlayerSettingsCommit();
+        ShowSettings();
+        Fade(false);
     }
 }
