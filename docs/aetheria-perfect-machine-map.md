@@ -1232,6 +1232,9 @@ First Aetheria surfaces to publish:
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup
      overloads; transfer, count, active-consumable, and first-item APIs now
      expose item-key contracts only.
+   - Done: delete the runtime catalog raw-GUID string fallback and unused
+     reverse legacy-GUID projections from `AetheriaRuntimeItemReference`; catalog
+     lookup accepts canonical item keys only.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host

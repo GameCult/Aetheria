@@ -100,9 +100,10 @@ The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.
 The shared runtime item catalog reader is also item-key-only now: its GUID index,
-`GetRuntimeItem(Guid)` entry point, and `AetheriaRuntimeItemReference(Guid)`
-constructor have been deleted. Legacy GUID helpers remain only as explicit
-compatibility projections.
+`GetRuntimeItem(Guid)` entry point, raw GUID string fallback,
+`AetheriaRuntimeItemReference(Guid)` constructor, and reverse legacy-GUID
+projections have been deleted. `FromLegacyId` remains only as an explicit
+migration/projection helper.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts

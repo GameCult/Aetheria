@@ -12,7 +12,6 @@ public interface INamedEntry
 
 public class AetheriaRuntimeItemReference
 {
-    private const string ItemDefinitionPrefix = "aetheria.item_definition:";
     private const string LegacyItemDefinitionPrefix = "aetheria.item_definition:legacy:";
 
     public string ItemKey;
@@ -26,31 +25,9 @@ public class AetheriaRuntimeItemReference
         ItemKey = itemKey;
     }
 
-    public Guid LegacyItemId => TryParseLegacyId(ItemKey, out var itemId) ? itemId : Guid.Empty;
-
     public static string FromLegacyId(Guid legacyItemId)
     {
         return legacyItemId == Guid.Empty ? "" : $"{LegacyItemDefinitionPrefix}{legacyItemId:D}";
-    }
-
-    public static Guid ToLegacyId(string itemKey)
-    {
-        return TryParseLegacyId(itemKey, out var itemId) ? itemId : Guid.Empty;
-    }
-
-    private static bool TryParseLegacyId(string itemKey, out Guid itemId)
-    {
-        itemId = Guid.Empty;
-        if (string.IsNullOrWhiteSpace(itemKey))
-            return false;
-
-        var legacyId = itemKey.StartsWith(LegacyItemDefinitionPrefix, StringComparison.OrdinalIgnoreCase)
-            ? itemKey.Substring(LegacyItemDefinitionPrefix.Length)
-            : itemKey.StartsWith(ItemDefinitionPrefix, StringComparison.OrdinalIgnoreCase)
-                ? itemKey.Substring(ItemDefinitionPrefix.Length)
-            : itemKey;
-
-        return Guid.TryParse(legacyId, out itemId);
     }
 }
 

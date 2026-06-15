@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
@@ -10,9 +9,6 @@ public interface IRuntimeItemCatalogReader
 
 public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
 {
-    private const string ItemDefinitionPrefix = "aetheria.item_definition:";
-    private const string LegacyItemDefinitionPrefix = "aetheria.item_definition:legacy:";
-
     private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _typedItemsByKey;
 
     public AetheriaRuntimeItemCatalog(AetheriaRuntimeCatalogSnapshot catalog)
@@ -29,21 +25,8 @@ public sealed class AetheriaRuntimeItemCatalog : IRuntimeItemCatalogReader
         if (string.IsNullOrWhiteSpace(itemKey))
             return null;
 
-        if (_typedItemsByKey.TryGetValue(itemKey, out var item))
-            return item;
-
-        return Guid.TryParse(RemoveItemPrefix(itemKey), out var legacyId)
-            ? GetRuntimeItem(AetheriaRuntimeItemReference.FromLegacyId(legacyId))
+        return _typedItemsByKey.TryGetValue(itemKey, out var item)
+            ? item
             : null;
-    }
-
-    private static string RemoveItemPrefix(string itemKey)
-    {
-        if (itemKey.StartsWith(LegacyItemDefinitionPrefix, StringComparison.OrdinalIgnoreCase))
-            return itemKey.Substring(LegacyItemDefinitionPrefix.Length);
-
-        return itemKey.StartsWith(ItemDefinitionPrefix, StringComparison.OrdinalIgnoreCase)
-            ? itemKey.Substring(ItemDefinitionPrefix.Length)
-            : itemKey;
     }
 }
