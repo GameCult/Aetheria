@@ -89,8 +89,9 @@ facade. `ItemInstance.ItemKey` is the identity surface; the old `ItemId`
 legacy-GUID projection has been deleted from item instances.
 Cargo inventory indexes, consumable activation lookup, action-bar consumable
 quantity/fill, transfer lookup, trade owned counts, weapon ammo references, and
-item-use behavior references now use item keys. The old derived behavior
-`AmmoType`/`Item` GUID properties have been deleted.
+item-use behavior references now use item keys. The old cargo/consumable GUID
+lookup overloads and the derived behavior `AmmoType`/`Item` GUID properties
+have been deleted.
 Unity runtime commit DTOs carry typed `ItemKey`/`HullItemKey` fields only for
 loadout items, action-bar targets, body resources, entity hulls, and active
 consumables; the commit applier no longer reconstructs item keys from legacy

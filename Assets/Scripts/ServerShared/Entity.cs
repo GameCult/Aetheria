@@ -320,11 +320,6 @@ public abstract class Entity
         return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
     }
 
-    public ConsumableItemEffect FindActiveConsumable(Guid itemId)
-    {
-        return FindActiveConsumable(AetheriaRuntimeItemReference.FromLegacyId(itemId));
-    }
-
     public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
     {
         var itemKey = GetItemKey(item);
@@ -426,19 +421,9 @@ public abstract class Entity
         return sum;
     }
 
-    public int CountItemsInCargo(Guid itemDataID)
-    {
-        return CountItemsInCargo(AetheriaRuntimeItemReference.FromLegacyId(itemDataID));
-    }
-
     public EquippedCargoBay FindItemInCargo(string itemKey)
     {
         return CargoBays.FirstOrDefault(c => c.ContainsItem(itemKey));
-    }
-
-    public EquippedCargoBay FindItemInCargo(Guid itemDataID)
-    {
-        return FindItemInCargo(AetheriaRuntimeItemReference.FromLegacyId(itemDataID));
     }
 
     public Shape UnoccupiedSpace
@@ -461,9 +446,11 @@ public abstract class Entity
 
     // Attempts to move a given number of items of the given type to the target Entity
     // Returns the number of items successfully transferred
-    public int TryTransferItems(Entity target, Guid itemDataID, int quantity)
+    public int TryTransferItems(Entity target, string itemKey, int quantity)
     {
-        var itemKey = AetheriaRuntimeItemReference.FromLegacyId(itemDataID);
+        if (target == null || string.IsNullOrWhiteSpace(itemKey) || quantity <= 0)
+            return 0;
+
         int quantityTransferred = 0;
         while (quantityTransferred < quantity)
         {
@@ -1598,11 +1585,6 @@ public class EquippedCargoBay : EquippedItem
     public ItemInstance GetFirstItem(string itemKey)
     {
         return ContainsItem(itemKey) ? ItemsOfType[itemKey].FirstOrDefault() : null;
-    }
-
-    public ItemInstance GetFirstItem(Guid itemId)
-    {
-        return GetFirstItem(AetheriaRuntimeItemReference.FromLegacyId(itemId));
     }
 
     public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity)

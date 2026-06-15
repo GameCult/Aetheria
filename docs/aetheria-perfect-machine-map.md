@@ -1229,6 +1229,9 @@ First Aetheria surfaces to publish:
      still derive legacy GUIDs until those structures move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
+   - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup
+     overloads; transfer, count, active-consumable, and first-item APIs now
+     expose item-key contracts only.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
