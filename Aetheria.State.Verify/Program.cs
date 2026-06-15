@@ -11,6 +11,7 @@ RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
+RequireNoRendererLocalDebugPanels(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -451,6 +452,7 @@ Console.WriteLine("Live gameplay source purity: no serializer or legacy database
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
+Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -639,6 +641,45 @@ static void RequireNoRendererLocalConsole(string root)
     {
         throw new InvalidOperationException(
             "Renderer-local console authority is still wired in Assets: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireNoRendererLocalDebugPanels(string root)
+{
+    var forbiddenFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "UI", "FieldTester.cs")
+    };
+
+    var existingFiles = forbiddenFiles
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+
+    if (existingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer-local debug panel source files still exist: " +
+            string.Join(", ", existingFiles));
+    }
+
+    var hits = Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.*", SearchOption.AllDirectories)
+        .Where(path =>
+            path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => line.Line.Contains("FieldTester", StringComparison.Ordinal))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer-local FieldTester authority is still wired in Assets: " +
             string.Join("; ", hits));
     }
 }

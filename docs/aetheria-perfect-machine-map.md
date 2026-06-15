@@ -613,9 +613,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   story/cache document exists.
 - Runtime UI still contains old Unity UI/uGUI prefabs plus `MonoBehaviour`
   scripts under `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`, but the old
-  renderer-local debug console authority has been deleted. Runtime UI commands
-  must be provider-advertised Eve command documents, not text parsed by a Unity
-  component and invoked directly against gameplay objects.
+  renderer-local debug console and field-tester panel authorities have been
+  deleted. Runtime UI commands must be provider-advertised Eve command
+  documents, not text parsed by a Unity component or a test-scene uGUI panel and
+  invoked directly against gameplay objects.
 - Aetheria already has Unity UIElements support available through
   `com.unity.modules.uielements`. It now imports local staged
   `org.gamecult.eve.surface` and `org.gamecult.eve.unity-uitoolkit` packages:
@@ -1357,6 +1358,10 @@ First Aetheria surfaces to publish:
      the Eve command bridge; future gameplay/editor commands must add
      provider-owned Eve handlers instead of reintroducing renderer-local text
      command execution.
+   - Done: delete the uGUI `FieldTester` debug panel and its
+     `FieldShieldTest.unity` script binding. Future field prototype controls
+     should be provider-owned Eve/prototype commands or local simulation code,
+     not a `PropertiesPanel` mutating `FieldDriver` directly.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.

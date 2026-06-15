@@ -767,7 +767,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 699508827}
-  - component: {fileID: 699508826}
   m_Layer: 0
   m_Name: Tester
   m_TagString: Untagged
@@ -775,36 +774,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &699508826
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 699508825}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 686a80c9880b431b94a9b0029d39cf1f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  PickupCount: 64
-  PickupPrefabs:
-  - {fileID: 7436534270673427838, guid: 521bfeece7dd5fd4e8f166d38493f18c, type: 3}
-  - {fileID: 4507103896627202189, guid: 366909b6a01d7254d8eef01c333f8e00, type: 3}
-  - {fileID: 7390748043139687254, guid: d2b7e9a9cd7733041b0553682e4b61af, type: 3}
-  - {fileID: 5705448000916375656, guid: d2cec1d8c3d94074e9d2e6088e1c02d7, type: 3}
-  - {fileID: 1545255963217739444, guid: f399719f41451754eba07ca072698b68, type: 3}
-  PickupTravelDistance: 128
-  PickupTravelTimeMin: 16
-  PickupTravelTimeMax: 32
-  PickupSizeMin: 0.5
-  PickupSizeMax: 1
-  ScaleExponent: 2
-  PickupSpawnDistanceMin: 5
-  PickupSpawnDistanceMax: 20
-  Camera: {fileID: 1153356615}
-  TestField: {fileID: 909026488}
-  Properties: {fileID: 401779935}
 --- !u!4 &699508827
 Transform:
   m_ObjectHideFlags: 0
