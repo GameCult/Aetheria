@@ -7,47 +7,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class SensorConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Sensitivity = new PerformanceStat();
-
-    [InspectableAnimationCurve]
-    public BezierCurve SensitivityCurve;
-
-    [Inspectable]
-    public PerformanceStat PingBoost;
-
-    [Inspectable]
-    public PerformanceStat PingEnergy;
-
-    [Inspectable]
-    public PerformanceStat PingVisibility;
-
-    [Inspectable]
-    public PerformanceStat PingRange;
-
-    [Inspectable]
-    public PerformanceStat PingCooldown;
-
-    [Inspectable]
-    public float PingDuration = 2;
-
-    [Inspectable]
-    public float PingRadiusExponent = .5f;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Sensor(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Sensor(this, item);
-    }
-}
-
 public class Sensor : Behavior, IEventBehavior
 {
     private readonly PerformanceStat _sensitivity;
@@ -103,30 +62,42 @@ public class Sensor : Behavior, IEventBehavior
         }
     }
 
-    public Sensor(SensorConfig data, EquippedItem item) : base(data, item)
+    public Sensor(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _sensitivity = data.Sensitivity;
-        _sensitivityCurve = data.SensitivityCurve;
-        _pingBoost = data.PingBoost;
-        _pingEnergy = data.PingEnergy;
-        _pingVisibility = data.PingVisibility;
-        _pingRange = data.PingRange;
-        _pingCooldownDuration = data.PingCooldown;
-        _pingDuration = data.PingDuration;
-        _pingRadiusExponent = data.PingRadiusExponent;
+        _sensitivity = definition.PerformanceStat(3, new PerformanceStat());
+        _sensitivityCurve = definition.BezierCurve(4, null);
+        _pingBoost = definition.PerformanceStat(5, null);
+        _pingEnergy = definition.PerformanceStat(6, null);
+        _pingVisibility = definition.PerformanceStat(7, null);
+        _pingRange = definition.PerformanceStat(8, null);
+        _pingCooldownDuration = definition.PerformanceStat(9, null);
+        _pingDuration = definition.Float(10, 2);
+        _pingRadiusExponent = definition.Float(11, .5f);
+        RegisterPerformanceStats();
     }
 
-    public Sensor(SensorConfig data, ConsumableItemEffect item) : base(data, item)
+    public Sensor(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _sensitivity = data.Sensitivity;
-        _sensitivityCurve = data.SensitivityCurve;
-        _pingBoost = data.PingBoost;
-        _pingEnergy = data.PingEnergy;
-        _pingVisibility = data.PingVisibility;
-        _pingRange = data.PingRange;
-        _pingCooldownDuration = data.PingCooldown;
-        _pingDuration = data.PingDuration;
-        _pingRadiusExponent = data.PingRadiusExponent;
+        _sensitivity = definition.PerformanceStat(3, new PerformanceStat());
+        _sensitivityCurve = definition.BezierCurve(4, null);
+        _pingBoost = definition.PerformanceStat(5, null);
+        _pingEnergy = definition.PerformanceStat(6, null);
+        _pingVisibility = definition.PerformanceStat(7, null);
+        _pingRange = definition.PerformanceStat(8, null);
+        _pingCooldownDuration = definition.PerformanceStat(9, null);
+        _pingDuration = definition.Float(10, 2);
+        _pingRadiusExponent = definition.Float(11, .5f);
+        RegisterPerformanceStats();
+    }
+
+    private void RegisterPerformanceStats()
+    {
+        RegisterPerformanceStat("Sensitivity", _sensitivity);
+        RegisterPerformanceStat("PingBoost", _pingBoost);
+        RegisterPerformanceStat("PingEnergy", _pingEnergy);
+        RegisterPerformanceStat("PingVisibility", _pingVisibility);
+        RegisterPerformanceStat("PingRange", _pingRange);
+        RegisterPerformanceStat("PingCooldown", _pingCooldownDuration);
     }
 
     public override bool Execute(float dt)

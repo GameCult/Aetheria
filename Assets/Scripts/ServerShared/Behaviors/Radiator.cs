@@ -5,38 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class RadiatorConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Emissivity = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat PumpedHeat = new PerformanceStat();
-
-    [InspectableTemperature]
-    public float TemperatureFloor;
-
-    [Inspectable]
-    public PerformanceStat WasteHeat = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat EnergyUsage = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat ThermalMass = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Radiator(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Radiator(this, item);
-    }
-}
-
 public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
 {
     public float RadiatorTemperature { get; private set; }
@@ -53,23 +21,34 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
     private readonly PerformanceStat _energyUsage;
     private readonly PerformanceStat _thermalMass;
 
-    public Radiator(RadiatorConfig data, EquippedItem item) : base(data, item)
+    public Radiator(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _emissivity = data.Emissivity;
-        _pumpedHeat = data.PumpedHeat;
-        _temperatureFloor = data.TemperatureFloor;
-        _wasteHeat = data.WasteHeat;
-        _energyUsage = data.EnergyUsage;
-        _thermalMass = data.ThermalMass;
+        _emissivity = definition.PerformanceStat(1, new PerformanceStat());
+        _pumpedHeat = definition.PerformanceStat(2, new PerformanceStat());
+        _temperatureFloor = definition.Float(3);
+        _wasteHeat = definition.PerformanceStat(4, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(5, new PerformanceStat());
+        _thermalMass = definition.PerformanceStat(6, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Emissivity), _emissivity);
+        RegisterPerformanceStat(nameof(PumpedHeat), _pumpedHeat);
+        RegisterPerformanceStat(nameof(WasteHeat), _wasteHeat);
+        RegisterPerformanceStat(nameof(EnergyUsage), _energyUsage);
+        RegisterPerformanceStat("ThermalMass", _thermalMass);
     }
-    public Radiator(RadiatorConfig data, ConsumableItemEffect item) : base(data, item)
+
+    public Radiator(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _emissivity = data.Emissivity;
-        _pumpedHeat = data.PumpedHeat;
-        _temperatureFloor = data.TemperatureFloor;
-        _wasteHeat = data.WasteHeat;
-        _energyUsage = data.EnergyUsage;
-        _thermalMass = data.ThermalMass;
+        _emissivity = definition.PerformanceStat(1, new PerformanceStat());
+        _pumpedHeat = definition.PerformanceStat(2, new PerformanceStat());
+        _temperatureFloor = definition.Float(3);
+        _wasteHeat = definition.PerformanceStat(4, new PerformanceStat());
+        _energyUsage = definition.PerformanceStat(5, new PerformanceStat());
+        _thermalMass = definition.PerformanceStat(6, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Emissivity), _emissivity);
+        RegisterPerformanceStat(nameof(PumpedHeat), _pumpedHeat);
+        RegisterPerformanceStat(nameof(WasteHeat), _wasteHeat);
+        RegisterPerformanceStat(nameof(EnergyUsage), _energyUsage);
+        RegisterPerformanceStat("ThermalMass", _thermalMass);
     }
 
     public override bool Execute(float dt)

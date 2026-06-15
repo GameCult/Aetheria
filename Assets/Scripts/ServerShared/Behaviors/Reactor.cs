@@ -9,32 +9,6 @@ using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class ReactorConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Charge = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat Efficiency = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat OverloadEfficiency = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat ThrottlingFactor = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Reactor(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Reactor(this, item);
-    }
-}
-
 public class Reactor : Behavior, IOrderedBehavior, IDisposable
 {
     private readonly PerformanceStat _charge;
@@ -52,20 +26,29 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
 
-    public Reactor(ReactorConfig data, EquippedItem item) : base(data, item)
+    public Reactor(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _charge = data.Charge;
-        _efficiency = data.Efficiency;
-        _overloadEfficiency = data.OverloadEfficiency;
-        _throttlingFactor = data.ThrottlingFactor;
+        _charge = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        _overloadEfficiency = definition.PerformanceStat(3, new PerformanceStat());
+        _throttlingFactor = definition.PerformanceStat(4, new PerformanceStat());
+        RegisterPerformanceStat("Charge", _charge);
+        RegisterPerformanceStat("Efficiency", _efficiency);
+        RegisterPerformanceStat("OverloadEfficiency", _overloadEfficiency);
+        RegisterPerformanceStat("ThrottlingFactor", _throttlingFactor);
         FindCapacitors();
     }
-    public Reactor(ReactorConfig data, ConsumableItemEffect item) : base(data, item)
+
+    public Reactor(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _charge = data.Charge;
-        _efficiency = data.Efficiency;
-        _overloadEfficiency = data.OverloadEfficiency;
-        _throttlingFactor = data.ThrottlingFactor;
+        _charge = definition.PerformanceStat(1, new PerformanceStat());
+        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
+        _overloadEfficiency = definition.PerformanceStat(3, new PerformanceStat());
+        _throttlingFactor = definition.PerformanceStat(4, new PerformanceStat());
+        RegisterPerformanceStat("Charge", _charge);
+        RegisterPerformanceStat("Efficiency", _efficiency);
+        RegisterPerformanceStat("OverloadEfficiency", _overloadEfficiency);
+        RegisterPerformanceStat("ThrottlingFactor", _throttlingFactor);
         FindCapacitors();
     }
 

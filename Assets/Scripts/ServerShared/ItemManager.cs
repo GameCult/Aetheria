@@ -100,9 +100,13 @@ public class ItemManager
             case "HeatStorage": return new HeatStorage(definition, item);
             case "ItemUsage": return new ItemUsage(definition, item);
             case "MiningTool": return new MiningTool(definition, item);
+            case "Radiator": return new Radiator(definition, item);
+            case "Reactor": return new Reactor(definition, item);
             case "Reflector": return new Reflector(definition, item);
             case "ResourceScanner": return new ResourceScanner(definition, item);
+            case "Sensor": return new Sensor(definition, item);
             case "Shield": return new Shield(definition, item);
+            case "StatModifier": return new StatModifier(definition, item);
             case "Switch": return new Switch(definition, item);
             case "Thermotoggle": return new Thermotoggle(definition, item);
             case "Thruster": return new Thruster(definition, item);
@@ -129,9 +133,13 @@ public class ItemManager
             case "HeatStorage": return new HeatStorage(definition, effect);
             case "ItemUsage": return new ItemUsage(definition, effect);
             case "MiningTool": return new MiningTool(definition, effect);
+            case "Radiator": return new Radiator(definition, effect);
+            case "Reactor": return new Reactor(definition, effect);
             case "Reflector": return new Reflector(definition, effect);
             case "ResourceScanner": return new ResourceScanner(definition, effect);
+            case "Sensor": return new Sensor(definition, effect);
             case "Shield": return new Shield(definition, effect);
+            case "StatModifier": return new StatModifier(definition, effect);
             case "Switch": return new Switch(definition, effect);
             case "Thermotoggle": return new Thermotoggle(definition, effect);
             case "Thruster": return new Thruster(definition, effect);
@@ -156,10 +164,6 @@ public class ItemManager
             case "GuidedWeapon": return Configure(new GuidedWeaponConfig(), payload, ApplyGuidedWeaponConfig);
             case "InstantWeapon": return Configure(new InstantWeaponConfig(), payload, ApplyInstantWeaponConfig);
             case "Launcher": return Configure(new LauncherConfig(), payload, ApplyLauncherConfig);
-            case "Radiator": return Configure(new RadiatorConfig(), payload, ApplyRadiatorConfig);
-            case "Reactor": return Configure(new ReactorConfig(), payload, ApplyReactorConfig);
-            case "Sensor": return Configure(new SensorConfig(), payload, ApplySensorConfig);
-            case "StatModifier": return Configure(new StatModifierConfig(), payload, ApplyStatModifierConfig);
             default: return null;
         }
     }
@@ -189,45 +193,6 @@ public class ItemManager
         config.RpmAudioParameter = reader.UInt(11, config.RpmAudioParameter);
         config.TorqueRatioAudioParameter = reader.UInt(12, config.TorqueRatioAudioParameter);
         config.Particles = reader.String(13, config.Particles);
-    }
-
-    private static void ApplyRadiatorConfig(RadiatorConfig config, BehaviorPayloadReader reader)
-    {
-        config.Emissivity = reader.PerformanceStat(1, config.Emissivity);
-        config.PumpedHeat = reader.PerformanceStat(2, config.PumpedHeat);
-        config.TemperatureFloor = reader.Float(3, config.TemperatureFloor);
-        config.WasteHeat = reader.PerformanceStat(4, config.WasteHeat);
-        config.EnergyUsage = reader.PerformanceStat(5, config.EnergyUsage);
-        config.ThermalMass = reader.PerformanceStat(6, config.ThermalMass);
-    }
-
-    private static void ApplyReactorConfig(ReactorConfig config, BehaviorPayloadReader reader)
-    {
-        config.Charge = reader.PerformanceStat(1, config.Charge);
-        config.Efficiency = reader.PerformanceStat(2, config.Efficiency);
-        config.OverloadEfficiency = reader.PerformanceStat(3, config.OverloadEfficiency);
-        config.ThrottlingFactor = reader.PerformanceStat(4, config.ThrottlingFactor);
-    }
-
-    private static void ApplySensorConfig(SensorConfig config, BehaviorPayloadReader reader)
-    {
-        config.Sensitivity = reader.PerformanceStat(3, config.Sensitivity);
-        config.SensitivityCurve = reader.BezierCurve(4, config.SensitivityCurve);
-        config.PingBoost = reader.PerformanceStat(5, config.PingBoost);
-        config.PingEnergy = reader.PerformanceStat(6, config.PingEnergy);
-        config.PingVisibility = reader.PerformanceStat(7, config.PingVisibility);
-        config.PingRange = reader.PerformanceStat(8, config.PingRange);
-        config.PingCooldown = reader.PerformanceStat(9, config.PingCooldown);
-        config.PingDuration = reader.Float(10, config.PingDuration);
-        config.PingRadiusExponent = reader.Float(11, config.PingRadiusExponent);
-    }
-
-    private static void ApplyStatModifierConfig(StatModifierConfig config, BehaviorPayloadReader reader)
-    {
-        config.Stat = reader.StatReference(1, config.Stat);
-        config.Modifier = reader.PerformanceStat(2, config.Modifier);
-        config.Type = reader.Enum(3, config.Type);
-        config.RequireBehavior = reader.String(4, config.RequireBehavior);
     }
 
     private static void ApplyWeaponConfig(WeaponConfig config, BehaviorPayloadReader reader)

@@ -6,31 +6,6 @@ using System;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 
-[Inspectable]
-public class StatModifierConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public StatReference Stat = new StatReference();
-
-    [Inspectable]
-    public PerformanceStat Modifier = new PerformanceStat();
-
-    [Inspectable]
-    public StatModifierType Type;
-
-    public string RequireBehavior;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new StatModifier(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect consumable)
-    {
-        return new StatModifier(this, consumable);
-    }
-}
-
 [Order(-4)]
 public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwaysUpdatedBehavior
 {
@@ -49,22 +24,26 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     public bool Executed => _executed;
     public int TargetStatCount => _stats?.Length ?? 0;
 
-    public StatModifier(StatModifierConfig data, EquippedItem item) : base(data, item)
+    public StatModifier(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _targetBehaviorKind = data.Stat.Target;
-        _targetStatName = data.Stat.Stat;
-        _modifier = data.Modifier;
-        _type = data.Type;
-        _requiredBehaviorKind = data.RequireBehavior;
+        var stat = definition.StatReference(1, new StatReference());
+        _targetBehaviorKind = stat.Target;
+        _targetStatName = stat.Stat;
+        _modifier = definition.PerformanceStat(2, new PerformanceStat());
+        _type = definition.Enum(3, default(StatModifierType));
+        _requiredBehaviorKind = definition.String(4);
+        RegisterPerformanceStat("Modifier", _modifier);
     }
 
-    public StatModifier(StatModifierConfig data, ConsumableItemEffect item) : base(data, item)
+    public StatModifier(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _targetBehaviorKind = data.Stat.Target;
-        _targetStatName = data.Stat.Stat;
-        _modifier = data.Modifier;
-        _type = data.Type;
-        _requiredBehaviorKind = data.RequireBehavior;
+        var stat = definition.StatReference(1, new StatReference());
+        _targetBehaviorKind = stat.Target;
+        _targetStatName = stat.Stat;
+        _modifier = definition.PerformanceStat(2, new PerformanceStat());
+        _type = definition.Enum(3, default(StatModifierType));
+        _requiredBehaviorKind = definition.String(4);
+        RegisterPerformanceStat("Modifier", _modifier);
     }
 
     public void Initialize()

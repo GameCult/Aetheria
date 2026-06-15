@@ -247,6 +247,51 @@ public sealed class RuntimeBehaviorDefinition
         return _fields.TryGetValue(key, out var value) ? ToPerformanceStat(value) : fallback;
     }
 
+    public BezierCurve BezierCurve(int key, BezierCurve fallback)
+    {
+        if (!_fields.TryGetValue(key, out var value))
+        {
+            return fallback;
+        }
+
+        return new BezierCurve
+        {
+            Keys = value.Children.Count > 0
+                ? value.Children[0].Children.Select(ToFloat4).ToArray()
+                : Array.Empty<float4>()
+        };
+    }
+
+    public StatReference StatReference(int key, StatReference fallback)
+    {
+        if (!_fields.TryGetValue(key, out var value))
+        {
+            return fallback;
+        }
+
+        return new StatReference
+        {
+            Target = ChildString(value, 1),
+            Stat = ChildString(value, 2)
+        };
+    }
+
+    public T Enum<T>(int key, T fallback) where T : struct
+    {
+        if (!_fields.TryGetValue(key, out var value))
+        {
+            return fallback;
+        }
+
+        if (!string.IsNullOrWhiteSpace(value.StringValue) &&
+            System.Enum.TryParse(value.StringValue, true, out T parsed))
+        {
+            return parsed;
+        }
+
+        return (T)System.Enum.ToObject(typeof(T), checked((int)value.NumberValue));
+    }
+
     private static PerformanceStat ToPerformanceStat(AetheriaRuntimeBehaviorValue value)
     {
         return new PerformanceStat
@@ -259,9 +304,19 @@ public sealed class RuntimeBehaviorDefinition
         };
     }
 
+    private static float4 ToFloat4(AetheriaRuntimeBehaviorValue value)
+    {
+        return new float4(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
+    }
+
     private static float ChildFloat(AetheriaRuntimeBehaviorValue value, int index)
     {
         return value.Children.Count > index ? (float)value.Children[index].NumberValue : 0;
+    }
+
+    private static string ChildString(AetheriaRuntimeBehaviorValue value, int index)
+    {
+        return value.Children.Count > index ? value.Children[index].StringValue ?? "" : "";
     }
 }
 
