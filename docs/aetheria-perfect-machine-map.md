@@ -1021,6 +1021,9 @@ First Aetheria surfaces to publish:
      equipped behavior instances. It now modifies the `PerformanceStat` objects
      actually held by runtime behavior configs instead of rebuilding temporary
      config DTOs from the catalog.
+   - Done: delete the generic `BehaviorPayloadReader.Guid(...)` helper from
+     `ItemManager`; migrated behavior payload legacy-ID fields now cross the
+     runtime bridge only through the explicit `ItemKey(...)` projection.
    - Done: move `StatModifier` behavior kind/family matching onto
      `AetheriaRuntimeBehaviorMetadataCatalog`; the behavior only normalizes
      migrated `*Data` tokens before asking the package-owned metadata owner.

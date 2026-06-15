@@ -106,6 +106,9 @@ The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts
 come from typed catalog rows.
+ItemManager's behavior payload bridge no longer exposes a generic GUID reader;
+migrated legacy-id behavior payload fields cross only through the explicit
+item-key projection helper.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.

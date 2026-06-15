@@ -412,16 +412,11 @@ public class ItemManager
             return _fields.TryGetValue(key, out var value) ? checked((uint)value.NumberValue) : fallback;
         }
 
-        public Guid Guid(int key, Guid fallback = default)
-        {
-            return _fields.TryGetValue(key, out var value) && System.Guid.TryParse(value.LegacyIdValue, out var result)
-                ? result
-                : fallback;
-        }
-
         public string ItemKey(int key, string fallback = "")
         {
-            return Guid(key) is var itemId && itemId != System.Guid.Empty
+            return _fields.TryGetValue(key, out var value) &&
+                   System.Guid.TryParse(value.LegacyIdValue, out var itemId) &&
+                   itemId != System.Guid.Empty
                 ? AetheriaRuntimeItemReference.FromLegacyId(itemId)
                 : fallback;
         }
