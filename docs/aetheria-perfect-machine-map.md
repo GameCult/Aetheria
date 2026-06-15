@@ -1238,6 +1238,9 @@ First Aetheria surfaces to publish:
    - Done: move action-bar consumable bindings off `Target.LegacyId` parsing;
      they read the typed runtime row `ItemKey` directly for HUD fill/count and
      runtime commit projection.
+   - Done: move zone body resource dictionaries from legacy item GUID keys to
+     typed item-key strings; runtime body resource commit projection no longer
+     calls `FromLegacyId`.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host

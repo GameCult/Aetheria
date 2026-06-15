@@ -31,7 +31,7 @@ public abstract class BodyConstructionData : INamedEntry
 
     public float Mass = 0;
 
-    public Dictionary<Guid, float> Resources = new Dictionary<Guid, float>();
+    public Dictionary<string, float> Resources = new Dictionary<string, float>();
 
     public float BodyRadiusMultiplier = 1;
 

@@ -20,7 +20,7 @@ or weapon-group index. They also include current faction relationship rows as
 typed corporation references plus relationship tokens and numeric standings.
 Zone checkpoints include typed orbit and body rows for generated celestial
 state: orbit IDs, parent IDs, distance, phase, fixed positions, body kind,
-resources, gravity/body multipliers, asteroid entries, and gas/sun visual
+typed resource item keys, gravity/body multipliers, asteroid entries, and gas/sun visual
 parameters. Entity checkpoints include typed simulation stat grids for
 temperature, thermal mass, armor, max armor, and hull-conductivity axes.
 Player settings include player name, tutorial flag,

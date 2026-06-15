@@ -124,7 +124,7 @@ public static class ZoneGenerator
 
         blueprint.Bodies = planets.Where(p=>!p.Empty).Select(planet =>
         {
-	        // Dictionary<Guid, float> planetResources = new Dictionary<Guid, float>();
+	        // Dictionary<string, float> planetResources = new Dictionary<string, float>();
 	        BodyType bodyType = planet.Belt ? BodyType.Asteroid :
 		        planet.Mass > zoneSettings.SunMass ? BodyType.Sun :
 		        planet.Mass > zoneSettings.GasGiantMass ? BodyType.GasGiant :

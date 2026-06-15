@@ -370,7 +370,7 @@ public class Planet
     public string Name { get; }
     public Guid OrbitId { get; }
     public float Mass { get; }
-    public IReadOnlyDictionary<Guid, float> Resources { get; }
+    public IReadOnlyDictionary<string, float> Resources { get; }
     public float BodyRadiusMultiplier { get; }
     public float GravityRadiusMultiplier { get; }
     public float GravityDepthMultiplier { get; }
@@ -475,7 +475,7 @@ public class AsteroidBelt
     public string Name { get; }
     public Guid Orbit { get; }
     public float Mass { get; }
-    public IReadOnlyDictionary<Guid, float> Resources { get; }
+    public IReadOnlyDictionary<string, float> Resources { get; }
     public float BodyRadiusMultiplier { get; }
     public float GravityRadiusMultiplier { get; }
     public float GravityDepthMultiplier { get; }

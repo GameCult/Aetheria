@@ -674,7 +674,7 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AetheriaRuntimeBodyResourceCommit
                 {
-                    ItemKey = AetheriaRuntimeItemReference.FromLegacyId(pair.Key),
+                    ItemKey = pair.Key ?? "",
                     Amount = pair.Value
                 })
                 .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
@@ -705,7 +705,7 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AetheriaRuntimeBodyResourceCommit
                 {
-                    ItemKey = AetheriaRuntimeItemReference.FromLegacyId(pair.Key),
+                    ItemKey = pair.Key ?? "",
                     Amount = pair.Value
                 })
                 .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
