@@ -1159,7 +1159,7 @@ First Aetheria surfaces to publish:
      has `0` consumable item rows, so future consumable content still needs
      typed coverage.
    - Done: delete `Entity` consumable activation overloads that accepted
-     `ConsumableItemData`; active lookup uses item ids and activation commands
+     `ConsumableItemData`; active lookup uses item keys and activation commands
      accept typed runtime catalog rows only.
    - Done: delete dead `Entity.GetBehaviorData<T>()` and stale commented
      switch/trigger/axis behavior-query helpers; entity-level behavior queries
@@ -1235,6 +1235,9 @@ First Aetheria surfaces to publish:
    - Done: delete the runtime catalog raw-GUID string fallback and unused
      reverse legacy-GUID projections from `AetheriaRuntimeItemReference`; catalog
      lookup accepts canonical item keys only.
+   - Done: move action-bar consumable bindings off `Target.LegacyId` parsing;
+     they read the typed runtime row `ItemKey` directly for HUD fill/count and
+     runtime commit projection.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host

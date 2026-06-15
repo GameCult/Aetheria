@@ -91,7 +91,9 @@ Cargo inventory indexes, consumable activation lookup, action-bar consumable
 quantity/fill, transfer lookup, trade owned counts, weapon ammo references, and
 item-use behavior references now use item keys. The old cargo/consumable GUID
 lookup overloads and the derived behavior `AmmoType`/`Item` GUID properties
-have been deleted.
+have been deleted. Action-bar consumable bindings now read the target `ItemKey`
+directly from typed runtime catalog rows instead of reconstructing it from
+legacy item IDs.
 Unity runtime commit DTOs carry typed `ItemKey`/`HullItemKey` fields only for
 loadout items, action-bar targets, body resources, entity hulls, and active
 consumables; the commit applier no longer reconstructs item keys from legacy

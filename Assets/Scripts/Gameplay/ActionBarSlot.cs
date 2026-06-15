@@ -94,8 +94,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
         else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Duration;
     }
 
-    public string TargetItemKey =>
-        Guid.TryParse(Target?.LegacyId, out var legacyId) ? AetheriaRuntimeItemReference.FromLegacyId(legacyId) : "";
+    public string TargetItemKey => Target?.ItemKey ?? "";
 
 }
 
