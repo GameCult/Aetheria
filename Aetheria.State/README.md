@@ -125,10 +125,10 @@ The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts
 come from typed catalog rows.
-ItemManager's behavior payload bridge no longer exposes a generic GUID reader
-or item GUID projection helper. Migrated legacy-id behavior payload fields carry
-`LegacyIdValue` as provenance/backfill only; gameplay item behavior config reads
-the typed `ItemKeyValue` emitted by import/runtime projection.
+ItemManager's behavior construction no longer exposes a generic GUID reader or
+item GUID projection helper. Migrated legacy-id behavior payload fields carry
+`LegacyIdValue` as provenance/backfill only; gameplay item behavior reads the
+typed `ItemKeyValue` emitted by import/runtime projection.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.
@@ -142,8 +142,8 @@ base names no longer appear in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 live Unity source no longer carries `LegacyPayloadKeyAttribute` either.
 Catalog import and migration readers own deterministic legacy field layout
-through explicit key maps, while runtime behavior config construction uses an
-explicit typed behavior-kind mapper.
+through explicit key maps, while runtime behavior construction uses an explicit
+typed behavior-kind mapper.
 Agent task DTOs no longer inherit the item projection base; they are local
 runtime AI work orders until a typed Verse task document exists.
 

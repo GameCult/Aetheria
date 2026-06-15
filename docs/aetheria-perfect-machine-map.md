@@ -749,9 +749,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: continue collapsing the temporary typed behavior-config bridge
-  into native typed behavior factories, then remove old MessagePack catalog
-  metadata from live Unity source once import-only migration no longer needs it.
+- Deletion line: keep old MessagePack/catalog metadata quarantined at import or
+  typed CultCache transport boundaries only. Delete or quarantine any remaining
+  live Unity predicates that still need legacy DTO vocabulary, and replace
+  operator/runtime UI truth with Eve surfaces rather than parallel status
+  widgets.
 
 ## Intended Change
 
@@ -1627,9 +1629,11 @@ First Aetheria surfaces to publish:
 
 ## Immediate Cut Line
 
-Do not add behavior to `ItemData` or resurrect `RuntimeItemProjectionEntry`. The typed
-state spine and migration quarantine exist; the next cuts should replace the
-surviving behavior DTO projection bridge with typed behavior factories and Eve
-surfaces. Any predicate that still needs legacy DTO objects must earn that
-dependency by using behavior objects or simulation-only methods that typed
-facets do not yet expose.
+Do not add behavior to `ItemData` or resurrect `RuntimeItemProjectionEntry`.
+The typed state spine, direct behavior factories, and migration quarantine
+exist; the next cuts should remove remaining live predicates that still need
+legacy DTO vocabulary, keep package-level MessagePack/JSON at explicit
+boundaries, and replace runtime/operator UI truth with Eve surfaces. Any
+predicate that still needs legacy DTO objects must earn that dependency by
+using behavior objects or simulation-only methods that typed facets do not yet
+expose.
