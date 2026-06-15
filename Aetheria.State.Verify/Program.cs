@@ -14,6 +14,7 @@ RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
 RequirePropertiesPanelReadOnlyInspector(root);
+RequireRuntimeSimulationTuningCommits(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -457,6 +458,7 @@ Console.WriteLine("Renderer-local console authority: deleted; UI commands flow t
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
 Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
+Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -746,6 +748,57 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
         throw new InvalidOperationException(
             "PropertiesPanel reflection inspection still has renderer-local write authority: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireRuntimeSimulationTuningCommits(string root)
+{
+    var requiredActionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(requiredActionGameManagerPath)
+        ? File.ReadAllText(requiredActionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify runtime simulation tuning authority; ActionGameManager.cs is missing.");
+
+    var requiredCommitMethods = new[]
+    {
+        "CommitEntityOverrideShutdown",
+        "CommitEquippedItemOverrideShutdown",
+        "CommitThermotoggleTargetTemperature",
+        "CommitEntityShutdownPerformance"
+    };
+
+    var missingMethods = requiredCommitMethods
+        .Where(method => !actionGameManager.Contains(method, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingMethods.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime simulation tuning commit methods are missing from ActionGameManager: " +
+            string.Join(", ", missingMethods));
+    }
+
+    var forbiddenUiWrites = new[]
+    {
+        "EquippableItem.OverrideShutdown =",
+        "thermotoggle.TargetTemperature =",
+        "Settings.ShutdownPerformance =",
+        "CurrentEntity.OverrideShutdown ="
+    };
+
+    var uiRoot = Path.Combine(root, "Assets", "Scripts", "UI");
+    var hits = Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenUiWrites.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime simulation tuning still has renderer-local UI write authority: " +
+            string.Join("; ", hits));
     }
 }
 

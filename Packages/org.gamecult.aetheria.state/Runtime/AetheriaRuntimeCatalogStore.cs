@@ -770,7 +770,8 @@ namespace GameCult.Aetheria.State.Unity
                 var durability = ReadFieldDouble(ref reader, slotFields, 3, 1);
                 var quantity = ReadFieldInt32(ref reader, slotFields, 4);
                 var enabled = ReadFieldBool(ref reader, slotFields, 5, true);
-                SkipRemaining(ref reader, slotFields, 6);
+                var overrideShutdown = ReadFieldBool(ref reader, slotFields, 6);
+                SkipRemaining(ref reader, slotFields, 7);
                 slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(
                     position.X,
                     position.Y,
@@ -778,7 +779,8 @@ namespace GameCult.Aetheria.State.Unity
                     quality,
                     durability,
                     quantity <= 0 ? 1 : quantity,
-                    enabled);
+                    enabled,
+                    overrideShutdown);
             }
 
             return slots;
@@ -1228,13 +1230,14 @@ namespace GameCult.Aetheria.State.Unity
             var durability = ReadFieldDouble(ref reader, itemFields, 2, 1);
             var quantity = ReadFieldInt32(ref reader, itemFields, 3);
             var enabled = ReadFieldBool(ref reader, itemFields, 4, true);
-            SkipRemaining(ref reader, itemFields, 5);
-            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity, enabled);
+            var overrideShutdown = ReadFieldBool(ref reader, itemFields, 5);
+            SkipRemaining(ref reader, itemFields, 6);
+            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity, enabled, overrideShutdown);
         }
 
         private static AetheriaRuntimeLoadoutItemSnapshot EmptyLoadoutItem()
         {
-            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1, true);
+            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1, true, false);
         }
 
         private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> ReadFieldLoadoutItemSlots(ref MessagePackReader reader, int fields, int index)

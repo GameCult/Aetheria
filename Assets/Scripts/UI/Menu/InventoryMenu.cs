@@ -163,7 +163,7 @@ public class InventoryMenu : MonoBehaviour
                 PropertiesPanel.Clear();
                 PropertiesPanel.AddField("Shutdown Threshold",
                     () => GameManager.CurrentEntity.Settings.ShutdownPerformance,
-                    f => GameManager.CurrentEntity.Settings.ShutdownPerformance = f,
+                    f => GameManager.CommitEntityShutdownPerformance(GameManager.CurrentEntity, f),
                     0,
                     1);
             });

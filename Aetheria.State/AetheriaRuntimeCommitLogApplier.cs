@@ -168,7 +168,8 @@ public static class AetheriaRuntimeCommitLogApplier
             Quality = item.Quality,
             Durability = item.Durability,
             Quantity = item.Quantity,
-            Enabled = item.Enabled
+            Enabled = item.Enabled,
+            OverrideShutdown = item.OverrideShutdown
         };
     }
 
@@ -206,7 +207,8 @@ public static class AetheriaRuntimeCommitLogApplier
                     Quality = item.Quality,
                     Durability = item.Durability,
                     Quantity = item.Quantity,
-                    Enabled = item.Enabled
+                    Enabled = item.Enabled,
+                    OverrideShutdown = item.OverrideShutdown
                 };
             })
             .ToArray();

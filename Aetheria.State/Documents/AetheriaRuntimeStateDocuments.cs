@@ -171,6 +171,9 @@ public sealed class AetheriaLoadoutItem
 
     [Key(4)]
     public bool Enabled { get; set; } = true;
+
+    [Key(5)]
+    public bool OverrideShutdown { get; set; }
 }
 
 [MessagePackObject]
@@ -574,6 +577,9 @@ public sealed class AetheriaEntityItemSlot
 
     [Key(5)]
     public bool Enabled { get; set; } = true;
+
+    [Key(6)]
+    public bool OverrideShutdown { get; set; }
 }
 
 [MessagePackObject]

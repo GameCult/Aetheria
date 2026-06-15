@@ -190,6 +190,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(5)]
         public string ItemKey { get; set; } = "";
+
+        [Key(6)]
+        public bool OverrideShutdown { get; set; }
     }
 
     [MessagePackObject]

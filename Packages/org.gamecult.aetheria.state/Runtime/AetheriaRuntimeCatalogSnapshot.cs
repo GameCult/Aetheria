@@ -685,13 +685,14 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeLoadoutItemSnapshot
     {
-        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity, bool enabled)
+        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity, bool enabled, bool overrideShutdown)
         {
             ItemKey = itemKey;
             Quality = quality;
             Durability = durability;
             Quantity = quantity;
             Enabled = enabled;
+            OverrideShutdown = overrideShutdown;
         }
 
         public string ItemKey { get; }
@@ -699,6 +700,7 @@ namespace GameCult.Aetheria.State.Unity
         public double Durability { get; }
         public int Quantity { get; }
         public bool Enabled { get; }
+        public bool OverrideShutdown { get; }
     }
 
     public sealed class AetheriaRuntimeLoadoutItemSlotSnapshot
@@ -1024,7 +1026,7 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot
     {
-        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity, bool enabled)
+        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity, bool enabled, bool overrideShutdown)
         {
             X = x;
             Y = y;
@@ -1033,6 +1035,7 @@ namespace GameCult.Aetheria.State.Unity
             Durability = durability;
             Quantity = quantity;
             Enabled = enabled;
+            OverrideShutdown = overrideShutdown;
         }
 
         public int X { get; }
@@ -1042,6 +1045,7 @@ namespace GameCult.Aetheria.State.Unity
         public double Durability { get; }
         public int Quantity { get; }
         public bool Enabled { get; }
+        public bool OverrideShutdown { get; }
     }
 
     public sealed class AetheriaRuntimeEntityStatGridSnapshot

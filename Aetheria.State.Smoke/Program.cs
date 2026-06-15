@@ -186,7 +186,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                         ItemKey = AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString(),
                         Quality = 0.95,
                         Durability = 0.8,
-                        Enabled = false
+                        Enabled = false,
+                        OverrideShutdown = true
                     }
                 }
             ],
@@ -211,7 +212,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 Quality = 0.9,
                 Durability = 0.8,
                 Quantity = 1,
-                Enabled = false
+                Enabled = false,
+                OverrideShutdown = true
             }
         ],
         CargoContents =
@@ -612,6 +614,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (loadout?.RootEntity.Hull.ItemKey != AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString() ||
         loadout.RootEntity.Equipment.Length != 1 ||
         loadout.RootEntity.Equipment[0].Item.Enabled ||
+        !loadout.RootEntity.Equipment[0].Item.OverrideShutdown ||
         loadout.RootEntity.WeaponGroups.Length != 1)
     {
         throw new InvalidOperationException("Loadout template did not survive flush/reopen.");
@@ -650,6 +653,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.Equipment[0].Durability != 0.8 ||
         entitySnapshot.Equipment[0].Quantity != 1 ||
         entitySnapshot.Equipment[0].Enabled ||
+        !entitySnapshot.Equipment[0].OverrideShutdown ||
         entitySnapshot.CargoContents.Length != 1 ||
         entitySnapshot.CargoContents[0].Items[0].Item.Quantity != 7 ||
         entitySnapshot.DockingBayAssignments.Length != 1 ||

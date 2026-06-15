@@ -526,7 +526,8 @@ public class ActionGameManager : MonoBehaviour
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1,
-            Enabled = true
+            Enabled = true,
+            OverrideShutdown = item is EquippableItem overrideable && overrideable.OverrideShutdown
         };
     }
 
@@ -1349,7 +1350,8 @@ public class ActionGameManager : MonoBehaviour
             item.Quality,
             item.Durability,
             item.Quantity,
-            item.Enabled);
+            item.Enabled,
+            item.OverrideShutdown);
     }
 
     private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> CreateRuntimeLoadoutItemSlotSnapshots(
@@ -1402,6 +1404,42 @@ public class ActionGameManager : MonoBehaviour
         {
             Debug.LogError($"Failed to queue Aetheria Verse run checkpoint ({reason}): {ex}");
         }
+    }
+
+    public void CommitEntityOverrideShutdown(Entity entity, bool enabled)
+    {
+        if (entity == null)
+            return;
+
+        entity.OverrideShutdown = enabled;
+        QueueRunCheckpoint("entity-override-shutdown");
+    }
+
+    public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
+    {
+        if (item?.EquippableItem == null)
+            return;
+
+        item.EquippableItem.OverrideShutdown = enabled;
+        QueueRunCheckpoint("item-override-shutdown");
+    }
+
+    public void CommitThermotoggleTargetTemperature(Thermotoggle thermotoggle, float targetTemperature)
+    {
+        if (thermotoggle == null)
+            return;
+
+        thermotoggle.TargetTemperature = targetTemperature;
+        QueueRunCheckpoint("thermotoggle-target-temperature");
+    }
+
+    public void CommitEntityShutdownPerformance(Entity entity, float shutdownPerformance)
+    {
+        if (entity?.Settings == null)
+            return;
+
+        entity.Settings.ShutdownPerformance = shutdownPerformance;
+        QueueRunCheckpoint("entity-shutdown-performance");
     }
 
     private void OnDisable()
@@ -1515,7 +1553,8 @@ public class ActionGameManager : MonoBehaviour
 
         Input.Player.OverrideShutdown.performed += context =>
         {
-            CurrentEntity.OverrideShutdown = !CurrentEntity.OverrideShutdown;
+            if (CurrentEntity != null)
+                CommitEntityOverrideShutdown(CurrentEntity, !CurrentEntity.OverrideShutdown);
         };
 
         Input.Player.Ping.performed += context =>

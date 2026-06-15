@@ -622,7 +622,9 @@ public class PropertiesPanel : MonoBehaviour
 		AddEquippableItemProperties(item.EquippableItem, item.Evaluate);
 		AddSpacer();
 		
-		AddField("Override Shutdown", () => item.EquippableItem.OverrideShutdown, b => item.EquippableItem.OverrideShutdown = b);
+		AddField("Override Shutdown",
+			() => item.EquippableItem.OverrideShutdown,
+			b => ActionGameManager.Instance?.CommitEquippedItemOverrideShutdown(item, b));
 		
 		foreach (var behavior in item.Behaviors)
 		{
@@ -631,7 +633,7 @@ public class PropertiesPanel : MonoBehaviour
 				case Thermotoggle thermotoggle when thermotoggle.Adjustable:
 					AddField("Target Temperature",
 						() => thermotoggle.TargetTemperature,
-						temp => thermotoggle.TargetTemperature = temp);
+						temp => ActionGameManager.Instance?.CommitThermotoggleTargetTemperature(thermotoggle, temp));
 					break;
 			}
 		}

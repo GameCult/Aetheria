@@ -1368,6 +1368,13 @@ First Aetheria surfaces to publish:
      inspector can still project object fields for display, but `readWrite`
      mode and `FieldInfo.SetValue` mutation are gone; renderer-local object
      edits must become provider-owned typed commands or local simulation code.
+   - Done: route runtime simulation tuning controls through gameplay-owned
+     checkpoint commits. UI fields for entity override shutdown, per-item
+     override shutdown, thermotoggle target temperature, and entity shutdown
+     performance now call `ActionGameManager` commit methods instead of writing
+     simulation objects directly. The item override-shutdown bit is part of the
+     typed loadout/entity item-slot state so the checkpoint spine can see what
+     the simulation sees.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1681,7 +1688,10 @@ exist; the next cuts should remove remaining live predicates that still need
 legacy DTO vocabulary, keep package-level MessagePack/JSON at explicit
 boundaries, and replace runtime/operator UI truth with Eve surfaces. The old
 `PropertiesPanel` reflection inspector is display-only; do not restore writable
-inspection as a shortcut around typed command/state ownership. Any
+inspection as a shortcut around typed command/state ownership. Runtime simulation
+tuning controls may remain temporarily on uGUI only when they delegate to
+gameplay-owned commit methods that queue typed checkpoint state; direct UI
+mutation of entity/item/behavior settings is obsolete authority. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.
