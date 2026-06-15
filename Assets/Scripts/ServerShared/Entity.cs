@@ -404,7 +404,7 @@ public abstract class Entity
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.ItemId)
+            .GroupBy(w => w.Item.EquippableItem.ItemKey)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {

@@ -1349,6 +1349,9 @@ First Aetheria surfaces to publish:
      Unity gameplay, HUD, inventory, trade, ship, and zone helper lookups off
      `ItemId`/`FindItemByLegacyId` detours. Legacy item lookup remains only as
      a catalog/migration compatibility API.
+   - Done: move server-shared weapon grouping, generated loadout previous-item
+     reuse, and hauling task item target identity off derived item GUIDs and
+     onto typed `ItemKey` strings.
    - Done: delete the dead `ItemManager.GetRuntimeItemProjection<T>` bridge
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.

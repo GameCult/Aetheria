@@ -336,9 +336,7 @@ public class LoadoutGenerator
                 var itemRow = previousItems.FirstOrDefault(i => FitsHardpoint(i, hardpoint));
                 var previousItem = itemRow == null
                     ? null
-                    : Guid.TryParse(itemRow.LegacyId, out var previousItemId)
-                        ? entity.Equipment.FirstOrDefault(item => item.EquippableItem.ItemId == previousItemId)
-                        : null;
+                    : entity.Equipment.FirstOrDefault(item => item.EquippableItem.ItemKey == itemRow.ItemKey);
                 itemRow ??= RandomCatalogItem(RuntimeItemCandidateKind.Gear, hardpoint, 2);
                 if (itemRow == null) ItemManager.Log($"No compatible item found for entity {hardpoint.Type} hardpoint!");
                 else
