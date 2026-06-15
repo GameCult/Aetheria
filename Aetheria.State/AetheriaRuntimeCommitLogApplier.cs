@@ -288,8 +288,8 @@ public static class AetheriaRuntimeCommitLogApplier
         return (orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
             .Select(orbit => new AetheriaOrbitSnapshot
             {
-                OrbitId = orbit.OrbitLegacyId ?? "",
-                ParentId = orbit.ParentLegacyId ?? "",
+                OrbitId = ReferenceKey(orbit.OrbitKey ?? "", "aetheria.orbit", orbit.OrbitLegacyId ?? ""),
+                ParentId = ReferenceKey(orbit.ParentOrbitKey ?? "", "aetheria.orbit", orbit.ParentLegacyId ?? ""),
                 Distance = orbit.Distance,
                 Phase = orbit.Phase,
                 FixedPosition = new AetheriaVector2
@@ -309,10 +309,10 @@ public static class AetheriaRuntimeCommitLogApplier
         return (bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             .Select(body => new AetheriaBodySnapshot
             {
-                BodyId = body.BodyLegacyId ?? "",
+                BodyId = ReferenceKey(body.BodyKey ?? "", "aetheria.body", body.BodyLegacyId ?? ""),
                 Kind = body.Kind ?? "",
                 Name = body.Name ?? "",
-                OrbitId = body.OrbitLegacyId ?? "",
+                OrbitId = ReferenceKey(body.OrbitKey ?? "", "aetheria.orbit", body.OrbitLegacyId ?? ""),
                 Mass = body.Mass,
                 Resources = ToBodyResources(body.Resources),
                 BodyRadiusMultiplier = body.BodyRadiusMultiplier,

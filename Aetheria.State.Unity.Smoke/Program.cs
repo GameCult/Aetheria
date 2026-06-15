@@ -271,8 +271,8 @@ try
                     {
                         new AetheriaRuntimeOrbitSnapshotCommit
                         {
-                            OrbitLegacyId = "smoke:orbit",
-                            ParentLegacyId = "smoke:parent-orbit",
+                            OrbitKey = "aetheria.orbit:legacy:smoke:orbit",
+                            ParentOrbitKey = "aetheria.orbit:legacy:smoke:parent-orbit",
                             Distance = 100.0,
                             Phase = 0.25,
                             FixedPositionX = 5.0,
@@ -283,10 +283,10 @@ try
                     {
                         new AetheriaRuntimeBodySnapshotCommit
                         {
-                            BodyLegacyId = "smoke:body",
+                            BodyKey = "aetheria.body:legacy:smoke:body",
                             Kind = "asteroid_belt",
                             Name = "Smoke Belt",
-                            OrbitLegacyId = "smoke:orbit",
+                            OrbitKey = "aetheria.orbit:legacy:smoke:orbit",
                             Mass = 42.0,
                             Resources = new[]
                             {
@@ -702,9 +702,12 @@ try
             run.FactionRelationships[0].Standing == 3 &&
             zone?.EntityKeys.Length == 1 &&
             zone.Orbits.Length == 1 &&
-            zone.Orbits[0].OrbitId == "smoke:orbit" &&
+            zone.Orbits[0].OrbitId == "aetheria.orbit:legacy:smoke:orbit" &&
+            zone.Orbits[0].ParentId == "aetheria.orbit:legacy:smoke:parent-orbit" &&
             zone.Orbits[0].FixedPosition.X == 5.0 &&
             zone.Bodies.Length == 1 &&
+            zone.Bodies[0].BodyId == "aetheria.body:legacy:smoke:body" &&
+            zone.Bodies[0].OrbitId == "aetheria.orbit:legacy:smoke:orbit" &&
             zone.Bodies[0].Kind == "asteroid_belt" &&
             zone.Bodies[0].Resources.Length == 1 &&
             zone.Bodies[0].Resources[0].ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
@@ -849,8 +852,12 @@ try
         packageZones[0].Name != "Unity Smoke Zone" ||
         packageZones[0].EntityKeys.Count != 1 ||
         packageZones[0].Orbits.Count != 1 ||
+        packageZones[0].Orbits[0].OrbitId != "aetheria.orbit:legacy:smoke:orbit" ||
+        packageZones[0].Orbits[0].ParentId != "aetheria.orbit:legacy:smoke:parent-orbit" ||
         packageZones[0].Orbits[0].FixedPositionX != 5.0 ||
         packageZones[0].Bodies.Count != 1 ||
+        packageZones[0].Bodies[0].BodyId != "aetheria.body:legacy:smoke:body" ||
+        packageZones[0].Bodies[0].OrbitId != "aetheria.orbit:legacy:smoke:orbit" ||
         packageZones[0].Bodies[0].ResourceCount != 1 ||
         packageZones[0].Bodies[0].AsteroidCount != 1 ||
         packageZones[0].Bodies[0].DamagedAsteroidCount != 1 ||

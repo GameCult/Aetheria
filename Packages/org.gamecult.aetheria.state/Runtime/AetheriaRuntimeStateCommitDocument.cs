@@ -341,6 +341,12 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(5)]
         public double FixedPositionY { get; set; }
+
+        [Key(6)]
+        public string OrbitKey { get; set; } = "";
+
+        [Key(7)]
+        public string ParentOrbitKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -384,6 +390,12 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(12)]
         public AetheriaRuntimeSunVisualCommit SunVisual { get; set; } = new AetheriaRuntimeSunVisualCommit();
+
+        [Key(13)]
+        public string BodyKey { get; set; } = "";
+
+        [Key(14)]
+        public string OrbitKey { get; set; } = "";
     }
 
     [MessagePackObject]

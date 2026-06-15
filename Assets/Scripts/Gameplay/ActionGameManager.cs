@@ -639,8 +639,8 @@ public class ActionGameManager : MonoBehaviour
             .OrderBy(orbit => orbit.ID)
             .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
             {
-                OrbitLegacyId = LegacyId(orbit.ID),
-                ParentLegacyId = LegacyId(orbit.Parent),
+                OrbitKey = OrbitKey(orbit.ID),
+                ParentOrbitKey = OrbitKey(orbit.Parent),
                 Distance = orbit.Distance,
                 Phase = orbit.Phase,
                 FixedPositionX = orbit.FixedPosition.x,
@@ -657,7 +657,7 @@ public class ActionGameManager : MonoBehaviour
         return zone.PlanetInstances.Values
             .Select(planet => ProjectZoneBody(planet))
             .Concat(zone.AsteroidBelts.Values.Select(belt => ProjectZoneBody(zone, belt)))
-            .OrderBy(body => body.BodyLegacyId)
+            .OrderBy(body => body.BodyKey)
             .ToArray();
     }
 
@@ -665,10 +665,10 @@ public class ActionGameManager : MonoBehaviour
     {
         return new AetheriaRuntimeBodySnapshotCommit
         {
-            BodyLegacyId = LegacyId(planet.ID),
+            BodyKey = BodyKey(planet.ID),
             Kind = BodyKind(planet),
             Name = planet.Name,
-            OrbitLegacyId = LegacyId(planet.OrbitId),
+            OrbitKey = OrbitKey(planet.OrbitId),
             Mass = planet.Mass,
             Resources = planet.Resources?
                 .OrderBy(pair => pair.Key)
@@ -696,10 +696,10 @@ public class ActionGameManager : MonoBehaviour
     {
         return new AetheriaRuntimeBodySnapshotCommit
         {
-            BodyLegacyId = LegacyId(belt.ID),
+            BodyKey = BodyKey(belt.ID),
             Kind = "asteroid_belt",
             Name = belt.Name,
-            OrbitLegacyId = LegacyId(belt.Orbit),
+            OrbitKey = OrbitKey(belt.Orbit),
             Mass = belt.Mass,
             Resources = belt.Resources?
                 .OrderBy(pair => pair.Key)
@@ -1268,6 +1268,16 @@ public class ActionGameManager : MonoBehaviour
     private static string CorporationKey(Guid id)
     {
         return id == Guid.Empty ? "" : $"aetheria.corporation:legacy:{id:D}";
+    }
+
+    private static string OrbitKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"aetheria.orbit:legacy:{id:D}";
+    }
+
+    private static string BodyKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"aetheria.body:legacy:{id:D}";
     }
 
     private static int ZoneIndex(GalaxyZone zone)
