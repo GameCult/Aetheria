@@ -168,6 +168,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(11)]
         public IReadOnlyList<AetheriaRuntimeEntityLoadoutCommit> Children { get; set; } = Array.Empty<AetheriaRuntimeEntityLoadoutCommit>();
+
+        [Key(12)]
+        public string FactionKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -279,6 +282,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(2)]
         public double Standing { get; set; }
+
+        [Key(3)]
+        public string FactionKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -610,6 +616,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(35)]
         public string HullItemKey { get; set; } = "";
+
+        [Key(36)]
+        public string FactionKey { get; set; } = "";
     }
 
     [MessagePackObject]

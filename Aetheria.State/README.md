@@ -98,6 +98,10 @@ Unity runtime commit DTOs carry typed `ItemKey`/`HullItemKey` fields only for
 loadout items, action-bar targets, body resources, entity hulls, and active
 consumables; the commit applier no longer reconstructs item keys from legacy
 item GUID fields.
+Unity runtime commit DTOs now also carry typed `FactionKey` for loadout
+entities, run entity snapshots, and faction relationship state. The old
+`CorporationLegacyId` fields remain compatibility-only for older pending
+commits; current Unity projection does not write them.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

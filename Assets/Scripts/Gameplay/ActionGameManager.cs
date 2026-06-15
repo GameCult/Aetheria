@@ -472,7 +472,7 @@ public class ActionGameManager : MonoBehaviour
         {
             Name = blueprint.Name ?? "",
             Kind = blueprint is ShipConstructionBlueprint ? "ship" : blueprint is OrbitalEntityConstructionBlueprint ? "orbital" : "entity",
-            CorporationLegacyId = blueprint.Faction == Guid.Empty ? "" : blueprint.Faction.ToString("D"),
+            FactionKey = CorporationKey(blueprint.Faction),
             Hull = ProjectLoadoutItem(blueprint.Hull),
             Equipment = ProjectSlots(blueprint.Equipment),
             CargoBays = ProjectSlots(blueprint.CargoBays),
@@ -598,7 +598,7 @@ public class ActionGameManager : MonoBehaviour
             .OrderBy(pair => pair.Key.ID)
             .Select(pair => new AetheriaRuntimeFactionRelationshipCommit
             {
-                CorporationLegacyId = pair.Key.ID == Guid.Empty ? "" : pair.Key.ID.ToString("D"),
+                FactionKey = CorporationKey(pair.Key.ID),
                 Relationship = pair.Value.ToString(),
                 Standing = (int)pair.Value
             })
@@ -818,7 +818,7 @@ public class ActionGameManager : MonoBehaviour
             TractorPower = entity.TractorPower,
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
-            CorporationLegacyId = entity.Faction?.ID.ToString("D") ?? "",
+            FactionKey = CorporationKey(entity.Faction?.ID ?? Guid.Empty),
             HullItemKey = entity.Hull?.ItemKey ?? "",
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
@@ -1265,6 +1265,11 @@ public class ActionGameManager : MonoBehaviour
         return id == Guid.Empty ? "" : id.ToString("D");
     }
 
+    private static string CorporationKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"aetheria.corporation:legacy:{id:D}";
+    }
+
     private static int ZoneIndex(GalaxyZone zone)
     {
         return CurrentGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(CurrentGalaxy.Zones, zone);
@@ -1312,7 +1317,7 @@ public class ActionGameManager : MonoBehaviour
         return new AetheriaRuntimeEntityLoadoutSnapshot(
             entity.Name ?? "",
             entity.Kind ?? "",
-            ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
             CreateRuntimeLoadoutItemSnapshot(entity.Hull),
             CreateRuntimeLoadoutItemSlotSnapshots(entity.Equipment),
             CreateRuntimeLoadoutItemSlotSnapshots(entity.CargoBays),
@@ -1362,7 +1367,7 @@ public class ActionGameManager : MonoBehaviour
 
     private static string ReferenceKey(string prefix, string legacyId)
     {
-        return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{prefix}:{legacyId}";
+        return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{prefix}:legacy:{legacyId}";
     }
 
     private static string ReferenceKey(string typedKey, string prefix, string legacyId)

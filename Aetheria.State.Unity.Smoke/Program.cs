@@ -177,7 +177,7 @@ try
             {
                 Name = "Unity Smoke Ship",
                 Kind = "ship",
-                CorporationLegacyId = "smoke:faction",
+                FactionKey = "aetheria.corporation:legacy:smoke:faction",
                 Hull = new AetheriaRuntimeLoadoutItemCommit
                 {
                     ItemKey = "aetheria.item_definition:legacy:smoke:hull",
@@ -252,7 +252,7 @@ try
             {
                 new AetheriaRuntimeFactionRelationshipCommit
                 {
-                    CorporationLegacyId = "smoke:faction",
+                    FactionKey = "aetheria.corporation:legacy:smoke:faction",
                     Relationship = "Friendly",
                     Standing = 3
                 }
@@ -334,6 +334,7 @@ try
                             PositionZ = 3.0,
                             DirectionX = 0.0,
                             DirectionY = 1.0,
+                            FactionKey = "aetheria.corporation:legacy:smoke:faction",
                             VelocityX = 4.0,
                             VelocityY = -2.0,
                             TargetEntityIndex = 0,
@@ -678,6 +679,7 @@ try
             settings.Input.ActionBarInputs.Length == 1 &&
             loadout?.Name == "Unity Smoke Loadout" &&
             loadout.RootEntity.Hull.ItemKey == "aetheria.item_definition:legacy:smoke:hull" &&
+            loadout.RootEntity.FactionKey == "aetheria.corporation:legacy:smoke:faction" &&
             loadout.RootEntity.Equipment.Length == 1 &&
             loadout.RootEntity.Equipment[0].Position.X == 1 &&
             !loadout.RootEntity.Equipment[0].Item.Enabled &&
@@ -713,6 +715,7 @@ try
             zone.Bodies[0].Asteroids[0].MiningAccumulators[0].MinerEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
             zone.Bodies[0].Asteroids[0].MiningAccumulators[0].Amount == 0.75 &&
             entity?.Equipment.Length == 1 &&
+            entity.FactionKey == "aetheria.corporation:legacy:smoke:faction" &&
             entity.Equipment[0].Quality == 0.9 &&
             entity.Equipment[0].Durability == 0.8 &&
             entity.Equipment[0].Quantity == 1 &&
@@ -830,6 +833,7 @@ try
         packageSettings.ActionBarInputs.Count != 1 ||
         packageLoadouts.Count != 1 ||
         packageLoadouts[0].RootEntity.Hull.ItemKey != "aetheria.item_definition:legacy:smoke:hull" ||
+        packageLoadouts[0].RootEntity.FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
         packageLoadouts[0].RootEntity.Equipment[0].X != 1 ||
         packageLoadouts[0].RootEntity.Equipment[0].Item.Enabled ||
         packageLoadouts[0].RootEntity.CargoContents[0].Items[0].Item.Quantity != 5 ||
@@ -854,6 +858,7 @@ try
         packageZones[0].Bodies[0].AsteroidMiningAccumulatorCount != 1 ||
         packageEntities.Count != 1 ||
         packageEntities[0].Name != "Unity Smoke Ship" ||
+        packageEntities[0].FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
         packageEntities[0].Equipment[0].Quality != 0.9 ||
         packageEntities[0].Equipment[0].Durability != 0.8 ||
         packageEntities[0].Equipment[0].Quantity != 1 ||

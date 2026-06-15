@@ -144,7 +144,7 @@ public static class AetheriaRuntimeCommitLogApplier
         {
             Name = entity.Name ?? "",
             Kind = entity.Kind ?? "",
-            FactionKey = ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            FactionKey = ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
             Hull = ToLoadoutItem(entity.Hull),
             Equipment = ToItemSlots(entity.Equipment),
             CargoBays = ToItemSlots(entity.CargoBays),
@@ -463,7 +463,7 @@ public static class AetheriaRuntimeCommitLogApplier
             TractorPower = entity.TractorPower,
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
-            FactionKey = ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            FactionKey = ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
             HullItemKey = entity.HullItemKey ?? "",
             Equipment = ToEntityItemSlots(entity.Equipment),
             CargoBays = ToEntityItemSlots(entity.CargoBays),
@@ -680,7 +680,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (relationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
             .Select(relationship => new AetheriaFactionRelationshipState
             {
-                FactionKey = ReferenceKey("aetheria.corporation", relationship.CorporationLegacyId ?? ""),
+                FactionKey = ReferenceKey(relationship.FactionKey ?? "", "aetheria.corporation", relationship.CorporationLegacyId ?? ""),
                 Relationship = relationship.Relationship ?? "",
                 Standing = relationship.Standing
             })
