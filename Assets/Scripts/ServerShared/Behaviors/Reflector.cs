@@ -27,21 +27,21 @@ public class ReflectorConfig : RuntimeBehaviorConfig
 
 public class Reflector : Behavior
 {
-    private ReflectorConfig _data;
+    private readonly PerformanceStat _crossSection;
 
     public Reflector(ReflectorConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _crossSection = data.CrossSection;
     }
 
     public Reflector(ReflectorConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _crossSection = data.CrossSection;
     }
 
     public override bool Execute(float dt)
     {
-        Entity.VisibilitySources[this] = Evaluate(_data.CrossSection) * Entity.Zone.GetLight(Entity.Position.xz);
+        Entity.VisibilitySources[this] = Evaluate(_crossSection) * Entity.Zone.GetLight(Entity.Position.xz);
 
         return true;
     }

@@ -25,20 +25,20 @@ public class VisibilityConfig : RuntimeBehaviorConfig
 
 public class Visibility : Behavior
 {
-    private VisibilityConfig _data;
+    private readonly PerformanceStat _visibility;
 
     public Visibility(VisibilityConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _visibility = data.Visibility;
     }
     public Visibility(VisibilityConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _visibility = data.Visibility;
     }
 
     public override bool Execute(float dt)
     {
-        Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+        Entity.VisibilitySources[this] = Evaluate(_visibility);
         return true;
     }
 }

@@ -21,24 +21,24 @@ public class ItemUsageConfig : RuntimeBehaviorConfig
 
 public class ItemUsage : Behavior
 {
-    private ItemUsageConfig _data;
+    private readonly string _itemKey;
 
     public ItemUsage(ItemUsageConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _itemKey = data.ItemKey;
     }
 
     public ItemUsage(ItemUsageConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _itemKey = data.ItemKey;
     }
 
     public override bool Execute(float dt)
     {
-        var cargo = Entity.FindItemInCargo(_data.ItemKey);
+        var cargo = Entity.FindItemInCargo(_itemKey);
         if (cargo == null) return false;
 
-        var item = cargo.GetFirstItem(_data.ItemKey);
+        var item = cargo.GetFirstItem(_itemKey);
         if (item is SimpleCommodity simpleCommodity)
             cargo.Remove(simpleCommodity, 1);
         if (item is CraftedItemInstance craftedItemInstance)

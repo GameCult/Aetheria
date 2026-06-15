@@ -24,20 +24,20 @@ public class WearConfig : RuntimeBehaviorConfig
 
 public class Wear : Behavior
 {
-    private WearConfig _data;
+    private readonly bool _perSecond;
 
     public Wear(WearConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _perSecond = data.PerSecond;
     }
     public Wear(WearConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _perSecond = data.PerSecond;
     }
 
     public override bool Execute(float dt)
     {
-        CauseWearDamage(_data.PerSecond ? dt : 1);
+        CauseWearDamage(_perSecond ? dt : 1);
         return true;
     }
 }

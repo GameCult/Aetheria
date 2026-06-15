@@ -26,23 +26,23 @@ public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }
 
-    private VelocityLimitConfig _data;
+    private readonly PerformanceStat _topSpeed;
 
     public VelocityLimit(VelocityLimitConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
-        Limit = Evaluate(_data.TopSpeed);
+        _topSpeed = data.TopSpeed;
+        Limit = Evaluate(_topSpeed);
     }
 
     public VelocityLimit(VelocityLimitConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
-        Limit = Evaluate(_data.TopSpeed);
+        _topSpeed = data.TopSpeed;
+        Limit = Evaluate(_topSpeed);
     }
 
     public override bool Execute(float dt)
     {
-        Limit = Evaluate(_data.TopSpeed);
+        Limit = Evaluate(_topSpeed);
         if (length(Entity.Velocity) > Limit)
             Entity.Velocity = normalize(Entity.Velocity) * Limit;
         return true;

@@ -21,20 +21,20 @@ public class VelocityConversionConfig : RuntimeBehaviorConfig
 
 public class VelocityConversion : Behavior
 {
-    private VelocityConversionConfig _data;
+    private readonly PerformanceStat _lambda;
 
     public VelocityConversion(VelocityConversionConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _lambda = data.Lambda;
     }
     public VelocityConversion(VelocityConversionConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _lambda = data.Lambda;
     }
 
     public override bool Execute(float dt)
     {
-        Entity.Velocity = AetheriaMath.Damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_data.Lambda), dt);
+        Entity.Velocity = AetheriaMath.Damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_lambda), dt);
         return true;
     }
 }
