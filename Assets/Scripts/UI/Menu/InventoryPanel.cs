@@ -483,23 +483,23 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 //                        Debug.Log($"Clicked at pos {data.position}, normalized {point}");
                         if (_displayedHullShape[int2(v.x - 1, v.y)] && point.x < ThermalToggleRegionSize)
                         {
-                            entity.HullConductivity[v.x - 1, v.y].x = !entity.HullConductivity[v.x - 1, v.y].x;
-                            RefreshCells(new []{v,int2(v.x - 1, v.y)});
+                            if (GameManager.CommitHullConductivityToggle(entity, int2(v.x - 1, v.y), 0))
+                                RefreshCells(new []{v,int2(v.x - 1, v.y)});
                         }
                         if (_displayedHullShape[int2(v.x + 1, v.y)] && point.x > 1 - ThermalToggleRegionSize)
                         {
-                            entity.HullConductivity[v.x, v.y].x = !entity.HullConductivity[v.x, v.y].x;
-                            RefreshCells(new []{v,int2(v.x + 1, v.y)});
+                            if (GameManager.CommitHullConductivityToggle(entity, int2(v.x, v.y), 0))
+                                RefreshCells(new []{v,int2(v.x + 1, v.y)});
                         }
                         if (_displayedHullShape[int2(v.x, v.y - 1)] && point.y < ThermalToggleRegionSize)
                         {
-                            entity.HullConductivity[v.x, v.y - 1].y = !entity.HullConductivity[v.x, v.y - 1].y;
-                            RefreshCells(new []{v,int2(v.x, v.y - 1)});
+                            if (GameManager.CommitHullConductivityToggle(entity, int2(v.x, v.y - 1), 1))
+                                RefreshCells(new []{v,int2(v.x, v.y - 1)});
                         }
                         if (_displayedHullShape[int2(v.x, v.y + 1)] && point.y > 1 - ThermalToggleRegionSize)
                         {
-                            entity.HullConductivity[v.x, v.y].y = !entity.HullConductivity[v.x, v.y].y;
-                            RefreshCells(new []{v,int2(v.x, v.y + 1)});
+                            if (GameManager.CommitHullConductivityToggle(entity, int2(v.x, v.y), 1))
+                                RefreshCells(new []{v,int2(v.x, v.y + 1)});
                         }
                     });
                 }

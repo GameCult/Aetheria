@@ -1442,6 +1442,30 @@ public class ActionGameManager : MonoBehaviour
         QueueRunCheckpoint("entity-shutdown-performance");
     }
 
+    public bool CommitHullConductivityToggle(Entity entity, int2 position, int axis)
+    {
+        if (entity?.HullConductivity == null ||
+            position.x < 0 ||
+            position.y < 0 ||
+            position.x >= entity.HullConductivity.GetLength(0) ||
+            position.y >= entity.HullConductivity.GetLength(1) ||
+            axis < 0 ||
+            axis > 1)
+        {
+            return false;
+        }
+
+        var conductivity = entity.HullConductivity[position.x, position.y];
+        if (axis == 0)
+            conductivity.x = !conductivity.x;
+        else
+            conductivity.y = !conductivity.y;
+
+        entity.HullConductivity[position.x, position.y] = conductivity;
+        QueueRunCheckpoint("hull-conductivity-toggle");
+        return true;
+    }
+
     private void OnDisable()
     {
         Input.Dispose();

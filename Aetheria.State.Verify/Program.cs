@@ -15,6 +15,7 @@ RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireRuntimeSimulationTuningCommits(root);
+RequireHullConductivityCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -459,6 +460,7 @@ Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester autho
 Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
 Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
+Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -798,6 +800,40 @@ static void RequireRuntimeSimulationTuningCommits(string root)
     {
         throw new InvalidOperationException(
             "Runtime simulation tuning still has renderer-local UI write authority: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireHullConductivityCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify hull conductivity authority; ActionGameManager.cs is missing.");
+
+    if (!actionGameManager.Contains("CommitHullConductivityToggle", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("QueueRunCheckpoint(\"hull-conductivity-toggle\")", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Hull conductivity no longer has a gameplay-owned checkpoint commit primitive.");
+    }
+
+    var uiRoot = Path.Combine(root, "Assets", "Scripts", "UI");
+    var hits = Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line =>
+            line.Line.Contains("HullConductivity[", StringComparison.Ordinal) &&
+            line.Line.Contains("=", StringComparison.Ordinal) &&
+            !line.Line.Contains("=>", StringComparison.Ordinal))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Hull conductivity still has renderer-local UI write authority: " +
             string.Join("; ", hits));
     }
 }

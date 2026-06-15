@@ -1375,6 +1375,11 @@ First Aetheria surfaces to publish:
      simulation objects directly. The item override-shutdown bit is part of the
      typed loadout/entity item-slot state so the checkpoint spine can see what
      the simulation sees.
+   - Done: route hull conductivity toggles through the same gameplay-owned
+     checkpoint spine. `InventoryPanel` requests conductivity edge toggles from
+     `ActionGameManager.CommitHullConductivityToggle`; the gameplay owner mutates
+     `Entity.HullConductivity` and queues the typed run checkpoint that already
+     projects `hull_conductivity_x` and `hull_conductivity_y` grids.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1691,7 +1696,9 @@ boundaries, and replace runtime/operator UI truth with Eve surfaces. The old
 inspection as a shortcut around typed command/state ownership. Runtime simulation
 tuning controls may remain temporarily on uGUI only when they delegate to
 gameplay-owned commit methods that queue typed checkpoint state; direct UI
-mutation of entity/item/behavior settings is obsolete authority. Any
+mutation of entity/item/behavior settings is obsolete authority. Hull
+conductivity changes follow the same rule: UI requests the toggle, gameplay owns
+the grid mutation and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.
