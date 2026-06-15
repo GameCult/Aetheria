@@ -1407,7 +1407,6 @@ public class ActionGameManager : MonoBehaviour
     private void OnDisable()
     {
         Input.Dispose();
-        ConsoleController.ClearCommands();
         EntityInstance.ClearWeaponManagers();
     }
 
@@ -1415,7 +1414,6 @@ public class ActionGameManager : MonoBehaviour
     {
         Instance = this;
         EntityInstance.EffectManagerParent = EffectManagerParent;
-        ConsoleController.MessageReceiver = this;
 
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
         _runtimeStateFilePath = stateBoot.StateFilePath;
@@ -1673,109 +1671,6 @@ public class ActionGameManager : MonoBehaviour
                         slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, i)
                 );
         }
-        
-        ConsoleController.AddCommand("revealzones",
-            _ =>
-            {
-                foreach (var zones in CurrentGalaxy.Zones
-                    .Where(z=>!CurrentGalaxy.DiscoveredZones.Contains(z))
-                    .GroupBy(z=>z.Distance[CurrentGalaxy.Entrance])
-                    .OrderBy(g=>g.Key))
-                {
-                    SectorMap.QueueZoneReveal(zones);
-                }
-            });
-        
-        ConsoleController.AddCommand("trackmissile",
-            _ =>
-            {
-                foreach (var missileManager in FindObjectsByType<GuidedProjectileManager>(FindObjectsSortMode.None))
-                {
-                    missileManager.OnFireGuided.Where(x => x.source == _currentEntity).Take(1).Subscribe(x =>
-                    {
-                        FollowCamera.Follow = x.missile.transform;
-                        FollowCamera.LookAt = x.target;
-                        x.missile.OnKill += () =>
-                        {
-                            FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
-                            FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
-                        };
-                    });
-                }
-            });
-        
-        ConsoleController.AddCommand("spawnturret",
-            _ =>
-            {
-                var nearestFaction = CurrentGalaxy.Factions.MinBy(f => CurrentGalaxy.HomeZones[f].Distance[Zone.GalaxyZone]);
-
-                var loadoutGenerator = IsTutorial ? new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    RuntimeCatalog,
-                    CurrentGalaxy,
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f) : new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    RuntimeCatalog,
-                    CurrentGalaxy, 
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f);
-
-                var turret = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
-                turret.Position.xz = _currentEntity.Position.xz +
-                                     ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-                turret.Zone = Zone;
-                Zone.Entities.Add(turret);
-                turret.Activate();
-            });
-        //Temporary, or not
-        ConsoleController.AddCommand("tow", _ => TowShip());
-
-        // ConsoleController.AddCommand("pingscene",
-        //     _ =>
-        //     {
-        //         var startTime = Time.time;
-        //         Observable.EveryUpdate().TakeWhile(_ => Time.time - startTime < 5).Subscribe(
-        //             _ => Debug.Log($"{(int) (Time.time - startTime)}"),
-        //             () =>
-        //             {
-        //                 var nearestFaction = CurrentSector.Factions.MinBy(f => CurrentSector.HomeZones[f].Distance[Zone.SectorZone]);
-        //                 var nearestFactionHomeZone = CurrentSector.HomeZones[nearestFaction];
-        //                 var factionPresence = nearestFaction.InfluenceDistance - nearestFactionHomeZone.Distance[Zone.SectorZone] + 1;
-        //
-        //                 var loadoutGenerator = new LoadoutGenerator(
-        //                     ref ItemManager.Random,
-        //                     ItemManager,
-        //                     CurrentSector,
-        //                     Zone.SectorZone,
-        //                     nearestFaction,
-        //                     .5f);
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var ship = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
-        //                     ship.Position.xz = _currentEntity.Position.xz +
-        //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     ship.Zone = Zone;
-        //                     Zone.Entities.Add(ship);
-        //                     ship.Activate();
-        //                 }
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var turret = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
-        //                     turret.Position.xz = _currentEntity.Position.xz +
-        //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     turret.Zone = Zone;
-        //                     Zone.Entities.Add(turret);
-        //                     turret.Activate();
-        //                 }
-        //             });
-        //     });
     }
 
     public void BeginDrag(DragObject dragObject)

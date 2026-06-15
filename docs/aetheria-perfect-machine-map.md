@@ -611,8 +611,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The dead story compiled-JSON cache sketch and its SHA helper are deleted;
   story compilation currently reads Ink source directly until a typed Verse
   story/cache document exists.
-- Runtime UI is old Unity UI/uGUI prefabs plus `MonoBehaviour` scripts under
-  `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`.
+- Runtime UI still contains old Unity UI/uGUI prefabs plus `MonoBehaviour`
+  scripts under `Assets/Scripts/UI/` and `Assets/Prefabs/UI/`, but the old
+  renderer-local debug console authority has been deleted. Runtime UI commands
+  must be provider-advertised Eve command documents, not text parsed by a Unity
+  component and invoked directly against gameplay objects.
 - Aetheria already has Unity UIElements support available through
   `com.unity.modules.uielements`. It now imports local staged
   `org.gamecult.eve.surface` and `org.gamecult.eve.unity-uitoolkit` packages:
@@ -1348,7 +1351,13 @@ First Aetheria surfaces to publish:
      surfaces acquire provider-owned handlers.
    - Done: wire the presenter into runtime through `AetheriaEveRuntimeBootstrap`
      so the operations surface mounts as a UI Toolkit surface after scene load.
-   - Replace a concrete uGUI screen with an Eve-owned surface.
+   - Done: delete the concrete uGUI debug console path: `ConsoleView`,
+     `ConsoleController`, the `ARPG.unity` script binding, and
+     `ActionGameManager` debug command registrations. Refresh commands now use
+     the Eve command bridge; future gameplay/editor commands must add
+     provider-owned Eve handlers instead of reintroducing renderer-local text
+     command execution.
+   - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
    - Replace the old IMGUI DB inspector first, because it is closest to state

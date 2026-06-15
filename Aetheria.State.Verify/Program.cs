@@ -10,6 +10,7 @@ var statePath = args.Length > 1
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireEveRuntimeBootstrap(root);
+RequireNoRendererLocalConsole(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -449,6 +450,7 @@ Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
+Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -591,6 +593,53 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         throw new InvalidOperationException(
             "Aetheria Eve presenter no longer queues renderer commands through the typed Eve command log.");
+    }
+}
+
+static void RequireNoRendererLocalConsole(string root)
+{
+    var consoleFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "UI", "ConsoleController.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "ConsoleView.cs")
+    };
+
+    var existingConsoleFiles = consoleFiles
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+
+    if (existingConsoleFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer-local console source files still exist: " +
+            string.Join(", ", existingConsoleFiles));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "ConsoleController",
+        "ConsoleView",
+        "AddCommand("
+    };
+
+    var hits = Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.*", SearchOption.AllDirectories)
+        .Where(path =>
+            path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer-local console authority is still wired in Assets: " +
+            string.Join("; ", hits));
     }
 }
 
