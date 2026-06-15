@@ -106,6 +106,10 @@ Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` for zone orbit/body snapshots. The old `OrbitLegacyId`,
 `ParentLegacyId`, and `BodyLegacyId` fields remain compatibility-only for older
 pending commits; current Unity projection does not write them.
+Behavior-state runtime commits carry typed body keys for resource scanner targets
+and mining tool asteroid belts. The old raw body ID commit fields remain
+compatibility-only for older pending commits; current Unity projection does not
+write them.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

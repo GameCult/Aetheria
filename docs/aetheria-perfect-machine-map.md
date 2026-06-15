@@ -1241,6 +1241,9 @@ First Aetheria surfaces to publish:
    - Done: move zone body resource dictionaries from legacy item GUID keys to
      typed item-key strings; runtime body resource commit projection no longer
      calls `FromLegacyId`.
+   - Done: move resource scanner targets and mining tool asteroid belts to
+     typed body-key runtime commit fields; raw body ID commit fields are now
+     compatibility-only fallback input.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host

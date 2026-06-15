@@ -971,9 +971,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    ResourceScannerTargetBodyId = resourceScanner.ScanTarget == Guid.Empty
-                        ? ""
-                        : resourceScanner.ScanTarget.ToString("D"),
+                    ResourceScannerTargetBodyKey = BodyKey(resourceScanner.ScanTarget),
                     ResourceScannerAsteroidIndex = resourceScanner.Asteroid,
                     ResourceScannerScanTime = resourceScanner.ScanTime,
                     ResourceScannerRange = resourceScanner.Range,
@@ -985,9 +983,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    MiningToolAsteroidBeltId = miningTool.AsteroidBelt == Guid.Empty
-                        ? ""
-                        : miningTool.AsteroidBelt.ToString("D"),
+                    MiningToolAsteroidBeltKey = BodyKey(miningTool.AsteroidBelt),
                     MiningToolAsteroidIndex = miningTool.Asteroid,
                     MiningToolRange = miningTool.Range
                 };

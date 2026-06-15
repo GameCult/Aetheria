@@ -928,5 +928,11 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(54)]
         public bool TurretControllerPredictShots { get; set; }
+
+        [Key(55)]
+        public string ResourceScannerTargetBodyKey { get; set; } = "";
+
+        [Key(56)]
+        public string MiningToolAsteroidBeltKey { get; set; } = "";
     }
 }
