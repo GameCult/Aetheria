@@ -2,11 +2,13 @@ namespace GameCult.Aetheria.State.Unity
 {
     public static class AetheriaRuntimeItemCategories
     {
-        public const string CargoBay = "CargoBayData";
-        public const string Consumable = "ConsumableItemData";
-        public const string DockingBay = "DockingBayData";
-        public const string Gear = "GearData";
-        public const string Hull = "HullData";
-        public const string Weapon = "WeaponItemData";
+        public const string CargoBay = "cargo-bay";
+        public const string Consumable = "consumable";
+        public const string DockingBay = "docking-bay";
+        public const string Gear = "gear";
+        public const string Hull = "hull";
+        public const string Weapon = "weapon";
+        public const string SimpleCommodity = "simple-commodity";
+        public const string CompoundCommodity = "compound-commodity";
     }
 }

@@ -102,10 +102,21 @@ var dockingBayMaxSizeItems = items.Count(item =>
 var describedCorporations = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.Description));
 var corporationNameLinks = corporations.Count(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
 var corporationAllegianceEdges = corporations.Sum(corporation => corporation.Allegiances.Length);
+var legacyDtoCategories = items
+    .Where(item => item.Category.EndsWith("Data", StringComparison.Ordinal))
+    .Select(item => $"{item.Name}:{item.Category}")
+    .ToArray();
 
 if (pricedItems == 0)
 {
     throw new InvalidOperationException("Typed item definitions did not import any prices.");
+}
+
+if (legacyDtoCategories.Length > 0)
+{
+    throw new InvalidOperationException(
+        "Typed item categories still contain legacy DTO class names: " +
+        string.Join(", ", legacyDtoCategories.Take(5)));
 }
 
 if (manufacturedItems == 0)

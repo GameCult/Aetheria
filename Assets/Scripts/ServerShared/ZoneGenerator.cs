@@ -333,12 +333,6 @@ public static class ZoneGenerator
         return blueprint;
 	}
 
-	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)
-	// {
-	// 	return random.NextPowerDistribution(resource.Minimum, resource.Maximum, resource.Exponent,
-	// 		1 / lerp(settings.ResourceDensityMinimum, settings.ResourceDensityMaximum, density));
-	// }
-
 	public static GeneratorPlanet[] GenerateEntities(ZoneGenerationSettings settings, ref Random random, float mass, float radius, float2 fixedPosition)
 	{
 		var root = new GeneratorPlanet

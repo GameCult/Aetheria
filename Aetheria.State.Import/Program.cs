@@ -209,6 +209,17 @@ internal static class LegacyCatalogReader
         [31] = "WeaponItemData"
     };
 
+    private static readonly Dictionary<int, string> ItemCategories = new()
+    {
+        [0] = "simple-commodity",
+        [1] = "compound-commodity",
+        [2] = "gear",
+        [3] = "hull",
+        [29] = "cargo-bay",
+        [30] = "docking-bay",
+        [31] = "weapon"
+    };
+
     private static readonly HashSet<int> ItemUnionKeys = [0, 1, 2, 3, 29, 30, 31];
     private static readonly Dictionary<int, string> HardpointTypes = CreateEnumMap([
         "Hull",
@@ -363,6 +374,8 @@ internal static class LegacyCatalogReader
         var hardpoints = unionKey == 3 ? ReadHardpoints(payload, 23) : [];
         var behaviorKey = unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10;
         var behaviorPayloads = ReadBehaviorPayloads(payload, behaviorKey);
+        var itemCategory = GetItemCategory(unionKey);
+        var isConsumable = itemCategory == "consumable";
         var behaviorKinds = behaviorPayloads
             .Select(behavior => behavior.Kind)
             .Where(kind => !string.IsNullOrWhiteSpace(kind))
@@ -384,7 +397,7 @@ internal static class LegacyCatalogReader
                 ? new AetheriaItemDefinition
                 {
                     Name = name,
-                    Category = unionName,
+                    Category = itemCategory,
                     LegacyId = legacyId,
                     Description = description,
                     Mass = GetDouble(payload, 4),
@@ -408,15 +421,15 @@ internal static class LegacyCatalogReader
                     BehaviorKinds = behaviorKinds,
                     BehaviorCount = behaviorPayloads.Length,
                     MaxStack = unionKey == 0 ? GetInt(payload, 9) : 0,
-                    Stackable = unionName == "ConsumableItemData" && GetBool(payload, 11),
-                    Duration = unionName == "ConsumableItemData" ? GetDouble(payload, 12) : 0,
+                    Stackable = isConsumable && GetBool(payload, 11),
+                    Duration = isConsumable ? GetDouble(payload, 12) : 0,
                     Durability = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 12) : 0,
                     MinimumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 13) : 0,
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
                     ThermalResilience = unionKey is 2 or 3 or 29 or 30 or 31 ? GetPositiveDoubleOrDefault(payload, 18, 1) : 1,
                     AudioStats = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadAudioStats(payload, 22) : [],
-                    EffectivenessCurveKeys = unionName == "ConsumableItemData" ? ReadCurveKeys(payload, 14) : [],
+                    EffectivenessCurveKeys = isConsumable ? ReadCurveKeys(payload, 14) : [],
                     HullPrefab = unionKey == 3 ? GetString(payload, 24) : "",
                     HullGridOffset = unionKey == 3 ? GetDouble(payload, 26) : 0,
                     HullArmor = unionKey == 3 ? GetDouble(payload, 27) : 0,
@@ -689,6 +702,13 @@ internal static class LegacyCatalogReader
             2 or 31 => GetEnumName(payload, 23, HardpointTypes),
             _ => ""
         };
+    }
+
+    private static string GetItemCategory(int unionKey)
+    {
+        return ItemCategories.TryGetValue(unionKey, out var category)
+            ? category
+            : $"legacy-union:{unionKey}";
     }
 
     private static string GetEnumName(

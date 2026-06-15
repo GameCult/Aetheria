@@ -132,6 +132,9 @@ typed `ItemKeyValue` emitted by import/runtime projection.
 Loadout generation now applies typed catalog prefilters for item category,
 hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.
+Typed item definition `Category` values are stable Aetheria tokens such as
+`hull`, `weapon`, `gear`, `cargo-bay`, and `docking-bay`; legacy union class
+names remain migration provenance, not live category predicates.
 The surviving trade menu also applies typed catalog prefilters for row size,
 hardpoint type, and behavior kind before legacy buy actions.
 The old `ItemData`/`EquippableItemData`/`HullData`/`WeaponItemData` DTO

@@ -691,9 +691,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   longer reach back through config objects for behavior identity.
   Runtime item category classification uses package-owned
   `AetheriaRuntimeItemCategories` tokens; gameplay code should not ask C#
-  legacy DTO class names to classify typed catalog rows. The typed state
-  verifier also consumes those package-owned category tokens for consumable and
-  docking-bay coverage checks instead of hardcoding migrated class-name strings.
+  legacy DTO class names to classify typed catalog rows. `Aetheria.State.Import`
+  now materializes stable category tokens such as `hull`, `weapon`, `gear`,
+  `cargo-bay`, and `docking-bay` into typed item documents, while old union
+  names remain migration provenance. The typed state verifier also consumes
+  those package-owned category tokens for consumable and docking-bay coverage
+  checks and rejects item categories ending in `Data`.
   Item/behavior DTO field layout is no longer marked in live Unity source with
   MessagePack or project-owned payload-key attributes. Importer key maps and
   typed runtime payload fields own migrated layout; runtime behavior
@@ -972,6 +975,10 @@ First Aetheria surfaces to publish:
      runtime category checks off `nameof(ConsumableItemData)`,
      `nameof(HullData)`, `nameof(WeaponItemData)`, and scattered raw category
      strings in gameplay/loadout/docking classification.
+   - Done: remap imported item definition `Category` values from legacy union
+     class names to stable typed tokens, regenerate `GameData/aetheria-world.cc`,
+     and add a verifier guard that fails if item categories contain old `*Data`
+     DTO names.
    - Done: delete unused `TradeMenuDebug`; the old debug uGUI trade path no
      longer hydrates typed trade rows back into legacy `ItemData` objects.
    - Done: move surviving trade menu size, hardpoint, and behavior filters onto
