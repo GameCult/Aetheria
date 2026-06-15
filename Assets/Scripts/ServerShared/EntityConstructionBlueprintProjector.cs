@@ -30,6 +30,7 @@ public static class EntityConstructionBlueprintProjector
         blueprint.Hull = entity.Hull;
         blueprint.Name = entity.Name;
         blueprint.Faction = entity.Faction?.ID ?? Guid.Empty;
+        blueprint.FactionKey = entity.Faction?.FactionKey ?? CorporationKey(blueprint.Faction);
         blueprint.Equipment = entity.Equipment.Select(e => (e.Position, e.EquippableItem)).ToArray();
         blueprint.CargoBays = entity.CargoBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
         blueprint.DockingBays = entity.DockingBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
@@ -77,7 +78,7 @@ public static class EntityConstructionBlueprintProjector
     private static void Restore(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint, Entity entity, bool instantiate = false)
     {
         entity.Name = blueprint.Name;
-        entity.Faction = zone?.Galaxy?.ResolveFaction(blueprint.Faction);
+        entity.Faction = ResolveFaction(zone?.Galaxy, blueprint);
         entity.Children = blueprint.Children.Select(c =>
         {
             var child = InstantiateFromBlueprint(itemManager, zone, c, instantiate);
@@ -110,6 +111,18 @@ public static class EntityConstructionBlueprintProjector
             return (items.Select(i => i.GetBehavior<Weapon>()).ToList(), items.ToList());
         }).ToArray();
     }
+
+    private static Faction ResolveFaction(Galaxy galaxy, EntityConstructionBlueprint blueprint)
+    {
+        return galaxy == null
+            ? null
+            : galaxy.ResolveFactionByKey(blueprint.FactionKey) ?? galaxy.ResolveFaction(blueprint.Faction);
+    }
+
+    private static string CorporationKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"aetheria.corporation:legacy:{id:D}";
+    }
 }
 
 public class ShipConstructionBlueprint : EntityConstructionBlueprint
@@ -140,6 +153,7 @@ public abstract class EntityConstructionBlueprint
     public EntityConstructionBlueprint[] Children;
     public EntitySettings Settings;
     public Guid Faction;
+    public string FactionKey;
     public int[][] WeaponGroups;
 
     private int _price;

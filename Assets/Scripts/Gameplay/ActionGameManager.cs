@@ -203,7 +203,8 @@ public class ActionGameManager : MonoBehaviour
             };
 
         blueprint.Name = entity.Name;
-        blueprint.Faction = ParseLegacyGuidFromReferenceKey(entity.FactionKey, "aetheria.corporation");
+        blueprint.FactionKey = entity.FactionKey ?? "";
+        blueprint.Faction = ParseLegacyGuidFromReferenceKey(blueprint.FactionKey, "aetheria.corporation");
         blueprint.Hull = hull;
         blueprint.Equipment = CreateEquippableSlots(entity.Equipment);
         blueprint.CargoBays = CreateEquippableSlots(entity.CargoBays);
@@ -472,7 +473,7 @@ public class ActionGameManager : MonoBehaviour
         {
             Name = blueprint.Name ?? "",
             Kind = blueprint is ShipConstructionBlueprint ? "ship" : blueprint is OrbitalEntityConstructionBlueprint ? "orbital" : "entity",
-            FactionKey = CorporationKey(blueprint.Faction),
+            FactionKey = ReferenceKey(blueprint.FactionKey ?? "", "aetheria.corporation", LegacyId(blueprint.Faction)),
             Hull = ProjectLoadoutItem(blueprint.Hull),
             Equipment = ProjectSlots(blueprint.Equipment),
             CargoBays = ProjectSlots(blueprint.CargoBays),

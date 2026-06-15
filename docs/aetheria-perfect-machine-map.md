@@ -915,9 +915,11 @@ First Aetheria surfaces to publish:
    - Done: move `Galaxy` faction selection and name generation to the typed
      runtime catalog; legacy `Faction`/`NameFile` catalog entries no longer
      decide generated sector factions or zone names.
-   - Done: move entity faction restore to `Galaxy.ResolveFaction`, so legacy
-     `Faction` catalog entries no longer decide runtime faction references
-     after generation.
+   - Done: move entity faction restore to `Galaxy.ResolveFactionByKey` through
+     `EntityConstructionBlueprint.FactionKey`, so typed loadout readback and
+     entity construction resolve corporation identity by typed key first. The
+     old blueprint `Faction` GUID remains compatibility/fallback for callers
+     that have not yet been lowered.
    - Done: move package and canonical manufacturer/corporation/name-file lookup
      to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
      and `NameFileKey`), and move loadout manufacturer-distance weighting to

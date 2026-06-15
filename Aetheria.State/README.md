@@ -102,6 +102,10 @@ Unity runtime commit DTOs now also carry typed `FactionKey` for loadout
 entities, run entity snapshots, and faction relationship state. The old
 `CorporationLegacyId` fields remain compatibility-only for older pending
 commits; current Unity projection does not write them.
+`EntityConstructionBlueprint` also carries `FactionKey` now. Loadout restore and
+entity construction resolve factions by typed key first, with the old GUID
+field kept as compatibility for construction callers that have not yet been
+lowered.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` for zone orbit/body snapshots. The old `OrbitLegacyId`,
 `ParentLegacyId`, and `BodyLegacyId` fields remain compatibility-only for older
