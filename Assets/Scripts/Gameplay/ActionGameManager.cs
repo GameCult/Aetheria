@@ -521,7 +521,6 @@ public class ActionGameManager : MonoBehaviour
 
         return new AetheriaRuntimeLoadoutItemCommit
         {
-            ItemDefinitionLegacyId = item.ItemId == Guid.Empty ? "" : item.ItemId.ToString("D"),
             ItemKey = item.ItemKey,
             Quality = item is CraftedItemInstance crafted ? crafted.Quality : 1.0,
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
@@ -569,7 +568,6 @@ public class ActionGameManager : MonoBehaviour
                 {
                     ControlPath = slot.ControlPath ?? "",
                     Kind = "consumable",
-                    ItemDefinitionLegacyId = consumable.TargetItemDefinitionLegacyId,
                     ItemKey = consumable.TargetItemKey
                 };
             case ActionBarGearBinding gear:
@@ -577,7 +575,6 @@ public class ActionGameManager : MonoBehaviour
                 {
                     ControlPath = slot.ControlPath ?? "",
                     Kind = "gear",
-                    ItemDefinitionLegacyId = gear.TargetItemDefinitionLegacyId,
                     ItemKey = gear.TargetItemKey,
                     EquipmentIndex = gear.EquipmentIndex,
                     BehaviorIndex = gear.BehaviorIndex
@@ -677,7 +674,6 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AetheriaRuntimeBodyResourceCommit
                 {
-                    ItemDefinitionLegacyId = LegacyId(pair.Key),
                     ItemKey = AetheriaRuntimeItemReference.FromLegacyId(pair.Key),
                     Amount = pair.Value
                 })
@@ -709,7 +705,6 @@ public class ActionGameManager : MonoBehaviour
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AetheriaRuntimeBodyResourceCommit
                 {
-                    ItemDefinitionLegacyId = LegacyId(pair.Key),
                     ItemKey = AetheriaRuntimeItemReference.FromLegacyId(pair.Key),
                     Amount = pair.Value
                 })
@@ -824,7 +819,6 @@ public class ActionGameManager : MonoBehaviour
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
             CorporationLegacyId = entity.Faction?.ID.ToString("D") ?? "",
-            HullItemDefinitionLegacyId = entity.Hull?.ItemId == Guid.Empty ? "" : entity.Hull.ItemId.ToString("D"),
             HullItemKey = entity.Hull?.ItemKey ?? "",
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
@@ -1187,7 +1181,6 @@ public class ActionGameManager : MonoBehaviour
         return entity.ActiveConsumables?
             .Select(effect => new AetheriaRuntimeActiveConsumableCommit
             {
-                ItemDefinitionLegacyId = effect.Item?.ItemId == Guid.Empty ? "" : effect.Item.ItemId.ToString("D"),
                 ItemKey = effect.Item?.ItemKey ?? "",
                 Quality = effect.Item?.Quality ?? 1.0,
                 RemainingDuration = effect.RemainingDuration,
@@ -1340,7 +1333,7 @@ public class ActionGameManager : MonoBehaviour
     {
         item ??= new AetheriaRuntimeLoadoutItemCommit();
         return new AetheriaRuntimeLoadoutItemSnapshot(
-            ReferenceKey(item.ItemKey, "aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
+            item.ItemKey ?? "",
             item.Quality,
             item.Durability,
             item.Quantity,

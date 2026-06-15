@@ -15,7 +15,7 @@ The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
 bindings, stat grids, and runtime session documents. Runtime checkpoints
 include current action-bar bindings as stable typed targets: input control
-path, binding kind, item definition reference, equipment index, behavior index,
+path, binding kind, item key, equipment index, behavior index,
 or weapon-group index. They also include current faction relationship rows as
 typed corporation references plus relationship tokens and numeric standings.
 Zone checkpoints include typed orbit and body rows for generated celestial

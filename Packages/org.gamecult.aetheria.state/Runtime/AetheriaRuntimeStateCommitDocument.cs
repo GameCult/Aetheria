@@ -173,9 +173,6 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeLoadoutItemCommit
     {
-        [Key(0)]
-        public string ItemDefinitionLegacyId { get; set; } = "";
-
         [Key(1)]
         public double Quality { get; set; } = 1.0;
 
@@ -257,9 +254,6 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(1)]
         public string Kind { get; set; } = "";
-
-        [Key(2)]
-        public string ItemDefinitionLegacyId { get; set; } = "";
 
         [Key(3)]
         public int EquipmentIndex { get; set; } = -1;
@@ -389,9 +383,6 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeBodyResourceCommit
     {
-        [Key(0)]
-        public string ItemDefinitionLegacyId { get; set; } = "";
-
         [Key(1)]
         public double Amount { get; set; }
 
@@ -542,9 +533,6 @@ namespace GameCult.Aetheria.State.Unity
         [Key(8)]
         public string CorporationLegacyId { get; set; } = "";
 
-        [Key(9)]
-        public string HullItemDefinitionLegacyId { get; set; } = "";
-
         [Key(10)]
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> Equipment { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
 
@@ -659,9 +647,6 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeActiveConsumableCommit
     {
-        [Key(0)]
-        public string ItemDefinitionLegacyId { get; set; } = "";
-
         [Key(1)]
         public double Quality { get; set; } = 1.0;
 

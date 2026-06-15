@@ -164,7 +164,7 @@ public static class AetheriaRuntimeCommitLogApplier
         item ??= new AetheriaRuntimeLoadoutItemCommit();
         return new AetheriaLoadoutItem
         {
-            ItemKey = ReferenceKey(item.ItemKey, "aetheria.item_definition", item.ItemDefinitionLegacyId ?? ""),
+            ItemKey = item.ItemKey ?? "",
             Quality = item.Quality,
             Durability = item.Durability,
             Quantity = item.Quantity,
@@ -332,7 +332,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (resources ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>())
             .Select(resource => new AetheriaBodyResource
             {
-                ItemKey = ReferenceKey(resource.ItemKey, "aetheria.item_definition", resource.ItemDefinitionLegacyId ?? ""),
+                ItemKey = resource.ItemKey ?? "",
                 Amount = resource.Amount
             })
             .ToArray();
@@ -464,7 +464,7 @@ public static class AetheriaRuntimeCommitLogApplier
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
             FactionKey = ReferenceKey("aetheria.corporation", entity.CorporationLegacyId ?? ""),
-            HullItemKey = ReferenceKey(entity.HullItemKey, "aetheria.item_definition", entity.HullItemDefinitionLegacyId ?? ""),
+            HullItemKey = entity.HullItemKey ?? "",
             Equipment = ToEntityItemSlots(entity.Equipment),
             CargoBays = ToEntityItemSlots(entity.CargoBays),
             DockingBays = ToEntityItemSlots(entity.DockingBays),
@@ -624,7 +624,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (consumables ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>())
             .Select(consumable => new AetheriaActiveConsumableSnapshot
             {
-                ItemKey = ReferenceKey(consumable.ItemKey, "aetheria.item_definition", consumable.ItemDefinitionLegacyId ?? ""),
+                ItemKey = consumable.ItemKey ?? "",
                 Quality = consumable.Quality,
                 RemainingDuration = consumable.RemainingDuration,
                 Duration = consumable.Duration
@@ -666,7 +666,7 @@ public static class AetheriaRuntimeCommitLogApplier
             {
                 ControlPath = binding.ControlPath ?? "",
                 Kind = binding.Kind ?? "",
-                TargetKey = ReferenceKey(binding.ItemKey, "aetheria.item_definition", binding.ItemDefinitionLegacyId ?? ""),
+                TargetKey = binding.ItemKey ?? "",
                 EquipmentIndex = binding.EquipmentIndex,
                 BehaviorIndex = binding.BehaviorIndex,
                 WeaponGroup = binding.WeaponGroup

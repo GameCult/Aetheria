@@ -97,8 +97,6 @@ public class ActionBarConsumableBinding : ActionBarBinding
     public string TargetItemKey =>
         Guid.TryParse(Target?.LegacyId, out var legacyId) ? AetheriaRuntimeItemReference.FromLegacyId(legacyId) : "";
 
-    public string TargetItemDefinitionLegacyId => Target?.LegacyId ?? "";
-
 }
 
 public class ActionBarGearBinding : ActionBarBinding
@@ -111,16 +109,6 @@ public class ActionBarGearBinding : ActionBarBinding
     public int EquipmentIndex => Entity?.Equipment?.IndexOf(Item) ?? -1;
 
     public int BehaviorIndex => Item?.Behaviors == null ? -1 : Array.IndexOf(Item.Behaviors, Behavior);
-
-    public string TargetItemDefinitionLegacyId
-    {
-        get
-        {
-            return AetheriaRuntimeItemReference.ToLegacyId(TargetItemKey) is var legacyId && legacyId != Guid.Empty
-                ? legacyId.ToString("D")
-                : "";
-        }
-    }
 
     public string TargetItemKey => Item?.EquippableItem?.ItemKey ?? "";
 

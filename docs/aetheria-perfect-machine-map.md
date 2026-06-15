@@ -496,11 +496,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - The dead Unity `NameFile` projection class has been deleted. Runtime name
   generation reads `AetheriaRuntimeNameFile` records from the typed catalog
   facade; legacy `GameData/NameFile/*.msgpack` remains migration input only.
-- Pending Unity runtime commit envelopes now carry typed item keys for loadout
-  items, action-bar targets, body resources, entity hulls, and active
+- Pending Unity runtime commit envelopes now carry typed item keys only for
+  loadout items, action-bar targets, body resources, entity hulls, and active
   consumables. The older `ItemDefinitionLegacyId` and
-  `HullItemDefinitionLegacyId` fields remain compatibility import/export
-  fields; the applier prefers `ItemKey`/`HullItemKey` whenever present.
+  `HullItemDefinitionLegacyId` fields have been deleted from the pending commit
+  contract; the applier no longer reconstructs item keys from legacy item GUIDs.
   Corporation legacy IDs still translate to typed corporation record keys at
   the commit boundary.
 - Entity restore and loadout manufacturer-distance weighting no longer read
