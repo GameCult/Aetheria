@@ -3,34 +3,18 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Linq;
-[Inspectable, Order(-5)]
-public class ItemUsageConfig : RuntimeBehaviorConfig
-{
-    public string ItemKey;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new ItemUsage(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new ItemUsage(this, item);
-    }
-}
-
 public class ItemUsage : Behavior
 {
     private readonly string _itemKey;
 
-    public ItemUsage(ItemUsageConfig data, EquippedItem item) : base(data, item)
+    public ItemUsage(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _itemKey = data.ItemKey;
+        _itemKey = definition.ItemKey(1);
     }
 
-    public ItemUsage(ItemUsageConfig data, ConsumableItemEffect item) : base(data, item)
+    public ItemUsage(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _itemKey = data.ItemKey;
+        _itemKey = definition.ItemKey(1);
     }
 
     public override bool Execute(float dt)

@@ -6,33 +6,18 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, Order(1000)]
-public class WearConfig : RuntimeBehaviorConfig
-{
-    [InspectableTemperature]
-    public bool PerSecond = true;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Wear(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Wear(this, item);
-    }
-}
-
 public class Wear : Behavior
 {
     private readonly bool _perSecond;
 
-    public Wear(WearConfig data, EquippedItem item) : base(data, item)
+    public Wear(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _perSecond = data.PerSecond;
+        _perSecond = definition.Bool(1, true);
     }
-    public Wear(WearConfig data, ConsumableItemEffect item) : base(data, item)
+
+    public Wear(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _perSecond = data.PerSecond;
+        _perSecond = definition.Bool(1, true);
     }
 
     public override bool Execute(float dt)

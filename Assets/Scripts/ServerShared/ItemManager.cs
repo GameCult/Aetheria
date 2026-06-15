@@ -93,10 +93,19 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, item);
+            case "Cooldown": return new Cooldown(definition, item);
+            case "EnergyDraw": return new EnergyDraw(definition, item);
+            case "Heat": return new Heat(definition, item);
             case "HeatStorage": return new HeatStorage(definition, item);
+            case "ItemUsage": return new ItemUsage(definition, item);
+            case "Reflector": return new Reflector(definition, item);
             case "Switch": return new Switch(definition, item);
             case "Trigger": return new Trigger(definition, item);
             case "TurretController": return new TurretController(definition, item);
+            case "VelocityConversion": return new VelocityConversion(definition, item);
+            case "VelocityLimit": return new VelocityLimit(definition, item);
+            case "Visibility": return new Visibility(definition, item);
+            case "Wear": return new Wear(definition, item);
             default: return null;
         }
     }
@@ -107,10 +116,19 @@ public class ItemManager
         switch (payload.Kind)
         {
             case "Cockpit": return new Cockpit(definition, effect);
+            case "Cooldown": return new Cooldown(definition, effect);
+            case "EnergyDraw": return new EnergyDraw(definition, effect);
+            case "Heat": return new Heat(definition, effect);
             case "HeatStorage": return new HeatStorage(definition, effect);
+            case "ItemUsage": return new ItemUsage(definition, effect);
+            case "Reflector": return new Reflector(definition, effect);
             case "Switch": return new Switch(definition, effect);
             case "Trigger": return new Trigger(definition, effect);
             case "TurretController": return new TurretController(definition, effect);
+            case "VelocityConversion": return new VelocityConversion(definition, effect);
+            case "VelocityLimit": return new VelocityLimit(definition, effect);
+            case "Visibility": return new Visibility(definition, effect);
+            case "Wear": return new Wear(definition, effect);
             default: return null;
         }
     }
@@ -124,27 +142,18 @@ public class ItemManager
             case "Capacitor": return Configure(new CapacitorConfig(), payload, ApplyCapacitorConfig);
             case "ChargedWeapon": return Configure(new ChargedWeaponConfig(), payload, ApplyChargedWeaponConfig);
             case "ConstantWeapon": return Configure(new ConstantWeaponConfig(), payload, ApplyConstantWeaponConfig);
-            case "Cooldown": return Configure(new CooldownConfig(), payload, ApplyCooldownConfig);
-            case "EnergyDraw": return Configure(new EnergyDrawConfig(), payload, ApplyEnergyDrawConfig);
             case "GuidedWeapon": return Configure(new GuidedWeaponConfig(), payload, ApplyGuidedWeaponConfig);
-            case "Heat": return Configure(new HeatConfig(), payload, ApplyHeatConfig);
             case "InstantWeapon": return Configure(new InstantWeaponConfig(), payload, ApplyInstantWeaponConfig);
-            case "ItemUsage": return Configure(new ItemUsageConfig(), payload, ApplyItemUsageConfig);
             case "Launcher": return Configure(new LauncherConfig(), payload, ApplyLauncherConfig);
             case "MiningTool": return Configure(new MiningToolConfig(), payload, ApplyMiningToolConfig);
             case "Radiator": return Configure(new RadiatorConfig(), payload, ApplyRadiatorConfig);
             case "Reactor": return Configure(new ReactorConfig(), payload, ApplyReactorConfig);
-            case "Reflector": return Configure(new ReflectorConfig(), payload, ApplyReflectorConfig);
             case "ResourceScanner": return Configure(new ResourceScannerConfig(), payload, ApplyResourceScannerConfig);
             case "Sensor": return Configure(new SensorConfig(), payload, ApplySensorConfig);
             case "Shield": return Configure(new ShieldConfig(), payload, ApplyShieldConfig);
             case "StatModifier": return Configure(new StatModifierConfig(), payload, ApplyStatModifierConfig);
             case "Thermotoggle": return Configure(new ThermotoggleConfig(), payload, ApplyThermotoggleConfig);
             case "Thruster": return Configure(new ThrusterConfig(), payload, ApplyThrusterConfig);
-            case "VelocityConversion": return Configure(new VelocityConversionConfig(), payload, ApplyVelocityConversionConfig);
-            case "VelocityLimit": return Configure(new VelocityLimitConfig(), payload, ApplyVelocityLimitConfig);
-            case "Visibility": return Configure(new VisibilityConfig(), payload, ApplyVisibilityConfig);
-            case "Wear": return Configure(new WearConfig(), payload, ApplyWearConfig);
             default: return null;
         }
     }
@@ -182,28 +191,6 @@ public class ItemManager
         config.Efficiency = reader.PerformanceStat(2, config.Efficiency);
     }
 
-    private static void ApplyCooldownConfig(CooldownConfig config, BehaviorPayloadReader reader)
-    {
-        config.Cooldown = reader.PerformanceStat(1, config.Cooldown);
-    }
-
-    private static void ApplyEnergyDrawConfig(EnergyDrawConfig config, BehaviorPayloadReader reader)
-    {
-        config.EnergyDraw = reader.PerformanceStat(1, config.EnergyDraw);
-        config.PerSecond = reader.Bool(2, config.PerSecond);
-    }
-
-    private static void ApplyHeatConfig(HeatConfig config, BehaviorPayloadReader reader)
-    {
-        config.Heat = reader.PerformanceStat(1, config.Heat);
-        config.PerSecond = reader.Bool(2, config.PerSecond);
-    }
-
-    private static void ApplyItemUsageConfig(ItemUsageConfig config, BehaviorPayloadReader reader)
-    {
-        config.ItemKey = reader.ItemKey(1, config.ItemKey);
-    }
-
     private static void ApplyMiningToolConfig(MiningToolConfig config, BehaviorPayloadReader reader)
     {
         config.DamagePerSecond = reader.PerformanceStat(1, config.DamagePerSecond);
@@ -228,11 +215,6 @@ public class ItemManager
         config.Efficiency = reader.PerformanceStat(2, config.Efficiency);
         config.OverloadEfficiency = reader.PerformanceStat(3, config.OverloadEfficiency);
         config.ThrottlingFactor = reader.PerformanceStat(4, config.ThrottlingFactor);
-    }
-
-    private static void ApplyReflectorConfig(ReflectorConfig config, BehaviorPayloadReader reader)
-    {
-        config.CrossSection = reader.PerformanceStat(1, config.CrossSection);
     }
 
     private static void ApplyResourceScannerConfig(ResourceScannerConfig config, BehaviorPayloadReader reader)
@@ -283,27 +265,6 @@ public class ItemManager
         config.Heat = reader.PerformanceStat(3, config.Heat);
         config.EnergyUsage = reader.PerformanceStat(4, config.EnergyUsage);
         config.ParticlesPrefab = reader.String(5, config.ParticlesPrefab);
-    }
-
-    private static void ApplyVelocityConversionConfig(VelocityConversionConfig config, BehaviorPayloadReader reader)
-    {
-        config.Lambda = reader.PerformanceStat(1, config.Lambda);
-    }
-
-    private static void ApplyVelocityLimitConfig(VelocityLimitConfig config, BehaviorPayloadReader reader)
-    {
-        config.TopSpeed = reader.PerformanceStat(1, config.TopSpeed);
-    }
-
-    private static void ApplyVisibilityConfig(VisibilityConfig config, BehaviorPayloadReader reader)
-    {
-        config.Visibility = reader.PerformanceStat(1, config.Visibility);
-        config.VisibilityDecay = reader.PerformanceStat(2, config.VisibilityDecay);
-    }
-
-    private static void ApplyWearConfig(WearConfig config, BehaviorPayloadReader reader)
-    {
-        config.PerSecond = reader.Bool(1, config.PerSecond);
     }
 
     private static void ApplyWeaponConfig(WeaponConfig config, BehaviorPayloadReader reader)

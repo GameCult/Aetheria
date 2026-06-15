@@ -325,6 +325,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Cockpit, HeatStorage, Switch, Trigger, and TurretController now bypass
   `RuntimeBehaviorConfig` entirely; `ItemManager` constructs those no-payload
   behavior classes directly from typed runtime behavior definitions.
+  Heat, EnergyDraw, Cooldown, Wear, Visibility, Reflector, VelocityLimit,
+  VelocityConversion, and ItemUsage also bypass the temporary config bridge and
+  read typed behavior fields through `RuntimeBehaviorDefinition`; stat-bearing
+  behaviors register their runtime performance stats explicitly for
+  `StatModifier` rather than relying on config reflection.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
@@ -1458,6 +1463,12 @@ First Aetheria surfaces to publish:
      `ItemManager` now constructs those behavior kinds directly from typed
      runtime behavior definitions rather than routing them through the
      temporary config bridge.
+   - Done: delete the simple field-bearing `HeatConfig`, `EnergyDrawConfig`,
+     `CooldownConfig`, `WearConfig`, `VisibilityConfig`, `ReflectorConfig`,
+     `VelocityLimitConfig`, `VelocityConversionConfig`, and `ItemUsageConfig`
+     classes. `RuntimeBehaviorDefinition` now owns the typed field reads for
+     those behavior kinds, and the live behaviors explicitly register their
+     performance stats for `StatModifier`.
    - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after
      importer constants and explicit typed mappers became the only migrated
      field-key authorities.

@@ -201,6 +201,10 @@ after construction.
 Cockpit, HeatStorage, Switch, Trigger, and TurretController no longer have
 `RuntimeBehaviorConfig` subclasses at all; `ItemManager` constructs them
 directly from typed runtime behavior definitions.
+Heat, EnergyDraw, Cooldown, Wear, Visibility, Reflector, VelocityLimit,
+VelocityConversion, and ItemUsage also bypass the temporary config bridge and
+read typed behavior fields through `RuntimeBehaviorDefinition`, registering
+runtime performance stats explicitly for `StatModifier`.
 `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full

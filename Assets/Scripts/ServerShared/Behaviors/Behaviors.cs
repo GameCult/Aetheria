@@ -95,6 +95,14 @@ public abstract class Behavior
         return false;
     }
 
+    protected void RegisterPerformanceStat(string statName, PerformanceStat stat)
+    {
+        if (!string.IsNullOrWhiteSpace(statName) && stat != null)
+        {
+            _performanceStats[statName] = stat;
+        }
+    }
+
     private static Dictionary<string, PerformanceStat> CapturePerformanceStats(RuntimeBehaviorConfig config)
     {
         return config == null
@@ -186,6 +194,8 @@ public interface IPopulationAssignment
 
 public sealed class RuntimeBehaviorDefinition
 {
+    private readonly IReadOnlyDictionary<int, AetheriaRuntimeBehaviorValue> _fields;
+
     public string Kind { get; }
     public int Group { get; }
 
@@ -193,6 +203,55 @@ public sealed class RuntimeBehaviorDefinition
     {
         Kind = payload?.Kind ?? "";
         Group = payload?.Group ?? 0;
+
+        var fields = new Dictionary<int, AetheriaRuntimeBehaviorValue>();
+        if (payload != null)
+        {
+            foreach (var field in payload.Fields)
+            {
+                if (!fields.ContainsKey(field.Key))
+                {
+                    fields.Add(field.Key, field.Value);
+                }
+            }
+        }
+
+        _fields = fields;
+    }
+
+    public bool Bool(int key, bool fallback = false)
+    {
+        return _fields.TryGetValue(key, out var value) ? value.BoolValue : fallback;
+    }
+
+    public string ItemKey(int key, string fallback = "")
+    {
+        return _fields.TryGetValue(key, out var value) &&
+               !string.IsNullOrWhiteSpace(value.ItemKeyValue)
+            ? value.ItemKeyValue
+            : fallback;
+    }
+
+    public PerformanceStat PerformanceStat(int key, PerformanceStat fallback)
+    {
+        return _fields.TryGetValue(key, out var value) ? ToPerformanceStat(value) : fallback;
+    }
+
+    private static PerformanceStat ToPerformanceStat(AetheriaRuntimeBehaviorValue value)
+    {
+        return new PerformanceStat
+        {
+            Min = ChildFloat(value, 0),
+            Max = ChildFloat(value, 1),
+            HeatExponentMultiplier = ChildFloat(value, 2),
+            DurabilityExponentMultiplier = ChildFloat(value, 3),
+            QualityExponent = ChildFloat(value, 4)
+        };
+    }
+
+    private static float ChildFloat(AetheriaRuntimeBehaviorValue value, int index)
+    {
+        return value.Children.Count > index ? (float)value.Children[index].NumberValue : 0;
     }
 }
 

@@ -4,36 +4,22 @@
 
 using System;
 using System.Linq;
-[Inspectable]
-public class VisibilityConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Visibility = new PerformanceStat();
-
-    [Inspectable]
-    public PerformanceStat VisibilityDecay = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Visibility(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Visibility(this, item);
-    }
-}
-
 public class Visibility : Behavior
 {
     private readonly PerformanceStat _visibility;
 
-    public Visibility(VisibilityConfig data, EquippedItem item) : base(data, item)
+    public Visibility(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _visibility = data.Visibility;
+        _visibility = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Visibility), _visibility);
+        RegisterPerformanceStat("VisibilityDecay", definition.PerformanceStat(2, new PerformanceStat()));
     }
-    public Visibility(VisibilityConfig data, ConsumableItemEffect item) : base(data, item)
+
+    public Visibility(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _visibility = data.Visibility;
+        _visibility = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Visibility), _visibility);
+        RegisterPerformanceStat("VisibilityDecay", definition.PerformanceStat(2, new PerformanceStat()));
     }
 
     public override bool Execute(float dt)

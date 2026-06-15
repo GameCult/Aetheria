@@ -5,22 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class VelocityLimitConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat TopSpeed = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new VelocityLimit(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new VelocityLimit(this, item);
-    }
-}
-
 [Order(100)]
 public class VelocityLimit : Behavior
 {
@@ -28,15 +12,17 @@ public class VelocityLimit : Behavior
 
     private readonly PerformanceStat _topSpeed;
 
-    public VelocityLimit(VelocityLimitConfig data, EquippedItem item) : base(data, item)
+    public VelocityLimit(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _topSpeed = data.TopSpeed;
+        _topSpeed = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat("TopSpeed", _topSpeed);
         Limit = Evaluate(_topSpeed);
     }
 
-    public VelocityLimit(VelocityLimitConfig data, ConsumableItemEffect item) : base(data, item)
+    public VelocityLimit(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _topSpeed = data.TopSpeed;
+        _topSpeed = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat("TopSpeed", _topSpeed);
         Limit = Evaluate(_topSpeed);
     }
 

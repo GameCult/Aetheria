@@ -4,41 +4,23 @@
 
 using System;
 using System.Linq;
-[Inspectable, Order(-20)]
-public class EnergyDrawConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat EnergyDraw = new PerformanceStat();
-
-    [Inspectable]
-    public bool PerSecond;
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new EnergyDraw(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new EnergyDraw(this, item);
-    }
-}
-
 public class EnergyDraw : Behavior
 {
     private readonly PerformanceStat _energyDraw;
     private readonly bool _perSecond;
 
-    public EnergyDraw(EnergyDrawConfig data, EquippedItem item) : base(data, item)
+    public EnergyDraw(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _energyDraw = data.EnergyDraw;
-        _perSecond = data.PerSecond;
+        _energyDraw = definition.PerformanceStat(1, new PerformanceStat());
+        _perSecond = definition.Bool(2);
+        RegisterPerformanceStat(nameof(EnergyDraw), _energyDraw);
     }
 
-    public EnergyDraw(EnergyDrawConfig data, ConsumableItemEffect item) : base(data, item)
+    public EnergyDraw(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _energyDraw = data.EnergyDraw;
-        _perSecond = data.PerSecond;
+        _energyDraw = definition.PerformanceStat(1, new PerformanceStat());
+        _perSecond = definition.Bool(2);
+        RegisterPerformanceStat(nameof(EnergyDraw), _energyDraw);
     }
 
     public override bool Execute(float dt)

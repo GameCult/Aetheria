@@ -7,23 +7,6 @@ using System.Linq;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, Order(-10)]
-public class CooldownConfig : RuntimeBehaviorConfig
-{
-    [Inspectable]
-    public PerformanceStat Cooldown = new PerformanceStat();
-
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Cooldown(this, item);
-    }
-
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Cooldown(this, item);
-    }
-}
-
 public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 {
     private readonly PerformanceStat _cooldownDuration;
@@ -32,14 +15,16 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 
     public float Progress => saturate(_cooldown);
 
-    public Cooldown(CooldownConfig data, EquippedItem item) : base(data, item)
+    public Cooldown(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
-        _cooldownDuration = data.Cooldown;
+        _cooldownDuration = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Cooldown), _cooldownDuration);
     }
 
-    public Cooldown(CooldownConfig data, ConsumableItemEffect item) : base(data, item)
+    public Cooldown(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
-        _cooldownDuration = data.Cooldown;
+        _cooldownDuration = definition.PerformanceStat(1, new PerformanceStat());
+        RegisterPerformanceStat(nameof(Cooldown), _cooldownDuration);
     }
 
     public override bool Execute(float dt)
