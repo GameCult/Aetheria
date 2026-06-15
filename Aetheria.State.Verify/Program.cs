@@ -8,6 +8,7 @@ var statePath = args.Length > 1
     : AetheriaStatePaths.ResolveDefaultStatePath(root);
 
 RequireGameplaySourcePurity(root);
+RequirePackageSerializerBoundary(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -445,6 +446,7 @@ Console.WriteLine($"Described/geoname-linked corporations: {describedCorporation
 Console.WriteLine($"Corporation allegiance edges: {corporationAllegianceEdges}");
 Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
+Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -498,6 +500,51 @@ static void RequireGameplaySourcePurity(string root)
     {
         throw new InvalidOperationException(
             "Live gameplay source still contains serializer or legacy database symbols: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequirePackageSerializerBoundary(string root)
+{
+    var packageRuntimeRoot = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
+    if (!Directory.Exists(packageRuntimeRoot))
+    {
+        throw new InvalidOperationException($"Cannot verify package serializer boundary; missing path: {packageRuntimeRoot}");
+    }
+
+    var allowedFiles = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "AetheriaRuntimeCatalogStore.cs",
+        "AetheriaRuntimePendingCultCacheStore.cs",
+        "AetheriaRuntimeStateCommitDocument.cs",
+        "AetheriaRuntimeEveCommandDocument.cs"
+    };
+
+    var serializerSymbols = new[]
+    {
+        "MessagePack",
+        "MessagePackObject",
+        "MessagePackSerializer",
+        "MessagePackReader",
+        "MessagePackWriter",
+        "IMessagePackFormatter",
+        "[Union(",
+        "[Key("
+    };
+
+    var hits = Directory.EnumerateFiles(packageRuntimeRoot, "*.cs", SearchOption.AllDirectories)
+        .Where(path => !allowedFiles.Contains(Path.GetFileName(path)))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => serializerSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Package serializer symbols escaped the named CultCache transport boundary: " +
             string.Join("; ", hits));
     }
 }

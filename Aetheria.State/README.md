@@ -285,6 +285,10 @@ fails if live `Assets/Scripts` source grows back serializer or legacy database
 symbols such as MessagePack, Newtonsoft, JsonKnownTypes, RethinkDB, or old
 `DatabaseEntry`/`DatabaseLink` references; the remaining MessagePack usage is a
 named package/import CultCache transport boundary, not gameplay state authority.
+The package boundary is also fenced: MessagePack symbols may only appear in the
+runtime catalog reader, pending CultCache envelope store, and typed runtime/Eve
+command document files until generated CultCache serializers replace that
+temporary Unity-side codec.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime

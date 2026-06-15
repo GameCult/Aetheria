@@ -1601,6 +1601,11 @@ First Aetheria surfaces to publish:
   JsonKnownTypes, RethinkDB, old database-link symbols, or serializer metadata.
   Package/import MessagePack usage remains explicitly bounded to CultCache
   transport and migration.
+- `Aetheria.State.Verify` also fences the Unity package serializer boundary:
+  MessagePack symbols may appear only in `AetheriaRuntimeCatalogStore`,
+  `AetheriaRuntimePendingCultCacheStore`, `AetheriaRuntimeStateCommitDocument`,
+  and `AetheriaRuntimeEveCommandDocument` until CultLib generated serializers
+  become the Unity runtime owner.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
