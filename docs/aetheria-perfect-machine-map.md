@@ -1596,6 +1596,11 @@ First Aetheria surfaces to publish:
   auto-reference; `Assets/Scripts` and `Assets/Editor` have no `using
   MessagePack`, `MessagePackSerializer`, `[MessagePackObject]`, or
   `IMessagePackFormatter` hits.
+- `Aetheria.State.Verify` now enforces the gameplay-source purity invariant:
+  live `Assets/Scripts` cannot contain MessagePack, Newtonsoft,
+  JsonKnownTypes, RethinkDB, old database-link symbols, or serializer metadata.
+  Package/import MessagePack usage remains explicitly bounded to CultCache
+  transport and migration.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

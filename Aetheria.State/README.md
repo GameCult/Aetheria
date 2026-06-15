@@ -280,7 +280,11 @@ payload tree, and the published Eve catalog surface. The current catalog
 materializes 65 behavior payloads, 661 behavior fields, and 18 behavior-side
 legacy-ID references. Legacy content currently includes at least one overhanging
 hardpoint; the verifier preserves the payload and checks hardpoint local masks
-rather than silently converting content repair into migration.
+rather than silently converting content repair into migration. The verifier also
+fails if live `Assets/Scripts` source grows back serializer or legacy database
+symbols such as MessagePack, Newtonsoft, JsonKnownTypes, RethinkDB, or old
+`DatabaseEntry`/`DatabaseLink` references; the remaining MessagePack usage is a
+named package/import CultCache transport boundary, not gameplay state authority.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime

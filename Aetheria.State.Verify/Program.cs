@@ -7,6 +7,8 @@ var statePath = args.Length > 1
     ? Path.GetFullPath(args[1])
     : AetheriaStatePaths.ResolveDefaultStatePath(root);
 
+RequireGameplaySourcePurity(root);
+
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
 var ledger = await node.GetMigrationLedgerAsync()
@@ -442,6 +444,7 @@ Console.WriteLine($"Corporations: {corporations.Length}");
 Console.WriteLine($"Described/geoname-linked corporations: {describedCorporations}/{corporationNameLinks}");
 Console.WriteLine($"Corporation allegiance edges: {corporationAllegianceEdges}");
 Console.WriteLine($"Name files: {nameFiles.Length}");
+Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -455,6 +458,47 @@ static void RequireCount(AetheriaMigrationLedger ledger, string documentType, in
     {
         throw new InvalidOperationException(
             $"Migration ledger count mismatch for {documentType}: ledger={expected.Value}, actual={actual}.");
+    }
+}
+
+static void RequireGameplaySourcePurity(string root)
+{
+    var gameplayRoot = Path.Combine(root, "Assets", "Scripts");
+    if (!Directory.Exists(gameplayRoot))
+    {
+        throw new InvalidOperationException($"Cannot verify live gameplay source purity; missing path: {gameplayRoot}");
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "MessagePack",
+        "MessagePackObject",
+        "MessagePackSerializer",
+        "MessagePackReader",
+        "IMessagePackFormatter",
+        "JsonConvert",
+        "Newtonsoft",
+        "JsonKnownTypes",
+        "RethinkDB",
+        "DatabaseEntry",
+        "DatabaseLink",
+        "[Union(",
+        "[Key("
+    };
+
+    var hits = Directory.EnumerateFiles(gameplayRoot, "*.cs", SearchOption.AllDirectories)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Take(10)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Live gameplay source still contains serializer or legacy database symbols: " +
+            string.Join("; ", hits));
     }
 }
 
