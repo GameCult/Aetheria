@@ -10,6 +10,15 @@ CultCache state into Unity UI Toolkit.
 - it queues renderer-emitted commands as typed `.cc.eve.pending` command
   envelopes for Aetheria's provider-owned command bridge.
 
+`AetheriaEveRuntimeBootstrap` mounts the first runtime surface after scene load.
+By default it creates a `UIDocument` host for `aetheria.operations`, so the
+provider-owned operations surface is present at runtime without a hand-wired
+scene object. Set `AETHERIA_EVE_SURFACE_ID` to mount a different surface, set
+`AETHERIA_EVE_STATE_PATH` to point at a non-default `.cc` state file, or disable
+the automatic mount with `AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or
+`--aetheria-disable-eve-runtime-bootstrap`. Batchmode disables the bootstrap so
+compile and smoke gates do not accidentally create renderer state.
+
 Commands are surfaced as `gamecult.eve.command.v1` requests. The presenter does
 not accept or apply them locally; provider acceptance still belongs to the
 CultMesh command bridge. Renderer-local command effects would be the wrong

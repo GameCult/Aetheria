@@ -9,6 +9,7 @@ var statePath = args.Length > 1
 
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
+RequireEveRuntimeBootstrap(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -447,6 +448,7 @@ Console.WriteLine($"Corporation allegiance edges: {corporationAllegianceEdges}")
 Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
+Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -546,6 +548,49 @@ static void RequirePackageSerializerBoundary(string root)
         throw new InvalidOperationException(
             "Package serializer symbols escaped the named CultCache transport boundary: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireEveRuntimeBootstrap(string root)
+{
+    var bootstrapPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.eve-runtime",
+        "Runtime",
+        "AetheriaEveRuntimeBootstrap.cs");
+    var presenterPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.eve-runtime",
+        "Runtime",
+        "AetheriaEveSurfacePresenter.cs");
+
+    if (!File.Exists(bootstrapPath))
+    {
+        throw new InvalidOperationException("Aetheria Eve runtime bootstrap is missing.");
+    }
+
+    if (!File.Exists(presenterPath))
+    {
+        throw new InvalidOperationException("Aetheria Eve surface presenter is missing.");
+    }
+
+    var bootstrap = File.ReadAllText(bootstrapPath);
+    if (!bootstrap.Contains("RuntimeInitializeOnLoadMethod", StringComparison.Ordinal) ||
+        !bootstrap.Contains("DefaultSurfaceId = \"aetheria.operations\"", StringComparison.Ordinal) ||
+        !bootstrap.Contains("AetheriaEveSurfacePresenter", StringComparison.Ordinal) ||
+        !bootstrap.Contains("UIDocument", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve runtime bootstrap no longer mounts the operations surface through the UI Toolkit presenter.");
+    }
+
+    var presenter = File.ReadAllText(presenterPath);
+    if (!presenter.Contains("AetheriaRuntimeEveCommandLog.QueueCommand", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter no longer queues renderer commands through the typed Eve command log.");
     }
 }
 

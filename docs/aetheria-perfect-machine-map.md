@@ -497,6 +497,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   surface lookup, lowering, and command emission into a typed pending queue.
   Provider command acceptance still belongs to the future CultMesh command
   bridge.
+- `AetheriaEveRuntimeBootstrap` mounts the first runtime Eve surface after
+  scene load. The default surface is `aetheria.operations`, hosted in a
+  runtime-created `UIDocument`; environment variables or a command-line switch
+  can redirect/disable the mount for diagnostics. Batchmode disables the
+  bootstrap so verification runs do not create renderer state.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
   project-local typed state file for the checked-in catalog. The importer stores
   relative provenance in the state document, not machine-local absolute paths.
@@ -1341,8 +1346,9 @@ First Aetheria surfaces to publish:
      serializers directly.
    - Extend the command bridge beyond refresh commands as gameplay/editor Eve
      surfaces acquire provider-owned handlers.
-   - Wire the presenter into a Unity scene/prefab for the first runtime surface
-     and replace a concrete uGUI screen.
+   - Done: wire the presenter into runtime through `AetheriaEveRuntimeBootstrap`
+     so the operations surface mounts as a UI Toolkit surface after scene load.
+   - Replace a concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
    - Replace the old IMGUI DB inspector first, because it is closest to state

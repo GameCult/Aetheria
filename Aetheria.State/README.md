@@ -55,6 +55,10 @@ provider-owned acceptance organ for those commands: it validates the provider,
 surface, and command template before running the narrow refresh handlers for
 the catalog and operations surfaces. Renderer callbacks do not accept commands
 or mutate game state locally.
+`AetheriaEveRuntimeBootstrap` mounts the `aetheria.operations` surface through a
+runtime-created `UIDocument` after scene load, with environment and command-line
+switches for diagnostics. UI Toolkit is now a live runtime lowering path, not
+only a package sample.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
@@ -288,7 +292,9 @@ named package/import CultCache transport boundary, not gameplay state authority.
 The package boundary is also fenced: MessagePack symbols may only appear in the
 runtime catalog reader, pending CultCache envelope store, and typed runtime/Eve
 command document files until generated CultCache serializers replace that
-temporary Unity-side codec.
+temporary Unity-side codec. The verifier also checks that the Eve runtime
+bootstrap exists, mounts the operations surface through the UI Toolkit presenter,
+and keeps renderer commands routed through the typed Eve command log.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime
