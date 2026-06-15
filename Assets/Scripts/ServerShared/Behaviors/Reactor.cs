@@ -37,7 +37,10 @@ public class ReactorConfig : RuntimeBehaviorConfig
 
 public class Reactor : Behavior, IOrderedBehavior, IDisposable
 {
-    private ReactorConfig _data;
+    private readonly PerformanceStat _charge;
+    private readonly PerformanceStat _efficiency;
+    private readonly PerformanceStat _overloadEfficiency;
+    private readonly PerformanceStat _throttlingFactor;
 
     public float Draw { get; private set; }
 
@@ -51,12 +54,18 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     public Reactor(ReactorConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _charge = data.Charge;
+        _efficiency = data.Efficiency;
+        _overloadEfficiency = data.OverloadEfficiency;
+        _throttlingFactor = data.ThrottlingFactor;
         FindCapacitors();
     }
     public Reactor(ReactorConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _charge = data.Charge;
+        _efficiency = data.Efficiency;
+        _overloadEfficiency = data.OverloadEfficiency;
+        _throttlingFactor = data.ThrottlingFactor;
         FindCapacitors();
     }
 
@@ -82,8 +91,8 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     public override bool Execute(float dt)
     {
-        var charge = Evaluate(_data.Charge) * dt;
-        var efficiency = Evaluate(_data.Efficiency);
+        var charge = Evaluate(_charge) * dt;
+        var efficiency = Evaluate(_efficiency);
 
         // This behavior executes last, so any components drawing power have already done so
 
@@ -97,7 +106,7 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
         if (Draw > .01f)
         {
             CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
-            var overloadEfficiency = Evaluate(_data.OverloadEfficiency);
+            var overloadEfficiency = Evaluate(_overloadEfficiency);
 
             // Generate heat using overload efficiency, usually much less efficient!
             heat += Draw / overloadEfficiency;
@@ -130,7 +139,7 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
         if (Draw < -.01f)
         {
             CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
-            heat -= Draw / efficiency * (1 - 1 / Evaluate(_data.ThrottlingFactor));
+            heat -= Draw / efficiency * (1 - 1 / Evaluate(_throttlingFactor));
             Draw = 0;
         }
         else

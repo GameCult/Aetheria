@@ -46,22 +46,37 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
     public float WasteHeat { get; private set; }
     public float EnergyUsage { get; private set; }
 
-    private RadiatorConfig _data;
+    private readonly PerformanceStat _emissivity;
+    private readonly PerformanceStat _pumpedHeat;
+    private readonly float _temperatureFloor;
+    private readonly PerformanceStat _wasteHeat;
+    private readonly PerformanceStat _energyUsage;
+    private readonly PerformanceStat _thermalMass;
 
     public Radiator(RadiatorConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _emissivity = data.Emissivity;
+        _pumpedHeat = data.PumpedHeat;
+        _temperatureFloor = data.TemperatureFloor;
+        _wasteHeat = data.WasteHeat;
+        _energyUsage = data.EnergyUsage;
+        _thermalMass = data.ThermalMass;
     }
     public Radiator(RadiatorConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _emissivity = data.Emissivity;
+        _pumpedHeat = data.PumpedHeat;
+        _temperatureFloor = data.TemperatureFloor;
+        _wasteHeat = data.WasteHeat;
+        _energyUsage = data.EnergyUsage;
+        _thermalMass = data.ThermalMass;
     }
 
     public override bool Execute(float dt)
     {
-        PumpedHeat = Evaluate(_data.PumpedHeat);
-        WasteHeat = Evaluate(_data.WasteHeat);
-        EnergyUsage = Evaluate(_data.EnergyUsage);
+        PumpedHeat = Evaluate(_pumpedHeat);
+        WasteHeat = Evaluate(_wasteHeat);
+        EnergyUsage = Evaluate(_energyUsage);
 
         var itemTemperature = Temperature;
         var tempRatio = max(RadiatorTemperature / itemTemperature, 1);
@@ -71,7 +86,7 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
 
         if (!Entity.TryConsumeEnergy(EnergyUsage * tempRatio * dt)) return false;
 
-        var pumpedHeat = PumpedHeat * max(itemTemperature - _data.TemperatureFloor, 0);
+        var pumpedHeat = PumpedHeat * max(itemTemperature - _temperatureFloor, 0);
 
         // Radiator temperature is below temperature floor, stop executing
         if (pumpedHeat < 0.01f) return true;
@@ -79,14 +94,14 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         var wasteHeat = WasteHeat * tempRatio;
 
         AddHeat((wasteHeat - pumpedHeat) * dt);
-        RadiatorTemperature += pumpedHeat / Evaluate(_data.ThermalMass) * dt;
+        RadiatorTemperature += pumpedHeat / Evaluate(_thermalMass) * dt;
 
         return true;
     }
 
     public void Update(float delta)
     {
-        Emissivity = Evaluate(_data.Emissivity);
+        Emissivity = Evaluate(_emissivity);
         var rad = pow(RadiatorTemperature, ItemManager.GameplaySettings.HeatRadiationExponent) * ItemManager.GameplaySettings.HeatRadiationMultiplier * Emissivity;
         RadiatorTemperature -= rad * delta;
         Entity.VisibilitySources[this] = rad;

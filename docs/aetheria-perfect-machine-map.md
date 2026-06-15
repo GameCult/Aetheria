@@ -312,6 +312,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Capacitor, Shield, Thruster, MiningTool, ResourceScanner, Thermotoggle,
   Switch, HeatStorage, and Cockpit have also dropped runtime config retention;
   Thermotoggle adjustability is now owned by the live behavior instance.
+  Reactor, Radiator, Sensor, and StatModifier now copy constructor performance
+  stats, curves, flags, and target strings into explicit runtime fields instead
+  of retaining config subclasses.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config

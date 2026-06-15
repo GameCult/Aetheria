@@ -188,6 +188,9 @@ instead of retaining config subclasses.
 Capacitor, Shield, Thruster, MiningTool, ResourceScanner, Thermotoggle, Switch,
 HeatStorage, and Cockpit have also dropped runtime config retention. Thermotoggle
 adjustability is exposed on the live behavior instance, not through its config.
+Reactor, Radiator, Sensor, and StatModifier now copy their constructor
+performance stats, curves, flags, and target strings into explicit runtime
+fields; those live behaviors no longer retain their config subclasses.
 `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full

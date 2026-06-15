@@ -34,7 +34,11 @@ public class StatModifierConfig : RuntimeBehaviorConfig
 [Order(-4)]
 public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwaysUpdatedBehavior
 {
-    private StatModifierConfig _data;
+    private readonly string _targetBehaviorKind;
+    private readonly string _targetStatName;
+    private readonly PerformanceStat _modifier;
+    private readonly StatModifierType _type;
+    private readonly string _requiredBehaviorKind;
 
     private PerformanceStat[] _stats;
 
@@ -47,12 +51,20 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     public StatModifier(StatModifierConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _targetBehaviorKind = data.Stat.Target;
+        _targetStatName = data.Stat.Stat;
+        _modifier = data.Modifier;
+        _type = data.Type;
+        _requiredBehaviorKind = data.RequireBehavior;
     }
 
     public StatModifier(StatModifierConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _targetBehaviorKind = data.Stat.Target;
+        _targetStatName = data.Stat.Stat;
+        _modifier = data.Modifier;
+        _type = data.Type;
+        _requiredBehaviorKind = data.RequireBehavior;
     }
 
     public void Initialize()
@@ -60,7 +72,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
         _stats = Entity.Equipment
             .Where(HasRequiredBehavior)
             .SelectMany(gear => gear.Behaviors ?? Array.Empty<Behavior>())
-            .Where(behavior => BehaviorKindMatches(behavior.Kind, _data.Stat.Target))
+            .Where(behavior => BehaviorKindMatches(behavior.Kind, _targetBehaviorKind))
             .Select(FindTargetStat)
             .Where(stat => stat != null)
             .ToArray();
@@ -68,7 +80,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private PerformanceStat FindTargetStat(Behavior behavior)
     {
-        return behavior.TryGetPerformanceStat(_data.Stat.Stat, out var stat) ? stat : null;
+        return behavior.TryGetPerformanceStat(_targetStatName, out var stat) ? stat : null;
     }
 
     private static bool BehaviorKindMatches(string runtimeKind, string expectedKind)
@@ -93,25 +105,25 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     private bool HasRequiredBehavior(EquippedItem gear)
     {
-        return string.IsNullOrWhiteSpace(_data.RequireBehavior) ||
+        return string.IsNullOrWhiteSpace(_requiredBehaviorKind) ||
                (gear?.Behaviors ?? Array.Empty<Behavior>())
-                   .Any(behavior => BehaviorKindMatches(behavior.Kind, _data.RequireBehavior));
+                   .Any(behavior => BehaviorKindMatches(behavior.Kind, _requiredBehaviorKind));
     }
 
     private void ApplyModifier()
     {
         _applied = true;
         foreach (var stat in _stats)
-            (_data.Type == StatModifierType.Constant
+            (_type == StatModifierType.Constant
                 ? stat.GetConstantModifiers(Entity)
-                : stat.GetScaleModifiers(Entity))[this] = Evaluate(_data.Modifier);
+                : stat.GetScaleModifiers(Entity))[this] = Evaluate(_modifier);
     }
 
     private void RemoveModifier()
     {
         _applied = false;
         foreach (var stat in _stats)
-            (_data.Type == StatModifierType.Constant ? stat.GetConstantModifiers(Entity) : stat.GetScaleModifiers(Entity)).Remove(this);
+            (_type == StatModifierType.Constant ? stat.GetConstantModifiers(Entity) : stat.GetScaleModifiers(Entity)).Remove(this);
     }
 
     public override bool Execute(float dt)
