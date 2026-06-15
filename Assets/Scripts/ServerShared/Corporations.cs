@@ -11,6 +11,7 @@ using Unity.Mathematics;
 public class Faction : INamedEntry
 {
     public Guid ID = Guid.NewGuid();
+    public string FactionKey;
 
     [Inspectable]
     public string Name;
@@ -33,6 +34,7 @@ public class Faction : INamedEntry
     [InspectableColor]
     public float3 SecondaryColor;
     public Guid GeonameFile;
+    public string GeonameFileKey;
     public Guid BossHull;
 
     [Inspectable]
@@ -40,6 +42,7 @@ public class Faction : INamedEntry
 
     [InspectableRangedFloat(0, 1)]
     public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
+    public Dictionary<string, float> AllegianceByKey = new Dictionary<string, float>();
 
     [InspectableSoundBank]
     public uint OverworldMusic;

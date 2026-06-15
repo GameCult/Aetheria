@@ -35,6 +35,11 @@ public sealed class AetheriaItemDefinition
     [CultIndex("manufacturerLegacyId")]
     public string ManufacturerLegacyId { get; set; } = "";
 
+    [IgnoreMember]
+    public string ManufacturerKey => string.IsNullOrWhiteSpace(ManufacturerLegacyId)
+        ? ""
+        : $"aetheria.corporation:legacy:{ManufacturerLegacyId}";
+
     [Key(8)]
     public int Price { get; set; }
 

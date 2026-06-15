@@ -150,24 +150,24 @@ public class LoadoutGenerator
             .Where(item => IsTypedCandidate(item, candidateKind))
             .Where(item =>
                 item.Price > 0 &&
-                Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer) &&
-                manufacturer != Guid.Empty &&
-                (Galaxy.IsPrelude || Galaxy.ContainsFaction(manufacturer) &&
-                    (Faction == null || Faction.Allegiance.ContainsKey(manufacturer))) &&
+                !string.IsNullOrWhiteSpace(item.ManufacturerKey) &&
+                (Galaxy.IsPrelude || Galaxy.ContainsFaction(item.ManufacturerKey) &&
+                    (Faction == null || Faction.AllegianceByKey.ContainsKey(item.ManufacturerKey))) &&
                 (typedFilter?.Invoke(item) ?? true))
             .WeightedRandomElements(ref Random, item =>
             {
-                if (!Guid.TryParse(item.ManufacturerLegacyId, out var manufacturer))
+                var manufacturerKey = item.ManufacturerKey;
+                if (string.IsNullOrWhiteSpace(manufacturerKey))
                 {
                     return 0;
                 }
 
                 var allegianceWeight = Faction == null
                     ? 1
-                    : manufacturer == Faction.ID
+                    : string.Equals(manufacturerKey, Faction.FactionKey, StringComparison.OrdinalIgnoreCase)
                         ? 1
-                        : Faction.Allegiance.TryGetValue(manufacturer, out var allegiance)
-                            ? allegiance / ManufacturerDistancePenalty(manufacturer)
+                        : Faction.AllegianceByKey.TryGetValue(manufacturerKey, out var allegiance)
+                            ? allegiance / ManufacturerDistancePenalty(manufacturerKey)
                             : 0;
                 return allegianceWeight *
                        pow(item.OccupiedCells, sizeExponent) / // Prioritize larger items
@@ -196,14 +196,14 @@ public class LoadoutGenerator
         }
     }
 
-    private float ManufacturerDistancePenalty(Guid manufacturer)
+    private float ManufacturerDistancePenalty(string manufacturerKey)
     {
-        if (Galaxy == null || Zone == null || !Galaxy.ContainsFaction(manufacturer))
+        if (Galaxy == null || Zone == null || !Galaxy.ContainsFaction(manufacturerKey))
         {
             return 1;
         }
 
-        var faction = Galaxy.ResolveFaction(manufacturer);
+        var faction = Galaxy.ResolveFactionByKey(manufacturerKey);
         return faction != null && Galaxy.HomeZones.TryGetValue(faction, out var homeZone)
             ? Zone.Distance[homeZone]
             : 1;

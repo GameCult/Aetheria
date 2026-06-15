@@ -15,6 +15,11 @@ public sealed class AetheriaCorporation
     [CultIndex("legacyId")]
     public string LegacyId { get; set; } = "";
 
+    [IgnoreMember]
+    public string CorporationKey => string.IsNullOrWhiteSpace(LegacyId)
+        ? ""
+        : $"aetheria.corporation:legacy:{LegacyId}";
+
     [Key(2)]
     public string ShortName { get; set; } = "";
 
@@ -25,9 +30,19 @@ public sealed class AetheriaCorporation
     [CultIndex("geonameFileLegacyId")]
     public string GeonameFileLegacyId { get; set; } = "";
 
+    [IgnoreMember]
+    public string GeonameFileKey => string.IsNullOrWhiteSpace(GeonameFileLegacyId)
+        ? ""
+        : $"aetheria.name_file:legacy:{GeonameFileLegacyId}";
+
     [Key(5)]
     [CultIndex("bossHullLegacyId")]
     public string BossHullLegacyId { get; set; } = "";
+
+    [IgnoreMember]
+    public string BossHullItemKey => string.IsNullOrWhiteSpace(BossHullLegacyId)
+        ? ""
+        : $"aetheria.item_definition:legacy:{BossHullLegacyId}";
 
     [Key(6)]
     public int InfluenceDistance { get; set; }
@@ -53,6 +68,11 @@ public sealed class AetheriaCorporationAllegiance
 {
     [Key(0)]
     public string CorporationLegacyId { get; set; } = "";
+
+    [IgnoreMember]
+    public string CorporationKey => string.IsNullOrWhiteSpace(CorporationLegacyId)
+        ? ""
+        : $"aetheria.corporation:legacy:{CorporationLegacyId}";
 
     [Key(1)]
     public double Weight { get; set; }

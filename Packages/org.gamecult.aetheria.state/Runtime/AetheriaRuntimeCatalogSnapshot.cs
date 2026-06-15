@@ -11,7 +11,9 @@ namespace GameCult.Aetheria.State.Unity
         private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByLegacyId;
         private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByKey;
         private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByLegacyId;
+        private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByKey;
         private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByLegacyId;
+        private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByKey;
 
         public AetheriaRuntimeCatalogSnapshot(
             AetheriaRuntimeCatalogItem[] items,
@@ -33,9 +35,15 @@ namespace GameCult.Aetheria.State.Unity
             _corporationsByLegacyId = corporations
                 .Where(corporation => !string.IsNullOrWhiteSpace(corporation.LegacyId))
                 .ToDictionary(corporation => corporation.LegacyId, StringComparer.OrdinalIgnoreCase);
+            _corporationsByKey = corporations
+                .Where(corporation => !string.IsNullOrWhiteSpace(corporation.CorporationKey))
+                .ToDictionary(corporation => corporation.CorporationKey, StringComparer.OrdinalIgnoreCase);
             _nameFilesByLegacyId = nameFiles
                 .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.LegacyId))
                 .ToDictionary(nameFile => nameFile.LegacyId, StringComparer.OrdinalIgnoreCase);
+            _nameFilesByKey = nameFiles
+                .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.NameFileKey))
+                .ToDictionary(nameFile => nameFile.NameFileKey, StringComparer.OrdinalIgnoreCase);
         }
 
         public IReadOnlyList<AetheriaRuntimeCatalogItem> Items { get; }
@@ -63,9 +71,19 @@ namespace GameCult.Aetheria.State.Unity
             return TryGet(_corporationsByLegacyId, legacyId);
         }
 
+        public AetheriaRuntimeCorporation? FindCorporation(string corporationKey)
+        {
+            return TryGet(_corporationsByKey, corporationKey);
+        }
+
         public AetheriaRuntimeNameFile? FindNameFileByLegacyId(string legacyId)
         {
             return TryGet(_nameFilesByLegacyId, legacyId);
+        }
+
+        public AetheriaRuntimeNameFile? FindNameFile(string nameFileKey)
+        {
+            return TryGet(_nameFilesByKey, nameFileKey);
         }
 
         public IEnumerable<AetheriaRuntimeCatalogItem> FindItemsByBehavior(string behaviorKind)
@@ -84,12 +102,12 @@ namespace GameCult.Aetheria.State.Unity
 
         public AetheriaRuntimeCorporation? GetManufacturer(AetheriaRuntimeCatalogItem item)
         {
-            return FindCorporationByLegacyId(item.ManufacturerLegacyId);
+            return FindCorporation(item.ManufacturerKey);
         }
 
         public AetheriaRuntimeNameFile? GetNameFile(AetheriaRuntimeCorporation corporation)
         {
-            return FindNameFileByLegacyId(corporation.GeonameFileLegacyId);
+            return FindNameFile(corporation.GeonameFileKey);
         }
 
         private static T? TryGet<T>(IReadOnlyDictionary<string, T> dictionary, string key) where T : class
@@ -156,6 +174,9 @@ namespace GameCult.Aetheria.State.Unity
             Category = category;
             Description = description;
             ManufacturerLegacyId = manufacturerLegacyId;
+            ManufacturerKey = string.IsNullOrWhiteSpace(manufacturerLegacyId)
+                ? ""
+                : $"aetheria.corporation:legacy:{manufacturerLegacyId}";
             Price = price;
             Mass = mass;
             SpecificHeat = specificHeat;
@@ -207,6 +228,7 @@ namespace GameCult.Aetheria.State.Unity
         public string Category { get; }
         public string Description { get; }
         public string ManufacturerLegacyId { get; }
+        public string ManufacturerKey { get; }
         public int Price { get; }
         public double Mass { get; }
         public double SpecificHeat { get; }
@@ -470,17 +492,23 @@ namespace GameCult.Aetheria.State.Unity
             Description = description;
             GeonameFileLegacyId = geonameFileLegacyId;
             BossHullLegacyId = bossHullLegacyId;
+            CorporationKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.corporation:legacy:{legacyId}";
+            GeonameFileKey = string.IsNullOrWhiteSpace(geonameFileLegacyId) ? "" : $"aetheria.name_file:legacy:{geonameFileLegacyId}";
+            BossHullItemKey = string.IsNullOrWhiteSpace(bossHullLegacyId) ? "" : $"aetheria.item_definition:legacy:{bossHullLegacyId}";
             InfluenceDistance = influenceDistance;
             AllegianceCount = allegianceCount;
             Allegiances = allegiances;
         }
 
         public string LegacyId { get; }
+        public string CorporationKey { get; }
         public string Name { get; }
         public string ShortName { get; }
         public string Description { get; }
         public string GeonameFileLegacyId { get; }
+        public string GeonameFileKey { get; }
         public string BossHullLegacyId { get; }
+        public string BossHullItemKey { get; }
         public int InfluenceDistance { get; }
         public int AllegianceCount { get; }
         public IReadOnlyList<AetheriaRuntimeCorporationAllegiance> Allegiances { get; }
@@ -491,10 +519,14 @@ namespace GameCult.Aetheria.State.Unity
         public AetheriaRuntimeCorporationAllegiance(string corporationLegacyId, double weight)
         {
             CorporationLegacyId = corporationLegacyId;
+            CorporationKey = string.IsNullOrWhiteSpace(corporationLegacyId)
+                ? ""
+                : $"aetheria.corporation:legacy:{corporationLegacyId}";
             Weight = weight;
         }
 
         public string CorporationLegacyId { get; }
+        public string CorporationKey { get; }
         public double Weight { get; }
     }
 
@@ -508,6 +540,7 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<string> names)
         {
             LegacyId = legacyId;
+            NameFileKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.name_file:legacy:{legacyId}";
             Name = name;
             NameCount = nameCount;
             SampleNames = sampleNames;
@@ -515,6 +548,7 @@ namespace GameCult.Aetheria.State.Unity
         }
 
         public string LegacyId { get; }
+        public string NameFileKey { get; }
         public string Name { get; }
         public int NameCount { get; }
         public IReadOnlyList<string> SampleNames { get; }

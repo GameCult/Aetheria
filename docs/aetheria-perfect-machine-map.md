@@ -394,8 +394,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   legacy-ID record key mapping for migrated item, corporation, and name-file
   documents.
 - `AetheriaCatalogSnapshot` is the typed catalog read surface over materialized
-  `.cc` records. It exposes trade-item, manufacturer, corporation prefix, and
-  corporation name-file queries, plus equipment, hardpoint, and behavior
+  `.cc` records. It exposes trade-item, typed
+  manufacturer/corporation/name-file key queries, corporation prefix queries,
+  and legacy-ID migration lookup, plus equipment, hardpoint, and behavior
   queries without touching runtime projection DTOs.
 - `ItemManager` can now ask its typed runtime item reader for the owning
   `AetheriaRuntimeCatalogItem` row by item ID. Its generic mass, thermal-mass,
@@ -415,7 +416,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   read path for .NET smokes. Neither is a simulation owner and neither writes
   state.
   `Aetheria.Shared.Unity` references this package directly so `Galaxy` can
-  consume typed name files without loading legacy `NameFile` documents. The
+  consume typed corporation and name-file keys without loading legacy `Faction`
+  or `NameFile` documents. The
   package also owns Unity's typed runtime commit log writer for settings,
   loadout-template, and run-checkpoint command documents under
   `aetheria-world.cc.pending`. This log is command-only: it cannot decide
@@ -797,7 +799,7 @@ First Aetheria surfaces to publish:
      `DatabaseEntry` union fields into typed item/faction/name-file catalog
      documents without making `Aetheria.State` depend on Unity's legacy model.
    - Done: promote typed name files to `aetheria.name_file.v2` with full name
-     arrays, so future `Galaxy` name generation has a Verse-owned replacement
+     arrays, so `Galaxy` name generation has a Verse-owned replacement
      for legacy `NameFile.Names`.
    - Done: promote typed corporations to `aetheria.corporation.v2` with full
      allegiance edges, so temporary `Faction` DTO projection can preserve
@@ -913,9 +915,14 @@ First Aetheria surfaces to publish:
    - Done: move `Galaxy` faction selection and name generation to the typed
      runtime catalog; legacy `Faction`/`NameFile` catalog entries no longer
      decide generated sector factions or zone names.
-   - Done: move entity faction restore and loadout manufacturer-distance
-     weighting to `Galaxy.ResolveFaction`, so legacy `Faction` catalog entries
-     no longer decide runtime faction references after generation.
+   - Done: move entity faction restore to `Galaxy.ResolveFaction`, so legacy
+     `Faction` catalog entries no longer decide runtime faction references
+     after generation.
+   - Done: move package and canonical manufacturer/corporation/name-file lookup
+     to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
+     and `NameFileKey`), and move loadout manufacturer-distance weighting to
+     `Galaxy.ResolveFactionByKey`, so loadout code no longer parses
+     manufacturer legacy GUIDs to find faction influence.
    - Done: move `LoadoutGenerator` weighted candidate selection, hardpoint fit,
      station bay fit, cargo/capacitor fit, selected-item reuse, hull/category,
      hull type, hull conductivity setup, and behavior-kind prefilters onto typed

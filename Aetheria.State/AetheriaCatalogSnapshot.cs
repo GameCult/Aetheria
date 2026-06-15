@@ -9,7 +9,9 @@ public sealed class AetheriaCatalogSnapshot
 {
     private readonly Dictionary<string, AetheriaItemDefinition> _itemsByLegacyId;
     private readonly Dictionary<string, AetheriaCorporation> _corporationsByLegacyId;
+    private readonly Dictionary<string, AetheriaCorporation> _corporationsByKey;
     private readonly Dictionary<string, AetheriaNameFile> _nameFilesByLegacyId;
+    private readonly Dictionary<string, AetheriaNameFile> _nameFilesByKey;
 
     public AetheriaCatalogSnapshot(
         IEnumerable<AetheriaItemDefinition> items,
@@ -26,9 +28,15 @@ public sealed class AetheriaCatalogSnapshot
         _corporationsByLegacyId = Corporations
             .Where(corporation => !string.IsNullOrWhiteSpace(corporation.LegacyId))
             .ToDictionary(corporation => corporation.LegacyId, StringComparer.OrdinalIgnoreCase);
+        _corporationsByKey = Corporations
+            .Where(corporation => !string.IsNullOrWhiteSpace(corporation.CorporationKey))
+            .ToDictionary(corporation => corporation.CorporationKey, StringComparer.OrdinalIgnoreCase);
         _nameFilesByLegacyId = NameFiles
             .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.LegacyId))
             .ToDictionary(nameFile => nameFile.LegacyId, StringComparer.OrdinalIgnoreCase);
+        _nameFilesByKey = NameFiles
+            .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.NameFileKey))
+            .ToDictionary(nameFile => nameFile.NameFileKey, StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyList<AetheriaItemDefinition> Items { get; }
@@ -72,9 +80,19 @@ public sealed class AetheriaCatalogSnapshot
         return TryGet(_corporationsByLegacyId, legacyId);
     }
 
+    public AetheriaCorporation? FindCorporation(string corporationKey)
+    {
+        return TryGet(_corporationsByKey, corporationKey);
+    }
+
     public AetheriaNameFile? FindNameFileByLegacyId(string legacyId)
     {
         return TryGet(_nameFilesByLegacyId, legacyId);
+    }
+
+    public AetheriaNameFile? FindNameFile(string nameFileKey)
+    {
+        return TryGet(_nameFilesByKey, nameFileKey);
     }
 
     public AetheriaCorporation? FindCorporationByNamePrefix(string namePrefix)
@@ -87,12 +105,12 @@ public sealed class AetheriaCatalogSnapshot
 
     public AetheriaCorporation? GetManufacturer(AetheriaItemDefinition item)
     {
-        return FindCorporationByLegacyId(item.ManufacturerLegacyId);
+        return FindCorporation(item.ManufacturerKey);
     }
 
     public AetheriaNameFile? GetNameFile(AetheriaCorporation corporation)
     {
-        return FindNameFileByLegacyId(corporation.GeonameFileLegacyId);
+        return FindNameFile(corporation.GeonameFileKey);
     }
 
     private static T? TryGet<T>(IReadOnlyDictionary<string, T> dictionary, string key) where T : class

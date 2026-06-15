@@ -15,6 +15,11 @@ public sealed class AetheriaNameFile
     [CultIndex("legacyId")]
     public string LegacyId { get; set; } = "";
 
+    [IgnoreMember]
+    public string NameFileKey => string.IsNullOrWhiteSpace(LegacyId)
+        ? ""
+        : $"aetheria.name_file:legacy:{LegacyId}";
+
     [Key(2)]
     public int NameCount { get; set; }
 

@@ -118,9 +118,11 @@ if (!catalog.FindItemsByHardpoint(equipment.HardpointType).Any())
 
 var manufactured = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
     ?? throw new InvalidOperationException("Runtime catalog has no manufactured item.");
-if (catalog.GetManufacturer(manufactured) == null)
+if (string.IsNullOrWhiteSpace(manufactured.ManufacturerKey) ||
+    catalog.FindCorporation(manufactured.ManufacturerKey) == null ||
+    catalog.GetManufacturer(manufactured) == null)
 {
-    throw new InvalidOperationException($"Runtime catalog manufacturer lookup failed for {manufactured.Name}.");
+    throw new InvalidOperationException($"Runtime catalog typed manufacturer lookup failed for {manufactured.Name}.");
 }
 
 var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
@@ -130,9 +132,14 @@ if (packageCorporation == null)
 }
 
 var packageNameFile = packageCatalog.GetNameFile(packageCorporation);
-if (packageNameFile == null || packageNameFile.Names.Count == 0 || packageNameFile.Names.Count != packageNameFile.NameCount)
+if (string.IsNullOrWhiteSpace(packageCorporation.GeonameFileKey) ||
+    packageCatalog.FindNameFile(packageCorporation.GeonameFileKey) == null ||
+    packageNameFile == null ||
+    string.IsNullOrWhiteSpace(packageNameFile.NameFileKey) ||
+    packageNameFile.Names.Count == 0 ||
+    packageNameFile.Names.Count != packageNameFile.NameCount)
 {
-    throw new InvalidOperationException("Package catalog store did not read corporation/name-file links with full names.");
+    throw new InvalidOperationException("Package catalog store did not read typed corporation/name-file links with full names.");
 }
 
 if (packageCorporation.Allegiances.Count == 0 || packageCorporation.Allegiances.Count != packageCorporation.AllegianceCount)

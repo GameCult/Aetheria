@@ -356,19 +356,23 @@ if (!catalog.FindItemsByHardpoint(hardpointType).Any())
 
 var manufacturedItem = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
     ?? throw new InvalidOperationException("Cannot verify typed catalog manufacturer lookup: no manufactured item.");
-if (catalog.GetManufacturer(manufacturedItem) == null)
+if (string.IsNullOrWhiteSpace(manufacturedItem.ManufacturerKey) ||
+    catalog.FindCorporation(manufacturedItem.ManufacturerKey) == null ||
+    catalog.GetManufacturer(manufacturedItem) == null)
 {
     throw new InvalidOperationException(
-        $"Typed catalog manufacturer lookup failed for item {manufacturedItem.Name}.");
+        $"Typed catalog manufacturer-key lookup failed for item {manufacturedItem.Name}.");
 }
 
 var corporationWithNames = corporations.FirstOrDefault(corporation =>
     !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId))
     ?? throw new InvalidOperationException("Cannot verify typed catalog name-file lookup: no linked corporation.");
-if (catalog.GetNameFile(corporationWithNames) == null)
+if (string.IsNullOrWhiteSpace(corporationWithNames.GeonameFileKey) ||
+    catalog.FindNameFile(corporationWithNames.GeonameFileKey) == null ||
+    catalog.GetNameFile(corporationWithNames) == null)
 {
     throw new InvalidOperationException(
-        $"Typed catalog name-file lookup failed for corporation {corporationWithNames.Name}.");
+        $"Typed catalog name-file-key lookup failed for corporation {corporationWithNames.Name}.");
 }
 
 if (surface.Schema != "gamecult.eve.surface.v1" ||

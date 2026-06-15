@@ -32,6 +32,7 @@ public class Galaxy
     public bool IsPrelude { get; }
     
     private HashSet<Guid> _containedFactions;
+    private HashSet<string> _containedFactionKeys;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
     private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
@@ -243,6 +244,12 @@ public class Galaxy
                 {
                     factions[index].Allegiance[corporationId] = (float) allegiance.Weight;
                 }
+
+                if (!string.IsNullOrWhiteSpace(allegiance.CorporationKey) &&
+                    factionsByLegacyId.ContainsKey(allegiance.CorporationLegacyId))
+                {
+                    factions[index].AllegianceByKey[allegiance.CorporationKey] = (float) allegiance.Weight;
+                }
             }
         }
 
@@ -254,10 +261,12 @@ public class Galaxy
         return new Faction
         {
             ID = ParseLegacyId(corporation.LegacyId, nameof(corporation.LegacyId), corporation.Name),
+            FactionKey = corporation.CorporationKey,
             Name = corporation.Name,
             ShortName = corporation.ShortName,
             Description = corporation.Description,
             GeonameFile = ParseLegacyId(corporation.GeonameFileLegacyId, nameof(corporation.GeonameFileLegacyId), corporation.Name),
+            GeonameFileKey = corporation.GeonameFileKey,
             BossHull = ParseOptionalLegacyId(corporation.BossHullLegacyId),
             InfluenceDistance = corporation.InfluenceDistance,
         };
@@ -358,10 +367,10 @@ public class Galaxy
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            var nameFile = _runtimeCatalog.FindNameFileByLegacyId(faction.GeonameFile.ToString());
+            var nameFile = _runtimeCatalog.FindNameFile(faction.GeonameFileKey);
             if (nameFile == null || nameFile.Names.Count == 0)
             {
-                throw new InvalidOperationException($"Typed catalog has no name file for faction {faction.Name} ({faction.GeonameFile}).");
+                throw new InvalidOperationException($"Typed catalog has no name file for faction {faction.Name} ({faction.GeonameFileKey}).");
             }
 
             _nameGenerators[faction] = new MarkovNameGenerator(ref random, nameFile.Names, nameGeneratorSettings);
@@ -470,6 +479,16 @@ public class Galaxy
         return _containedFactions.Contains(factionID);
     }
 
+    public bool ContainsFaction(string factionKey)
+    {
+        _containedFactionKeys ??= new HashSet<string>(
+            Factions
+                .Select(f => f.FactionKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key)),
+            StringComparer.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(factionKey) && _containedFactionKeys.Contains(factionKey);
+    }
+
     public Faction ResolveFaction(Guid factionID)
     {
         if (factionID == Guid.Empty)
@@ -484,6 +503,22 @@ public class Galaxy
         }
 
         return _allFactions.FirstOrDefault(f => f.ID == factionID);
+    }
+
+    public Faction ResolveFactionByKey(string factionKey)
+    {
+        if (string.IsNullOrWhiteSpace(factionKey))
+        {
+            return null;
+        }
+
+        var faction = Factions.FirstOrDefault(f => string.Equals(f.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase));
+        if (faction != null)
+        {
+            return faction;
+        }
+
+        return _allFactions.FirstOrDefault(f => string.Equals(f.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase));
     }
 
     class DijkstraVertex

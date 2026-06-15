@@ -176,8 +176,8 @@ instances for target stats instead of reading behavior config objects directly.
 `ItemManager` currently owns the explicit typed-payload-to-config bridge.
 Typed name-file documents are `aetheria.name_file.v2` records. They carry the
 legacy ID, display name, count, compact sample names for surfaces, and the full
-name array needed to move `Galaxy`/Markov name generation off legacy
-`NameFile.Names`.
+name array used by `Galaxy`/Markov name generation through typed name-file
+keys rather than legacy `NameFile.Names`.
 Legacy GUID references that are `Guid.Empty` are imported as absent references,
 not as resolvable catalog links.
 Before materializing state, the importer clears the generated `.cc`,
@@ -186,9 +186,10 @@ catalog inputs are captured first and are not deleted. This lets schema changes
 rebuild the typed artifact instead of failing on a stale embedded schema catalog.
 
 `AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
-documents. It exposes trade items, legacy-ID lookup, manufacturer lookup,
-corporation prefix lookup, corporation name-file lookup, equipment items,
-behavior lookup, and hardpoint lookup without reading runtime projection DTOs.
+documents. It exposes trade items, legacy-ID migration lookup, typed
+manufacturer/corporation/name-file key lookup, corporation prefix lookup,
+equipment items, behavior lookup, and hardpoint lookup without reading runtime
+projection DTOs.
 
 `AetheriaCatalogSurfaceProjector` publishes the first Eve-compatible provider
 surface from typed catalog state. The importer materializes
@@ -210,10 +211,13 @@ packaging is available.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection
 and name generation, so generated sectors use typed corporation v2 and
 `aetheria.name_file.v2` records instead of legacy `Faction`/`NameFile`
-catalog documents. It still projects typed corporations into temporary
-`Faction` DTOs, including allegiance dictionaries and local GUID equality,
+catalog documents. Loadout manufacturer-distance weighting also resolves
+manufacturers through typed corporation keys rather than parsing manufacturer
+legacy IDs. `Galaxy` still projects typed corporations into temporary `Faction`
+DTOs, including local GUID equality for the surviving simulation surface,
 because the surrounding simulation has not yet been rebuilt around typed
-corporation records.
+corporation records. The DTOs now carry typed faction/name-file keys and typed
+allegiance edges so they cannot reclaim catalog lookup authority.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
 typed loadout template in addition to world, catalog, run state, zone state, and
