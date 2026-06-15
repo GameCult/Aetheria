@@ -32,7 +32,10 @@ public class InstantWeaponConfig : WeaponConfig
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
-    private InstantWeaponConfig _data;
+    private readonly PerformanceStat _count;
+    private readonly PerformanceStat _burstTime;
+    private readonly PerformanceStat _cooldownDuration;
+    private readonly bool _singleAmmoBurst;
 
     protected int _burstRemaining;
     private float _burstTimer;
@@ -52,7 +55,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override float DamagePerSecond => Damage / Cooldown;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) / Cooldown;
+        return Damage * DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) / Cooldown;
     }
 
     public override int Ammo
@@ -81,13 +84,19 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
     public InstantWeapon(InstantWeaponConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _count = data.Count;
+        _burstTime = data.BurstTime;
+        _cooldownDuration = data.Cooldown;
+        _singleAmmoBurst = data.SingleAmmoBurst;
         _ammo = data.MagazineSize;
     }
 
     public InstantWeapon(InstantWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _count = data.Count;
+        _burstTime = data.BurstTime;
+        _cooldownDuration = data.Cooldown;
+        _singleAmmoBurst = data.SingleAmmoBurst;
         _ammo = data.MagazineSize;
     }
 
@@ -95,7 +104,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     {
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
+        if(_singleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
 
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
@@ -107,9 +116,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     protected override void UpdateStats()
     {
         base.UpdateStats();
-        BurstCount = Evaluate(_data.Count);
-        BurstTime = Evaluate(_data.BurstTime);
-        Cooldown = Evaluate(_data.Cooldown);
+        BurstCount = Evaluate(_count);
+        BurstTime = Evaluate(_burstTime);
+        Cooldown = Evaluate(_cooldownDuration);
 
         Damage /= (int) BurstCount;
         Heat /= (int) BurstCount;
@@ -118,7 +127,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
     private bool UseAmmo()
     {
-        if (_data.MagazineSize <= 1) return true;
+        if (MagazineSize <= 1) return true;
 
         if (_ammo > 0)
         {
@@ -127,12 +136,12 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         }
 
         var hasAmmo = true;
-        if (!string.IsNullOrWhiteSpace(_data.AmmoItemKey))
+        if (!string.IsNullOrWhiteSpace(AmmoItemKey))
         {
-            var cargo = Entity.FindItemInCargo(_data.AmmoItemKey);
+            var cargo = Entity.FindItemInCargo(AmmoItemKey);
             if (cargo != null)
             {
-                var item = cargo.GetFirstItem(_data.AmmoItemKey);
+                var item = cargo.GetFirstItem(AmmoItemKey);
                 if (item is SimpleCommodity simpleCommodity)
                     cargo.Remove(simpleCommodity, 1);
             }
@@ -155,13 +164,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         base.Execute(dt);
         if (_coolingDown)
         {
-            _cooldown -= dt / (_data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
+            _cooldown -= dt / (MagazineSize > 0 && _ammo == 0 ? ReloadTime : Cooldown);
             if (_cooldown < 0)
             {
                 _coolingDown = false;
-                if (_data.MagazineSize > 0 && _ammo == 0)
+                if (MagazineSize > 0 && _ammo == 0)
                 {
-                    _ammo = _data.MagazineSize;
+                    _ammo = MagazineSize;
                     OnReloadComplete?.Invoke();
                 }
                 else
@@ -175,7 +184,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         {
             // If multiple ammo is consumed per burst, perform ammo and energy consumption here
             // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo()))
+            if (!_singleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;

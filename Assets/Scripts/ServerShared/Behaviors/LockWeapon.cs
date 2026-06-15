@@ -34,7 +34,11 @@ public class LockWeaponConfig : InstantWeaponConfig
 
 public class LockWeapon : InstantWeapon
 {
-    private LockWeaponConfig _data;
+    private readonly PerformanceStat _lockSpeed;
+    private readonly PerformanceStat _sensorImpact;
+    private readonly PerformanceStat _lockAngle;
+    private readonly PerformanceStat _directionImpact;
+    private readonly PerformanceStat _decay;
     private float _lock;
     private bool _locking;
     private Entity _target;
@@ -64,11 +68,19 @@ public class LockWeapon : InstantWeapon
 
     public LockWeapon(LockWeaponConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _lockSpeed = data.LockSpeed;
+        _sensorImpact = data.SensorImpact;
+        _lockAngle = data.LockAngle;
+        _directionImpact = data.DirectionImpact;
+        _decay = data.Decay;
     }
     public LockWeapon(LockWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _lockSpeed = data.LockSpeed;
+        _sensorImpact = data.SensorImpact;
+        _lockAngle = data.LockAngle;
+        _directionImpact = data.DirectionImpact;
+        _decay = data.Decay;
     }
 
     public override bool Execute(float dt)
@@ -81,11 +93,11 @@ public class LockWeapon : InstantWeapon
 
         if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))
         {
-            LockSpeed = Evaluate(_data.LockSpeed);
-            SensorImpact = Evaluate(_data.SensorImpact);
-            LockAngle = Evaluate(_data.LockAngle);
-            DirectionImpact = Evaluate(_data.DirectionImpact);
-            Decay = Evaluate(_data.Decay);
+            LockSpeed = Evaluate(_lockSpeed);
+            SensorImpact = Evaluate(_sensorImpact);
+            LockAngle = Evaluate(_lockAngle);
+            DirectionImpact = Evaluate(_directionImpact);
+            Decay = Evaluate(_decay);
 
             var degrees = acos(dot(normalize(Entity.Target.Value.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
             if (degrees < LockAngle)

@@ -316,8 +316,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   stats, curves, flags, and target strings into explicit runtime fields instead
   of retaining config subclasses.
   AetherDrive now copies rotor geometry, performance stats, torque curve, audio
-  parameters, and prefab path into explicit runtime fields; remaining runtime
-  config retention is concentrated in the weapon family.
+  parameters, and prefab path into explicit runtime fields. Weapon,
+  InstantWeapon, ConstantWeapon, ChargedWeapon, and LockWeapon now copy
+  constructor stats, curves, ammo/reload fields, guided projectile profile
+  fields, burst/cooldown fields, charge multipliers, and lock parameters into
+  runtime-owned fields. Behavior instances no longer retain their
+  `RuntimeBehaviorConfig` subclasses after construction.
   `StatModifier` behavior requirements and behavior-stat targets compare typed
   behavior kinds on the live equipped behavior instances through
   `AetheriaRuntimeBehaviorMetadataCatalog` instead of scanning config
@@ -1061,7 +1065,7 @@ First Aetheria surfaces to publish:
      behavior grouping use runtime instance identity.
    - Done: move TurretController's weapon range/velocity reads off
      weapon config casts and onto `Weapon.EvaluateRange`/`EvaluateVelocity`;
-     weapon config fields remain private inputs to the weapon runtime owner.
+     copied weapon range and velocity fields are owned by the weapon runtime.
    - Done: move projectile, hitscan, beam, lightning, and mine effect damage
      type reads off weapon configs and onto `Weapon.DamageType`; effect managers
      consume live weapon metadata instead of config DTO fields.
@@ -1082,6 +1086,11 @@ First Aetheria surfaces to publish:
    - Done: move HUD ammo display reads off `WeaponData`; `SchematicDisplay`
      consumes `Weapon.AmmoItemKey`, `Weapon.MagazineSize`, and `Weapon.UsesAmmo`,
      and the public `WeaponData` escape hatch has been removed.
+   - Done: stop `Weapon`, `InstantWeapon`, `ConstantWeapon`, `ChargedWeapon`,
+     and `LockWeapon` from retaining runtime config subclasses; weapon-family
+     constructors now copy stats, curves, ammo/reload data, guided projectile
+     profile fields, burst/cooldown fields, charge multipliers, and lock
+     parameters into runtime-owned fields.
    - Done: delete dormant legacy item audio reads in `EntityInstance` and stale
      commented thruster sound-trigger code; those paths had no live output and
      therefore earned deletion rather than a new runtime metadata owner.
@@ -1437,6 +1446,10 @@ First Aetheria surfaces to publish:
      exposed construction config objects.
    - Done: replace `ItemManager` behavior config reflection with an explicit
      typed behavior-kind mapper.
+   - Done: remove runtime config retention from the remaining weapon family;
+     all behavior subclasses now copy constructor config inputs into explicit
+     runtime fields instead of keeping `RuntimeBehaviorConfig` subclass
+     instances alive as state.
    - Done: delete `LegacyPayloadKeyAttribute` from live Unity source after
      importer constants and explicit typed mappers became the only migrated
      field-key authorities.

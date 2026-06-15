@@ -59,7 +59,16 @@ public abstract class WeaponConfig : RuntimeBehaviorConfig
 
 public abstract class Weapon : Behavior, IActivatedBehavior
 {
-    private WeaponConfig _data;
+    private readonly PerformanceStat _damage;
+    private readonly PerformanceStat _penetration;
+    private readonly PerformanceStat _damageSpread;
+    private readonly PerformanceStat _minRange;
+    private readonly PerformanceStat _range;
+    private readonly PerformanceStat _energy;
+    private readonly PerformanceStat _heat;
+    private readonly PerformanceStat _visibility;
+    private readonly PerformanceStat _spread;
+    private readonly PerformanceStat _velocity;
     private PerformanceStat _guidedProjectileThrust;
     private PerformanceStat _guidedProjectileVelocity;
 
@@ -70,6 +79,8 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public string EffectPrefab { get; }
     public string AmmoItemKey { get; }
     public int MagazineSize { get; }
+    protected float ReloadTime { get; }
+    protected BezierCurve DamageCurve { get; }
     public bool UsesAmmo => !string.IsNullOrWhiteSpace(AmmoItemKey);
     public GuidedProjectileTargetMode GuidedProjectileTargeting { get; private set; }
     public bool HasGuidedProjectileProfile => GuidedProjectileTargeting != GuidedProjectileTargetMode.None;
@@ -98,21 +109,43 @@ public abstract class Weapon : Behavior, IActivatedBehavior
 
     public Weapon(WeaponConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _damage = data.Damage;
+        _penetration = data.Penetration;
+        _damageSpread = data.DamageSpread;
+        _minRange = data.MinRange;
+        _range = data.Range;
+        _energy = data.Energy;
+        _heat = data.Heat;
+        _visibility = data.Visibility;
+        _spread = data.Spread;
+        _velocity = data.Velocity;
         DamageType = data.DamageType;
+        DamageCurve = data.DamageCurve;
         EffectPrefab = data.EffectPrefab ?? "";
         AmmoItemKey = data.AmmoItemKey;
         MagazineSize = data.MagazineSize;
+        ReloadTime = data.ReloadTime;
         InitializeGuidedProjectileProfile(data);
     }
 
     public Weapon(WeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _damage = data.Damage;
+        _penetration = data.Penetration;
+        _damageSpread = data.DamageSpread;
+        _minRange = data.MinRange;
+        _range = data.Range;
+        _energy = data.Energy;
+        _heat = data.Heat;
+        _visibility = data.Visibility;
+        _spread = data.Spread;
+        _velocity = data.Velocity;
         DamageType = data.DamageType;
+        DamageCurve = data.DamageCurve;
         EffectPrefab = data.EffectPrefab ?? "";
         AmmoItemKey = data.AmmoItemKey;
         MagazineSize = data.MagazineSize;
+        ReloadTime = data.ReloadTime;
         InitializeGuidedProjectileProfile(data);
     }
 
@@ -142,16 +175,16 @@ public abstract class Weapon : Behavior, IActivatedBehavior
 
     protected virtual void UpdateStats()
     {
-        Damage = Evaluate(_data.Damage);
-        Penetration = Evaluate(_data.Penetration);
-        DamageSpread = Evaluate(_data.DamageSpread);
-        MinRange = Evaluate(_data.MinRange);
-        Range = Evaluate(_data.Range);
-        Energy = Evaluate(_data.Energy);
-        Heat = Evaluate(_data.Heat);
-        Visibility = Evaluate(_data.Visibility);
-        Spread = Evaluate(_data.Spread);
-        Velocity = Evaluate(_data.Velocity);
+        Damage = Evaluate(_damage);
+        Penetration = Evaluate(_penetration);
+        DamageSpread = Evaluate(_damageSpread);
+        MinRange = Evaluate(_minRange);
+        Range = Evaluate(_range);
+        Energy = Evaluate(_energy);
+        Heat = Evaluate(_heat);
+        Visibility = Evaluate(_visibility);
+        Spread = Evaluate(_spread);
+        Velocity = Evaluate(_velocity);
     }
 
     public override bool Execute(float dt)
@@ -172,12 +205,12 @@ public abstract class Weapon : Behavior, IActivatedBehavior
 
     public float EvaluateRange()
     {
-        return Evaluate(_data.Range);
+        return Evaluate(_range);
     }
 
     public float EvaluateVelocity()
     {
-        return Evaluate(_data.Velocity);
+        return Evaluate(_velocity);
     }
 
     public float EvaluateGuidedProjectileThrust()

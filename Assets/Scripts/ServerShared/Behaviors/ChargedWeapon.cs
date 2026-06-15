@@ -56,7 +56,18 @@ public class ChargedWeaponConfig : InstantWeaponConfig
 
 public class ChargedWeapon : InstantWeapon
 {
-    private ChargedWeaponConfig _data;
+    private readonly PerformanceStat _chargeTime;
+    private readonly PerformanceStat _chargeEnergy;
+    private readonly PerformanceStat _chargeHeat;
+    private readonly bool _canFireEarly;
+    private readonly float _failureCharge;
+    private readonly float _failureDamage;
+    private readonly float _chargeFiringDamageMultiplier;
+    private readonly float _chargeFiringSpreadMultiplier;
+    private readonly float _chargeFiringBurstCountMultiplier;
+    private readonly float _chargeFiringVisibilityMultiplier;
+    private readonly float _chargeFiringVelocityMultiplier;
+    private readonly float _chargeFiringHeatMultiplier;
     private bool _charging;
     private bool _charged;
     private float _charge;
@@ -66,12 +77,12 @@ public class ChargedWeapon : InstantWeapon
     public float ChargeEnergy { get; protected set; }
     public float ChargeHeat { get; protected set; }
 
-    public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
+    public override float DamagePerSecond => Damage * _chargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
         return Damage *
-               _data.ChargeFiringDamageMultiplier *
-               _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) /
+               _chargeFiringDamageMultiplier *
+               DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) /
                (Cooldown + ChargeTime);
     }
 
@@ -100,26 +111,48 @@ public class ChargedWeapon : InstantWeapon
 
     public ChargedWeapon(ChargedWeaponConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _chargeTime = data.ChargeTime;
+        _chargeEnergy = data.ChargeEnergy;
+        _chargeHeat = data.ChargeHeat;
+        _canFireEarly = data.CanFireEarly;
+        _failureCharge = data.FailureCharge;
+        _failureDamage = data.FailureDamage;
+        _chargeFiringDamageMultiplier = data.ChargeFiringDamageMultiplier;
+        _chargeFiringSpreadMultiplier = data.ChargeFiringSpreadMultiplier;
+        _chargeFiringBurstCountMultiplier = data.ChargeFiringBurstCountMultiplier;
+        _chargeFiringVisibilityMultiplier = data.ChargeFiringVisibilityMultiplier;
+        _chargeFiringVelocityMultiplier = data.ChargeFiringVelocityMultiplier;
+        _chargeFiringHeatMultiplier = data.ChargeFiringHeatMultiplier;
     }
 
     public ChargedWeapon(ChargedWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _chargeTime = data.ChargeTime;
+        _chargeEnergy = data.ChargeEnergy;
+        _chargeHeat = data.ChargeHeat;
+        _canFireEarly = data.CanFireEarly;
+        _failureCharge = data.FailureCharge;
+        _failureDamage = data.FailureDamage;
+        _chargeFiringDamageMultiplier = data.ChargeFiringDamageMultiplier;
+        _chargeFiringSpreadMultiplier = data.ChargeFiringSpreadMultiplier;
+        _chargeFiringBurstCountMultiplier = data.ChargeFiringBurstCountMultiplier;
+        _chargeFiringVisibilityMultiplier = data.ChargeFiringVisibilityMultiplier;
+        _chargeFiringVelocityMultiplier = data.ChargeFiringVelocityMultiplier;
+        _chargeFiringHeatMultiplier = data.ChargeFiringHeatMultiplier;
     }
 
     protected override void UpdateStats()
     {
         base.UpdateStats();
-        ChargeTime = Evaluate(_data.ChargeTime);
-        ChargeEnergy = Evaluate(_data.ChargeEnergy);
-        ChargeHeat = Evaluate(_data.ChargeHeat);
-        Damage *= lerp(1, _data.ChargeFiringDamageMultiplier, saturate(_charge));
-        Heat *= lerp(1, _data.ChargeFiringHeatMultiplier, saturate(_charge));
-        Spread *= lerp(1, _data.ChargeFiringSpreadMultiplier, saturate(_charge));
-        BurstCount *= lerp(1, _data.ChargeFiringBurstCountMultiplier, saturate(_charge));
-        Visibility *= lerp(1, _data.ChargeFiringVisibilityMultiplier, saturate(_charge));
-        Velocity *= lerp(1, _data.ChargeFiringVelocityMultiplier, saturate(_charge));
+        ChargeTime = Evaluate(_chargeTime);
+        ChargeEnergy = Evaluate(_chargeEnergy);
+        ChargeHeat = Evaluate(_chargeHeat);
+        Damage *= lerp(1, _chargeFiringDamageMultiplier, saturate(_charge));
+        Heat *= lerp(1, _chargeFiringHeatMultiplier, saturate(_charge));
+        Spread *= lerp(1, _chargeFiringSpreadMultiplier, saturate(_charge));
+        BurstCount *= lerp(1, _chargeFiringBurstCountMultiplier, saturate(_charge));
+        Visibility *= lerp(1, _chargeFiringVisibilityMultiplier, saturate(_charge));
+        Velocity *= lerp(1, _chargeFiringVelocityMultiplier, saturate(_charge));
     }
 
     public override bool Execute(float dt)
@@ -137,7 +170,7 @@ public class ChargedWeapon : InstantWeapon
                     OnCharged?.Invoke();
                 }
             }
-            if (_data.FailureCharge > 1 && _charge > _data.FailureCharge)
+            if (_failureCharge > 1 && _charge > _failureCharge)
             {
                 _charging = false;
                 _cooldown = 1;
@@ -145,7 +178,7 @@ public class ChargedWeapon : InstantWeapon
                 _charge = 0;
                 OnFailed?.Invoke();
                 Item.FireAudioEvent(ChargedWeaponAudioEvent.Fail);
-                CauseDamage(_data.FailureDamage);
+                CauseDamage(_failureDamage);
             }
         }
         return base.Execute(dt);
@@ -166,7 +199,7 @@ public class ChargedWeapon : InstantWeapon
     {
         if (_charging)
         {
-            if (_data.CanFireEarly || _charge > 1)
+            if (_canFireEarly || _charge > 1)
             {
                 Trigger();
                 _charge = 0;

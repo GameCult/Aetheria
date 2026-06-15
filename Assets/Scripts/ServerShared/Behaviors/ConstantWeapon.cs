@@ -25,7 +25,7 @@ public class ConstantWeaponConfig : WeaponConfig
 
 public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
-    private ConstantWeaponConfig _data;
+    private readonly float _ammoIntervalDuration;
     private int _ammo = 1;
     private float _ammoInterval;
     private float _reload;
@@ -47,7 +47,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override float DamagePerSecond => Damage;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range)));
+        return Damage * DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range)));
     }
 
     public event Action OnReloadBegin;
@@ -65,12 +65,12 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
     public ConstantWeapon(ConstantWeaponConfig data, EquippedItem item) : base(data, item)
     {
-        _data = data;
+        _ammoIntervalDuration = data.AmmoInterval;
     }
 
     public ConstantWeapon(ConstantWeaponConfig data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
+        _ammoIntervalDuration = data.AmmoInterval;
     }
 
     public override bool Execute(float dt)
@@ -78,17 +78,17 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         base.Execute(dt);
         if (_firing)
         {
-            if (!Entity.TryConsumeEnergy(Evaluate(_data.Energy) * dt))
+            if (!Entity.TryConsumeEnergy(Energy * dt))
             {
                 _firing = false;
                 OnStopFiring?.Invoke();
                 return false;
             }
-            if (!string.IsNullOrWhiteSpace(_data.AmmoItemKey))
+            if (!string.IsNullOrWhiteSpace(AmmoItemKey))
             {
                 if (_reloading)
                 {
-                    _reload -= dt / _data.ReloadTime;
+                    _reload -= dt / ReloadTime;
                     if (_reload < 0)
                     {
                         _reloading = false;
@@ -97,21 +97,21 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                     return false;
                 }
 
-                _ammoInterval -= dt / _data.AmmoInterval;
+                _ammoInterval -= dt / _ammoIntervalDuration;
                 if (_ammoInterval < 0)
                 {
                     _ammoInterval = 1;
-                    if (_data.MagazineSize > 1 && _ammo > 0) _ammo--;
+                    if (MagazineSize > 1 && _ammo > 0) _ammo--;
                     else
                     {
-                        var cargo = Entity.FindItemInCargo(_data.AmmoItemKey);
+                        var cargo = Entity.FindItemInCargo(AmmoItemKey);
                         if (cargo != null)
                         {
-                            var item = cargo.GetFirstItem(_data.AmmoItemKey);
+                            var item = cargo.GetFirstItem(AmmoItemKey);
                             if (item is SimpleCommodity simpleCommodity)
                                 cargo.Remove(simpleCommodity, 1);
 
-                            if(_data.MagazineSize > 1)
+                            if(MagazineSize > 1)
                             {
                                 _reloading = true;
                                 _reload = 1;
@@ -127,8 +127,8 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
             }
 
             CauseWearDamage(dt);
-            AddHeat(Evaluate(_data.Heat) * dt);
-            Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+            AddHeat(Heat * dt);
+            Entity.VisibilitySources[this] = Visibility;
         }
         return true;
     }
