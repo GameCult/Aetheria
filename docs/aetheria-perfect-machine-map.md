@@ -72,6 +72,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `GameData/KeyboardLayouts/*.msgpack` authority paths are disabled or deleted.
   The old `SavedGame`/`SavedZone` DTOs and `Galaxy` save-loader constructor are
   deleted. The dead `SavedStory` JSON DTO is deleted.
+  The unused Unity Localization package and imported Google Sheets localization
+  sample have also been deleted, removing the transitive Unity Newtonsoft package
+  from the manifest/lock. Unity's built-in `jsonserialize` module and generated
+  InputSystem JSON remain engine/package boundaries, not Aetheria state.
   `ZoneConstructionBlueprint`, body/orbit zone runtime data, item-instance runtime
   data, `Ship`, and `EntitySettings` remain as runtime
   construction/loadout/session projections, but no longer use save-file or
@@ -1272,6 +1276,9 @@ First Aetheria surfaces to publish:
      runbook remains as a live operational surface.
    - Done: delete JsonKnownTypes.
    - Done: delete Newtonsoft dependencies and attributes from live code.
+   - Done: delete the unused Unity Localization package and imported localization
+     sample, removing the transitive Unity Newtonsoft package from the package
+     lock.
    - Done: delete old JSON backing stores.
    - Done: delete the broken `Economy.Shared` wrapper and tracked build output.
    - Done: disable legacy local save, loadout, zone, player-settings, and
@@ -1346,7 +1353,7 @@ First Aetheria surfaces to publish:
      surfaces and make the applier prefer them over stale legacy-ID fields.
      Loadout items, action-bar targets, body resources, entity hulls, cargo
      contents, and active consumables now prove typed-key ownership in the
-     Unity smoke by carrying intentionally stale legacy IDs.
+     Unity smoke without any item legacy-ID commit fields.
    - Done: add package runtime catalog lookup by canonical item key and move
      Unity gameplay, HUD, inventory, trade, ship, and zone helper lookups off
      `ItemId`/`FindItemByLegacyId` detours. Legacy item lookup remains only as
