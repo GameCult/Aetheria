@@ -8,18 +8,6 @@ using UniRx;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float3 = Unity.Mathematics.float3;
-public class TurretControllerConfig : RuntimeBehaviorConfig
-{
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new TurretController(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new TurretController(this, item);
-    }
-}
-
 public class TurretController : Behavior, IInitializableBehavior
 {
     private List<Weapon> _weapons = new List<Weapon>();
@@ -30,11 +18,11 @@ public class TurretController : Behavior, IInitializableBehavior
     public float ShotSpeed => _shotSpeed;
     public bool PredictShots => _predictShots;
 
-    public TurretController(TurretControllerConfig data, EquippedItem item) : base(data, item)
+    public TurretController(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
     }
 
-    public TurretController(TurretControllerConfig data, ConsumableItemEffect item) : base(data, item)
+    public TurretController(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
     }
 

@@ -4,27 +4,14 @@
 
 using System;
 using System.Linq;
-[Inspectable, Order(-25)]
-public class SwitchConfig : RuntimeBehaviorConfig
-{
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Switch(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Switch(this, item);
-    }
-}
-
 public class Switch : Behavior, IActivatedBehavior
 {
     public bool Activated { get; set; }
 
-    public Switch(SwitchConfig data, EquippedItem item) : base(data, item)
+    public Switch(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
     }
-    public Switch(SwitchConfig data, ConsumableItemEffect item) : base(data, item)
+    public Switch(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
     }
 

@@ -61,32 +61,58 @@ public class ItemManager
 
     public Behavior[] CreateRuntimeBehaviors(EquippedItem item)
     {
-        return CreateRuntimeBehaviorConfigs(item?.EquippableItem)
-            .Select(config => config.CreateInstance(item))
-            .ToArray();
+        return GetRuntimeItem(item?.EquippableItem)?.BehaviorPayloads
+            .Select(payload => CreateRuntimeBehavior(payload, item))
+            .Where(behavior => behavior != null)
+            .ToArray() ?? Array.Empty<Behavior>();
     }
 
     public Behavior[] CreateRuntimeBehaviors(ConsumableItemEffect effect)
     {
-        return CreateRuntimeBehaviorConfigs(effect?.Item)
-            .Select(config => config.CreateInstance(effect))
-            .ToArray();
-    }
-
-    private IReadOnlyList<RuntimeBehaviorConfig> CreateRuntimeBehaviorConfigs(ItemInstance item)
-    {
-        var typedItem = GetRuntimeItem(item);
-        return typedItem == null
-            ? Array.Empty<RuntimeBehaviorConfig>()
-            : BuildBehaviorConfigs(typedItem);
-    }
-
-    private static RuntimeBehaviorConfig[] BuildBehaviorConfigs(AetheriaRuntimeCatalogItem item)
-    {
-        return item.BehaviorPayloads
-            .Select(BuildBehaviorConfig)
+        return GetRuntimeItem(effect?.Item)?.BehaviorPayloads
+            .Select(payload => CreateRuntimeBehavior(payload, effect))
             .Where(behavior => behavior != null)
-            .ToArray();
+            .ToArray() ?? Array.Empty<Behavior>();
+    }
+
+    private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
+    {
+        var directBehavior = CreateDirectRuntimeBehavior(payload, item);
+        return directBehavior ?? BuildBehaviorConfig(payload)?.CreateInstance(item);
+    }
+
+    private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, ConsumableItemEffect effect)
+    {
+        var directBehavior = CreateDirectRuntimeBehavior(payload, effect);
+        return directBehavior ?? BuildBehaviorConfig(payload)?.CreateInstance(effect);
+    }
+
+    private static Behavior CreateDirectRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
+    {
+        var definition = new RuntimeBehaviorDefinition(payload);
+        switch (payload.Kind)
+        {
+            case "Cockpit": return new Cockpit(definition, item);
+            case "HeatStorage": return new HeatStorage(definition, item);
+            case "Switch": return new Switch(definition, item);
+            case "Trigger": return new Trigger(definition, item);
+            case "TurretController": return new TurretController(definition, item);
+            default: return null;
+        }
+    }
+
+    private static Behavior CreateDirectRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, ConsumableItemEffect effect)
+    {
+        var definition = new RuntimeBehaviorDefinition(payload);
+        switch (payload.Kind)
+        {
+            case "Cockpit": return new Cockpit(definition, effect);
+            case "HeatStorage": return new HeatStorage(definition, effect);
+            case "Switch": return new Switch(definition, effect);
+            case "Trigger": return new Trigger(definition, effect);
+            case "TurretController": return new TurretController(definition, effect);
+            default: return null;
+        }
     }
 
     private static RuntimeBehaviorConfig BuildBehaviorConfig(AetheriaRuntimeBehaviorPayload payload)
@@ -97,13 +123,11 @@ public class ItemManager
             case "AutoWeapon": return Configure(new AutoWeaponConfig(), payload, ApplyInstantWeaponConfig);
             case "Capacitor": return Configure(new CapacitorConfig(), payload, ApplyCapacitorConfig);
             case "ChargedWeapon": return Configure(new ChargedWeaponConfig(), payload, ApplyChargedWeaponConfig);
-            case "Cockpit": return Configure(new CockpitConfig(), payload, null);
             case "ConstantWeapon": return Configure(new ConstantWeaponConfig(), payload, ApplyConstantWeaponConfig);
             case "Cooldown": return Configure(new CooldownConfig(), payload, ApplyCooldownConfig);
             case "EnergyDraw": return Configure(new EnergyDrawConfig(), payload, ApplyEnergyDrawConfig);
             case "GuidedWeapon": return Configure(new GuidedWeaponConfig(), payload, ApplyGuidedWeaponConfig);
             case "Heat": return Configure(new HeatConfig(), payload, ApplyHeatConfig);
-            case "HeatStorage": return Configure(new HeatStorageConfig(), payload, null);
             case "InstantWeapon": return Configure(new InstantWeaponConfig(), payload, ApplyInstantWeaponConfig);
             case "ItemUsage": return Configure(new ItemUsageConfig(), payload, ApplyItemUsageConfig);
             case "Launcher": return Configure(new LauncherConfig(), payload, ApplyLauncherConfig);
@@ -115,11 +139,8 @@ public class ItemManager
             case "Sensor": return Configure(new SensorConfig(), payload, ApplySensorConfig);
             case "Shield": return Configure(new ShieldConfig(), payload, ApplyShieldConfig);
             case "StatModifier": return Configure(new StatModifierConfig(), payload, ApplyStatModifierConfig);
-            case "Switch": return Configure(new SwitchConfig(), payload, null);
             case "Thermotoggle": return Configure(new ThermotoggleConfig(), payload, ApplyThermotoggleConfig);
             case "Thruster": return Configure(new ThrusterConfig(), payload, ApplyThrusterConfig);
-            case "Trigger": return Configure(new TriggerConfig(), payload, null);
-            case "TurretController": return Configure(new TurretControllerConfig(), payload, null);
             case "VelocityConversion": return Configure(new VelocityConversionConfig(), payload, ApplyVelocityConversionConfig);
             case "VelocityLimit": return Configure(new VelocityLimitConfig(), payload, ApplyVelocityLimitConfig);
             case "Visibility": return Configure(new VisibilityConfig(), payload, ApplyVisibilityConfig);

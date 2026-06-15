@@ -6,26 +6,13 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable]
-public class CockpitConfig : RuntimeBehaviorConfig
-{
-    public override Behavior CreateInstance(EquippedItem item)
-    {
-        return new Cockpit(this, item);
-    }
-    public override Behavior CreateInstance(ConsumableItemEffect item)
-    {
-        return new Cockpit(this, item);
-    }
-}
-
 public class Cockpit : Behavior
 {
-    public Cockpit(CockpitConfig data, EquippedItem item) : base(data, item)
+    public Cockpit(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
     }
 
-    public Cockpit(CockpitConfig data, ConsumableItemEffect item) : base(data, item)
+    public Cockpit(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
     {
     }
 }

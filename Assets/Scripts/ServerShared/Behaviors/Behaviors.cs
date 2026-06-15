@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
@@ -62,12 +63,36 @@ public abstract class Behavior
         ItemManager = consumable.Entity.ItemManager;
     }
 
+    protected Behavior(RuntimeBehaviorDefinition definition, EquippedItem item)
+    {
+        _performanceStats = new Dictionary<string, PerformanceStat>(StringComparer.Ordinal);
+        Kind = definition?.Kind ?? "";
+        Group = definition?.Group ?? 0;
+        Item = item;
+        ItemManager = Item.ItemManager;
+    }
+
+    protected Behavior(RuntimeBehaviorDefinition definition, ConsumableItemEffect consumable)
+    {
+        _performanceStats = new Dictionary<string, PerformanceStat>(StringComparer.Ordinal);
+        Kind = definition?.Kind ?? "";
+        Group = definition?.Group ?? 0;
+        Consumable = consumable;
+        ItemManager = consumable.Entity.ItemManager;
+    }
+
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
 
     public bool TryGetPerformanceStat(string statName, out PerformanceStat stat)
     {
-        return !string.IsNullOrWhiteSpace(statName) &&
-               _performanceStats.TryGetValue(statName, out stat);
+        if (!string.IsNullOrWhiteSpace(statName) &&
+            _performanceStats.TryGetValue(statName, out stat))
+        {
+            return true;
+        }
+
+        stat = null;
+        return false;
     }
 
     private static Dictionary<string, PerformanceStat> CapturePerformanceStats(RuntimeBehaviorConfig config)
@@ -157,6 +182,18 @@ public interface IOrderedBehavior
 public interface IPopulationAssignment
 {
     int AssignedPopulation { get; set; }
+}
+
+public sealed class RuntimeBehaviorDefinition
+{
+    public string Kind { get; }
+    public int Group { get; }
+
+    public RuntimeBehaviorDefinition(AetheriaRuntimeBehaviorPayload payload)
+    {
+        Kind = payload?.Kind ?? "";
+        Group = payload?.Group ?? 0;
+    }
 }
 
 [Inspectable]
