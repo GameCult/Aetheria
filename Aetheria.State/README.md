@@ -85,8 +85,8 @@ been deleted from live Unity source. Surviving runtime DTOs no longer carry
 legacy catalog group/table annotations; their remaining metadata is projection
 and inspection metadata for the typed runtime bridge.
 Item instances now carry `AetheriaRuntimeItemReference`, a typed item-key
-facade. `ItemInstance.ItemKey` is the identity surface, while `ItemId` is a
-derived legacy-GUID compatibility projection for broader simulation paths.
+facade. `ItemInstance.ItemKey` is the identity surface; the old `ItemId`
+legacy-GUID projection has been deleted from item instances.
 Cargo inventory indexes, consumable activation lookup, action-bar consumable
 quantity/fill, transfer lookup, trade owned counts, weapon ammo references, and
 item-use behavior references now use item keys. The old derived behavior

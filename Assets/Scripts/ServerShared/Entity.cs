@@ -264,7 +264,7 @@ public abstract class Entity
         Hull = hull;
         var typedHull = itemManager.GetRuntimeItem(hull);
         if (typedHull == null)
-            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.ItemId}");
+            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.ItemKey}");
         Name = typedHull.Name;
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
@@ -354,7 +354,7 @@ public abstract class Entity
     {
         var typedHull = ItemManager.GetRuntimeItem(Hull);
         if (typedHull == null)
-            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.ItemId}");
+            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.ItemKey}");
 
         var hullShape = GetHullShape(typedHull);
         EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);

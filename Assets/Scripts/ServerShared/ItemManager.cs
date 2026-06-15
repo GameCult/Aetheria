@@ -598,7 +598,7 @@ public class ItemManager
         var durability = pow(item.Durability / maxDurability, durabilityExponent * stat.DurabilityExponentMultiplier);
         var result = lerp(stat.Min, stat.Max, quality * durability);
         if (float.IsNaN(result)) 
-            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.ItemId.ToString()} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
+            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.ItemKey} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
         return result;
 
     }
@@ -647,7 +647,7 @@ public class ItemManager
         var typedItem = GetRuntimeItem(item);
         if (typedItem == null)
         {
-            _logger($"Attempted to instantiate missing item id {item?.ItemId}");
+            _logger($"Attempted to instantiate missing item key {item?.ItemKey}");
             return null;
         }
 

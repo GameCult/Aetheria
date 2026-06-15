@@ -1227,6 +1227,8 @@ First Aetheria surfaces to publish:
      references, item-use behavior references, and runtime commit item/hull
      surfaces now carry typed item keys; remaining broader simulation paths
      still derive legacy GUIDs until those structures move to typed keys.
+   - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
+     now report `ItemKey` so item instances expose only typed item-key identity.
    - Remove runtime dependency on `ItemData` DTOs as item instance owners.
 
 5. Mesh host
