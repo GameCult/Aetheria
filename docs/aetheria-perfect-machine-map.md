@@ -52,9 +52,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   the provider-owned Eve command bridge on startup and on a daemon polling loop
   while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
   bounded local operator applicator for both pending lanes.
-- Shared item domain state is still partly built around `AetheriaRuntimeItemReference`,
-  `ItemData`, `RuntimeBehaviorConfig`, derived GUID compatibility in broader
-  simulation paths, and runtime catalog metadata. Dead
+- Shared item domain state is now built around typed item-key references,
+  typed runtime catalog rows, explicit `RuntimeBehaviorConfig` projection, and
+  runtime geometry/stat primitives. The old `ItemData` DTO hierarchy is deleted
+  from live Unity source. Dead
   user-record and galaxy-map-layer catalog roots have been deleted, and
   surviving runtime DTOs no longer carry legacy catalog group/table annotations. Newtonsoft,
   JsonKnownTypes, RethinkDB, LiteNetLib client transport, and the broken
@@ -608,9 +609,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   zone for future typed catalog boot.
   `ActionGameManager` opens the package-owned typed runtime catalog snapshot
   and binds item reference resolution through `AetheriaRuntimeItemCatalog`.
-  Runtime code receives narrow `ItemManager` projection methods where gameplay
-  still needs old `ItemData` DTOs. `Galaxy`, entity restore, and faction-distance
-  loadout weighting have been moved off legacy faction catalog reads.
+  Runtime code receives narrow `ItemManager` projection methods over typed
+  runtime catalog rows and no longer hydrates old `ItemData` DTOs. `Galaxy`,
+  entity restore, and faction-distance loadout weighting have been moved off
+  legacy faction catalog reads.
   The embedded Unity state package owns the read-only runtime catalog model
   contract and the read-only known-schema `.cc` catalog opener. `ActionGameManager`
   now exposes that typed package snapshot at boot. The SDK-style
@@ -692,9 +694,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   DTO projection caches.
 - Shared paths: manual gameplay edits, editor edits, server updates, file load,
   file save, and migration all need to converge on one typed commit primitive.
-- Deletion line: no new behavior should be added to old `ItemData` DTO
-  metadata or MessagePack catalog paths except bounded migration readers and the
-  current typed behavior config bridge.
+- Deletion line: no new behavior should recreate old `ItemData` DTO metadata,
+  whole-item projection caches, or MessagePack catalog paths except bounded
+  migration readers.
 
 ## Target Authority Map
 
@@ -711,10 +713,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   and any compatibility reader.
 - Shared paths: gameplay input, editor edits, import/deep-load, replication,
   simulation ticks, and tests all call the same typed state service.
-- Deletion line: replace the remaining `ItemData` runtime DTO projection with
-  native typed item instances and typed behavior factories, then remove old MessagePack
-  catalog metadata from live Unity source once import-only migration no longer
-  needs it.
+- Deletion line: continue collapsing the temporary typed behavior-config bridge
+  into native typed behavior factories, then remove old MessagePack catalog
+  metadata from live Unity source once import-only migration no longer needs it.
 
 ## Intended Change
 
@@ -1244,7 +1245,9 @@ First Aetheria surfaces to publish:
    - Done: move resource scanner targets and mining tool asteroid belts to
      typed body-key runtime commit fields; raw body ID commit fields are now
      compatibility-only fallback input.
-   - Remove runtime dependency on `ItemData` DTOs as item instance owners.
+   - Done: delete the old `ItemData`/`EquippableItemData`/`HullData`/
+     `WeaponItemData` DTO hierarchy from live Unity source; shared runtime
+     geometry/stat primitives now live in `RuntimeGeometry.cs`.
 
 5. Mesh host
    - Replace `Economy.Server` RethinkDB and LiteNetLib database authority with a

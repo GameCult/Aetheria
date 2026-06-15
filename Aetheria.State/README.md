@@ -130,9 +130,11 @@ hardpoint type, shape fit, hull type, and behavior kind, then instantiates
 generated equipment directly from typed runtime rows.
 The surviving trade menu also applies typed catalog prefilters for row size,
 hardpoint type, and behavior kind before legacy buy actions.
-Surviving item catalog Unity DTOs keep local legacy GUID fields only where old
-simulation APIs still accept DTO objects. The old `RuntimeCatalogEntry` and
-`RuntimeItemProjectionEntry` base names no longer appear in live source.
+The old `ItemData`/`EquippableItemData`/`HullData`/`WeaponItemData` DTO
+hierarchy has been deleted from live Unity source. Shared runtime geometry and
+stat primitives now live in `RuntimeGeometry.cs`; item facts come from typed
+runtime rows. The old `RuntimeCatalogEntry` and `RuntimeItemProjectionEntry`
+base names no longer appear in live source.
 The dead `InspectableRuntimeCatalogLinkAttribute` inspector metadata is gone;
 live Unity source no longer carries `LegacyPayloadKeyAttribute` either.
 Catalog import and migration readers own deterministic legacy field layout
