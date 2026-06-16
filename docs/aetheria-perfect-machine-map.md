@@ -117,7 +117,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   old `PropertiesPanel` button shell, even though typed rebinding controls and
   typed audio controls are still future work. Sector-map zone inspection now
   lowers through a local Eve/UI Toolkit surface as well instead of rebuilding
-  `PropertiesPanel` rows on each zone click.
+  `PropertiesPanel` rows on each zone click. The runtime in-game menu tab strip
+  now lowers through a local Eve/UI Toolkit surface instead of wiring old
+  `MenuTabButton` clicks.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1552,6 +1554,9 @@ First Aetheria surfaces to publish:
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player
      clicks a zone.
+   - Done: replace the runtime in-game menu tab strip with an Eve-owned UI
+     Toolkit surface. `MenuPanel` still owns tab-content activation, but old
+     `MenuTabButton` click wiring no longer owns tab navigation.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1913,6 +1918,9 @@ First Aetheria surfaces to publish:
 - Sector-map zone inspection now lowers through a shared UI Toolkit
   `UIDocument` host and a local Eve surface document instead of rebuilding
   `PropertiesPanel.AddProperty(...)` rows on each zone click.
+- Runtime in-game menu tab navigation now lowers through a shared UI Toolkit
+  `UIDocument` host and a local Eve surface document instead of wiring
+  `MenuTabButton` click handlers.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and

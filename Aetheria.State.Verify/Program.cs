@@ -34,6 +34,7 @@ RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
+RequireRuntimeMenuTabsUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -500,6 +501,7 @@ Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester autho
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
+Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2530,6 +2532,58 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "SectorRenderer still owns zone details through the old PropertiesPanel path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireRuntimeMenuTabsUseEveSurface(string root)
+{
+    var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
+    if (!File.Exists(menuPanelPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime menu tab shell; MenuPanel.cs is missing.");
+    }
+
+    var source = File.ReadAllText(menuPanelPath);
+    var requiredSymbols = new[]
+    {
+        "MenuTabsSurfaceId",
+        "RenderTabSurface(",
+        "HandleTabSurfaceCommand(",
+        "ResolveTabSurfaceDocument(",
+        "BuildTabSurfaceDefinition(",
+        "ResolveVisibleTabs(",
+        "GetTabCommand(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "TabButtons.gameObject.SetActive(false)"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MenuPanel no longer lowers the runtime tab shell through Eve surfaces: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "tabButton.Button.onClick.AddListener(",
+        "tabButton.gameObject.SetActive(!tabButton.RequireDock || GameManager.DockedEntity != null);",
+        "_tabs[MenuTab.Local].gameObject.SetActive("
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MenuPanel still owns tab-shell behavior through the old MenuTabButton path: " +
             string.Join(", ", hits));
     }
 }
