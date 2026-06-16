@@ -19,6 +19,7 @@ RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
 RequireWeaponGroupCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
+RequireLootPickupCommitAuthority(root);
 RequireTradePurchaseCommitAuthority(root);
 RequireInventoryLoadoutRestoreCommitAuthority(root);
 RequireDockedCurrentShipCommitAuthority(root);
@@ -1103,6 +1104,61 @@ static void RequireTradePurchaseCommitAuthority(string root)
     if (!tradeMenu.Contains("GameManager.CommitTradePurchase", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("TradeMenu no longer routes purchases through ActionGameManager.");
+    }
+}
+
+static void RequireLootPickupCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify loot pickup authority; ActionGameManager.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "CommitLootPickup",
+        "QueueRunCheckpoint(\"loot-pickup\")",
+        ".TryStore(item)"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Loot pickup no longer has a gameplay-owned checkpoint commit primitive: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var shieldManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ShieldManager.cs");
+    var shieldManager = File.Exists(shieldManagerPath)
+        ? File.ReadAllText(shieldManagerPath)
+        : throw new InvalidOperationException("Cannot verify loot pickup authority; ShieldManager.cs is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        ".TryStore(",
+        ".CargoBays.Any("
+    };
+
+    var hits = File.ReadLines(shieldManagerPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, shieldManagerPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ShieldManager still owns direct loot cargo mutation: " +
+            string.Join("; ", hits));
+    }
+
+    if (!shieldManager.Contains("ActionGameManager.Instance.CommitLootPickup", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("ShieldManager no longer routes loot pickup through ActionGameManager.");
     }
 }
 

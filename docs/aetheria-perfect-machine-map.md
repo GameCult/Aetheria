@@ -1409,6 +1409,11 @@ First Aetheria surfaces to publish:
      `ActionGameManager.CommitDockedCurrentShip`. `InventoryPanel` may request
      a selected docked player ship and update the button color, but gameplay
      owns `CurrentEntity`, `DockingBay.DockedShip`, and the typed checkpoint.
+   - Done: route loot pickup through `ActionGameManager.CommitLootPickup`.
+     `ShieldManager` may detect the collision and destroy the world pickup
+     after a successful commit, but it no longer stores items into cargo bays
+     directly; gameplay owns the cargo mutation and queues the typed run
+     checkpoint.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1742,7 +1747,9 @@ credit changes, cargo transfer, ship creation, and checkpoint. Runtime loadout
 restore follows the same rule: UI requests restoration, gameplay owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, gameplay
-owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Any
+owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Loot pickup
+follows the same rule: collision code reports the pickup opportunity, gameplay
+owns cargo storage and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

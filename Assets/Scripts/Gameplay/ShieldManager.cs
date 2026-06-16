@@ -25,7 +25,8 @@ public class ShieldManager : MonoBehaviour
                 var mine = other.collider.GetComponent<Mine>();
                 if (itemPickup)
                 {
-                    if (Entity.CargoBays.Any(c => c.TryStore(itemPickup.Item)))
+                    if (ActionGameManager.Instance != null &&
+                        ActionGameManager.Instance.CommitLootPickup(Entity, itemPickup.Item))
                     {
                         // TODO: Pickup notification!
                         Destroy(itemPickup.gameObject);

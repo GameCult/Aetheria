@@ -1570,6 +1570,23 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public bool CommitLootPickup(Entity entity, ItemInstance item)
+    {
+        if (entity == null || item == null)
+            return false;
+
+        foreach (var cargoBay in entity.CargoBays)
+        {
+            if (!cargoBay.TryStore(item))
+                continue;
+
+            QueueRunCheckpoint("loot-pickup");
+            return true;
+        }
+
+        return false;
+    }
+
     public bool CommitCargoItemTransfer(
         EquippedCargoBay origin,
         EquippedCargoBay destination,
