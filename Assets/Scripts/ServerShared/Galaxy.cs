@@ -31,7 +31,6 @@ public class Galaxy
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
     
-    private HashSet<Guid> _containedFactions;
     private HashSet<string> _containedFactionKeys;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
@@ -233,20 +232,17 @@ public class Galaxy
             throw new InvalidOperationException("Typed catalog has no factions for galaxy generation.");
         }
 
-        var factionsByLegacyId = factions.ToDictionary(faction => faction.ID.ToString("D"), StringComparer.OrdinalIgnoreCase);
+        var factionKeys = new HashSet<string>(
+            factions
+                .Select(faction => faction.FactionKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key)),
+            StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < corporations.Length; index++)
         {
             foreach (var allegiance in corporations[index].Allegiances)
             {
-                if (Guid.TryParse(allegiance.CorporationLegacyId, out var corporationId) &&
-                    corporationId != Guid.Empty &&
-                    factionsByLegacyId.ContainsKey(corporationId.ToString("D")))
-                {
-                    factions[index].Allegiance[corporationId] = (float) allegiance.Weight;
-                }
-
                 if (!string.IsNullOrWhiteSpace(allegiance.CorporationKey) &&
-                    factionsByLegacyId.ContainsKey(allegiance.CorporationLegacyId))
+                    factionKeys.Contains(allegiance.CorporationKey))
                 {
                     factions[index].AllegianceByKey[allegiance.CorporationKey] = (float) allegiance.Weight;
                 }
@@ -473,12 +469,6 @@ public class Galaxy
         }
     }
 
-    public bool ContainsFaction(Guid factionID)
-    {
-        _containedFactions ??= new HashSet<Guid>(Factions.Select(f => f.ID));
-        return _containedFactions.Contains(factionID);
-    }
-
     public bool ContainsFaction(string factionKey)
     {
         _containedFactionKeys ??= new HashSet<string>(
@@ -487,22 +477,6 @@ public class Galaxy
                 .Where(key => !string.IsNullOrWhiteSpace(key)),
             StringComparer.OrdinalIgnoreCase);
         return !string.IsNullOrWhiteSpace(factionKey) && _containedFactionKeys.Contains(factionKey);
-    }
-
-    public Faction ResolveFaction(Guid factionID)
-    {
-        if (factionID == Guid.Empty)
-        {
-            return null;
-        }
-
-        var faction = Factions.FirstOrDefault(f => f.ID == factionID);
-        if (faction != null)
-        {
-            return faction;
-        }
-
-        return _allFactions.FirstOrDefault(f => f.ID == factionID);
     }
 
     public Faction ResolveFactionByKey(string factionKey)

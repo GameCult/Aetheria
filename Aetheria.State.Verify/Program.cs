@@ -11,6 +11,7 @@ RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
+RequireTypedGalaxyFactionRelationships(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -658,6 +659,42 @@ static void RequireTypedRuntimeFactionKeys(string root)
     {
         throw new InvalidOperationException(
             "Runtime faction commits must use typed FactionKey authority, not legacy GUID fallback: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedGalaxyFactionRelationships(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Corporations.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Galaxy.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "LoadoutGenerator.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "Dictionary<Guid, float> Allegiance",
+        ".Allegiance[",
+        "ContainsFaction(Guid",
+        "ResolveFaction(Guid",
+        "CorporationLegacyId",
+        "factionsByLegacyId",
+        "_containedFactions"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Galaxy faction relationships must use typed corporation keys, not legacy GUID allegiance state: " +
             string.Join("; ", hits));
     }
 }

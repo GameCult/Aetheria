@@ -398,8 +398,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `Galaxy` generation no longer accepts a runtime item catalog reader or `ItemManager`.
   Sector and tutorial generation receive the package-owned typed runtime
   catalog. `Galaxy` projects typed corporation v2 records into temporary legacy
-  `Faction` DTOs, including allegiance edges, for the existing simulation shape
-  and resolves full name arrays from `aetheria.name_file.v2` records. The
+  `Faction` DTOs for the existing simulation shape, but allegiance edges are
+  typed-key-only through `AllegianceByKey`; the old GUID allegiance dictionary
+  and GUID faction lookup helpers are deleted. Galaxy resolves full name arrays
+  from `aetheria.name_file.v2` records. The
   runtime no longer opens the old `GameData/NameFile/*.msgpack` directory.
 - Item instances carry `AetheriaRuntimeItemReference`, a typed item key resolved
   by `ItemManager` against the typed runtime item catalog projected
@@ -1011,6 +1013,10 @@ First Aetheria surfaces to publish:
      old blueprint `Faction` GUID compatibility field is deleted, and runtime
      entity/faction-relationship commits no longer rebuild faction keys from
      legacy `Faction.ID` GUIDs.
+   - Done: delete `Faction.Allegiance`, `Galaxy.ContainsFaction(Guid)`, and
+     `Galaxy.ResolveFaction(Guid)`; galaxy/loadout faction relationship logic
+     now uses `AllegianceByKey`, `ContainsFaction(string)`, and
+     `ResolveFactionByKey` only.
    - Done: move package and canonical manufacturer/corporation/name-file lookup
      to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
      and `NameFileKey`), and move loadout manufacturer-distance weighting to
@@ -1735,6 +1741,10 @@ First Aetheria surfaces to publish:
 - `Aetheria.State.Verify` also guards runtime faction identity ownership:
   construction blueprints cannot carry a legacy faction GUID, and runtime
   entity/faction commits cannot rebuild `FactionKey` from `Faction.ID`.
+- `Aetheria.State.Verify` guards galaxy faction relationships as typed-key-only:
+  no `Faction.Allegiance` GUID dictionary, GUID faction containment, GUID
+  faction resolver, or `CorporationLegacyId` relationship read may return to
+  the live `Galaxy`/`LoadoutGenerator` path.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

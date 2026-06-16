@@ -40,8 +40,6 @@ public class Faction : INamedEntry
     [Inspectable]
     public int InfluenceDistance = 4;
 
-    [InspectableRangedFloat(0, 1)]
-    public Dictionary<Guid, float> Allegiance = new Dictionary<Guid, float>();
     public Dictionary<string, float> AllegianceByKey = new Dictionary<string, float>();
 
     [InspectableSoundBank]
