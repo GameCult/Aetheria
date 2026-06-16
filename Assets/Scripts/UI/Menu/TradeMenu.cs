@@ -266,6 +266,15 @@ public class TradeMenu : MonoBehaviour
                     {
                         return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
                     }));
+				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Temperature)
+                    columns.Add((field.Name, 1, x =>
+                    {
+                        var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
+                        return () => ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)value);
+                    }, x =>
+                    {
+                        return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
+                    }));
 				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Integer)
                     columns.Add((field.Name, 1, x =>
                     {

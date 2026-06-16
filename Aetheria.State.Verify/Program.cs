@@ -32,6 +32,7 @@ RequireMainMenuSettingsCommit(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
+RequireTypedBehaviorMetadataCoverage(root);
 RequireNoDeadRuntimeProjectionCaches(root);
 RequireNoDeadInspectorMetadata(root);
 RequireRuntimeSimulationTuningCommits(root);
@@ -489,6 +490,7 @@ Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester autho
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
+Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
@@ -2416,6 +2418,71 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
         throw new InvalidOperationException(
             "PropertiesPanel should not keep the dead generic reflection inspector path or renderer-local write authority: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireTypedBehaviorMetadataCoverage(string root)
+{
+    var metadataPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeBehaviorMetadata.cs");
+    var propertiesPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs");
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+
+    var metadata = File.Exists(metadataPath)
+        ? File.ReadAllText(metadataPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; AetheriaRuntimeBehaviorMetadata.cs is missing.");
+    var propertiesPanel = File.Exists(propertiesPanelPath)
+        ? File.ReadAllText(propertiesPanelPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; PropertiesPanel.cs is missing.");
+    var tradeMenu = File.Exists(tradeMenuPath)
+        ? File.ReadAllText(tradeMenuPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; TradeMenu.cs is missing.");
+
+    var requiredMetadataSymbols = new[]
+    {
+        "AetheriaRuntimeBehaviorFieldValueKind.Temperature",
+        "Behavior(\"Heat\", \"\", Stat(\"Heat\", 1))",
+        "Behavior(\"MiningTool\", \"\", Stat(\"DamagePerSecond\", 1), Stat(\"Efficiency\", 2), Stat(\"Penetration\", 3), Stat(\"Range\", 4))",
+        "Behavior(\"Switch\", \"\")",
+        "Behavior(\"Thermotoggle\", \"\", Temperature(\"TargetTemperature\", 1))",
+        "Behavior(\"Trigger\", \"\")",
+        "Temperature(\"TemperatureFloor\", 3)"
+    };
+
+    var missingMetadataSymbols = requiredMetadataSymbols
+        .Where(symbol => !metadata.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingMetadataSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed behavior metadata no longer covers live heat/mining/thermotoggle payloads and switch/trigger shells: " +
+            string.Join(", ", missingMetadataSymbols));
+    }
+
+    var requiredUiSymbols = new[]
+    {
+        "AetheriaRuntimeBehaviorFieldValueKind.Temperature",
+        "FormatTemperature"
+    };
+
+    var missingPropertiesSymbols = requiredUiSymbols
+        .Where(symbol => !propertiesPanel.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingPropertiesSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "PropertiesPanel no longer renders typed temperature-bearing behavior metadata: " +
+            string.Join(", ", missingPropertiesSymbols));
+    }
+
+    var missingTradeSymbols = requiredUiSymbols
+        .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTradeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu no longer renders typed temperature-bearing behavior metadata: " +
+            string.Join(", ", missingTradeSymbols));
     }
 }
 

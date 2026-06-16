@@ -455,6 +455,11 @@ public class PropertiesPanel : MonoBehaviour
 						var value = (float)(payloadField?.Value.NumberValue ?? 0);
 						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.Format(value)}");
 					}
+					else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Temperature)
+					{
+						var value = (float)(payloadField?.Value.NumberValue ?? 0);
+						sheet.AddStat(field.Name.SplitCamelCase(), () => $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature(value)}");
+					}
 					else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Integer)
 					{
 						var value = (int)(payloadField?.Value.NumberValue ?? 0);

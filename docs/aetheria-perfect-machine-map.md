@@ -1117,6 +1117,11 @@ First Aetheria surfaces to publish:
    - Done: move PropertiesPanel generic behavior stat display off
      `BehaviorData` reflection and onto package-owned typed behavior display
      metadata keyed by behavior kind and payload field key.
+   - Done: complete package-owned typed behavior metadata coverage for live
+     `Heat`, `MiningTool`, and `Thermotoggle` payload fields plus `Switch` and
+     `Trigger` shell kinds. `PropertiesPanel` and `TradeMenu` no longer
+     silently drop those typed behavior families, and temperature-bearing
+     payload values format through the runtime temperature unit.
    - Done: move TradeMenu behavior filter options, behavior family matching,
      and dynamic behavior columns off `BehaviorData` reflection and onto
      package-owned typed behavior metadata.

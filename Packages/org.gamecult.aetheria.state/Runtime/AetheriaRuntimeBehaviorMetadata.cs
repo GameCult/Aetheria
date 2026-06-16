@@ -8,7 +8,8 @@ namespace GameCult.Aetheria.State.Unity
     {
         Number,
         Integer,
-        PerformanceStat
+        PerformanceStat,
+        Temperature
     }
 
     public sealed class AetheriaRuntimeBehaviorFieldMetadata
@@ -74,15 +75,20 @@ namespace GameCult.Aetheria.State.Unity
                 Behavior(AetheriaRuntimeBehaviorKinds.AutoWeapon, AetheriaRuntimeBehaviorKinds.InstantWeapon, InstantWeaponFields),
                 Behavior("Cooldown", "", Stat("Cooldown", 1)),
                 Behavior("EnergyDraw", "", Stat("EnergyDraw", 1)),
+                Behavior("Heat", "", Stat("Heat", 1)),
                 Behavior("HeatStorage", ""),
                 Behavior("ItemUsage", ""),
-                Behavior("Radiator", "", Stat("Emissivity", 1), Stat("PumpedHeat", 2), Number("TemperatureFloor", 3), Stat("WasteHeat", 4), Stat("EnergyUsage", 5), Stat("ThermalMass", 6)),
+                Behavior("MiningTool", "", Stat("DamagePerSecond", 1), Stat("Efficiency", 2), Stat("Penetration", 3), Stat("Range", 4)),
+                Behavior("Radiator", "", Stat("Emissivity", 1), Stat("PumpedHeat", 2), Temperature("TemperatureFloor", 3), Stat("WasteHeat", 4), Stat("EnergyUsage", 5), Stat("ThermalMass", 6)),
                 Behavior("Reactor", "", Stat("Charge", 1), Stat("Efficiency", 2), Stat("OverloadEfficiency", 3), Stat("ThrottlingFactor", 4)),
                 Behavior("Reflector", "", Stat("CrossSection", 1)),
                 Behavior("ResourceScanner", "", Stat("Range", 1), Stat("MinimumDensity", 2), Stat("ScanDuration", 3)),
                 Behavior("Sensor", "", Stat("Sensitivity", 3), Stat("PingBoost", 5), Stat("PingEnergy", 6), Stat("PingVisibility", 7), Stat("PingRange", 8), Stat("PingCooldown", 9)),
                 Behavior("Shield", "", Stat("Efficiency", 1), Stat("EnergyUsage", 2)),
+                Behavior("Switch", ""),
+                Behavior("Thermotoggle", "", Temperature("TargetTemperature", 1)),
                 Behavior("Thruster", "", Stat("Thrust", 1), Stat("Visibility", 2), Stat("Heat", 3), Stat("EnergyUsage", 4)),
+                Behavior("Trigger", ""),
                 Behavior("TurretController", ""),
                 Behavior("VelocityConversion", "", Stat("Lambda", 1)),
                 Behavior("VelocityLimit", "", Stat("TopSpeed", 1)),
@@ -140,6 +146,11 @@ namespace GameCult.Aetheria.State.Unity
         private static AetheriaRuntimeBehaviorFieldMetadata Number(string name, int key)
         {
             return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Number);
+        }
+
+        private static AetheriaRuntimeBehaviorFieldMetadata Temperature(string name, int key)
+        {
+            return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Temperature);
         }
 
         private static AetheriaRuntimeBehaviorFieldMetadata[] With(
