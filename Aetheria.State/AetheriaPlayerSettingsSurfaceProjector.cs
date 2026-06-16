@@ -6,7 +6,7 @@ namespace Aetheria.State;
 public static class AetheriaPlayerSettingsSurfaceProjector
 {
     public const string SurfaceKey = "eve:surface:aetheria.player_settings";
-    public const string SurfaceId = "aetheria.player_settings";
+    public const string SurfaceId = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SurfaceId;
 
     public static EveSurfaceState Build(
         AetheriaPlayerSettings? settings,
@@ -56,7 +56,7 @@ public static class AetheriaPlayerSettingsSurfaceProjector
                             Button(
                                 "playerSettings.gameplay.temperatureUnit.cycle",
                                 "Cycle Temperature Unit",
-                                "aetheria.player_settings.gameplay.temperature_unit.cycle")),
+                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit)),
                         Metric(
                             "playerSettings.gameplay.significantDigits",
                             "Significant Digits",
@@ -66,11 +66,11 @@ public static class AetheriaPlayerSettingsSurfaceProjector
                             Button(
                                 "playerSettings.gameplay.significantDigits.decrement",
                                 "Digits -",
-                                "aetheria.player_settings.gameplay.significant_digits.decrement"),
+                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits),
                             Button(
                                 "playerSettings.gameplay.significantDigits.increment",
                                 "Digits +",
-                                "aetheria.player_settings.gameplay.significant_digits.increment"))),
+                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits))),
                     Node(
                         "aetheria.playerSettings.graphics",
                         "card",
@@ -81,7 +81,7 @@ public static class AetheriaPlayerSettingsSurfaceProjector
                             Button(
                                 "playerSettings.graphics.nebulaQuality.cycle",
                                 "Cycle Nebula Quality",
-                                "aetheria.player_settings.graphics.nebula_quality.cycle")),
+                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality)),
                         Metric(
                             "playerSettings.graphics.showAsteroids",
                             "Show Asteroids In Minimap",
@@ -91,43 +91,43 @@ public static class AetheriaPlayerSettingsSurfaceProjector
                             Button(
                                 "playerSettings.graphics.showAsteroids.toggle",
                                 graphics.ShowAsteroidsInMinimap ? "Disable Minimap Asteroids" : "Enable Minimap Asteroids",
-                                "aetheria.player_settings.graphics.show_asteroids.toggle"))))
+                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap))))
             },
             Commands =
             [
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.refresh",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh,
                     Label = "Refresh",
                     Transport = "cultmesh"
                 },
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.gameplay.temperature_unit.cycle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
                     Label = "Cycle Temperature Unit",
                     Transport = "cultmesh"
                 },
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.gameplay.significant_digits.decrement",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
                     Label = "Digits -",
                     Transport = "cultmesh"
                 },
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.gameplay.significant_digits.increment",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
                     Label = "Digits +",
                     Transport = "cultmesh"
                 },
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.graphics.nebula_quality.cycle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
                     Label = "Cycle Nebula Quality",
                     Transport = "cultmesh"
                 },
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.player_settings.graphics.show_asteroids.toggle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
                     Label = "Toggle Minimap Asteroids",
                     Transport = "cultmesh"
                 }

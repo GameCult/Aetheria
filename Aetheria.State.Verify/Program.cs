@@ -1776,12 +1776,24 @@ static void RequireNoRendererLocalDebugPanels(string root)
 static void RequireMainMenuSettingsCommit(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var sharedCommandsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimePlayerSettingsCommands.cs");
     if (!File.Exists(mainMenuPath))
     {
         throw new InvalidOperationException("Cannot verify main-menu settings commit path; MainMenu.cs is missing.");
     }
+    if (!File.Exists(sharedCommandsPath))
+    {
+        throw new InvalidOperationException(
+            "Cannot verify main-menu settings command contract; AetheriaRuntimePlayerSettingsCommands.cs is missing.");
+    }
 
     var source = File.ReadAllText(mainMenuPath);
+    var sharedCommands = File.ReadAllText(sharedCommandsPath);
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
@@ -1830,7 +1842,9 @@ static void RequireMainMenuSettingsCommit(string root)
     }
 
     var missingUiCalls = requiredCommits
-        .Where(symbol => !source.Contains("ActionGameManager." + symbol, StringComparison.Ordinal))
+        .Where(symbol =>
+            !source.Contains("ActionGameManager." + symbol, StringComparison.Ordinal) &&
+            !source.Contains("InvokePlayerSettingsCommand", StringComparison.Ordinal))
         .ToArray();
 
     if (missingUiCalls.Length > 0)
@@ -1838,6 +1852,67 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "MainMenu no longer routes settings changes through ActionGameManager: " +
             string.Join(", ", missingUiCalls));
+    }
+
+    var requiredSharedCommands = new[]
+    {
+        "CycleTemperatureUnit",
+        "DecrementSignificantDigits",
+        "IncrementSignificantDigits",
+        "CycleNebulaQuality",
+        "ToggleShowAsteroidsInMinimap"
+    };
+
+    var missingSharedCommands = requiredSharedCommands
+        .Where(symbol => !sharedCommands.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSharedCommands.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared player-settings Eve command contract is incomplete: " +
+            string.Join(", ", missingSharedCommands));
+    }
+
+    var requiredMainMenuSymbols = new[]
+    {
+        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit)",
+        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits)",
+        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits)",
+        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality)",
+        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap)"
+    };
+
+    var missingMainMenuSymbols = requiredMainMenuSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingMainMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer lowers shared player-settings Eve commands: " +
+            string.Join(", ", missingMainMenuSymbols));
+    }
+
+    var forbiddenUiFieldSymbols = new[]
+    {
+        "AddField(\"Temperature Unit\"",
+        "AddField(\"Significant Digits\"",
+        "AddField(\"Nebula Quality\"",
+        "AddField(\"Show Asteroids in Minimap\""
+    };
+
+    var uiFieldHits = File.ReadLines(mainMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenUiFieldSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, mainMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (uiFieldHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still uses legacy field widgets for Eve-owned gameplay/graphics settings: " +
+            string.Join("; ", uiFieldHits));
     }
 }
 
@@ -1847,6 +1922,12 @@ static void RequirePlayerSettingsEveSurface(string root)
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
     var serverPath = Path.Combine(root, "Economy.Server", "Program.cs");
+    var sharedCommandsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimePlayerSettingsCommands.cs");
 
     if (!File.Exists(projectorPath))
     {
@@ -1856,11 +1937,11 @@ static void RequirePlayerSettingsEveSurface(string root)
     var projector = File.ReadAllText(projectorPath);
     var requiredProjectorSymbols = new[]
     {
-        "SurfaceId = \"aetheria.player_settings\"",
-        "aetheria.player_settings.gameplay.temperature_unit.cycle",
-        "aetheria.player_settings.gameplay.significant_digits.increment",
-        "aetheria.player_settings.graphics.nebula_quality.cycle",
-        "aetheria.player_settings.graphics.show_asteroids.toggle"
+        "AetheriaRuntimePlayerSettingsCommands.SurfaceId",
+        "AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit",
+        "AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits",
+        "AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality",
+        "AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap"
     };
 
     var missingProjectorSymbols = requiredProjectorSymbols
@@ -1883,6 +1964,9 @@ static void RequirePlayerSettingsEveSurface(string root)
     var server = File.Exists(serverPath)
         ? File.ReadAllText(serverPath)
         : throw new InvalidOperationException("Economy.Server program is missing.");
+    var sharedCommands = File.Exists(sharedCommandsPath)
+        ? File.ReadAllText(sharedCommandsPath)
+        : throw new InvalidOperationException("Shared player-settings Eve command contract is missing.");
 
     if (!bridge.Contains("AppliedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ApplyPlayerSettingsCommandAsync", StringComparison.Ordinal) ||
@@ -1893,7 +1977,7 @@ static void RequirePlayerSettingsEveSurface(string root)
     }
 
     if (!provider.Contains("AetheriaPlayerSettingsSurfaceProjector.SurfaceId", StringComparison.Ordinal) ||
-        !provider.Contains("aetheria.player_settings.refresh", StringComparison.Ordinal))
+        !provider.Contains("AetheriaRuntimePlayerSettingsCommands.Refresh", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Provider advertisement no longer publishes the player-settings Eve surface and commands.");
@@ -1904,6 +1988,13 @@ static void RequirePlayerSettingsEveSurface(string root)
     {
         throw new InvalidOperationException(
             "Economy.Server no longer republishes the provider-owned player-settings Eve surface.");
+    }
+
+    if (!sharedCommands.Contains("SurfaceId = \"aetheria.player_settings\"", StringComparison.Ordinal) ||
+        !sharedCommands.Contains("public static bool IsKnown", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared player-settings Eve command contract is missing the surface id or command registry helper.");
     }
 }
 

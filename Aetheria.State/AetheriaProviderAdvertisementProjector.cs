@@ -85,32 +85,32 @@ public static class AetheriaProviderAdvertisementProjector
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.refresh",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh,
                     Summary = "Refresh player settings projection"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.gameplay.temperature_unit.cycle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
                     Summary = "Cycle the typed player temperature unit"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.gameplay.significant_digits.decrement",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
                     Summary = "Decrease typed player significant digits"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.gameplay.significant_digits.increment",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
                     Summary = "Increase typed player significant digits"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.graphics.nebula_quality.cycle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
                     Summary = "Cycle typed player nebula quality"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.player_settings.graphics.show_asteroids.toggle",
+                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
                     Summary = "Toggle typed player minimap asteroid visibility"
                 }
             ]

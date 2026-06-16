@@ -67,12 +67,12 @@ public static class AetheriaEveCommandBridge
                         AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus)).ConfigureAwait(false);
                     report.AppliedOperationsRefreshes++;
                     break;
-                case "aetheria.player_settings.refresh":
-                case "aetheria.player_settings.gameplay.temperature_unit.cycle":
-                case "aetheria.player_settings.gameplay.significant_digits.decrement":
-                case "aetheria.player_settings.gameplay.significant_digits.increment":
-                case "aetheria.player_settings.graphics.nebula_quality.cycle":
-                case "aetheria.player_settings.graphics.show_asteroids.toggle":
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
                     await ApplyPlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
                     report.AppliedPlayerSettingsCommands++;
                     break;
@@ -113,17 +113,7 @@ public static class AetheriaEveCommandBridge
             (string.Equals(surfaceId, AetheriaOperationsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
              string.Equals(command, "aetheria.operations.refresh", StringComparison.Ordinal)) ||
             (string.Equals(surfaceId, AetheriaPlayerSettingsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-             KnownPlayerSettingsCommand(command));
-    }
-
-    private static bool KnownPlayerSettingsCommand(string command)
-    {
-        return string.Equals(command, "aetheria.player_settings.refresh", StringComparison.Ordinal) ||
-            string.Equals(command, "aetheria.player_settings.gameplay.temperature_unit.cycle", StringComparison.Ordinal) ||
-            string.Equals(command, "aetheria.player_settings.gameplay.significant_digits.decrement", StringComparison.Ordinal) ||
-            string.Equals(command, "aetheria.player_settings.gameplay.significant_digits.increment", StringComparison.Ordinal) ||
-            string.Equals(command, "aetheria.player_settings.graphics.nebula_quality.cycle", StringComparison.Ordinal) ||
-            string.Equals(command, "aetheria.player_settings.graphics.show_asteroids.toggle", StringComparison.Ordinal);
+             GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IsKnown(command));
     }
 
     private static async Task ApplyPlayerSettingsCommandAsync(
@@ -137,7 +127,7 @@ public static class AetheriaEveCommandBridge
 
         switch (command.Command)
         {
-            case "aetheria.player_settings.gameplay.temperature_unit.cycle":
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
                 settings.Gameplay.TemperatureUnit = Cycle(
                     settings.Gameplay.TemperatureUnit,
                     "Kelvin",
@@ -145,16 +135,16 @@ public static class AetheriaEveCommandBridge
                     "Fahrenheit");
                 persistSettings = true;
                 break;
-            case "aetheria.player_settings.gameplay.significant_digits.decrement":
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
                 settings.Gameplay.SignificantDigits = Math.Max(0, settings.Gameplay.SignificantDigits - 1);
                 persistSettings = true;
                 break;
-            case "aetheria.player_settings.gameplay.significant_digits.increment":
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
                 if (settings.Gameplay.SignificantDigits < int.MaxValue)
                     settings.Gameplay.SignificantDigits++;
                 persistSettings = true;
                 break;
-            case "aetheria.player_settings.graphics.nebula_quality.cycle":
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
                 settings.Graphics.NebulaQuality = Cycle(
                     settings.Graphics.NebulaQuality,
                     "Low",
@@ -163,7 +153,7 @@ public static class AetheriaEveCommandBridge
                     "Ultra");
                 persistSettings = true;
                 break;
-            case "aetheria.player_settings.graphics.show_asteroids.toggle":
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
                 settings.Graphics.ShowAsteroidsInMinimap = !settings.Graphics.ShowAsteroidsInMinimap;
                 persistSettings = true;
                 break;

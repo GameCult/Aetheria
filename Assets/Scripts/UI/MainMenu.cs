@@ -285,13 +285,21 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddField("Name", 
             () => ActionGameManager.RuntimePlayerSettings.Name,
             ActionGameManager.CommitRuntimePlayerName);
-        _nextMenu.panel.AddField("Temperature Unit", 
-            () => (int) ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit,
-            i => ActionGameManager.CommitRuntimeTemperatureUnit((TemperatureUnit) i),
-            Enum.GetNames(typeof(TemperatureUnit)));
-        _nextMenu.panel.AddField("Significant Digits", 
-            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits,
-            ActionGameManager.CommitRuntimeSignificantDigits);
+        _nextMenu.panel.AddProperty(
+            "Temperature Unit",
+            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString());
+        _nextMenu.panel.AddButton(
+            "Cycle Temperature Unit",
+            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit));
+        _nextMenu.panel.AddProperty(
+            "Significant Digits",
+            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits.ToString());
+        _nextMenu.panel.AddButton(
+            "Digits -",
+            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits));
+        _nextMenu.panel.AddButton(
+            "Digits +",
+            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits));
         _nextMenu.panel.AddButton("Back",
             CommitRuntimeSettingsAndReturn);
     }
@@ -300,17 +308,20 @@ public class MainMenu : MonoBehaviour
     {
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("graphics", "settings");
-        _nextMenu.panel.AddField("Nebula Quality",
-            () => (int)ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality,
-            i =>
-            {
-                ActionGameManager.CommitRuntimeNebulaQuality((Quality)i);
-                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
-            },
-            Enum.GetNames(typeof(Quality)));
-        _nextMenu.panel.AddField("Show Asteroids in Minimap",
-            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
-            ActionGameManager.CommitRuntimeShowAsteroidsInMinimap);
+        _nextMenu.panel.AddProperty(
+            "Nebula Quality",
+            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString());
+        _nextMenu.panel.AddButton(
+            "Cycle Nebula Quality",
+            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality));
+        _nextMenu.panel.AddProperty(
+            "Show Asteroids in Minimap",
+            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap ? "Enabled" : "Disabled");
+        _nextMenu.panel.AddButton(
+            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap
+                ? "Disable Minimap Asteroids"
+                : "Enable Minimap Asteroids",
+            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap));
         _nextMenu.panel.AddButton("Back",
             CommitRuntimeSettingsAndReturn);
     }
@@ -337,6 +348,48 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 Fade(false);
             });
+    }
+
+    private void InvokePlayerSettingsCommand(string command)
+    {
+        switch (command)
+        {
+            case AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
+                ActionGameManager.CommitRuntimeTemperatureUnit(
+                    ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit switch
+                    {
+                        TemperatureUnit.Kelvin => TemperatureUnit.Celsius,
+                        TemperatureUnit.Celsius => TemperatureUnit.Fahrenheit,
+                        _ => TemperatureUnit.Kelvin
+                    });
+                break;
+            case AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
+                ActionGameManager.CommitRuntimeSignificantDigits(
+                    max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits - 1));
+                break;
+            case AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
+                ActionGameManager.CommitRuntimeSignificantDigits(
+                    ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits + 1);
+                break;
+            case AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
+                ActionGameManager.CommitRuntimeNebulaQuality(
+                    ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality switch
+                    {
+                        Quality.Low => Quality.Normal,
+                        Quality.Normal => Quality.High,
+                        Quality.High => Quality.Ultra,
+                        _ => Quality.Low
+                    });
+                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
+                break;
+            case AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
+                ActionGameManager.CommitRuntimeShowAsteroidsInMinimap(
+                    !ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap);
+                break;
+            default:
+                Debug.LogWarning($"Unknown player-settings command: {command}");
+                break;
+        }
     }
 
     private void CommitRuntimeSettingsAndReturn()
