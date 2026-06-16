@@ -114,9 +114,10 @@ resolver are deleted from the simulation shell.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` only for zone orbit/body snapshots. The old pending-command
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are
-deleted. Behavior-state runtime commits carry typed body keys for resource
-scanner targets and mining tool asteroid belts; the old raw body ID commit
-fields are deleted.
+deleted. Behavior-state runtime commits and readback snapshots carry typed
+body-key fields for resource scanner targets and mining tool asteroid belts;
+the old raw body ID commit/readback field names are deleted. Unity still parses
+those body keys into GUIDs only at the current `Zone` body runtime boundary.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

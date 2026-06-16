@@ -987,13 +987,13 @@ namespace GameCult.Aetheria.State.Unity
                 var aetherDriveMaximumRpm = ReadFieldDouble(ref reader, behaviorFields, 28);
                 var aetherDriveThrustDirectionX = ReadFieldDouble(ref reader, behaviorFields, 29);
                 var aetherDriveThrustDirectionY = ReadFieldDouble(ref reader, behaviorFields, 30);
-                var resourceScannerTargetBodyId = ReadFieldString(ref reader, behaviorFields, 31);
+                var resourceScannerTargetBodyKey = ReadFieldString(ref reader, behaviorFields, 31);
                 var resourceScannerAsteroidIndex = ReadFieldInt32(ref reader, behaviorFields, 32);
                 var resourceScannerScanTime = ReadFieldDouble(ref reader, behaviorFields, 33);
                 var resourceScannerRange = ReadFieldDouble(ref reader, behaviorFields, 34);
                 var resourceScannerMinimumDensity = ReadFieldDouble(ref reader, behaviorFields, 35);
                 var resourceScannerScanDuration = ReadFieldDouble(ref reader, behaviorFields, 36);
-                var miningToolAsteroidBeltId = ReadFieldString(ref reader, behaviorFields, 37);
+                var miningToolAsteroidBeltKey = ReadFieldString(ref reader, behaviorFields, 37);
                 var miningToolAsteroidIndex = ReadFieldInt32(ref reader, behaviorFields, 38);
                 var miningToolRange = ReadFieldDouble(ref reader, behaviorFields, 39);
                 var thrusterAxis = ReadFieldDouble(ref reader, behaviorFields, 40);
@@ -1044,13 +1044,13 @@ namespace GameCult.Aetheria.State.Unity
                     aetherDriveMaximumRpm,
                     aetherDriveThrustDirectionX,
                     aetherDriveThrustDirectionY,
-                    resourceScannerTargetBodyId,
+                    resourceScannerTargetBodyKey,
                     resourceScannerAsteroidIndex,
                     resourceScannerScanTime,
                     resourceScannerRange,
                     resourceScannerMinimumDensity,
                     resourceScannerScanDuration,
-                    miningToolAsteroidBeltId,
+                    miningToolAsteroidBeltKey,
                     miningToolAsteroidIndex,
                     miningToolRange,
                     thrusterAxis,

@@ -1211,13 +1211,13 @@ namespace GameCult.Aetheria.State.Unity
             double aetherDriveMaximumRpm,
             double aetherDriveThrustDirectionX,
             double aetherDriveThrustDirectionY,
-            string resourceScannerTargetBodyId,
+            string resourceScannerTargetBodyKey,
             int resourceScannerAsteroidIndex,
             double resourceScannerScanTime,
             double resourceScannerRange,
             double resourceScannerMinimumDensity,
             double resourceScannerScanDuration,
-            string miningToolAsteroidBeltId,
+            string miningToolAsteroidBeltKey,
             int miningToolAsteroidIndex,
             double miningToolRange,
             double thrusterAxis,
@@ -1267,13 +1267,13 @@ namespace GameCult.Aetheria.State.Unity
             AetherDriveMaximumRpm = aetherDriveMaximumRpm;
             AetherDriveThrustDirectionX = aetherDriveThrustDirectionX;
             AetherDriveThrustDirectionY = aetherDriveThrustDirectionY;
-            ResourceScannerTargetBodyId = resourceScannerTargetBodyId;
+            ResourceScannerTargetBodyKey = resourceScannerTargetBodyKey;
             ResourceScannerAsteroidIndex = resourceScannerAsteroidIndex;
             ResourceScannerScanTime = resourceScannerScanTime;
             ResourceScannerRange = resourceScannerRange;
             ResourceScannerMinimumDensity = resourceScannerMinimumDensity;
             ResourceScannerScanDuration = resourceScannerScanDuration;
-            MiningToolAsteroidBeltId = miningToolAsteroidBeltId;
+            MiningToolAsteroidBeltKey = miningToolAsteroidBeltKey;
             MiningToolAsteroidIndex = miningToolAsteroidIndex;
             MiningToolRange = miningToolRange;
             ThrusterAxis = thrusterAxis;
@@ -1324,13 +1324,13 @@ namespace GameCult.Aetheria.State.Unity
         public double AetherDriveMaximumRpm { get; }
         public double AetherDriveThrustDirectionX { get; }
         public double AetherDriveThrustDirectionY { get; }
-        public string ResourceScannerTargetBodyId { get; }
+        public string ResourceScannerTargetBodyKey { get; }
         public int ResourceScannerAsteroidIndex { get; }
         public double ResourceScannerScanTime { get; }
         public double ResourceScannerRange { get; }
         public double ResourceScannerMinimumDensity { get; }
         public double ResourceScannerScanDuration { get; }
-        public string MiningToolAsteroidBeltId { get; }
+        public string MiningToolAsteroidBeltKey { get; }
         public int MiningToolAsteroidIndex { get; }
         public double MiningToolRange { get; }
         public double ThrusterAxis { get; }

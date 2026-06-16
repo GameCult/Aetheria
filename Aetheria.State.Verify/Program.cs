@@ -13,6 +13,7 @@ RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
+RequireTypedBehaviorBodyKeys(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -730,6 +731,43 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
     {
         throw new InvalidOperationException(
             "Unity runtime catalog snapshot must expose typed-key lookups only; legacy-ID indexes belong to migration boundaries: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedBehaviorBodyKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs"),
+        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs"),
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
+        Path.Combine(root, "Aetheria.State.Smoke", "Program.cs"),
+        Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "ResourceScannerTargetBodyId",
+        "MiningToolAsteroidBeltId",
+        "ParseLegacyGuidFromReferenceKey",
+        "ParseLegacyIdFromReferenceKey"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime behavior body references must be named typed BodyKey surfaces; GUID parsing is confined to ParseBodyGuidFromKey: " +
             string.Join("; ", hits));
     }
 }

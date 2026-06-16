@@ -818,7 +818,7 @@ public sealed class AetheriaBehaviorStateSnapshot
     public double AetherDriveThrustDirectionY { get; set; }
 
     [Key(31)]
-    public string ResourceScannerTargetBodyId { get; set; } = "";
+    public string ResourceScannerTargetBodyKey { get; set; } = "";
 
     [Key(32)]
     public int ResourceScannerAsteroidIndex { get; set; } = -1;
@@ -836,7 +836,7 @@ public sealed class AetheriaBehaviorStateSnapshot
     public double ResourceScannerScanDuration { get; set; }
 
     [Key(37)]
-    public string MiningToolAsteroidBeltId { get; set; } = "";
+    public string MiningToolAsteroidBeltKey { get; set; } = "";
 
     [Key(38)]
     public int MiningToolAsteroidIndex { get; set; } = -1;

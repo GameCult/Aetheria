@@ -827,12 +827,12 @@ try
             entity.BehaviorStates[4].AetherDriveMaximumRpm == 2400.0 &&
             entity.BehaviorStates[4].AetherDriveThrustDirectionY == -0.5 &&
             entity.BehaviorStates[5].BehaviorKind == "ResourceScanner" &&
-            entity.BehaviorStates[5].ResourceScannerTargetBodyId == "aetheria.body:legacy:smoke:body" &&
+            entity.BehaviorStates[5].ResourceScannerTargetBodyKey == "aetheria.body:legacy:smoke:body" &&
             entity.BehaviorStates[5].ResourceScannerAsteroidIndex == 2 &&
             entity.BehaviorStates[5].ResourceScannerScanTime == 1.25 &&
             entity.BehaviorStates[5].ResourceScannerScanDuration == 3.5 &&
             entity.BehaviorStates[6].BehaviorKind == "MiningTool" &&
-            entity.BehaviorStates[6].MiningToolAsteroidBeltId == "aetheria.body:legacy:smoke:body" &&
+            entity.BehaviorStates[6].MiningToolAsteroidBeltKey == "aetheria.body:legacy:smoke:body" &&
             entity.BehaviorStates[6].MiningToolAsteroidIndex == 3 &&
             entity.BehaviorStates[6].MiningToolRange == 275.0 &&
             entity.BehaviorStates[7].BehaviorKind == "Thruster" &&
@@ -945,9 +945,9 @@ try
         packageEntities[0].BehaviorStates[3].CapacitorCharge != 7.5 ||
         packageEntities[0].BehaviorStates[4].AetherDriveRpmY != 900.0 ||
         packageEntities[0].BehaviorStates[4].AetherDriveMaximumRpm != 2400.0 ||
-        packageEntities[0].BehaviorStates[5].ResourceScannerTargetBodyId != "aetheria.body:legacy:smoke:body" ||
+        packageEntities[0].BehaviorStates[5].ResourceScannerTargetBodyKey != "aetheria.body:legacy:smoke:body" ||
         packageEntities[0].BehaviorStates[5].ResourceScannerScanDuration != 3.5 ||
-        packageEntities[0].BehaviorStates[6].MiningToolAsteroidBeltId != "aetheria.body:legacy:smoke:body" ||
+        packageEntities[0].BehaviorStates[6].MiningToolAsteroidBeltKey != "aetheria.body:legacy:smoke:body" ||
         packageEntities[0].BehaviorStates[6].MiningToolRange != 275.0 ||
         packageEntities[0].BehaviorStates[7].ThrusterAxis != 0.8 ||
         packageEntities[0].BehaviorStates[7].ThrusterThrust != 125.0 ||

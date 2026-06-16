@@ -349,21 +349,16 @@ public class ActionGameManager : MonoBehaviour
         return instance;
     }
 
-    private static Guid ParseLegacyGuidFromReferenceKey(string key, string documentName)
+    private static Guid ParseBodyGuidFromKey(string bodyKey)
     {
-        var legacyId = ParseLegacyIdFromReferenceKey(key, documentName);
-        return Guid.TryParse(legacyId, out var id) ? id : Guid.Empty;
-    }
+        if (string.IsNullOrWhiteSpace(bodyKey))
+            return Guid.Empty;
 
-    private static string ParseLegacyIdFromReferenceKey(string key, string documentName)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-            return "";
-
-        var prefix = $"{documentName}:legacy:";
-        return key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? key.Substring(prefix.Length)
-            : key;
+        const string bodyPrefix = "aetheria.body:legacy:";
+        var runtimeBodyId = bodyKey.StartsWith(bodyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? bodyKey.Substring(bodyPrefix.Length)
+            : bodyKey;
+        return Guid.TryParse(runtimeBodyId, out var id) ? id : Guid.Empty;
     }
 
     public static Galaxy CurrentGalaxy;
@@ -2820,7 +2815,7 @@ public class ActionGameManager : MonoBehaviour
                     break;
                 case ResourceScanner resourceScanner:
                     resourceScanner.RestoreRuntimeState(
-                        ParseLegacyGuidFromReferenceKey(behaviorState.ResourceScannerTargetBodyId, "aetheria.body"),
+                        ParseBodyGuidFromKey(behaviorState.ResourceScannerTargetBodyKey),
                         behaviorState.ResourceScannerAsteroidIndex,
                         (float)behaviorState.ResourceScannerScanTime,
                         (float)behaviorState.ResourceScannerRange,
@@ -2829,7 +2824,7 @@ public class ActionGameManager : MonoBehaviour
                     break;
                 case MiningTool miningTool:
                     miningTool.RestoreRuntimeState(
-                        ParseLegacyGuidFromReferenceKey(behaviorState.MiningToolAsteroidBeltId, "aetheria.body"),
+                        ParseBodyGuidFromKey(behaviorState.MiningToolAsteroidBeltKey),
                         behaviorState.MiningToolAsteroidIndex,
                         (float)behaviorState.MiningToolRange);
                     break;

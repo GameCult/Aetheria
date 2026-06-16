@@ -1348,7 +1348,10 @@ First Aetheria surfaces to publish:
    - In progress: convert domain references from GUID/base-class patterns to
      typed record refs. Item instances, cargo inventory indexes, weapon ammo
      references, item-use behavior references, and runtime commit item/hull
-     surfaces now carry typed item keys; remaining broader simulation paths
+     surfaces now carry typed item keys. Runtime behavior resource-scanner and
+     mining-tool body references are named and serialized as typed body keys
+     through commit/readback state, with GUID parsing confined to the current
+     Unity `Zone` body runtime boundary. Remaining broader simulation paths
      still derive legacy GUIDs until those structures move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
@@ -1752,6 +1755,10 @@ First Aetheria surfaces to publish:
 - `Aetheria.State.Verify` guards Unity runtime catalog lookup authority:
   package snapshots may expose typed-key lookup only, while legacy-ID lookup
   remains quarantined in canonical migration/catalog inspection APIs.
+- `Aetheria.State.Verify` guards behavior body reference naming:
+  resource-scanner and mining-tool runtime state surfaces use `BodyKey` fields;
+  old `*BodyId` readback names and generic legacy reference parsers may not
+  return.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or
