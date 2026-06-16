@@ -93,4 +93,20 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         MinimumDensity = Evaluate(_minimumDensity);
         ScanDuration = Evaluate(_scanDuration);
     }
+
+    public void RestoreRuntimeState(
+        Guid scanTarget,
+        int asteroid,
+        float scanTime,
+        float range,
+        float minimumDensity,
+        float scanDuration)
+    {
+        _scanTarget = scanTarget;
+        Asteroid = asteroid;
+        _scanTime = scanTime;
+        Range = range;
+        MinimumDensity = minimumDensity;
+        ScanDuration = scanDuration;
+    }
 }

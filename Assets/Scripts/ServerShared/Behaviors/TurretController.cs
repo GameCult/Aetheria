@@ -84,4 +84,10 @@ public class TurretController : Behavior, IInitializableBehavior
         }
         return true;
     }
+
+    public void RestoreRuntimeState(float shotSpeed, bool predictShots)
+    {
+        _shotSpeed = shotSpeed;
+        _predictShots = predictShots;
+    }
 }

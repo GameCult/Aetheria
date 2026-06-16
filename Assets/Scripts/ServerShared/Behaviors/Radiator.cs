@@ -90,4 +90,18 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
     {
         RadiatorTemperature = Temperature;
     }
+
+    public void RestoreRuntimeState(
+        float radiatorTemperature,
+        float emissivity,
+        float pumpedHeat,
+        float wasteHeat,
+        float energyUsage)
+    {
+        RadiatorTemperature = radiatorTemperature;
+        Emissivity = emissivity;
+        PumpedHeat = pumpedHeat;
+        WasteHeat = wasteHeat;
+        EnergyUsage = energyUsage;
+    }
 }

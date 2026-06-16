@@ -194,7 +194,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   publish their active target temperature. Switches publish activated state,
   triggers publish pending pulled state, and stat modifiers publish
   applied/executed flags plus target-stat count. Turret controllers publish
-  initialized weapon count, shot speed, and predictive-aim flag.
+  initialized weapon count, shot speed, and predictive-aim flag. Continue
+  restore lowers those typed weapon and behavior rows back into the live
+  equipped-item and active-consumable behavior instances through narrow
+  behavior-owned restore methods; construction/loadout blueprints do not own
+  behavior replay.
   `EntityConstructionBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.
@@ -980,18 +984,19 @@ First Aetheria surfaces to publish:
      typed stat grids for temperature, thermal mass, armor, max armor, and
      hull-conductivity axes, then reconnects target/contact rows among restored
      entities, restores child/docking relationships from typed child keys and
-     docking-bay assignments, and binds the saved current entity as the player
-     ship or docked current ship.
+     docking-bay assignments, restores typed weapon and behavior runtime rows
+     into live behavior instances, and binds the saved current entity as the
+     player ship or docked current ship.
    - Done: project run checkpoint entity snapshots from the flattened live
      entity graph, not only `Zone.Entities`, so docked child ships can receive
      typed entity records and stable child/docking references instead of
      disappearing from the `.zone` replacement graph.
-   - Remaining: add typed documents/mappers for runtime object graphs,
-     complete full Continue/run entity graph reconstruction from typed state
-     for restored active-consumable behavior runtime internals,
-     behavior-private state not covered by progress, weapon, sensor, radiator,
-     reactor, or capacitor rows, typed behavior factory construction, and any
-     catalog fields not covered by the stable scalar/fingerprint/payload pass.
+   - Remaining: add typed documents/mappers for runtime object graphs not
+     covered by progress, weapon, sensor, radiator, reactor, capacitor, drive,
+     scanner, mining, thruster, shield, limiter, thermotoggle, switch, trigger,
+     stat-modifier, or turret rows; complete typed behavior factory
+     construction and any catalog fields not covered by the stable
+     scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can

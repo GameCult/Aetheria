@@ -2612,6 +2612,7 @@ public class ActionGameManager : MonoBehaviour
             entity.RestoreStatGrids(entitySnapshot.StatGrids);
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
             RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
+            RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities);
             RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, restoredEntities);
             if (restoredEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
                 entity.Target.Value = target;
@@ -2735,6 +2736,184 @@ public class ActionGameManager : MonoBehaviour
                 item,
                 (float)activeConsumable.RemainingDuration,
                 (float)activeConsumable.Duration);
+        }
+    }
+
+    private void RestoreRuntimeBehaviorStateFromTypedSnapshot(
+        Entity entity,
+        AetheriaRuntimeEntitySnapshot snapshot,
+        IReadOnlyDictionary<string, Entity> restoredEntities)
+    {
+        foreach (var weaponState in snapshot.WeaponStates)
+        {
+            if (!(ResolveRuntimeBehavior(entity, weaponState.OwnerKind, weaponState.OwnerIndex, weaponState.BehaviorIndex) is Weapon weapon))
+                continue;
+
+            if (weapon is LockWeapon lockWeapon)
+            {
+                restoredEntities.TryGetValue(weaponState.LockTargetEntityKey, out var lockTarget);
+                lockWeapon.RestoreRuntimeState(
+                    weaponState.Firing,
+                    weaponState.Ammo,
+                    weaponState.BurstRemaining,
+                    (float)weaponState.BurstTimer,
+                    (float)weaponState.BurstInterval,
+                    (float)weaponState.CooldownProgress,
+                    weaponState.CoolingDown,
+                    (float)weaponState.LockProgress,
+                    lockTarget);
+            }
+            else if (weapon is ChargedWeapon chargedWeapon)
+            {
+                chargedWeapon.RestoreRuntimeState(
+                    weaponState.Firing,
+                    weaponState.Ammo,
+                    weaponState.BurstRemaining,
+                    (float)weaponState.BurstTimer,
+                    (float)weaponState.BurstInterval,
+                    (float)weaponState.CooldownProgress,
+                    weaponState.CoolingDown,
+                    weaponState.Charging,
+                    weaponState.Charged,
+                    (float)weaponState.Charge);
+            }
+            else if (weapon is ConstantWeapon constantWeapon)
+            {
+                constantWeapon.RestoreRuntimeState(
+                    weaponState.Firing,
+                    weaponState.Ammo,
+                    (float)weaponState.AmmoIntervalProgress,
+                    (float)weaponState.ReloadProgress,
+                    weaponState.Reloading);
+            }
+            else if (weapon is InstantWeapon instantWeapon)
+            {
+                instantWeapon.RestoreRuntimeState(
+                    weaponState.Firing,
+                    weaponState.Ammo,
+                    weaponState.BurstRemaining,
+                    (float)weaponState.BurstTimer,
+                    (float)weaponState.BurstInterval,
+                    (float)weaponState.CooldownProgress,
+                    weaponState.CoolingDown);
+            }
+            else
+            {
+                weapon.RestoreRuntimeState(weaponState.Firing);
+            }
+        }
+
+        foreach (var behaviorState in snapshot.BehaviorStates)
+        {
+            var behavior = ResolveRuntimeBehavior(entity, behaviorState.OwnerKind, behaviorState.OwnerIndex, behaviorState.BehaviorIndex);
+            switch (behavior)
+            {
+                case Sensor sensor:
+                    sensor.RestoreRuntimeState(
+                        behaviorState.Pinging,
+                        (float)behaviorState.PingCooldown,
+                        (float)behaviorState.PingLerp,
+                        (float)behaviorState.PingRadius);
+                    break;
+                case Radiator radiator:
+                    radiator.RestoreRuntimeState(
+                        (float)behaviorState.RadiatorTemperature,
+                        (float)behaviorState.Emissivity,
+                        (float)behaviorState.PumpedHeat,
+                        (float)behaviorState.WasteHeat,
+                        (float)behaviorState.EnergyUsage);
+                    break;
+                case Reactor reactor:
+                    reactor.RestoreRuntimeState(
+                        (float)behaviorState.ReactorDraw,
+                        (float)behaviorState.ReactorLoadRatio);
+                    break;
+                case Capacitor capacitor:
+                    capacitor.RestoreRuntimeState(
+                        (float)behaviorState.CapacitorCharge,
+                        (float)behaviorState.CapacitorCapacity,
+                        (float)behaviorState.CapacitorEfficiency);
+                    break;
+                case AetherDrive drive:
+                    drive.RestoreRuntimeState(
+                        new float3((float)behaviorState.AetherDriveAxisX, (float)behaviorState.AetherDriveAxisY, (float)behaviorState.AetherDriveAxisZ),
+                        new float3((float)behaviorState.AetherDriveThrustX, (float)behaviorState.AetherDriveThrustY, (float)behaviorState.AetherDriveThrustZ),
+                        new float3((float)behaviorState.AetherDriveRpmX, (float)behaviorState.AetherDriveRpmY, (float)behaviorState.AetherDriveRpmZ),
+                        (float)behaviorState.AetherDriveMaximumRpm,
+                        new float2((float)behaviorState.AetherDriveThrustDirectionX, (float)behaviorState.AetherDriveThrustDirectionY));
+                    break;
+                case ResourceScanner resourceScanner:
+                    resourceScanner.RestoreRuntimeState(
+                        ParseLegacyGuidFromReferenceKey(behaviorState.ResourceScannerTargetBodyId, "aetheria.body"),
+                        behaviorState.ResourceScannerAsteroidIndex,
+                        (float)behaviorState.ResourceScannerScanTime,
+                        (float)behaviorState.ResourceScannerRange,
+                        (float)behaviorState.ResourceScannerMinimumDensity,
+                        (float)behaviorState.ResourceScannerScanDuration);
+                    break;
+                case MiningTool miningTool:
+                    miningTool.RestoreRuntimeState(
+                        ParseLegacyGuidFromReferenceKey(behaviorState.MiningToolAsteroidBeltId, "aetheria.body"),
+                        behaviorState.MiningToolAsteroidIndex,
+                        (float)behaviorState.MiningToolRange);
+                    break;
+                case Thruster thruster:
+                    thruster.RestoreRuntimeState(
+                        (float)behaviorState.ThrusterAxis,
+                        (float)behaviorState.ThrusterThrust);
+                    break;
+                case Shield shield:
+                    shield.RestoreRuntimeState(
+                        (float)behaviorState.ShieldEfficiency,
+                        (float)behaviorState.ShieldEnergyUsage);
+                    break;
+                case VelocityLimit velocityLimit:
+                    velocityLimit.RestoreRuntimeState((float)behaviorState.VelocityLimit);
+                    break;
+                case Thermotoggle thermotoggle:
+                    thermotoggle.TargetTemperature = (float)behaviorState.ThermotoggleTargetTemperature;
+                    break;
+                case Switch switchBehavior:
+                    switchBehavior.Activated = behaviorState.SwitchActivated;
+                    break;
+                case Trigger trigger:
+                    trigger.RestoreRuntimeState(behaviorState.TriggerPulled);
+                    break;
+                case StatModifier statModifier:
+                    statModifier.RestoreRuntimeState(
+                        behaviorState.StatModifierApplied,
+                        behaviorState.StatModifierExecuted);
+                    break;
+                case TurretController turretController:
+                    turretController.RestoreRuntimeState(
+                        (float)behaviorState.TurretControllerShotSpeed,
+                        behaviorState.TurretControllerPredictShots);
+                    break;
+            }
+        }
+    }
+
+    private static Behavior ResolveRuntimeBehavior(Entity entity, string ownerKind, int ownerIndex, int behaviorIndex)
+    {
+        var behaviors = ResolveRuntimeBehaviorList(entity, ownerKind, ownerIndex);
+        return behaviors != null && behaviorIndex >= 0 && behaviorIndex < behaviors.Count
+            ? behaviors[behaviorIndex]
+            : null;
+    }
+
+    private static IReadOnlyList<Behavior> ResolveRuntimeBehaviorList(Entity entity, string ownerKind, int ownerIndex)
+    {
+        if (entity == null || ownerIndex < 0)
+            return null;
+
+        switch (ownerKind)
+        {
+            case "equipment":
+                return ownerIndex < entity.Equipment.Count ? entity.Equipment[ownerIndex].Behaviors : null;
+            case "active_consumable":
+                return ownerIndex < entity.ActiveConsumables.Count ? entity.ActiveConsumables[ownerIndex].Behaviors : null;
+            default:
+                return null;
         }
     }
 

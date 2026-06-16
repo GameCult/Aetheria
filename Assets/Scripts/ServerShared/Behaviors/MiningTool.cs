@@ -62,4 +62,11 @@ public class MiningTool : Behavior
 
         return false;
     }
+
+    public void RestoreRuntimeState(Guid asteroidBelt, int asteroid, float range)
+    {
+        AsteroidBelt = asteroidBelt;
+        Asteroid = asteroid;
+        Range = range;
+    }
 }

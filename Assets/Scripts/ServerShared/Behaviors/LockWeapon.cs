@@ -93,5 +93,28 @@ public class LockWeapon : InstantWeapon
 
         return base.Execute(dt);
     }
-}
 
+    public void RestoreRuntimeState(
+        bool firing,
+        int ammo,
+        int burstRemaining,
+        float burstTimer,
+        float burstInterval,
+        float cooldownProgress,
+        bool coolingDown,
+        float lockProgress,
+        Entity lockTarget)
+    {
+        base.RestoreRuntimeState(
+            firing,
+            ammo,
+            burstRemaining,
+            burstTimer,
+            burstInterval,
+            cooldownProgress,
+            coolingDown);
+        _lock = lockProgress;
+        _target = lockTarget;
+        _locking = lockTarget != null;
+    }
+}

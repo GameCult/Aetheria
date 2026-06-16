@@ -33,4 +33,9 @@ public class VelocityLimit : Behavior
             Entity.Velocity = normalize(Entity.Velocity) * Limit;
         return true;
     }
+
+    public void RestoreRuntimeState(float limit)
+    {
+        Limit = limit;
+    }
 }

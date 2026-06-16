@@ -48,4 +48,10 @@ public class Shield : Behavior, IProgressBehavior
     }
 
     public virtual float Progress => Item.ThermalPerformance;
+
+    public void RestoreRuntimeState(float efficiency, float energyUsage)
+    {
+        Efficiency = efficiency;
+        EnergyUsage = energyUsage;
+    }
 }

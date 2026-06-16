@@ -135,4 +135,18 @@ public class AetherDrive : Behavior
 
         return false;
     }
+
+    public void RestoreRuntimeState(
+        float3 axis,
+        float3 thrust,
+        float3 rpm,
+        float maximumRpm,
+        float2 thrustDirection)
+    {
+        Axis = axis;
+        Thrust = thrust;
+        Rpm = rpm;
+        MaximumRpm = maximumRpm;
+        ThrustDirection = thrustDirection;
+    }
 }

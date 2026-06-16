@@ -172,6 +172,11 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         _firing = false;
     }
 
+    public virtual void RestoreRuntimeState(bool firing)
+    {
+        _firing = firing;
+    }
+
     public float EvaluateRange()
     {
         return Evaluate(_range);

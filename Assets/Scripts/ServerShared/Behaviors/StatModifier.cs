@@ -125,6 +125,17 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
             RemoveModifier();
         _executed = false;
     }
+
+    public void RestoreRuntimeState(bool applied, bool executed)
+    {
+        if (_stats == null)
+            Initialize();
+        if (applied && !_applied)
+            ApplyModifier();
+        if (!applied && _applied)
+            RemoveModifier();
+        _executed = executed;
+    }
 }
 
 public enum StatModifierType

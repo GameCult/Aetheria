@@ -151,4 +151,17 @@ public class Sensor : Behavior, IEventBehavior
         }
         return true;
     }
+
+    public void RestoreRuntimeState(
+        bool pinging,
+        float pingCooldown,
+        float pingLerp,
+        float pingRadius)
+    {
+        _pinging = pinging;
+        _pingCooldown = pingCooldown;
+        _pingLerp = pingLerp;
+        _pingRadius = pingRadius;
+        _pingedEntities.Clear();
+    }
 }

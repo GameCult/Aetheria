@@ -194,4 +194,22 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
             Trigger();
         base.Activate();
     }
+
+    public void RestoreRuntimeState(
+        bool firing,
+        int ammo,
+        int burstRemaining,
+        float burstTimer,
+        float burstInterval,
+        float cooldownProgress,
+        bool coolingDown)
+    {
+        base.RestoreRuntimeState(firing);
+        _ammo = ammo;
+        _burstRemaining = burstRemaining;
+        _burstTimer = burstTimer;
+        _burstInterval = burstInterval;
+        _cooldown = cooldownProgress;
+        _coolingDown = coolingDown;
+    }
 }

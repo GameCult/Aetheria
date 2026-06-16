@@ -76,4 +76,10 @@ public class Thruster : Behavior, IAnalogBehavior
         }
         return false;
     }
+
+    public void RestoreRuntimeState(float axis, float thrust)
+    {
+        Axis = axis;
+        Thrust = thrust;
+    }
 }

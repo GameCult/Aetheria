@@ -43,4 +43,11 @@ public class Capacitor : Behavior
         Efficiency = Evaluate(_efficiency);
         return true;
     }
+
+    public void RestoreRuntimeState(float charge, float capacity, float efficiency)
+    {
+        Charge = clamp(charge, 0, capacity);
+        Capacity = capacity;
+        Efficiency = efficiency;
+    }
 }

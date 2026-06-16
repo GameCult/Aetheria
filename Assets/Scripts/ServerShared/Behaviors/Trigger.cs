@@ -31,4 +31,9 @@ public class Trigger : Behavior, IActivatedBehavior
     public void Deactivate()
     {
     }
+
+    public void RestoreRuntimeState(bool pulled)
+    {
+        _pulled = pulled;
+    }
 }

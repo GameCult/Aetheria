@@ -182,8 +182,12 @@ docked children, into exact typed entity snapshot records. Continue restore
 lowers the current zone entity graph from those records, including position,
 velocity, target/contact state, child/docking relationships,
 shutdown/heatsink state, thermal exposure, active consumable timers, and typed
-stat grids for temperature, thermal mass, armor, max armor, and hull conductivity. Broader runtime object graphs
-such as behavior-private simulation state remain legacy until dedicated typed runtime documents exist. Live behavior
+stat grids for temperature, thermal mass, armor, max armor, and hull
+conductivity. Continue also lowers typed weapon and behavior runtime rows back
+into live equipped-item and active-consumable behavior instances through
+behavior-owned restore methods; construction/loadout blueprints do not own
+behavior replay. Broader runtime object graphs without typed rows remain legacy
+until dedicated typed runtime documents exist. Live behavior
 instances expose typed behavior kind and group through `Behavior.Kind` and
 `Behavior.Group`; behavior construction now reads typed payload fields through
 `RuntimeBehaviorDefinition` instead of projecting through config DTOs. Stat

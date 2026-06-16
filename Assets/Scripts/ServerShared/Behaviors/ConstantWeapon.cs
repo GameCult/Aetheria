@@ -134,4 +134,18 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
             OnStopFiring?.Invoke();
         }
     }
+
+    public void RestoreRuntimeState(
+        bool firing,
+        int ammo,
+        float ammoIntervalProgress,
+        float reloadProgress,
+        bool reloading)
+    {
+        base.RestoreRuntimeState(firing);
+        _ammo = ammo;
+        _ammoInterval = ammoIntervalProgress;
+        _reload = reloadProgress;
+        _reloading = reloading;
+    }
 }

@@ -168,5 +168,29 @@ public class ChargedWeapon : InstantWeapon
             _charging = false;
         }
     }
-}
 
+    public void RestoreRuntimeState(
+        bool firing,
+        int ammo,
+        int burstRemaining,
+        float burstTimer,
+        float burstInterval,
+        float cooldownProgress,
+        bool coolingDown,
+        bool charging,
+        bool charged,
+        float charge)
+    {
+        base.RestoreRuntimeState(
+            firing,
+            ammo,
+            burstRemaining,
+            burstTimer,
+            burstInterval,
+            cooldownProgress,
+            coolingDown);
+        _charging = charging;
+        _charged = charged;
+        _charge = charge;
+    }
+}

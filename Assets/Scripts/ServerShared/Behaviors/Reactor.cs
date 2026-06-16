@@ -141,4 +141,10 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
         foreach(var sub in _subscriptions)
             sub.Dispose();
     }
+
+    public void RestoreRuntimeState(float draw, float currentLoadRatio)
+    {
+        Draw = draw;
+        CurrentLoadRatio = currentLoadRatio;
+    }
 }
