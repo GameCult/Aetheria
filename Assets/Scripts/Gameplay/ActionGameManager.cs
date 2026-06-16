@@ -1336,6 +1336,23 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public bool CommitDockedCurrentShip(Ship ship)
+    {
+        if (ship == null ||
+            !ship.IsPlayerShip ||
+            DockedEntity == null ||
+            DockingBay == null ||
+            !DockedEntity.Children.Contains(ship))
+        {
+            return false;
+        }
+
+        CurrentEntity = ship;
+        DockingBay.DockedShip = ship;
+        QueueRunCheckpoint("docked-current-ship");
+        return true;
+    }
+
     private static AetheriaRuntimeLoadoutTemplateSnapshot CreateRuntimeLoadoutTemplateSnapshot(
         AetheriaRuntimeLoadoutTemplateCommit template)
     {

@@ -1406,6 +1406,10 @@ First Aetheria surfaces to publish:
      cargo-to-cargo, cargo-to-equipment, equipment-to-cargo, or
      equipment-to-equipment movement and then refresh display. uGUI still owns
      the presentation shell for now, not the inventory mutation.
+   - Done: route docked current-ship selection through
+     `ActionGameManager.CommitDockedCurrentShip`. `InventoryPanel` may request
+     a selected docked player ship and update the button color, but gameplay
+     owns `CurrentEntity`, `DockingBay.DockedShip`, and the typed checkpoint.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1733,7 +1737,9 @@ cargo/equipment movement, gameplay owns the move and queues the checkpoint.
 Trade purchases follow the same rule: UI requests the purchase, gameplay owns
 credit changes, cargo transfer, ship creation, and checkpoint. Runtime loadout
 restore follows the same rule: UI requests restoration, gameplay owns
-instantiation, credits, dock assignment, current entity, and checkpoint. Any
+instantiation, credits, dock assignment, current entity, and checkpoint. Docked
+current-ship selection follows the same rule: UI requests selection, gameplay
+owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

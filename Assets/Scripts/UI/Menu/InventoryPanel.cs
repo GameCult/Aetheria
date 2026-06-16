@@ -119,9 +119,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     if(_displayedEntity is Ship ship)
                     {
-                        GameManager.CurrentEntity = ship;
-                        GameManager.DockingBay.DockedShip = ship;
-                        Current.targetGraphic.color = ToggleEnabledColor;
+                        if (GameManager.CommitDockedCurrentShip(ship))
+                            Current.targetGraphic.color = ToggleEnabledColor;
                     }
                     else
                     {

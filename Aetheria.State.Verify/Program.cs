@@ -21,6 +21,7 @@ RequireWeaponGroupCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
 RequireTradePurchaseCommitAuthority(root);
 RequireInventoryLoadoutRestoreCommitAuthority(root);
+RequireDockedCurrentShipCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -471,6 +472,7 @@ Console.WriteLine("Weapon group authority: UI assignment flows through gameplay 
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
 Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests flow through gameplay checkpoint commits");
+Console.WriteLine("Docked current-ship authority: UI selection requests flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -1121,6 +1123,58 @@ static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.CommitRuntimeLoadoutRestore", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes loadout restore through ActionGameManager.");
+    }
+}
+
+static void RequireDockedCurrentShipCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify docked current-ship authority; ActionGameManager.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "CommitDockedCurrentShip",
+        "QueueRunCheckpoint(\"docked-current-ship\")",
+        "DockingBay.DockedShip = ship"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Docked current-ship selection no longer has a gameplay-owned checkpoint commit primitive: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var forbiddenSymbols = new[]
+    {
+        "GameManager.CurrentEntity =",
+        "GameManager.DockingBay.DockedShip ="
+    };
+
+    var hits = File.ReadLines(inventoryPanelPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, inventoryPanelPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still owns direct docked current-ship mutation: " +
+            string.Join("; ", hits));
+    }
+
+    var inventoryPanel = File.ReadAllText(inventoryPanelPath);
+    if (!inventoryPanel.Contains("GameManager.CommitDockedCurrentShip", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("InventoryPanel no longer routes current-ship selection through ActionGameManager.");
     }
 }
 
