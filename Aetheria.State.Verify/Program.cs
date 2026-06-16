@@ -19,6 +19,7 @@ RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
 RequireNativeZoneKeyResolution(root);
+RequireTypedZoneRuntimeCollections(root);
 RequireTypedAsteroidZoneApi(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
@@ -1151,8 +1152,8 @@ static void RequireKeyedOrbitRuntimeWrappers(string root)
     {
         "public Orbit Orbit;",
         "public Orbit Orbit { get; }",
-        "var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.Orbit]);",
-        "AsteroidBelts[belt.ID] = runtimeBelt;",
+        "var runtimeBelt = new AsteroidBelt(belt, Orbits[OrbitKey(belt.Orbit)]);",
+        "AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;",
         "belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);",
         "public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)",
         "Orbit = orbit;"
@@ -1222,7 +1223,9 @@ static void RequireNativeZoneKeyResolution(string root)
         "AsteroidBelts.TryGetValue(ParseBodyGuid(bodyKey), out belt)",
         "Orbits.TryGetValue(ParseOrbitGuid(orbitKey), out orbit)",
         "return GetOrbitPosition(ParseOrbitGuid(orbitKey));",
-        "return GetOrbitVelocity(ParseOrbitGuid(orbitKey));"
+        "return GetOrbitVelocity(ParseOrbitGuid(orbitKey));",
+        "public float2 GetOrbitPosition(Guid orbitID)",
+        "public float2 GetOrbitVelocity(Guid orbit)"
     };
     var hits = forbiddenSymbols
         .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -1237,20 +1240,28 @@ static void RequireNativeZoneKeyResolution(string root)
 
     var requiredSymbols = new[]
     {
-        "private readonly Dictionary<string, Planet> _planetsByBodyKey = new Dictionary<string, Planet>(StringComparer.Ordinal);",
-        "private readonly Dictionary<string, AsteroidBelt> _asteroidBeltsByBodyKey = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);",
-        "private readonly Dictionary<string, Orbit> _orbitsByKey = new Dictionary<string, Orbit>(StringComparer.Ordinal);",
-        "_orbitsByKey[runtimeOrbit.OrbitKey] = runtimeOrbit;",
-        "_asteroidBeltsByBodyKey[runtimeBelt.BodyKey] = runtimeBelt;",
-        "_planetsByBodyKey[runtimeSun.BodyKey] = runtimeSun;",
-        "_planetsByBodyKey[runtimeGas.BodyKey] = runtimeGas;",
-        "_planetsByBodyKey[runtimePlanet.BodyKey] = runtimePlanet;",
-        "return _planetsByBodyKey.TryGetValue(bodyKey ?? \"\", out planet);",
-        "return _asteroidBeltsByBodyKey.TryGetValue(bodyKey ?? \"\", out belt);",
-        "return _orbitsByKey.TryGetValue(orbitKey ?? \"\", out orbit);",
-        "return TryGetOrbit(orbitKey, out var orbit)",
-        "? GetOrbitPosition(orbit.ID)",
-        "? GetOrbitVelocity(orbit.ID)"
+        "public Dictionary<string, Planet> PlanetInstances = new Dictionary<string, Planet>(StringComparer.Ordinal);",
+        "public Dictionary<string, Orbit> Orbits = new Dictionary<string, Orbit>(StringComparer.Ordinal);",
+        "public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);",
+        "private readonly Dictionary<Guid, Planet> _planetsById = new Dictionary<Guid, Planet>();",
+        "private readonly Dictionary<Guid, AsteroidBelt> _asteroidBeltsById = new Dictionary<Guid, AsteroidBelt>();",
+        "PlanetInstances[runtimeSun.BodyKey] = runtimeSun;",
+        "_planetsById[runtimeSun.ID] = runtimeSun;",
+        "PlanetInstances[runtimeGas.BodyKey] = runtimeGas;",
+        "_planetsById[runtimeGas.ID] = runtimeGas;",
+        "PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;",
+        "_planetsById[runtimePlanet.ID] = runtimePlanet;",
+        "AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;",
+        "_asteroidBeltsById[runtimeBelt.ID] = runtimeBelt;",
+        "Orbits[runtimeOrbit.OrbitKey] = runtimeOrbit;",
+        "return PlanetInstances.TryGetValue(bodyKey ?? \"\", out planet);",
+        "return AsteroidBelts.TryGetValue(bodyKey ?? \"\", out belt);",
+        "return Orbits.TryGetValue(orbitKey ?? \"\", out orbit);",
+        "if (_planetsById.TryGetValue(bodyId, out var planet))",
+        "if (_asteroidBeltsById.TryGetValue(bodyId, out var belt))",
+        "var parentPosition = string.IsNullOrWhiteSpace(orbit.ParentOrbitKey)",
+        ": GetOrbitPosition(orbit.ParentOrbitKey);",
+        "return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;"
     };
     var missingSymbols = requiredSymbols
         .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -1260,6 +1271,87 @@ static void RequireNativeZoneKeyResolution(string root)
         throw new InvalidOperationException(
             "Zone must keep native key-indexed runtime lookup tables for body and orbit resolution: " +
             string.Join(", ", missingSymbols));
+    }
+}
+
+static void RequireTypedZoneRuntimeCollections(string root)
+{
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify typed Zone runtime collections; Zone source is missing.");
+    var zoneRenderer = File.Exists(zoneRendererPath)
+        ? File.ReadAllText(zoneRendererPath)
+        : throw new InvalidOperationException("Cannot verify typed Zone runtime collections; ZoneRenderer source is missing.");
+
+    var forbiddenZoneSymbols = new[]
+    {
+        "public Dictionary<Guid, Planet> PlanetInstances",
+        "public Dictionary<Guid, Orbit> Orbits",
+        "public Dictionary<Guid, AsteroidBelt> AsteroidBelts",
+        "private HashSet<Guid> _updatedOrbits",
+        "orbit.Value.Position = GetOrbitPosition(orbit.Key);"
+    };
+    var zoneHits = forbiddenZoneSymbols
+        .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/ServerShared/Zone.cs: contains {symbol}");
+
+    var forbiddenRendererSymbols = new[]
+    {
+        "public Dictionary<Guid, PlanetObject> Planets",
+        "private Dictionary<Guid, AsteroidBeltUI> _beltObjects",
+        "private Dictionary<Guid, InstancedMesh[]> _beltMeshes",
+        "private Dictionary<Guid, Matrix4x4[][]> _beltMatrices",
+        "_beltMeshes[runtimeBelt.ID] =",
+        "_beltObjects[runtimeBelt.ID] =",
+        "Planets[planetInstance.ID] = planet;"
+    };
+    var rendererHits = forbiddenRendererSymbols
+        .Where(symbol => zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/Zone Display/ZoneRenderer.cs: contains {symbol}");
+
+    var hits = zoneHits.Concat(rendererHits).ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone runtime collections and renderer caches must keep typed OrbitKey/BodyKey ownership rather than Guid dictionary keys: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredZoneSymbols = new[]
+    {
+        "public Dictionary<string, Planet> PlanetInstances = new Dictionary<string, Planet>(StringComparer.Ordinal);",
+        "public Dictionary<string, Orbit> Orbits = new Dictionary<string, Orbit>(StringComparer.Ordinal);",
+        "public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);",
+        "private HashSet<string> _updatedOrbits = new HashSet<string>(StringComparer.Ordinal);",
+        "foreach (var orbit in Orbits.Values)",
+        "orbit.Position = GetOrbitPosition(orbit.OrbitKey);"
+    };
+    var missingZoneSymbols = requiredZoneSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/ServerShared/Zone.cs: missing {symbol}");
+
+    var requiredRendererSymbols = new[]
+    {
+        "public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);",
+        "private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);",
+        "private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);",
+        "private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);",
+        "_beltMeshes[runtimeBelt.BodyKey] = meshes.ToArray();",
+        "_beltObjects[runtimeBelt.BodyKey] = belt;",
+        "Planets[planetInstance.BodyKey] = planet;"
+    };
+    var missingRendererSymbols = requiredRendererSymbols
+        .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/Zone Display/ZoneRenderer.cs: missing {symbol}");
+
+    var missing = missingZoneSymbols.Concat(missingRendererSymbols).ToArray();
+    if (missing.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone runtime collections and renderer caches must expose typed keyed ownership end to end: " +
+            string.Join("; ", missing));
     }
 }
 

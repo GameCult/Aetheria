@@ -66,11 +66,11 @@ public class ZoneRenderer : MonoBehaviour
     public Sprite WormholeIcon;
 
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
-    [HideInInspector] public Dictionary<Guid, PlanetObject> Planets = new Dictionary<Guid, PlanetObject>();
+    [HideInInspector] public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
 
-    private Dictionary<Guid, AsteroidBeltUI> _beltObjects = new Dictionary<Guid, AsteroidBeltUI>();
-    private Dictionary<Guid, InstancedMesh[]> _beltMeshes = new Dictionary<Guid, InstancedMesh[]>();
-    private Dictionary<Guid, Matrix4x4[][]> _beltMatrices = new Dictionary<Guid, Matrix4x4[][]>();
+    private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);
+    private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);
+    private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);
     private float _viewDistance;
     //private float _maxDepth;
     private float _minimapDistance;
@@ -350,13 +350,13 @@ public class ZoneRenderer : MonoBehaviour
         var meshes = AsteroidMeshes.ToList();
         while (meshes.Count > Settings.AsteroidMeshCount)
             meshes.RemoveAt(Random.Range(0, meshes.Count));
-        _beltMeshes[runtimeBelt.ID] = meshes.ToArray();
-        _beltMatrices[runtimeBelt.ID] = new Matrix4x4[meshes.Count][];
+        _beltMeshes[runtimeBelt.BodyKey] = meshes.ToArray();
+        _beltMatrices[runtimeBelt.BodyKey] = new Matrix4x4[meshes.Count][];
         var count = runtimeBelt.AsteroidCount / meshes.Count;
         var remainder = runtimeBelt.AsteroidCount - count * meshes.Count;
         for (int i = 0; i < meshes.Count; i++)
         {
-            _beltMatrices[runtimeBelt.ID][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
+            _beltMatrices[runtimeBelt.BodyKey][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
         }
 
         var beltObject = Instantiate(AsteroidBeltUI, ZoneRoot);
@@ -368,7 +368,7 @@ public class ZoneRenderer : MonoBehaviour
             AsteroidSpritesheetWidth,
             AsteroidSpritesheetHeight,
             Settings.MinimapAsteroidSize);
-        _beltObjects[runtimeBelt.ID] = belt;
+        _beltObjects[runtimeBelt.BodyKey] = belt;
 
         LODHandler.FindPlanets();
     }
@@ -415,7 +415,7 @@ public class ZoneRenderer : MonoBehaviour
         planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.Mass) * Vector3.one;
 
 
-        Planets[planetInstance.ID] = planet;
+        Planets[planetInstance.BodyKey] = planet;
         if (!_rootFound)
         {
             _rootFound = true;

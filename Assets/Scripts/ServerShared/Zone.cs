@@ -21,17 +21,16 @@ public class Zone
 
     public Action<string> Log;
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
-    public Dictionary<Guid, Planet> PlanetInstances = new Dictionary<Guid, Planet>();
+    public Dictionary<string, Planet> PlanetInstances = new Dictionary<string, Planet>(StringComparer.Ordinal);
 
-    public Dictionary<Guid, Orbit> Orbits = new Dictionary<Guid, Orbit>();
-    public Dictionary<Guid, AsteroidBelt> AsteroidBelts = new Dictionary<Guid, AsteroidBelt>();
+    public Dictionary<string, Orbit> Orbits = new Dictionary<string, Orbit>(StringComparer.Ordinal);
+    public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);
     public PlanetSettings Settings;
 
-    private readonly Dictionary<string, Planet> _planetsByBodyKey = new Dictionary<string, Planet>(StringComparer.Ordinal);
-    private readonly Dictionary<string, AsteroidBelt> _asteroidBeltsByBodyKey = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);
-    private readonly Dictionary<string, Orbit> _orbitsByKey = new Dictionary<string, Orbit>(StringComparer.Ordinal);
-    
-    private HashSet<Guid> _updatedOrbits = new HashSet<Guid>();
+    private readonly Dictionary<Guid, Planet> _planetsById = new Dictionary<Guid, Planet>();
+    private readonly Dictionary<Guid, AsteroidBelt> _asteroidBeltsById = new Dictionary<Guid, AsteroidBelt>();
+
+    private HashSet<string> _updatedOrbits = new HashSet<string>(StringComparer.Ordinal);
 
     private ItemManager _itemManager;
     private double _time;
@@ -63,8 +62,7 @@ public class Zone
         foreach (var orbit in blueprint.Orbits)
         {
             var runtimeOrbit = new Orbit(Settings, orbit);
-            Orbits.Add(orbit.ID, runtimeOrbit);
-            _orbitsByKey[runtimeOrbit.OrbitKey] = runtimeOrbit;
+            Orbits[runtimeOrbit.OrbitKey] = runtimeOrbit;
         }
         
         foreach (var planet in blueprint.Bodies)
@@ -72,24 +70,24 @@ public class Zone
             switch (planet)
             {
                 case AsteroidBeltConstructionData belt:
-                    var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.Orbit]);
-                    AsteroidBelts[belt.ID] = runtimeBelt;
-                    _asteroidBeltsByBodyKey[runtimeBelt.BodyKey] = runtimeBelt;
+                    var runtimeBelt = new AsteroidBelt(belt, Orbits[OrbitKey(belt.Orbit)]);
+                    AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;
+                    _asteroidBeltsById[runtimeBelt.ID] = runtimeBelt;
                     break;
                 case SunConstructionData sun:
-                    var runtimeSun = new Sun(settings, sun, Orbits[planet.Orbit]);
-                    PlanetInstances.Add(sun.ID, runtimeSun);
-                    _planetsByBodyKey[runtimeSun.BodyKey] = runtimeSun;
+                    var runtimeSun = new Sun(settings, sun, Orbits[OrbitKey(planet.Orbit)]);
+                    PlanetInstances[runtimeSun.BodyKey] = runtimeSun;
+                    _planetsById[runtimeSun.ID] = runtimeSun;
                     break;
                 case GasGiantConstructionData gas:
-                    var runtimeGas = new GasGiant(settings, gas, Orbits[planet.Orbit]);
-                    PlanetInstances.Add(gas.ID, runtimeGas);
-                    _planetsByBodyKey[runtimeGas.BodyKey] = runtimeGas;
+                    var runtimeGas = new GasGiant(settings, gas, Orbits[OrbitKey(planet.Orbit)]);
+                    PlanetInstances[runtimeGas.BodyKey] = runtimeGas;
+                    _planetsById[runtimeGas.ID] = runtimeGas;
                     break;
                 default:
-                    var runtimePlanet = new Planet(settings, planet, Orbits[planet.Orbit]);
-                    PlanetInstances.Add(planet.ID, runtimePlanet);
-                    _planetsByBodyKey[runtimePlanet.BodyKey] = runtimePlanet;
+                    var runtimePlanet = new Planet(settings, planet, Orbits[OrbitKey(planet.Orbit)]);
+                    PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;
+                    _planetsById[runtimePlanet.ID] = runtimePlanet;
                     break;
             }
         }
@@ -137,26 +135,26 @@ public class Zone
     {
         if (bodyId == Guid.Empty)
             return "";
-        if (PlanetInstances.TryGetValue(bodyId, out var planet))
+        if (_planetsById.TryGetValue(bodyId, out var planet))
             return planet.BodyKey;
-        if (AsteroidBelts.TryGetValue(bodyId, out var belt))
+        if (_asteroidBeltsById.TryGetValue(bodyId, out var belt))
             return belt.BodyKey;
         return BodyKey(bodyId);
     }
 
     public bool TryGetPlanet(string bodyKey, out Planet planet)
     {
-        return _planetsByBodyKey.TryGetValue(bodyKey ?? "", out planet);
+        return PlanetInstances.TryGetValue(bodyKey ?? "", out planet);
     }
 
     public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)
     {
-        return _asteroidBeltsByBodyKey.TryGetValue(bodyKey ?? "", out belt);
+        return AsteroidBelts.TryGetValue(bodyKey ?? "", out belt);
     }
 
     public bool TryGetOrbit(string orbitKey, out Orbit orbit)
     {
-        return _orbitsByKey.TryGetValue(orbitKey ?? "", out orbit);
+        return Orbits.TryGetValue(orbitKey ?? "", out orbit);
     }
 
     public void Update(float deltaTime)
@@ -166,11 +164,11 @@ public class Zone
         foreach (var t in BeltUpdates)
             t.Wait();
         BeltUpdates.Clear();
-        foreach (var orbit in Orbits)
+        foreach (var orbit in Orbits.Values)
         {
-            orbit.Value.PreviousPosition = orbit.Value.Position;
-            orbit.Value.Position = GetOrbitPosition(orbit.Key);
-            orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
+            orbit.PreviousPosition = orbit.Position;
+            orbit.Position = GetOrbitPosition(orbit.OrbitKey);
+            orbit.Velocity = (orbit.Position - orbit.PreviousPosition) / deltaTime;
         }
 
         foreach (var belt in AsteroidBelts.Values)
@@ -187,20 +185,19 @@ public class Zone
     }
     
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations
-    public float2 GetOrbitPosition(Guid orbitID)
+    public float2 GetOrbitPosition(string orbitKey)
     {
         // Root orbit is fixed at origin
-        if(orbitID==Guid.Empty)
+        if (string.IsNullOrWhiteSpace(orbitKey))
             return float2.zero;
-        if (!Orbits.ContainsKey(orbitID))
+        if (!Orbits.TryGetValue(orbitKey, out var orbit))
         {
             Log?.Invoke("Requested orbit is not part of this zone!");
             return float2.zero;
         }
         
-        if (!_updatedOrbits.Contains(orbitID))
+        if (!_updatedOrbits.Contains(orbitKey))
         {
-            var orbit = Orbits[orbitID];
             float2 pos = float2.zero;
             if (orbit.Period > .01f)
             {
@@ -214,35 +211,19 @@ public class Zone
                 }
             }
 
-            var parentPosition = orbit.Parent == Guid.Empty
+            var parentPosition = string.IsNullOrWhiteSpace(orbit.ParentOrbitKey)
                 ? orbit.FixedPosition
-                : GetOrbitPosition(orbit.Parent);
-            Orbits[orbitID].Position = parentPosition + pos;
-            _updatedOrbits.Add(orbitID);
+                : GetOrbitPosition(orbit.ParentOrbitKey);
+            orbit.Position = parentPosition + pos;
+            _updatedOrbits.Add(orbitKey);
         }
 
-        return Orbits[orbitID].Position;
-    }
-
-    public float2 GetOrbitPosition(string orbitKey)
-    {
-        return TryGetOrbit(orbitKey, out var orbit)
-            ? GetOrbitPosition(orbit.ID)
-            : float2.zero;
-    }
-
-    public float2 GetOrbitVelocity(Guid orbit)
-    {
-        if (Orbits.ContainsKey(orbit))
-            return Orbits[orbit].Velocity;
-        return float2.zero;
+        return orbit.Position;
     }
 
     public float2 GetOrbitVelocity(string orbitKey)
     {
-        return TryGetOrbit(orbitKey, out var orbit)
-            ? GetOrbitVelocity(orbit.ID)
-            : float2.zero;
+        return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;
     }
 
     public int NearestAsteroid(string asteroidBeltKey, float2 position)
@@ -597,7 +578,6 @@ public class Orbit
 {
     public Guid ID { get; }
     public string OrbitKey { get; }
-    public Guid Parent { get; }
     public string ParentOrbitKey { get; }
     public float Distance { get; }
     public float Phase { get; }
@@ -617,7 +597,6 @@ public class Orbit
     {
         ID = data.ID;
         OrbitKey = Zone.OrbitKey(data.ID);
-        Parent = data.Parent;
         ParentOrbitKey = Zone.OrbitKey(data.Parent);
         Distance = data.Distance;
         Phase = data.Phase;

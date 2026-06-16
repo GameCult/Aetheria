@@ -2902,15 +2902,15 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.PerspectiveEntity = ship;
         var entityPosition = ship.Position.xz;
         var followOrbit = Zone.Orbits.Values.MinBy(orbit => lengthsq(Zone.GetOrbitPosition(orbit.OrbitKey) - entityPosition));
-        var followPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == followOrbit.OrbitKey).ID;
-        var followPlanet = ZoneRenderer.Planets[followPlanetId];
+        var followPlanetBodyKey = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == followOrbit.OrbitKey).BodyKey;
+        var followPlanet = ZoneRenderer.Planets[followPlanetBodyKey];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
         while (!string.IsNullOrWhiteSpace(rootOrbit.ParentOrbitKey) &&
                Zone.TryGetOrbit(rootOrbit.ParentOrbitKey, out var parentOrbit))
             rootOrbit = parentOrbit;
-        var rootPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == rootOrbit.OrbitKey).ID;
-        var rootPlanet = ZoneRenderer.Planets[rootPlanetId];
+        var rootPlanetBodyKey = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == rootOrbit.OrbitKey).BodyKey;
+        var rootPlanet = ZoneRenderer.Planets[rootPlanetBodyKey];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
         var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
@@ -2964,9 +2964,9 @@ public class ActionGameManager : MonoBehaviour
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
         var parentOrbitKey = Zone.TryGetOrbit(orbital.OrbitKey, out var orbit) ? orbit.ParentOrbitKey : "";
-        var parentOrbitPlanet = Zone.PlanetInstances.Values.FirstOrDefault(planet => planet.OrbitKey == parentOrbitKey)?.ID ?? Guid.Empty;
-        if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
-            DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;
+        var parentOrbitPlanetBodyKey = Zone.PlanetInstances.Values.FirstOrDefault(planet => planet.OrbitKey == parentOrbitKey)?.BodyKey ?? "";
+        if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanetBodyKey))
+            DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanetBodyKey].Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;
         if (entity is OrbitalEntity {CanTow: true})
             TowingStation = entity;
