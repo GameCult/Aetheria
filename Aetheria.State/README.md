@@ -329,7 +329,8 @@ The run document also carries `CurrentEntityKey`, so Continue restore binds the
 saved player entity by exact typed record identity instead of reconstructing it
 from a transient entity-slot index. Canonical typed run state no longer stores
 `CurrentZoneEntityIndex`; older stored runs are translated through the package
-reader into `CurrentEntityKey` when that compatibility seam is needed.
+reader into `CurrentEntityKey`, and older queued runtime commits are translated
+through the pending commit reader when those compatibility seams are needed.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

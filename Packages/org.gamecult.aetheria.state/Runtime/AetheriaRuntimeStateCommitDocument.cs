@@ -231,24 +231,21 @@ namespace GameCult.Aetheria.State.Unity
         public int CurrentZoneIndex { get; set; } = -1;
 
         [Key(5)]
-        public int CurrentZoneEntityIndex { get; set; } = -1;
-
-        [Key(6)]
         public IReadOnlyList<int> DiscoveredZoneIndices { get; set; } = Array.Empty<int>();
 
-        [Key(7)]
+        [Key(6)]
         public IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit> Zones { get; set; } = Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
 
-        [Key(8)]
+        [Key(7)]
         public IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> ActionBarBindings { get; set; } = Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
 
-        [Key(9)]
+        [Key(8)]
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit> FactionRelationships { get; set; } = Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
 
-        [Key(10)]
+        [Key(9)]
         public uint GenerationSeed { get; set; }
 
-        [Key(11)]
+        [Key(10)]
         public string CurrentEntityKey { get; set; } = "";
     }
 

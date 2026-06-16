@@ -281,20 +281,8 @@ public static class AetheriaRuntimeCommitLogApplier
 
         if (zoneKeys.Count > 0)
             run.ZoneKeys = zoneKeys.ToArray();
-        run.CurrentEntityKey = string.IsNullOrWhiteSpace(checkpoint.CurrentEntityKey)
-            ? LegacyCurrentEntityKey(run.RunId, checkpoint.CurrentZoneIndex, checkpoint.CurrentZoneEntityIndex)
-            : checkpoint.CurrentEntityKey;
+        run.CurrentEntityKey = checkpoint.CurrentEntityKey ?? "";
         await node.PutRunStateAsync(RunKey(run.RunId), run).ConfigureAwait(false);
-    }
-
-    private static string LegacyCurrentEntityKey(string runId, int zoneIndex, int entityIndex)
-    {
-        if (string.IsNullOrWhiteSpace(runId) || zoneIndex < 0 || entityIndex < 0)
-        {
-            return "";
-        }
-
-        return EntityKey(runId, zoneIndex, entityIndex).ToString();
     }
 
     private static AetheriaDroppedPickupSnapshot[] ToDroppedPickups(

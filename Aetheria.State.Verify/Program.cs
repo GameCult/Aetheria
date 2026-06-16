@@ -1973,6 +1973,16 @@ static void RequireMainMenuContinueRunState(string root)
             "Unity package runtime run snapshot still exposes integer current-entity slot authority.");
     }
 
+    var pendingCommitPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs");
+    var pendingCommit = File.Exists(pendingCommitPath)
+        ? File.ReadAllText(pendingCommitPath)
+        : throw new InvalidOperationException("Cannot verify pending commit authority; AetheriaRuntimeStateCommitDocument.cs is missing.");
+    if (pendingCommit.Contains("CurrentZoneEntityIndex", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Pending runtime commit transport still exposes integer current-entity slot authority.");
+    }
+
     var requiredPackageSymbols = new[]
     {
         "public string RecordKey",

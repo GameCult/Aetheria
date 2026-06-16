@@ -235,7 +235,7 @@ try
                 WeaponGroups = new[] { new[] { 0 } }
             }
         });
-    AetheriaRuntimeStateCommitLog.QueueRunCheckpoint(
+    var runCommit = AetheriaRuntimeStateCommitLog.QueueRunCheckpoint(
         commitSmokeStatePath,
         new AetheriaRuntimeRunCheckpointCommit
         {
@@ -694,6 +694,7 @@ try
         throw new InvalidOperationException("Runtime state commit log did not read the queued player settings command.");
     }
     AssertPendingCultCacheEnvelope(commit.Path, AetheriaRuntimeStateCommitDocument.SchemaId);
+    AssertRunCheckpointPendingPayloadUsesCurrentEntityKey(runCommit.Path);
 
     var typedNodeApplied = false;
     await using (var commitNode = await AetheriaStateNode.OpenAsync(commitSmokeStatePath, "aetheria-unity-runtime-commit-smoke"))
@@ -1062,6 +1063,78 @@ static void AssertPendingCultCacheEnvelope(string path, string expectedSchemaId)
     {
         throw new InvalidOperationException($"Pending file {path} does not publish a typed CultCache record for {expectedSchemaId}.");
     }
+}
+
+static void AssertRunCheckpointPendingPayloadUsesCurrentEntityKey(string path)
+{
+    var reader = new MessagePackReader(File.ReadAllBytes(path));
+    var fieldCount = reader.ReadArrayHeader();
+    if (fieldCount < 3)
+    {
+        throw new InvalidOperationException($"Pending file {path} is not a CultCache store snapshot.");
+    }
+
+    reader.Skip(); // formatVersion
+
+    var catalogCount = reader.ReadArrayHeader();
+    for (var index = 0; index < catalogCount; index++)
+    {
+        reader.Skip();
+    }
+
+    var recordCount = reader.ReadArrayHeader();
+    if (recordCount != 1)
+    {
+        throw new InvalidOperationException($"Pending file {path} should contain one CultCache record.");
+    }
+
+    reader.ReadArrayHeader();
+    reader.Skip(); // key
+    reader.Skip(); // schemaId
+    reader.Skip(); // storedAt
+    var payload = reader.ReadBytes() is { } payloadSequence
+        ? SequenceToArray(payloadSequence)
+        : Array.Empty<byte>();
+    if (payload.Length == 0)
+    {
+        throw new InvalidOperationException($"Pending file {path} has an empty runtime commit payload.");
+    }
+
+    var payloadReader = new MessagePackReader(payload);
+    var payloadFieldCount = payloadReader.ReadArrayHeader();
+    if (payloadFieldCount < 7)
+    {
+        throw new InvalidOperationException($"Pending runtime commit payload {path} is incomplete.");
+    }
+
+    payloadReader.Skip(); // schema
+    payloadReader.Skip(); // kind
+    payloadReader.Skip(); // commandId
+    payloadReader.Skip(); // createdAtUtc
+    payloadReader.Skip(); // playerSettings
+    payloadReader.Skip(); // loadoutTemplate
+    var runCheckpointPayload = SequenceToArray(payloadReader.ReadRaw());
+
+    var runReader = new MessagePackReader(runCheckpointPayload);
+    var runFieldCount = runReader.ReadArrayHeader();
+    if (runFieldCount != 11)
+    {
+        throw new InvalidOperationException(
+            $"Pending run checkpoint payload should use the 11-field CurrentEntityKey layout, found {runFieldCount} fields.");
+    }
+}
+
+static byte[] SequenceToArray(System.Buffers.ReadOnlySequence<byte> sequence)
+{
+    var payload = new byte[checked((int)sequence.Length)];
+    var offset = 0;
+    foreach (var segment in sequence)
+    {
+        segment.Span.CopyTo(payload.AsSpan(offset));
+        offset += segment.Length;
+    }
+
+    return payload;
 }
 
 static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaRuntimeBehaviorPayload payload)

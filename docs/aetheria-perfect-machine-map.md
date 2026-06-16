@@ -997,7 +997,9 @@ First Aetheria surfaces to publish:
      entity identity instead of reconstructing the player ship from an integer
      slot. Canonical run state and package runtime snapshots no longer keep the
      old current-entity slot field; the package reader only synthesizes the key
-     from older stored runs when that compatibility seam is encountered.
+     from older stored runs, and the pending commit reader only synthesizes it
+     from older queued run checkpoints, when those compatibility seams are
+     encountered.
    - Done: project run checkpoint entity snapshots from the flattened live
      entity graph, not only `Zone.Entities`, so docked child ships can receive
      typed entity records and stable child/docking references instead of

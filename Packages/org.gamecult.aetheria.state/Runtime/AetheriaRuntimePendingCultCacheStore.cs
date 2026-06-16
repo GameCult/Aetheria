@@ -31,8 +31,7 @@ namespace GameCult.Aetheria.State.Unity
 
         public static AetheriaRuntimeStateCommitDocument ReadStateCommit(string path)
         {
-            return MessagePackSerializer.Deserialize<AetheriaRuntimeStateCommitDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeStateCommitDocument.SchemaId));
+            return ReadStateCommitDocument(ReadDocumentPayload(path, AetheriaRuntimeStateCommitDocument.SchemaId));
         }
 
         public static void WriteEveCommand(string path, AetheriaRuntimeEveCommandDocument document)
@@ -131,6 +130,120 @@ namespace GameCult.Aetheria.State.Unity
             return payload;
         }
 
+        private static AetheriaRuntimeStateCommitDocument ReadStateCommitDocument(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fieldCount = reader.ReadArrayHeader();
+            var document = new AetheriaRuntimeStateCommitDocument
+            {
+                Schema = ReadFieldString(ref reader, fieldCount, 0, AetheriaRuntimeStateCommitDocument.SchemaId),
+                Kind = ReadFieldString(ref reader, fieldCount, 1, ""),
+                CommandId = ReadFieldString(ref reader, fieldCount, 2, ""),
+                CreatedAtUtc = ReadFieldString(ref reader, fieldCount, 3, ""),
+                PlayerSettings = ReadFieldDocument<AetheriaRuntimePlayerSettingsCommit>(ref reader, fieldCount, 4),
+                LoadoutTemplate = ReadFieldDocument<AetheriaRuntimeLoadoutTemplateCommit>(ref reader, fieldCount, 5),
+                RunCheckpoint = ReadFieldRunCheckpoint(ref reader, fieldCount, 6)
+            };
+
+            for (var index = 7; index < fieldCount; index++)
+            {
+                reader.Skip();
+            }
+
+            return document;
+        }
+
+        private static T? ReadFieldDocument<T>(ref MessagePackReader reader, int fields, int index)
+            where T : class
+        {
+            if (index >= fields)
+            {
+                return null;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return null;
+            }
+
+            return MessagePackSerializer.Deserialize<T>(ReadRawBytes(ref reader));
+        }
+
+        private static AetheriaRuntimeRunCheckpointCommit? ReadFieldRunCheckpoint(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields)
+            {
+                return null;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return null;
+            }
+
+            return ReadRunCheckpoint(ReadRawBytes(ref reader));
+        }
+
+        private static AetheriaRuntimeRunCheckpointCommit ReadRunCheckpoint(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+
+            var runId = ReadFieldString(ref reader, fields, 0, "local");
+            var isTutorial = ReadFieldBool(ref reader, fields, 1, false);
+            var entranceZoneIndex = ReadFieldInt32(ref reader, fields, 2, -1);
+            var exitZoneIndex = ReadFieldInt32(ref reader, fields, 3, -1);
+            var currentZoneIndex = ReadFieldInt32(ref reader, fields, 4, -1);
+
+            string currentEntityKey;
+            int[] discoveredZoneIndices;
+            AetheriaRuntimeZoneSnapshotCommit[] zones;
+            AetheriaRuntimeActionBarBindingCommit[] actionBarBindings;
+            AetheriaRuntimeFactionRelationshipCommit[] factionRelationships;
+            uint generationSeed;
+
+            if (fields >= 12)
+            {
+                var legacyCurrentZoneEntityIndex = ReadFieldInt32(ref reader, fields, 5, -1);
+                discoveredZoneIndices = ReadFieldArray<int>(ref reader, fields, 6);
+                zones = ReadFieldArray<AetheriaRuntimeZoneSnapshotCommit>(ref reader, fields, 7);
+                actionBarBindings = ReadFieldArray<AetheriaRuntimeActionBarBindingCommit>(ref reader, fields, 8);
+                factionRelationships = ReadFieldArray<AetheriaRuntimeFactionRelationshipCommit>(ref reader, fields, 9);
+                generationSeed = ReadFieldUInt32(ref reader, fields, 10, 0);
+                currentEntityKey = ReadFieldString(ref reader, fields, 11, "");
+                if (string.IsNullOrWhiteSpace(currentEntityKey))
+                {
+                    currentEntityKey = LegacyCurrentEntityKey(runId, currentZoneIndex, legacyCurrentZoneEntityIndex);
+                }
+            }
+            else
+            {
+                discoveredZoneIndices = ReadFieldArray<int>(ref reader, fields, 5);
+                zones = ReadFieldArray<AetheriaRuntimeZoneSnapshotCommit>(ref reader, fields, 6);
+                actionBarBindings = ReadFieldArray<AetheriaRuntimeActionBarBindingCommit>(ref reader, fields, 7);
+                factionRelationships = ReadFieldArray<AetheriaRuntimeFactionRelationshipCommit>(ref reader, fields, 8);
+                generationSeed = ReadFieldUInt32(ref reader, fields, 9, 0);
+                currentEntityKey = ReadFieldString(ref reader, fields, 10, "");
+            }
+
+            return new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = runId,
+                IsTutorial = isTutorial,
+                EntranceZoneIndex = entranceZoneIndex,
+                ExitZoneIndex = exitZoneIndex,
+                CurrentZoneIndex = currentZoneIndex,
+                DiscoveredZoneIndices = discoveredZoneIndices,
+                Zones = zones,
+                ActionBarBindings = actionBarBindings,
+                FactionRelationships = factionRelationships,
+                GenerationSeed = generationSeed,
+                CurrentEntityKey = currentEntityKey
+            };
+        }
+
         private static string[] ReadSchemaCatalog(ref MessagePackReader reader)
         {
             var count = reader.ReadArrayHeader();
@@ -177,6 +290,90 @@ namespace GameCult.Aetheria.State.Unity
             writer.Write(schemaId);
             writer.Write(storedAt ?? "");
             writer.Write(payload);
+        }
+
+        private static string ReadFieldString(ref MessagePackReader reader, int fields, int index, string fallback)
+        {
+            return index >= fields ? fallback : reader.ReadString() ?? fallback;
+        }
+
+        private static int ReadFieldInt32(ref MessagePackReader reader, int fields, int index, int fallback)
+        {
+            if (index >= fields)
+            {
+                return fallback;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return fallback;
+            }
+
+            return reader.ReadInt32();
+        }
+
+        private static uint ReadFieldUInt32(ref MessagePackReader reader, int fields, int index, uint fallback)
+        {
+            if (index >= fields)
+            {
+                return fallback;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return fallback;
+            }
+
+            return reader.ReadUInt32();
+        }
+
+        private static bool ReadFieldBool(ref MessagePackReader reader, int fields, int index, bool fallback)
+        {
+            if (index >= fields)
+            {
+                return fallback;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return fallback;
+            }
+
+            return reader.ReadBoolean();
+        }
+
+        private static T[] ReadFieldArray<T>(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields)
+            {
+                return Array.Empty<T>();
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return Array.Empty<T>();
+            }
+
+            return MessagePackSerializer.Deserialize<T[]>(ReadRawBytes(ref reader)) ?? Array.Empty<T>();
+        }
+
+        private static byte[] ReadRawBytes(ref MessagePackReader reader)
+        {
+            return reader.ReadRaw().ToArray();
+        }
+
+        private static string LegacyCurrentEntityKey(string runId, int zoneIndex, int entityIndex)
+        {
+            if (string.IsNullOrWhiteSpace(runId) || zoneIndex < 0 || entityIndex < 0)
+            {
+                return "";
+            }
+
+            return $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
         }
 
         private static string ContentHash(byte[] payload)
