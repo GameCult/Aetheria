@@ -15,31 +15,12 @@ using UniRx;
 public class ItemManager
 {
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
-    // public Dictionary<Guid, List<IController>> CorporationControllers = new Dictionary<Guid, List<IController>>();
-    // public Dictionary<Guid, ZoneDefinition> GalaxyZones;
-    
+
     private Action<string> _logger;
-
-    private double _time;
-    private float _deltaTime;
-    private Dictionary<Guid, Zone> _zones = new Dictionary<Guid, Zone>();
-
-    // private Guid _forceLoadZone;
     
     private readonly IRuntimeItemCatalogReader _runtimeItems;
 
     public GameplaySettings GameplaySettings { get; }
-
-    // public double Time
-    // {
-    //     get => _time;
-    //     set
-    //     {
-    //         _deltaTime = (float) (value - _time);
-    //         _time = value;
-    //         //Log($"GameContext delta time: {_deltaTime}");
-    //     }
-    // }
 
     public ItemManager(IRuntimeItemCatalogReader runtimeItems, GameplaySettings settings, Action<string> logger)
     {

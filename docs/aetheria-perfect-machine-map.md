@@ -1677,6 +1677,10 @@ First Aetheria surfaces to publish:
      preference edits through named `ActionGameManager` commit methods. MainMenu
      reads the `RuntimePlayerSettings` projection for display, but no longer
      assigns its player/gameplay/graphics fields directly.
+   - Done: delete `ItemManager`'s unused zone dictionary, commented corporation
+     controller/galaxy-zone GUID caches, force-load GUID sketch, and dead time
+     property sketch. ItemManager no longer pretends to own a zone/time cache
+     while the runtime state spine owns durable state.
    - Remaining: delete or quarantine old cache abstractions that no longer
      protect an invariant once catalog migration has a typed reader.
 
