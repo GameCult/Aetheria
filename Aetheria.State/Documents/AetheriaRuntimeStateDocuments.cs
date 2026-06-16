@@ -290,10 +290,10 @@ public sealed class AetheriaDroppedPickupSnapshot
 public sealed class AetheriaOrbitSnapshot
 {
     [Key(0)]
-    public string OrbitId { get; set; } = "";
+    public string OrbitKey { get; set; } = "";
 
     [Key(1)]
-    public string ParentId { get; set; } = "";
+    public string ParentOrbitKey { get; set; } = "";
 
     [Key(2)]
     public double Distance { get; set; }
@@ -309,7 +309,7 @@ public sealed class AetheriaOrbitSnapshot
 public sealed class AetheriaBodySnapshot
 {
     [Key(0)]
-    public string BodyId { get; set; } = "";
+    public string BodyKey { get; set; } = "";
 
     [Key(1)]
     public string Kind { get; set; } = "";
@@ -318,7 +318,7 @@ public sealed class AetheriaBodySnapshot
     public string Name { get; set; } = "";
 
     [Key(3)]
-    public string OrbitId { get; set; } = "";
+    public string OrbitKey { get; set; } = "";
 
     [Key(4)]
     public double Mass { get; set; }

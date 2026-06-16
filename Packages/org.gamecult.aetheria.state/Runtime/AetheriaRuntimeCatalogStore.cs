@@ -700,15 +700,15 @@ namespace GameCult.Aetheria.State.Unity
             for (var orbit = 0; orbit < count; orbit++)
             {
                 var orbitFields = reader.ReadArrayHeader();
-                var orbitId = ReadFieldString(ref reader, orbitFields, 0);
-                var parentId = ReadFieldString(ref reader, orbitFields, 1);
+                var orbitKey = ReadFieldString(ref reader, orbitFields, 0);
+                var parentOrbitKey = ReadFieldString(ref reader, orbitFields, 1);
                 var distance = ReadFieldDouble(ref reader, orbitFields, 2);
                 var phase = ReadFieldDouble(ref reader, orbitFields, 3);
                 var fixedPosition = ReadFieldVector2(ref reader, orbitFields, 4);
                 SkipRemaining(ref reader, orbitFields, 5);
                 orbits[orbit] = new AetheriaRuntimeOrbitSnapshot(
-                    orbitId,
-                    parentId,
+                    orbitKey,
+                    parentOrbitKey,
                     distance,
                     phase,
                     fixedPosition.X,
@@ -726,20 +726,20 @@ namespace GameCult.Aetheria.State.Unity
             for (var body = 0; body < count; body++)
             {
                 var bodyFields = reader.ReadArrayHeader();
-                var bodyId = ReadFieldString(ref reader, bodyFields, 0);
+                var bodyKey = ReadFieldString(ref reader, bodyFields, 0);
                 var kind = ReadFieldString(ref reader, bodyFields, 1);
                 var name = ReadFieldString(ref reader, bodyFields, 2);
-                var orbitId = ReadFieldString(ref reader, bodyFields, 3);
+                var orbitKey = ReadFieldString(ref reader, bodyFields, 3);
                 var mass = ReadFieldDouble(ref reader, bodyFields, 4);
                 var resourceCount = CountAndSkipFieldArray(ref reader, bodyFields, 5);
                 SkipFields(ref reader, bodyFields, 6, 10);
                 var asteroidSummary = ReadFieldAsteroidSummary(ref reader, bodyFields, 10);
                 SkipRemaining(ref reader, bodyFields, 11);
                 bodies[body] = new AetheriaRuntimeBodySnapshot(
-                    bodyId,
+                    bodyKey,
                     kind,
                     name,
-                    orbitId,
+                    orbitKey,
                     mass,
                     resourceCount,
                     asteroidSummary.Count,

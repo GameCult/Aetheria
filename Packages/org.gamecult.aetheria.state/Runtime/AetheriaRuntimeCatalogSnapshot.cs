@@ -964,18 +964,18 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeOrbitSnapshot
     {
-        public AetheriaRuntimeOrbitSnapshot(string orbitId, string parentId, double distance, double phase, double fixedPositionX, double fixedPositionY)
+        public AetheriaRuntimeOrbitSnapshot(string orbitKey, string parentOrbitKey, double distance, double phase, double fixedPositionX, double fixedPositionY)
         {
-            OrbitId = orbitId;
-            ParentId = parentId;
+            OrbitKey = orbitKey;
+            ParentOrbitKey = parentOrbitKey;
             Distance = distance;
             Phase = phase;
             FixedPositionX = fixedPositionX;
             FixedPositionY = fixedPositionY;
         }
 
-        public string OrbitId { get; }
-        public string ParentId { get; }
+        public string OrbitKey { get; }
+        public string ParentOrbitKey { get; }
         public double Distance { get; }
         public double Phase { get; }
         public double FixedPositionX { get; }
@@ -985,10 +985,10 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeBodySnapshot
     {
         public AetheriaRuntimeBodySnapshot(
-            string bodyId,
+            string bodyKey,
             string kind,
             string name,
-            string orbitId,
+            string orbitKey,
             double mass,
             int resourceCount,
             int asteroidCount,
@@ -996,10 +996,10 @@ namespace GameCult.Aetheria.State.Unity
             int respawningAsteroidCount,
             int asteroidMiningAccumulatorCount)
         {
-            BodyId = bodyId;
+            BodyKey = bodyKey;
             Kind = kind;
             Name = name;
-            OrbitId = orbitId;
+            OrbitKey = orbitKey;
             Mass = mass;
             ResourceCount = resourceCount;
             AsteroidCount = asteroidCount;
@@ -1008,10 +1008,10 @@ namespace GameCult.Aetheria.State.Unity
             AsteroidMiningAccumulatorCount = asteroidMiningAccumulatorCount;
         }
 
-        public string BodyId { get; }
+        public string BodyKey { get; }
         public string Kind { get; }
         public string Name { get; }
-        public string OrbitId { get; }
+        public string OrbitKey { get; }
         public double Mass { get; }
         public int ResourceCount { get; }
         public int AsteroidCount { get; }

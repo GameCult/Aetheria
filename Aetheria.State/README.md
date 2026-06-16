@@ -129,6 +129,10 @@ and `MiningTool` now retain typed body-key runtime state directly, while
 `Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime body/orbit
 key surfaces used for projection, and `ActionGameManager` no longer formats or
 resolves body/orbit keys locally while checkpointing or restoring state.
+Typed `AetheriaZoneState` orbit/body snapshot rows now use `OrbitKey`,
+`ParentOrbitKey`, and `BodyKey` property names all the way through the typed
+document and runtime catalog readback surface; the old `...Id` names were only
+legacy-shaped aliases for those key strings and are gone.
 Orbit-targeting agent runtime also now retains typed orbit keys directly:
 `PatrolOrbitsTask`, `MoveToOrbitState`, and `StationTowing` no longer own raw
 orbit GUID targets, and `Zone` resolves orbit keys for agent orbit movement.

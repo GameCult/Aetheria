@@ -21,6 +21,7 @@ RequireKeyedOrbitRuntimeWrappers(root);
 RequireNativeZoneKeyResolution(root);
 RequireTypedZoneRuntimeCollections(root);
 RequireTypedZoneConstructionKeys(root);
+RequireTypedZoneStateSnapshotKeys(root);
 RequireTypedAsteroidZoneApi(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
@@ -1445,6 +1446,105 @@ static void RequireTypedZoneConstructionKeys(string root)
     {
         throw new InvalidOperationException(
             "Zone construction inputs and generator seams must retain typed orbit/body keys as the handoff authority: " +
+            string.Join("; ", missingSymbols));
+    }
+}
+
+static void RequireTypedZoneStateSnapshotKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs"),
+        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs"),
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "public string OrbitId { get; set; } = \"\";",
+        "public string ParentId { get; set; } = \"\";",
+        "public string BodyId { get; set; } = \"\";",
+        "public AetheriaRuntimeOrbitSnapshot(string orbitId, string parentId",
+        "string bodyId,",
+        "string orbitId,",
+        "OrbitId = orbit.OrbitKey ?? \"\",",
+        "ParentId = orbit.ParentOrbitKey ?? \"\",",
+        "BodyId = body.BodyKey ?? \"\",",
+        "var orbitId = ReadFieldString(ref reader, orbitFields, 0);",
+        "var parentId = ReadFieldString(ref reader, orbitFields, 1);",
+        "var bodyId = ReadFieldString(ref reader, bodyFields, 0);",
+        "var orbitId = ReadFieldString(ref reader, bodyFields, 3);"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed zone-state documents and runtime snapshots must name orbit/body identity as keys, not legacy ids: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs")] = new[]
+        {
+            "public string OrbitKey { get; set; } = \"\";",
+            "public string ParentOrbitKey { get; set; } = \"\";",
+            "public string BodyKey { get; set; } = \"\";"
+        },
+        [Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")] = new[]
+        {
+            "OrbitKey = orbit.OrbitKey ?? \"\",",
+            "ParentOrbitKey = orbit.ParentOrbitKey ?? \"\",",
+            "BodyKey = body.BodyKey ?? \"\",",
+            "OrbitKey = body.OrbitKey ?? \"\","
+        },
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
+        {
+            "public AetheriaRuntimeOrbitSnapshot(string orbitKey, string parentOrbitKey",
+            "OrbitKey = orbitKey;",
+            "ParentOrbitKey = parentOrbitKey;",
+            "public string OrbitKey { get; }",
+            "public string ParentOrbitKey { get; }",
+            "BodyKey = bodyKey;",
+            "OrbitKey = orbitKey;",
+            "public string BodyKey { get; }",
+            "public string OrbitKey { get; }"
+        },
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
+        {
+            "var orbitKey = ReadFieldString(ref reader, orbitFields, 0);",
+            "var parentOrbitKey = ReadFieldString(ref reader, orbitFields, 1);",
+            "var bodyKey = ReadFieldString(ref reader, bodyFields, 0);",
+            "var orbitKey = ReadFieldString(ref reader, bodyFields, 3);",
+            "new AetheriaRuntimeOrbitSnapshot(",
+            "new AetheriaRuntimeBodySnapshot("
+        }
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed zone-state documents and runtime catalog readers must expose orbit/body key ownership explicitly: " +
             string.Join("; ", missingSymbols));
     }
 }
