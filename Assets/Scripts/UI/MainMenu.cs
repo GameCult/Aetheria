@@ -213,14 +213,14 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Title.text = TitleSubtitle("gameplay", "settings");
         _nextMenu.panel.AddField("Name", 
             () => ActionGameManager.RuntimePlayerSettings.Name,
-            s => ActionGameManager.RuntimePlayerSettings.Name = s);
+            ActionGameManager.CommitRuntimePlayerName);
         _nextMenu.panel.AddField("Temperature Unit", 
             () => (int) ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit,
-            i => ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit = (TemperatureUnit) i,
+            i => ActionGameManager.CommitRuntimeTemperatureUnit((TemperatureUnit) i),
             Enum.GetNames(typeof(TemperatureUnit)));
         _nextMenu.panel.AddField("Significant Digits", 
             () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits,
-            i => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits = i);
+            ActionGameManager.CommitRuntimeSignificantDigits);
         _nextMenu.panel.AddButton("Back",
             CommitRuntimeSettingsAndReturn);
     }
@@ -233,13 +233,13 @@ public class MainMenu : MonoBehaviour
             () => (int)ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality,
             i =>
             {
-                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality = (Quality)i;
+                ActionGameManager.CommitRuntimeNebulaQuality((Quality)i);
                 CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
             },
             Enum.GetNames(typeof(Quality)));
         _nextMenu.panel.AddField("Show Asteroids in Minimap",
             () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
-            b => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
+            ActionGameManager.CommitRuntimeShowAsteroidsInMinimap);
         _nextMenu.panel.AddButton("Back",
             CommitRuntimeSettingsAndReturn);
     }
@@ -270,7 +270,6 @@ public class MainMenu : MonoBehaviour
 
     private void CommitRuntimeSettingsAndReturn()
     {
-        ActionGameManager.QueueRuntimePlayerSettingsCommit();
         ShowSettings();
         Fade(false);
     }

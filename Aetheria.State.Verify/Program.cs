@@ -713,25 +713,62 @@ static void RequireMainMenuSettingsCommit(string root)
     }
 
     var source = File.ReadAllText(mainMenuPath);
-    if (!source.Contains("private void CommitRuntimeSettingsAndReturn()", StringComparison.Ordinal) ||
-        !source.Contains("ActionGameManager.QueueRuntimePlayerSettingsCommit();", StringComparison.Ordinal))
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify main-menu settings authority; ActionGameManager.cs is missing.");
+
+    var requiredCommits = new[]
+    {
+        "CommitRuntimePlayerName",
+        "CommitRuntimeTemperatureUnit",
+        "CommitRuntimeSignificantDigits",
+        "CommitRuntimeNebulaQuality",
+        "CommitRuntimeShowAsteroidsInMinimap"
+    };
+
+    var missingCommits = requiredCommits
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingCommits.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu no longer exposes a shared typed player-settings commit return path.");
+            "ActionGameManager no longer owns complete runtime player-settings commit primitives: " +
+            string.Join(", ", missingCommits));
     }
 
-    var graphicsSettings = ExtractMethodBody(source, "ShowGraphicsSettings");
-    if (!graphicsSettings.Contains("CommitRuntimeSettingsAndReturn", StringComparison.Ordinal))
+    var forbiddenSymbols = new[]
+    {
+        "ActionGameManager.RuntimePlayerSettings.Name =",
+        "ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit =",
+        "ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits =",
+        "ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality =",
+        "ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap ="
+    };
+
+    var hits = File.ReadLines(mainMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, mainMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu graphics settings can return without queuing the typed player-settings commit.");
+            "MainMenu still owns direct RuntimePlayerSettings mutation: " +
+            string.Join("; ", hits));
     }
 
-    var gameplaySettings = ExtractMethodBody(source, "ShowGameplaySettings");
-    if (!gameplaySettings.Contains("CommitRuntimeSettingsAndReturn", StringComparison.Ordinal))
+    var missingUiCalls = requiredCommits
+        .Where(symbol => !source.Contains("ActionGameManager." + symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingUiCalls.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu gameplay settings can return without queuing the typed player-settings commit.");
+            "MainMenu no longer routes settings changes through ActionGameManager: " +
+            string.Join(", ", missingUiCalls));
     }
 }
 
@@ -1176,33 +1213,6 @@ static void RequireDockedCurrentShipCommitAuthority(string root)
     {
         throw new InvalidOperationException("InventoryPanel no longer routes current-ship selection through ActionGameManager.");
     }
-}
-
-static string ExtractMethodBody(string source, string methodName)
-{
-    var signature = "private void " + methodName + "()";
-    var signatureIndex = source.IndexOf(signature, StringComparison.Ordinal);
-    if (signatureIndex < 0)
-        throw new InvalidOperationException($"Cannot find MainMenu.{methodName} for settings authority verification.");
-
-    var braceIndex = source.IndexOf('{', signatureIndex);
-    if (braceIndex < 0)
-        throw new InvalidOperationException($"Cannot find MainMenu.{methodName} body for settings authority verification.");
-
-    var depth = 0;
-    for (var index = braceIndex; index < source.Length; index++)
-    {
-        if (source[index] == '{')
-            depth++;
-        else if (source[index] == '}')
-        {
-            depth--;
-            if (depth == 0)
-                return source.Substring(braceIndex, index - braceIndex + 1);
-        }
-    }
-
-    throw new InvalidOperationException($"MainMenu.{methodName} body is not balanced.");
 }
 
 static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)

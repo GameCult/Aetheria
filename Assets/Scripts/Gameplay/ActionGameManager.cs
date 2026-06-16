@@ -85,6 +85,36 @@ public class ActionGameManager : MonoBehaviour
         QueueRuntimePlayerSettingsCommit();
     }
 
+    public static void CommitRuntimePlayerName(string name)
+    {
+        RuntimePlayerSettings.Name = name ?? "";
+        QueueRuntimePlayerSettingsCommit();
+    }
+
+    public static void CommitRuntimeTemperatureUnit(TemperatureUnit unit)
+    {
+        RuntimePlayerSettings.GameplaySettings.TemperatureUnit = unit;
+        QueueRuntimePlayerSettingsCommit();
+    }
+
+    public static void CommitRuntimeSignificantDigits(int significantDigits)
+    {
+        RuntimePlayerSettings.GameplaySettings.SignificantDigits = significantDigits;
+        QueueRuntimePlayerSettingsCommit();
+    }
+
+    public static void CommitRuntimeNebulaQuality(Quality quality)
+    {
+        RuntimePlayerSettings.GraphicsSettings.NebulaQuality = quality;
+        QueueRuntimePlayerSettingsCommit();
+    }
+
+    public static void CommitRuntimeShowAsteroidsInMinimap(bool show)
+    {
+        RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = show;
+        QueueRuntimePlayerSettingsCommit();
+    }
+
     private static RuntimePlayerSettings CreateDefaultRuntimePlayerSettings()
     {
         var settings = new RuntimePlayerSettings();
