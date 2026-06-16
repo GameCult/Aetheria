@@ -27,9 +27,6 @@ public class Zone
     public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);
     public PlanetSettings Settings;
 
-    private readonly Dictionary<Guid, Planet> _planetsById = new Dictionary<Guid, Planet>();
-    private readonly Dictionary<Guid, AsteroidBelt> _asteroidBeltsById = new Dictionary<Guid, AsteroidBelt>();
-
     private HashSet<string> _updatedOrbits = new HashSet<string>(StringComparer.Ordinal);
 
     private ItemManager _itemManager;
@@ -72,22 +69,18 @@ public class Zone
                 case AsteroidBeltConstructionData belt:
                     var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);
                     AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;
-                    _asteroidBeltsById[runtimeBelt.ID] = runtimeBelt;
                     break;
                 case SunConstructionData sun:
                     var runtimeSun = new Sun(settings, sun, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimeSun.BodyKey] = runtimeSun;
-                    _planetsById[runtimeSun.ID] = runtimeSun;
                     break;
                 case GasGiantConstructionData gas:
                     var runtimeGas = new GasGiant(settings, gas, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimeGas.BodyKey] = runtimeGas;
-                    _planetsById[runtimeGas.ID] = runtimeGas;
                     break;
                 default:
                     var runtimePlanet = new Planet(settings, planet, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;
-                    _planetsById[runtimePlanet.ID] = runtimePlanet;
                     break;
             }
         }
@@ -129,17 +122,6 @@ public class Zone
     public static string BodyKey(Guid id)
     {
         return id == Guid.Empty ? "" : $"{BodyKeyPrefix}{id:D}";
-    }
-
-    public string GetBodyKey(Guid bodyId)
-    {
-        if (bodyId == Guid.Empty)
-            return "";
-        if (_planetsById.TryGetValue(bodyId, out var planet))
-            return planet.BodyKey;
-        if (_asteroidBeltsById.TryGetValue(bodyId, out var belt))
-            return belt.BodyKey;
-        return BodyKey(bodyId);
     }
 
     public bool TryGetPlanet(string bodyKey, out Planet planet)
@@ -420,7 +402,6 @@ public class Planet
 {
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
-    public Guid ID { get; }
     public string BodyKey { get; }
     public string Name { get; }
     public string OrbitKey { get; }
@@ -438,7 +419,6 @@ public class Planet
     {
         Settings = settings;
         Orbit = orbit;
-        ID = data.ID;
         BodyKey = data.BodyKey ?? "";
         Name = data.Name ?? "";
         OrbitKey = data.OrbitKey ?? "";
@@ -528,7 +508,6 @@ public class AsteroidBelt
 {
     private readonly Asteroid[] _asteroids;
     public Orbit Orbit { get; }
-    public Guid ID { get; }
     public string BodyKey { get; }
     public string Name { get; }
     public string OrbitKey { get; }
@@ -551,7 +530,6 @@ public class AsteroidBelt
     {
         _asteroids = data.Asteroids;
         Orbit = orbit;
-        ID = data.ID;
         BodyKey = data.BodyKey ?? "";
         Name = data.Name ?? "";
         OrbitKey = data.OrbitKey ?? "";
@@ -576,7 +554,6 @@ public class AsteroidBelt
 
 public class Orbit
 {
-    public Guid ID { get; }
     public string OrbitKey { get; }
     public string ParentOrbitKey { get; }
     public float Distance { get; }
@@ -595,7 +572,6 @@ public class Orbit
 
     public Orbit(PlanetSettings settings, OrbitConstructionData data)
     {
-        ID = data.ID;
         OrbitKey = data.OrbitKey ?? "";
         ParentOrbitKey = data.ParentOrbitKey ?? "";
         Distance = data.Distance;

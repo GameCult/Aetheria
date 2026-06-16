@@ -960,7 +960,7 @@ public class ActionGameManager : MonoBehaviour
     private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(Zone zone)
     {
         return zone?.Orbits?.Values
-            .OrderBy(orbit => orbit.ID)
+            .OrderBy(orbit => orbit.OrbitKey, StringComparer.Ordinal)
             .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
             {
                 OrbitKey = orbit.OrbitKey,

@@ -16,6 +16,7 @@ RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
 RequireTypedOrbitTaskKeys(root);
+RequireTypedAgentTaskKeys(root);
 RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
@@ -490,6 +491,7 @@ Console.WriteLine("Live gameplay source purity: no serializer or legacy database
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
 Console.WriteLine("Shared Eve package ownership: generic Unity Eve packages import from the neighboring Eve repo instead of local staged copies");
 Console.WriteLine("Typed runtime behavior coverage: live behavior kinds have typed factory plus progress/state restore coverage");
+Console.WriteLine("Zone construction/runtime key authority: body/orbit wrappers and task shells retain typed keys instead of GUID sidecars");
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
@@ -903,7 +905,6 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "public string BodyKey { get; }",
         "public string OrbitKey { get; }",
         "public string ParentOrbitKey { get; }",
-        "public string GetBodyKey(Guid bodyId)",
         "public bool TryGetPlanet(string bodyKey, out Planet planet)",
         "public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)"
     };
@@ -1162,6 +1163,69 @@ static void RequireTypedOrbitTaskKeys(string root)
     }
 }
 
+static void RequireTypedAgentTaskKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "AgentTask.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "Survey.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "Mining.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "public Guid Zone",
+        "List<Guid> Planets",
+        "public Guid Asteroids"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Agent task shells must retain typed zone/body keys rather than raw GUID fields: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "AgentTask.cs")] = new[]
+        {
+            "public string ZoneKey = \"\";"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "Survey.cs")] = new[]
+        {
+            "public List<string> PlanetBodyKeys;"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "Mining.cs")] = new[]
+        {
+            "public string AsteroidBeltBodyKey = \"\";"
+        }
+    };
+
+    var missing = requiredSymbols
+        .Where(entry => !File.Exists(entry.Key) ||
+                        entry.Value.Any(symbol => !File.ReadAllText(entry.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(entry => entry.Value
+            .Where(symbol => !File.Exists(entry.Key) || !File.ReadAllText(entry.Key).Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)}: missing {symbol}"))
+        .ToArray();
+
+    if (missing.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Agent task shells must keep typed key placeholders on zone/body references: " +
+            string.Join("; ", missing));
+    }
+}
+
 static void RequireTypedOrbitalEntityOrbitKeys(string root)
 {
     var checkedFiles = new[]
@@ -1344,6 +1408,7 @@ static void RequireKeyedOrbitRuntimeWrappers(string root)
     {
         "public Guid OrbitId { get; }",
         "public Guid Orbit { get; }",
+        "public Guid ID { get; }",
         "OrbitId = data.Orbit;",
         "Orbit = data.Orbit;",
         "AsteroidBelts[belt.ID] = new AsteroidBelt(belt);",
@@ -1437,7 +1502,10 @@ static void RequireNativeZoneKeyResolution(string root)
         "return GetOrbitPosition(ParseOrbitGuid(orbitKey));",
         "return GetOrbitVelocity(ParseOrbitGuid(orbitKey));",
         "public float2 GetOrbitPosition(Guid orbitID)",
-        "public float2 GetOrbitVelocity(Guid orbit)"
+        "public float2 GetOrbitVelocity(Guid orbit)",
+        "public string GetBodyKey(Guid bodyId)",
+        "private readonly Dictionary<Guid, Planet> _planetsById = new Dictionary<Guid, Planet>();",
+        "private readonly Dictionary<Guid, AsteroidBelt> _asteroidBeltsById = new Dictionary<Guid, AsteroidBelt>();"
     };
     var hits = forbiddenSymbols
         .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -1455,22 +1523,14 @@ static void RequireNativeZoneKeyResolution(string root)
         "public Dictionary<string, Planet> PlanetInstances = new Dictionary<string, Planet>(StringComparer.Ordinal);",
         "public Dictionary<string, Orbit> Orbits = new Dictionary<string, Orbit>(StringComparer.Ordinal);",
         "public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);",
-        "private readonly Dictionary<Guid, Planet> _planetsById = new Dictionary<Guid, Planet>();",
-        "private readonly Dictionary<Guid, AsteroidBelt> _asteroidBeltsById = new Dictionary<Guid, AsteroidBelt>();",
         "PlanetInstances[runtimeSun.BodyKey] = runtimeSun;",
-        "_planetsById[runtimeSun.ID] = runtimeSun;",
         "PlanetInstances[runtimeGas.BodyKey] = runtimeGas;",
-        "_planetsById[runtimeGas.ID] = runtimeGas;",
         "PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;",
-        "_planetsById[runtimePlanet.ID] = runtimePlanet;",
         "AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;",
-        "_asteroidBeltsById[runtimeBelt.ID] = runtimeBelt;",
         "Orbits[runtimeOrbit.OrbitKey] = runtimeOrbit;",
         "return PlanetInstances.TryGetValue(bodyKey ?? \"\", out planet);",
         "return AsteroidBelts.TryGetValue(bodyKey ?? \"\", out belt);",
         "return Orbits.TryGetValue(orbitKey ?? \"\", out orbit);",
-        "if (_planetsById.TryGetValue(bodyId, out var planet))",
-        "if (_asteroidBeltsById.TryGetValue(bodyId, out var belt))",
         "var parentPosition = string.IsNullOrWhiteSpace(orbit.ParentOrbitKey)",
         ": GetOrbitPosition(orbit.ParentOrbitKey);",
         "return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;",
@@ -1590,7 +1650,14 @@ static void RequireTypedZoneConstructionKeys(string root)
         "var runtimeGas = new GasGiant(settings, gas, Orbits[OrbitKey(planet.Orbit)]);",
         "var runtimePlanet = new Planet(settings, planet, Orbits[OrbitKey(planet.Orbit)]);",
         "turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
-        "station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);"
+        "station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);",
+        "public Guid ID = Guid.NewGuid();",
+        "public Guid Orbit;",
+        "public Guid Parent;",
+        "data.OrbitKey = Zone.OrbitKey(data.ID);",
+        "planetData.BodyKey = Zone.BodyKey(planetData.ID);",
+        "lagrangeOrbit.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);",
+        "turretOrbit.OrbitKey = Zone.OrbitKey(turretOrbit.ID);"
     };
 
     var hits = checkedFiles
@@ -1618,13 +1685,14 @@ static void RequireTypedZoneConstructionKeys(string root)
         },
         [Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs")] = new[]
         {
-            "data.OrbitKey = Zone.OrbitKey(data.ID);",
+            "OrbitKey = Zone.OrbitKey(Guid.NewGuid()),",
             "data.ParentOrbitKey = orbitInverseMap[data].Parent != null",
-            "planetData.BodyKey = Zone.BodyKey(planetData.ID);",
+            "planetData.BodyKey = Zone.BodyKey(Guid.NewGuid());",
             "planetData.OrbitKey = orbitMap[planet].OrbitKey;",
-            "lagrangeOrbit.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);",
+            "planetData.Name = bodyName.Substring(0, Math.Min(8, bodyName.Length));",
+            "var bodyName = planetData.BodyKey.Substring(planetData.BodyKey.LastIndexOf(':') + 1);",
+            "OrbitKey = Zone.OrbitKey(Guid.NewGuid()),",
             "ParentOrbitKey = baseOrbit.ParentOrbitKey,",
-            "turretOrbit.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
             "ParentOrbitKey = orbit.ParentOrbitKey,",
             "turret.OrbitKey = turretOrbit.OrbitKey;",
             "station.OrbitKey = lagrangeOrbit.OrbitKey;"

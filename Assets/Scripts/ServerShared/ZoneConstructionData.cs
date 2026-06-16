@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
@@ -23,13 +22,9 @@ public class ZoneConstructionBlueprint
 
 public abstract class BodyConstructionData : INamedEntry
 {
-    public Guid ID = Guid.NewGuid();
-
     public string BodyKey = "";
 
     public string Name = "";
-
-    public Guid Orbit;
 
     public string OrbitKey = "";
 
@@ -109,11 +104,7 @@ public class Asteroid
 
 public class OrbitConstructionData
 {
-    public Guid ID = Guid.NewGuid();
-
     public string OrbitKey = "";
-
-    public Guid Parent;
 
     public string ParentOrbitKey = "";
 

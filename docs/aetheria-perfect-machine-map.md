@@ -1381,27 +1381,27 @@ First Aetheria surfaces to publish:
    - Done: remove the stale `MessagePack` assembly reference from
      `Aetheria.Shared.Unity`; the remaining MessagePack reference is contained
      in the typed state package's `.cc` reader.
-   - In progress: convert domain references from GUID/base-class patterns to
+   - Done: convert domain references from GUID/base-class patterns to
      typed record refs. Item instances, cargo inventory indexes, weapon ammo
      references, item-use behavior references, and runtime commit item/hull
      surfaces now carry typed item keys. Runtime behavior resource-scanner and
      mining-tool body references are named and serialized as typed body keys
      through commit/readback state, with the behaviors retaining keyed runtime
-     state directly and `Zone` owning GUID parsing/resolution at the current
-     Unity body runtime boundary. Patrol/tow orbit task targets now also retain
-     typed orbit keys with `Zone` owning orbit-key resolution. Orbital runtime
-     entities and runtime construction blueprints now also retain typed
-     `OrbitKey` values, with `Zone` owning orbital movement and dock-camera
-     parent-orbit resolution for that seam. Renderer, intro-cutscene, and
-     `ResourceScanner` orbit readers now also consume the wrapper `OrbitKey`
-     edge instead of wrapper GUID orbit fields. `Planet` and `AsteroidBelt`
-     runtime wrappers no longer publish separate wrapper orbit GUID fields
-     either; they retain `OrbitKey` plus their runtime `Orbit` object. `Zone`'s
-     key-facing lookup surface also resolves through native key-indexed runtime
-     dictionaries instead of reparsing GUIDs from key strings. Zone asteroid
-     helpers now also route through typed body keys or runtime `AsteroidBelt`
-     objects instead of Guid overloads. Remaining broader simulation paths still
-     derive legacy GUIDs until those structures move to typed keys.
+     state directly and `Zone` owning key-indexed runtime lookup. Patrol/tow
+     orbit task targets now also retain typed orbit keys with `Zone` owning
+     orbit-key resolution. Orbital runtime entities and runtime construction
+     blueprints now also retain typed `OrbitKey` values, with `Zone` owning
+     orbital movement and dock-camera parent-orbit resolution for that seam.
+     Renderer, intro-cutscene, and `ResourceScanner` orbit readers now also
+     consume the wrapper `OrbitKey` edge instead of wrapper GUID orbit fields.
+     `Planet`, `AsteroidBelt`, and `Orbit` runtime wrappers no longer retain
+     GUID identity sidecars; they keep `BodyKey`/`OrbitKey`/`ParentOrbitKey`
+     plus their runtime object links. `Zone` no longer keeps GUID-to-body
+     lookup dictionaries or the `GetBodyKey(Guid)` bridge. Zone construction
+     data and generator handoff now carry typed orbit/body keys directly, and
+     the remaining agent-task shell placeholders also retain typed string keys
+     rather than raw GUID fields. The only surviving GUID use in this lane is
+     local key minting during zone generation, not runtime reference authority.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup
