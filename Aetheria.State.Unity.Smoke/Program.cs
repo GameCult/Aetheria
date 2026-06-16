@@ -44,12 +44,17 @@ if (catalog.EquipmentItems.Count == 0)
 
 var shaped = catalog.Items.FirstOrDefault(item => item.ShapeCells.Count > 0)
     ?? throw new InvalidOperationException("Runtime catalog has no typed shape masks.");
-var packageShaped = packageCatalog.FindItemByLegacyId(shaped.LegacyId);
+if (string.IsNullOrWhiteSpace(shaped.ItemKey))
+{
+    throw new InvalidOperationException($"Runtime shape sample has no typed item key: {shaped.Name}.");
+}
+
+var packageShaped = packageCatalog.FindItem(shaped.ItemKey);
 if (packageShaped == null ||
     packageShaped.Name != shaped.Name ||
     packageShaped.ShapeCells.Count != shaped.ShapeCells.Count)
 {
-    throw new InvalidOperationException($"Package catalog store did not read the expected typed item payload for {shaped.Name}.");
+    throw new InvalidOperationException($"Package catalog store did not read the expected typed item payload for {shaped.ItemKey}.");
 }
 
 if (shaped.ShapeCells.Count != shaped.OccupiedCells)

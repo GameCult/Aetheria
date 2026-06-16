@@ -12,6 +12,7 @@ RequirePackageSerializerBoundary(root);
 RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
+RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -695,6 +696,40 @@ static void RequireTypedGalaxyFactionRelationships(string root)
     {
         throw new InvalidOperationException(
             "Galaxy faction relationships must use typed corporation keys, not legacy GUID allegiance state: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireRuntimeCatalogKeyOnlyLookups(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
+        Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "_itemsByLegacyId",
+        "_corporationsByLegacyId",
+        "_nameFilesByLegacyId",
+        "FindItemByLegacyId",
+        "FindCorporationByLegacyId",
+        "FindNameFileByLegacyId"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime catalog snapshot must expose typed-key lookups only; legacy-ID indexes belong to migration boundaries: " +
             string.Join("; ", hits));
     }
 }

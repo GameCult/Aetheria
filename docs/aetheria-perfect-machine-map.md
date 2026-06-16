@@ -693,9 +693,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   ID fields demoted to compatibility. The package runtime catalog snapshot now
   indexes items by canonical item key, and Unity gameplay/UI/zone helper
   lookups resolve `ItemKey` directly rather than deriving legacy GUIDs for
-  `FindItemByLegacyId`. The shared runtime item catalog reader no longer has a
-  GUID index or `GetRuntimeItem(Guid)` entry point; item-key strings are the
-  only lookup authority;
+  `FindItemByLegacyId`. The package snapshot no longer exposes item,
+  corporation, or name-file `Find*ByLegacyId` indexes; legacy-ID lookup remains
+  only on the canonical `Aetheria.State` migration/catalog inspection boundary.
+  The shared runtime item catalog reader no longer has a GUID index or
+  `GetRuntimeItem(Guid)` entry point; item-key strings are the only lookup authority;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
   bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
   row lookup. Behavior
@@ -1559,8 +1561,10 @@ First Aetheria surfaces to publish:
      Unity smoke without any item legacy-ID commit fields.
    - Done: add package runtime catalog lookup by canonical item key and move
      Unity gameplay, HUD, inventory, trade, ship, and zone helper lookups off
-     `ItemId`/`FindItemByLegacyId` detours. Legacy item lookup remains only as
-     a catalog/migration compatibility API.
+     `ItemId`/`FindItemByLegacyId` detours. The Unity runtime package catalog
+     snapshot no longer exposes item/corporation/name-file legacy-ID lookup;
+     legacy lookup remains only as a canonical `Aetheria.State`
+     catalog/migration inspection API.
    - Done: move server-shared weapon grouping, generated loadout previous-item
      reuse, and hauling task item target identity off derived item GUIDs and
      onto typed `ItemKey` strings.
@@ -1745,6 +1749,9 @@ First Aetheria surfaces to publish:
   no `Faction.Allegiance` GUID dictionary, GUID faction containment, GUID
   faction resolver, or `CorporationLegacyId` relationship read may return to
   the live `Galaxy`/`LoadoutGenerator` path.
+- `Aetheria.State.Verify` guards Unity runtime catalog lookup authority:
+  package snapshots may expose typed-key lookup only, while legacy-ID lookup
+  remains quarantined in canonical migration/catalog inspection APIs.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

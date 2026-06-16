@@ -8,11 +8,8 @@ namespace GameCult.Aetheria.State.Unity
 {
     public sealed class AetheriaRuntimeCatalogSnapshot
     {
-        private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByLegacyId;
         private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByKey;
-        private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByLegacyId;
         private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByKey;
-        private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByLegacyId;
         private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByKey;
 
         public AetheriaRuntimeCatalogSnapshot(
@@ -26,21 +23,12 @@ namespace GameCult.Aetheria.State.Unity
             TradeItems = items.Where(item => item.Price > 0).ToArray();
             EquipmentItems = items.Where(item => !string.IsNullOrWhiteSpace(item.HardpointType)).ToArray();
 
-            _itemsByLegacyId = items
-                .Where(item => !string.IsNullOrWhiteSpace(item.LegacyId))
-                .ToDictionary(item => item.LegacyId, StringComparer.OrdinalIgnoreCase);
             _itemsByKey = items
                 .Where(item => !string.IsNullOrWhiteSpace(item.ItemKey))
                 .ToDictionary(item => item.ItemKey, StringComparer.OrdinalIgnoreCase);
-            _corporationsByLegacyId = corporations
-                .Where(corporation => !string.IsNullOrWhiteSpace(corporation.LegacyId))
-                .ToDictionary(corporation => corporation.LegacyId, StringComparer.OrdinalIgnoreCase);
             _corporationsByKey = corporations
                 .Where(corporation => !string.IsNullOrWhiteSpace(corporation.CorporationKey))
                 .ToDictionary(corporation => corporation.CorporationKey, StringComparer.OrdinalIgnoreCase);
-            _nameFilesByLegacyId = nameFiles
-                .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.LegacyId))
-                .ToDictionary(nameFile => nameFile.LegacyId, StringComparer.OrdinalIgnoreCase);
             _nameFilesByKey = nameFiles
                 .Where(nameFile => !string.IsNullOrWhiteSpace(nameFile.NameFileKey))
                 .ToDictionary(nameFile => nameFile.NameFileKey, StringComparer.OrdinalIgnoreCase);
@@ -56,29 +44,14 @@ namespace GameCult.Aetheria.State.Unity
 
         public IReadOnlyList<AetheriaRuntimeNameFile> NameFiles { get; }
 
-        public AetheriaRuntimeCatalogItem? FindItemByLegacyId(string legacyId)
-        {
-            return TryGet(_itemsByLegacyId, legacyId);
-        }
-
         public AetheriaRuntimeCatalogItem? FindItem(string itemKey)
         {
             return TryGet(_itemsByKey, itemKey);
         }
 
-        public AetheriaRuntimeCorporation? FindCorporationByLegacyId(string legacyId)
-        {
-            return TryGet(_corporationsByLegacyId, legacyId);
-        }
-
         public AetheriaRuntimeCorporation? FindCorporation(string corporationKey)
         {
             return TryGet(_corporationsByKey, corporationKey);
-        }
-
-        public AetheriaRuntimeNameFile? FindNameFileByLegacyId(string legacyId)
-        {
-            return TryGet(_nameFilesByLegacyId, legacyId);
         }
 
         public AetheriaRuntimeNameFile? FindNameFile(string nameFileKey)
