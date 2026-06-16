@@ -177,11 +177,13 @@ orbit/body rows into `AetheriaZoneState`, so `ZoneConstructionBlueprint` is a
 one-shot construction input rather than the retained surface carrying celestial graph facts. Entity checkpoints
 persist hull simulation grids into `AetheriaEntitySnapshot`, so
 `EntityConstructionBlueprint` is no longer the only surface carrying those live
-values. Continue restore lowers the current zone entity graph from exact typed
-entity snapshot records, including position, velocity, target/contact state,
+values. Run checkpoints project the flattened live entity graph, including
+docked children, into exact typed entity snapshot records. Continue restore
+lowers the current zone entity graph from those records, including position,
+velocity, target/contact state, child/docking relationships,
 shutdown/heatsink state, thermal exposure, active consumable timers, and typed
 stat grids for temperature, thermal mass, armor, max armor, and hull conductivity. Broader runtime object graphs
-such as child/docked activation and behavior-private simulation state remain legacy until dedicated typed runtime documents exist. Live behavior
+such as behavior-private simulation state remain legacy until dedicated typed runtime documents exist. Live behavior
 instances expose typed behavior kind and group through `Behavior.Kind` and
 `Behavior.Group`; behavior construction now reads typed payload fields through
 `RuntimeBehaviorDefinition` instead of projecting through config DTOs. Stat

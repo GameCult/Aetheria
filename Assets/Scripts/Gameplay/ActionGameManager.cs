@@ -619,6 +619,7 @@ public class ActionGameManager : MonoBehaviour
 
     private AetheriaRuntimeRunCheckpointCommit ProjectRunCheckpoint()
     {
+        var entityGraph = FlattenEntityGraph(Zone);
         return new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = IsTutorial ? "tutorial" : "local",
@@ -626,7 +627,7 @@ public class ActionGameManager : MonoBehaviour
             EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
             ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
             CurrentZoneIndex = ZoneIndex(Zone?.GalaxyZone),
-            CurrentZoneEntityIndex = Zone?.Entities?.IndexOf(CurrentEntity) ?? -1,
+            CurrentZoneEntityIndex = entityGraph.IndexOf(CurrentEntity),
             GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
             DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
                 .Select(ZoneIndex)
@@ -696,6 +697,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaRuntimeZoneSnapshotCommit ProjectZoneSnapshot(Zone zone)
     {
         var galaxyZone = zone.GalaxyZone;
+        var entityGraph = FlattenEntityGraph(zone);
         return new AetheriaRuntimeZoneSnapshotCommit
         {
             ZoneIndex = ZoneIndex(galaxyZone),
@@ -715,8 +717,8 @@ public class ActionGameManager : MonoBehaviour
             OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
             Orbits = ProjectZoneOrbits(zone),
             Bodies = ProjectZoneBodies(zone),
-            Entities = zone.Entities
-                .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
+            Entities = entityGraph
+                .Select((entity, index) => ProjectEntitySnapshot(entityGraph, entity, index))
                 .ToArray(),
             DroppedPickups = ProjectDroppedPickups(zone)
         };
@@ -913,7 +915,29 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeEntitySnapshotCommit ProjectEntitySnapshot(Zone zone, Entity entity, int entityIndex)
+    private static List<Entity> FlattenEntityGraph(Zone zone)
+    {
+        var entities = new List<Entity>();
+        if (zone == null)
+            return entities;
+
+        var visited = new HashSet<Entity>();
+        foreach (var entity in zone.Entities)
+            AddEntityAndChildren(entity);
+        return entities;
+
+        void AddEntityAndChildren(Entity entity)
+        {
+            if (entity == null || !visited.Add(entity))
+                return;
+
+            entities.Add(entity);
+            foreach (var child in entity.Children)
+                AddEntityAndChildren(child);
+        }
+    }
+
+    private AetheriaRuntimeEntitySnapshotCommit ProjectEntitySnapshot(IReadOnlyList<Entity> entityGraph, Entity entity, int entityIndex)
     {
         return new AetheriaRuntimeEntitySnapshotCommit
         {
@@ -927,7 +951,7 @@ public class ActionGameManager : MonoBehaviour
             DirectionY = entity.Direction.y,
             VelocityX = entity.Velocity.x,
             VelocityY = entity.Velocity.y,
-            TargetEntityIndex = entity.Target?.Value == null ? -1 : zone.Entities.IndexOf(entity.Target.Value),
+            TargetEntityIndex = entity.Target?.Value == null ? -1 : entityGraph.IndexOf(entity.Target.Value),
             IsActive = entity.Active,
             HeatsinksEnabled = entity.HeatsinksEnabled,
             OverrideShutdown = entity.OverrideShutdown,
@@ -946,9 +970,9 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray() ?? Array.Empty<int>(),
             Visibility = entity.Visibility,
             VisibilitySourceCount = entity.VisibilitySources.Count,
-            Contacts = ProjectEntityContacts(zone, entity),
+            Contacts = ProjectEntityContacts(entityGraph, entity),
             ChildEntityIndices = entity.Children?
-                .Select(child => zone.Entities.IndexOf(child))
+                .Select(child => entityGraph.IndexOf(child))
                 .Where(index => index >= 0)
                 .ToArray() ?? Array.Empty<int>(),
             WeaponGroups = entity.WeaponGroups?
@@ -957,17 +981,17 @@ public class ActionGameManager : MonoBehaviour
             StatGrids = ProjectEntityStatGrids(entity),
             ActiveConsumables = ProjectActiveConsumables(entity),
             BehaviorProgress = ProjectBehaviorProgress(entity),
-            WeaponStates = ProjectWeaponStates(zone, entity),
+            WeaponStates = ProjectWeaponStates(entityGraph, entity),
             BehaviorStates = ProjectBehaviorStates(entity)
         };
     }
 
-    private static AetheriaRuntimeEntityContactCommit[] ProjectEntityContacts(Zone zone, Entity entity)
+    private static AetheriaRuntimeEntityContactCommit[] ProjectEntityContacts(IReadOnlyList<Entity> entityGraph, Entity entity)
     {
         return entity.EntityInfoGathered
             .Select(contact =>
             {
-                var targetIndex = zone.Entities.IndexOf(contact.Key);
+                var targetIndex = entityGraph.IndexOf(contact.Key);
                 entity.EntityHostility.TryGetValue(contact.Key, out var hostile);
                 return new AetheriaRuntimeEntityContactCommit
                 {
@@ -1179,22 +1203,22 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(Zone zone, Entity entity)
+    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(IReadOnlyList<Entity> entityGraph, Entity entity)
     {
         var states = new List<AetheriaRuntimeWeaponStateCommit>();
 
         for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates(zone, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+            states.AddRange(ProjectWeaponStates(entityGraph, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
 
         var activeConsumables = entity.ActiveConsumables;
         for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates(zone, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+            states.AddRange(ProjectWeaponStates(entityGraph, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
 
         return states.ToArray();
     }
 
     private static IEnumerable<AetheriaRuntimeWeaponStateCommit> ProjectWeaponStates(
-        Zone zone,
+        IReadOnlyList<Entity> entityGraph,
         string ownerKind,
         int ownerIndex,
         IReadOnlyList<Behavior> behaviors)
@@ -1243,7 +1267,7 @@ public class ActionGameManager : MonoBehaviour
             if (weapon is LockWeapon lockWeapon)
             {
                 state.LockProgress = lockWeapon.LockProgress;
-                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : zone.Entities.IndexOf(lockWeapon.LockTarget);
+                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : entityGraph.IndexOf(lockWeapon.LockTarget);
             }
 
             yield return state;
@@ -2577,6 +2601,8 @@ public class ActionGameManager : MonoBehaviour
         foreach (var entity in restoredEntities.Values)
             entity.Activate();
 
+        RestoreChildAndDockingRelationships(entitySnapshots, restoredEntities);
+
         foreach (var entitySnapshot in entitySnapshots)
         {
             if (!restoredEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
@@ -2592,7 +2618,71 @@ public class ActionGameManager : MonoBehaviour
         }
 
         if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
-            BindToEntity(currentEntity);
+            RestoreCurrentEntityBinding(currentEntity);
+    }
+
+    private void RestoreChildAndDockingRelationships(
+        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
+        IReadOnlyDictionary<string, Entity> restoredEntities)
+    {
+        foreach (var entitySnapshot in entitySnapshots)
+        {
+            if (!restoredEntities.TryGetValue(entitySnapshot.RecordKey, out var parent))
+                continue;
+
+            foreach (var childKey in entitySnapshot.ChildEntityKeys)
+            {
+                if (!restoredEntities.TryGetValue(childKey, out var child) ||
+                    child == parent ||
+                    child.Parent == parent)
+                {
+                    continue;
+                }
+
+                child.RemoveParent();
+                child.SetParent(parent);
+            }
+
+            for (var bayIndex = 0; bayIndex < entitySnapshot.DockingBayAssignments.Count; bayIndex++)
+            {
+                var childIndex = entitySnapshot.DockingBayAssignments[bayIndex];
+                if (childIndex < 0 ||
+                    childIndex >= entitySnapshot.ChildEntityKeys.Count ||
+                    bayIndex >= parent.DockingBays.Count ||
+                    !restoredEntities.TryGetValue(entitySnapshot.ChildEntityKeys[childIndex], out var child) ||
+                    !(child is Ship ship))
+                {
+                    continue;
+                }
+
+                var dockingBay = parent.DockingBays[bayIndex];
+                dockingBay.DockedShip = ship;
+                if (ship.Parent != parent)
+                {
+                    ship.RemoveParent();
+                    ship.SetParent(parent);
+                }
+                if (Zone.Entities.Contains(ship))
+                    Zone.Entities.Remove(ship);
+                ship.Deactivate();
+            }
+        }
+    }
+
+    private void RestoreCurrentEntityBinding(Entity currentEntity)
+    {
+        if (currentEntity.Parent != null)
+        {
+            var dockingBay = currentEntity.Parent.DockingBays.FirstOrDefault(bay => bay.DockedShip == currentEntity);
+            if (dockingBay != null && currentEntity.Parent is OrbitalEntity)
+            {
+                CurrentEntity = currentEntity;
+                DoDock(currentEntity.Parent, dockingBay);
+                return;
+            }
+        }
+
+        BindToEntity(currentEntity);
     }
 
     private void RestoreEntityContactsFromTypedSnapshot(

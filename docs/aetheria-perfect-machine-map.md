@@ -979,10 +979,16 @@ First Aetheria surfaces to publish:
      heatstroke/hypothermia exposure, active consumable item/timer rows,
      typed stat grids for temperature, thermal mass, armor, max armor, and
      hull-conductivity axes, then reconnects target/contact rows among restored
-     entities and binds the saved current entity as the player ship.
+     entities, restores child/docking relationships from typed child keys and
+     docking-bay assignments, and binds the saved current entity as the player
+     ship or docked current ship.
+   - Done: project run checkpoint entity snapshots from the flattened live
+     entity graph, not only `Zone.Entities`, so docked child ships can receive
+     typed entity records and stable child/docking references instead of
+     disappearing from the `.zone` replacement graph.
    - Remaining: add typed documents/mappers for runtime object graphs,
      complete full Continue/run entity graph reconstruction from typed state
-     for child/docked entity activation, restored active-consumable behavior runtime internals,
+     for restored active-consumable behavior runtime internals,
      behavior-private state not covered by progress, weapon, sensor, radiator,
      reactor, or capacitor rows, typed behavior factory construction, and any
      catalog fields not covered by the stable scalar/fingerprint/payload pass.
