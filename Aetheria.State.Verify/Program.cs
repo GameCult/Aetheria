@@ -33,6 +33,7 @@ RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireNoDeadRuntimeProjectionCaches(root);
+RequireNoDeadInspectorMetadata(root);
 RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
@@ -901,6 +902,68 @@ static void RequireNoDeadRuntimeProjectionCaches(string root)
     {
         throw new InvalidOperationException(
             "Dead runtime-projection reflection caches should stay deleted; keep only the live string-formatting helpers: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireNoDeadInspectorMetadata(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection", "Attributes.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "FieldDriver.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Corporations.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "StatModifier.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "VelocityLimit.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "PreferredInspectorAttribute",
+        "InspectableTextAttribute",
+        "InspectablePrefabAttribute",
+        "InspectableTextureAttribute",
+        "InspectableTextAssetAttribute",
+        "InspectableTemperatureAttribute",
+        "InspectableAnimationCurveAttribute",
+        "InspectableColorAttribute",
+        "InspectableSoundBankAttribute",
+        "InspectableAudioParameterAttribute",
+        "InspectableSchematicShapeAttribute",
+        "InspectableEnumValuesAttribute",
+        "InspectableRangedFloatAttribute",
+        "InspectableRangedIntAttribute",
+        "OrderAttribute",
+        "InspectorHeaderAttribute",
+        "[InspectableText",
+        "[InspectablePrefab",
+        "[InspectableTexture",
+        "[InspectableTextAsset",
+        "[InspectableTemperature",
+        "[InspectableAnimationCurve",
+        "[InspectableColor",
+        "[InspectableSoundBank",
+        "[InspectableAudioParameter",
+        "[InspectableSchematicShape",
+        "[InspectableEnumValues",
+        "[InspectableRangedFloat",
+        "[InspectableRangedInt",
+        "[Order(",
+        "[InspectorHeader("
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Dead inspector-specialization metadata should stay deleted; the live read-only inspector only uses plain Inspectable markers: " +
             string.Join("; ", hits));
     }
 }

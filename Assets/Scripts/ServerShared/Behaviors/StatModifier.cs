@@ -6,7 +6,6 @@ using System;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 
-[Order(-4)]
 public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwaysUpdatedBehavior
 {
     private readonly string _targetBehaviorKind;

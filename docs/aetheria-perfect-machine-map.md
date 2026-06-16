@@ -1732,6 +1732,10 @@ First Aetheria surfaces to publish:
      now keeps only the live string-formatting helpers used by `TradeMenu` and
      `PropertiesPanel`; it no longer scans loaded assemblies or keeps static
      type-cache dictionaries for the old inspector/projection path.
+   - Done: delete the dead inspector-specialization metadata. The live
+     `PropertiesPanel` read-only inspector only checks plain `Inspectable`
+     markers now; unused header/order/preferred-inspector attribute types and
+     their stale annotations are gone.
 
 ## Verification
 

@@ -5,7 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Order(100)]
 public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }

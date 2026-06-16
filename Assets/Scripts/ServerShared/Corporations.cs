@@ -18,19 +18,19 @@ public class Faction : INamedEntry
     [Inspectable]
     public string ShortName;
 
-    [InspectableText]
+    [Inspectable]
     public string Description;
 
-    [InspectableTexture]
+    [Inspectable]
     public string Logo;
 
     // [Inspectable]
     // public bool PlayerHostile;
 
-    [InspectableColor]
+    [Inspectable]
     public float3 PrimaryColor;
 
-    [InspectableColor]
+    [Inspectable]
     public float3 SecondaryColor;
     public string GeonameFileKey;
     public string BossHullItemKey;
@@ -40,13 +40,13 @@ public class Faction : INamedEntry
 
     public Dictionary<string, float> AllegianceByKey = new Dictionary<string, float>();
 
-    [InspectableSoundBank]
+    [Inspectable]
     public uint OverworldMusic;
 
-    [InspectableSoundBank]
+    [Inspectable]
     public uint CombatMusic;
 
-    [InspectableSoundBank]
+    [Inspectable]
     public uint BossMusic;
 
     public string EntryName
