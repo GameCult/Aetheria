@@ -24,6 +24,7 @@ using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 using quaternion = Unity.Mathematics.quaternion;
+using Regex = System.Text.RegularExpressions.Regex;
 using Random = UnityEngine.Random;
 
 public class ActionGameManager : MonoBehaviour
@@ -2482,7 +2483,7 @@ public class ActionGameManager : MonoBehaviour
 
             if (continuingRun != null)
             {
-                RestoreCurrentEntityFromTypedRun(continuingRun);
+                RestoreEntityGraphFromTypedRun(continuingRun);
                 ContinueRunState = null;
                 return;
             }
@@ -2502,7 +2503,7 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private void RestoreCurrentEntityFromTypedRun(AetheriaRuntimeRunStateSnapshot run)
+    private void RestoreEntityGraphFromTypedRun(AetheriaRuntimeRunStateSnapshot run)
     {
         if (run == null ||
             run.CurrentZoneIndex < 0 ||
@@ -2511,43 +2512,116 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        var entityKey = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.{run.CurrentZoneEntityIndex}.v1";
-        AetheriaRuntimeEntitySnapshot entitySnapshot;
+        var zoneEntityKeyPrefix = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.";
+        var currentEntityKey = $"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1";
+        AetheriaRuntimeEntitySnapshot[] entitySnapshots;
         try
         {
-            entitySnapshot = AetheriaRuntimeCatalogStore.ReadEntitySnapshots(RuntimeStateFilePath)
-                .FirstOrDefault(entity => string.Equals(entity.RecordKey, entityKey, StringComparison.Ordinal));
+            entitySnapshots = AetheriaRuntimeCatalogStore.ReadEntitySnapshots(RuntimeStateFilePath)
+                .Where(entity => entity.RecordKey.StartsWith(zoneEntityKeyPrefix, StringComparison.Ordinal))
+                .OrderBy(entity => EntityIndexFromRecordKey(entity.RecordKey))
+                .ToArray();
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to read typed current entity snapshot {entityKey}: {ex}");
+            Debug.LogError($"Failed to read typed entity snapshots for zone {zoneEntityKeyPrefix}: {ex}");
             return;
         }
 
-        var blueprint = CreateEntityConstructionBlueprint(entitySnapshot, true);
-        if (blueprint == null)
+        if (entitySnapshots.Length == 0)
         {
-            Debug.LogWarning($"Typed current entity snapshot {entityKey} could not be lowered into a runtime entity.");
+            Debug.LogWarning($"No typed entity snapshots found for restored zone {zoneEntityKeyPrefix}.");
             return;
         }
 
-        var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
-        if (entity == null)
-            return;
+        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey);
+    }
 
-        entity.Position = new float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
-        entity.Direction = new float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
-        entity.Velocity = new float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
-        entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
-        entity.TractorPower = (float)entitySnapshot.TractorPower;
-        entity.Zone = Zone;
-        Zone.Entities.Add(entity);
-        entity.Activate();
-        entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled;
-        entity.RestoreStatGrids(entitySnapshot.StatGrids);
-        entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
-        RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
-        BindToEntity(entity);
+    private void ReplaceZoneEntitiesFromTypedSnapshots(
+        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
+        string currentEntityKey)
+    {
+        foreach (var existingEntity in Zone.Entities.ToArray())
+        {
+            existingEntity.Deactivate();
+            Zone.Entities.Remove(existingEntity);
+        }
+        Zone.Agents.Clear();
+
+        var restoredEntities = new Dictionary<string, Entity>();
+        foreach (var entitySnapshot in entitySnapshots)
+        {
+            var blueprint = CreateEntityConstructionBlueprint(
+                entitySnapshot,
+                string.Equals(entitySnapshot.RecordKey, currentEntityKey, StringComparison.Ordinal));
+            if (blueprint == null)
+            {
+                Debug.LogWarning($"Typed entity snapshot {entitySnapshot.RecordKey} could not be lowered into a runtime entity.");
+                continue;
+            }
+
+            var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
+            if (entity == null)
+                continue;
+
+            entity.Position = new float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
+            entity.Direction = new float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
+            entity.Velocity = new float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
+            entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
+            entity.TractorPower = (float)entitySnapshot.TractorPower;
+            entity.Zone = Zone;
+            Zone.Entities.Add(entity);
+            restoredEntities[entitySnapshot.RecordKey] = entity;
+        }
+
+        foreach (var entity in restoredEntities.Values)
+            entity.Activate();
+
+        foreach (var entitySnapshot in entitySnapshots)
+        {
+            if (!restoredEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
+                continue;
+
+            entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled;
+            entity.RestoreStatGrids(entitySnapshot.StatGrids);
+            entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
+            RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
+            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, restoredEntities);
+            if (restoredEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
+                entity.Target.Value = target;
+        }
+
+        if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
+            BindToEntity(currentEntity);
+    }
+
+    private void RestoreEntityContactsFromTypedSnapshot(
+        Entity entity,
+        AetheriaRuntimeEntitySnapshot snapshot,
+        IReadOnlyDictionary<string, Entity> restoredEntities)
+    {
+        foreach (var contact in snapshot.Contacts)
+        {
+            if (!restoredEntities.TryGetValue(contact.TargetEntityKey, out var target))
+                continue;
+
+            entity.EntityInfoGathered[target] = (float)contact.InfoGathered;
+            entity.EntityHostility[target] = contact.Hostile;
+            if (contact.Visible && !entity.VisibleEntities.Contains(target))
+                entity.VisibleEntities.Add(target);
+            if (contact.Visible && contact.Hostile && !entity.VisibleEnemies.Contains(target))
+                entity.VisibleEnemies.Add(target);
+            if (contact.Visible && !contact.Hostile && !entity.VisibleFriendlies.Contains(target))
+                entity.VisibleFriendlies.Add(target);
+        }
+    }
+
+    private static int EntityIndexFromRecordKey(string recordKey)
+    {
+        var match = Regex.Match(recordKey ?? "", @"\.entity\.(\d+)\.v1$");
+        return match.Success && int.TryParse(match.Groups[1].Value, out var index)
+            ? index
+            : int.MaxValue;
     }
 
     private void RestoreActiveConsumablesFromTypedEntitySnapshot(Entity entity, AetheriaRuntimeEntitySnapshot snapshot)

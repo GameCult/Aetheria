@@ -338,7 +338,10 @@ public class ZoneRenderer : MonoBehaviour
             }
         }
 
-        Destroy(EntityInstances[entity].gameObject);
+        if (!EntityInstances.TryGetValue(entity, out var instance))
+            return;
+
+        Destroy(instance.gameObject);
         EntityInstances.Remove(entity);
     }
 

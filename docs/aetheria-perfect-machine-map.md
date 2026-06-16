@@ -968,21 +968,21 @@ First Aetheria surfaces to publish:
      galaxy from the saved generation seed, and passes the selected run to
      `ActionGameManager` so boot enters the saved current zone and lowers typed
      pickup rows.
-   - Done: restore the current player entity from typed state during Continue
-     boot. Package entity readback now preserves `AetheriaEntitySnapshot` record
-     identity, and `ActionGameManager` resolves the exact
-     `RunId + ZoneIndex + CurrentZoneEntityIndex` entity record, lowers it
+   - Done: restore the current zone's entity graph from typed state during
+     Continue boot. Package entity readback preserves `AetheriaEntitySnapshot`
+     record identity, and `ActionGameManager` resolves the exact
+     `RunId + ZoneIndex` entity-record prefix, removes generated zone entities
+     and their agents as Continue authority, lowers all typed entity snapshots
      through the existing construction blueprint path, restores hull,
      equipment, cargo, docking contents, weapon groups, position, direction,
      velocity, shutdown override, heatsink toggle, tractor power,
      heatstroke/hypothermia exposure, active consumable item/timer rows,
-     and typed stat grids for temperature, thermal mass, armor, max armor,
-     and hull-conductivity axes, then binds the lowered entity as the current
-     player ship.
+     typed stat grids for temperature, thermal mass, armor, max armor, and
+     hull-conductivity axes, then reconnects target/contact rows among restored
+     entities and binds the saved current entity as the player ship.
    - Remaining: add typed documents/mappers for runtime object graphs,
      complete full Continue/run entity graph reconstruction from typed state
-     for non-current entities, child/docked entity activation, targets,
-     contacts, restored active-consumable behavior runtime internals,
+     for child/docked entity activation, restored active-consumable behavior runtime internals,
      behavior-private state not covered by progress, weapon, sensor, radiator,
      reactor, or capacitor rows, typed behavior factory construction, and any
      catalog fields not covered by the stable scalar/fingerprint/payload pass.
