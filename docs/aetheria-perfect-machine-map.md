@@ -1414,6 +1414,12 @@ First Aetheria surfaces to publish:
      after a successful commit, but it no longer stores items into cargo bays
      directly; gameplay owns the cargo mutation and queues the typed run
      checkpoint.
+   - Done: route entity destruction through
+     `ActionGameManager.CommitEntityDestroyed`. `EntityInstance` observes hull
+     death and may spawn the local destruction effect, but gameplay owns
+     equipment/cargo drop decisions, zone entity removal, and the typed run
+     checkpoint. Dropped world pickups are still presentation/runtime objects
+     until the runtime object graph pass gives them typed documents.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1749,7 +1755,9 @@ instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, gameplay
 owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Loot pickup
 follows the same rule: collision code reports the pickup opportunity, gameplay
-owns cargo storage and checkpoint. Any
+owns cargo storage and checkpoint. Entity destruction follows the same rule:
+instance code observes death, gameplay owns drop decisions, zone removal, and
+checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

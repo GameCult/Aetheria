@@ -20,6 +20,7 @@ RequireInventoryEntityRenameCommitAuthority(root);
 RequireWeaponGroupCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
 RequireLootPickupCommitAuthority(root);
+RequireEntityDestroyedCommitAuthority(root);
 RequireTradePurchaseCommitAuthority(root);
 RequireInventoryLoadoutRestoreCommitAuthority(root);
 RequireDockedCurrentShipCommitAuthority(root);
@@ -471,6 +472,8 @@ Console.WriteLine("Hull conductivity authority: inventory UI toggles flow throug
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
+Console.WriteLine("Loot pickup authority: collision pickup requests flow through gameplay checkpoint commits");
+Console.WriteLine("Entity destruction authority: hull-death observers flow through gameplay checkpoint commits");
 Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests flow through gameplay checkpoint commits");
 Console.WriteLine("Docked current-ship authority: UI selection requests flow through gameplay checkpoint commits");
@@ -1159,6 +1162,64 @@ static void RequireLootPickupCommitAuthority(string root)
     if (!shieldManager.Contains("ActionGameManager.Instance.CommitLootPickup", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("ShieldManager no longer routes loot pickup through ActionGameManager.");
+    }
+}
+
+static void RequireEntityDestroyedCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify entity destruction authority; ActionGameManager.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "CommitEntityDestroyed",
+        "QueueRunCheckpoint(\"entity-destroyed\")",
+        "entity.Zone.Entities.Remove(entity)",
+        "zoneRenderer.DropItem("
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Entity destruction no longer has a gameplay-owned checkpoint commit primitive: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var entityInstancePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "EntityInstance.cs");
+    var entityInstance = File.Exists(entityInstancePath)
+        ? File.ReadAllText(entityInstancePath)
+        : throw new InvalidOperationException("Cannot verify entity destruction authority; EntityInstance.cs is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        "ZoneRenderer.DropItem(",
+        "entity.Zone.Entities.Remove(entity)",
+        "Random.onUnitSphere",
+        "LootDropProbability"
+    };
+
+    var hits = File.ReadLines(entityInstancePath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, entityInstancePath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "EntityInstance still owns direct destruction/drop mutation: " +
+            string.Join("; ", hits));
+    }
+
+    if (!entityInstance.Contains("ActionGameManager.Instance?.CommitEntityDestroyed", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("EntityInstance no longer routes destruction through ActionGameManager.");
     }
 }
 

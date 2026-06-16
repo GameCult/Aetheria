@@ -8,7 +8,6 @@ using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
-using Random = UnityEngine.Random;
 
 public class EntityInstance : MonoBehaviour
 {
@@ -421,37 +420,18 @@ public class EntityInstance : MonoBehaviour
 
         _subscriptions.Add(Entity.HullDamage.Subscribe(_ =>
         {
-            if (Entity.Hull.Durability < .01f)
+            if (!_destroyed && Entity.Hull.Durability < .01f)
             {
                 if (!this) return;
-                _destroyed = true;
-                foreach (var gear in Entity.Equipment)
-                {
-                    if (gear != Entity.EquippedHull && Random.value < ZoneRenderer.Settings.LootDropProbability)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position, 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            gear.EquippableItem);
-                    }
-                }
+                if (ActionGameManager.Instance?.CommitEntityDestroyed(entity, ZoneRenderer) != true)
+                    return;
 
-                foreach (var cargo in Entity.CargoBays)
-                {
-                    foreach (var item in cargo.Cargo.Keys)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position, 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            item);
-                    }
-                }
+                _destroyed = true;
                 if (DestroyEffect != null)
                 {
                     var t = Instantiate(DestroyEffect).transform;
                     t.position = transform.position;
                 }
-                entity.Zone.Entities.Remove(entity);
             }
         }));
 

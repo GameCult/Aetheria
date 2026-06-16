@@ -1587,6 +1587,43 @@ public class ActionGameManager : MonoBehaviour
         return false;
     }
 
+    public bool CommitEntityDestroyed(Entity entity, ZoneRenderer zoneRenderer)
+    {
+        if (entity?.Zone == null)
+            return false;
+
+        if (zoneRenderer != null)
+        {
+            foreach (var gear in entity.Equipment)
+            {
+                if (gear == entity.EquippedHull || Random.value >= zoneRenderer.Settings.LootDropProbability)
+                    continue;
+
+                zoneRenderer.DropItem(
+                    entity.Position,
+                    Random.onUnitSphere * zoneRenderer.Settings.LootDropVelocity,
+                    gear.EquippableItem);
+            }
+
+            foreach (var cargo in entity.CargoBays)
+            {
+                foreach (var item in cargo.Cargo.Keys.ToArray())
+                {
+                    zoneRenderer.DropItem(
+                        entity.Position,
+                        Random.onUnitSphere * zoneRenderer.Settings.LootDropVelocity,
+                        item);
+                }
+            }
+        }
+
+        if (!entity.Zone.Entities.Remove(entity))
+            return false;
+
+        QueueRunCheckpoint("entity-destroyed");
+        return true;
+    }
+
     public bool CommitCargoItemTransfer(
         EquippedCargoBay origin,
         EquippedCargoBay destination,
