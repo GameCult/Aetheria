@@ -1728,6 +1728,10 @@ First Aetheria surfaces to publish:
      adapter layer. `ItemManager` now reads item rows straight from the shared
      typed runtime catalog snapshot instead of rebuilding a duplicate lookup
      cache over the same item-key index.
+   - Done: delete the dead runtime-projection reflection caches. `ReflectionExtensions`
+     now keeps only the live string-formatting helpers used by `TradeMenu` and
+     `PropertiesPanel`; it no longer scans loaded assemblies or keeps static
+     type-cache dictionaries for the old inspector/projection path.
 
 ## Verification
 

@@ -32,6 +32,7 @@ RequireMainMenuSettingsCommit(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
+RequireNoDeadRuntimeProjectionCaches(root);
 RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
@@ -866,6 +867,41 @@ static void RequireTypedBehaviorBodyKeys(string root)
         throw new InvalidOperationException(
             "ResourceScanner and MiningTool must own typed body-key runtime references rather than raw GUID fields: " +
             string.Join("; ", missingBehaviorSymbols));
+    }
+}
+
+static void RequireNoDeadRuntimeProjectionCaches(string root)
+{
+    var path = Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection", "ReflectionExtensions.cs");
+    if (!File.Exists(path))
+        return;
+
+    var forbiddenSymbols = new[]
+    {
+        "GetAllInterfaceClasses(",
+        "GetParentTypes(",
+        "GetAllChildClasses(",
+        "GetAllGenericChildClasses(",
+        "IsAssignableToGenericType(",
+        "GetFullName(",
+        "InterfaceClasses",
+        "ParentTypes",
+        "ChildClasses",
+        "GenericChildClasses",
+        "AppDomain.CurrentDomain.GetAssemblies()"
+    };
+
+    var hits = File.ReadLines(path)
+        .Select((line, index) => new { Line = line, LineNumber = index + 1 })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"Assets/Scripts/ServerShared/RuntimeProjection/ReflectionExtensions.cs:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Dead runtime-projection reflection caches should stay deleted; keep only the live string-formatting helpers: " +
+            string.Join("; ", hits));
     }
 }
 
