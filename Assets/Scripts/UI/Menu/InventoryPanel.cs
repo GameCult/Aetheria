@@ -7,6 +7,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
+using GameCult.Eve.UnityUIToolkit;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
@@ -16,11 +18,20 @@ using UnityEngine.EventSystems;
 using UnityEngine.Experimental.Rendering;
 using Unity.Mathematics;
 using UnityEngine.Serialization;
+using UIE = UnityEngine.UIElements;
 using static Unity.Mathematics.math;
 using int2 = Unity.Mathematics.int2;
 
 public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 {
+    private const string DropdownSurfaceType = "surface-state";
+    private const string DropdownSurfaceSchema = "gamecult.eve.surface.v1";
+    private const string DropdownSurfaceProviderId = "aetheria";
+    private const string DropdownSurfaceProviderKind = "inventory.panel";
+    private const string DropdownSurfaceId = "aetheria.inventory.panel.dropdown";
+    private const string CloseDropdownSurfaceCommand = "aetheria.inventory.panel.dropdown.close";
+    private const string SaveLoadoutCommand = "aetheria.inventory.panel.dropdown.save_loadout";
+
     public ConfirmationDialog Dialog;
     public RectTransform DragParent;
     public bool Flip;
@@ -81,6 +92,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
+    private readonly Dictionary<string, Action> _dropdownCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
+    private UIE.UIDocument _dropdownSurfaceDocument;
 
     private bool _hud;
     
@@ -107,6 +120,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         {
             Thermal.onClick.AddListener(() =>
             {
+                HideDropdownSurface();
                 Display(_displayedEntity, false, !_thermal);
             });
         }
@@ -115,6 +129,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         {
             Current.onClick.AddListener(() =>
             {
+                HideDropdownSurface();
                 if (_displayedEntity != GameManager.CurrentEntity)
                 {
                     if(_displayedEntity is Ship ship)
@@ -137,6 +152,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         {
             EditName.onClick.AddListener(() =>
             {
+                HideDropdownSurface();
                 Dialog.Clear();
                 var entityName = _displayedEntity.Name;
                 Dialog.AddField("Name", () => entityName, s => entityName = s);
@@ -153,37 +169,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         {
             Dropdown.onClick.AddListener(() =>
             {
-                ContextMenu.Clear();
-                foreach (var entity in GameManager.AvailableEntities())
-                {
-                    if (entity.CargoBays.Any())
-                    {
-                        var options = entity.CargoBays
-                            .Where(bay => bay != _displayedCargo)
-                            .Select<EquippedCargoBay, (string text, Action action, bool enabled)>((bay, index) =>
-                                ($"Bay {index+1}", () => Display(bay), true));
-                        if(entity != _displayedEntity) options = options.Prepend(("Equipment", () => Display(entity), true));
-                        ContextMenu.AddDropdown(entity.Name, options);
-                    }
-                    else if(entity != _displayedEntity) ContextMenu.AddOption(entity.Name, () => Display(entity));
-                }
-
-                if(GameManager.DockingBay!=null && _displayedCargo!=GameManager.DockingBay)
-                    ContextMenu.AddOption(GameManager.DockingBay.Name, () => Display(GameManager.DockingBay));
-                
-                ContextMenu.AddOption("Save Loadout",
-                    () =>
-                    {
-                        GameManager.QueueRuntimeLoadoutTemplateCommit(EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity));
-                    });
-
-                if (GameManager.LoadoutTemplates.Any())
-                {
-                    ContextMenu.AddDropdown("Restore Loadout",
-                        GameManager.LoadoutTemplates.Select(LoadoutOption));
-                }
-
-                ContextMenu.Show();
+                RenderDropdownSurface();
             });
         }
     }
@@ -200,6 +186,346 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             if (GameManager.CommitRuntimeLoadoutRestore(template, out var entity))
                 Display(entity);
         }, price < GameManager.Credits);
+    }
+
+    private void RenderDropdownSurface()
+    {
+        BuildDropdownCommands();
+
+        var document = ResolveDropdownSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = UIE.Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = UIE.Align.FlexStart;
+        root.style.justifyContent = UIE.Justify.FlexStart;
+        root.pickingMode = UIE.PickingMode.Ignore;
+
+        var shell = new UIE.VisualElement();
+        shell.style.width = 420;
+        shell.style.maxWidth = 520;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = UIE.PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildDropdownSurfaceDefinition(), HandleDropdownSurfaceCommand));
+    }
+
+    private void BuildDropdownCommands()
+    {
+        _dropdownCommands.Clear();
+
+        foreach (var entityEntry in GameManager.AvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
+        {
+            if (entityEntry.entity.CargoBays.Any())
+            {
+                if (entityEntry.entity != _displayedEntity)
+                {
+                    var equipmentCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}.equipment";
+                    _dropdownCommands[equipmentCommand] = () => Display(entityEntry.entity);
+                }
+
+                foreach (var bayEntry in entityEntry.entity.CargoBays
+                             .Where(bay => bay != _displayedCargo)
+                             .Select((bay, bayIndex) => (bay, bayIndex)))
+                {
+                    var bayCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}.bay_{bayEntry.bayIndex}";
+                    _dropdownCommands[bayCommand] = () => Display(bayEntry.bay);
+                }
+            }
+            else if (entityEntry.entity != _displayedEntity)
+            {
+                var entityCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}";
+                _dropdownCommands[entityCommand] = () => Display(entityEntry.entity);
+            }
+        }
+
+        if (GameManager.DockingBay != null && _displayedCargo != GameManager.DockingBay)
+        {
+            _dropdownCommands["aetheria.inventory.panel.dropdown.docking_bay"] = () => Display(GameManager.DockingBay);
+        }
+
+        if (_displayedEntity != null)
+        {
+            _dropdownCommands[SaveLoadoutCommand] = () =>
+            {
+                GameManager.QueueRuntimeLoadoutTemplateCommit(EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity));
+            };
+        }
+
+        foreach (var loadoutEntry in GameManager.LoadoutTemplates.Select((template, templateIndex) => (template, templateIndex)))
+        {
+            var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
+            if (blueprint == null)
+                continue;
+
+            var price = blueprint.Price(GameManager.ItemManager);
+            if (price >= GameManager.Credits)
+                continue;
+
+            var restoreCommand = $"aetheria.inventory.panel.dropdown.loadout_{loadoutEntry.templateIndex}";
+            _dropdownCommands[restoreCommand] = () =>
+            {
+                if (GameManager.CommitRuntimeLoadoutRestore(loadoutEntry.template, out var entity))
+                    Display(entity);
+            };
+        }
+    }
+
+    private void HandleDropdownSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, CloseDropdownSurfaceCommand, StringComparison.Ordinal))
+        {
+            HideDropdownSurface();
+            return;
+        }
+
+        if (_dropdownCommands.TryGetValue(request.Command, out var action))
+        {
+            action();
+            HideDropdownSurface();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown inventory dropdown command: {request.Command}");
+    }
+
+    private void HideDropdownSurface()
+    {
+        if (_dropdownSurfaceDocument == null)
+            return;
+
+        _dropdownSurfaceDocument.rootVisualElement.Clear();
+        _dropdownSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIE.UIDocument ResolveDropdownSurfaceDocument()
+    {
+        if (_dropdownSurfaceDocument != null)
+            return _dropdownSurfaceDocument;
+
+        var host = new GameObject("Aetheria Inventory Dropdown Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIE.UIDocument>();
+        document.sortingOrder = 1000;
+        host.SetActive(false);
+        _dropdownSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildDropdownSurfaceDefinition()
+    {
+        var children = new List<EveSurfaceComponent>
+        {
+            Card(
+                $"{DropdownSurfaceId}.summary",
+                "Inventory Actions",
+                Metric(
+                    $"{DropdownSurfaceId}.current",
+                    "Current View",
+                    Title?.text ?? "None"),
+                Text(
+                    $"{DropdownSurfaceId}.note",
+                    "Gameplay still owns entity and cargo selection plus loadout restore. This surface just kills the old context-menu shell."))
+        };
+
+        foreach (var entityEntry in GameManager.AvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
+        {
+            var buttons = new List<EveSurfaceComponent>();
+            var equipmentCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}.equipment";
+            if (_dropdownCommands.ContainsKey(equipmentCommand))
+            {
+                buttons.Add(Button(
+                    $"{DropdownSurfaceId}.entity_{entityEntry.entityIndex}.equipment",
+                    "Equipment",
+                    equipmentCommand));
+            }
+
+            foreach (var bayEntry in entityEntry.entity.CargoBays.Select((bay, bayIndex) => (bay, bayIndex)))
+            {
+                var bayCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}.bay_{bayEntry.bayIndex}";
+                if (_dropdownCommands.ContainsKey(bayCommand))
+                {
+                    buttons.Add(Button(
+                        $"{DropdownSurfaceId}.entity_{entityEntry.entityIndex}.bay_{bayEntry.bayIndex}",
+                        $"Bay {bayEntry.bayIndex + 1}",
+                        bayCommand));
+                }
+            }
+
+            var entityCommand = $"aetheria.inventory.panel.dropdown.entity_{entityEntry.entityIndex}";
+            if (_dropdownCommands.ContainsKey(entityCommand))
+            {
+                buttons.Add(Button(
+                    $"{DropdownSurfaceId}.entity_{entityEntry.entityIndex}.select",
+                    entityEntry.entity.Name,
+                    entityCommand));
+            }
+
+            if (buttons.Count > 0)
+            {
+                children.Add(Card(
+                    $"{DropdownSurfaceId}.entity_{entityEntry.entityIndex}.card",
+                    entityEntry.entity.Name,
+                    ButtonColumn($"{DropdownSurfaceId}.entity_{entityEntry.entityIndex}.options", buttons.ToArray())));
+            }
+        }
+
+        if (_dropdownCommands.ContainsKey("aetheria.inventory.panel.dropdown.docking_bay"))
+        {
+            children.Add(Card(
+                $"{DropdownSurfaceId}.dockingBay.card",
+                "Docking Bay",
+                ButtonColumn(
+                    $"{DropdownSurfaceId}.dockingBay.options",
+                    Button(
+                        $"{DropdownSurfaceId}.dockingBay.select",
+                        GameManager.DockingBay.Name,
+                        "aetheria.inventory.panel.dropdown.docking_bay"))));
+        }
+
+        var loadoutChildren = new List<EveSurfaceComponent>();
+        if (_dropdownCommands.ContainsKey(SaveLoadoutCommand))
+        {
+            loadoutChildren.Add(Button(
+                $"{DropdownSurfaceId}.loadouts.save",
+                "Save Loadout",
+                SaveLoadoutCommand));
+        }
+
+        foreach (var loadoutEntry in GameManager.LoadoutTemplates.Select((template, templateIndex) => (template, templateIndex)))
+        {
+            var restoreCommand = $"aetheria.inventory.panel.dropdown.loadout_{loadoutEntry.templateIndex}";
+            var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
+            if (blueprint == null)
+            {
+                loadoutChildren.Add(Text(
+                    $"{DropdownSurfaceId}.loadouts.unavailable_{loadoutEntry.templateIndex}",
+                    $"{loadoutEntry.template.Name} - unavailable"));
+                continue;
+            }
+
+            var price = blueprint.Price(GameManager.ItemManager);
+            if (_dropdownCommands.ContainsKey(restoreCommand))
+            {
+                loadoutChildren.Add(Button(
+                    $"{DropdownSurfaceId}.loadouts.restore_{loadoutEntry.templateIndex}",
+                    $"{loadoutEntry.template.Name} - {price:n0}",
+                    restoreCommand));
+            }
+            else
+            {
+                loadoutChildren.Add(Text(
+                    $"{DropdownSurfaceId}.loadouts.locked_{loadoutEntry.templateIndex}",
+                    $"{loadoutEntry.template.Name} - {price:n0} (unavailable)"));
+            }
+        }
+
+        if (loadoutChildren.Count > 0)
+        {
+            children.Add(Card(
+                $"{DropdownSurfaceId}.loadouts.card",
+                "Loadouts",
+                ButtonColumn($"{DropdownSurfaceId}.loadouts.options", loadoutChildren.ToArray())));
+        }
+
+        children.Add(ButtonRow(
+            $"{DropdownSurfaceId}.actions",
+            Button($"{DropdownSurfaceId}.close", "Close", CloseDropdownSurfaceCommand)));
+
+        return new EveSurfaceDocument(
+            DropdownSurfaceType,
+            DropdownSurfaceSchema,
+            DropdownSurfaceProviderId,
+            DropdownSurfaceProviderKind,
+            "Inventory Dropdown",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                DropdownSurfaceId,
+                Node(
+                    $"{DropdownSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    children.ToArray()),
+                Array.Empty<EveStyleToken>()),
+            _dropdownCommands
+                .Select(pair => new EveCommandTemplate(pair.Key, pair.Key.Split('.').Last(), "unity-uitoolkit"))
+                .Append(new EveCommandTemplate(CloseDropdownSurfaceCommand, "Close", "unity-uitoolkit"))
+                .ToArray());
+    }
+
+    private static EveSurfaceComponent Card(
+        string id,
+        string title,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "card", new[] { ("title", title) }, children);
+    }
+
+    private static EveSurfaceComponent Metric(string id, string label, string value)
+    {
+        return Node(id, "metric", new[] { ("label", label), ("value", value) });
+    }
+
+    private static EveSurfaceComponent Text(string id, string value)
+    {
+        return Node(id, "text", new[] { ("value", value) });
+    }
+
+    private static EveSurfaceComponent Button(string id, string label, string command)
+    {
+        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
+    }
+
+    private static EveSurfaceComponent ButtonRow(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent ButtonColumn(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "column", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent Node(
+        string id,
+        string kind,
+        IEnumerable<(string Key, string Value)> props,
+        params EveSurfaceComponent[] children)
+    {
+        return new EveSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
+            children ?? Array.Empty<EveSurfaceComponent>());
     }
 
     private void Update()
@@ -235,12 +561,14 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private void OnDisable()
     {
+        HideDropdownSurface();
         Clear();
     }
     
 
     public void Clear()
     {
+        HideDropdownSurface();
         _displayedCargo = null;
         _displayedEntity = null;
         _displayedHullShape = null;
@@ -946,6 +1274,15 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         Dialog.AddProperty("Verify that cargo bays are empty before un-equipping them.");
         Dialog.Show();
         Dialog.MoveToCursor();
+    }
+
+    private void OnDestroy()
+    {
+        if (_dropdownSurfaceDocument != null)
+        {
+            Destroy(_dropdownSurfaceDocument.gameObject);
+            _dropdownSurfaceDocument = null;
+        }
     }
 
     public Subject<PointerEventData> OnBackgroundClick = new Subject<PointerEventData>();

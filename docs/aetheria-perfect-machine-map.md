@@ -123,6 +123,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   local Eve/UI Toolkit surface instead of rebuilding a `PropertiesPanel`
   float field. Trade target-cargo selection now lowers through a local
   Eve/UI Toolkit surface instead of rebuilding a `ContextMenu` option list.
+  Inventory entity/bay/loadout dropdown navigation now lowers through a local
+  Eve/UI Toolkit surface instead of rebuilding nested `ContextMenu`
+  dropdowns/options.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1569,6 +1572,11 @@ First Aetheria surfaces to publish:
      Toolkit surface. `TradeMenu` still owns local target-cargo presentation
      state, but the old `ContextMenu.AddOption(...)` popup path no longer owns
      that selector shell.
+   - Done: replace the inventory entity/bay/loadout dropdown popup with an
+     Eve-owned UI Toolkit surface. `InventoryPanel` still owns local display
+     projection and gameplay still owns entity/cargo selection plus loadout
+     restore/save effects, but the old `ContextMenu` dropdown tree no longer
+     owns that shell.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1939,6 +1947,10 @@ First Aetheria surfaces to publish:
 - Trade target-cargo selection now lowers through a shared UI Toolkit
   `UIDocument` host and a local Eve surface document instead of rebuilding a
   `ContextMenu.AddOption(...)` popup for docking-bay and ship-bay choices.
+- Inventory entity/bay/loadout dropdown navigation now lowers through a shared
+  UI Toolkit `UIDocument` host and a local Eve surface document instead of
+  rebuilding nested `ContextMenu.AddDropdown(...)` and `ContextMenu.AddOption(...)`
+  menus.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and

@@ -37,6 +37,7 @@ RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
+RequireInventoryDropdownUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -506,6 +507,7 @@ Console.WriteLine("Sector-map zone details shell: zone inspection lowers through
 Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
+Console.WriteLine("Inventory dropdown shell: entity and loadout navigation lowers through an Eve UI Toolkit surface instead of ContextMenu.AddDropdown");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2691,6 +2693,60 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "TradeMenu still owns cargo selection through the old context-menu option path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireInventoryDropdownUseEveSurface(string root)
+{
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    if (!File.Exists(inventoryPanelPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory dropdown shell; InventoryPanel.cs is missing.");
+    }
+
+    var source = File.ReadAllText(inventoryPanelPath);
+    var requiredSymbols = new[]
+    {
+        "DropdownSurfaceId",
+        "RenderDropdownSurface(",
+        "BuildDropdownCommands(",
+        "HandleDropdownSurfaceCommand(",
+        "ResolveDropdownSurfaceDocument(",
+        "BuildDropdownSurfaceDefinition(",
+        "SaveLoadoutCommand",
+        "CloseDropdownSurfaceCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel no longer lowers the dropdown shell through an Eve surface: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "ContextMenu.AddDropdown(entity.Name",
+        "ContextMenu.AddOption(GameManager.DockingBay.Name",
+        "ContextMenu.AddOption(\"Save Loadout\"",
+        "ContextMenu.AddDropdown(\"Restore Loadout\"",
+        "ContextMenu.Show();"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still owns dropdown behavior through the old ContextMenu path: " +
             string.Join(", ", hits));
     }
 }
