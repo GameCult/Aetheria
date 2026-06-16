@@ -146,6 +146,10 @@ reading wrapper GUID orbit fields directly.
 orbit GUID fields either: they keep `OrbitKey` plus their `Orbit` runtime
 object, and `Zone` lowers asteroid transforms through `belt.Orbit.ParentOrbitKey`
 instead of reading a raw wrapper orbit GUID.
+`Zone`'s own public key-facing lookup surface is also now natively keyed:
+body and orbit lookups resolve through key-indexed runtime dictionaries rather
+than reparsing GUIDs from `BodyKey` or `OrbitKey` strings before touching the
+Guid-indexed substrate.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

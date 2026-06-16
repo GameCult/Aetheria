@@ -18,6 +18,7 @@ RequireTypedOrbitTaskKeys(root);
 RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
+RequireNativeZoneKeyResolution(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -807,7 +808,6 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "public string OrbitKey { get; }",
         "public string ParentOrbitKey { get; }",
         "public string GetBodyKey(Guid bodyId)",
-        "public static Guid ParseBodyGuid(string bodyKey)",
         "public bool TryGetPlanet(string bodyKey, out Planet planet)",
         "public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)"
     };
@@ -899,7 +899,6 @@ static void RequireTypedOrbitTaskKeys(string root)
         : throw new InvalidOperationException("Cannot verify orbit-key task ownership; Zone source is missing.");
     var requiredZoneSymbols = new[]
     {
-        "public static Guid ParseOrbitGuid(string orbitKey)",
         "public bool TryGetOrbit(string orbitKey, out Orbit orbit)",
         "public float2 GetOrbitPosition(string orbitKey)"
     };
@@ -1151,7 +1150,8 @@ static void RequireKeyedOrbitRuntimeWrappers(string root)
     {
         "public Orbit Orbit;",
         "public Orbit Orbit { get; }",
-        "AsteroidBelts[belt.ID] = new AsteroidBelt(belt, Orbits[belt.Orbit]);",
+        "var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.Orbit]);",
+        "AsteroidBelts[belt.ID] = runtimeBelt;",
         "belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);",
         "public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)",
         "Orbit = orbit;"
@@ -1203,6 +1203,62 @@ static void RequireTypedFactionShellLinks(string root)
         throw new InvalidOperationException(
             "Temporary Faction shell links must use typed key fields, not geoname/boss-hull legacy GUID projections: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireNativeZoneKeyResolution(string root)
+{
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify native Zone key resolution; Zone source is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        "public static Guid ParseOrbitGuid(string orbitKey)",
+        "public static Guid ParseBodyGuid(string bodyKey)",
+        "PlanetInstances.TryGetValue(ParseBodyGuid(bodyKey), out planet)",
+        "AsteroidBelts.TryGetValue(ParseBodyGuid(bodyKey), out belt)",
+        "Orbits.TryGetValue(ParseOrbitGuid(orbitKey), out orbit)",
+        "return GetOrbitPosition(ParseOrbitGuid(orbitKey));",
+        "return GetOrbitVelocity(ParseOrbitGuid(orbitKey));"
+    };
+    var hits = forbiddenSymbols
+        .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/ServerShared/Zone.cs: contains {symbol}")
+        .ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone key-facing APIs must resolve typed body/orbit keys natively instead of reparsing GUIDs from those keys: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new[]
+    {
+        "private readonly Dictionary<string, Planet> _planetsByBodyKey = new Dictionary<string, Planet>(StringComparer.Ordinal);",
+        "private readonly Dictionary<string, AsteroidBelt> _asteroidBeltsByBodyKey = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);",
+        "private readonly Dictionary<string, Orbit> _orbitsByKey = new Dictionary<string, Orbit>(StringComparer.Ordinal);",
+        "_orbitsByKey[runtimeOrbit.OrbitKey] = runtimeOrbit;",
+        "_asteroidBeltsByBodyKey[runtimeBelt.BodyKey] = runtimeBelt;",
+        "_planetsByBodyKey[runtimeSun.BodyKey] = runtimeSun;",
+        "_planetsByBodyKey[runtimeGas.BodyKey] = runtimeGas;",
+        "_planetsByBodyKey[runtimePlanet.BodyKey] = runtimePlanet;",
+        "return _planetsByBodyKey.TryGetValue(bodyKey ?? \"\", out planet);",
+        "return _asteroidBeltsByBodyKey.TryGetValue(bodyKey ?? \"\", out belt);",
+        "return _orbitsByKey.TryGetValue(orbitKey ?? \"\", out orbit);",
+        "return TryGetOrbit(orbitKey, out var orbit)",
+        "? GetOrbitPosition(orbit.ID)",
+        "? GetOrbitVelocity(orbit.ID)"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone must keep native key-indexed runtime lookup tables for body and orbit resolution: " +
+            string.Join(", ", missingSymbols));
     }
 }
 

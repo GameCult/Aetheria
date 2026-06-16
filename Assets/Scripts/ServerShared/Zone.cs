@@ -26,6 +26,10 @@ public class Zone
     public Dictionary<Guid, Orbit> Orbits = new Dictionary<Guid, Orbit>();
     public Dictionary<Guid, AsteroidBelt> AsteroidBelts = new Dictionary<Guid, AsteroidBelt>();
     public PlanetSettings Settings;
+
+    private readonly Dictionary<string, Planet> _planetsByBodyKey = new Dictionary<string, Planet>(StringComparer.Ordinal);
+    private readonly Dictionary<string, AsteroidBelt> _asteroidBeltsByBodyKey = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);
+    private readonly Dictionary<string, Orbit> _orbitsByKey = new Dictionary<string, Orbit>(StringComparer.Ordinal);
     
     private HashSet<Guid> _updatedOrbits = new HashSet<Guid>();
 
@@ -58,7 +62,9 @@ public class Zone
         
         foreach (var orbit in blueprint.Orbits)
         {
-            Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
+            var runtimeOrbit = new Orbit(Settings, orbit);
+            Orbits.Add(orbit.ID, runtimeOrbit);
+            _orbitsByKey[runtimeOrbit.OrbitKey] = runtimeOrbit;
         }
         
         foreach (var planet in blueprint.Bodies)
@@ -66,16 +72,24 @@ public class Zone
             switch (planet)
             {
                 case AsteroidBeltConstructionData belt:
-                    AsteroidBelts[belt.ID] = new AsteroidBelt(belt, Orbits[belt.Orbit]);
+                    var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.Orbit]);
+                    AsteroidBelts[belt.ID] = runtimeBelt;
+                    _asteroidBeltsByBodyKey[runtimeBelt.BodyKey] = runtimeBelt;
                     break;
                 case SunConstructionData sun:
-                    PlanetInstances.Add(sun.ID, new Sun(settings, sun, Orbits[planet.Orbit]));
+                    var runtimeSun = new Sun(settings, sun, Orbits[planet.Orbit]);
+                    PlanetInstances.Add(sun.ID, runtimeSun);
+                    _planetsByBodyKey[runtimeSun.BodyKey] = runtimeSun;
                     break;
                 case GasGiantConstructionData gas:
-                    PlanetInstances.Add(gas.ID, new GasGiant(settings, gas, Orbits[planet.Orbit]));
+                    var runtimeGas = new GasGiant(settings, gas, Orbits[planet.Orbit]);
+                    PlanetInstances.Add(gas.ID, runtimeGas);
+                    _planetsByBodyKey[runtimeGas.BodyKey] = runtimeGas;
                     break;
                 default:
-                    PlanetInstances.Add(planet.ID, new Planet(settings, planet, Orbits[planet.Orbit]));
+                    var runtimePlanet = new Planet(settings, planet, Orbits[planet.Orbit]);
+                    PlanetInstances.Add(planet.ID, runtimePlanet);
+                    _planetsByBodyKey[runtimePlanet.BodyKey] = runtimePlanet;
                     break;
             }
         }
@@ -119,17 +133,6 @@ public class Zone
         return id == Guid.Empty ? "" : $"{BodyKeyPrefix}{id:D}";
     }
 
-    public static Guid ParseOrbitGuid(string orbitKey)
-    {
-        if (string.IsNullOrWhiteSpace(orbitKey))
-            return Guid.Empty;
-
-        var runtimeOrbitId = orbitKey.StartsWith(OrbitKeyPrefix, StringComparison.OrdinalIgnoreCase)
-            ? orbitKey.Substring(OrbitKeyPrefix.Length)
-            : orbitKey;
-        return Guid.TryParse(runtimeOrbitId, out var id) ? id : Guid.Empty;
-    }
-
     public string GetBodyKey(Guid bodyId)
     {
         if (bodyId == Guid.Empty)
@@ -141,30 +144,19 @@ public class Zone
         return BodyKey(bodyId);
     }
 
-    public static Guid ParseBodyGuid(string bodyKey)
-    {
-        if (string.IsNullOrWhiteSpace(bodyKey))
-            return Guid.Empty;
-
-        var runtimeBodyId = bodyKey.StartsWith(BodyKeyPrefix, StringComparison.OrdinalIgnoreCase)
-            ? bodyKey.Substring(BodyKeyPrefix.Length)
-            : bodyKey;
-        return Guid.TryParse(runtimeBodyId, out var id) ? id : Guid.Empty;
-    }
-
     public bool TryGetPlanet(string bodyKey, out Planet planet)
     {
-        return PlanetInstances.TryGetValue(ParseBodyGuid(bodyKey), out planet);
+        return _planetsByBodyKey.TryGetValue(bodyKey ?? "", out planet);
     }
 
     public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)
     {
-        return AsteroidBelts.TryGetValue(ParseBodyGuid(bodyKey), out belt);
+        return _asteroidBeltsByBodyKey.TryGetValue(bodyKey ?? "", out belt);
     }
 
     public bool TryGetOrbit(string orbitKey, out Orbit orbit)
     {
-        return Orbits.TryGetValue(ParseOrbitGuid(orbitKey), out orbit);
+        return _orbitsByKey.TryGetValue(orbitKey ?? "", out orbit);
     }
 
     public void Update(float deltaTime)
@@ -234,7 +226,9 @@ public class Zone
 
     public float2 GetOrbitPosition(string orbitKey)
     {
-        return GetOrbitPosition(ParseOrbitGuid(orbitKey));
+        return TryGetOrbit(orbitKey, out var orbit)
+            ? GetOrbitPosition(orbit.ID)
+            : float2.zero;
     }
 
     public float2 GetOrbitVelocity(Guid orbit)
@@ -246,7 +240,9 @@ public class Zone
 
     public float2 GetOrbitVelocity(string orbitKey)
     {
-        return GetOrbitVelocity(ParseOrbitGuid(orbitKey));
+        return TryGetOrbit(orbitKey, out var orbit)
+            ? GetOrbitVelocity(orbit.ID)
+            : float2.zero;
     }
 
     public int NearestAsteroid(Guid planetDataID, float2 position)
