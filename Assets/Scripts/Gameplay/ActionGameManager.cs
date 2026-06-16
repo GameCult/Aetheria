@@ -601,14 +601,17 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaRuntimeRunCheckpointCommit ProjectRunCheckpoint()
     {
         var entityGraph = FlattenEntityGraph(Zone);
+        var runId = IsTutorial ? "tutorial" : "local";
+        var currentZoneIndex = ZoneIndex(Zone?.GalaxyZone);
         return new AetheriaRuntimeRunCheckpointCommit
         {
-            RunId = IsTutorial ? "tutorial" : "local",
+            RunId = runId,
             IsTutorial = IsTutorial,
             EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
             ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
-            CurrentZoneIndex = ZoneIndex(Zone?.GalaxyZone),
+            CurrentZoneIndex = currentZoneIndex,
             CurrentZoneEntityIndex = IndexOfEntity(entityGraph, CurrentEntity),
+            CurrentEntityKey = CurrentEntityRecordKey(runId, currentZoneIndex, entityGraph, CurrentEntity),
             GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
             DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
                 .Select(ZoneIndex)
@@ -2494,15 +2497,19 @@ public class ActionGameManager : MonoBehaviour
 
     private void RestoreEntityGraphFromTypedRun(AetheriaRuntimeRunStateSnapshot run)
     {
-        if (run == null ||
-            run.CurrentZoneIndex < 0 ||
-            run.CurrentZoneEntityIndex < 0)
+        if (run == null || run.CurrentZoneIndex < 0)
         {
             return;
         }
 
         var zoneEntityKeyPrefix = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.";
-        var currentEntityKey = $"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1";
+        var currentEntityKey = ResolveCurrentEntityRecordKey(run, zoneEntityKeyPrefix);
+        if (string.IsNullOrWhiteSpace(currentEntityKey))
+        {
+            Debug.LogWarning($"Typed run {run.RunId} does not identify a current entity for restored zone {zoneEntityKeyPrefix}.");
+            return;
+        }
+
         AetheriaRuntimeEntitySnapshot[] entitySnapshots;
         try
         {
@@ -2524,6 +2531,37 @@ public class ActionGameManager : MonoBehaviour
         }
 
         ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey);
+    }
+
+    private static string CurrentEntityRecordKey(
+        string runId,
+        int currentZoneIndex,
+        IReadOnlyList<Entity> entityGraph,
+        Entity currentEntity)
+    {
+        if (string.IsNullOrWhiteSpace(runId) || currentZoneIndex < 0 || currentEntity == null)
+        {
+            return "";
+        }
+
+        var currentZoneEntityIndex = IndexOfEntity(entityGraph, currentEntity);
+        return currentZoneEntityIndex < 0
+            ? ""
+            : $"global:aetheria.run_state.{runId}.zone.{currentZoneIndex}.entity.{currentZoneEntityIndex}.v1";
+    }
+
+    private static string ResolveCurrentEntityRecordKey(
+        AetheriaRuntimeRunStateSnapshot run,
+        string zoneEntityKeyPrefix)
+    {
+        if (!string.IsNullOrWhiteSpace(run.CurrentEntityKey))
+        {
+            return run.CurrentEntityKey;
+        }
+
+        return run.CurrentZoneEntityIndex < 0
+            ? ""
+            : $"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1";
     }
 
     private void ReplaceZoneEntitiesFromTypedSnapshots(

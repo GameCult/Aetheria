@@ -234,6 +234,10 @@ public sealed class AetheriaRunState
 
     [Key(11)]
     public uint GenerationSeed { get; set; }
+
+    [Key(12)]
+    [CultReference(typeof(AetheriaEntitySnapshot))]
+    public string CurrentEntityKey { get; set; } = "";
 }
 
 [CultDocument("aetheria.zone_state", "aetheria.zone_state.v1")]

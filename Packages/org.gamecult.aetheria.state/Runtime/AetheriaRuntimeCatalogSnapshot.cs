@@ -691,6 +691,7 @@ namespace GameCult.Aetheria.State.Unity
             int exitZoneIndex,
             int currentZoneIndex,
             int currentZoneEntityIndex,
+            string currentEntityKey,
             IReadOnlyList<int> discoveredZoneIndices,
             IReadOnlyList<string> zoneKeys,
             IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings,
@@ -704,6 +705,7 @@ namespace GameCult.Aetheria.State.Unity
             ExitZoneIndex = exitZoneIndex;
             CurrentZoneIndex = currentZoneIndex;
             CurrentZoneEntityIndex = currentZoneEntityIndex;
+            CurrentEntityKey = currentEntityKey;
             DiscoveredZoneIndices = discoveredZoneIndices;
             ZoneKeys = zoneKeys;
             ActionBarBindings = actionBarBindings;
@@ -718,6 +720,7 @@ namespace GameCult.Aetheria.State.Unity
         public int ExitZoneIndex { get; }
         public int CurrentZoneIndex { get; }
         public int CurrentZoneEntityIndex { get; }
+        public string CurrentEntityKey { get; }
         public IReadOnlyList<int> DiscoveredZoneIndices { get; }
         public IReadOnlyList<string> ZoneKeys { get; }
         public IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ActionBarBindings { get; }

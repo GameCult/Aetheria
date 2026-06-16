@@ -992,8 +992,10 @@ First Aetheria surfaces to publish:
      hull-conductivity axes, then reconnects target/contact rows among restored
      entities, restores child/docking relationships from typed child keys and
      docking-bay assignments, restores typed weapon and behavior runtime rows
-     into live behavior instances, and binds the saved current entity as the
-     player ship or docked current ship.
+     into live behavior instances, and binds the saved current entity by
+     `AetheriaRunState.CurrentEntityKey` so Continue restore follows exact typed
+     entity identity instead of reconstructing the player ship from an integer
+     slot.
    - Done: project run checkpoint entity snapshots from the flattened live
      entity graph, not only `Zone.Entities`, so docked child ships can receive
      typed entity records and stable child/docking references instead of

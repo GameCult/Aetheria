@@ -243,6 +243,7 @@ try
             GenerationSeed = 424242,
             CurrentZoneIndex = 0,
             CurrentZoneEntityIndex = 0,
+            CurrentEntityKey = "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1",
             DiscoveredZoneIndices = new[] { 0 },
             ActionBarBindings = new[]
             {
@@ -719,6 +720,7 @@ try
             loadout.RootEntity.CargoContents.Length == 1 &&
             loadout.RootEntity.CargoContents[0].Items[0].Item.Quantity == 5 &&
             run?.ZoneKeys.Length == 1 &&
+            run.CurrentEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
             run.GenerationSeed == 424242 &&
             run.ActionBarBindings.Length == 2 &&
             run.ActionBarBindings[0].ControlPath == "<Keyboard>/1" &&
@@ -735,12 +737,12 @@ try
             run.FactionRelationships[0].Standing == 3 &&
             zone?.EntityKeys.Length == 1 &&
             zone.Orbits.Length == 1 &&
-            zone.Orbits[0].OrbitId == "aetheria.orbit:legacy:smoke:orbit" &&
-            zone.Orbits[0].ParentId == "aetheria.orbit:legacy:smoke:parent-orbit" &&
+            zone.Orbits[0].OrbitKey == "aetheria.orbit:legacy:smoke:orbit" &&
+            zone.Orbits[0].ParentOrbitKey == "aetheria.orbit:legacy:smoke:parent-orbit" &&
             zone.Orbits[0].FixedPosition.X == 5.0 &&
             zone.Bodies.Length == 1 &&
-            zone.Bodies[0].BodyId == "aetheria.body:legacy:smoke:body" &&
-            zone.Bodies[0].OrbitId == "aetheria.orbit:legacy:smoke:orbit" &&
+            zone.Bodies[0].BodyKey == "aetheria.body:legacy:smoke:body" &&
+            zone.Bodies[0].OrbitKey == "aetheria.orbit:legacy:smoke:orbit" &&
             zone.Bodies[0].Kind == "asteroid_belt" &&
             zone.Bodies[0].Resources.Length == 1 &&
             zone.Bodies[0].Resources[0].ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
@@ -884,6 +886,7 @@ try
         packageRuns.Count != 1 ||
         packageRuns[0].RunId != "smoke-run" ||
         packageRuns[0].GenerationSeed != 424242 ||
+        packageRuns[0].CurrentEntityKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
         packageRuns[0].ZoneKeys.Count != 1 ||
         packageRuns[0].ActionBarBindings.Count != 2 ||
         packageRuns[0].ActionBarBindings[1].TargetKey != "aetheria.item_definition:legacy:smoke:weapon" ||
@@ -894,12 +897,12 @@ try
         packageZones[0].Name != "Unity Smoke Zone" ||
         packageZones[0].EntityKeys.Count != 1 ||
         packageZones[0].Orbits.Count != 1 ||
-        packageZones[0].Orbits[0].OrbitId != "aetheria.orbit:legacy:smoke:orbit" ||
-        packageZones[0].Orbits[0].ParentId != "aetheria.orbit:legacy:smoke:parent-orbit" ||
+        packageZones[0].Orbits[0].OrbitKey != "aetheria.orbit:legacy:smoke:orbit" ||
+        packageZones[0].Orbits[0].ParentOrbitKey != "aetheria.orbit:legacy:smoke:parent-orbit" ||
         packageZones[0].Orbits[0].FixedPositionX != 5.0 ||
         packageZones[0].Bodies.Count != 1 ||
-        packageZones[0].Bodies[0].BodyId != "aetheria.body:legacy:smoke:body" ||
-        packageZones[0].Bodies[0].OrbitId != "aetheria.orbit:legacy:smoke:orbit" ||
+        packageZones[0].Bodies[0].BodyKey != "aetheria.body:legacy:smoke:body" ||
+        packageZones[0].Bodies[0].OrbitKey != "aetheria.orbit:legacy:smoke:orbit" ||
         packageZones[0].Bodies[0].ResourceCount != 1 ||
         packageZones[0].Bodies[0].AsteroidCount != 1 ||
         packageZones[0].Bodies[0].DamagedAsteroidCount != 1 ||

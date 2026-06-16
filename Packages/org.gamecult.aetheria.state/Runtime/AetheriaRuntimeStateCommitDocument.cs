@@ -247,6 +247,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(10)]
         public uint GenerationSeed { get; set; }
+
+        [Key(11)]
+        public string CurrentEntityKey { get; set; } = "";
     }
 
     [MessagePackObject]

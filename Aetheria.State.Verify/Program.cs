@@ -1904,6 +1904,8 @@ static void RequireMainMenuContinueRunState(string root)
         "RestoreEntityGraphFromTypedRun(continuingRun)",
         "ReadEntitySnapshots(RuntimeStateFilePath)",
         "entity.RecordKey",
+        "run.CurrentEntityKey",
+        "ResolveCurrentEntityRecordKey(run, zoneEntityKeyPrefix)",
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "Zone.Agents.Clear()",
         "FlattenEntityGraph(Zone)",
@@ -1935,6 +1937,23 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "ActionGameManager no longer has the typed Continue boot path: " +
             string.Join(", ", missingGameplaySymbols));
+    }
+
+    var forbiddenGameplaySymbols = new[]
+    {
+        "if (run == null ||\r\n            run.CurrentZoneIndex < 0 ||\r\n            run.CurrentZoneEntityIndex < 0)",
+        "var currentEntityKey = $\"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1\""
+    };
+
+    var forbiddenGameplayHits = forbiddenGameplaySymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (forbiddenGameplayHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still reconstructs Continue current-entity ownership from integer slot state: " +
+            string.Join(", ", forbiddenGameplayHits));
     }
 
     var requiredPackageSymbols = new[]

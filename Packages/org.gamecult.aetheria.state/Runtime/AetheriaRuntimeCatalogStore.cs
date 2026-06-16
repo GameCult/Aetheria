@@ -463,7 +463,8 @@ namespace GameCult.Aetheria.State.Unity
             var factionRelationships = ReadFieldFactionRelationships(ref reader, fields, 9);
             var updatedAtUtc = ReadFieldString(ref reader, fields, 10);
             var generationSeed = ReadFieldUInt32(ref reader, fields, 11);
-            SkipRemaining(ref reader, fields, 12);
+            var currentEntityKey = ReadFieldString(ref reader, fields, 12);
+            SkipRemaining(ref reader, fields, 13);
             return new AetheriaRuntimeRunStateSnapshot(
                 runId,
                 isTutorial,
@@ -471,6 +472,7 @@ namespace GameCult.Aetheria.State.Unity
                 exitZoneIndex,
                 currentZoneIndex,
                 currentZoneEntityIndex,
+                currentEntityKey,
                 discoveredZoneIndices,
                 zoneKeys,
                 actionBarBindings,

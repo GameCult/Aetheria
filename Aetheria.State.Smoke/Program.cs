@@ -407,8 +407,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         [
             new AetheriaOrbitSnapshot
             {
-                OrbitId = "smoke:orbit",
-                ParentId = "smoke:parent-orbit",
+                OrbitKey = "smoke:orbit",
+                ParentOrbitKey = "smoke:parent-orbit",
                 Distance = 100,
                 Phase = 0.25,
                 FixedPosition = new AetheriaVector2 { X = 5, Y = -6 }
@@ -418,10 +418,10 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         [
             new AetheriaBodySnapshot
             {
-                BodyId = "smoke:body",
+                BodyKey = "smoke:body",
                 Kind = "asteroid_belt",
                 Name = "Smoke Belt",
-                OrbitId = "smoke:orbit",
+                OrbitKey = "smoke:orbit",
                 Mass = 42,
                 Resources =
                 [
@@ -463,6 +463,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         ExitZoneIndex = 1,
         CurrentZoneIndex = 0,
         CurrentZoneEntityIndex = 0,
+        CurrentEntityKey = entityKey.ToString(),
         GenerationSeed = 424242,
         DiscoveredZoneIndices = [0],
         ZoneKeys = [zoneKey.ToString()],
@@ -622,6 +623,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 
     if (runState?.RunId != "smoke" ||
         runState.GenerationSeed != 424242 ||
+        runState.CurrentEntityKey != entityKey.ToString() ||
         runState.ZoneKeys.Length != 1 ||
         runState.ActionBarBindings.Length != 1)
     {
@@ -633,7 +635,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         zoneState.Position.X != 4.0 ||
         zoneState.OwnerFactionIndex != 0 ||
         zoneState.Orbits.Length != 1 ||
-        zoneState.Orbits[0].OrbitId != "smoke:orbit" ||
+        zoneState.Orbits[0].OrbitKey != "smoke:orbit" ||
         zoneState.Bodies.Length != 1 ||
         zoneState.Bodies[0].Kind != "asteroid_belt" ||
         zoneState.Bodies[0].Resources.Length != 1 ||
