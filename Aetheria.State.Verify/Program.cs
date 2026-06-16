@@ -36,6 +36,7 @@ RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
+RequireInventoryCargoItemDetailsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireTradeItemDetailsUseEveSurface(root);
@@ -508,6 +509,7 @@ Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
+Console.WriteLine("Inventory cargo-item shell: cargo item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
 Console.WriteLine("Trade filter and row-action shells: filter selection and buy-quantity entry lower through Eve UI Toolkit surfaces instead of ContextMenu dropdowns");
 Console.WriteLine("Trade item-details shell: typed item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
@@ -2651,6 +2653,59 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
     }
 }
 
+static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
+{
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    if (!File.Exists(inventoryMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory cargo-item shell; InventoryMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(inventoryMenuPath);
+    var requiredSymbols = new[]
+    {
+        "CargoItemDetailsSurfaceId",
+        "RenderCargoItemDetailsSurface(",
+        "HandleCargoItemDetailsSurfaceCommand(",
+        "ResolveCargoItemDetailsSurfaceDocument(",
+        "BuildCargoItemDetailsSurfaceDefinition(",
+        "BuildCargoItemBehaviorCards(",
+        "BuildCargoItemBehaviorMetric(",
+        "CloseCargoItemDetailsCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu no longer lowers cargo-item inspection through an Eve surface shell: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    if (!source.Contains("RenderCargoItemDetailsSurface(item);", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
+    }
+
+    var propertiesInspectCount = CountOccurrences(source, "PropertiesPanel.Inspect(item);");
+    if (propertiesInspectCount != 1)
+    {
+        throw new InvalidOperationException(
+            $"InventoryMenu should keep exactly one equipped-item PropertiesPanel inspect path for now; found {propertiesInspectCount}.");
+    }
+
+    var propertiesSetActiveCount = CountOccurrences(source, "PropertiesPanel.gameObject.SetActive(true);");
+    if (propertiesSetActiveCount != 1)
+    {
+        throw new InvalidOperationException(
+            $"InventoryMenu should keep exactly one equipped-item PropertiesPanel activation path for now; found {propertiesSetActiveCount}.");
+    }
+}
+
 static void RequireTradeCargoSelectorUseEveSurface(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
@@ -3952,6 +4007,24 @@ static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)
     return string.Equals(value.Kind, kind, StringComparison.OrdinalIgnoreCase) ||
            value.Children.Any(child => ContainsBehaviorValueKind(child, kind)) ||
            value.MapEntries.Any(entry => ContainsBehaviorValueKind(entry.Value, kind));
+}
+
+static int CountOccurrences(string source, string pattern)
+{
+    if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(pattern))
+    {
+        return 0;
+    }
+
+    var count = 0;
+    var index = 0;
+    while ((index = source.IndexOf(pattern, index, StringComparison.Ordinal)) >= 0)
+    {
+        count++;
+        index += pattern.Length;
+    }
+
+    return count;
 }
 
 static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaBehaviorPayload payload)

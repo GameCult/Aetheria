@@ -131,6 +131,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   dropdowns/options in `TradeMenu`.
   Trade typed-item inspection now lowers through a local Eve/UI Toolkit surface
   instead of routing spreadsheet row clicks into `PropertiesPanel.Inspect`.
+  Inventory cargo-item inspection now lowers through a local Eve/UI Toolkit
+  surface instead of routing cargo clicks into `PropertiesPanel.Inspect`,
+  while equipped-item inspection still owns the old live-control shell.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1591,6 +1594,11 @@ First Aetheria surfaces to publish:
      Toolkit surface. The surface still projects typed catalog facts from local
      trade rows, but spreadsheet row clicks no longer route through the old
      `PropertiesPanel` shell.
+   - Done: replace `InventoryMenu` cargo-item inspection with an Eve-owned UI
+     Toolkit surface. Inventory still owns selected-cell highlighting, and the
+     equipped-item path still owns the old live-control `PropertiesPanel`
+     shell for weapon groups and behavior controls, but cargo clicks no longer
+     route through `PropertiesPanel.Inspect`.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1972,6 +1980,11 @@ First Aetheria surfaces to publish:
 - Trade typed-item inspection now lowers through a shared UI Toolkit
   `UIDocument` host and a local Eve surface document instead of routing
   spreadsheet row clicks into `PropertiesPanel.Inspect(...)`.
+- Inventory cargo-item inspection now lowers through a shared UI Toolkit
+  `UIDocument` host and a local Eve surface document instead of routing cargo
+  clicks into `PropertiesPanel.Inspect(...)`; the equipped-item path still
+  retains the old live-control shell until weapon-group and behavior controls
+  are moved cleanly.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
