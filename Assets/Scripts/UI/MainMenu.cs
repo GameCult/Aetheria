@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameCult.Aetheria.State.Unity;
@@ -209,7 +210,6 @@ public class MainMenu : MonoBehaviour
         ActionGameManager.IsTutorial = run.IsTutorial;
         ActionGameManager.ContinueRunState = run;
         var generationSeed = run.GenerationSeed == 0 ? NextGenerationSeed() : run.GenerationSeed;
-        var sectorSettings = run.IsTutorial ? Settings.TutorialGenerationSettings : Settings.SectorGenerationSettings;
         var backgroundSettings = run.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
         backgroundSettings.NoisePosition = generationSeed;
 
@@ -227,7 +227,7 @@ public class MainMenu : MonoBehaviour
                     setState,
                     generationSeed)
                 : new Galaxy(
-                    sectorSettings,
+                    Settings.SectorGenerationSettings,
                     backgroundSettings,
                     Settings.NameGeneratorSettings,
                     ActionGameManager.RuntimeCatalog,

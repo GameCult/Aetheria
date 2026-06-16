@@ -764,7 +764,11 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "ResourceScannerTargetBodyId",
         "MiningToolAsteroidBeltId",
         "ParseLegacyGuidFromReferenceKey",
-        "ParseLegacyIdFromReferenceKey"
+        "ParseLegacyIdFromReferenceKey",
+        "private static string OrbitKey(Guid",
+        "private static string BodyKey(Guid",
+        "$\"aetheria.orbit:legacy:",
+        "$\"aetheria.body:legacy:"
     };
 
     var hits = checkedFiles
@@ -780,6 +784,29 @@ static void RequireTypedBehaviorBodyKeys(string root)
         throw new InvalidOperationException(
             "Runtime behavior body references must be named typed BodyKey surfaces; GUID parsing is confined to ParseBodyGuidFromKey: " +
             string.Join("; ", hits));
+    }
+
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify body/orbit key ownership; Zone source is missing.");
+    var requiredZoneSymbols = new[]
+    {
+        "public const string OrbitKeyPrefix",
+        "public const string BodyKeyPrefix",
+        "public string BodyKey { get; }",
+        "public string OrbitKey { get; }",
+        "public string ParentOrbitKey { get; }",
+        "public string GetBodyKey(Guid bodyId)"
+    };
+    var missingZoneSymbols = requiredZoneSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone runtime body/orbit objects must own typed projection key surfaces: " +
+            string.Join(", ", missingZoneSymbols));
     }
 }
 

@@ -16,6 +16,9 @@ using Random = Unity.Mathematics.Random;
 
 public class Zone
 {
+    public const string OrbitKeyPrefix = "aetheria.orbit:legacy:";
+    public const string BodyKeyPrefix = "aetheria.body:legacy:";
+
     public Action<string> Log;
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
     public Dictionary<Guid, Planet> PlanetInstances = new Dictionary<Guid, Planet>();
@@ -100,6 +103,27 @@ public class Zone
         task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
         agent.Task = task;
         return agent;
+    }
+
+    public static string OrbitKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"{OrbitKeyPrefix}{id:D}";
+    }
+
+    public static string BodyKey(Guid id)
+    {
+        return id == Guid.Empty ? "" : $"{BodyKeyPrefix}{id:D}";
+    }
+
+    public string GetBodyKey(Guid bodyId)
+    {
+        if (bodyId == Guid.Empty)
+            return "";
+        if (PlanetInstances.TryGetValue(bodyId, out var planet))
+            return planet.BodyKey;
+        if (AsteroidBelts.TryGetValue(bodyId, out var belt))
+            return belt.BodyKey;
+        return BodyKey(bodyId);
     }
 
     public void Update(float deltaTime)
@@ -367,8 +391,10 @@ public class Planet
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
     public Guid ID { get; }
+    public string BodyKey { get; }
     public string Name { get; }
     public Guid OrbitId { get; }
+    public string OrbitKey { get; }
     public float Mass { get; }
     public IReadOnlyDictionary<string, float> Resources { get; }
     public float BodyRadiusMultiplier { get; }
@@ -384,8 +410,10 @@ public class Planet
         Settings = settings;
         Orbit = orbit;
         ID = data.ID;
+        BodyKey = Zone.BodyKey(data.ID);
         Name = data.Name ?? "";
         OrbitId = data.Orbit;
+        OrbitKey = Zone.OrbitKey(data.Orbit);
         Mass = data.Mass;
         Resources = data.Resources;
         BodyRadiusMultiplier = data.BodyRadiusMultiplier;
@@ -472,8 +500,10 @@ public class AsteroidBelt
 {
     private readonly Asteroid[] _asteroids;
     public Guid ID { get; }
+    public string BodyKey { get; }
     public string Name { get; }
     public Guid Orbit { get; }
+    public string OrbitKey { get; }
     public float Mass { get; }
     public IReadOnlyDictionary<string, float> Resources { get; }
     public float BodyRadiusMultiplier { get; }
@@ -493,8 +523,10 @@ public class AsteroidBelt
     {
         _asteroids = data.Asteroids;
         ID = data.ID;
+        BodyKey = Zone.BodyKey(data.ID);
         Name = data.Name ?? "";
         Orbit = data.Orbit;
+        OrbitKey = Zone.OrbitKey(data.Orbit);
         Mass = data.Mass;
         Resources = data.Resources;
         BodyRadiusMultiplier = data.BodyRadiusMultiplier;
@@ -517,7 +549,9 @@ public class AsteroidBelt
 public class Orbit
 {
     public Guid ID { get; }
+    public string OrbitKey { get; }
     public Guid Parent { get; }
+    public string ParentOrbitKey { get; }
     public float Distance { get; }
     public float Phase { get; }
     public float2 FixedPosition { get; }
@@ -535,7 +569,9 @@ public class Orbit
     public Orbit(PlanetSettings settings, OrbitConstructionData data)
     {
         ID = data.ID;
+        OrbitKey = Zone.OrbitKey(data.ID);
         Parent = data.Parent;
+        ParentOrbitKey = Zone.OrbitKey(data.Parent);
         Distance = data.Distance;
         Phase = data.Phase;
         FixedPosition = data.FixedPosition;

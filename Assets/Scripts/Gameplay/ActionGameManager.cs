@@ -354,9 +354,8 @@ public class ActionGameManager : MonoBehaviour
         if (string.IsNullOrWhiteSpace(bodyKey))
             return Guid.Empty;
 
-        const string bodyPrefix = "aetheria.body:legacy:";
-        var runtimeBodyId = bodyKey.StartsWith(bodyPrefix, StringComparison.OrdinalIgnoreCase)
-            ? bodyKey.Substring(bodyPrefix.Length)
+        var runtimeBodyId = bodyKey.StartsWith(Zone.BodyKeyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? bodyKey.Substring(Zone.BodyKeyPrefix.Length)
             : bodyKey;
         return Guid.TryParse(runtimeBodyId, out var id) ? id : Guid.Empty;
     }
@@ -620,7 +619,7 @@ public class ActionGameManager : MonoBehaviour
             EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
             ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
             CurrentZoneIndex = ZoneIndex(Zone?.GalaxyZone),
-            CurrentZoneEntityIndex = entityGraph.IndexOf(CurrentEntity),
+            CurrentZoneEntityIndex = IndexOfEntity(entityGraph, CurrentEntity),
             GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
             DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
                 .Select(ZoneIndex)
@@ -750,8 +749,8 @@ public class ActionGameManager : MonoBehaviour
             .OrderBy(orbit => orbit.ID)
             .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
             {
-                OrbitKey = OrbitKey(orbit.ID),
-                ParentOrbitKey = OrbitKey(orbit.Parent),
+                OrbitKey = orbit.OrbitKey,
+                ParentOrbitKey = orbit.ParentOrbitKey,
                 Distance = orbit.Distance,
                 Phase = orbit.Phase,
                 FixedPositionX = orbit.FixedPosition.x,
@@ -776,10 +775,10 @@ public class ActionGameManager : MonoBehaviour
     {
         return new AetheriaRuntimeBodySnapshotCommit
         {
-            BodyKey = BodyKey(planet.ID),
+            BodyKey = planet.BodyKey,
             Kind = BodyKind(planet),
             Name = planet.Name,
-            OrbitKey = OrbitKey(planet.OrbitId),
+            OrbitKey = planet.OrbitKey,
             Mass = planet.Mass,
             Resources = planet.Resources?
                 .OrderBy(pair => pair.Key)
@@ -807,10 +806,10 @@ public class ActionGameManager : MonoBehaviour
     {
         return new AetheriaRuntimeBodySnapshotCommit
         {
-            BodyKey = BodyKey(belt.ID),
+            BodyKey = belt.BodyKey,
             Kind = "asteroid_belt",
             Name = belt.Name,
-            OrbitKey = OrbitKey(belt.Orbit),
+            OrbitKey = belt.OrbitKey,
             Mass = belt.Mass,
             Resources = belt.Resources?
                 .OrderBy(pair => pair.Key)
@@ -944,7 +943,7 @@ public class ActionGameManager : MonoBehaviour
             DirectionY = entity.Direction.y,
             VelocityX = entity.Velocity.x,
             VelocityY = entity.Velocity.y,
-            TargetEntityIndex = entity.Target?.Value == null ? -1 : entityGraph.IndexOf(entity.Target.Value),
+            TargetEntityIndex = entity.Target?.Value == null ? -1 : IndexOfEntity(entityGraph, entity.Target.Value),
             IsActive = entity.Active,
             HeatsinksEnabled = entity.HeatsinksEnabled,
             OverrideShutdown = entity.OverrideShutdown,
@@ -965,7 +964,7 @@ public class ActionGameManager : MonoBehaviour
             VisibilitySourceCount = entity.VisibilitySources.Count,
             Contacts = ProjectEntityContacts(entityGraph, entity),
             ChildEntityIndices = entity.Children?
-                .Select(child => entityGraph.IndexOf(child))
+                .Select(child => IndexOfEntity(entityGraph, child))
                 .Where(index => index >= 0)
                 .ToArray() ?? Array.Empty<int>(),
             WeaponGroups = entity.WeaponGroups?
@@ -984,7 +983,7 @@ public class ActionGameManager : MonoBehaviour
         return entity.EntityInfoGathered
             .Select(contact =>
             {
-                var targetIndex = entityGraph.IndexOf(contact.Key);
+                var targetIndex = IndexOfEntity(entityGraph, contact.Key);
                 entity.EntityHostility.TryGetValue(contact.Key, out var hostile);
                 return new AetheriaRuntimeEntityContactCommit
                 {
@@ -996,6 +995,20 @@ public class ActionGameManager : MonoBehaviour
             })
             .Where(contact => contact.TargetEntityIndex >= 0)
             .ToArray();
+    }
+
+    private static int IndexOfEntity(IReadOnlyList<Entity> entityGraph, Entity entity)
+    {
+        if (entityGraph == null || entity == null)
+            return -1;
+
+        for (var index = 0; index < entityGraph.Count; index++)
+        {
+            if (ReferenceEquals(entityGraph[index], entity))
+                return index;
+        }
+
+        return -1;
     }
 
     private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectRuntimeCargoBays<TBay>(IEnumerable<TBay> bays)
@@ -1019,18 +1032,20 @@ public class ActionGameManager : MonoBehaviour
     private static AetheriaRuntimeBehaviorStateCommit[] ProjectBehaviorStates(Entity entity)
     {
         var states = new List<AetheriaRuntimeBehaviorStateCommit>();
+        var zone = entity.Zone;
 
         for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            states.AddRange(ProjectBehaviorStates("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
+            states.AddRange(ProjectBehaviorStates(zone, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
 
         var activeConsumables = entity.ActiveConsumables;
         for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            states.AddRange(ProjectBehaviorStates("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
+            states.AddRange(ProjectBehaviorStates(zone, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
 
         return states.ToArray();
     }
 
     private static IEnumerable<AetheriaRuntimeBehaviorStateCommit> ProjectBehaviorStates(
+        Zone zone,
         string ownerKind,
         int ownerIndex,
         IReadOnlyList<Behavior> behaviors)
@@ -1104,7 +1119,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    ResourceScannerTargetBodyKey = BodyKey(resourceScanner.ScanTarget),
+                    ResourceScannerTargetBodyKey = zone?.GetBodyKey(resourceScanner.ScanTarget) ?? "",
                     ResourceScannerAsteroidIndex = resourceScanner.Asteroid,
                     ResourceScannerScanTime = resourceScanner.ScanTime,
                     ResourceScannerRange = resourceScanner.Range,
@@ -1116,7 +1131,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    MiningToolAsteroidBeltKey = BodyKey(miningTool.AsteroidBelt),
+                    MiningToolAsteroidBeltKey = zone?.GetBodyKey(miningTool.AsteroidBelt) ?? "",
                     MiningToolAsteroidIndex = miningTool.Asteroid,
                     MiningToolRange = miningTool.Range
                 };
@@ -1260,7 +1275,7 @@ public class ActionGameManager : MonoBehaviour
             if (weapon is LockWeapon lockWeapon)
             {
                 state.LockProgress = lockWeapon.LockProgress;
-                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : entityGraph.IndexOf(lockWeapon.LockTarget);
+                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : IndexOfEntity(entityGraph, lockWeapon.LockTarget);
             }
 
             yield return state;
@@ -1387,16 +1402,6 @@ public class ActionGameManager : MonoBehaviour
                 Item = ProjectLoadoutItem(slot.EquippableItem)
             })
             .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
-    }
-
-    private static string OrbitKey(Guid id)
-    {
-        return id == Guid.Empty ? "" : $"aetheria.orbit:legacy:{id:D}";
-    }
-
-    private static string BodyKey(Guid id)
-    {
-        return id == Guid.Empty ? "" : $"aetheria.body:legacy:{id:D}";
     }
 
     private static int ZoneIndex(GalaxyZone zone)

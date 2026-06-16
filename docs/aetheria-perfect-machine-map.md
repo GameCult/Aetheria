@@ -1774,7 +1774,9 @@ First Aetheria surfaces to publish:
 - `Aetheria.State.Verify` guards behavior body reference naming:
   resource-scanner and mining-tool runtime state surfaces use `BodyKey` fields;
   old `*BodyId` readback names and generic legacy reference parsers may not
-  return.
+  return. `Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime
+  body/orbit key surfaces consumed by `ActionGameManager` projection, so local
+  body/orbit key formatters may not return there either.
 - `Aetheria.State.Verify` guards temporary `Faction` shell links: geoname and
   boss-hull relationships use typed keys, not legacy GUID projection fields.
 - `Aetheria.State.Verify` guards temporary `Faction` identity: equality,
