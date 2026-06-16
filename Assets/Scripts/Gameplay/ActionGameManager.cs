@@ -46,7 +46,7 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private static string _runtimeStateFilePath;
-    private static string RuntimeStateFilePath =>
+    public static string RuntimeStateFilePath =>
         _runtimeStateFilePath ??= AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
 
     private static RuntimePlayerSettings _runtimePlayerSettings;
@@ -315,6 +315,7 @@ public class ActionGameManager : MonoBehaviour
 
     public static Galaxy CurrentGalaxy;
     public static bool IsTutorial;
+    public static AetheriaRuntimeRunStateSnapshot ContinueRunState { get; set; }
     public static AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; private set; }
 
     public GameSettings Settings;
@@ -2420,8 +2421,17 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
-            PopulateLevel(CurrentGalaxy.Entrance);
+            var continuingRun = ContinueRunState;
+            var startZone = ResolveStartZone(continuingRun);
+            SectorMap.QueueZoneReveal(startZone.AdjacentZones.Prepend(startZone));
+            PopulateLevel(startZone);
+
+            if (continuingRun != null)
+            {
+                ContinueRunState = null;
+                return;
+            }
+
             var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
             var ship = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(
                 ItemManager,
@@ -2435,6 +2445,21 @@ public class ActionGameManager : MonoBehaviour
             ship.Activate();
             BindToEntity(ship);
         }
+    }
+
+    private static GalaxyZone ResolveStartZone(AetheriaRuntimeRunStateSnapshot run)
+    {
+        if (CurrentGalaxy?.Zones == null || CurrentGalaxy.Zones.Length == 0)
+            return CurrentGalaxy?.Entrance;
+
+        if (run != null &&
+            run.CurrentZoneIndex >= 0 &&
+            run.CurrentZoneIndex < CurrentGalaxy.Zones.Length)
+        {
+            return CurrentGalaxy.Zones[run.CurrentZoneIndex];
+        }
+
+        return CurrentGalaxy.Entrance;
     }
 
     private IEnumerator IntroCutscene(Ship ship)

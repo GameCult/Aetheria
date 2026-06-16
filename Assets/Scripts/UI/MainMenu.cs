@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -88,7 +89,8 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
         if (!InGame)
         {
-            _nextMenu.panel.AddButton("Continue", null);
+            var continueRun = LatestContinueRun();
+            _nextMenu.panel.AddButton("Continue", continueRun == null ? null : () => ContinueGame(continueRun));
         }
         _nextMenu.panel.AddButton("New Game",
             () =>
@@ -169,6 +171,75 @@ public class MainMenu : MonoBehaviour
     {
         var seed = (uint)Random.Range(1, int.MaxValue);
         return seed == 0 ? 1u : seed;
+    }
+
+    private static AetheriaRuntimeRunStateSnapshot LatestContinueRun()
+    {
+        try
+        {
+            return AetheriaRuntimeCatalogStore
+                .ReadRunStates(ActionGameManager.RuntimeStateFilePath)
+                .Where(run => !string.IsNullOrWhiteSpace(run.RunId))
+                .OrderByDescending(run => run.UpdatedAtUtc, StringComparer.Ordinal)
+                .ThenByDescending(run => run.RunId, StringComparer.Ordinal)
+                .FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed Aetheria run state for Continue: {ex}");
+            return null;
+        }
+    }
+
+    private void ContinueGame(AetheriaRuntimeRunStateSnapshot run)
+    {
+        if (run == null)
+            return;
+
+        var generatorState = "Loading typed run";
+        Action<string> setState = s => generatorState = s;
+
+        Fade(true);
+        _nextMenu.panel.gameObject.SetActive(false);
+        Dialog.Clear();
+        Dialog.Title.text = "Continuing Run";
+        Dialog.AddProperty(() => generatorState);
+        Dialog.Show();
+
+        ActionGameManager.IsTutorial = run.IsTutorial;
+        ActionGameManager.ContinueRunState = run;
+        var generationSeed = run.GenerationSeed == 0 ? NextGenerationSeed() : run.GenerationSeed;
+        var sectorSettings = run.IsTutorial ? Settings.TutorialGenerationSettings : Settings.SectorGenerationSettings;
+        var backgroundSettings = run.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
+        backgroundSettings.NoisePosition = generationSeed;
+
+        Task.Run(() =>
+        {
+            var sector = run.IsTutorial
+                ? new Galaxy(
+                    Settings.TutorialGenerationSettings,
+                    Settings.TutorialBackgroundSettings,
+                    Settings.NameGeneratorSettings,
+                    ActionGameManager.RuntimeCatalog,
+                    ActionGameManager.RuntimePlayerSettings,
+                    ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
+                    Debug.Log,
+                    setState,
+                    generationSeed)
+                : new Galaxy(
+                    sectorSettings,
+                    backgroundSettings,
+                    Settings.NameGeneratorSettings,
+                    ActionGameManager.RuntimeCatalog,
+                    Debug.Log,
+                    setState,
+                    generationSeed);
+            Observable.NextFrame().Subscribe(_ =>
+            {
+                ActionGameManager.CurrentGalaxy = sector;
+                SceneManager.LoadScene("ARPG");
+            });
+        }).WrapErrors();
     }
 
     private void ShowSettings()

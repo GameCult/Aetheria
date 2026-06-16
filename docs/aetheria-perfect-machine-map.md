@@ -962,11 +962,18 @@ First Aetheria surfaces to publish:
      zone load. `AetheriaRuntimeZoneStateSnapshot.RecordKey` preserves the exact
      typed zone identity, and `ActionGameManager` restores only the matching
      `RunId + ZoneIndex` pickup rows through `ZoneRenderer.DropItem`.
+   - Done: replace the main-menu null `Continue` button with a typed run-state
+     entry point. `MainMenu` reads available `AetheriaRunState` records through
+     `AetheriaRuntimeCatalogStore`, selects the newest run, regenerates the
+     galaxy from the saved generation seed, and passes the selected run to
+     `ActionGameManager` so boot enters the saved current zone and lowers typed
+     pickup rows. Entity/player reconstruction from `AetheriaEntitySnapshot`
+     remains future Continue work, not a fake restored ship.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     complete Continue/run restore from typed state, typed behavior factory
-     construction, remaining behavior-private state not covered by progress,
-     weapon, sensor, radiator, reactor, or capacitor rows, and any catalog
-     fields not covered by the stable scalar/fingerprint/payload pass.
+     complete Continue/run entity reconstruction from typed state, typed
+     behavior factory construction, remaining behavior-private state not covered
+     by progress, weapon, sensor, radiator, reactor, or capacitor rows, and any
+     catalog fields not covered by the stable scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can

@@ -13,6 +13,7 @@ RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
+RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
@@ -467,6 +468,7 @@ Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI T
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
+Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
@@ -775,6 +777,65 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "MainMenu no longer routes settings changes through ActionGameManager: " +
             string.Join(", ", missingUiCalls));
+    }
+}
+
+static void RequireMainMenuContinueRunState(string root)
+{
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var mainMenu = File.Exists(mainMenuPath)
+        ? File.ReadAllText(mainMenuPath)
+        : throw new InvalidOperationException("Cannot verify main-menu Continue path; MainMenu.cs is missing.");
+
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify Continue run authority; ActionGameManager.cs is missing.");
+
+    var requiredMenuSymbols = new[]
+    {
+        "LatestContinueRun",
+        "AetheriaRuntimeCatalogStore",
+        "ReadRunStates(ActionGameManager.RuntimeStateFilePath)",
+        "ContinueGame(continueRun)",
+        "ActionGameManager.ContinueRunState = run",
+        "SceneManager.LoadScene(\"ARPG\")"
+    };
+
+    var missingMenuSymbols = requiredMenuSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu Continue no longer selects typed run state: " +
+            string.Join(", ", missingMenuSymbols));
+    }
+
+    if (mainMenu.Contains("AddButton(\"Continue\", null)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("MainMenu Continue regressed to a null button.");
+    }
+
+    var requiredGameplaySymbols = new[]
+    {
+        "AetheriaRuntimeRunStateSnapshot ContinueRunState",
+        "ResolveStartZone(continuingRun)",
+        "if (continuingRun != null)",
+        "ContinueRunState = null",
+        "RestoreDroppedPickupsFromTypedZoneState"
+    };
+
+    var missingGameplaySymbols = requiredGameplaySymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingGameplaySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager no longer has the typed Continue boot path: " +
+            string.Join(", ", missingGameplaySymbols));
     }
 }
 
