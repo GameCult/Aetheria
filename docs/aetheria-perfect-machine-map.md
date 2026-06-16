@@ -1370,8 +1370,10 @@ First Aetheria surfaces to publish:
      typed orbit keys with `Zone` owning orbit-key resolution. Orbital runtime
      entities and runtime construction blueprints now also retain typed
      `OrbitKey` values, with `Zone` owning orbital movement and dock-camera
-     parent-orbit resolution for that seam. Remaining broader simulation paths
-     still derive legacy GUIDs until those structures move to typed keys.
+     parent-orbit resolution for that seam. Renderer, intro-cutscene, and
+     `ResourceScanner` orbit readers now also consume the wrapper `OrbitKey`
+     edge instead of wrapper GUID orbit fields. Remaining broader simulation
+     paths still derive legacy GUIDs until those structures move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup

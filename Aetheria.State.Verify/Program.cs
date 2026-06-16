@@ -16,6 +16,7 @@ RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
 RequireTypedOrbitTaskKeys(root);
 RequireTypedOrbitalEntityOrbitKeys(root);
+RequireTypedOrbitConsumerKeys(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -1036,6 +1037,84 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
     {
         throw new InvalidOperationException(
             "Orbital runtime seam must stay on typed orbit keys through the entity owner, blueprint projector, and docking path: " +
+            string.Join("; ", missingSymbols));
+    }
+}
+
+static void RequireTypedOrbitConsumerKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "ResourceScanner.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "planet => planet.OrbitId == followOrbit",
+        "planet => planet.OrbitId == rootOrbit",
+        "body => body.OrbitId == orbit.ID",
+        "body => body.Orbit == orbit.ID",
+        "GetOrbitPosition(planetInstance.OrbitId)",
+        "Zone.Orbits[planetInstance.OrbitId].Parent",
+        "zone.Orbits[belt.Orbit]",
+        "GetOrbitPosition(planet.OrbitId)"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbit consumer edges must read typed OrbitKey surfaces rather than wrapper GUID fields in gameplay, renderer, and sensor code: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
+        {
+            "Zone.Orbits.Values.MinBy(orbit => lengthsq(Zone.GetOrbitPosition(orbit.OrbitKey) - entityPosition))",
+            "planet => planet.OrbitKey == followOrbit.OrbitKey",
+            "planet => planet.OrbitKey == rootOrbit.OrbitKey",
+            "Zone.TryGetOrbit(rootOrbit.ParentOrbitKey, out var parentOrbit)",
+            "Zone.GetOrbitPosition(followOrbit.OrbitKey)",
+            "Zone.GetOrbitPosition(rootOrbit.OrbitKey)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
+        {
+            "body => body.OrbitKey == orbit.OrbitKey",
+            "Zone.GetOrbitPosition(planetInstance.OrbitKey)",
+            "Zone.GetOrbitPosition(planetInstance.Orbit.ParentOrbitKey)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "ResourceScanner.cs")] = new[]
+        {
+            "Entity.Zone.GetOrbitPosition(planet.OrbitKey)"
+        }
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbit consumer edges must stay keyed at the public runtime wrapper surface: " +
             string.Join("; ", missingSymbols));
     }
 }

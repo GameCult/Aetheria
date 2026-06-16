@@ -75,7 +75,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         }
         else if (Entity.Zone.TryGetPlanet(ScanTargetBodyKey, out var planet))
         {
-            if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planet.OrbitId)) < Range)
+            if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planet.OrbitKey)) < Range)
             {
                 _scanTime += dt;
                 if (_scanTime > ScanDuration)

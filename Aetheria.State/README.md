@@ -137,6 +137,11 @@ rule: `OrbitalEntity` and `OrbitalEntityConstructionBlueprint` retain
 `OrbitKey`, runtime loadout generation seeds the empty value as `""`, and
 `Zone` resolves orbit keys for orbital entity movement and dock camera parent
 lookup.
+Renderer and gameplay orbit consumers now stay on that keyed edge too:
+intro-cutscene planet selection, zone planet/belt loading, gas-giant parent
+lighting, asteroid-belt UI setup, and `ResourceScanner` planet range checks all
+read `OrbitKey` from runtime wrappers and ask `Zone` to resolve it instead of
+reading wrapper GUID orbit fields directly.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

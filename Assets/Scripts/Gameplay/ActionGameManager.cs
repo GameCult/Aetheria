@@ -2901,20 +2901,21 @@ public class ActionGameManager : MonoBehaviour
     {
         ZoneRenderer.PerspectiveEntity = ship;
         var entityPosition = ship.Position.xz;
-        var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitId == followOrbit).ID;
+        var followOrbit = Zone.Orbits.Values.MinBy(orbit => lengthsq(Zone.GetOrbitPosition(orbit.OrbitKey) - entityPosition));
+        var followPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == followOrbit.OrbitKey).ID;
         var followPlanet = ZoneRenderer.Planets[followPlanetId];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Parent != Guid.Empty)
-            rootOrbit = Zone.Orbits[rootOrbit].Parent;
-        var rootPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitId == rootOrbit).ID;
+        while (!string.IsNullOrWhiteSpace(rootOrbit.ParentOrbitKey) &&
+               Zone.TryGetOrbit(rootOrbit.ParentOrbitKey, out var parentOrbit))
+            rootOrbit = parentOrbit;
+        var rootPlanetId = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == rootOrbit.OrbitKey).ID;
         var rootPlanet = ZoneRenderer.Planets[rootPlanetId];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
         var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
-        var followOrbitPosition = Zone.GetOrbitPosition(followOrbit);
-        var shipDirection = normalize(Zone.GetOrbitPosition(rootOrbit) - followOrbitPosition);
+        var followOrbitPosition = Zone.GetOrbitPosition(followOrbit.OrbitKey);
+        var shipDirection = normalize(Zone.GetOrbitPosition(rootOrbit.OrbitKey) - followOrbitPosition);
         ship.Position.xz = followOrbitPosition - shipDirection * shipVelocity * IntroDuration;
 
         var startTime = Time.time;

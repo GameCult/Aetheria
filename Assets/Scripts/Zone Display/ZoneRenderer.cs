@@ -191,14 +191,14 @@ public class ZoneRenderer : MonoBehaviour
         SlimeRenderer.ZoneRadius = zone.Radius;
         foreach (var orbit in zone.Orbits.Values)
         {
-            var planet = zone.PlanetInstances.Values.FirstOrDefault(body => body.OrbitId == orbit.ID);
+            var planet = zone.PlanetInstances.Values.FirstOrDefault(body => body.OrbitKey == orbit.OrbitKey);
             if (planet != null)
             {
                 LoadPlanet(planet);
                 continue;
             }
 
-            var belt = zone.AsteroidBelts.Values.FirstOrDefault(body => body.Orbit == orbit.ID);
+            var belt = zone.AsteroidBelts.Values.FirstOrDefault(body => body.OrbitKey == orbit.OrbitKey);
             if (belt != null) LoadAsteroidBelt(belt);
         }
 
@@ -506,7 +506,7 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var planet in Planets)
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.OrbitId);
+            var p = Zone.GetOrbitPosition(planetInstance.OrbitKey);
             var height = Zone.GetHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
@@ -517,7 +517,7 @@ public class ZoneRenderer : MonoBehaviour
                     Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.OrbitId].Parent) - p);
+                    var toParent = normalize(Zone.GetOrbitPosition(planetInstance.Orbit.ParentOrbitKey) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -628,7 +628,6 @@ public class AsteroidBeltUI
     private Vector3[] _normals;
     private Vector2[] _uvs;
     private int[] _indices;
-    private Guid _orbitParent;
     private Mesh _mesh;
     private float _size;
     private Zone _zone;
@@ -647,8 +646,6 @@ public class AsteroidBeltUI
         _zone = zone;
         Filter = meshFilter;
         _collider = collider;
-        var orbit = zone.Orbits[belt.Orbit];
-        _orbitParent = orbit.Parent;
         _vertices = new Vector3[_belt.AsteroidCount * 4];
         _normals = new Vector3[_belt.AsteroidCount * 4];
         _uvs = new Vector2[_belt.AsteroidCount * 4];
