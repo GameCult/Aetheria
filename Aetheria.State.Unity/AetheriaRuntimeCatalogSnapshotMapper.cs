@@ -16,11 +16,11 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
     private static AetheriaRuntimeCatalogItem FromState(AetheriaItemDefinition item)
     {
         return new AetheriaRuntimeCatalogItem(
-            item.LegacyId,
+            item.ItemKey,
             item.Name,
             item.Category,
             item.Description,
-            item.ManufacturerLegacyId,
+            item.ManufacturerKey,
             item.Price,
             item.Mass,
             item.SpecificHeat,
@@ -141,23 +141,23 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
     private static AetheriaRuntimeCorporation FromState(AetheriaCorporation corporation)
     {
         return new AetheriaRuntimeCorporation(
-            corporation.LegacyId,
+            corporation.CorporationKey,
             corporation.Name,
             corporation.ShortName,
             corporation.Description,
-            corporation.GeonameFileLegacyId,
-            corporation.BossHullLegacyId,
+            corporation.GeonameFileKey,
+            corporation.BossHullItemKey,
             corporation.InfluenceDistance,
             corporation.AllegianceCount,
             corporation.Allegiances.Select(allegiance => new AetheriaRuntimeCorporationAllegiance(
-                allegiance.CorporationLegacyId,
+                allegiance.CorporationKey,
                 allegiance.Weight)).ToArray());
     }
 
     private static AetheriaRuntimeNameFile FromState(AetheriaNameFile nameFile)
     {
         return new AetheriaRuntimeNameFile(
-            nameFile.LegacyId,
+            nameFile.NameFileKey,
             nameFile.Name,
             nameFile.NameCount,
             nameFile.SampleNames,

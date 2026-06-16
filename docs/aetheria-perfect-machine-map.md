@@ -694,8 +694,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   indexes items by canonical item key, and Unity gameplay/UI/zone helper
   lookups resolve `ItemKey` directly rather than deriving legacy GUIDs for
   `FindItemByLegacyId`. The package snapshot no longer exposes item,
-  corporation, or name-file `Find*ByLegacyId` indexes; legacy-ID lookup remains
-  only on the canonical `Aetheria.State` migration/catalog inspection boundary.
+  corporation, or name-file `Find*ByLegacyId` indexes, and its runtime
+  item/corporation/name-file DTOs no longer publish legacy relationship fields;
+  legacy-ID lookup remains only on the canonical `Aetheria.State`
+  migration/catalog inspection boundary.
   The shared runtime item catalog reader no longer has a GUID index or
   `GetRuntimeItem(Guid)` entry point; item-key strings are the only lookup authority;
   there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
@@ -1761,8 +1763,10 @@ First Aetheria surfaces to publish:
   faction resolver, or `CorporationLegacyId` relationship read may return to
   the live `Galaxy`/`LoadoutGenerator` path.
 - `Aetheria.State.Verify` guards Unity runtime catalog lookup authority:
-  package snapshots may expose typed-key lookup only, while legacy-ID lookup
-  remains quarantined in canonical migration/catalog inspection APIs.
+  package snapshots may expose typed-key lookup only, and runtime
+  item/corporation/name-file DTOs may not publish legacy relationship fields;
+  legacy-ID lookup remains quarantined in canonical migration/catalog
+  inspection APIs.
 - `Aetheria.State.Verify` guards behavior body reference naming:
   resource-scanner and mining-tool runtime state surfaces use `BodyKey` fields;
   old `*BodyId` readback names and generic legacy reference parsers may not

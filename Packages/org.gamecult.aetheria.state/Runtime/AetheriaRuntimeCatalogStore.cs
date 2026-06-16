@@ -298,11 +298,11 @@ namespace GameCult.Aetheria.State.Unity
             SkipRemaining(ref reader, fields, 50);
 
             return new AetheriaRuntimeCatalogItem(
-                legacyId,
+                ItemDefinitionKey(legacyId),
                 name,
                 category,
                 description,
-                manufacturerLegacyId,
+                CorporationKey(manufacturerLegacyId),
                 price,
                 mass,
                 specificHeat,
@@ -364,12 +364,12 @@ namespace GameCult.Aetheria.State.Unity
             var allegiances = ReadFieldCorporationAllegiances(ref reader, fields, 11);
             SkipRemaining(ref reader, fields, 12);
             return new AetheriaRuntimeCorporation(
-                legacyId,
+                CorporationKey(legacyId),
                 name,
                 shortName,
                 description,
-                geonameFileLegacyId,
-                bossHullLegacyId,
+                NameFileKey(geonameFileLegacyId),
+                ItemDefinitionKey(bossHullLegacyId),
                 influenceDistance,
                 allegianceCount,
                 allegiances);
@@ -385,7 +385,7 @@ namespace GameCult.Aetheria.State.Unity
             var sampleNames = ReadFieldStringArray(ref reader, fields, 3);
             var names = ReadFieldStringArray(ref reader, fields, 4);
             SkipRemaining(ref reader, fields, 5);
-            return new AetheriaRuntimeNameFile(legacyId, name, nameCount, sampleNames, names);
+            return new AetheriaRuntimeNameFile(NameFileKey(legacyId), name, nameCount, sampleNames, names);
         }
 
         private static EveSurfaceDocument ReadEveSurface(byte[] payload)
@@ -1388,7 +1388,7 @@ namespace GameCult.Aetheria.State.Unity
                 var corporationLegacyId = ReadFieldString(ref reader, allegianceFields, 0);
                 var weight = ReadFieldDouble(ref reader, allegianceFields, 1);
                 SkipRemaining(ref reader, allegianceFields, 2);
-                allegiances[allegiance] = new AetheriaRuntimeCorporationAllegiance(corporationLegacyId, weight);
+                allegiances[allegiance] = new AetheriaRuntimeCorporationAllegiance(CorporationKey(corporationLegacyId), weight);
             }
 
             return allegiances;
@@ -1636,7 +1636,7 @@ namespace GameCult.Aetheria.State.Unity
             var itemKeyValue = ReadFieldString(ref reader, valueFields, 7);
             SkipRemaining(ref reader, valueFields, 8);
             if (string.IsNullOrWhiteSpace(itemKeyValue))
-                itemKeyValue = ProjectLegacyItemKey(legacyIdValue);
+                itemKeyValue = ItemDefinitionKey(legacyIdValue);
             return new AetheriaRuntimeBehaviorValue(kind, stringValue, numberValue, boolValue, legacyIdValue, itemKeyValue, children, mapEntries);
         }
 
@@ -1680,11 +1680,25 @@ namespace GameCult.Aetheria.State.Unity
                 Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
         }
 
-        private static string ProjectLegacyItemKey(string legacyItemId)
+        private static string ItemDefinitionKey(string legacyItemId)
         {
             return string.IsNullOrWhiteSpace(legacyItemId)
                 ? ""
                 : $"aetheria.item_definition:legacy:{legacyItemId.Trim()}";
+        }
+
+        private static string CorporationKey(string legacyCorporationId)
+        {
+            return string.IsNullOrWhiteSpace(legacyCorporationId)
+                ? ""
+                : $"aetheria.corporation:legacy:{legacyCorporationId.Trim()}";
+        }
+
+        private static string NameFileKey(string legacyNameFileId)
+        {
+            return string.IsNullOrWhiteSpace(legacyNameFileId)
+                ? ""
+                : $"aetheria.name_file:legacy:{legacyNameFileId.Trim()}";
         }
 
         private static string ReadString(ref MessagePackReader reader)

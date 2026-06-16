@@ -129,8 +129,9 @@ The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.
 The Unity runtime package snapshot also no longer exposes item, corporation, or
-name-file lookup by legacy ID. Canonical legacy-ID lookup remains only in
-`Aetheria.State` migration/catalog inspection APIs.
+name-file lookup by legacy ID, and its item/corporation/name-file DTOs no
+longer publish legacy relationship fields. Canonical legacy-ID lookup remains
+only in `Aetheria.State` migration/catalog inspection APIs.
 The shared runtime item catalog reader is also item-key-only now: its GUID index,
 `GetRuntimeItem(Guid)` entry point, raw GUID string fallback,
 `AetheriaRuntimeItemReference(Guid)` constructor, `FromLegacyId`, and reverse

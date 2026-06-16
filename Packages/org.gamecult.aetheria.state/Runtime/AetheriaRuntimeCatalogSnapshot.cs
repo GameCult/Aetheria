@@ -92,11 +92,11 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeCatalogItem
     {
         public AetheriaRuntimeCatalogItem(
-            string legacyId,
+            string itemKey,
             string name,
             string category,
             string description,
-            string manufacturerLegacyId,
+            string manufacturerKey,
             int price,
             double mass,
             double specificHeat,
@@ -141,15 +141,11 @@ namespace GameCult.Aetheria.State.Unity
             string simpleCommodityCategory,
             string compoundCommodityCategory)
         {
-            LegacyId = legacyId;
-            ItemKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.item_definition:legacy:{legacyId}";
+            ItemKey = itemKey;
             Name = name;
             Category = category;
             Description = description;
-            ManufacturerLegacyId = manufacturerLegacyId;
-            ManufacturerKey = string.IsNullOrWhiteSpace(manufacturerLegacyId)
-                ? ""
-                : $"aetheria.corporation:legacy:{manufacturerLegacyId}";
+            ManufacturerKey = manufacturerKey;
             Price = price;
             Mass = mass;
             SpecificHeat = specificHeat;
@@ -195,12 +191,10 @@ namespace GameCult.Aetheria.State.Unity
             CompoundCommodityCategory = compoundCommodityCategory;
         }
 
-        public string LegacyId { get; }
         public string ItemKey { get; }
         public string Name { get; }
         public string Category { get; }
         public string Description { get; }
-        public string ManufacturerLegacyId { get; }
         public string ManufacturerKey { get; }
         public int Price { get; }
         public double Mass { get; }
@@ -449,38 +443,32 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeCorporation
     {
         public AetheriaRuntimeCorporation(
-            string legacyId,
+            string corporationKey,
             string name,
             string shortName,
             string description,
-            string geonameFileLegacyId,
-            string bossHullLegacyId,
+            string geonameFileKey,
+            string bossHullItemKey,
             int influenceDistance,
             int allegianceCount,
             IReadOnlyList<AetheriaRuntimeCorporationAllegiance> allegiances)
         {
-            LegacyId = legacyId;
+            CorporationKey = corporationKey;
             Name = name;
             ShortName = shortName;
             Description = description;
-            GeonameFileLegacyId = geonameFileLegacyId;
-            BossHullLegacyId = bossHullLegacyId;
-            CorporationKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.corporation:legacy:{legacyId}";
-            GeonameFileKey = string.IsNullOrWhiteSpace(geonameFileLegacyId) ? "" : $"aetheria.name_file:legacy:{geonameFileLegacyId}";
-            BossHullItemKey = string.IsNullOrWhiteSpace(bossHullLegacyId) ? "" : $"aetheria.item_definition:legacy:{bossHullLegacyId}";
+            GeonameFileKey = geonameFileKey;
+            BossHullItemKey = bossHullItemKey;
             InfluenceDistance = influenceDistance;
             AllegianceCount = allegianceCount;
             Allegiances = allegiances;
         }
 
-        public string LegacyId { get; }
         public string CorporationKey { get; }
         public string Name { get; }
         public string ShortName { get; }
         public string Description { get; }
-        public string GeonameFileLegacyId { get; }
         public string GeonameFileKey { get; }
-        public string BossHullLegacyId { get; }
         public string BossHullItemKey { get; }
         public int InfluenceDistance { get; }
         public int AllegianceCount { get; }
@@ -489,16 +477,12 @@ namespace GameCult.Aetheria.State.Unity
 
     public sealed class AetheriaRuntimeCorporationAllegiance
     {
-        public AetheriaRuntimeCorporationAllegiance(string corporationLegacyId, double weight)
+        public AetheriaRuntimeCorporationAllegiance(string corporationKey, double weight)
         {
-            CorporationLegacyId = corporationLegacyId;
-            CorporationKey = string.IsNullOrWhiteSpace(corporationLegacyId)
-                ? ""
-                : $"aetheria.corporation:legacy:{corporationLegacyId}";
+            CorporationKey = corporationKey;
             Weight = weight;
         }
 
-        public string CorporationLegacyId { get; }
         public string CorporationKey { get; }
         public double Weight { get; }
     }
@@ -506,21 +490,19 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeNameFile
     {
         public AetheriaRuntimeNameFile(
-            string legacyId,
+            string nameFileKey,
             string name,
             int nameCount,
             IReadOnlyList<string> sampleNames,
             IReadOnlyList<string> names)
         {
-            LegacyId = legacyId;
-            NameFileKey = string.IsNullOrWhiteSpace(legacyId) ? "" : $"aetheria.name_file:legacy:{legacyId}";
+            NameFileKey = nameFileKey;
             Name = name;
             NameCount = nameCount;
             SampleNames = sampleNames;
             Names = names;
         }
 
-        public string LegacyId { get; }
         public string NameFileKey { get; }
         public string Name { get; }
         public int NameCount { get; }

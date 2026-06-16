@@ -121,7 +121,7 @@ if (!catalog.FindItemsByHardpoint(equipment.HardpointType).Any())
     throw new InvalidOperationException($"Runtime catalog hardpoint lookup failed for {equipment.HardpointType}.");
 }
 
-var manufactured = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
+var manufactured = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerKey))
     ?? throw new InvalidOperationException("Runtime catalog has no manufactured item.");
 if (string.IsNullOrWhiteSpace(manufactured.ManufacturerKey) ||
     catalog.FindCorporation(manufactured.ManufacturerKey) == null ||
@@ -130,7 +130,7 @@ if (string.IsNullOrWhiteSpace(manufactured.ManufacturerKey) ||
     throw new InvalidOperationException($"Runtime catalog typed manufacturer lookup failed for {manufactured.Name}.");
 }
 
-var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId));
+var packageCorporation = packageCatalog.Corporations.FirstOrDefault(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileKey));
 if (packageCorporation == null)
 {
     throw new InvalidOperationException("Package catalog store did not read any corporation name-file links.");

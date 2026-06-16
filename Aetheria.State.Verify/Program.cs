@@ -718,7 +718,16 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
         "_nameFilesByLegacyId",
         "FindItemByLegacyId",
         "FindCorporationByLegacyId",
-        "FindNameFileByLegacyId"
+        "FindNameFileByLegacyId",
+        "public string LegacyId { get; }",
+        "public string ManufacturerLegacyId",
+        "public string GeonameFileLegacyId",
+        "public string BossHullLegacyId",
+        "public string CorporationLegacyId",
+        ".ManufacturerLegacyId",
+        ".GeonameFileLegacyId",
+        ".BossHullLegacyId",
+        ".CorporationLegacyId"
     };
 
     var hits = checkedFiles

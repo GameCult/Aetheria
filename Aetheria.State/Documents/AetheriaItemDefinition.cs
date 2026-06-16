@@ -19,6 +19,11 @@ public sealed class AetheriaItemDefinition
     [CultIndex("legacyId")]
     public string LegacyId { get; set; } = "";
 
+    [IgnoreMember]
+    public string ItemKey => string.IsNullOrWhiteSpace(LegacyId)
+        ? ""
+        : $"aetheria.item_definition:legacy:{LegacyId}";
+
     [Key(3)]
     public string Description { get; set; } = "";
 
