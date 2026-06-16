@@ -2544,6 +2544,7 @@ public class ActionGameManager : MonoBehaviour
         Zone.Entities.Add(entity);
         entity.Activate();
         entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled;
+        entity.RestoreStatGrids(entitySnapshot.StatGrids);
         entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
         RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
         BindToEntity(entity);

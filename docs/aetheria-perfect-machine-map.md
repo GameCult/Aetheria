@@ -975,8 +975,10 @@ First Aetheria surfaces to publish:
      through the existing construction blueprint path, restores hull,
      equipment, cargo, docking contents, weapon groups, position, direction,
      velocity, shutdown override, heatsink toggle, tractor power,
-     heatstroke/hypothermia exposure, and active consumable item/timer rows,
-     then binds the lowered entity as the current player ship.
+     heatstroke/hypothermia exposure, active consumable item/timer rows,
+     and typed stat grids for temperature, thermal mass, armor, max armor,
+     and hull-conductivity axes, then binds the lowered entity as the current
+     player ship.
    - Remaining: add typed documents/mappers for runtime object graphs,
      complete full Continue/run entity graph reconstruction from typed state
      for non-current entities, child/docked entity activation, targets,

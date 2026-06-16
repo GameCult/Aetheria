@@ -329,9 +329,79 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this, remainingDuration, duration));
     }
 
+    public void RestoreStatGrids(IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> grids)
+    {
+        if (grids == null)
+            return;
+
+        foreach (var grid in grids)
+        {
+            switch (grid.Name)
+            {
+                case "temperature":
+                    RestoreFloatGrid(grid, Temperature);
+                    RestoreFloatGrid(grid, NewTemperature);
+                    break;
+                case "thermal_mass":
+                    RestoreFloatGrid(grid, ThermalMass);
+                    break;
+                case "armor":
+                    RestoreFloatGrid(grid, Armor);
+                    break;
+                case "max_armor":
+                    RestoreFloatGrid(grid, MaxArmor);
+                    break;
+                case "hull_conductivity_x":
+                    RestoreHullConductivityGrid(grid, axis: 0);
+                    break;
+                case "hull_conductivity_y":
+                    RestoreHullConductivityGrid(grid, axis: 1);
+                    break;
+            }
+        }
+    }
+
     public ConsumableItemEffect FindActiveConsumable(string itemKey)
     {
         return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
+    }
+
+    private static void RestoreFloatGrid(AetheriaRuntimeEntityStatGridSnapshot grid, float[,] target)
+    {
+        if (!CanRestoreGrid(grid, target))
+            return;
+
+        var index = 0;
+        for (var y = 0; y < grid.Height; y++)
+        for (var x = 0; x < grid.Width; x++)
+            target[x, y] = (float)grid.Values[index++];
+    }
+
+    private void RestoreHullConductivityGrid(AetheriaRuntimeEntityStatGridSnapshot grid, int axis)
+    {
+        if (!CanRestoreGrid(grid, HullConductivity))
+            return;
+
+        var index = 0;
+        for (var y = 0; y < grid.Height; y++)
+        for (var x = 0; x < grid.Width; x++)
+        {
+            var conductivity = HullConductivity[x, y];
+            if (axis == 0)
+                conductivity.x = grid.Values[index++] >= 0.5;
+            else
+                conductivity.y = grid.Values[index++] >= 0.5;
+            HullConductivity[x, y] = conductivity;
+        }
+    }
+
+    private static bool CanRestoreGrid<T>(AetheriaRuntimeEntityStatGridSnapshot grid, T[,] target)
+    {
+        return grid != null &&
+               target != null &&
+               grid.Width == target.GetLength(0) &&
+               grid.Height == target.GetLength(1) &&
+               grid.Values?.Count == grid.Width * grid.Height;
     }
 
     public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)

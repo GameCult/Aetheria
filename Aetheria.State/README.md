@@ -179,7 +179,8 @@ persist hull simulation grids into `AetheriaEntitySnapshot`, so
 `EntityConstructionBlueprint` is no longer the only surface carrying those live
 values. Continue restore lowers the current player entity from the exact typed
 entity snapshot record, including position, velocity, shutdown/heatsink state,
-thermal exposure, and active consumable timers. Broader runtime object graphs
+thermal exposure, active consumable timers, and typed stat grids for
+temperature, thermal mass, armor, max armor, and hull conductivity. Broader runtime object graphs
 and behavior-private simulation state remain legacy until dedicated typed runtime documents exist. Live behavior
 instances expose typed behavior kind and group through `Behavior.Kind` and
 `Behavior.Group`; behavior construction now reads typed payload fields through

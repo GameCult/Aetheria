@@ -847,6 +847,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CreateEntityConstructionBlueprint(entitySnapshot, true)",
         "BindToEntity(entity)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
+        "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
         "ContinueRunState = null",
@@ -891,6 +892,8 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "RestoreThermalExposure",
         "RestoreActiveConsumable",
+        "RestoreStatGrids",
+        "RestoreHullConductivityGrid",
         "new ConsumableItemEffect(item, this, remainingDuration, duration)"
     };
     var missingEntityRestoreSymbols = requiredEntityRestoreSymbols
