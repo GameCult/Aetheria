@@ -113,6 +113,26 @@ namespace GameCult.Eve.UnityUIToolkit
                     var command = component.GetProp("command", component.GetProp("action", "invoke"));
                     return new Button(() => EmitCommand(document, component, command, commandSink)) { text = label };
                 }
+                case "control.text":
+                {
+                    var label = component.GetProp("label", component.GetProp("title", "Value"));
+                    var command = component.GetProp("command", component.GetProp("action", "set"));
+                    var value = component.GetProp("value");
+                    var field = new TextField(label);
+                    field.SetValueWithoutNotify(value);
+                    field.RegisterValueChangedCallback(evt =>
+                    {
+                        if (string.Equals(evt.newValue, value, StringComparison.Ordinal))
+                            return;
+
+                        var payload = new Dictionary<string, string>(component.Props, StringComparer.Ordinal)
+                        {
+                            ["value"] = evt.newValue ?? ""
+                        };
+                        EmitCommand(document, component, command, payload, commandSink);
+                    });
+                    return field;
+                }
                 default:
                 {
                     var element = new VisualElement();
@@ -131,6 +151,21 @@ namespace GameCult.Eve.UnityUIToolkit
             string command,
             Action<EveSurfaceCommandRequest>? commandSink)
         {
+            EmitCommand(
+                document,
+                component,
+                command,
+                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+                commandSink);
+        }
+
+        private static void EmitCommand(
+            EveSurfaceDocument document,
+            EveSurfaceComponent component,
+            string command,
+            IReadOnlyDictionary<string, string> payload,
+            Action<EveSurfaceCommandRequest>? commandSink)
+        {
             if (commandSink == null || string.IsNullOrWhiteSpace(command))
                 return;
 
@@ -138,7 +173,7 @@ namespace GameCult.Eve.UnityUIToolkit
                 document.ProviderId,
                 document.Surface.Id,
                 command,
-                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+                payload,
                 DateTimeOffset.UtcNow,
                 "unity-uitoolkit"));
         }
@@ -205,6 +240,8 @@ namespace GameCult.Eve.UnityUIToolkit
                 return "text";
             if (kind.StartsWith("control.button.", StringComparison.Ordinal))
                 return "control.button";
+            if (kind.StartsWith("control.text.", StringComparison.Ordinal))
+                return "control.text";
 
             return kind;
         }

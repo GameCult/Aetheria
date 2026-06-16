@@ -1515,8 +1515,12 @@ First Aetheria surfaces to publish:
    - Done: replace the main-menu gameplay/graphics settings screen with a
      locally lowered UI Toolkit projection of the shared
      `aetheria.player_settings` Eve surface contract. The menu shell still owns
-     entry/exit flow and player-name input, but gameplay now owns surface
-     command semantics through `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
+     entry/exit flow, but gameplay now owns surface command semantics through
+     `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
+   - Done: move the main-menu player-name field into the shared
+     `aetheria.player_settings` Eve surface contract. `MainMenu` no longer owns
+     a special-case text field; UI Toolkit lowers the shared Eve text control
+     and gameplay still owns the typed player-settings commit.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.

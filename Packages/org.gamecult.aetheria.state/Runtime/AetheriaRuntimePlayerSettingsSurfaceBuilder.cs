@@ -181,9 +181,13 @@ namespace GameCult.Aetheria.State.Unity
                             "aetheria.playerSettings.summary",
                             "card",
                             new[] { ("title", "Player Settings") },
+                            TextInput(
+                                "playerSettings.summary.playerName",
+                                "Name",
+                                settings.PlayerName,
+                                AetheriaRuntimePlayerSettingsCommands.SetPlayerName),
                             Row(
                                 "playerSettings.summary.values",
-                                ("playerName", settings.PlayerName),
                                 ("tutorialPassed", settings.TutorialPassed ? "Yes" : "No"),
                                 ("activeRun", settings.ActiveRunKey)),
                             Text(
@@ -243,6 +247,10 @@ namespace GameCult.Aetheria.State.Unity
                         "Refresh",
                         "cultmesh"),
                     new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimePlayerSettingsCommands.SetPlayerName,
+                        "Set Player Name",
+                        "cultmesh"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
                         "Cycle Temperature Unit",
                         "cultmesh"),
@@ -278,6 +286,11 @@ namespace GameCult.Aetheria.State.Unity
         private static AetheriaRuntimeSurfaceComponent Button(string id, string label, string command)
         {
             return Node(id, "control.button", new[] { ("label", label), ("command", command) });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent TextInput(string id, string label, string value, string command)
+        {
+            return Node(id, "control.text", new[] { ("label", label), ("value", value), ("command", command) });
         }
 
         private static AetheriaRuntimeSurfaceComponent ButtonRow(

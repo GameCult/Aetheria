@@ -486,7 +486,7 @@ Console.WriteLine("Package serializer boundary: MessagePack symbols remain in na
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
-Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
+Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
@@ -1980,7 +1980,6 @@ static void RequireMainMenuSettingsCommit(string root)
 
     var requiredMainMenuAuthoritySymbols = new[]
     {
-        "ActionGameManager.CommitRuntimePlayerName",
         "ActionGameManager.CommitRuntimePlayerSettingsCommand"
     };
 
@@ -1997,6 +1996,7 @@ static void RequireMainMenuSettingsCommit(string root)
 
     var requiredSharedCommands = new[]
     {
+        "SetPlayerName",
         "CycleTemperatureUnit",
         "DecrementSignificantDigits",
         "IncrementSignificantDigits",
@@ -2018,6 +2018,8 @@ static void RequireMainMenuSettingsCommit(string root)
     var requiredSurfaceBuilderSymbols = new[]
     {
         "AetheriaRuntimePlayerSettingsSurfaceBuilder",
+        "AetheriaRuntimePlayerSettingsCommands.SetPlayerName",
+        "\"control.text\"",
         "AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit",
         "AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits",
         "AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits",
@@ -2040,8 +2042,7 @@ static void RequireMainMenuSettingsCommit(string root)
     {
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
         "new EveUiToolkitSurfaceLowerer",
-        "ActionGameManager.CommitRuntimePlayerSettingsCommand",
-        "new TextField(\"Name\")"
+        "ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload)"
     };
 
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -2053,6 +2054,23 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "MainMenu no longer lowers the shared player-settings Eve surface contract: " +
             string.Join(", ", missingMainMenuSymbols));
+    }
+
+    var forbiddenMainMenuSymbols = new[]
+    {
+        "new TextField(\"Name\")",
+        "ActionGameManager.CommitRuntimePlayerName(evt.newValue)"
+    };
+
+    var mainMenuHits = forbiddenMainMenuSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (mainMenuHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu should not keep renderer-local player-name input authority outside the shared Eve surface: " +
+            string.Join(", ", mainMenuHits));
     }
 
     var forbiddenUiFieldSymbols = new[]
@@ -2141,7 +2159,9 @@ static void RequirePlayerSettingsEveSurface(string root)
 
     if (!bridge.Contains("AppliedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ApplyPlayerSettingsCommandAsync", StringComparison.Ordinal) ||
-        !bridge.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal))
+        !bridge.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
+        !bridge.Contains("SetPlayerName", StringComparison.Ordinal) ||
+        !bridge.Contains("command.Payload.TryGetValue(\"value\"", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Eve command bridge no longer owns the typed player-settings surface mutation path.");
@@ -2162,13 +2182,16 @@ static void RequirePlayerSettingsEveSurface(string root)
     }
 
     if (!sharedCommands.Contains("SurfaceId = \"aetheria.player_settings\"", StringComparison.Ordinal) ||
-        !sharedCommands.Contains("public static bool IsKnown", StringComparison.Ordinal))
+        !sharedCommands.Contains("public static bool IsKnown", StringComparison.Ordinal) ||
+        !sharedCommands.Contains("SetPlayerName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Shared player-settings Eve command contract is missing the surface id or command registry helper.");
     }
 
-    if (!surfaceBuilder.Contains("public static class AetheriaRuntimePlayerSettingsSurfaceBuilder", StringComparison.Ordinal))
+    if (!surfaceBuilder.Contains("public static class AetheriaRuntimePlayerSettingsSurfaceBuilder", StringComparison.Ordinal) ||
+        !surfaceBuilder.Contains("\"control.text\"", StringComparison.Ordinal) ||
+        !surfaceBuilder.Contains("SetPlayerName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Shared player-settings Eve surface builder no longer owns the portable settings surface contract.");

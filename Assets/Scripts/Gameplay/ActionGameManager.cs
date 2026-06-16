@@ -116,10 +116,22 @@ public class ActionGameManager : MonoBehaviour
         QueueRuntimePlayerSettingsCommit();
     }
 
-    public static bool CommitRuntimePlayerSettingsCommand(string command)
+    public static bool CommitRuntimePlayerSettingsCommand(
+        string command,
+        IReadOnlyDictionary<string, string> payload = null)
     {
         switch (command)
         {
+            case AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
+                if (payload != null && payload.TryGetValue("value", out var playerName))
+                {
+                    CommitRuntimePlayerName(playerName);
+                }
+                else
+                {
+                    CommitRuntimePlayerName("");
+                }
+                return true;
             case AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
                 CommitRuntimeTemperatureUnit(
                     RuntimePlayerSettings.GameplaySettings.TemperatureUnit switch

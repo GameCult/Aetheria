@@ -68,6 +68,7 @@ public static class AetheriaEveCommandBridge
                     report.AppliedOperationsRefreshes++;
                     break;
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
@@ -127,6 +128,12 @@ public static class AetheriaEveCommandBridge
 
         switch (command.Command)
         {
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
+                settings.PlayerName = command.Payload.TryGetValue("value", out var playerName)
+                    ? playerName ?? ""
+                    : "";
+                persistSettings = true;
+                break;
             case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
                 settings.Gameplay.TemperatureUnit = Cycle(
                     settings.Gameplay.TemperatureUnit,

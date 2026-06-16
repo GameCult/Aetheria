@@ -338,37 +338,12 @@ public class MainMenu : MonoBehaviour
         shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f);
         root.Add(shell);
 
-        var title = new Label("Player Settings");
-        title.style.unityFontStyleAndWeight = FontStyle.Bold;
-        title.style.fontSize = 24;
-        title.style.marginBottom = 6;
-        shell.Add(title);
-
-        var subtitle = new Label("Shared Eve surface lowered locally while gameplay keeps commit authority.");
-        subtitle.style.marginBottom = 12;
-        shell.Add(subtitle);
-
-        var nameField = new TextField("Name")
-        {
-            value = ActionGameManager.RuntimePlayerSettings.Name
-        };
-        nameField.style.marginBottom = 14;
-        nameField.RegisterValueChangedCallback(evt =>
-        {
-            if (string.Equals(evt.newValue, ActionGameManager.RuntimePlayerSettings.Name, StringComparison.Ordinal))
-                return;
-
-            ActionGameManager.CommitRuntimePlayerName(evt.newValue);
-            RenderPlayerSettingsSurface();
-        });
-        shell.Add(nameField);
-
         var lowerer = new EveUiToolkitSurfaceLowerer();
         var surface = lowerer.Lower(
             ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
             request =>
             {
-                if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command))
+                if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload))
                 {
                     Debug.LogWarning($"Unknown player-settings command: {request.Command}");
                     return;
