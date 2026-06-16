@@ -98,6 +98,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     public InventoryPanelTarget Target => 
         _displayedEntity != null ? InventoryPanelTarget.Equipment :
         _displayedCargo != null ? InventoryPanelTarget.Cargo : InventoryPanelTarget.None;
+    public Entity DisplayedEntity => _displayedEntity;
+    public EquippedCargoBay DisplayedCargo => _displayedCargo;
 
     private void Start()
     {

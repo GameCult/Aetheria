@@ -88,11 +88,9 @@ public class InventoryMenu : MonoBehaviour
                         if (e.clickCount == 2)
                         {
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            if (otherPanel.CanDropItem(item))
+                            if (CommitCargoItemTransfer(cargoEvent.CargoBay, otherPanel, item))
                             {
-                                otherPanel.DropItem(item);
                                 // TODO: SFX: Equip
-                                cargoEvent.CargoBay.Remove(item);
                                 panel.RefreshCells();
                                 otherPanel.RefreshCells();
                             }
@@ -122,20 +120,11 @@ public class InventoryMenu : MonoBehaviour
                         if (e.clickCount == 2)
                         {
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            if (otherPanel.CanDropItem(item.EquippableItem))
+                            if (CommitEquippedItemTransfer(entityEvent.Entity, item, otherPanel))
                             {
-                                if (!entityEvent.Entity.Active)
-                                {
-                                    if (entityEvent.Entity.TryUnequip(item) != null)
-                                    {
-                                        otherPanel.DropItem(item.EquippableItem);
-                                        // TODO: SFX: Unequip
-                                        panel.RefreshCells();
-                                        otherPanel.RefreshCells();
-                                    }
-                                    // else
-                                    // TODO: SFX: Fail
-                                }
+                                // TODO: SFX: Unequip
+                                panel.RefreshCells();
+                                otherPanel.RefreshCells();
                                 // else
                                 // TODO: SFX: Fail
                             }
@@ -168,6 +157,25 @@ public class InventoryMenu : MonoBehaviour
                     1);
             });
         }
+    }
+
+    private bool CommitCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
+    {
+        if (destination.DisplayedEntity != null && item is EquippableItem equippableItem)
+            return GameManager.CommitCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
+
+        if (destination.DisplayedCargo != null)
+            return GameManager.CommitCargoItemTransfer(origin, destination.DisplayedCargo, item);
+
+        return false;
+    }
+
+    private bool CommitEquippedItemTransfer(Entity origin, EquippedItem item, InventoryPanel destination)
+    {
+        if (destination.DisplayedCargo != null)
+            return GameManager.CommitEquippedItemStore(origin, item, destination.DisplayedCargo);
+
+        return false;
     }
 
     void Update()

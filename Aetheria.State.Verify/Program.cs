@@ -18,6 +18,7 @@ RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
 RequireWeaponGroupCommitAuthority(root);
+RequireInventoryDoubleClickTransferCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -465,6 +466,7 @@ Console.WriteLine("Runtime simulation tuning authority: UI writes flow through g
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
+Console.WriteLine("Inventory double-click transfer authority: UI transfer requests flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -914,6 +916,78 @@ static void RequireWeaponGroupCommitAuthority(string root)
     if (!assignment.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("WeaponGroupAssignment no longer routes membership changes through ActionGameManager.");
+    }
+}
+
+static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify inventory transfer authority; ActionGameManager.cs is missing.");
+
+    var requiredCommits = new[]
+    {
+        "CommitCargoItemTransfer",
+        "CommitCargoItemEquip",
+        "CommitEquippedItemStore",
+        "QueueRunCheckpoint(\"cargo-item-transfer\")",
+        "QueueRunCheckpoint(\"cargo-item-equip\")",
+        "QueueRunCheckpoint(\"equipped-item-store\")"
+    };
+
+    var missingCommits = requiredCommits
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingCommits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Inventory transfer no longer has complete gameplay-owned checkpoint commit primitives: " +
+            string.Join(", ", missingCommits));
+    }
+
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var inventoryMenu = File.Exists(inventoryMenuPath)
+        ? File.ReadAllText(inventoryMenuPath)
+        : throw new InvalidOperationException("Cannot verify inventory transfer authority; InventoryMenu.cs is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        ".DropItem(",
+        ".CargoBay.Remove(",
+        ".TryUnequip("
+    };
+
+    var hits = File.ReadLines(inventoryMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, inventoryMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu double-click transfer still owns direct inventory mutation: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredUiCalls = new[]
+    {
+        "GameManager.CommitCargoItemTransfer",
+        "GameManager.CommitCargoItemEquip",
+        "GameManager.CommitEquippedItemStore"
+    };
+
+    var missingUiCalls = requiredUiCalls
+        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingUiCalls.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu no longer routes double-click transfers through ActionGameManager: " +
+            string.Join(", ", missingUiCalls));
     }
 }
 

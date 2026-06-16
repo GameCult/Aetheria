@@ -1455,6 +1455,88 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public bool CommitCargoItemTransfer(EquippedCargoBay origin, EquippedCargoBay destination, ItemInstance item)
+    {
+        if (origin == null ||
+            destination == null ||
+            item == null ||
+            origin == destination ||
+            !origin.Cargo.ContainsKey(item) ||
+            !destination.TryFindSpace(item))
+        {
+            return false;
+        }
+
+        if (item is SimpleCommodity commodity)
+        {
+            var quantity = commodity.Quantity;
+            var transferItem = new SimpleCommodity
+            {
+                Reference = commodity.Reference,
+                Quantity = quantity,
+                Rotation = commodity.Rotation
+            };
+
+            if (!destination.TryStore(transferItem))
+                return false;
+
+            origin.Remove(commodity, quantity);
+            QueueRunCheckpoint("cargo-item-transfer");
+            return true;
+        }
+
+        if (!destination.TryStore(item))
+            return false;
+
+        origin.Remove(item);
+        QueueRunCheckpoint("cargo-item-transfer");
+        return true;
+    }
+
+    public bool CommitCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
+    {
+        if (origin == null ||
+            destination == null ||
+            item == null ||
+            !origin.Cargo.ContainsKey(item) ||
+            !destination.TryFindSpace(item, out _))
+        {
+            return false;
+        }
+
+        if (!destination.TryEquip(item))
+            return false;
+
+        origin.Remove(item);
+        QueueRunCheckpoint("cargo-item-equip");
+        return true;
+    }
+
+    public bool CommitEquippedItemStore(Entity origin, EquippedItem equippedItem, EquippedCargoBay destination)
+    {
+        if (origin == null ||
+            equippedItem?.EquippableItem == null ||
+            destination == null ||
+            !origin.Equipment.Contains(equippedItem) ||
+            !destination.TryFindSpace(equippedItem.EquippableItem))
+        {
+            return false;
+        }
+
+        var item = origin.TryUnequip(equippedItem);
+        if (item == null)
+            return false;
+
+        if (!destination.TryStore(item))
+        {
+            origin.TryEquip(item, equippedItem.Position);
+            return false;
+        }
+
+        QueueRunCheckpoint("equipped-item-store");
+        return true;
+    }
+
     public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
     {
         if (item?.EquippableItem == null)
