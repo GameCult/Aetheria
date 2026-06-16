@@ -995,7 +995,9 @@ First Aetheria surfaces to publish:
      into live behavior instances, and binds the saved current entity by
      `AetheriaRunState.CurrentEntityKey` so Continue restore follows exact typed
      entity identity instead of reconstructing the player ship from an integer
-     slot.
+     slot. Canonical run state and package runtime snapshots no longer keep the
+     old current-entity slot field; the package reader only synthesizes the key
+     from older stored runs when that compatibility seam is encountered.
    - Done: project run checkpoint entity snapshots from the flattened live
      entity graph, not only `Zone.Entities`, so docked child ships can receive
      typed entity records and stable child/docking references instead of

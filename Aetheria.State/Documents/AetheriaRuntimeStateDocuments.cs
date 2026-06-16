@@ -213,9 +213,6 @@ public sealed class AetheriaRunState
     [Key(4)]
     public int CurrentZoneIndex { get; set; }
 
-    [Key(5)]
-    public int CurrentZoneEntityIndex { get; set; }
-
     [Key(6)]
     public int[] DiscoveredZoneIndices { get; set; } = [];
 

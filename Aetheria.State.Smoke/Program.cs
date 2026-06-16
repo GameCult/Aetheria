@@ -462,7 +462,6 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         EntranceZoneIndex = 0,
         ExitZoneIndex = 1,
         CurrentZoneIndex = 0,
-        CurrentZoneEntityIndex = 0,
         CurrentEntityKey = entityKey.ToString(),
         GenerationSeed = 424242,
         DiscoveredZoneIndices = [0],

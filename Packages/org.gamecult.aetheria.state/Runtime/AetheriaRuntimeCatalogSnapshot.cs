@@ -690,7 +690,6 @@ namespace GameCult.Aetheria.State.Unity
             int entranceZoneIndex,
             int exitZoneIndex,
             int currentZoneIndex,
-            int currentZoneEntityIndex,
             string currentEntityKey,
             IReadOnlyList<int> discoveredZoneIndices,
             IReadOnlyList<string> zoneKeys,
@@ -704,7 +703,6 @@ namespace GameCult.Aetheria.State.Unity
             EntranceZoneIndex = entranceZoneIndex;
             ExitZoneIndex = exitZoneIndex;
             CurrentZoneIndex = currentZoneIndex;
-            CurrentZoneEntityIndex = currentZoneEntityIndex;
             CurrentEntityKey = currentEntityKey;
             DiscoveredZoneIndices = discoveredZoneIndices;
             ZoneKeys = zoneKeys;
@@ -719,7 +717,6 @@ namespace GameCult.Aetheria.State.Unity
         public int EntranceZoneIndex { get; }
         public int ExitZoneIndex { get; }
         public int CurrentZoneIndex { get; }
-        public int CurrentZoneEntityIndex { get; }
         public string CurrentEntityKey { get; }
         public IReadOnlyList<int> DiscoveredZoneIndices { get; }
         public IReadOnlyList<string> ZoneKeys { get; }

@@ -610,7 +610,6 @@ public class ActionGameManager : MonoBehaviour
             EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
             ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
             CurrentZoneIndex = currentZoneIndex,
-            CurrentZoneEntityIndex = IndexOfEntity(entityGraph, CurrentEntity),
             CurrentEntityKey = CurrentEntityRecordKey(runId, currentZoneIndex, entityGraph, CurrentEntity),
             GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
             DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
@@ -2503,7 +2502,7 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var zoneEntityKeyPrefix = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.";
-        var currentEntityKey = ResolveCurrentEntityRecordKey(run, zoneEntityKeyPrefix);
+        var currentEntityKey = ResolveCurrentEntityRecordKey(run);
         if (string.IsNullOrWhiteSpace(currentEntityKey))
         {
             Debug.LogWarning($"Typed run {run.RunId} does not identify a current entity for restored zone {zoneEntityKeyPrefix}.");
@@ -2550,18 +2549,11 @@ public class ActionGameManager : MonoBehaviour
             : $"global:aetheria.run_state.{runId}.zone.{currentZoneIndex}.entity.{currentZoneEntityIndex}.v1";
     }
 
-    private static string ResolveCurrentEntityRecordKey(
-        AetheriaRuntimeRunStateSnapshot run,
-        string zoneEntityKeyPrefix)
+    private static string ResolveCurrentEntityRecordKey(AetheriaRuntimeRunStateSnapshot run)
     {
-        if (!string.IsNullOrWhiteSpace(run.CurrentEntityKey))
-        {
-            return run.CurrentEntityKey;
-        }
-
-        return run.CurrentZoneEntityIndex < 0
+        return string.IsNullOrWhiteSpace(run.CurrentEntityKey)
             ? ""
-            : $"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1";
+            : run.CurrentEntityKey;
     }
 
     private void ReplaceZoneEntitiesFromTypedSnapshots(

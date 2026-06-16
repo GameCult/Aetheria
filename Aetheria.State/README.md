@@ -327,7 +327,9 @@ preserve equipment slots, weapon groups, and simulation stat grids without
 reviving `PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
 The run document also carries `CurrentEntityKey`, so Continue restore binds the
 saved player entity by exact typed record identity instead of reconstructing it
-from a transient entity-slot index.
+from a transient entity-slot index. Canonical typed run state no longer stores
+`CurrentZoneEntityIndex`; older stored runs are translated through the package
+reader into `CurrentEntityKey` when that compatibility seam is needed.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file

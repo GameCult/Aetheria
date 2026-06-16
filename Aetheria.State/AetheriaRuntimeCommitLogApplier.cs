@@ -237,7 +237,6 @@ public static class AetheriaRuntimeCommitLogApplier
             EntranceZoneIndex = checkpoint.EntranceZoneIndex,
             ExitZoneIndex = checkpoint.ExitZoneIndex,
             CurrentZoneIndex = checkpoint.CurrentZoneIndex,
-            CurrentZoneEntityIndex = checkpoint.CurrentZoneEntityIndex,
             DiscoveredZoneIndices = ToIntArray(checkpoint.DiscoveredZoneIndices),
             ActionBarBindings = ToActionBarBindings(checkpoint.ActionBarBindings),
             FactionRelationships = ToFactionRelationships(checkpoint.FactionRelationships),

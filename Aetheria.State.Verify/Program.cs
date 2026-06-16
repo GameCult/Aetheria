@@ -1905,7 +1905,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ReadEntitySnapshots(RuntimeStateFilePath)",
         "entity.RecordKey",
         "run.CurrentEntityKey",
-        "ResolveCurrentEntityRecordKey(run, zoneEntityKeyPrefix)",
+        "ResolveCurrentEntityRecordKey(run)",
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "Zone.Agents.Clear()",
         "FlattenEntityGraph(Zone)",
@@ -1954,6 +1954,23 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "ActionGameManager still reconstructs Continue current-entity ownership from integer slot state: " +
             string.Join(", ", forbiddenGameplayHits));
+    }
+
+    var canonicalRunStatePath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
+    var canonicalRunState = File.Exists(canonicalRunStatePath)
+        ? File.ReadAllText(canonicalRunStatePath)
+        : throw new InvalidOperationException("Cannot verify canonical run-state authority; AetheriaRuntimeStateDocuments.cs is missing.");
+
+    if (canonicalRunState.Contains("CurrentZoneEntityIndex", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Canonical typed run state still exposes integer current-entity slot authority.");
+    }
+
+    if (packageSnapshot.Contains("CurrentZoneEntityIndex", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity package runtime run snapshot still exposes integer current-entity slot authority.");
     }
 
     var requiredPackageSymbols = new[]

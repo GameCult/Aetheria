@@ -456,7 +456,7 @@ namespace GameCult.Aetheria.State.Unity
             var entranceZoneIndex = ReadFieldInt32(ref reader, fields, 2);
             var exitZoneIndex = ReadFieldInt32(ref reader, fields, 3);
             var currentZoneIndex = ReadFieldInt32(ref reader, fields, 4);
-            var currentZoneEntityIndex = ReadFieldInt32(ref reader, fields, 5);
+            var legacyCurrentZoneEntityIndex = ReadFieldInt32(ref reader, fields, 5, -1);
             var discoveredZoneIndices = ReadFieldInt32Array(ref reader, fields, 6);
             var zoneKeys = ReadFieldStringArray(ref reader, fields, 7);
             var actionBarBindings = ReadFieldActionBarBindings(ref reader, fields, 8);
@@ -464,6 +464,11 @@ namespace GameCult.Aetheria.State.Unity
             var updatedAtUtc = ReadFieldString(ref reader, fields, 10);
             var generationSeed = ReadFieldUInt32(ref reader, fields, 11);
             var currentEntityKey = ReadFieldString(ref reader, fields, 12);
+            if (string.IsNullOrWhiteSpace(currentEntityKey))
+            {
+                currentEntityKey = LegacyCurrentEntityKey(runId, currentZoneIndex, legacyCurrentZoneEntityIndex);
+            }
+
             SkipRemaining(ref reader, fields, 13);
             return new AetheriaRuntimeRunStateSnapshot(
                 runId,
@@ -471,7 +476,6 @@ namespace GameCult.Aetheria.State.Unity
                 entranceZoneIndex,
                 exitZoneIndex,
                 currentZoneIndex,
-                currentZoneEntityIndex,
                 currentEntityKey,
                 discoveredZoneIndices,
                 zoneKeys,
@@ -1085,6 +1089,22 @@ namespace GameCult.Aetheria.State.Unity
             return index >= fields ? 0 : reader.ReadInt32();
         }
 
+        private static int ReadFieldInt32(ref MessagePackReader reader, int fields, int index, int fallback)
+        {
+            if (index >= fields)
+            {
+                return fallback;
+            }
+
+            if (reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                reader.ReadNil();
+                return fallback;
+            }
+
+            return reader.ReadInt32();
+        }
+
         private static uint ReadFieldUInt32(ref MessagePackReader reader, int fields, int index)
         {
             return index >= fields ? 0 : reader.ReadUInt32();
@@ -1687,6 +1707,16 @@ namespace GameCult.Aetheria.State.Unity
             return string.IsNullOrWhiteSpace(legacyItemId)
                 ? ""
                 : $"aetheria.item_definition:legacy:{legacyItemId.Trim()}";
+        }
+
+        private static string LegacyCurrentEntityKey(string runId, int zoneIndex, int entityIndex)
+        {
+            if (string.IsNullOrWhiteSpace(runId) || zoneIndex < 0 || entityIndex < 0)
+            {
+                return "";
+            }
+
+            return $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
         }
 
         private static string CorporationKey(string legacyCorporationId)

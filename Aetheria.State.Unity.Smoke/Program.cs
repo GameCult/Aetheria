@@ -242,7 +242,6 @@ try
             RunId = "smoke-run",
             GenerationSeed = 424242,
             CurrentZoneIndex = 0,
-            CurrentZoneEntityIndex = 0,
             CurrentEntityKey = "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1",
             DiscoveredZoneIndices = new[] { 0 },
             ActionBarBindings = new[]
