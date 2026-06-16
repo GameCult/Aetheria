@@ -37,6 +37,7 @@ RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
+RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireInventoryDropdownUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
@@ -507,6 +508,7 @@ Console.WriteLine("Sector-map zone details shell: zone inspection lowers through
 Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
+Console.WriteLine("Trade filter and row-action shells: filter selection and buy-quantity entry lower through Eve UI Toolkit surfaces instead of ContextMenu dropdowns");
 Console.WriteLine("Inventory dropdown shell: entity and loadout navigation lowers through an Eve UI Toolkit surface instead of ContextMenu.AddDropdown");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
@@ -2693,6 +2695,67 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "TradeMenu still owns cargo selection through the old context-menu option path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
+{
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    if (!File.Exists(tradeMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade filter and row-action shells; TradeMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(tradeMenuPath);
+    var requiredSymbols = new[]
+    {
+        "FilterSurfaceId",
+        "RowActionSurfaceId",
+        "RenderFilterSurface(",
+        "BuildFilterSurfaceCommands(",
+        "HandleFilterSurfaceCommand(",
+        "ResolveFilterSurfaceDocument(",
+        "BuildFilterSurfaceDefinition(",
+        "RenderRowActionSurface(",
+        "BuildRowActionSurfaceCommands(",
+        "HandleRowActionSurfaceCommand(",
+        "ResolveRowActionSurfaceDocument(",
+        "BuildRowActionSurfaceDefinition(",
+        "ShowBuyQuantityDialog(",
+        "CloseFilterSurfaceCommand",
+        "CloseRowActionSurfaceCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu no longer lowers filter and row-action shells through Eve surfaces: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "public ContextMenu ContextMenu;",
+        "ContextMenu.Clear();",
+        "ContextMenu.AddDropdown(",
+        "ContextMenu.AddOption(",
+        "ContextMenu.Show();"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still owns filter or row-action behavior through the old context-menu path: " +
             string.Join(", ", hits));
     }
 }

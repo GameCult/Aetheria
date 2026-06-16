@@ -20,9 +20,12 @@ public class TradeMenu : MonoBehaviour
     private const string CargoSelectorSurfaceProviderKind = "trade.menu";
     private const string CargoSelectorSurfaceId = "aetheria.trade.target_cargo_selector";
     private const string CloseCargoSelectorCommand = "aetheria.trade.target_cargo_selector.close";
+    private const string FilterSurfaceId = "aetheria.trade.filter_selector";
+    private const string CloseFilterSurfaceCommand = "aetheria.trade.filter_selector.close";
+    private const string RowActionSurfaceId = "aetheria.trade.row_actions";
+    private const string CloseRowActionSurfaceCommand = "aetheria.trade.row_actions.close";
 
     public ActionGameManager GameManager;
-    public ContextMenu ContextMenu;
     public ConfirmationDialog Dialog;
     public UnityEngine.UI.Button NewFilterButton;
     public Prototype FilterPrototype;
@@ -39,9 +42,14 @@ public class TradeMenu : MonoBehaviour
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
+    private readonly Dictionary<string, Action> _filterSurfaceCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
+    private readonly Dictionary<string, Action> _rowActionSurfaceCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
     private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands =
         new Dictionary<string, (EquippedCargoBay Cargo, string Label)>(StringComparer.Ordinal);
     private UIDocument _cargoSelectorSurfaceDocument;
+    private UIDocument _filterSurfaceDocument;
+    private UIDocument _rowActionSurfaceDocument;
+    private string _rowActionTitle = "Trade Actions";
     
     public EquippedCargoBay Inventory { get; set; }
     
@@ -51,6 +59,8 @@ public class TradeMenu : MonoBehaviour
         _targetCargo = GameManager.DockingBay;
         TargetCargoLabel.text = "Docking Bay";
         HideCargoSelectorSurface();
+        HideFilterSurface();
+        HideRowActionSurface();
         Properties.GameManager = GameManager;
         UpdateCreditsLabel();
         
@@ -65,138 +75,11 @@ public class TradeMenu : MonoBehaviour
         
         MaximumSizeFilter.Height.onEndEdit.RemoveAllListeners();
         MaximumSizeFilter.Height.onEndEdit.AddListener(_ => Populate());
-        
+
+        NewFilterButton.onClick.RemoveAllListeners();
         NewFilterButton.onClick.AddListener(() =>
         {
-            ContextMenu.Clear();
-            IEnumerable<HardpointType> hardpointTypes = (HardpointType[]) Enum.GetValues(typeof(HardpointType));
-            if (_hardpointFilter.filter != null)
-                hardpointTypes = hardpointTypes.Where(x => x != _hardpointFilter.type);
-            
-            IEnumerable<SimpleCommodityCategory> commodityTypes = (SimpleCommodityCategory[]) Enum.GetValues(typeof(SimpleCommodityCategory));
-            if (_commodityFilter.filter != null)
-                commodityTypes = commodityTypes.Where(x => x != _commodityFilter.type);
-            
-            IEnumerable<CompoundCommodityCategory> compoundCommodityTypes = (CompoundCommodityCategory[]) Enum.GetValues(typeof(CompoundCommodityCategory));
-            if (_compoundCommodityFilter.filter != null)
-                compoundCommodityTypes = compoundCommodityTypes.Where(x => x != _compoundCommodityFilter.type);
-            
-            ContextMenu.AddDropdown("Gear Type", hardpointTypes
-                .Select<HardpointType, (string, Action, bool)>(x => (Enum.GetName(typeof(HardpointType), x), () =>
-                {
-                    if (!_hardpointFilter.filter)
-                    {
-                        _hardpointFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-                        _hardpointFilter.filter.OnDisable += () =>
-                        {
-                            _hardpointFilter.filter = null;
-                            Populate();
-                        };
-                    }
-                    if(_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _commodityFilter.filter = null;
-                    }
-                    if(_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _compoundCommodityFilter.filter = null;
-                    }
-
-                    _hardpointFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(HardpointType), x)}";
-                    _hardpointFilter.type = x;
-                    Populate();
-                }, true)));
-            ContextMenu.AddDropdown("Simple Commodity", commodityTypes
-                .Select<SimpleCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(SimpleCommodityCategory), x), () =>
-                {
-                    if (!_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-                        _commodityFilter.filter.OnDisable += () =>
-                        {
-                            _commodityFilter.filter = null;
-                            Populate();
-                        };
-                    }
-                    if(_hardpointFilter.filter)
-                    {
-                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _hardpointFilter.filter = null;
-                    }
-                    if(_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _compoundCommodityFilter.filter = null;
-                    }
-
-                    _commodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(SimpleCommodityCategory), x)}";
-                    _commodityFilter.type = x;
-                    Populate();
-                }, true)));
-            ContextMenu.AddDropdown("Compound Commodity", compoundCommodityTypes
-                .Select<CompoundCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(CompoundCommodityCategory), x), () =>
-                {
-                    if (!_compoundCommodityFilter.filter)
-                    {
-                        _compoundCommodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-                        _compoundCommodityFilter.filter.OnDisable += () =>
-                        {
-                            _compoundCommodityFilter.filter = null;
-                            Populate();
-                        };
-                    }
-                    if(_hardpointFilter.filter)
-                    {
-                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _hardpointFilter.filter = null;
-                    }
-                    if(_commodityFilter.filter)
-                    {
-                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-                        _commodityFilter.filter = null;
-                    }
-
-                    _compoundCommodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(CompoundCommodityCategory), x)}";
-                    _compoundCommodityFilter.type = x;
-                    Populate();
-                }, true)));
-            ContextMenu.AddDropdown("Item Behavior", AetheriaRuntimeBehaviorMetadataCatalog.All
-                .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
-                .OrderBy(option => option.Kind, StringComparer.Ordinal)
-                .Select<AetheriaRuntimeBehaviorMetadata, (string, Action, bool)>(x=> (x.Kind.FormatTypeName(), () =>
-                {
-                    var matchingType = _behaviorFilters.FirstOrDefault(y =>
-                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(y.Kind, x.Kind) ||
-                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(x.Kind, y.Kind));
-                    if (matchingType?.Filter != null) matchingType.Filter.DisableButton.onClick.Invoke();
-                    var filter = FilterPrototype.Instantiate<ItemFilter>();
-                    filter.Label.text = x.Kind.FormatTypeName();
-                    var behaviorFilter = new BehaviorFilter(filter, x);
-                    filter.OnDisable += () =>
-                    {
-                        _behaviorFilters.Remove(behaviorFilter);
-                        Populate();
-                    };
-                    _behaviorFilters.Add(behaviorFilter);
-                    Populate();
-                }, true)));
-            if(!MinimumSizeFilter.gameObject.activeSelf)
-                ContextMenu.AddOption("Minimum Size",
-                    () =>
-                    {
-                        MinimumSizeFilter.gameObject.SetActive(true);
-                        MinimumSizeFilter.OnDisable += () => Populate();
-                    });
-            if(!MaximumSizeFilter.gameObject.activeSelf)
-                ContextMenu.AddOption("Maximum Size",
-                    () =>
-                    {
-                        MaximumSizeFilter.gameObject.SetActive(true);
-                        MaximumSizeFilter.OnDisable += () => Populate();
-                    });
-            ContextMenu.Show();
+            RenderFilterSurface();
         });
         Populate();
     }
@@ -359,25 +242,9 @@ public class TradeMenu : MonoBehaviour
                 {
                     if (i.Item is SimpleCommodity s)
                     {
-                        ContextMenu.Clear();
-                        ContextMenu.AddOption("Buy Quantity",
-                            () =>
-                            {
-                                int quantity = 1;
-                                Dialog.Clear();
-                                Dialog.Title.text = $"Buying {i.Name}";
-                                Dialog.AddField("Quantity", 
-                                    () => quantity, 
-                                    q => quantity = min(min(q, GameManager.Credits / i.Price), s.Quantity));
-                                Dialog.Show(() =>
-                                {
-                                    Buy(s,quantity);
-
-                                    Populate();
-                                });
-                                Dialog.MoveToCursor();
-                            });
-                        ContextMenu.Show();
+                        RenderRowActionSurface(
+                            $"Buying {i.Name}",
+                            ("Buy Quantity", () => ShowBuyQuantityDialog(i.Name, i.Price, s)));
                     }
                 }
             }));
@@ -614,6 +481,23 @@ public class TradeMenu : MonoBehaviour
         Dialog.MoveToCursor();
     }
 
+    private void ShowBuyQuantityDialog(string itemName, int price, SimpleCommodity simpleCommodity)
+    {
+        int quantity = 1;
+        Dialog.Clear();
+        Dialog.Title.text = $"Buying {itemName}";
+        Dialog.AddField(
+            "Quantity",
+            () => quantity,
+            q => quantity = min(min(q, GameManager.Credits / price), simpleCommodity.Quantity));
+        Dialog.Show(() =>
+        {
+            Buy(simpleCommodity, quantity);
+            Populate();
+        });
+        Dialog.MoveToCursor();
+    }
+
     void Start()
     {
         FoldoutButton.onClick.AddListener(() =>
@@ -625,6 +509,553 @@ public class TradeMenu : MonoBehaviour
     void Update()
     {
         
+    }
+
+    private void RenderFilterSurface()
+    {
+        BuildFilterSurfaceCommands();
+
+        var document = ResolveFilterSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexStart;
+        root.style.justifyContent = Justify.FlexStart;
+        root.style.paddingTop = 16;
+        root.style.paddingLeft = 16;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 420;
+        shell.style.maxWidth = 520;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildFilterSurfaceDefinition(), HandleFilterSurfaceCommand));
+    }
+
+    private void BuildFilterSurfaceCommands()
+    {
+        _filterSurfaceCommands.Clear();
+
+        foreach (var hardpointType in ((HardpointType[])Enum.GetValues(typeof(HardpointType)))
+                     .Where(type => _hardpointFilter.filter == null || type != _hardpointFilter.type))
+        {
+            var command = $"{FilterSurfaceId}.hardpoint.{hardpointType}";
+            _filterSurfaceCommands[command] = () => ApplyHardpointFilter(hardpointType);
+        }
+
+        foreach (var commodityType in ((SimpleCommodityCategory[])Enum.GetValues(typeof(SimpleCommodityCategory)))
+                     .Where(type => _commodityFilter.filter == null || type != _commodityFilter.type))
+        {
+            var command = $"{FilterSurfaceId}.simple.{commodityType}";
+            _filterSurfaceCommands[command] = () => ApplySimpleCommodityFilter(commodityType);
+        }
+
+        foreach (var commodityType in ((CompoundCommodityCategory[])Enum.GetValues(typeof(CompoundCommodityCategory)))
+                     .Where(type => _compoundCommodityFilter.filter == null || type != _compoundCommodityFilter.type))
+        {
+            var command = $"{FilterSurfaceId}.compound.{commodityType}";
+            _filterSurfaceCommands[command] = () => ApplyCompoundCommodityFilter(commodityType);
+        }
+
+        foreach (var metadata in AetheriaRuntimeBehaviorMetadataCatalog.All
+                     .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
+                     .OrderBy(option => option.Kind, StringComparer.Ordinal))
+        {
+            var command = $"{FilterSurfaceId}.behavior.{metadata.Kind}";
+            _filterSurfaceCommands[command] = () => ApplyBehaviorFilter(metadata);
+        }
+
+        if (!MinimumSizeFilter.gameObject.activeSelf)
+        {
+            _filterSurfaceCommands[$"{FilterSurfaceId}.size.minimum"] = EnableMinimumSizeFilter;
+        }
+
+        if (!MaximumSizeFilter.gameObject.activeSelf)
+        {
+            _filterSurfaceCommands[$"{FilterSurfaceId}.size.maximum"] = EnableMaximumSizeFilter;
+        }
+    }
+
+    private void HandleFilterSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, CloseFilterSurfaceCommand, StringComparison.Ordinal))
+        {
+            HideFilterSurface();
+            return;
+        }
+
+        if (_filterSurfaceCommands.TryGetValue(request.Command, out var action))
+        {
+            action();
+            HideFilterSurface();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown trade filter command: {request.Command}");
+    }
+
+    private void HideFilterSurface()
+    {
+        if (_filterSurfaceDocument == null)
+            return;
+
+        _filterSurfaceDocument.rootVisualElement.Clear();
+        _filterSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveFilterSurfaceDocument()
+    {
+        if (_filterSurfaceDocument != null)
+            return _filterSurfaceDocument;
+
+        var host = new GameObject("Aetheria Trade Filter Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1001;
+        host.SetActive(false);
+        _filterSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildFilterSurfaceDefinition()
+    {
+        var cards = new List<EveSurfaceComponent>
+        {
+            Card(
+                $"{FilterSurfaceId}.summary",
+                "Trade Filters",
+                Text(
+                    $"{FilterSurfaceId}.note",
+                    "Trade still owns filter state and population. This surface just removes the old context-menu shell."),
+                Text(
+                    $"{FilterSurfaceId}.active",
+                    BuildFilterSummary()))
+        };
+
+        var hardpointButtons = _filterSurfaceCommands.Keys
+            .Where(command => command.StartsWith($"{FilterSurfaceId}.hardpoint.", StringComparison.Ordinal))
+            .OrderBy(command => command, StringComparer.Ordinal)
+            .Select(command => Button(
+                command,
+                command.Split('.').Last().FormatTypeName(),
+                command))
+            .ToArray();
+        if (hardpointButtons.Length > 0)
+        {
+            cards.Add(Card($"{FilterSurfaceId}.hardpoint.card", "Gear Type", ButtonColumn($"{FilterSurfaceId}.hardpoint.options", hardpointButtons)));
+        }
+
+        var simpleButtons = _filterSurfaceCommands.Keys
+            .Where(command => command.StartsWith($"{FilterSurfaceId}.simple.", StringComparison.Ordinal))
+            .OrderBy(command => command, StringComparer.Ordinal)
+            .Select(command => Button(
+                command,
+                command.Split('.').Last().FormatTypeName(),
+                command))
+            .ToArray();
+        if (simpleButtons.Length > 0)
+        {
+            cards.Add(Card($"{FilterSurfaceId}.simple.card", "Simple Commodity", ButtonColumn($"{FilterSurfaceId}.simple.options", simpleButtons)));
+        }
+
+        var compoundButtons = _filterSurfaceCommands.Keys
+            .Where(command => command.StartsWith($"{FilterSurfaceId}.compound.", StringComparison.Ordinal))
+            .OrderBy(command => command, StringComparer.Ordinal)
+            .Select(command => Button(
+                command,
+                command.Split('.').Last().FormatTypeName(),
+                command))
+            .ToArray();
+        if (compoundButtons.Length > 0)
+        {
+            cards.Add(Card($"{FilterSurfaceId}.compound.card", "Compound Commodity", ButtonColumn($"{FilterSurfaceId}.compound.options", compoundButtons)));
+        }
+
+        var behaviorButtons = _filterSurfaceCommands.Keys
+            .Where(command => command.StartsWith($"{FilterSurfaceId}.behavior.", StringComparison.Ordinal))
+            .OrderBy(command => command, StringComparer.Ordinal)
+            .Select(command => Button(
+                command,
+                command.Split('.').Last().FormatTypeName(),
+                command))
+            .ToArray();
+        if (behaviorButtons.Length > 0)
+        {
+            cards.Add(Card($"{FilterSurfaceId}.behavior.card", "Item Behavior", ButtonColumn($"{FilterSurfaceId}.behavior.options", behaviorButtons)));
+        }
+
+        var sizeButtons = _filterSurfaceCommands.Keys
+            .Where(command => command.StartsWith($"{FilterSurfaceId}.size.", StringComparison.Ordinal))
+            .OrderBy(command => command, StringComparer.Ordinal)
+            .Select(command => Button(
+                command,
+                command.EndsWith(".minimum", StringComparison.Ordinal) ? "Minimum Size" : "Maximum Size",
+                command))
+            .ToArray();
+        if (sizeButtons.Length > 0)
+        {
+            cards.Add(Card($"{FilterSurfaceId}.size.card", "Size", ButtonColumn($"{FilterSurfaceId}.size.options", sizeButtons)));
+        }
+
+        cards.Add(ButtonRow($"{FilterSurfaceId}.actions", Button($"{FilterSurfaceId}.close", "Close", CloseFilterSurfaceCommand)));
+
+        return new EveSurfaceDocument(
+            CargoSelectorSurfaceType,
+            CargoSelectorSurfaceSchema,
+            CargoSelectorSurfaceProviderId,
+            CargoSelectorSurfaceProviderKind,
+            "Trade Filter Selector",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                FilterSurfaceId,
+                Node(
+                    $"{FilterSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    cards.ToArray()),
+                Array.Empty<EveStyleToken>()),
+            _filterSurfaceCommands.Keys
+                .Select(command => new EveCommandTemplate(command, command.Split('.').Last().FormatTypeName(), "unity-uitoolkit"))
+                .Append(new EveCommandTemplate(CloseFilterSurfaceCommand, "Close", "unity-uitoolkit"))
+                .ToArray());
+    }
+
+    private void RenderRowActionSurface(string title, params (string Label, Action Action)[] actions)
+    {
+        _rowActionTitle = title;
+        BuildRowActionSurfaceCommands(actions);
+
+        var document = ResolveRowActionSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexStart;
+        root.style.justifyContent = Justify.FlexStart;
+        root.style.paddingTop = 16;
+        root.style.paddingLeft = 16;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 320;
+        shell.style.maxWidth = 360;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildRowActionSurfaceDefinition(), HandleRowActionSurfaceCommand));
+    }
+
+    private void BuildRowActionSurfaceCommands(IEnumerable<(string Label, Action Action)> actions)
+    {
+        _rowActionSurfaceCommands.Clear();
+
+        foreach (var actionEntry in actions.Select((entry, index) => (entry, index)))
+        {
+            var command = $"{RowActionSurfaceId}.action_{actionEntry.index}";
+            _rowActionSurfaceCommands[command] = actionEntry.entry.Action;
+        }
+    }
+
+    private void HandleRowActionSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, CloseRowActionSurfaceCommand, StringComparison.Ordinal))
+        {
+            HideRowActionSurface();
+            return;
+        }
+
+        if (_rowActionSurfaceCommands.TryGetValue(request.Command, out var action))
+        {
+            action();
+            HideRowActionSurface();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown trade row action command: {request.Command}");
+    }
+
+    private void HideRowActionSurface()
+    {
+        if (_rowActionSurfaceDocument == null)
+            return;
+
+        _rowActionSurfaceDocument.rootVisualElement.Clear();
+        _rowActionSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveRowActionSurfaceDocument()
+    {
+        if (_rowActionSurfaceDocument != null)
+            return _rowActionSurfaceDocument;
+
+        var host = new GameObject("Aetheria Trade Row Action Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1002;
+        host.SetActive(false);
+        _rowActionSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildRowActionSurfaceDefinition()
+    {
+        var commands = _rowActionSurfaceCommands.Keys.OrderBy(command => command, StringComparer.Ordinal).ToArray();
+        var buttons = commands
+            .Select(command => Button(command, command.EndsWith("action_0", StringComparison.Ordinal) ? "Buy Quantity" : command.Split('.').Last(), command))
+            .ToArray();
+
+        return new EveSurfaceDocument(
+            CargoSelectorSurfaceType,
+            CargoSelectorSurfaceSchema,
+            CargoSelectorSurfaceProviderId,
+            CargoSelectorSurfaceProviderKind,
+            "Trade Row Actions",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                RowActionSurfaceId,
+                Node(
+                    $"{RowActionSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    Card(
+                        $"{RowActionSurfaceId}.card",
+                        "Trade Action",
+                        Text($"{RowActionSurfaceId}.title", _rowActionTitle),
+                        Text(
+                            $"{RowActionSurfaceId}.note",
+                            "Trade still owns the quantity dialog and purchase commit. This surface just removes the old right-click context-menu shell."),
+                        ButtonColumn($"{RowActionSurfaceId}.options", buttons),
+                        ButtonRow($"{RowActionSurfaceId}.actions", Button($"{RowActionSurfaceId}.close", "Close", CloseRowActionSurfaceCommand)))),
+                Array.Empty<EveStyleToken>()),
+            commands
+                .Select(command => new EveCommandTemplate(command, command.EndsWith("action_0", StringComparison.Ordinal) ? "Buy Quantity" : command.Split('.').Last(), "unity-uitoolkit"))
+                .Append(new EveCommandTemplate(CloseRowActionSurfaceCommand, "Close", "unity-uitoolkit"))
+                .ToArray());
+    }
+
+    private void ApplyHardpointFilter(HardpointType hardpointType)
+    {
+        EnsureHardpointFilter();
+        ClearCommodityFilters();
+        _hardpointFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(HardpointType), hardpointType)}";
+        _hardpointFilter.type = hardpointType;
+        Populate();
+    }
+
+    private void ApplySimpleCommodityFilter(SimpleCommodityCategory category)
+    {
+        EnsureCommodityFilter();
+        ClearHardpointFilter();
+        ClearCompoundCommodityFilter();
+        _commodityFilter.filter.Label.text = $"Simple Commodity: {Enum.GetName(typeof(SimpleCommodityCategory), category)}";
+        _commodityFilter.type = category;
+        Populate();
+    }
+
+    private void ApplyCompoundCommodityFilter(CompoundCommodityCategory category)
+    {
+        EnsureCompoundCommodityFilter();
+        ClearHardpointFilter();
+        ClearCommodityFilter();
+        _compoundCommodityFilter.filter.Label.text = $"Compound Commodity: {Enum.GetName(typeof(CompoundCommodityCategory), category)}";
+        _compoundCommodityFilter.type = category;
+        Populate();
+    }
+
+    private void ApplyBehaviorFilter(AetheriaRuntimeBehaviorMetadata metadata)
+    {
+        var matchingType = _behaviorFilters.FirstOrDefault(filter =>
+            AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(filter.Kind, metadata.Kind) ||
+            AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(metadata.Kind, filter.Kind));
+        if (matchingType?.Filter != null)
+        {
+            matchingType.Filter.DisableButton.onClick.Invoke();
+        }
+
+        var filter = FilterPrototype.Instantiate<ItemFilter>();
+        filter.Label.text = metadata.Kind.FormatTypeName();
+        var behaviorFilter = new BehaviorFilter(filter, metadata);
+        filter.OnDisable += () =>
+        {
+            _behaviorFilters.Remove(behaviorFilter);
+            Populate();
+        };
+        _behaviorFilters.Add(behaviorFilter);
+        Populate();
+    }
+
+    private void EnableMinimumSizeFilter()
+    {
+        MinimumSizeFilter.gameObject.SetActive(true);
+        MinimumSizeFilter.OnDisable += () => Populate();
+        Populate();
+    }
+
+    private void EnableMaximumSizeFilter()
+    {
+        MaximumSizeFilter.gameObject.SetActive(true);
+        MaximumSizeFilter.OnDisable += () => Populate();
+        Populate();
+    }
+
+    private void EnsureHardpointFilter()
+    {
+        if (_hardpointFilter.filter != null)
+            return;
+
+        _hardpointFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+        _hardpointFilter.filter.OnDisable += () =>
+        {
+            _hardpointFilter.filter = null;
+            Populate();
+        };
+    }
+
+    private void EnsureCommodityFilter()
+    {
+        if (_commodityFilter.filter != null)
+            return;
+
+        _commodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+        _commodityFilter.filter.OnDisable += () =>
+        {
+            _commodityFilter.filter = null;
+            Populate();
+        };
+    }
+
+    private void EnsureCompoundCommodityFilter()
+    {
+        if (_compoundCommodityFilter.filter != null)
+            return;
+
+        _compoundCommodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+        _compoundCommodityFilter.filter.OnDisable += () =>
+        {
+            _compoundCommodityFilter.filter = null;
+            Populate();
+        };
+    }
+
+    private void ClearHardpointFilter()
+    {
+        if (_hardpointFilter.filter == null)
+            return;
+
+        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
+        _hardpointFilter.filter = null;
+    }
+
+    private void ClearCommodityFilter()
+    {
+        if (_commodityFilter.filter == null)
+            return;
+
+        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+        _commodityFilter.filter = null;
+    }
+
+    private void ClearCompoundCommodityFilter()
+    {
+        if (_compoundCommodityFilter.filter == null)
+            return;
+
+        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+        _compoundCommodityFilter.filter = null;
+    }
+
+    private void ClearCommodityFilters()
+    {
+        ClearCommodityFilter();
+        ClearCompoundCommodityFilter();
+    }
+
+    private string BuildFilterSummary()
+    {
+        var activeFilters = new List<string>();
+        if (_hardpointFilter.filter != null)
+        {
+            activeFilters.Add($"Gear: {Enum.GetName(typeof(HardpointType), _hardpointFilter.type)}");
+        }
+
+        if (_commodityFilter.filter != null)
+        {
+            activeFilters.Add($"Simple: {Enum.GetName(typeof(SimpleCommodityCategory), _commodityFilter.type)}");
+        }
+
+        if (_compoundCommodityFilter.filter != null)
+        {
+            activeFilters.Add($"Compound: {Enum.GetName(typeof(CompoundCommodityCategory), _compoundCommodityFilter.type)}");
+        }
+
+        activeFilters.AddRange(_behaviorFilters.Select(filter => $"Behavior: {filter.Kind.FormatTypeName()}"));
+
+        if (MinimumSizeFilter.gameObject.activeSelf)
+        {
+            activeFilters.Add("Minimum size active");
+        }
+
+        if (MaximumSizeFilter.gameObject.activeSelf)
+        {
+            activeFilters.Add("Maximum size active");
+        }
+
+        return activeFilters.Count == 0
+            ? "No active filters"
+            : string.Join(" | ", activeFilters);
     }
 
     private void RenderCargoSelectorSurface()
@@ -842,6 +1273,8 @@ public class TradeMenu : MonoBehaviour
     private void OnDisable()
     {
         HideCargoSelectorSurface();
+        HideFilterSurface();
+        HideRowActionSurface();
     }
 
     private void OnDestroy()
@@ -850,6 +1283,18 @@ public class TradeMenu : MonoBehaviour
         {
             Destroy(_cargoSelectorSurfaceDocument.gameObject);
             _cargoSelectorSurfaceDocument = null;
+        }
+
+        if (_filterSurfaceDocument != null)
+        {
+            Destroy(_filterSurfaceDocument.gameObject);
+            _filterSurfaceDocument = null;
+        }
+
+        if (_rowActionSurfaceDocument != null)
+        {
+            Destroy(_rowActionSurfaceDocument.gameObject);
+            _rowActionSurfaceDocument = null;
         }
     }
 }

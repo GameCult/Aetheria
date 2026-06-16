@@ -126,6 +126,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Inventory entity/bay/loadout dropdown navigation now lowers through a local
   Eve/UI Toolkit surface instead of rebuilding nested `ContextMenu`
   dropdowns/options.
+  Trade filter selection and simple-commodity buy-quantity entry now lower
+  through local Eve/UI Toolkit surfaces instead of rebuilding `ContextMenu`
+  dropdowns/options in `TradeMenu`.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1577,6 +1580,11 @@ First Aetheria surfaces to publish:
      projection and gameplay still owns entity/cargo selection plus loadout
      restore/save effects, but the old `ContextMenu` dropdown tree no longer
      owns that shell.
+   - Done: replace the remaining `TradeMenu` filter-selector and row-action
+     popups with Eve-owned UI Toolkit surfaces. `TradeMenu` still owns local
+     filter state and the quantity dialog still delegates to gameplay-owned
+     purchase commits, but the old `ContextMenu` dropdown/option tree no longer
+     owns any live trade-menu shell.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1951,6 +1959,10 @@ First Aetheria surfaces to publish:
   UI Toolkit `UIDocument` host and a local Eve surface document instead of
   rebuilding nested `ContextMenu.AddDropdown(...)` and `ContextMenu.AddOption(...)`
   menus.
+- Trade filter selection and simple-commodity buy-quantity entry now lower
+  through shared UI Toolkit `UIDocument` hosts and local Eve surface documents
+  instead of rebuilding `ContextMenu.AddDropdown(...)`, `ContextMenu.AddOption(...)`,
+  and `ContextMenu.Show()` shells in `TradeMenu`.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
