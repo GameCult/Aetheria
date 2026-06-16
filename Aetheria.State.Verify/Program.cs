@@ -765,10 +765,15 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "MiningToolAsteroidBeltId",
         "ParseLegacyGuidFromReferenceKey",
         "ParseLegacyIdFromReferenceKey",
+        "ParseBodyGuidFromKey(",
         "private static string OrbitKey(Guid",
         "private static string BodyKey(Guid",
         "$\"aetheria.orbit:legacy:",
-        "$\"aetheria.body:legacy:"
+        "$\"aetheria.body:legacy:",
+        "public Guid ScanTarget",
+        "public Guid AsteroidBelt",
+        "RestoreRuntimeState(Guid scanTarget",
+        "RestoreRuntimeState(Guid asteroidBelt"
     };
 
     var hits = checkedFiles
@@ -782,7 +787,7 @@ static void RequireTypedBehaviorBodyKeys(string root)
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Runtime behavior body references must be named typed BodyKey surfaces; GUID parsing is confined to ParseBodyGuidFromKey: " +
+            "Runtime behavior body references must stay on typed BodyKey surfaces, with Zone owning key resolution and behaviors no longer storing raw GUID body ids: " +
             string.Join("; ", hits));
     }
 
@@ -797,7 +802,10 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "public string BodyKey { get; }",
         "public string OrbitKey { get; }",
         "public string ParentOrbitKey { get; }",
-        "public string GetBodyKey(Guid bodyId)"
+        "public string GetBodyKey(Guid bodyId)",
+        "public static Guid ParseBodyGuid(string bodyKey)",
+        "public bool TryGetPlanet(string bodyKey, out Planet planet)",
+        "public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)"
     };
     var missingZoneSymbols = requiredZoneSymbols
         .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -807,6 +815,44 @@ static void RequireTypedBehaviorBodyKeys(string root)
         throw new InvalidOperationException(
             "Zone runtime body/orbit objects must own typed projection key surfaces: " +
             string.Join(", ", missingZoneSymbols));
+    }
+
+    var requiredBehaviorSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "ResourceScanner.cs")] = new[]
+        {
+            "private string _scanTargetBodyKey = \"\";",
+            "public string ScanTargetBodyKey",
+            "Entity.Zone.TryGetAsteroidBelt(ScanTargetBodyKey, out var belt)",
+            "Entity.Zone.TryGetPlanet(ScanTargetBodyKey, out var planet)",
+            "RestoreRuntimeState(",
+            "string scanTargetBodyKey"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "MiningTool.cs")] = new[]
+        {
+            "public string AsteroidBeltBodyKey = \"\";",
+            "Entity.Zone.TryGetAsteroidBelt(AsteroidBeltBodyKey, out var belt)",
+            "Entity.Zone.AsteroidExists(AsteroidBeltBodyKey, Asteroid)",
+            "Entity.Zone.MineAsteroid(",
+            "AsteroidBeltBodyKey,",
+            "string asteroidBeltBodyKey"
+        }
+    };
+    var missingBehaviorSymbols = requiredBehaviorSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+    if (missingBehaviorSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ResourceScanner and MiningTool must own typed body-key runtime references rather than raw GUID fields: " +
+            string.Join("; ", missingBehaviorSymbols));
     }
 }
 

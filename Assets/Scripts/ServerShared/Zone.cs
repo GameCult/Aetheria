@@ -126,6 +126,27 @@ public class Zone
         return BodyKey(bodyId);
     }
 
+    public static Guid ParseBodyGuid(string bodyKey)
+    {
+        if (string.IsNullOrWhiteSpace(bodyKey))
+            return Guid.Empty;
+
+        var runtimeBodyId = bodyKey.StartsWith(BodyKeyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? bodyKey.Substring(BodyKeyPrefix.Length)
+            : bodyKey;
+        return Guid.TryParse(runtimeBodyId, out var id) ? id : Guid.Empty;
+    }
+
+    public bool TryGetPlanet(string bodyKey, out Planet planet)
+    {
+        return PlanetInstances.TryGetValue(ParseBodyGuid(bodyKey), out planet);
+    }
+
+    public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)
+    {
+        return AsteroidBelts.TryGetValue(ParseBodyGuid(bodyKey), out belt);
+    }
+
     public void Update(float deltaTime)
     {
         _time += deltaTime;
@@ -220,6 +241,11 @@ public class Zone
 
     public bool AsteroidExists(Guid planetDataID, int asteroid) => AsteroidBelts[planetDataID].ContainsAsteroid(asteroid);
 
+    public bool AsteroidExists(string asteroidBeltKey, int asteroid)
+    {
+        return TryGetAsteroidBelt(asteroidBeltKey, out var belt) && belt.ContainsAsteroid(asteroid);
+    }
+
     private void UpdateAsteroidTransforms(Guid planetDataID)
     {
         var belt = AsteroidBelts[planetDataID];
@@ -284,6 +310,12 @@ public class Zone
             // TODO: Drop item onto the Grid
             //miner.AddCargo(newSimpleCommodity);
         }
+    }
+
+    public void MineAsteroid(Entity miner, string asteroidBeltKey, int asteroid, float damage, float efficiency, float penetration)
+    {
+        if (TryGetAsteroidBelt(asteroidBeltKey, out var belt))
+            MineAsteroid(miner, belt.ID, asteroid, damage, efficiency, penetration);
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)

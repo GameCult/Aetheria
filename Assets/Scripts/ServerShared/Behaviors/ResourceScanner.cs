@@ -15,21 +15,22 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
     private readonly PerformanceStat _minimumDensity;
     private readonly PerformanceStat _scanDuration;
     private float _scanTime;
-    private Guid _scanTarget;
+    private string _scanTargetBodyKey = "";
 
     public float Range { get; private set; }
     public float MinimumDensity { get; private set; }
     public float ScanDuration { get; private set; }
     public float ScanTime => _scanTime;
 
-    public Guid ScanTarget
+    public string ScanTargetBodyKey
     {
-        get => _scanTarget;
+        get => _scanTargetBodyKey;
         set
         {
-            if (value != _scanTarget)
+            value ??= "";
+            if (!string.Equals(value, _scanTargetBodyKey, StringComparison.Ordinal))
             {
-                _scanTarget = value;
+                _scanTargetBodyKey = value;
                 _scanTime = 0;
             }
         }
@@ -57,7 +58,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 
     public override bool Execute(float dt)
     {
-        if (Entity.Zone.AsteroidBelts.TryGetValue(ScanTarget, out var belt))
+        if (Entity.Zone.TryGetAsteroidBelt(ScanTargetBodyKey, out var belt))
         {
             if (Asteroid > -1 &&
                belt.ContainsAsteroid(Asteroid) &&
@@ -72,7 +73,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
                 return true;
             }
         }
-        else if (Entity.Zone.PlanetInstances.TryGetValue(ScanTarget, out var planet))
+        else if (Entity.Zone.TryGetPlanet(ScanTargetBodyKey, out var planet))
         {
             if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planet.OrbitId)) < Range)
             {
@@ -95,14 +96,14 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
     }
 
     public void RestoreRuntimeState(
-        Guid scanTarget,
+        string scanTargetBodyKey,
         int asteroid,
         float scanTime,
         float range,
         float minimumDensity,
         float scanDuration)
     {
-        _scanTarget = scanTarget;
+        _scanTargetBodyKey = scanTargetBodyKey ?? "";
         Asteroid = asteroid;
         _scanTime = scanTime;
         Range = range;

@@ -349,17 +349,6 @@ public class ActionGameManager : MonoBehaviour
         return instance;
     }
 
-    private static Guid ParseBodyGuidFromKey(string bodyKey)
-    {
-        if (string.IsNullOrWhiteSpace(bodyKey))
-            return Guid.Empty;
-
-        var runtimeBodyId = bodyKey.StartsWith(Zone.BodyKeyPrefix, StringComparison.OrdinalIgnoreCase)
-            ? bodyKey.Substring(Zone.BodyKeyPrefix.Length)
-            : bodyKey;
-        return Guid.TryParse(runtimeBodyId, out var id) ? id : Guid.Empty;
-    }
-
     public static Galaxy CurrentGalaxy;
     public static bool IsTutorial;
     public static AetheriaRuntimeRunStateSnapshot ContinueRunState { get; set; }
@@ -1119,7 +1108,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    ResourceScannerTargetBodyKey = zone?.GetBodyKey(resourceScanner.ScanTarget) ?? "",
+                    ResourceScannerTargetBodyKey = resourceScanner.ScanTargetBodyKey ?? "",
                     ResourceScannerAsteroidIndex = resourceScanner.Asteroid,
                     ResourceScannerScanTime = resourceScanner.ScanTime,
                     ResourceScannerRange = resourceScanner.Range,
@@ -1131,7 +1120,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 state = new AetheriaRuntimeBehaviorStateCommit
                 {
-                    MiningToolAsteroidBeltKey = zone?.GetBodyKey(miningTool.AsteroidBelt) ?? "",
+                    MiningToolAsteroidBeltKey = miningTool.AsteroidBeltBodyKey ?? "",
                     MiningToolAsteroidIndex = miningTool.Asteroid,
                     MiningToolRange = miningTool.Range
                 };
@@ -2820,7 +2809,7 @@ public class ActionGameManager : MonoBehaviour
                     break;
                 case ResourceScanner resourceScanner:
                     resourceScanner.RestoreRuntimeState(
-                        ParseBodyGuidFromKey(behaviorState.ResourceScannerTargetBodyKey),
+                        behaviorState.ResourceScannerTargetBodyKey,
                         behaviorState.ResourceScannerAsteroidIndex,
                         (float)behaviorState.ResourceScannerScanTime,
                         (float)behaviorState.ResourceScannerRange,
@@ -2829,7 +2818,7 @@ public class ActionGameManager : MonoBehaviour
                     break;
                 case MiningTool miningTool:
                     miningTool.RestoreRuntimeState(
-                        ParseBodyGuidFromKey(behaviorState.MiningToolAsteroidBeltKey),
+                        behaviorState.MiningToolAsteroidBeltKey,
                         behaviorState.MiningToolAsteroidIndex,
                         (float)behaviorState.MiningToolRange);
                     break;

@@ -920,10 +920,11 @@ First Aetheria surfaces to publish:
    - Done: extend behavior state rows for AetherDrive axis, thrust, RPM,
      maximum RPM, and thrust direction, so drive rotor state has a typed
      snapshot/readback path.
-   - Done: extend behavior state rows for ResourceScanner target body,
+   - Done: extend behavior state rows for ResourceScanner target body key,
      asteroid index, scan timer, range, minimum density, and duration, so
-     scanner progress is typed state instead of live-only behavior memory.
-   - Done: extend behavior state rows for MiningTool asteroid belt id,
+     scanner progress and target ownership are typed state instead of
+     live-only behavior memory.
+   - Done: extend behavior state rows for MiningTool asteroid belt key,
      asteroid index, and range, so active mining target state is typed
      snapshot/readback state.
    - Done: extend behavior state rows for Thruster axis, thrust, and torque,
@@ -1360,9 +1361,10 @@ First Aetheria surfaces to publish:
      references, item-use behavior references, and runtime commit item/hull
      surfaces now carry typed item keys. Runtime behavior resource-scanner and
      mining-tool body references are named and serialized as typed body keys
-     through commit/readback state, with GUID parsing confined to the current
-     Unity `Zone` body runtime boundary. Remaining broader simulation paths
-     still derive legacy GUIDs until those structures move to typed keys.
+     through commit/readback state, with the behaviors retaining keyed runtime
+     state directly and `Zone` owning GUID parsing/resolution at the current
+     Unity body runtime boundary. Remaining broader simulation paths still
+     derive legacy GUIDs until those structures move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup

@@ -123,11 +123,12 @@ Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are
 deleted. Behavior-state runtime commits and readback snapshots carry typed
 body-key fields for resource scanner targets and mining tool asteroid belts;
-the old raw body ID commit/readback field names are deleted. Unity still parses
-those body keys into GUIDs only at the current `Zone` body runtime boundary.
-`Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime
-body/orbit key surfaces used for projection, and `ActionGameManager` no longer
-formats body/orbit keys locally while checkpointing state.
+the old raw body ID commit/readback field names are deleted. `ResourceScanner`
+and `MiningTool` now retain typed body-key runtime state directly, while
+`Zone` owns parsing and resolution at the current Unity body runtime boundary.
+`Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime body/orbit
+key surfaces used for projection, and `ActionGameManager` no longer formats or
+resolves body/orbit keys locally while checkpointing or restoring state.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

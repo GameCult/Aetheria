@@ -9,7 +9,7 @@ using static Unity.Mathematics.math;
 
 public class MiningTool : Behavior
 {
-    public Guid AsteroidBelt;
+    public string AsteroidBeltBodyKey = "";
     public int Asteroid;
 
     private readonly PerformanceStat _damagePerSecond;
@@ -45,14 +45,14 @@ public class MiningTool : Behavior
     public override bool Execute(float dt)
     {
         Range = Evaluate(_range);
-        var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
-        if (AsteroidBelt != Guid.Empty &&
-            Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) &&
+        if (Entity.Zone.TryGetAsteroidBelt(AsteroidBeltBodyKey, out var belt) &&
+            !string.IsNullOrWhiteSpace(AsteroidBeltBodyKey) &&
+            Entity.Zone.AsteroidExists(AsteroidBeltBodyKey, Asteroid) &&
             length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
         {
             Entity.Zone.MineAsteroid(
                 Entity,
-                AsteroidBelt,
+                AsteroidBeltBodyKey,
                 Asteroid,
                 Evaluate(_damagePerSecond) * dt,
                 Evaluate(_efficiency),
@@ -63,9 +63,9 @@ public class MiningTool : Behavior
         return false;
     }
 
-    public void RestoreRuntimeState(Guid asteroidBelt, int asteroid, float range)
+    public void RestoreRuntimeState(string asteroidBeltBodyKey, int asteroid, float range)
     {
-        AsteroidBelt = asteroidBelt;
+        AsteroidBeltBodyKey = asteroidBeltBodyKey ?? "";
         Asteroid = asteroid;
         Range = range;
     }
