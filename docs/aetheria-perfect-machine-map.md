@@ -483,11 +483,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaRuntimeCommitDrainStatus` and the `aetheria.operations` Eve surface
   publish pending-drain health, pending depth, applied counts, failures, and
   timestamps as typed state. Console logs are notification-only.
+- `AetheriaPlayerSettingsSurfaceProjector` now emits a provider-owned
+  `aetheria.player_settings` Eve surface from canonical `AetheriaPlayerSettings`
+  state. Gameplay and graphics settings are exposed as typed read models plus
+  narrow typed command buttons, not renderer-local fields.
 - `AetheriaProviderAdvertisementProjector` publishes
   `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
-  advertising the catalog and operations surfaces, command boundaries, schemas,
-  and `.cc` witness path. This is the discovery map for Odin/Eve, not a health
-  page.
+  advertising the catalog, operations, and player-settings surfaces, command
+  boundaries, schemas, and `.cc` witness path. This is the discovery map for
+  Odin/Eve, not a health page.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -636,9 +640,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   path queues `gamecult.eve.command.v1` envelopes under
   `aetheria-world.cc.eve.pending` for the provider-owned command bridge instead
   of accepting renderer-local command effects. `AetheriaEveCommandBridge`
-  currently accepts the advertised catalog/operations refresh commands,
-  republishes provider-owned surfaces, rejects unknown/unadvertised commands,
-  and records `AetheriaEveCommandDrainStatus` as typed state.
+  currently accepts the advertised catalog/operations refresh commands plus the
+  first provider-owned player-settings mutation commands, republishes
+  provider-owned surfaces, rejects unknown/unadvertised commands, and records
+  `AetheriaEveCommandDrainStatus` as typed state.
 
 ## Invariants
 
@@ -1443,8 +1448,10 @@ First Aetheria surfaces to publish:
      commands. `AetheriaRuntimePendingCultCacheStore` owns the temporary
      envelope writer/reader until the Unity package can use generated CultCache
      serializers directly.
-   - Extend the command bridge beyond refresh commands as gameplay/editor Eve
-     surfaces acquire provider-owned handlers.
+   - Done: extend the command bridge beyond refresh commands for the first
+     mutating settings surface; player-settings Eve commands now mutate
+     canonical `AetheriaPlayerSettings` and republish the provider-owned
+     `aetheria.player_settings` surface.
    - Done: wire the presenter into runtime through `AetheriaEveRuntimeBootstrap`
      so the operations surface mounts as a UI Toolkit surface after scene load.
    - Done: delete the concrete uGUI debug console path: `ConsoleView`,
@@ -1546,6 +1553,8 @@ First Aetheria surfaces to publish:
      operations surface.
    - Done: publish Eve command-drain health as typed CultCache state and include
      it in the operations surface.
+   - Done: publish provider-owned player-settings controls as a typed Eve
+     surface and advertise their command boundary through the provider ad.
    - Done: publish an Eve provider advertisement so Odin/Eve can discover
      Aetheria surfaces and command boundaries through typed state.
    - Done: stop legacy catalog pull/read paths from writing entries back to
@@ -1840,9 +1849,10 @@ First Aetheria surfaces to publish:
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
   checked-in `ansi104.json` display file have been removed from live source.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
-  `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands,
-  rejects unknown commands, persists `AetheriaEveCommandDrainStatus`, and exposes
-  the Eve command drain through the operations surface.
+  `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands plus
+  player-settings mutation commands, rejects unknown commands, persists
+  `AetheriaEveCommandDrainStatus`, and exposes the Eve command drain through the
+  operations surface while preserving the `aetheria.player_settings` surface.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
 - UI Toolkit lowering parity compares Aetheria surfaces against the Eve browser

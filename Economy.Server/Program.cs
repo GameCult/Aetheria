@@ -156,6 +156,7 @@ internal static class Program
                 CommandsRejected = report.RejectedCommands,
                 AppliedCatalogRefreshes = report.AppliedCatalogRefreshes,
                 AppliedOperationsRefreshes = report.AppliedOperationsRefreshes,
+                AppliedPlayerSettingsCommands = report.AppliedPlayerSettingsCommands,
                 LastRejectedCommand = report.LastRejectedCommand,
                 LastRejectedReason = report.LastRejectedReason,
                 ConsecutiveFailures = 0,
@@ -174,7 +175,8 @@ internal static class Program
                 $"accepted={report.AcceptedPaths.Length}, " +
                 $"rejected={report.RejectedCommands}, " +
                 $"catalogRefreshes={report.AppliedCatalogRefreshes}, " +
-                $"operationsRefreshes={report.AppliedOperationsRefreshes}");
+                $"operationsRefreshes={report.AppliedOperationsRefreshes}, " +
+                $"playerSettings={report.AppliedPlayerSettingsCommands}");
         }
         catch (Exception ex)
         {
@@ -219,9 +221,22 @@ internal static class Program
         var runtimeSession = await node.GetRuntimeSessionAsync(RuntimeId).ConfigureAwait(false);
         await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, runtimeSession))
             .ConfigureAwait(false);
+        await PublishPlayerSettingsSurfaceAsync(node, updatedAtUtc).ConfigureAwait(false);
         await node.PutProviderAdvertisementAsync(
             AetheriaProviderAdvertisementProjector.Build(node.StatePath, updatedAtUtc)).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static async Task PublishPlayerSettingsSurfaceAsync(
+        AetheriaStateNode node,
+        string updatedAtUtc)
+    {
+        var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        var publishedAtUtc = string.IsNullOrWhiteSpace(settings.LastUpdatedAtUtc)
+            ? updatedAtUtc
+            : settings.LastUpdatedAtUtc;
+        await node.PutPlayerSettingsSurfaceAsync(
+            AetheriaPlayerSettingsSurfaceProjector.Build(settings, publishedAtUtc)).ConfigureAwait(false);
     }
 
     private static async Task PublishRuntimeSessionAsync(

@@ -7,6 +7,7 @@ public sealed class AetheriaEveCommandApplyReport
 {
     public int AppliedCatalogRefreshes { get; set; }
     public int AppliedOperationsRefreshes { get; set; }
+    public int AppliedPlayerSettingsCommands { get; set; }
     public int RejectedCommands { get; set; }
     public string[] AcceptedPaths { get; set; } = [];
     public string[] RejectedPaths { get; set; } = [];
@@ -66,6 +67,15 @@ public static class AetheriaEveCommandBridge
                         AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus)).ConfigureAwait(false);
                     report.AppliedOperationsRefreshes++;
                     break;
+                case "aetheria.player_settings.refresh":
+                case "aetheria.player_settings.gameplay.temperature_unit.cycle":
+                case "aetheria.player_settings.gameplay.significant_digits.decrement":
+                case "aetheria.player_settings.gameplay.significant_digits.increment":
+                case "aetheria.player_settings.graphics.nebula_quality.cycle":
+                case "aetheria.player_settings.graphics.show_asteroids.toggle":
+                    await ApplyPlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
+                    report.AppliedPlayerSettingsCommands++;
+                    break;
             }
 
             accepted.Add(path);
@@ -101,7 +111,85 @@ public static class AetheriaEveCommandBridge
         return (string.Equals(surfaceId, AetheriaCatalogSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
                 string.Equals(command, "aetheria.catalog.refresh", StringComparison.Ordinal)) ||
             (string.Equals(surfaceId, AetheriaOperationsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-             string.Equals(command, "aetheria.operations.refresh", StringComparison.Ordinal));
+             string.Equals(command, "aetheria.operations.refresh", StringComparison.Ordinal)) ||
+            (string.Equals(surfaceId, AetheriaPlayerSettingsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
+             KnownPlayerSettingsCommand(command));
+    }
+
+    private static bool KnownPlayerSettingsCommand(string command)
+    {
+        return string.Equals(command, "aetheria.player_settings.refresh", StringComparison.Ordinal) ||
+            string.Equals(command, "aetheria.player_settings.gameplay.temperature_unit.cycle", StringComparison.Ordinal) ||
+            string.Equals(command, "aetheria.player_settings.gameplay.significant_digits.decrement", StringComparison.Ordinal) ||
+            string.Equals(command, "aetheria.player_settings.gameplay.significant_digits.increment", StringComparison.Ordinal) ||
+            string.Equals(command, "aetheria.player_settings.graphics.nebula_quality.cycle", StringComparison.Ordinal) ||
+            string.Equals(command, "aetheria.player_settings.graphics.show_asteroids.toggle", StringComparison.Ordinal);
+    }
+
+    private static async Task ApplyPlayerSettingsCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        settings.Gameplay ??= new AetheriaPlayerGameplaySettings();
+        settings.Graphics ??= new AetheriaPlayerGraphicsSettings();
+        var persistSettings = false;
+
+        switch (command.Command)
+        {
+            case "aetheria.player_settings.gameplay.temperature_unit.cycle":
+                settings.Gameplay.TemperatureUnit = Cycle(
+                    settings.Gameplay.TemperatureUnit,
+                    "Kelvin",
+                    "Celsius",
+                    "Fahrenheit");
+                persistSettings = true;
+                break;
+            case "aetheria.player_settings.gameplay.significant_digits.decrement":
+                settings.Gameplay.SignificantDigits = Math.Max(0, settings.Gameplay.SignificantDigits - 1);
+                persistSettings = true;
+                break;
+            case "aetheria.player_settings.gameplay.significant_digits.increment":
+                if (settings.Gameplay.SignificantDigits < int.MaxValue)
+                    settings.Gameplay.SignificantDigits++;
+                persistSettings = true;
+                break;
+            case "aetheria.player_settings.graphics.nebula_quality.cycle":
+                settings.Graphics.NebulaQuality = Cycle(
+                    settings.Graphics.NebulaQuality,
+                    "Low",
+                    "Normal",
+                    "High",
+                    "Ultra");
+                persistSettings = true;
+                break;
+            case "aetheria.player_settings.graphics.show_asteroids.toggle":
+                settings.Graphics.ShowAsteroidsInMinimap = !settings.Graphics.ShowAsteroidsInMinimap;
+                persistSettings = true;
+                break;
+        }
+
+        if (persistSettings)
+        {
+            settings.LastUpdatedAtUtc = command.IssuedAtUtc;
+            await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+        }
+
+        await node.PutPlayerSettingsSurfaceAsync(
+            AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
+            .ConfigureAwait(false);
+    }
+
+    private static string Cycle(string current, params string[] values)
+    {
+        if (values.Length == 0)
+            return current;
+
+        var index = Array.FindIndex(values, value => string.Equals(value, current, StringComparison.Ordinal));
+        if (index < 0)
+            return values[0];
+
+        return values[(index + 1) % values.Length];
     }
 
     private static void RecordRejection(

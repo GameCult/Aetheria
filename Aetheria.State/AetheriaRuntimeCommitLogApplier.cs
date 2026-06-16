@@ -38,8 +38,12 @@ public static class AetheriaRuntimeCommitLogApplier
             switch (command.Kind)
             {
                 case "player_settings":
-                    await node.PutPlayerSettingsAsync(
-                        ToPlayerSettings(command.PlayerSettings ?? throw MissingPayload(command), command.CreatedAtUtc))
+                    var settings = ToPlayerSettings(
+                        command.PlayerSettings ?? throw MissingPayload(command),
+                        command.CreatedAtUtc);
+                    await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+                    await node.PutPlayerSettingsSurfaceAsync(
+                        AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.CreatedAtUtc))
                         .ConfigureAwait(false);
                     report.AppliedPlayerSettings++;
                     break;

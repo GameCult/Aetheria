@@ -51,6 +51,7 @@ var eveStatus = new AetheriaEveCommandDrainStatus
     CommandsRejected = eveReport.RejectedCommands,
     AppliedCatalogRefreshes = eveReport.AppliedCatalogRefreshes,
     AppliedOperationsRefreshes = eveReport.AppliedOperationsRefreshes,
+    AppliedPlayerSettingsCommands = eveReport.AppliedPlayerSettingsCommands,
     LastRejectedCommand = eveReport.LastRejectedCommand,
     LastRejectedReason = eveReport.LastRejectedReason,
     Status = eveReport.RejectedCommands > 0 ? "rejected" : "ok"
@@ -67,6 +68,7 @@ var completedSession = new AetheriaRuntimeSession
 };
 await node.PutRuntimeSessionAsync(completedSession);
 await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, completedSession));
+await PublishPlayerSettingsSurfaceAsync(node, now);
 await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
 await node.FlushAsync();
 
@@ -79,6 +81,7 @@ Console.WriteLine($"Eve commands accepted: {eveReport.AcceptedPaths.Length}");
 Console.WriteLine($"Eve commands rejected: {eveReport.RejectedCommands}");
 Console.WriteLine($"Eve catalog refreshes: {eveReport.AppliedCatalogRefreshes}");
 Console.WriteLine($"Eve operations refreshes: {eveReport.AppliedOperationsRefreshes}");
+Console.WriteLine($"Eve player settings commands: {eveReport.AppliedPlayerSettingsCommands}");
 if (!deleteApplied)
     Console.WriteLine("Applied command files were kept because --keep was supplied.");
 
@@ -96,4 +99,14 @@ static int CountPendingEveCommands(string statePath)
     return Directory.Exists(pendingDirectory)
         ? Directory.EnumerateFiles(pendingDirectory, "*.cc").Count()
         : 0;
+}
+
+static async Task PublishPlayerSettingsSurfaceAsync(AetheriaStateNode node, string updatedAtUtc)
+{
+    var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+    var publishedAtUtc = string.IsNullOrWhiteSpace(settings.LastUpdatedAtUtc)
+        ? updatedAtUtc
+        : settings.LastUpdatedAtUtc;
+    await node.PutPlayerSettingsSurfaceAsync(
+        AetheriaPlayerSettingsSurfaceProjector.Build(settings, publishedAtUtc)).ConfigureAwait(false);
 }

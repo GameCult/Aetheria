@@ -64,6 +64,11 @@ public static class AetheriaProviderAdvertisementProjector
                 {
                     SurfaceId = AetheriaOperationsSurfaceProjector.SurfaceId,
                     Key = AetheriaOperationsSurfaceProjector.SurfaceKey
+                },
+                new EveProviderSurfaceRef
+                {
+                    SurfaceId = AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
+                    Key = AetheriaPlayerSettingsSurfaceProjector.SurfaceKey
                 }
             ],
             Commands =
@@ -77,6 +82,36 @@ public static class AetheriaProviderAdvertisementProjector
                 {
                     Command = "aetheria.operations.refresh",
                     Summary = "Refresh operations projection"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.refresh",
+                    Summary = "Refresh player settings projection"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.gameplay.temperature_unit.cycle",
+                    Summary = "Cycle the typed player temperature unit"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.gameplay.significant_digits.decrement",
+                    Summary = "Decrease typed player significant digits"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.gameplay.significant_digits.increment",
+                    Summary = "Increase typed player significant digits"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.graphics.nebula_quality.cycle",
+                    Summary = "Cycle typed player nebula quality"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = "aetheria.player_settings.graphics.show_asteroids.toggle",
+                    Summary = "Toggle typed player minimap asteroid visibility"
                 }
             ]
         };

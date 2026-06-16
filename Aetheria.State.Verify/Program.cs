@@ -29,6 +29,7 @@ RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
+RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireRuntimeSimulationTuningCommits(root);
@@ -1837,6 +1838,72 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "MainMenu no longer routes settings changes through ActionGameManager: " +
             string.Join(", ", missingUiCalls));
+    }
+}
+
+static void RequirePlayerSettingsEveSurface(string root)
+{
+    var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaPlayerSettingsSurfaceProjector.cs");
+    var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
+    var serverPath = Path.Combine(root, "Economy.Server", "Program.cs");
+
+    if (!File.Exists(projectorPath))
+    {
+        throw new InvalidOperationException("Player settings Eve surface projector is missing.");
+    }
+
+    var projector = File.ReadAllText(projectorPath);
+    var requiredProjectorSymbols = new[]
+    {
+        "SurfaceId = \"aetheria.player_settings\"",
+        "aetheria.player_settings.gameplay.temperature_unit.cycle",
+        "aetheria.player_settings.gameplay.significant_digits.increment",
+        "aetheria.player_settings.graphics.nebula_quality.cycle",
+        "aetheria.player_settings.graphics.show_asteroids.toggle"
+    };
+
+    var missingProjectorSymbols = requiredProjectorSymbols
+        .Where(symbol => !projector.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingProjectorSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Player settings Eve surface projector is missing required typed controls: " +
+            string.Join(", ", missingProjectorSymbols));
+    }
+
+    var bridge = File.Exists(bridgePath)
+        ? File.ReadAllText(bridgePath)
+        : throw new InvalidOperationException("Player settings Eve command bridge is missing.");
+    var provider = File.Exists(providerPath)
+        ? File.ReadAllText(providerPath)
+        : throw new InvalidOperationException("Player settings provider advertisement projector is missing.");
+    var server = File.Exists(serverPath)
+        ? File.ReadAllText(serverPath)
+        : throw new InvalidOperationException("Economy.Server program is missing.");
+
+    if (!bridge.Contains("AppliedPlayerSettingsCommands", StringComparison.Ordinal) ||
+        !bridge.Contains("ApplyPlayerSettingsCommandAsync", StringComparison.Ordinal) ||
+        !bridge.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command bridge no longer owns the typed player-settings surface mutation path.");
+    }
+
+    if (!provider.Contains("AetheriaPlayerSettingsSurfaceProjector.SurfaceId", StringComparison.Ordinal) ||
+        !provider.Contains("aetheria.player_settings.refresh", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Provider advertisement no longer publishes the player-settings Eve surface and commands.");
+    }
+
+    if (!server.Contains("PublishPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
+        !server.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Economy.Server no longer republishes the provider-owned player-settings Eve surface.");
     }
 }
 

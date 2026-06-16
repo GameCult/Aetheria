@@ -119,46 +119,6 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         drainStatus,
         runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
 
-    AetheriaRuntimeEveCommandLog.QueueCommand(
-        statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaCatalogSurfaceProjector.SurfaceId,
-            "aetheria.catalog.refresh",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    AetheriaRuntimeEveCommandLog.QueueCommand(
-        statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaCatalogSurfaceProjector.SurfaceId,
-            "aetheria.catalog.unknown",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    var eveCommandReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node);
-    var eveCommandStatus = new AetheriaEveCommandDrainStatus
-    {
-        RuntimeId = "smoke-runtime",
-        StatePath = statePath,
-        LastPollAtUtc = now,
-        LastAcceptedAtUtc = now,
-        PendingBeforeApply = 2,
-        CommandsAccepted = eveCommandReport.AcceptedPaths.Length,
-        CommandsRejected = eveCommandReport.RejectedCommands,
-        AppliedCatalogRefreshes = eveCommandReport.AppliedCatalogRefreshes,
-        AppliedOperationsRefreshes = eveCommandReport.AppliedOperationsRefreshes,
-        LastRejectedCommand = eveCommandReport.LastRejectedCommand,
-        LastRejectedReason = eveCommandReport.LastRejectedReason,
-        Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
-    };
-    await node.PutEveCommandDrainStatusAsync(eveCommandStatus);
-    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
-        drainStatus,
-        eveCommandStatus,
-        await node.GetRuntimeSessionAsync("smoke-runtime")));
-
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
     {
         Name = "Smoke Aether Runner",
@@ -515,6 +475,69 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             ActionBarInputs = ["<Keyboard>/1", "<Mouse>/leftButton"]
         }
     });
+    await node.PutPlayerSettingsSurfaceAsync(
+        AetheriaPlayerSettingsSurfaceProjector.Build(
+            await node.GetPlayerSettingsAsync(),
+            now));
+
+    AetheriaRuntimeEveCommandLog.QueueCommand(
+        statePath,
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaCatalogSurfaceProjector.SurfaceId,
+            "aetheria.catalog.refresh",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
+    AetheriaRuntimeEveCommandLog.QueueCommand(
+        statePath,
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
+            "aetheria.player_settings.gameplay.significant_digits.increment",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
+    AetheriaRuntimeEveCommandLog.QueueCommand(
+        statePath,
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
+            "aetheria.player_settings.graphics.show_asteroids.toggle",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
+    AetheriaRuntimeEveCommandLog.QueueCommand(
+        statePath,
+        new EveSurfaceCommandRequest(
+            AetheriaProviderAdvertisementProjector.ProviderId,
+            AetheriaCatalogSurfaceProjector.SurfaceId,
+            "aetheria.catalog.unknown",
+            new Dictionary<string, string> { ["source"] = "state-smoke" },
+            DateTimeOffset.UtcNow,
+            "aetheria-state-smoke"));
+    var eveCommandReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node);
+    var eveCommandStatus = new AetheriaEveCommandDrainStatus
+    {
+        RuntimeId = "smoke-runtime",
+        StatePath = statePath,
+        LastPollAtUtc = now,
+        LastAcceptedAtUtc = now,
+        PendingBeforeApply = 4,
+        CommandsAccepted = eveCommandReport.AcceptedPaths.Length,
+        CommandsRejected = eveCommandReport.RejectedCommands,
+        AppliedCatalogRefreshes = eveCommandReport.AppliedCatalogRefreshes,
+        AppliedOperationsRefreshes = eveCommandReport.AppliedOperationsRefreshes,
+        AppliedPlayerSettingsCommands = eveCommandReport.AppliedPlayerSettingsCommands,
+        LastRejectedCommand = eveCommandReport.LastRejectedCommand,
+        LastRejectedReason = eveCommandReport.LastRejectedReason,
+        Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
+    };
+    await node.PutEveCommandDrainStatusAsync(eveCommandStatus);
+    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
+        drainStatus,
+        eveCommandStatus,
+        await node.GetRuntimeSessionAsync("smoke-runtime")));
 
     await node.FlushAsync();
 }
@@ -530,6 +553,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var drainStatus = await reopened.GetRuntimeCommitDrainStatusAsync();
     var eveCommandStatus = await reopened.GetEveCommandDrainStatusAsync();
     var operationsSurface = await reopened.GetOperationsSurfaceAsync();
+    var playerSettingsSurface = await reopened.GetPlayerSettingsSurfaceAsync();
     var advertisement = await reopened.GetProviderAdvertisementAsync();
     var runtimeSession = await reopened.GetRuntimeSessionAsync("smoke-runtime");
     var playerSettings = await reopened.GetPlayerSettingsAsync();
@@ -571,9 +595,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
 
     if (drainStatus?.RuntimeId != "smoke-runtime" ||
         drainStatus.CommandsApplied != 1 ||
-        eveCommandStatus?.CommandsAccepted != 1 ||
+        eveCommandStatus?.CommandsAccepted != 3 ||
         eveCommandStatus.CommandsRejected != 1 ||
         eveCommandStatus.AppliedCatalogRefreshes != 1 ||
+        eveCommandStatus.AppliedPlayerSettingsCommands != 2 ||
         !eveCommandStatus.LastRejectedReason.Contains("not advertised", StringComparison.Ordinal) ||
         operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId ||
         !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandDrain") ||
@@ -583,10 +608,12 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 
     if (advertisement?.ProviderId != AetheriaProviderAdvertisementProjector.ProviderId ||
-        advertisement.Surfaces.Length < 2 ||
+        advertisement.Surfaces.Length < 3 ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId) ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaPlayerSettingsSurfaceProjector.SurfaceId) ||
         !advertisement.Schemas.Contains("aetheria.runtime_session.v1") ||
+        !advertisement.Commands.Any(command => command.Command == "aetheria.player_settings.graphics.show_asteroids.toggle") ||
         !advertisement.Schemas.Contains(AetheriaEveCommandBridge.CommandSchema))
     {
         throw new InvalidOperationException("Aetheria Eve provider advertisement did not survive flush/reopen.");
@@ -603,12 +630,20 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         playerSettings.PlayerName != "Smoke Pilot" ||
         !playerSettings.TutorialPassed ||
         playerSettings.StoryFileHashes.Length != 1 ||
-        playerSettings.Gameplay.SignificantDigits != 4 ||
+        playerSettings.Gameplay.SignificantDigits != 5 ||
         playerSettings.Graphics.NebulaQuality != "High" ||
+        playerSettings.Graphics.ShowAsteroidsInMinimap ||
         playerSettings.Input.BindingOverrides.Length != 1 ||
         playerSettings.Input.ActionBarInputs.Length != 2)
     {
         throw new InvalidOperationException("Player settings did not survive flush/reopen.");
+    }
+
+    if (playerSettingsSurface?.Surface.Id != AetheriaPlayerSettingsSurfaceProjector.SurfaceId ||
+        !playerSettingsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.playerSettings.gameplay") ||
+        !playerSettingsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.playerSettings.graphics"))
+    {
+        throw new InvalidOperationException("Player settings Eve surface did not survive flush/reopen.");
     }
 
     if (loadout?.RootEntity.Hull.ItemKey != AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId).ToString() ||

@@ -54,4 +54,7 @@ public sealed class AetheriaEveCommandDrainStatus
 
     [Key(14)]
     public string Status { get; set; } = "ok";
+
+    [Key(15)]
+    public int AppliedPlayerSettingsCommands { get; set; }
 }

@@ -183,6 +183,16 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<EveSurfaceState>(new CultRecordKey(AetheriaOperationsSurfaceProjector.SurfaceKey));
     }
 
+    public Task<CultRecordHandle<EveSurfaceState>> PutPlayerSettingsSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetPlayerSettingsSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(new CultRecordKey(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey));
+    }
+
     public Task<CultRecordHandle<EveProviderAdvertisementState>> PutProviderAdvertisementAsync(
         EveProviderAdvertisementState advertisement)
     {

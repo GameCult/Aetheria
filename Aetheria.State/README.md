@@ -53,8 +53,9 @@ Unity Eve surfaces also emit typed `gamecult.eve.command.v1` documents under
 `GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
 provider-owned acceptance organ for those commands: it validates the provider,
 surface, and command template before running the narrow refresh handlers for
-the catalog and operations surfaces. Renderer callbacks do not accept commands
-or mutate game state locally.
+the catalog and operations surfaces plus the typed player-settings mutation
+handlers for gameplay/graphics Eve controls. Renderer callbacks do not accept
+commands or mutate game state locally.
 `AetheriaEveRuntimeBootstrap` mounts the `aetheria.operations` surface through a
 runtime-created `UIDocument` after scene load, with environment and command-line
 switches for diagnostics. UI Toolkit is now a live runtime lowering path, not
@@ -319,9 +320,12 @@ allegiance edges so they cannot reclaim catalog lookup authority.
 
 `Aetheria.State.Smoke` writes and reopens full typed player settings plus a
 typed loadout template in addition to world, catalog, run state, zone state, and
-an entity snapshot. It also writes and reopens `AetheriaRuntimeSession` and
-checks that the Eve provider advertises the runtime-session schema. The run
-smoke proves a typed run can reference a typed zone, the zone can preserve
+an entity snapshot. It also writes and reopens `AetheriaRuntimeSession`, the
+provider-owned `aetheria.player_settings` Eve surface, and player-settings Eve
+commands that mutate typed significant-digit and minimap-asteroid settings
+through the provider bridge. The smoke checks that the Eve provider advertises
+the runtime-session schema and player-settings command surface. The run smoke
+proves a typed run can reference a typed zone, the zone can preserve
 orbit/body rows and reference typed entity snapshots, and entity snapshots can
 preserve equipment slots, weapon groups, and simulation stat grids without
 reviving `PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
@@ -374,17 +378,19 @@ dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-o
 ```
 
 The server publishes `AetheriaRuntimeCommitDrainStatus`,
-`AetheriaEveCommandDrainStatus`, and the `aetheria.operations` Eve surface after
-drain attempts, so pending depth, accepted/applied/rejected counts, failures,
-and timestamps are typed state rather than console-only status. It also
+`AetheriaEveCommandDrainStatus`, the `aetheria.operations` Eve surface, and the
+typed `aetheria.player_settings` Eve surface after drain attempts, so pending
+depth, accepted/applied/rejected counts, failures, timestamps, and player
+settings controls are typed state rather than console-only status. It also
 publishes `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
-advertising the catalog and operations surfaces plus the typed schemas witnessed
-by the local `.cc` state file.
+advertising the catalog, operations, and player-settings surfaces plus the
+typed schemas witnessed by the local `.cc` state file.
 
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits and Eve commands when the server host is not being
-used. It also republishes the typed drain status, operations surface, and
-provider advertisement after applying pending files:
+used. It also republishes the typed drain status, operations surface,
+player-settings surface, and provider advertisement after applying pending
+files:
 
 ```powershell
 dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .
