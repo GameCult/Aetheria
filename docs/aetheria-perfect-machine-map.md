@@ -1512,6 +1512,11 @@ First Aetheria surfaces to publish:
      checkpoint. Dropped world pickups are now projected into typed zone
      snapshot state and lowered back into live scene pickups by exact typed zone
      record key during zone load.
+   - Done: replace the main-menu gameplay/graphics settings screen with a
+     locally lowered UI Toolkit projection of the shared
+     `aetheria.player_settings` Eve surface contract. The menu shell still owns
+     entry/exit flow and player-name input, but gameplay now owns surface
+     command semantics through `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1710,6 +1715,11 @@ First Aetheria surfaces to publish:
      preference edits through named `ActionGameManager` commit methods. MainMenu
      reads the `RuntimePlayerSettings` projection for display, but no longer
      assigns its player/gameplay/graphics fields directly.
+   - Done: lower the shared `aetheria.player_settings` Eve surface contract
+     directly inside `MainMenu` through UI Toolkit. The menu no longer owns a
+     second bespoke gameplay/graphics widget tree for those settings; it lowers
+     the shared document and dispatches command ids back to gameplay-owned
+     commit primitives.
    - Done: delete `ItemManager`'s unused zone dictionary, commented corporation
      controller/galaxy-zone GUID caches, force-load GUID sketch, and dead time
      property sketch. ItemManager no longer pretends to own a zone/time cache

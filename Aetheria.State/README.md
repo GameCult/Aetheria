@@ -329,6 +329,10 @@ proves a typed run can reference a typed zone, the zone can preserve
 orbit/body rows and reference typed entity snapshots, and entity snapshots can
 preserve equipment slots, weapon groups, and simulation stat grids without
 reviving `PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
+Unity `MainMenu` now lowers that same player-settings Eve document contract
+locally through UI Toolkit instead of hand-authoring separate gameplay/graphics
+widgets; the menu shell keeps name entry and back-navigation while gameplay
+still owns command semantics through `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
 The run document also carries `CurrentEntityKey`, so Continue restore binds the
 saved player entity by exact typed record identity instead of reconstructing it
 from a transient entity-slot index. Canonical typed run state no longer stores

@@ -6,11 +6,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
+using GameCult.Eve.UnityUIToolkit;
 using TMPro;
 using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using Random = UnityEngine.Random;
@@ -32,6 +35,7 @@ public class MainMenu : MonoBehaviour
     private float _fadeLerp;
     private bool _fading;
     private Vector3 _panelPosition;
+    private UIDocument _playerSettingsSurfaceDocument;
     
     void Start()
     {
@@ -86,6 +90,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowMain()
     {
+        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
         if (!InGame)
@@ -244,18 +249,13 @@ public class MainMenu : MonoBehaviour
 
     private void ShowSettings()
     {
+        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = "settings";
-        _nextMenu.panel.AddButton("Gameplay",
+        _nextMenu.panel.AddButton("Player Settings",
             () =>
             {
-                ShowGameplaySettings();
-                Fade(true);
-            });
-        _nextMenu.panel.AddButton("Graphics",
-            () =>
-            {
-                ShowGraphicsSettings();
+                ShowPlayerSettingsSurface();
                 Fade(true);
             });
         _nextMenu.panel.AddButton("Input",
@@ -277,57 +277,10 @@ public class MainMenu : MonoBehaviour
                 Fade(false);
             });
     }
-    
-    private void ShowGameplaySettings()
-    {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("gameplay", "settings");
-        _nextMenu.panel.AddField("Name", 
-            () => ActionGameManager.RuntimePlayerSettings.Name,
-            ActionGameManager.CommitRuntimePlayerName);
-        _nextMenu.panel.AddProperty(
-            "Temperature Unit",
-            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString());
-        _nextMenu.panel.AddButton(
-            "Cycle Temperature Unit",
-            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit));
-        _nextMenu.panel.AddProperty(
-            "Significant Digits",
-            () => ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits.ToString());
-        _nextMenu.panel.AddButton(
-            "Digits -",
-            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits));
-        _nextMenu.panel.AddButton(
-            "Digits +",
-            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits));
-        _nextMenu.panel.AddButton("Back",
-            CommitRuntimeSettingsAndReturn);
-    }
-
-    private void ShowGraphicsSettings()
-    {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("graphics", "settings");
-        _nextMenu.panel.AddProperty(
-            "Nebula Quality",
-            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString());
-        _nextMenu.panel.AddButton(
-            "Cycle Nebula Quality",
-            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality));
-        _nextMenu.panel.AddProperty(
-            "Show Asteroids in Minimap",
-            () => ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap ? "Enabled" : "Disabled");
-        _nextMenu.panel.AddButton(
-            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap
-                ? "Disable Minimap Asteroids"
-                : "Enable Minimap Asteroids",
-            () => InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap));
-        _nextMenu.panel.AddButton("Back",
-            CommitRuntimeSettingsAndReturn);
-    }
 
     private void ShowInputSettings()
     {
+        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("input", "settings");
         _nextMenu.panel.AddButton("Back",
@@ -340,6 +293,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowAudioSettings()
     {
+        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("audio", "settings");
         _nextMenu.panel.AddButton("Back",
@@ -350,51 +304,171 @@ public class MainMenu : MonoBehaviour
             });
     }
 
-    private void InvokePlayerSettingsCommand(string command)
+    private void ShowPlayerSettingsSurface()
     {
-        switch (command)
-        {
-            case AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
-                ActionGameManager.CommitRuntimeTemperatureUnit(
-                    ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit switch
-                    {
-                        TemperatureUnit.Kelvin => TemperatureUnit.Celsius,
-                        TemperatureUnit.Celsius => TemperatureUnit.Fahrenheit,
-                        _ => TemperatureUnit.Kelvin
-                    });
-                break;
-            case AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
-                ActionGameManager.CommitRuntimeSignificantDigits(
-                    max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits - 1));
-                break;
-            case AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
-                ActionGameManager.CommitRuntimeSignificantDigits(
-                    ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits + 1);
-                break;
-            case AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
-                ActionGameManager.CommitRuntimeNebulaQuality(
-                    ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality switch
-                    {
-                        Quality.Low => Quality.Normal,
-                        Quality.Normal => Quality.High,
-                        Quality.High => Quality.Ultra,
-                        _ => Quality.Low
-                    });
-                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
-                break;
-            case AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
-                ActionGameManager.CommitRuntimeShowAsteroidsInMinimap(
-                    !ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap);
-                break;
-            default:
-                Debug.LogWarning($"Unknown player-settings command: {command}");
-                break;
-        }
+        _nextMenu.panel.Clear();
+        _nextMenu.panel.gameObject.SetActive(false);
+        RenderPlayerSettingsSurface();
     }
 
-    private void CommitRuntimeSettingsAndReturn()
+    private void RenderPlayerSettingsSurface()
     {
-        ShowSettings();
-        Fade(false);
+        var document = ResolvePlayerSettingsSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.justifyContent = Justify.Center;
+        root.style.alignItems = Align.Center;
+        root.style.paddingLeft = 24;
+        root.style.paddingRight = 24;
+        root.style.paddingTop = 24;
+        root.style.paddingBottom = 24;
+        root.style.backgroundColor = new Color(0f, 0f, 0f, 0.6f);
+
+        var shell = new VisualElement();
+        shell.style.flexDirection = FlexDirection.Column;
+        shell.style.width = 560;
+        shell.style.maxWidth = 560;
+        shell.style.paddingLeft = 20;
+        shell.style.paddingRight = 20;
+        shell.style.paddingTop = 20;
+        shell.style.paddingBottom = 20;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f);
+        root.Add(shell);
+
+        var title = new Label("Player Settings");
+        title.style.unityFontStyleAndWeight = FontStyle.Bold;
+        title.style.fontSize = 24;
+        title.style.marginBottom = 6;
+        shell.Add(title);
+
+        var subtitle = new Label("Shared Eve surface lowered locally while gameplay keeps commit authority.");
+        subtitle.style.marginBottom = 12;
+        shell.Add(subtitle);
+
+        var nameField = new TextField("Name")
+        {
+            value = ActionGameManager.RuntimePlayerSettings.Name
+        };
+        nameField.style.marginBottom = 14;
+        nameField.RegisterValueChangedCallback(evt =>
+        {
+            if (string.Equals(evt.newValue, ActionGameManager.RuntimePlayerSettings.Name, StringComparison.Ordinal))
+                return;
+
+            ActionGameManager.CommitRuntimePlayerName(evt.newValue);
+            RenderPlayerSettingsSurface();
+        });
+        shell.Add(nameField);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        var surface = lowerer.Lower(
+            ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
+            request =>
+            {
+                if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command))
+                {
+                    Debug.LogWarning($"Unknown player-settings command: {request.Command}");
+                    return;
+                }
+
+                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
+                RenderPlayerSettingsSurface();
+            });
+        surface.style.marginBottom = 14;
+        shell.Add(surface);
+
+        var actions = new VisualElement();
+        actions.style.flexDirection = FlexDirection.Row;
+        shell.Add(actions);
+
+        var back = new UnityEngine.UIElements.Button(() =>
+        {
+            HidePlayerSettingsSurface();
+            ShowSettings();
+            Fade(false);
+        })
+        {
+            text = "Back"
+        };
+        actions.Add(back);
+    }
+
+    private void HidePlayerSettingsSurface()
+    {
+        if (_playerSettingsSurfaceDocument == null)
+            return;
+
+        _playerSettingsSurfaceDocument.rootVisualElement.Clear();
+        _playerSettingsSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolvePlayerSettingsSurfaceDocument()
+    {
+        if (_playerSettingsSurfaceDocument != null)
+            return _playerSettingsSurfaceDocument;
+
+        var host = new GameObject("Aetheria Player Settings Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1000;
+        host.SetActive(false);
+        _playerSettingsSurfaceDocument = document;
+        return document;
+    }
+
+    private static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsSurfaceDefinition()
+    {
+        return AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(
+            new AetheriaRuntimePlayerSettingsSurfaceState(
+                ActionGameManager.RuntimePlayerSettings.Name,
+                ActionGameManager.RuntimePlayerSettings.TutorialPassed,
+                ActionGameManager.ContinueRunState?.RunId ?? "",
+                ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString(),
+                max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
+                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
+                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
+                DateTime.UtcNow.ToString("O")));
+    }
+
+    private static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
+    {
+        return new EveSurfaceDocument(
+            "surface-state",
+            "gamecult.eve.surface.v1",
+            document.ProviderId,
+            document.ProviderKind,
+            document.Title,
+            document.Version,
+            document.UpdatedAtUtc,
+            new EveSurfaceTree(
+                document.Surface.Id,
+                ToEveSurfaceComponent(document.Surface.Root),
+                document.Surface.Styles
+                    .Select(style => new EveStyleToken(style.Name, style.Value))
+                    .ToArray()),
+            document.Commands
+                .Select(command => new EveCommandTemplate(command.Command, command.Label, command.Transport))
+                .ToArray());
+    }
+
+    private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
+    {
+        return new EveSurfaceComponent(
+            component.Id,
+            component.Kind,
+            new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+            component.Children.Select(ToEveSurfaceComponent).ToArray());
+    }
+
+    private void OnDestroy()
+    {
+        if (_playerSettingsSurfaceDocument != null)
+        {
+            Destroy(_playerSettingsSurfaceDocument.gameObject);
+            _playerSettingsSurfaceDocument = null;
+        }
     }
 }

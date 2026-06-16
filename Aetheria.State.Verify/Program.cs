@@ -1782,6 +1782,12 @@ static void RequireMainMenuSettingsCommit(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimePlayerSettingsCommands.cs");
+    var surfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.cs");
     if (!File.Exists(mainMenuPath))
     {
         throw new InvalidOperationException("Cannot verify main-menu settings commit path; MainMenu.cs is missing.");
@@ -1791,9 +1797,15 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "Cannot verify main-menu settings command contract; AetheriaRuntimePlayerSettingsCommands.cs is missing.");
     }
+    if (!File.Exists(surfaceBuilderPath))
+    {
+        throw new InvalidOperationException(
+            "Cannot verify main-menu settings surface contract; AetheriaRuntimePlayerSettingsSurfaceBuilder.cs is missing.");
+    }
 
     var source = File.ReadAllText(mainMenuPath);
     var sharedCommands = File.ReadAllText(sharedCommandsPath);
+    var surfaceBuilder = File.ReadAllText(surfaceBuilderPath);
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
@@ -1805,7 +1817,8 @@ static void RequireMainMenuSettingsCommit(string root)
         "CommitRuntimeTemperatureUnit",
         "CommitRuntimeSignificantDigits",
         "CommitRuntimeNebulaQuality",
-        "CommitRuntimeShowAsteroidsInMinimap"
+        "CommitRuntimeShowAsteroidsInMinimap",
+        "CommitRuntimePlayerSettingsCommand"
     };
 
     var missingCommits = requiredCommits
@@ -1841,10 +1854,14 @@ static void RequireMainMenuSettingsCommit(string root)
             string.Join("; ", hits));
     }
 
-    var missingUiCalls = requiredCommits
-        .Where(symbol =>
-            !source.Contains("ActionGameManager." + symbol, StringComparison.Ordinal) &&
-            !source.Contains("InvokePlayerSettingsCommand", StringComparison.Ordinal))
+    var requiredMainMenuAuthoritySymbols = new[]
+    {
+        "ActionGameManager.CommitRuntimePlayerName",
+        "ActionGameManager.CommitRuntimePlayerSettingsCommand"
+    };
+
+    var missingUiCalls = requiredMainMenuAuthoritySymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
     if (missingUiCalls.Length > 0)
@@ -1874,13 +1891,33 @@ static void RequireMainMenuSettingsCommit(string root)
             string.Join(", ", missingSharedCommands));
     }
 
+    var requiredSurfaceBuilderSymbols = new[]
+    {
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder",
+        "AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit",
+        "AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits",
+        "AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits",
+        "AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality",
+        "AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap"
+    };
+
+    var missingSurfaceBuilderSymbols = requiredSurfaceBuilderSymbols
+        .Where(symbol => !surfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSurfaceBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared player-settings Eve surface builder is incomplete: " +
+            string.Join(", ", missingSurfaceBuilderSymbols));
+    }
+
     var requiredMainMenuSymbols = new[]
     {
-        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit)",
-        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits)",
-        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits)",
-        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality)",
-        "InvokePlayerSettingsCommand(AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap)"
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
+        "new EveUiToolkitSurfaceLowerer",
+        "ActionGameManager.CommitRuntimePlayerSettingsCommand",
+        "new TextField(\"Name\")"
     };
 
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -1890,7 +1927,7 @@ static void RequireMainMenuSettingsCommit(string root)
     if (missingMainMenuSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu no longer lowers shared player-settings Eve commands: " +
+            "MainMenu no longer lowers the shared player-settings Eve surface contract: " +
             string.Join(", ", missingMainMenuSymbols));
     }
 
@@ -1899,7 +1936,9 @@ static void RequireMainMenuSettingsCommit(string root)
         "AddField(\"Temperature Unit\"",
         "AddField(\"Significant Digits\"",
         "AddField(\"Nebula Quality\"",
-        "AddField(\"Show Asteroids in Minimap\""
+        "AddField(\"Show Asteroids in Minimap\"",
+        "ShowGameplaySettings()",
+        "ShowGraphicsSettings()"
     };
 
     var uiFieldHits = File.ReadLines(mainMenuPath)
@@ -1928,6 +1967,12 @@ static void RequirePlayerSettingsEveSurface(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimePlayerSettingsCommands.cs");
+    var surfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.cs");
 
     if (!File.Exists(projectorPath))
     {
@@ -1938,10 +1983,9 @@ static void RequirePlayerSettingsEveSurface(string root)
     var requiredProjectorSymbols = new[]
     {
         "AetheriaRuntimePlayerSettingsCommands.SurfaceId",
-        "AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit",
-        "AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits",
-        "AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality",
-        "AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap"
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
+        "AetheriaRuntimePlayerSettingsSurfaceState",
+        "settings.ActiveRunKey"
     };
 
     var missingProjectorSymbols = requiredProjectorSymbols
@@ -1967,6 +2011,9 @@ static void RequirePlayerSettingsEveSurface(string root)
     var sharedCommands = File.Exists(sharedCommandsPath)
         ? File.ReadAllText(sharedCommandsPath)
         : throw new InvalidOperationException("Shared player-settings Eve command contract is missing.");
+    var surfaceBuilder = File.Exists(surfaceBuilderPath)
+        ? File.ReadAllText(surfaceBuilderPath)
+        : throw new InvalidOperationException("Shared player-settings Eve surface builder is missing.");
 
     if (!bridge.Contains("AppliedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ApplyPlayerSettingsCommandAsync", StringComparison.Ordinal) ||
@@ -1995,6 +2042,12 @@ static void RequirePlayerSettingsEveSurface(string root)
     {
         throw new InvalidOperationException(
             "Shared player-settings Eve command contract is missing the surface id or command registry helper.");
+    }
+
+    if (!surfaceBuilder.Contains("public static class AetheriaRuntimePlayerSettingsSurfaceBuilder", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared player-settings Eve surface builder no longer owns the portable settings surface contract.");
     }
 }
 

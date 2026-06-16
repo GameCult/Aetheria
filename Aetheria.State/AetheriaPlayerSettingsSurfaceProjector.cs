@@ -1,12 +1,15 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State;
 
 public static class AetheriaPlayerSettingsSurfaceProjector
 {
     public const string SurfaceKey = "eve:surface:aetheria.player_settings";
-    public const string SurfaceId = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SurfaceId;
+    public const string SurfaceId = AetheriaRuntimePlayerSettingsCommands.SurfaceId;
 
     public static EveSurfaceState Build(
         AetheriaPlayerSettings? settings,
@@ -20,158 +23,56 @@ public static class AetheriaPlayerSettingsSurfaceProjector
             ? settings.LastUpdatedAtUtc
             : updatedAtUtc;
 
+        var surface = AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(
+            new AetheriaRuntimePlayerSettingsSurfaceState(
+                settings.PlayerName,
+                settings.TutorialPassed,
+                settings.ActiveRunKey,
+                gameplay.TemperatureUnit,
+                gameplay.SignificantDigits,
+                graphics.NebulaQuality,
+                graphics.ShowAsteroidsInMinimap,
+                publishedAtUtc),
+            version);
+
         return new EveSurfaceState
         {
-            ProviderId = "aetheria",
-            ProviderKind = "game.runtime",
-            Title = "Aetheria Player Settings",
-            Version = version,
-            UpdatedAtUtc = publishedAtUtc,
+            ProviderId = surface.ProviderId,
+            ProviderKind = surface.ProviderKind,
+            Title = surface.Title,
+            Version = surface.Version,
+            UpdatedAtUtc = surface.UpdatedAtUtc,
             Surface = new EveSurface
             {
-                Id = SurfaceId,
-                Root = Node(
-                    "aetheria.playerSettings.root",
-                    "surface",
-                    [],
-                    Node(
-                        "aetheria.playerSettings.summary",
-                        "card",
-                        [("title", "Player Settings")],
-                        Row(
-                            "playerSettings.summary.values",
-                            ("playerName", settings.PlayerName),
-                            ("tutorialPassed", settings.TutorialPassed ? "Yes" : "No"),
-                            ("activeRun", settings.ActiveRunKey)),
-                        Text(
-                            "playerSettings.summary.note",
-                            "Input remapping still lives on the runtime-owned screen until Eve grows typed rebinding controls.")),
-                    Node(
-                        "aetheria.playerSettings.gameplay",
-                        "card",
-                        [("title", "Gameplay")],
-                        Metric("playerSettings.gameplay.temperatureUnit", "Temperature Unit", gameplay.TemperatureUnit),
-                        ButtonRow(
-                            "playerSettings.gameplay.temperatureUnit.buttons",
-                            Button(
-                                "playerSettings.gameplay.temperatureUnit.cycle",
-                                "Cycle Temperature Unit",
-                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit)),
-                        Metric(
-                            "playerSettings.gameplay.significantDigits",
-                            "Significant Digits",
-                            gameplay.SignificantDigits.ToString()),
-                        ButtonRow(
-                            "playerSettings.gameplay.significantDigits.buttons",
-                            Button(
-                                "playerSettings.gameplay.significantDigits.decrement",
-                                "Digits -",
-                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits),
-                            Button(
-                                "playerSettings.gameplay.significantDigits.increment",
-                                "Digits +",
-                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits))),
-                    Node(
-                        "aetheria.playerSettings.graphics",
-                        "card",
-                        [("title", "Graphics")],
-                        Metric("playerSettings.graphics.nebulaQuality", "Nebula Quality", graphics.NebulaQuality),
-                        ButtonRow(
-                            "playerSettings.graphics.nebulaQuality.buttons",
-                            Button(
-                                "playerSettings.graphics.nebulaQuality.cycle",
-                                "Cycle Nebula Quality",
-                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality)),
-                        Metric(
-                            "playerSettings.graphics.showAsteroids",
-                            "Show Asteroids In Minimap",
-                            graphics.ShowAsteroidsInMinimap ? "Enabled" : "Disabled"),
-                        ButtonRow(
-                            "playerSettings.graphics.showAsteroids.buttons",
-                            Button(
-                                "playerSettings.graphics.showAsteroids.toggle",
-                                graphics.ShowAsteroidsInMinimap ? "Disable Minimap Asteroids" : "Enable Minimap Asteroids",
-                                GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap))))
+                Id = surface.Surface.Id,
+                Root = ConvertComponent(surface.Surface.Root),
+                Styles = surface.Surface.Styles
+                    .Select(style => new EveStyleToken
+                    {
+                        Name = style.Name,
+                        Value = style.Value
+                    })
+                    .ToArray()
             },
-            Commands =
-            [
-                new EveCommandTemplate
+            Commands = surface.Commands
+                .Select(command => new EveCommandTemplate
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh,
-                    Label = "Refresh",
-                    Transport = "cultmesh"
-                },
-                new EveCommandTemplate
-                {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
-                    Label = "Cycle Temperature Unit",
-                    Transport = "cultmesh"
-                },
-                new EveCommandTemplate
-                {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
-                    Label = "Digits -",
-                    Transport = "cultmesh"
-                },
-                new EveCommandTemplate
-                {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
-                    Label = "Digits +",
-                    Transport = "cultmesh"
-                },
-                new EveCommandTemplate
-                {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
-                    Label = "Cycle Nebula Quality",
-                    Transport = "cultmesh"
-                },
-                new EveCommandTemplate
-                {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
-                    Label = "Toggle Minimap Asteroids",
-                    Transport = "cultmesh"
-                }
-            ]
+                    Command = command.Command,
+                    Label = command.Label,
+                    Transport = command.Transport
+                })
+                .ToArray()
         };
     }
 
-    private static EveSurfaceComponent Metric(string id, string label, string value)
-    {
-        return Node(id, "metric", [("label", label), ("value", value)]);
-    }
-
-    private static EveSurfaceComponent Text(string id, string value)
-    {
-        return Node(id, "text", [("value", value)]);
-    }
-
-    private static EveSurfaceComponent Button(string id, string label, string command)
-    {
-        return Node(id, "control.button", [("label", label), ("command", command)]);
-    }
-
-    private static EveSurfaceComponent ButtonRow(string id, params EveSurfaceComponent[] children)
-    {
-        return Node(id, "row", [], children);
-    }
-
-    private static EveSurfaceComponent Row(string id, params (string Key, string Value)[] props)
-    {
-        return Node(id, "row", props);
-    }
-
-    private static EveSurfaceComponent Node(
-        string id,
-        string kind,
-        (string Key, string Value)[] props,
-        params EveSurfaceComponent[] children)
+    private static EveSurfaceComponent ConvertComponent(AetheriaRuntimeSurfaceComponent component)
     {
         return new EveSurfaceComponent
         {
-            Id = id,
-            Kind = kind,
-            Props = props.ToDictionary(prop => prop.Key, prop => prop.Value),
-            Children = children
+            Id = component.Id,
+            Kind = component.Kind,
+            Props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+            Children = component.Children.Select(ConvertComponent).ToArray()
         };
     }
 }

@@ -116,6 +116,43 @@ public class ActionGameManager : MonoBehaviour
         QueueRuntimePlayerSettingsCommit();
     }
 
+    public static bool CommitRuntimePlayerSettingsCommand(string command)
+    {
+        switch (command)
+        {
+            case AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
+                CommitRuntimeTemperatureUnit(
+                    RuntimePlayerSettings.GameplaySettings.TemperatureUnit switch
+                    {
+                        TemperatureUnit.Kelvin => TemperatureUnit.Celsius,
+                        TemperatureUnit.Celsius => TemperatureUnit.Fahrenheit,
+                        _ => TemperatureUnit.Kelvin
+                    });
+                return true;
+            case AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
+                CommitRuntimeSignificantDigits(max(0, RuntimePlayerSettings.GameplaySettings.SignificantDigits - 1));
+                return true;
+            case AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
+                CommitRuntimeSignificantDigits(RuntimePlayerSettings.GameplaySettings.SignificantDigits + 1);
+                return true;
+            case AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
+                CommitRuntimeNebulaQuality(
+                    RuntimePlayerSettings.GraphicsSettings.NebulaQuality switch
+                    {
+                        Quality.Low => Quality.Normal,
+                        Quality.Normal => Quality.High,
+                        Quality.High => Quality.Ultra,
+                        _ => Quality.Low
+                    });
+                return true;
+            case AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
+                CommitRuntimeShowAsteroidsInMinimap(!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap);
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private static RuntimePlayerSettings CreateDefaultRuntimePlayerSettings()
     {
         var settings = new RuntimePlayerSettings();
