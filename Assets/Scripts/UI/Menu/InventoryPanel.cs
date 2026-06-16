@@ -198,16 +198,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         var price = blueprint.Price(GameManager.ItemManager);
         return ($"{template.Name} - {price:n0}", () =>
         {
-            var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(GameManager.ItemManager, GameManager.Zone, blueprint, true);
-            entity.SetParent(GameManager.DockedEntity);
-            GameManager.Credits -= price;
-            GameManager.CurrentEntity = entity;
-            if(entity is Ship ship)
-            {
-                ship.IsPlayerShip = true;
-                GameManager.DockingBay.DockedShip = ship;
-            }
-            Display(entity);
+            if (GameManager.CommitRuntimeLoadoutRestore(template, out var entity))
+                Display(entity);
         }, price < GameManager.Credits);
     }
 

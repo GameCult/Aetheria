@@ -1306,6 +1306,36 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    public bool CommitRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity entity)
+    {
+        entity = null;
+        var blueprint = CreateEntityConstructionBlueprint(template);
+        if (blueprint == null ||
+            Zone == null ||
+            DockedEntity == null)
+        {
+            return false;
+        }
+
+        var price = blueprint.Price(ItemManager);
+        if (price > Credits)
+            return false;
+
+        entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
+        entity.SetParent(DockedEntity);
+        Credits -= price;
+        CurrentEntity = entity;
+        if (entity is Ship ship)
+        {
+            ship.IsPlayerShip = true;
+            if (DockingBay != null)
+                DockingBay.DockedShip = ship;
+        }
+
+        QueueRunCheckpoint("loadout-restore");
+        return true;
+    }
+
     private static AetheriaRuntimeLoadoutTemplateSnapshot CreateRuntimeLoadoutTemplateSnapshot(
         AetheriaRuntimeLoadoutTemplateCommit template)
     {

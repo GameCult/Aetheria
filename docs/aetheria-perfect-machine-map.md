@@ -869,6 +869,11 @@ First Aetheria surfaces to publish:
    - Done: add the Unity runtime read projection for typed loadout templates,
      so the restore menu can rehydrate saved loadouts from CultCache instead
      of relying on the in-memory session list after restart.
+   - Done: route runtime loadout restore through
+     `ActionGameManager.CommitRuntimeLoadoutRestore`. `InventoryPanel` may list
+     typed loadout templates and display the restored entity, but gameplay owns
+     blueprint instantiation, credit spend, docked-ship assignment, current
+     entity update, and typed run checkpoint.
    - Done: add typed node ports and smoke coverage for run -> zone -> entity
      snapshots so `.zone` no longer lacks a durable Verse replacement graph.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
@@ -1726,7 +1731,9 @@ group mutation and checkpoint. Inventory double-click transfer follows the same
 rule, and drag/drop placement now shares that commit family: UI requests
 cargo/equipment movement, gameplay owns the move and queues the checkpoint.
 Trade purchases follow the same rule: UI requests the purchase, gameplay owns
-credit changes, cargo transfer, ship creation, and checkpoint. Any
+credit changes, cargo transfer, ship creation, and checkpoint. Runtime loadout
+restore follows the same rule: UI requests restoration, gameplay owns
+instantiation, credits, dock assignment, current entity, and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.
