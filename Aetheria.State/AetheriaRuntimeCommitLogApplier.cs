@@ -144,7 +144,7 @@ public static class AetheriaRuntimeCommitLogApplier
         {
             Name = entity.Name ?? "",
             Kind = entity.Kind ?? "",
-            FactionKey = ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            FactionKey = entity.FactionKey ?? "",
             Hull = ToLoadoutItem(entity.Hull),
             Equipment = ToItemSlots(entity.Equipment),
             CargoBays = ToItemSlots(entity.CargoBays),
@@ -315,8 +315,8 @@ public static class AetheriaRuntimeCommitLogApplier
         return (orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
             .Select(orbit => new AetheriaOrbitSnapshot
             {
-                OrbitId = ReferenceKey(orbit.OrbitKey ?? "", "aetheria.orbit", orbit.OrbitLegacyId ?? ""),
-                ParentId = ReferenceKey(orbit.ParentOrbitKey ?? "", "aetheria.orbit", orbit.ParentLegacyId ?? ""),
+                OrbitId = orbit.OrbitKey ?? "",
+                ParentId = orbit.ParentOrbitKey ?? "",
                 Distance = orbit.Distance,
                 Phase = orbit.Phase,
                 FixedPosition = new AetheriaVector2
@@ -336,10 +336,10 @@ public static class AetheriaRuntimeCommitLogApplier
         return (bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             .Select(body => new AetheriaBodySnapshot
             {
-                BodyId = ReferenceKey(body.BodyKey ?? "", "aetheria.body", body.BodyLegacyId ?? ""),
+                BodyId = body.BodyKey ?? "",
                 Kind = body.Kind ?? "",
                 Name = body.Name ?? "",
-                OrbitId = ReferenceKey(body.OrbitKey ?? "", "aetheria.orbit", body.OrbitLegacyId ?? ""),
+                OrbitId = body.OrbitKey ?? "",
                 Mass = body.Mass,
                 Resources = ToBodyResources(body.Resources),
                 BodyRadiusMultiplier = body.BodyRadiusMultiplier,
@@ -490,7 +490,7 @@ public static class AetheriaRuntimeCommitLogApplier
             TractorPower = entity.TractorPower,
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
-            FactionKey = ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            FactionKey = entity.FactionKey ?? "",
             HullItemKey = entity.HullItemKey ?? "",
             Equipment = ToEntityItemSlots(entity.Equipment),
             CargoBays = ToEntityItemSlots(entity.CargoBays),
@@ -569,19 +569,13 @@ public static class AetheriaRuntimeCommitLogApplier
                 AetherDriveMaximumRpm = state.AetherDriveMaximumRpm,
                 AetherDriveThrustDirectionX = state.AetherDriveThrustDirectionX,
                 AetherDriveThrustDirectionY = state.AetherDriveThrustDirectionY,
-                ResourceScannerTargetBodyId = ReferenceKey(
-                    state.ResourceScannerTargetBodyKey ?? "",
-                    "aetheria.body",
-                    state.ResourceScannerTargetBodyId ?? ""),
+                ResourceScannerTargetBodyId = state.ResourceScannerTargetBodyKey ?? "",
                 ResourceScannerAsteroidIndex = state.ResourceScannerAsteroidIndex,
                 ResourceScannerScanTime = state.ResourceScannerScanTime,
                 ResourceScannerRange = state.ResourceScannerRange,
                 ResourceScannerMinimumDensity = state.ResourceScannerMinimumDensity,
                 ResourceScannerScanDuration = state.ResourceScannerScanDuration,
-                MiningToolAsteroidBeltId = ReferenceKey(
-                    state.MiningToolAsteroidBeltKey ?? "",
-                    "aetheria.body",
-                    state.MiningToolAsteroidBeltId ?? ""),
+                MiningToolAsteroidBeltId = state.MiningToolAsteroidBeltKey ?? "",
                 MiningToolAsteroidIndex = state.MiningToolAsteroidIndex,
                 MiningToolRange = state.MiningToolRange,
                 ThrusterAxis = state.ThrusterAxis,
@@ -713,7 +707,7 @@ public static class AetheriaRuntimeCommitLogApplier
         return (relationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
             .Select(relationship => new AetheriaFactionRelationshipState
             {
-                FactionKey = ReferenceKey(relationship.FactionKey ?? "", "aetheria.corporation", relationship.CorporationLegacyId ?? ""),
+                FactionKey = relationship.FactionKey ?? "",
                 Relationship = relationship.Relationship ?? "",
                 Standing = relationship.Standing
             })
@@ -738,18 +732,6 @@ public static class AetheriaRuntimeCommitLogApplier
     private static CultRecordKey EntityKey(string runId, int zoneIndex, int entityIndex)
     {
         return new CultRecordKey($"global:aetheria.run_state.{StableToken(runId)}.zone.{zoneIndex}.entity.{entityIndex}.v1");
-    }
-
-    private static string ReferenceKey(string documentName, string legacyId)
-    {
-        return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{documentName}:legacy:{legacyId}";
-    }
-
-    private static string ReferenceKey(string typedKey, string documentName, string legacyId)
-    {
-        return !string.IsNullOrWhiteSpace(typedKey)
-            ? typedKey
-            : ReferenceKey(documentName, legacyId);
     }
 
     private static string StableToken(string value)

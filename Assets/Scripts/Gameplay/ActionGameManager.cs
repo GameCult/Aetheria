@@ -1510,7 +1510,7 @@ public class ActionGameManager : MonoBehaviour
         return new AetheriaRuntimeEntityLoadoutSnapshot(
             entity.Name ?? "",
             entity.Kind ?? "",
-            ReferenceKey(entity.FactionKey ?? "", "aetheria.corporation", entity.CorporationLegacyId ?? ""),
+            entity.FactionKey ?? "",
             CreateRuntimeLoadoutItemSnapshot(entity.Hull),
             CreateRuntimeLoadoutItemSlotSnapshots(entity.Equipment),
             CreateRuntimeLoadoutItemSlotSnapshots(entity.CargoBays),

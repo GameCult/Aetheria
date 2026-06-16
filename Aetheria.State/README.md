@@ -102,22 +102,19 @@ Unity runtime commit DTOs carry typed `ItemKey`/`HullItemKey` fields only for
 loadout items, action-bar targets, body resources, entity hulls, and active
 consumables; the commit applier no longer reconstructs item keys from legacy
 item GUID fields.
-Unity runtime commit DTOs now also carry typed `FactionKey` for loadout
+Unity runtime commit DTOs now carry typed `FactionKey` only for loadout
 entities, run entity snapshots, and faction relationship state. The old
-`CorporationLegacyId` fields remain compatibility-only for older pending
-commits; current Unity projection does not write them.
+pending-command `CorporationLegacyId` fallback fields are deleted.
 `EntityConstructionBlueprint` also carries `FactionKey` now. Loadout restore and
 entity construction resolve factions by typed key first, with the old GUID
 field kept as compatibility for construction callers that have not yet been
 lowered.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
-`BodyKey` for zone orbit/body snapshots. The old `OrbitLegacyId`,
-`ParentLegacyId`, and `BodyLegacyId` fields remain compatibility-only for older
-pending commits; current Unity projection does not write them.
-Behavior-state runtime commits carry typed body keys for resource scanner targets
-and mining tool asteroid belts. The old raw body ID commit fields remain
-compatibility-only for older pending commits; current Unity projection does not
-write them.
+`BodyKey` only for zone orbit/body snapshots. The old pending-command
+`OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are
+deleted. Behavior-state runtime commits carry typed body keys for resource
+scanner targets and mining tool asteroid belts; the old raw body ID commit
+fields are deleted.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

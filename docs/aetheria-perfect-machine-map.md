@@ -554,8 +554,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   consumables. The older `ItemDefinitionLegacyId` and
   `HullItemDefinitionLegacyId` fields have been deleted from the pending commit
   contract; the applier no longer reconstructs item keys from legacy item GUIDs.
-  Corporation legacy IDs still translate to typed corporation record keys at
-  the commit boundary.
+  Corporation legacy ID fallback fields are also deleted from pending runtime
+  commit DTOs; current commands must publish typed faction keys directly.
 - Entity restore and loadout manufacturer-distance weighting no longer read
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
   over the typed corporation projection.
@@ -1356,8 +1356,8 @@ First Aetheria surfaces to publish:
      typed item-key strings; runtime body resource commit projection no longer
      calls `FromLegacyId`.
    - Done: move resource scanner targets and mining tool asteroid belts to
-     typed body-key runtime commit fields; raw body ID commit fields are now
-     compatibility-only fallback input.
+     typed body-key runtime commit fields; raw body ID pending-command fields
+     are deleted.
    - Done: delete the old `ItemData`/`EquippableItemData`/`HullData`/
      `WeaponItemData` DTO hierarchy from live Unity source; shared runtime
      geometry/stat primitives now live in `RuntimeGeometry.cs`.

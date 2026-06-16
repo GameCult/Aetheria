@@ -9,6 +9,7 @@ var statePath = args.Length > 1
 
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
+RequireTypedPendingCommitKeys(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -579,6 +580,44 @@ static void RequirePackageSerializerBoundary(string root)
     {
         throw new InvalidOperationException(
             "Package serializer symbols escaped the named CultCache transport boundary: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedPendingCommitKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs"),
+        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "CorporationLegacyId",
+        "OrbitLegacyId",
+        "ParentLegacyId",
+        "BodyLegacyId",
+        "ResourceScannerTargetBodyId { get; set; }",
+        "MiningToolAsteroidBeltId { get; set; }",
+        "ReferenceKey(entity.FactionKey",
+        "ReferenceKey(orbit.OrbitKey",
+        "ReferenceKey(body.BodyKey",
+        "ReferenceKey(relationship.FactionKey"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Pending runtime commit authority still accepts legacy ID fallback fields: " +
             string.Join("; ", hits));
     }
 }

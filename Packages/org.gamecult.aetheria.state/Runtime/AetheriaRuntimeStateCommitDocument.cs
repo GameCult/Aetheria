@@ -139,9 +139,6 @@ namespace GameCult.Aetheria.State.Unity
         [Key(1)]
         public string Kind { get; set; } = "";
 
-        [Key(2)]
-        public string CorporationLegacyId { get; set; } = "";
-
         [Key(3)]
         public AetheriaRuntimeLoadoutItemCommit Hull { get; set; } = new AetheriaRuntimeLoadoutItemCommit();
 
@@ -277,9 +274,6 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeFactionRelationshipCommit
     {
-        [Key(0)]
-        public string CorporationLegacyId { get; set; } = "";
-
         [Key(1)]
         public string Relationship { get; set; } = "";
 
@@ -358,12 +352,6 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeOrbitSnapshotCommit
     {
-        [Key(0)]
-        public string OrbitLegacyId { get; set; } = "";
-
-        [Key(1)]
-        public string ParentLegacyId { get; set; } = "";
-
         [Key(2)]
         public double Distance { get; set; }
 
@@ -386,17 +374,11 @@ namespace GameCult.Aetheria.State.Unity
     [MessagePackObject]
     public sealed class AetheriaRuntimeBodySnapshotCommit
     {
-        [Key(0)]
-        public string BodyLegacyId { get; set; } = "";
-
         [Key(1)]
         public string Kind { get; set; } = "";
 
         [Key(2)]
         public string Name { get; set; } = "";
-
-        [Key(3)]
-        public string OrbitLegacyId { get; set; } = "";
 
         [Key(4)]
         public double Mass { get; set; }
@@ -581,9 +563,6 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(7)]
         public double DirectionY { get; set; }
-
-        [Key(8)]
-        public string CorporationLegacyId { get; set; } = "";
 
         [Key(10)]
         public IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> Equipment { get; set; } = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
@@ -891,9 +870,6 @@ namespace GameCult.Aetheria.State.Unity
         [Key(30)]
         public double AetherDriveThrustDirectionY { get; set; }
 
-        [Key(31)]
-        public string ResourceScannerTargetBodyId { get; set; } = "";
-
         [Key(32)]
         public int ResourceScannerAsteroidIndex { get; set; } = -1;
 
@@ -908,9 +884,6 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(36)]
         public double ResourceScannerScanDuration { get; set; }
-
-        [Key(37)]
-        public string MiningToolAsteroidBeltId { get; set; } = "";
 
         [Key(38)]
         public int MiningToolAsteroidIndex { get; set; } = -1;
