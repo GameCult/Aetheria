@@ -19,6 +19,7 @@ RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
 RequireWeaponGroupCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
+RequireTradePurchaseCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -467,6 +468,7 @@ Console.WriteLine("Hull conductivity authority: inventory UI toggles flow throug
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
+Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -1002,6 +1004,64 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
         throw new InvalidOperationException(
             "Inventory UI no longer routes transfer requests through ActionGameManager: " +
             string.Join(", ", missingUiCalls));
+    }
+}
+
+static void RequireTradePurchaseCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify trade purchase authority; ActionGameManager.cs is missing.");
+
+    var requiredCommits = new[]
+    {
+        "CommitTradePurchase",
+        "QueueRunCheckpoint(\"trade-purchase\")",
+        "Credits -=",
+        "new Ship("
+    };
+
+    var missingCommits = requiredCommits
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingCommits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Trade purchase no longer has a gameplay-owned checkpoint commit primitive: " +
+            string.Join(", ", missingCommits));
+    }
+
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeMenu = File.Exists(tradeMenuPath)
+        ? File.ReadAllText(tradeMenuPath)
+        : throw new InvalidOperationException("Cannot verify trade purchase authority; TradeMenu.cs is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        "GameManager.Credits -=",
+        "Inventory.TryTransferItem(",
+        "new Ship(",
+        ".SetParent(GameManager.DockedEntity)"
+    };
+
+    var hits = File.ReadLines(tradeMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, tradeMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still owns direct purchase mutation: " +
+            string.Join("; ", hits));
+    }
+
+    if (!tradeMenu.Contains("GameManager.CommitTradePurchase", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("TradeMenu no longer routes purchases through ActionGameManager.");
     }
 }
 

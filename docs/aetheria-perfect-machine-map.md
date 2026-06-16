@@ -1004,6 +1004,11 @@ First Aetheria surfaces to publish:
    - Done: move trade menu buy price, ship-hull classification, and simple
      commodity stack-size decisions onto typed catalog rows; inventory transfer
      and ship construction remain the runtime mutation owners.
+   - Done: route trade purchase mutation through gameplay-owned checkpoint
+     commits. `TradeMenu` still presents typed trade rows and calculates display
+     prices, but no longer subtracts credits, transfers purchased cargo, or
+     constructs purchased ships directly. `ActionGameManager.CommitTradePurchase`
+     owns the purchase mutation and queues a typed run checkpoint.
    - Done: move TradeMenu dynamic behavior columns onto typed behavior payload
      fields; the menu no longer hydrates `ItemData` or `BehaviorData` for row
      display, filtering, sorting, or buy decisions.
@@ -1719,7 +1724,9 @@ collects text, gameplay owns the name mutation and checkpoint. Weapon group
 assignment follows the same rule: UI requests membership, gameplay owns the
 group mutation and checkpoint. Inventory double-click transfer follows the same
 rule, and drag/drop placement now shares that commit family: UI requests
-cargo/equipment movement, gameplay owns the move and queues the checkpoint. Any
+cargo/equipment movement, gameplay owns the move and queues the checkpoint.
+Trade purchases follow the same rule: UI requests the purchase, gameplay owns
+credit changes, cargo transfer, ship creation, and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

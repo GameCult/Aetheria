@@ -1675,6 +1675,76 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public bool CommitTradePurchase(
+        EquippedCargoBay stationInventory,
+        EquippedCargoBay targetCargo,
+        CraftedItemInstance item,
+        int price,
+        bool createsDockedShip)
+    {
+        if (item == null ||
+            price < 0 ||
+            price > Credits)
+        {
+            return false;
+        }
+
+        if (createsDockedShip)
+        {
+            if (!(item is EquippableItem hull) ||
+                Zone == null ||
+                DockedEntity == null)
+            {
+                return false;
+            }
+
+            var ship = new Ship(ItemManager, Zone, hull, NewEntitySettings) { IsPlayerShip = true };
+            ship.SetParent(DockedEntity);
+            Credits -= price;
+            QueueRunCheckpoint("trade-purchase");
+            return true;
+        }
+
+        if (stationInventory == null ||
+            targetCargo == null ||
+            !stationInventory.TryTransferItem(targetCargo, item))
+        {
+            return false;
+        }
+
+        Credits -= price;
+        QueueRunCheckpoint("trade-purchase");
+        return true;
+    }
+
+    public bool CommitTradePurchase(
+        EquippedCargoBay stationInventory,
+        EquippedCargoBay targetCargo,
+        SimpleCommodity item,
+        int quantity,
+        int unitPrice)
+    {
+        if (stationInventory == null ||
+            targetCargo == null ||
+            item == null ||
+            quantity <= 0 ||
+            unitPrice < 0)
+        {
+            return false;
+        }
+
+        var totalPrice = (long)quantity * unitPrice;
+        if (totalPrice > Credits || totalPrice > int.MaxValue)
+            return false;
+
+        if (!stationInventory.TryTransferItem(targetCargo, item, quantity))
+            return false;
+
+        Credits -= (int)totalPrice;
+        QueueRunCheckpoint("trade-purchase");
+        return true;
+    }
+
     public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
     {
         if (item?.EquippableItem == null)

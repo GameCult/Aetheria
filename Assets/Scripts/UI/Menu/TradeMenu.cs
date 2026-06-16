@@ -528,41 +528,27 @@ public class TradeMenu : MonoBehaviour
         }
 
         var price = GetTypedTradePrice(item, typedItem);
-        if (price < GameManager.Credits)
+        var isShipHull = !string.IsNullOrWhiteSpace(typedItem?.HullType);
+        if (isShipHull &&
+            !string.Equals(typedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
         {
-            if (!string.IsNullOrWhiteSpace(typedItem?.HullType))
-            {
-                if (!string.Equals(typedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
-                    throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
-
-                var ship = new Ship(GameManager.ItemManager, GameManager.Zone, item as EquippableItem, GameManager.NewEntitySettings) { IsPlayerShip = true };
-                ship.SetParent(GameManager.DockedEntity);
-
-                GameManager.Credits -= price;
-                UpdateCreditsLabel();
-            }
-            else if (Inventory.TryTransferItem(_targetCargo, item))
-            {
-                GameManager.Credits -= price;
-                UpdateCreditsLabel();
-            }
-            else
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                return;
-            }
-        }
-        else
-        {
-            Dialog.Clear();
-            Dialog.Title.text = "Unable to buy: Insufficient Credits!";
-            Dialog.Show();
-            Dialog.MoveToCursor();
+            ShowUnableToBuy("Unsupported hull purchase!");
             return;
         }
+
+        if (price > GameManager.Credits)
+        {
+            ShowUnableToBuy("Insufficient Credits!");
+            return;
+        }
+
+        if (!GameManager.CommitTradePurchase(Inventory, _targetCargo, item, price, isShipHull))
+        {
+            ShowUnableToBuy(isShipHull ? "Unable to create ship!" : "Insufficient Cargo Space!");
+            return;
+        }
+
+        UpdateCreditsLabel();
     }
 
     private void Buy(SimpleCommodity simpleCommodity, int quantity)
@@ -574,40 +560,22 @@ public class TradeMenu : MonoBehaviour
             return;
         }
 
-        var maxStack = typedItem.MaxStack > 0 ? typedItem.MaxStack : 1;
         var price = typedItem.Price;
-        // Up-rounded integer division from https://stackoverflow.com/a/503201
-        int lots = (quantity - 1) / maxStack + 1;
-        int remaining = quantity;
-        for (int i = 0; i < lots; i++)
+        var clampedQuantity = min(quantity, simpleCommodity.Quantity);
+        var totalPrice = (long)clampedQuantity * price;
+        if (totalPrice > GameManager.Credits)
         {
-            int q = min(remaining, maxStack);
-            if (q * price < GameManager.Credits)
-            {
-                if (Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity))
-                {
-                    GameManager.Credits -= q * price;
-                    UpdateCreditsLabel();
-                    remaining -= q;
-                }
-                else
-                {
-                    Dialog.Clear();
-                    Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
-                    Dialog.Show();
-                    Dialog.MoveToCursor();
-                    return;
-                }
-            }
-            else
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Unable to buy: Insufficient Credits!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                return;
-            }
+            ShowUnableToBuy("Insufficient Credits!");
+            return;
         }
+
+        if (!GameManager.CommitTradePurchase(Inventory, _targetCargo, simpleCommodity, clampedQuantity, price))
+        {
+            ShowUnableToBuy("Insufficient Cargo Space!");
+            return;
+        }
+
+        UpdateCreditsLabel();
     }
 
     private int GetTypedTradePrice(CraftedItemInstance item, AetheriaRuntimeCatalogItem typedItem)
