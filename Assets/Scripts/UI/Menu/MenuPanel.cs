@@ -3,7 +3,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Eve.Surface;
@@ -13,6 +12,15 @@ using UnityEngine.UIElements;
 
 public class MenuPanel : MonoBehaviour
 {
+    [Serializable]
+    private sealed class MenuTabBinding
+    {
+        public MenuTab Tab;
+        public GameObject TabContents;
+        public string Label;
+        public bool RequireDock;
+    }
+
     private const string MenuTabsSurfaceType = "surface-state";
     private const string MenuTabsSurfaceSchema = "gamecult.eve.surface.v1";
     private const string MenuTabsSurfaceProviderId = "aetheria";
@@ -21,13 +29,12 @@ public class MenuPanel : MonoBehaviour
 
     public ActionGameManager GameManager;
     public RectTransform TabButtons;
-    public Color ActiveTabColor;
-    public Color InactiveTabColor;
+    [SerializeField] private MenuTabBinding[] TabBindings = Array.Empty<MenuTabBinding>();
 
     public event Action<MenuTab> TabChanged;
 
-    private Dictionary<MenuTab, MenuTabButton> _tabs = new Dictionary<MenuTab, MenuTabButton>();
-    private MenuTabButton _current;
+    private readonly Dictionary<MenuTab, MenuTabBinding> _tabs = new Dictionary<MenuTab, MenuTabBinding>();
+    private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     
     public MenuTab CurrentTab { get; private set; }
@@ -69,10 +76,13 @@ public class MenuPanel : MonoBehaviour
 
     private void Awake()
     {
-        foreach (var tabButton in TabButtons.GetComponentsInChildren<MenuTabButton>())
+        foreach (var tabBinding in TabBindings)
         {
-            tabButton.TabContents.SetActive(false);
-            _tabs.Add(tabButton.Tab, tabButton);
+            if (tabBinding?.TabContents == null)
+                continue;
+
+            tabBinding.TabContents.SetActive(false);
+            _tabs[tabBinding.Tab] = tabBinding;
         }
     }
 
@@ -182,23 +192,23 @@ public class MenuPanel : MonoBehaviour
     {
         var visibleTabs = ResolveVisibleTabs();
         var commands = visibleTabs
-            .Select(tabButton => new EveCommandTemplate(
-                GetTabCommand(tabButton.Tab),
-                tabButton.Text?.text ?? tabButton.Tab.ToString(),
+            .Select(tabBinding => new EveCommandTemplate(
+                GetTabCommand(tabBinding.Tab),
+                GetTabLabel(tabBinding),
                 "unity-uitoolkit"))
             .ToArray();
 
         var buttons = visibleTabs
-            .Select(tabButton =>
+            .Select(tabBinding =>
             {
-                var label = tabButton.Text?.text ?? tabButton.Tab.ToString();
-                if (tabButton.Tab == CurrentTab)
+                var label = GetTabLabel(tabBinding);
+                if (tabBinding.Tab == CurrentTab)
                     label = $"{label} *";
 
                 return Button(
-                    $"{MenuTabsSurfaceId}.{tabButton.Tab.ToString().ToLowerInvariant()}",
+                    $"{MenuTabsSurfaceId}.{tabBinding.Tab.ToString().ToLowerInvariant()}",
                     label,
-                    GetTabCommand(tabButton.Tab));
+                    GetTabCommand(tabBinding.Tab));
             })
             .ToArray();
 
@@ -224,13 +234,20 @@ public class MenuPanel : MonoBehaviour
             commands);
     }
 
-    private MenuTabButton[] ResolveVisibleTabs()
+    private MenuTabBinding[] ResolveVisibleTabs()
     {
         return _tabs.Values
-            .Where(tabButton => !tabButton.RequireDock || GameManager.DockedEntity != null)
-            .Where(tabButton => tabButton.Tab != MenuTab.Local || (GameManager.DockedEntity as OrbitalEntity)?.Story != null)
-            .OrderBy(tabButton => (int)tabButton.Tab)
+            .Where(tabBinding => !tabBinding.RequireDock || GameManager.DockedEntity != null)
+            .Where(tabBinding => tabBinding.Tab != MenuTab.Local || (GameManager.DockedEntity as OrbitalEntity)?.Story != null)
+            .OrderBy(tabBinding => (int)tabBinding.Tab)
             .ToArray();
+    }
+
+    private static string GetTabLabel(MenuTabBinding tabBinding)
+    {
+        return string.IsNullOrWhiteSpace(tabBinding.Label)
+            ? tabBinding.Tab.ToString()
+            : tabBinding.Label;
     }
 
     private static string GetTabCommand(MenuTab tab)

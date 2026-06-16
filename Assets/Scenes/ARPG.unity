@@ -1008,7 +1008,6 @@ GameObject:
   - component: {fileID: 101395093}
   - component: {fileID: 101395092}
   - component: {fileID: 101395091}
-  - component: {fileID: 101395094}
   m_Layer: 5
   m_Name: Inventory
   m_TagString: Untagged
@@ -1178,23 +1177,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 101395089}
   m_CullTransparentMesh: 0
---- !u!114 &101395094
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 101395089}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d90317f6ecd38754fad9aee92f46b126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  TabContents: {fileID: 1997243492}
-  Button: {fileID: 101395091}
-  Tab: 1
-  Text: {fileID: 101395092}
-  RequireDock: 0
 --- !u!1 &109242180
 GameObject:
   m_ObjectHideFlags: 0
@@ -14570,7 +14552,6 @@ GameObject:
   - component: {fileID: 931657854}
   - component: {fileID: 931657853}
   - component: {fileID: 931657852}
-  - component: {fileID: 931657855}
   m_Layer: 5
   m_Name: Map
   m_TagString: Untagged
@@ -14740,23 +14721,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 931657850}
   m_CullTransparentMesh: 0
---- !u!114 &931657855
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 931657850}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d90317f6ecd38754fad9aee92f46b126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  TabContents: {fileID: 630131158}
-  Button: {fileID: 931657852}
-  Tab: 0
-  Text: {fileID: 931657853}
-  RequireDock: 0
 --- !u!1 &932155239
 GameObject:
   m_ObjectHideFlags: 0
@@ -21908,7 +21872,6 @@ GameObject:
   - component: {fileID: 1399108422}
   - component: {fileID: 1399108421}
   - component: {fileID: 1399108420}
-  - component: {fileID: 1399108419}
   m_Layer: 5
   m_Name: Galaxy
   m_TagString: Untagged
@@ -21935,23 +21898,6 @@ RectTransform:
   m_AnchoredPosition: {x: 1297.74, y: -40}
   m_SizeDelta: {x: 234.27, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1399108419
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1399108417}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d90317f6ecd38754fad9aee92f46b126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  TabContents: {fileID: 2056162321}
-  Button: {fileID: 1399108420}
-  Tab: 3
-  Text: {fileID: 1399108421}
-  RequireDock: 0
 --- !u!114 &1399108420
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22865,7 +22811,6 @@ GameObject:
   - component: {fileID: 1464157089}
   - component: {fileID: 1464157088}
   - component: {fileID: 1464157087}
-  - component: {fileID: 1464157086}
   m_Layer: 5
   m_Name: Trade
   m_TagString: Untagged
@@ -22892,23 +22837,6 @@ RectTransform:
   m_AnchoredPosition: {x: 928.34, y: -40}
   m_SizeDelta: {x: 202.55, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1464157086
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1464157084}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d90317f6ecd38754fad9aee92f46b126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  TabContents: {fileID: 522642867}
-  Button: {fileID: 1464157087}
-  Tab: 2
-  Text: {fileID: 1464157088}
-  RequireDock: 1
 --- !u!114 &1464157087
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -23282,7 +23210,6 @@ GameObject:
   - component: {fileID: 1485884356}
   - component: {fileID: 1485884355}
   - component: {fileID: 1485884354}
-  - component: {fileID: 1485884353}
   m_Layer: 5
   m_Name: Local
   m_TagString: Untagged
@@ -23309,23 +23236,6 @@ RectTransform:
   m_AnchoredPosition: {x: 342.84, y: -40}
   m_SizeDelta: {x: 275.43, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1485884353
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1485884351}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d90317f6ecd38754fad9aee92f46b126, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  TabContents: {fileID: 14255051}
-  Button: {fileID: 1485884354}
-  Tab: 4
-  Text: {fileID: 1485884355}
-  RequireDock: 0
 --- !u!114 &1485884354
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27453,8 +27363,27 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GameManager: {fileID: 1009503729}
   TabButtons: {fileID: 1783772015}
-  ActiveTabColor: {r: 1, g: 0.44583336, b: 0.050000012, a: 1}
-  InactiveTabColor: {r: 0.6981132, g: 0.6981132, b: 0.6981132, a: 1}
+  TabBindings:
+  - Tab: 0
+    TabContents: {fileID: 630131158}
+    Label: Map
+    RequireDock: 0
+  - Tab: 1
+    TabContents: {fileID: 1997243492}
+    Label: Inventory
+    RequireDock: 0
+  - Tab: 2
+    TabContents: {fileID: 522642867}
+    Label: Trade
+    RequireDock: 1
+  - Tab: 3
+    TabContents: {fileID: 2056162321}
+    Label: Galaxy
+    RequireDock: 0
+  - Tab: 4
+    TabContents: {fileID: 14255051}
+    Label: Explore
+    RequireDock: 0
 --- !u!1 &1733988258
 GameObject:
   m_ObjectHideFlags: 0

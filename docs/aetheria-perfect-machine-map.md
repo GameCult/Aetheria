@@ -118,8 +118,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed audio controls are still future work. Sector-map zone inspection now
   lowers through a local Eve/UI Toolkit surface as well instead of rebuilding
   `PropertiesPanel` rows on each zone click. The runtime in-game menu tab strip
-  now lowers through a local Eve/UI Toolkit surface instead of wiring old
-  `MenuTabButton` clicks. Inventory background ship tuning now lowers through a
+  now lowers through a local Eve/UI Toolkit surface, with `MenuPanel`
+  serializing tab metadata directly instead of routing authority through old
+  `MenuTabButton` components. Inventory background ship tuning now lowers through a
   local Eve/UI Toolkit surface instead of rebuilding a `PropertiesPanel`
   float field. Trade target-cargo selection now lowers through a local
   Eve/UI Toolkit surface instead of rebuilding a `ContextMenu` option list.
@@ -1568,9 +1569,9 @@ First Aetheria surfaces to publish:
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player
      clicks a zone.
-   - Done: replace the runtime in-game menu tab strip with an Eve-owned UI
-     Toolkit surface. `MenuPanel` still owns tab-content activation, but old
-     `MenuTabButton` click wiring no longer owns tab navigation.
+  - Done: replace the runtime in-game menu tab strip with an Eve-owned UI
+    Toolkit surface. `MenuPanel` now owns tab-content activation and tab
+    metadata directly; the old `MenuTabButton` component shell is gone.
    - Done: replace inventory background ship tuning with an Eve-owned UI
      Toolkit surface. `InventoryMenu` still owns click routing and the
      gameplay commit primitive still owns mutation, but the old
@@ -1961,8 +1962,8 @@ First Aetheria surfaces to publish:
   `UIDocument` host and a local Eve surface document instead of rebuilding
   `PropertiesPanel.AddProperty(...)` rows on each zone click.
 - Runtime in-game menu tab navigation now lowers through a shared UI Toolkit
-  `UIDocument` host and a local Eve surface document instead of wiring
-  `MenuTabButton` click handlers.
+  `UIDocument` host and a local Eve surface document, with `MenuPanel`
+  owning tab metadata directly instead of `MenuTabButton` components.
 - Inventory background ship tuning now lowers through a shared UI Toolkit
   `UIDocument` host and a local Eve surface document instead of rebuilding a
   mutable `PropertiesPanel.AddField(...)` control for shutdown threshold.

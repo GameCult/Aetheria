@@ -507,7 +507,7 @@ Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester autho
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
-Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
+Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Inventory cargo-item shell: cargo item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
@@ -2556,15 +2556,24 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException("Cannot verify runtime menu tab shell; MenuPanel.cs is missing.");
     }
 
+    var legacyTabButtonPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuTabButton.cs");
+    if (File.Exists(legacyTabButtonPath))
+    {
+        throw new InvalidOperationException("MenuPanel tab metadata still has a surviving MenuTabButton component shell.");
+    }
+
     var source = File.ReadAllText(menuPanelPath);
     var requiredSymbols = new[]
     {
         "MenuTabsSurfaceId",
+        "MenuTabBinding",
+        "TabBindings = Array.Empty<MenuTabBinding>();",
         "RenderTabSurface(",
         "HandleTabSurfaceCommand(",
         "ResolveTabSurfaceDocument(",
         "BuildTabSurfaceDefinition(",
         "ResolveVisibleTabs(",
+        "GetTabLabel(",
         "GetTabCommand(",
         "new EveUiToolkitSurfaceLowerer()",
         "TabButtons.gameObject.SetActive(false)"
@@ -2583,6 +2592,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "MenuTabButton",
         "tabButton.Button.onClick.AddListener(",
         "tabButton.gameObject.SetActive(!tabButton.RequireDock || GameManager.DockedEntity != null);",
         "_tabs[MenuTab.Local].gameObject.SetActive("
