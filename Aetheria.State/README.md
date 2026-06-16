@@ -214,7 +214,7 @@ needs actual allegiance weights, not only display counts. Runtime checkpoints
 now persist session faction relationships into typed run state, and runtime
 sessions publish typed state-host liveness. Zone checkpoints persist generated
 orbit/body rows into `AetheriaZoneState`, so `ZoneConstructionBlueprint` is a
-one-shot construction input rather than the retained surface carrying celestial graph facts. Entity checkpoints
+one-shot construction input carrying typed orbit/body keys rather than the retained surface carrying celestial graph facts. Entity checkpoints
 persist hull simulation grids into `AetheriaEntitySnapshot`, so
 `EntityConstructionBlueprint` is no longer the only surface carrying those live
 values. Run checkpoints project the flattened live entity graph, including

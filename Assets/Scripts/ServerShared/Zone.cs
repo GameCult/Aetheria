@@ -70,22 +70,22 @@ public class Zone
             switch (planet)
             {
                 case AsteroidBeltConstructionData belt:
-                    var runtimeBelt = new AsteroidBelt(belt, Orbits[OrbitKey(belt.Orbit)]);
+                    var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);
                     AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;
                     _asteroidBeltsById[runtimeBelt.ID] = runtimeBelt;
                     break;
                 case SunConstructionData sun:
-                    var runtimeSun = new Sun(settings, sun, Orbits[OrbitKey(planet.Orbit)]);
+                    var runtimeSun = new Sun(settings, sun, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimeSun.BodyKey] = runtimeSun;
                     _planetsById[runtimeSun.ID] = runtimeSun;
                     break;
                 case GasGiantConstructionData gas:
-                    var runtimeGas = new GasGiant(settings, gas, Orbits[OrbitKey(planet.Orbit)]);
+                    var runtimeGas = new GasGiant(settings, gas, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimeGas.BodyKey] = runtimeGas;
                     _planetsById[runtimeGas.ID] = runtimeGas;
                     break;
                 default:
-                    var runtimePlanet = new Planet(settings, planet, Orbits[OrbitKey(planet.Orbit)]);
+                    var runtimePlanet = new Planet(settings, planet, Orbits[planet.OrbitKey]);
                     PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;
                     _planetsById[runtimePlanet.ID] = runtimePlanet;
                     break;
@@ -439,9 +439,9 @@ public class Planet
         Settings = settings;
         Orbit = orbit;
         ID = data.ID;
-        BodyKey = Zone.BodyKey(data.ID);
+        BodyKey = data.BodyKey ?? "";
         Name = data.Name ?? "";
-        OrbitKey = Zone.OrbitKey(data.Orbit);
+        OrbitKey = data.OrbitKey ?? "";
         Mass = data.Mass;
         Resources = data.Resources;
         BodyRadiusMultiplier = data.BodyRadiusMultiplier;
@@ -552,9 +552,9 @@ public class AsteroidBelt
         _asteroids = data.Asteroids;
         Orbit = orbit;
         ID = data.ID;
-        BodyKey = Zone.BodyKey(data.ID);
+        BodyKey = data.BodyKey ?? "";
         Name = data.Name ?? "";
-        OrbitKey = Zone.OrbitKey(data.Orbit);
+        OrbitKey = data.OrbitKey ?? "";
         Mass = data.Mass;
         Resources = data.Resources;
         BodyRadiusMultiplier = data.BodyRadiusMultiplier;
@@ -596,8 +596,8 @@ public class Orbit
     public Orbit(PlanetSettings settings, OrbitConstructionData data)
     {
         ID = data.ID;
-        OrbitKey = Zone.OrbitKey(data.ID);
-        ParentOrbitKey = Zone.OrbitKey(data.Parent);
+        OrbitKey = data.OrbitKey ?? "";
+        ParentOrbitKey = data.ParentOrbitKey ?? "";
         Distance = data.Distance;
         Phase = data.Phase;
         FixedPosition = data.FixedPosition;

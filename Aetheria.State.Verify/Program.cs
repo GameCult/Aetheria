@@ -20,6 +20,7 @@ RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
 RequireNativeZoneKeyResolution(root);
 RequireTypedZoneRuntimeCollections(root);
+RequireTypedZoneConstructionKeys(root);
 RequireTypedAsteroidZoneApi(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
@@ -1010,8 +1011,8 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
         },
         [Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs")] = new[]
         {
-            "turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
-            "station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);"
+            "turret.OrbitKey = turretOrbit.OrbitKey;",
+            "station.OrbitKey = lagrangeOrbit.OrbitKey;"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
@@ -1152,7 +1153,7 @@ static void RequireKeyedOrbitRuntimeWrappers(string root)
     {
         "public Orbit Orbit;",
         "public Orbit Orbit { get; }",
-        "var runtimeBelt = new AsteroidBelt(belt, Orbits[OrbitKey(belt.Orbit)]);",
+        "var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);",
         "AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;",
         "belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);",
         "public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)",
@@ -1261,7 +1262,14 @@ static void RequireNativeZoneKeyResolution(string root)
         "if (_asteroidBeltsById.TryGetValue(bodyId, out var belt))",
         "var parentPosition = string.IsNullOrWhiteSpace(orbit.ParentOrbitKey)",
         ": GetOrbitPosition(orbit.ParentOrbitKey);",
-        "return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;"
+        "return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;",
+        "var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);",
+        "var runtimeSun = new Sun(settings, sun, Orbits[planet.OrbitKey]);",
+        "var runtimeGas = new GasGiant(settings, gas, Orbits[planet.OrbitKey]);",
+        "var runtimePlanet = new Planet(settings, planet, Orbits[planet.OrbitKey]);",
+        "BodyKey = data.BodyKey ?? \"\";",
+        "OrbitKey = data.OrbitKey ?? \"\";",
+        "ParentOrbitKey = data.ParentOrbitKey ?? \"\";"
     };
     var missingSymbols = requiredSymbols
         .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -1352,6 +1360,92 @@ static void RequireTypedZoneRuntimeCollections(string root)
         throw new InvalidOperationException(
             "Zone runtime collections and renderer caches must expose typed keyed ownership end to end: " +
             string.Join("; ", missing));
+    }
+}
+
+static void RequireTypedZoneConstructionKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneConstructionData.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "var runtimeBelt = new AsteroidBelt(belt, Orbits[OrbitKey(belt.Orbit)]);",
+        "var runtimeSun = new Sun(settings, sun, Orbits[OrbitKey(planet.Orbit)]);",
+        "var runtimeGas = new GasGiant(settings, gas, Orbits[OrbitKey(planet.Orbit)]);",
+        "var runtimePlanet = new Planet(settings, planet, Orbits[OrbitKey(planet.Orbit)]);",
+        "turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
+        "station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone construction and generation must hand orbit/body identity through typed key fields instead of recomputing runtime authority from legacy GUID refs: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneConstructionData.cs")] = new[]
+        {
+            "public string BodyKey = \"\";",
+            "public string OrbitKey = \"\";",
+            "public string ParentOrbitKey = \"\";"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs")] = new[]
+        {
+            "data.OrbitKey = Zone.OrbitKey(data.ID);",
+            "data.ParentOrbitKey = orbitInverseMap[data].Parent != null",
+            "planetData.BodyKey = Zone.BodyKey(planetData.ID);",
+            "planetData.OrbitKey = orbitMap[planet].OrbitKey;",
+            "lagrangeOrbit.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);",
+            "ParentOrbitKey = baseOrbit.ParentOrbitKey,",
+            "turretOrbit.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
+            "ParentOrbitKey = orbit.ParentOrbitKey,",
+            "turret.OrbitKey = turretOrbit.OrbitKey;",
+            "station.OrbitKey = lagrangeOrbit.OrbitKey;"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")] = new[]
+        {
+            "var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);",
+            "var runtimeSun = new Sun(settings, sun, Orbits[planet.OrbitKey]);",
+            "var runtimeGas = new GasGiant(settings, gas, Orbits[planet.OrbitKey]);",
+            "var runtimePlanet = new Planet(settings, planet, Orbits[planet.OrbitKey]);",
+            "BodyKey = data.BodyKey ?? \"\";",
+            "OrbitKey = data.OrbitKey ?? \"\";",
+            "ParentOrbitKey = data.ParentOrbitKey ?? \"\";"
+        }
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone construction inputs and generator seams must retain typed orbit/body keys as the handoff authority: " +
+            string.Join("; ", missingSymbols));
     }
 }
 

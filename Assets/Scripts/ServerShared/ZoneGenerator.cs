@@ -102,11 +102,14 @@ public static class ZoneGenerator
         {
             var data = new OrbitConstructionData
             {
+                OrbitKey = "",
+                ParentOrbitKey = "",
 	            FixedPosition = planet.FixedPosition,
                 Distance = planet.Distance,
                 //Period = planet.Period,
                 Phase = planet.Phase
             };
+            data.OrbitKey = Zone.OrbitKey(data.ID);
             orbitMap[planet] = data;
             orbitInverseMap[data] = planet;
             return data;
@@ -114,9 +117,14 @@ public static class ZoneGenerator
 
         // Link orbit construction parents to generated orbit IDs.
         foreach (var data in blueprint.Orbits)
+        {
             data.Parent = orbitInverseMap[data].Parent != null
                 ? orbitMap[orbitInverseMap[data].Parent].ID
                 : Guid.Empty;
+            data.ParentOrbitKey = orbitInverseMap[data].Parent != null
+                ? orbitMap[orbitInverseMap[data].Parent].OrbitKey
+                : "";
+        }
 
         // Cache resource densities
         // var resourceMaps = mapLayers.Values
@@ -159,8 +167,10 @@ public static class ZoneGenerator
 			        throw new ArgumentOutOfRangeException();
 	        }
 
+            planetData.BodyKey = Zone.BodyKey(planetData.ID);
 	        planetData.Mass = planet.Mass;
 	        planetData.Orbit = orbitMap[planet].ID;
+            planetData.OrbitKey = orbitMap[planet].OrbitKey;
 	        // planetData.Resources = planetResources;
             planetData.Name = planetData.ID.ToString().Substring(0, 8);
             if (planetData is AsteroidBeltConstructionData beltData)
@@ -255,10 +265,13 @@ public static class ZoneGenerator
 	        var lagrangeOrbit = new OrbitConstructionData
 	        {
 		        ID = Guid.NewGuid(),
+		        OrbitKey = "",
 		        Parent = baseOrbit.Parent,
+		        ParentOrbitKey = baseOrbit.ParentOrbitKey,
 		        Distance = baseOrbit.Distance,
 		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f)
 	        };
+	        lagrangeOrbit.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);
 	        blueprint.Orbits.Add(lagrangeOrbit);
 	        return lagrangeOrbit;
         }
@@ -270,14 +283,17 @@ public static class ZoneGenerator
 	        var turretOrbit = new OrbitConstructionData
 	        {
 		        ID = Guid.NewGuid(),
+		        OrbitKey = "",
 		        Parent = orbit.Parent,
+		        ParentOrbitKey = orbit.ParentOrbitKey,
 		        Distance = orbit.Distance,
 		        Phase = orbit.Phase + phase
 	        };
+	        turretOrbit.OrbitKey = Zone.OrbitKey(turretOrbit.ID);
 	        blueprint.Orbits.Add(turretOrbit);
 	        var turret = loadoutGenerator.GenerateTurretLoadout();
 	        if (turret == null) return;
-	        turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);
+	        turret.OrbitKey = turretOrbit.OrbitKey;
 	        blueprint.Entities.Add(turret);
         }
 
@@ -297,7 +313,7 @@ public static class ZoneGenerator
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
-	        station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);
+	        station.OrbitKey = lagrangeOrbit.OrbitKey;
 	        station.SecurityLevel = story.Security;
 	        station.SecurityRadius = blueprint.Radius;
 	        station.Story = i;
@@ -314,7 +330,7 @@ public static class ZoneGenerator
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout();
 	        if (station == null) continue;
-	        station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);
+	        station.OrbitKey = lagrangeOrbit.OrbitKey;
 	        station.SecurityLevel = security;
 	        station.SecurityRadius = blueprint.Radius;
 	        blueprint.Entities.Add(station);

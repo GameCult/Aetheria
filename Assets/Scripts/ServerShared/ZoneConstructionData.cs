@@ -25,9 +25,13 @@ public abstract class BodyConstructionData : INamedEntry
 {
     public Guid ID = Guid.NewGuid();
 
+    public string BodyKey = "";
+
     public string Name = "";
 
     public Guid Orbit;
+
+    public string OrbitKey = "";
 
     public float Mass = 0;
 
@@ -107,7 +111,11 @@ public class OrbitConstructionData
 {
     public Guid ID = Guid.NewGuid();
 
+    public string OrbitKey = "";
+
     public Guid Parent;
+
+    public string ParentOrbitKey = "";
 
     public float Distance;
 
