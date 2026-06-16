@@ -26,6 +26,7 @@ RequireTypedZoneStateSnapshotKeys(root);
 RequireTypedAsteroidZoneApi(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
+RequireTypedRuntimeBehaviorCoverage(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -486,6 +487,7 @@ Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
 Console.WriteLine("Shared Eve package ownership: generic Unity Eve packages import from the neighboring Eve repo instead of local staged copies");
+Console.WriteLine("Typed runtime behavior coverage: live behavior kinds have typed factory plus progress/state restore coverage");
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
@@ -1844,6 +1846,167 @@ static void RequireFactionKeyIdentity(string root)
         throw new InvalidOperationException(
             "Faction identity must compare and order by FactionKey; Faction.ID is temporary projection residue only: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedRuntimeBehaviorCoverage(string root)
+{
+    var itemManagerPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "ItemManager.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+
+    var itemManager = File.Exists(itemManagerPath)
+        ? File.ReadAllText(itemManagerPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ItemManager.cs is missing.");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ActionGameManager.cs is missing.");
+
+    var requiredFactoryMappings = new[]
+    {
+        "case \"AetherDrive\": return new AetherDrive(definition, item);",
+        "case \"AutoWeapon\": return new AutoWeapon(definition, item);",
+        "case \"Capacitor\": return new Capacitor(definition, item);",
+        "case \"ChargedWeapon\": return new ChargedWeapon(definition, item);",
+        "case \"Cockpit\": return new Cockpit(definition, item);",
+        "case \"Cooldown\": return new Cooldown(definition, item);",
+        "case \"ConstantWeapon\": return new ConstantWeapon(definition, item);",
+        "case \"EnergyDraw\": return new EnergyDraw(definition, item);",
+        "case \"GuidedWeapon\": return new InstantWeapon(definition, item);",
+        "case \"Heat\": return new Heat(definition, item);",
+        "case \"HeatStorage\": return new HeatStorage(definition, item);",
+        "case \"InstantWeapon\": return new InstantWeapon(definition, item);",
+        "case \"ItemUsage\": return new ItemUsage(definition, item);",
+        "case \"Launcher\": return new LockWeapon(definition, item);",
+        "case \"LockWeapon\": return new LockWeapon(definition, item);",
+        "case \"MiningTool\": return new MiningTool(definition, item);",
+        "case \"Radiator\": return new Radiator(definition, item);",
+        "case \"Reactor\": return new Reactor(definition, item);",
+        "case \"Reflector\": return new Reflector(definition, item);",
+        "case \"ResourceScanner\": return new ResourceScanner(definition, item);",
+        "case \"Sensor\": return new Sensor(definition, item);",
+        "case \"Shield\": return new Shield(definition, item);",
+        "case \"StatModifier\": return new StatModifier(definition, item);",
+        "case \"Switch\": return new Switch(definition, item);",
+        "case \"Thermotoggle\": return new Thermotoggle(definition, item);",
+        "case \"Thruster\": return new Thruster(definition, item);",
+        "case \"Trigger\": return new Trigger(definition, item);",
+        "case \"TurretController\": return new TurretController(definition, item);",
+        "case \"VelocityConversion\": return new VelocityConversion(definition, item);",
+        "case \"VelocityLimit\": return new VelocityLimit(definition, item);",
+        "case \"Visibility\": return new Visibility(definition, item);",
+        "case \"Wear\": return new Wear(definition, item);",
+        "case \"AetherDrive\": return new AetherDrive(definition, effect);",
+        "case \"AutoWeapon\": return new InstantWeapon(definition, effect);",
+        "case \"Capacitor\": return new Capacitor(definition, effect);",
+        "case \"ChargedWeapon\": return new ChargedWeapon(definition, effect);",
+        "case \"Cockpit\": return new Cockpit(definition, effect);",
+        "case \"Cooldown\": return new Cooldown(definition, effect);",
+        "case \"ConstantWeapon\": return new ConstantWeapon(definition, effect);",
+        "case \"EnergyDraw\": return new EnergyDraw(definition, effect);",
+        "case \"GuidedWeapon\": return new InstantWeapon(definition, effect);",
+        "case \"Heat\": return new Heat(definition, effect);",
+        "case \"HeatStorage\": return new HeatStorage(definition, effect);",
+        "case \"InstantWeapon\": return new InstantWeapon(definition, effect);",
+        "case \"ItemUsage\": return new ItemUsage(definition, effect);",
+        "case \"Launcher\": return new LockWeapon(definition, effect);",
+        "case \"LockWeapon\": return new LockWeapon(definition, effect);",
+        "case \"MiningTool\": return new MiningTool(definition, effect);",
+        "case \"Radiator\": return new Radiator(definition, effect);",
+        "case \"Reactor\": return new Reactor(definition, effect);",
+        "case \"Reflector\": return new Reflector(definition, effect);",
+        "case \"ResourceScanner\": return new ResourceScanner(definition, effect);",
+        "case \"Sensor\": return new Sensor(definition, effect);",
+        "case \"Shield\": return new Shield(definition, effect);",
+        "case \"StatModifier\": return new StatModifier(definition, effect);",
+        "case \"Switch\": return new Switch(definition, effect);",
+        "case \"Thermotoggle\": return new Thermotoggle(definition, effect);",
+        "case \"Thruster\": return new Thruster(definition, effect);",
+        "case \"Trigger\": return new Trigger(definition, effect);",
+        "case \"TurretController\": return new TurretController(definition, effect);",
+        "case \"VelocityConversion\": return new VelocityConversion(definition, effect);",
+        "case \"VelocityLimit\": return new VelocityLimit(definition, effect);",
+        "case \"Visibility\": return new Visibility(definition, effect);",
+        "case \"Wear\": return new Wear(definition, effect);"
+    };
+
+    var missingFactoryMappings = requiredFactoryMappings
+        .Where(symbol => !itemManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingFactoryMappings.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed runtime behavior factory no longer covers the live behavior payload kinds: " +
+            string.Join(", ", missingFactoryMappings));
+    }
+
+    var requiredWeaponStateCoverage = new[]
+    {
+        "if (weapon is InstantWeapon instant)",
+        "if (weapon is ChargedWeapon charged)",
+        "if (weapon is ConstantWeapon constant)",
+        "if (weapon is LockWeapon lockWeapon)",
+        "if (weapon is LockWeapon lockWeapon)",
+        "else if (weapon is ChargedWeapon chargedWeapon)",
+        "else if (weapon is ConstantWeapon constantWeapon)",
+        "else if (weapon is InstantWeapon instantWeapon)"
+    };
+
+    var missingWeaponStateCoverage = requiredWeaponStateCoverage
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingWeaponStateCoverage.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed weapon snapshot coverage no longer restores the live articulated weapon families: " +
+            string.Join(", ", missingWeaponStateCoverage));
+    }
+
+    var requiredBehaviorStateCoverage = new[]
+    {
+        "if (!(behaviors[behaviorIndex] is IProgressBehavior progressBehavior))",
+        "if (behavior is Sensor sensor)",
+        "else if (behavior is Radiator radiator)",
+        "else if (behavior is Reactor reactor)",
+        "else if (behavior is Capacitor capacitor)",
+        "else if (behavior is AetherDrive drive)",
+        "else if (behavior is ResourceScanner resourceScanner)",
+        "else if (behavior is MiningTool miningTool)",
+        "else if (behavior is Thruster thruster)",
+        "else if (behavior is Shield shield)",
+        "else if (behavior is VelocityLimit velocityLimit)",
+        "else if (behavior is Thermotoggle thermotoggle)",
+        "else if (behavior is Switch switchBehavior)",
+        "else if (behavior is Trigger trigger)",
+        "else if (behavior is StatModifier statModifier)",
+        "else if (behavior is TurretController turretController)",
+        "case Sensor sensor:",
+        "case Radiator radiator:",
+        "case Reactor reactor:",
+        "case Capacitor capacitor:",
+        "case AetherDrive drive:",
+        "case ResourceScanner resourceScanner:",
+        "case MiningTool miningTool:",
+        "case Thruster thruster:",
+        "case Shield shield:",
+        "case VelocityLimit velocityLimit:",
+        "case Thermotoggle thermotoggle:",
+        "case Switch switchBehavior:",
+        "case Trigger trigger:",
+        "case StatModifier statModifier:",
+        "case TurretController turretController:"
+    };
+
+    var missingBehaviorStateCoverage = requiredBehaviorStateCoverage
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingBehaviorStateCoverage.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed runtime behavior snapshot coverage no longer owns the mutable non-weapon behavior families: " +
+            string.Join(", ", missingBehaviorStateCoverage));
     }
 }
 

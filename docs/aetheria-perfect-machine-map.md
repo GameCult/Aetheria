@@ -1011,12 +1011,12 @@ First Aetheria surfaces to publish:
      entity graph, not only `Zone.Entities`, so docked child ships can receive
      typed entity records and stable child/docking references instead of
      disappearing from the `.zone` replacement graph.
-   - Remaining: add typed documents/mappers for runtime object graphs not
-     covered by progress, weapon, sensor, radiator, reactor, capacitor, drive,
-     scanner, mining, thruster, shield, limiter, thermotoggle, switch, trigger,
-     stat-modifier, or turret rows; complete typed behavior factory
-     construction and any catalog fields not covered by the stable
-     scalar/fingerprint/payload pass.
+   - Done: complete typed runtime behavior factory construction and snapshot
+     coverage for the live mutable behavior families. Articulated weapon kinds
+     restore through typed weapon rows, mutable non-weapon kinds restore through
+     typed behavior rows, and generic progress kinds project through the shared
+     progress path. Remaining work in this lane is catalog-field coverage, not
+     a missing runtime behavior owner.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
