@@ -42,6 +42,7 @@ RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
 RequireWeaponGroupCommitAuthority(root);
+RequireActionBarBindingCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
 RequireLootPickupCommitAuthority(root);
 RequireEntityDestroyedCommitAuthority(root);
@@ -501,6 +502,7 @@ Console.WriteLine("Runtime simulation tuning authority: UI writes flow through g
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
+Console.WriteLine("Action-bar binding authority: drag/drop updates and typed run restore flow through gameplay checkpoint state");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
 Console.WriteLine("Loot pickup authority: collision pickup requests flow through gameplay checkpoint commits");
 Console.WriteLine("Entity destruction authority: hull-death observers flow through gameplay checkpoint commits");
@@ -2516,7 +2518,7 @@ static void RequireMainMenuContinueRunState(string root)
         "RestoreEntityContactsFromTypedSnapshot",
         "entity.Target.Value = target",
         "string.Equals(entitySnapshot.RecordKey, currentEntityKey",
-        "BindToEntity(currentEntity)",
+        "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
         "RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities)",
         "ResolveRuntimeBehavior(entity, weaponState.OwnerKind, weaponState.OwnerIndex, weaponState.BehaviorIndex)",
@@ -2935,6 +2937,51 @@ static void RequireWeaponGroupCommitAuthority(string root)
     if (!assignment.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("WeaponGroupAssignment no longer routes membership changes through ActionGameManager.");
+    }
+}
+
+static void RequireActionBarBindingCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify action-bar binding authority; ActionGameManager.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "CommitActionBarBinding(",
+        "QueueRunCheckpoint(\"action-bar-binding\")",
+        "RestoreActionBarBindingsFromTypedRun(",
+        "ApplyActionBarBindings(",
+        "CommitActionBarBinding(slot, dragAction)"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Action-bar binding no longer has a gameplay-owned checkpoint/restore path: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "var newbinds = Enumerable.Range(0, 64)",
+        ".Zip(\r\n                    bindings,"
+    };
+
+    var legacyHits = forbiddenSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (legacyHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Action-bar binding still contains the old unconditional weapon-group overwrite path: " +
+            string.Join(", ", legacyHits));
     }
 }
 

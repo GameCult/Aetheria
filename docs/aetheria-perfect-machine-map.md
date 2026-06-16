@@ -98,8 +98,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops and creates consumable bindings around typed
   catalog rows. Missing typed rows are rejected for consumable binding instead
-  of falling through to legacy DTO classification. Consumable activation,
-  active-duration fill, runtime duration, and effectiveness curves now use typed
+  of falling through to legacy DTO classification. Slot-binding drag/drop now
+  routes through `ActionGameManager.CommitActionBarBinding`, queues a typed run
+  checkpoint immediately, and rebuilt current-entity binds come from typed
+  action-bar descriptor rows instead of stale slot-local `Entity` references.
+  Consumable activation, active-duration fill, runtime duration, and effectiveness curves now use typed
   item rows with neutral defaults for missing optional facets. Gear action-bar bindings read custom icon resource
   paths from typed item rows, then use typed weapon and hardpoint facets for
   fallback icon selection, and finally fall back to a generic tool icon when
@@ -1496,6 +1499,12 @@ First Aetheria surfaces to publish:
      remains a uGUI control for now, but it no longer adds/removes items or
      weapons from `Entity.WeaponGroups` directly; gameplay owns the membership
      mutation and typed checkpoint.
+   - Done: route action-bar drag/drop bindings through
+     `ActionGameManager.CommitActionBarBinding`, and restore them from typed
+     run-state descriptors when the current entity changes or a typed continue
+     run rehydrates the session. Runtime UI may still lower the action bar, but
+     gameplay owns both the binding mutation and the rebind path back onto the
+     live current entity.
    - Done: route inventory double-click transfer and drag/drop placement through
      gameplay-owned checkpoint commits. `InventoryMenu` and `InventoryPanel` no
      longer drop items, remove cargo, unequip gear, equip gear, or store cargo
@@ -1880,6 +1889,10 @@ First Aetheria surfaces to publish:
   `InputActionAsset.FromJson`, but that JSON belongs to Unity's generated input
   action lowering under Aetheria's remapping system. It is not durable Aetheria
   state and does not own remapping authority.
+- Action-bar slot binding drag/drop now queues its own `action-bar-binding`
+  typed run checkpoint immediately, and typed continue-run restore rebuilds slot
+  bindings onto the live current entity instead of leaving stale `ActionBarBinding`
+  instances pointed at the previous entity body.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and

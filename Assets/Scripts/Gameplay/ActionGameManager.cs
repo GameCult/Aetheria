@@ -712,6 +712,180 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    private static AetheriaRuntimeActionBarBindingCommit ToActionBarBindingCommit(
+        AetheriaRuntimeActionBarBindingSnapshot binding)
+    {
+        return binding == null
+            ? null
+            : new AetheriaRuntimeActionBarBindingCommit
+            {
+                ControlPath = binding.ControlPath ?? "",
+                Kind = binding.Kind ?? "",
+                EquipmentIndex = binding.EquipmentIndex,
+                BehaviorIndex = binding.BehaviorIndex,
+                WeaponGroup = binding.WeaponGroup,
+                ItemKey = binding.TargetKey ?? ""
+            };
+    }
+
+    private bool CommitActionBarBinding(ActionBarSlot slot, DragObject dragAction)
+    {
+        if (slot == null || dragAction == null || CurrentEntity == null)
+            return false;
+
+        var binding = CreateActionBarBinding(slot, CurrentEntity, dragAction);
+        if (binding == null)
+            return false;
+
+        slot.Binding = binding;
+        QueueRunCheckpoint("action-bar-binding");
+        return true;
+    }
+
+    private void RestoreActionBarBindingsFromTypedRun(
+        IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> bindings)
+    {
+        var restoredBindings = bindings?
+            .Select(ToActionBarBindingCommit)
+            .Where(binding => binding != null)
+            .ToArray();
+        ApplyActionBarBindings(restoredBindings);
+    }
+
+    private void ApplyActionBarBindings(IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> bindings)
+    {
+        if (_actionBarSlots == null || _actionBarSlots.Count == 0)
+            return;
+
+        foreach (var slot in _actionBarSlots)
+            slot.Binding = null;
+
+        if (CurrentEntity == null)
+            return;
+
+        if (bindings == null || bindings.Count == 0)
+        {
+            ApplyDefaultActionBarBindings();
+            return;
+        }
+
+        var slotsByControlPath = _actionBarSlots
+            .Where(slot => !string.IsNullOrWhiteSpace(slot?.ControlPath))
+            .GroupBy(slot => slot.ControlPath, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        foreach (var binding in bindings)
+        {
+            if (binding == null ||
+                string.IsNullOrWhiteSpace(binding.ControlPath) ||
+                !slotsByControlPath.TryGetValue(binding.ControlPath, out var slot))
+            {
+                continue;
+            }
+
+            var slotBinding = CreateActionBarBinding(slot, CurrentEntity, binding);
+            if (slotBinding != null)
+                slot.Binding = slotBinding;
+        }
+    }
+
+    private void ApplyDefaultActionBarBindings()
+    {
+        if (CurrentEntity?.WeaponGroups == null || _actionBarSlots == null)
+            return;
+
+        foreach (var pair in Enumerable.Range(0, CurrentEntity.WeaponGroups.Length)
+                     .Zip(_actionBarSlots, (groupIndex, slot) => (groupIndex, slot)))
+        {
+            pair.slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, pair.slot, pair.groupIndex);
+        }
+    }
+
+    private ActionBarBinding CreateActionBarBinding(ActionBarSlot slot, Entity entity, DragObject dragAction)
+    {
+        switch (dragAction)
+        {
+            case EquippedItemDragObject equippedItemDragAction:
+                var trigger = equippedItemDragAction.EquippedItem.GetBehavior<IActivatedBehavior>();
+                return trigger == null
+                    ? null
+                    : new ActionBarGearBinding(entity, slot, equippedItemDragAction.EquippedItem, trigger);
+            case ItemInstanceDragObject itemInstanceDragAction:
+                var consumable = FindTypedActionBarConsumable(itemInstanceDragAction.Item);
+                return consumable == null
+                    ? null
+                    : new ActionBarConsumableBinding(entity, slot, consumable);
+            case WeaponGroupDragObject weaponGroupDragAction:
+                return entity.WeaponGroups != null &&
+                       weaponGroupDragAction.Group >= 0 &&
+                       weaponGroupDragAction.Group < entity.WeaponGroups.Length
+                    ? new ActionBarWeaponGroupBinding(entity, slot, weaponGroupDragAction.Group)
+                    : null;
+            default:
+                return null;
+        }
+    }
+
+    private ActionBarBinding CreateActionBarBinding(
+        ActionBarSlot slot,
+        Entity entity,
+        AetheriaRuntimeActionBarBindingCommit binding)
+    {
+        if (slot == null || entity == null || binding == null)
+            return null;
+
+        switch (binding.Kind)
+        {
+            case "consumable":
+                var consumable = RuntimeCatalog?.FindItem(binding.ItemKey ?? "");
+                return consumable != null &&
+                       string.Equals(consumable.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
+                    ? new ActionBarConsumableBinding(entity, slot, consumable)
+                    : null;
+            case "gear":
+                if (binding.EquipmentIndex < 0 || binding.EquipmentIndex >= entity.Equipment.Count)
+                    return null;
+
+                var equippedItem = entity.Equipment[binding.EquipmentIndex];
+                var behaviors = equippedItem?.Behaviors;
+                if (equippedItem == null ||
+                    !string.Equals(equippedItem.EquippableItem?.ItemKey ?? "", binding.ItemKey ?? "", StringComparison.Ordinal) ||
+                    behaviors == null ||
+                    binding.BehaviorIndex < 0 ||
+                    binding.BehaviorIndex >= behaviors.Length)
+                {
+                    return null;
+                }
+
+                if (!(behaviors[binding.BehaviorIndex] is IActivatedBehavior activatedBehavior))
+                    return null;
+
+                return new ActionBarGearBinding(entity, slot, equippedItem, activatedBehavior);
+            case "weapon_group":
+                return entity.WeaponGroups != null &&
+                       binding.WeaponGroup >= 0 &&
+                       binding.WeaponGroup < entity.WeaponGroups.Length
+                    ? new ActionBarWeaponGroupBinding(entity, slot, binding.WeaponGroup)
+                    : null;
+            default:
+                return null;
+        }
+    }
+
+    private AetheriaRuntimeCatalogItem FindTypedActionBarConsumable(ItemInstance item)
+    {
+        var typedItem = FindTypedActionBarItem(item);
+        return typedItem != null &&
+               string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
+            ? typedItem
+            : null;
+    }
+
+    private AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
+    {
+        return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+    }
+
     private AetheriaRuntimeFactionRelationshipCommit[] ProjectFactionRelationships()
     {
         return CurrentGalaxy?.FactionRelationships?
@@ -2252,31 +2426,7 @@ public class ActionGameManager : MonoBehaviour
             slot.PointerEnterTrigger.OnPointerEnterAsObservable().Subscribe(_ =>
             {
                 //Debug.Log($"Pointer entered action bar slot {controlPath}");
-                RegisterDragTarget(dragAction =>
-                {
-                    //Debug.Log("Registering binding!");
-                    switch (dragAction)
-                    {
-                        case EquippedItemDragObject equippedItemDragAction:
-                            var trigger = equippedItemDragAction.EquippedItem.GetBehavior<IActivatedBehavior>();
-                            if (trigger == null) return false;
-                            slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
-                            return true;
-                        case ItemInstanceDragObject itemInstanceDragAction:
-                            var consumable = FindTypedActionBarConsumable(itemInstanceDragAction.Item);
-                            if (consumable == null) return false;
-                            slot.Binding = new ActionBarConsumableBinding(
-                                CurrentEntity,
-                                slot,
-                                consumable);
-                            return true;
-                        case WeaponGroupDragObject weaponGroupDragAction:
-                            slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, weaponGroupDragAction.Group);
-                            return true;
-                        default:
-                            throw new ArgumentOutOfRangeException(nameof(dragAction));
-                    }
-                });
+                RegisterDragTarget(dragAction => CommitActionBarBinding(slot, dragAction));
             });
             slot.PointerExitTrigger.OnPointerExitAsObservable().Subscribe(_ =>
             {
@@ -2286,38 +2436,16 @@ public class ActionGameManager : MonoBehaviour
             return slot;
         }
 
-        AetheriaRuntimeCatalogItem FindTypedActionBarConsumable(ItemInstance item)
-        {
-            var typedItem = FindTypedActionBarItem(item);
-            return typedItem != null &&
-                   string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
-                ? typedItem
-                : null;
-        }
-
-        AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
-        {
-            return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
-        }
-
-        var bindings = RuntimePlayerSettings.InputSettings.ActionBarInputs.OrderBy(i => i)
-            .Select(createBinding).ToList();
+        RuntimePlayerSettings.InputSettings.ActionBarInputs
+            .OrderBy(i => i)
+            .Select(createBinding)
+            .ToList();
 
         #endregion
 
         #endregion
-        
+
         StartGame();
-        
-        //if (!RuntimePlayerSettings.InputSettings.ActionBarInputs.Any())
-        {
-            var newbinds = Enumerable.Range(0, 64)//CurrentEntity.WeaponGroups
-                .Zip(
-                    bindings,
-                    (i, slot) =>
-                        slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, i)
-                );
-        }
     }
 
     public void BeginDrag(DragObject dragObject)
@@ -2577,7 +2705,7 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey);
+        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey, run.ActionBarBindings);
     }
 
     private static string CurrentEntityRecordKey(
@@ -2606,7 +2734,8 @@ public class ActionGameManager : MonoBehaviour
 
     private void ReplaceZoneEntitiesFromTypedSnapshots(
         IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
-        string currentEntityKey)
+        string currentEntityKey,
+        IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings)
     {
         foreach (var existingEntity in Zone.Entities.ToArray())
         {
@@ -2662,7 +2791,7 @@ public class ActionGameManager : MonoBehaviour
         }
 
         if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
-            RestoreCurrentEntityBinding(currentEntity);
+            RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
     }
 
     private void RestoreChildAndDockingRelationships(
@@ -2713,7 +2842,9 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private void RestoreCurrentEntityBinding(Entity currentEntity)
+    private void RestoreCurrentEntityBinding(
+        Entity currentEntity,
+        IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings)
     {
         if (currentEntity.Parent != null)
         {
@@ -2721,12 +2852,18 @@ public class ActionGameManager : MonoBehaviour
             if (dockingBay != null && currentEntity.Parent is OrbitalEntity)
             {
                 CurrentEntity = currentEntity;
+                RestoreActionBarBindingsFromTypedRun(actionBarBindings);
                 DoDock(currentEntity.Parent, dockingBay);
                 return;
             }
         }
 
-        BindToEntity(currentEntity);
+        BindToEntity(
+            currentEntity,
+            actionBarBindings?
+                .Select(ToActionBarBindingCommit)
+                .Where(binding => binding != null)
+                .ToArray());
     }
 
     private void RestoreEntityContactsFromTypedSnapshot(
@@ -3139,14 +3276,17 @@ public class ActionGameManager : MonoBehaviour
         _shipSubscriptions.Clear();
     }
 
-    private void BindToEntity(Entity entity)
+    private void BindToEntity(
+        Entity entity,
+        IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> actionBarBindings = null)
     {
         if (!ZoneRenderer.EntityInstances.ContainsKey(entity))
         {
             Debug.LogError($"Attempted to bind to entity {entity.Name}, but SectorRenderer has no such instance!");
             return;
         }
-        
+
+        var resolvedActionBarBindings = actionBarBindings ?? ProjectActionBarBindings();
         CurrentEntity = entity;
         DeathPost.weight = 0;
         ZoneRenderer.PerspectiveEntity = CurrentEntity;
@@ -3267,6 +3407,8 @@ public class ActionGameManager : MonoBehaviour
                 var i = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
                 return (x, i, i.GetComponent<Rotate>());
             }).ToArray();
+
+        ApplyActionBarBindings(resolvedActionBarBindings);
     }
 
     private bool HasArticulatedWeaponBehavior(EquippedItem item)
