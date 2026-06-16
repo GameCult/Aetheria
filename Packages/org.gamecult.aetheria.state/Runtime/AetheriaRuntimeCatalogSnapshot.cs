@@ -847,6 +847,7 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeEntitySnapshot
     {
         public AetheriaRuntimeEntitySnapshot(
+            string recordKey,
             string name,
             string kind,
             double positionX,
@@ -882,6 +883,7 @@ namespace GameCult.Aetheria.State.Unity
             int visibilitySourceCount,
             IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> contacts)
         {
+            RecordKey = recordKey;
             Name = name;
             Kind = kind;
             PositionX = positionX;
@@ -918,6 +920,7 @@ namespace GameCult.Aetheria.State.Unity
             Contacts = contacts;
         }
 
+        public string RecordKey { get; }
         public string Name { get; }
         public string Kind { get; }
         public double PositionX { get; }

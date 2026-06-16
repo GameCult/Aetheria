@@ -162,7 +162,7 @@ namespace GameCult.Aetheria.State.Unity
                     schemaName != EntitySnapshotSchema)
                     continue;
 
-                entities.Add(ReadEntitySnapshotPayload(record.Payload));
+                entities.Add(ReadEntitySnapshotPayload(record.Key, record.Payload));
             }
 
             return entities.OrderBy(entity => entity.Name, StringComparer.Ordinal).ToArray();
@@ -534,7 +534,7 @@ namespace GameCult.Aetheria.State.Unity
             return pickups;
         }
 
-        private static AetheriaRuntimeEntitySnapshot ReadEntitySnapshotPayload(byte[] payload)
+        private static AetheriaRuntimeEntitySnapshot ReadEntitySnapshotPayload(string recordKey, byte[] payload)
         {
             var reader = new MessagePackReader(payload);
             var fields = reader.ReadArrayHeader();
@@ -570,6 +570,7 @@ namespace GameCult.Aetheria.State.Unity
             var contacts = ReadFieldEntityContacts(ref reader, fields, 29);
             SkipRemaining(ref reader, fields, 30);
             return new AetheriaRuntimeEntitySnapshot(
+                recordKey,
                 name,
                 kind,
                 position.X,

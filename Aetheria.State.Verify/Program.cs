@@ -791,6 +791,24 @@ static void RequireMainMenuContinueRunState(string root)
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify Continue run authority; ActionGameManager.cs is missing.");
+    var packageSnapshotPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeCatalogSnapshot.cs");
+    var packageSnapshot = File.Exists(packageSnapshotPath)
+        ? File.ReadAllText(packageSnapshotPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity identity; package runtime snapshots are missing.");
+    var packageStorePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeCatalogStore.cs");
+    var packageStore = File.Exists(packageStorePath)
+        ? File.ReadAllText(packageStorePath)
+        : throw new InvalidOperationException("Cannot verify Continue entity readback; package runtime store is missing.");
 
     var requiredMenuSymbols = new[]
     {
@@ -823,6 +841,11 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeRunStateSnapshot ContinueRunState",
         "ResolveStartZone(continuingRun)",
         "if (continuingRun != null)",
+        "RestoreCurrentEntityFromTypedRun(continuingRun)",
+        "ReadEntitySnapshots(RuntimeStateFilePath)",
+        "entity.RecordKey",
+        "CreateEntityConstructionBlueprint(entitySnapshot, true)",
+        "BindToEntity(entity)",
         "ContinueRunState = null",
         "RestoreDroppedPickupsFromTypedZoneState"
     };
@@ -836,6 +859,25 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "ActionGameManager no longer has the typed Continue boot path: " +
             string.Join(", ", missingGameplaySymbols));
+    }
+
+    var requiredPackageSymbols = new[]
+    {
+        "public string RecordKey",
+        "ReadEntitySnapshotPayload(record.Key, record.Payload)"
+    };
+
+    var missingPackageSymbols = requiredPackageSymbols
+        .Where(symbol =>
+            !packageSnapshot.Contains(symbol, StringComparison.Ordinal) &&
+            !packageStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingPackageSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity package entity readback no longer preserves record identity for Continue: " +
+            string.Join(", ", missingPackageSymbols));
     }
 }
 

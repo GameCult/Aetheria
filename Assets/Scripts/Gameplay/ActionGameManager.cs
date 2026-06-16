@@ -250,11 +250,65 @@ public class ActionGameManager : MonoBehaviour
         return blueprint;
     }
 
+    private EntityConstructionBlueprint CreateEntityConstructionBlueprint(AetheriaRuntimeEntitySnapshot entity, bool isCurrentEntity)
+    {
+        if (entity == null)
+            return null;
+
+        var hull = CreateEquippableLoadoutItem(new AetheriaRuntimeLoadoutItemSnapshot(
+            entity.HullItemKey,
+            1,
+            1,
+            1,
+            true,
+            false));
+        if (hull == null)
+            return null;
+
+        EntityConstructionBlueprint blueprint = string.Equals(entity.Kind, "orbital", StringComparison.OrdinalIgnoreCase)
+            ? new OrbitalEntityConstructionBlueprint()
+            : new ShipConstructionBlueprint
+            {
+                Position = new float3((float)entity.PositionX, (float)entity.PositionY, (float)entity.PositionZ),
+                Direction = new float2((float)entity.DirectionX, (float)entity.DirectionY),
+                IsPlayerShip = isCurrentEntity
+            };
+
+        blueprint.Name = entity.Name ?? "";
+        blueprint.FactionKey = entity.FactionKey ?? "";
+        blueprint.Faction = ParseLegacyGuidFromReferenceKey(blueprint.FactionKey, "aetheria.corporation");
+        blueprint.Hull = hull;
+        blueprint.Equipment = CreateEquippableSlots(entity.Equipment);
+        blueprint.CargoBays = CreateEquippableSlots(entity.CargoBays);
+        blueprint.DockingBays = CreateEquippableSlots(entity.DockingBays);
+        blueprint.CargoContents = CreateCargoBayContents(entity.CargoContents);
+        blueprint.DockingBayContents = CreateCargoBayContents(entity.DockingBayContents);
+        blueprint.DockingBayAssignments = entity.DockingBayAssignments.ToArray();
+        blueprint.WeaponGroups = entity.WeaponGroups.Select(group => group.ToArray()).ToArray();
+        blueprint.Children = Array.Empty<EntityConstructionBlueprint>();
+        return blueprint;
+    }
+
     private (int2 position, EquippableItem item)[] CreateEquippableSlots(
         IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> slots)
     {
         return slots
             .Select(slot => (position: new int2(slot.X, slot.Y), item: CreateEquippableLoadoutItem(slot.Item)))
+            .Where(slot => slot.item != null)
+            .ToArray();
+    }
+
+    private (int2 position, EquippableItem item)[] CreateEquippableSlots(
+        IReadOnlyList<AetheriaRuntimeEntityItemSlotSnapshot> slots)
+    {
+        return slots
+            .Select(slot => (position: new int2(slot.X, slot.Y), item: CreateEquippableLoadoutItem(new AetheriaRuntimeLoadoutItemSnapshot(
+                slot.ItemKey,
+                slot.Quality,
+                slot.Durability,
+                slot.Quantity,
+                slot.Enabled,
+                slot.OverrideShutdown))))
             .Where(slot => slot.item != null)
             .ToArray();
     }
@@ -2428,6 +2482,7 @@ public class ActionGameManager : MonoBehaviour
 
             if (continuingRun != null)
             {
+                RestoreCurrentEntityFromTypedRun(continuingRun);
                 ContinueRunState = null;
                 return;
             }
@@ -2445,6 +2500,50 @@ public class ActionGameManager : MonoBehaviour
             ship.Activate();
             BindToEntity(ship);
         }
+    }
+
+    private void RestoreCurrentEntityFromTypedRun(AetheriaRuntimeRunStateSnapshot run)
+    {
+        if (run == null ||
+            run.CurrentZoneIndex < 0 ||
+            run.CurrentZoneEntityIndex < 0)
+        {
+            return;
+        }
+
+        var entityKey = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.{run.CurrentZoneEntityIndex}.v1";
+        AetheriaRuntimeEntitySnapshot entitySnapshot;
+        try
+        {
+            entitySnapshot = AetheriaRuntimeCatalogStore.ReadEntitySnapshots(RuntimeStateFilePath)
+                .FirstOrDefault(entity => string.Equals(entity.RecordKey, entityKey, StringComparison.Ordinal));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed current entity snapshot {entityKey}: {ex}");
+            return;
+        }
+
+        var blueprint = CreateEntityConstructionBlueprint(entitySnapshot, true);
+        if (blueprint == null)
+        {
+            Debug.LogWarning($"Typed current entity snapshot {entityKey} could not be lowered into a runtime entity.");
+            return;
+        }
+
+        var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
+        if (entity == null)
+            return;
+
+        entity.Position = new float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
+        entity.Direction = new float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
+        entity.Velocity = new float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
+        entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
+        entity.TractorPower = (float)entitySnapshot.TractorPower;
+        entity.Zone = Zone;
+        Zone.Entities.Add(entity);
+        entity.Activate();
+        BindToEntity(entity);
     }
 
     private static GalaxyZone ResolveStartZone(AetheriaRuntimeRunStateSnapshot run)

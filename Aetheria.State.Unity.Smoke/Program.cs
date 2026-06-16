@@ -907,6 +907,7 @@ try
         packageZones[0].DroppedPickups[0].Item.ItemKey != "aetheria.item_definition:legacy:smoke:ore" ||
         packageZones[0].DroppedPickups[0].Item.Quantity != 11 ||
         packageEntities.Count != 1 ||
+        packageEntities[0].RecordKey != "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" ||
         packageEntities[0].Name != "Unity Smoke Ship" ||
         packageEntities[0].FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
         packageEntities[0].Equipment[0].Quality != 0.9 ||
