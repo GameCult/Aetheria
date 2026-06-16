@@ -20,6 +20,20 @@ using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour
 {
+    private const string MenuSurfaceType = "surface-state";
+    private const string MenuSurfaceSchema = "gamecult.eve.surface.v1";
+    private const string MenuSurfaceProviderId = "aetheria";
+    private const string MenuSurfaceProviderKind = "game.menu";
+    private const string SettingsSurfaceId = "aetheria.main_menu.settings";
+    private const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
+    private const string AudioSettingsSurfaceId = "aetheria.main_menu.audio_settings";
+    private const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
+    private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
+    private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
+    private const string ShowAudioSettingsCommand = "aetheria.main_menu.settings.show_audio_settings";
+    private const string BackToMainCommand = "aetheria.main_menu.settings.back_to_main";
+    private const string BackToSettingsCommand = "aetheria.main_menu.settings.back_to_settings";
+
     public VolumeCloudRenderer CloudRenderer;
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
@@ -35,7 +49,7 @@ public class MainMenu : MonoBehaviour
     private float _fadeLerp;
     private bool _fading;
     private Vector3 _panelPosition;
-    private UIDocument _playerSettingsSurfaceDocument;
+    private UIDocument _menuSurfaceDocument;
     
     void Start()
     {
@@ -73,6 +87,8 @@ public class MainMenu : MonoBehaviour
                 var temp = _currentMenu;
                 _currentMenu = _nextMenu;
                 _nextMenu = temp;
+                if (IsMenuSurfaceVisible())
+                    _currentMenu.panel.gameObject.SetActive(false);
             }
         }
     }
@@ -88,9 +104,14 @@ public class MainMenu : MonoBehaviour
         _fadeFromRight = fromRight;
     }
 
+    private bool IsMenuSurfaceVisible()
+    {
+        return _menuSurfaceDocument != null && _menuSurfaceDocument.gameObject.activeSelf;
+    }
+
     private void ShowMain()
     {
-        HidePlayerSettingsSurface();
+        HideMenuSurface();
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
         if (!InGame)
@@ -249,74 +270,46 @@ public class MainMenu : MonoBehaviour
 
     private void ShowSettings()
     {
-        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = "settings";
-        _nextMenu.panel.AddButton("Player Settings",
-            () =>
-            {
-                ShowPlayerSettingsSurface();
-                Fade(true);
-            });
-        _nextMenu.panel.AddButton("Input",
-            () =>
-            {
-                ShowInputSettings();
-                Fade(true);
-            });
-        _nextMenu.panel.AddButton("Audio",
-            () =>
-            {
-                ShowAudioSettings();
-                Fade(true);
-            });
-        _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowMain();
-                Fade(false);
-            });
+        _nextMenu.panel.gameObject.SetActive(false);
+        RenderMenuSurface(BuildSettingsSurfaceDefinition(), HandleSettingsSurfaceCommand);
     }
 
     private void ShowInputSettings()
     {
-        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("input", "settings");
-        _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowSettings();
-                Fade(false);
-            });
+        _nextMenu.panel.gameObject.SetActive(false);
+        RenderMenuSurface(BuildInputSettingsSurfaceDefinition(), HandleInputSettingsSurfaceCommand);
     }
 
     private void ShowAudioSettings()
     {
-        HidePlayerSettingsSurface();
         _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("audio", "settings");
-        _nextMenu.panel.AddButton("Back",
-            () =>
-            {
-                ShowSettings();
-                Fade(false);
-            });
+        _nextMenu.panel.gameObject.SetActive(false);
+        RenderMenuSurface(BuildAudioSettingsSurfaceDefinition(), HandleAudioSettingsSurfaceCommand);
     }
 
     private void ShowPlayerSettingsSurface()
     {
         _nextMenu.panel.Clear();
         _nextMenu.panel.gameObject.SetActive(false);
-        RenderPlayerSettingsSurface();
+        RenderMenuSurface(
+            WithBackAction(
+                ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
+                PlayerSettingsShellSurfaceId,
+                BackToSettingsCommand,
+                "Back"),
+            HandlePlayerSettingsSurfaceCommand);
     }
 
-    private void RenderPlayerSettingsSurface()
+    private void RenderMenuSurface(
+        EveSurfaceDocument document,
+        Action<EveSurfaceCommandRequest> commandHandler)
     {
-        var document = ResolvePlayerSettingsSurfaceDocument();
-        document.gameObject.SetActive(true);
+        var surfaceDocument = ResolveMenuSurfaceDocument();
+        surfaceDocument.gameObject.SetActive(true);
 
-        var root = document.rootVisualElement;
+        var root = surfaceDocument.rootVisualElement;
         root.Clear();
         root.style.flexGrow = 1;
         root.style.justifyContent = Justify.Center;
@@ -339,58 +332,93 @@ public class MainMenu : MonoBehaviour
         root.Add(shell);
 
         var lowerer = new EveUiToolkitSurfaceLowerer();
-        var surface = lowerer.Lower(
-            ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
-            request =>
-            {
-                if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload))
-                {
-                    Debug.LogWarning($"Unknown player-settings command: {request.Command}");
-                    return;
-                }
-
-                CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
-                RenderPlayerSettingsSurface();
-            });
-        surface.style.marginBottom = 14;
-        shell.Add(surface);
-
-        var actions = new VisualElement();
-        actions.style.flexDirection = FlexDirection.Row;
-        shell.Add(actions);
-
-        var back = new UnityEngine.UIElements.Button(() =>
-        {
-            HidePlayerSettingsSurface();
-            ShowSettings();
-            Fade(false);
-        })
-        {
-            text = "Back"
-        };
-        actions.Add(back);
+        shell.Add(lowerer.Lower(document, commandHandler));
     }
 
-    private void HidePlayerSettingsSurface()
+    private void HandleSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (_playerSettingsSurfaceDocument == null)
+        switch (request.Command)
+        {
+            case ShowPlayerSettingsCommand:
+                ShowPlayerSettingsSurface();
+                return;
+            case ShowInputSettingsCommand:
+                ShowInputSettings();
+                return;
+            case ShowAudioSettingsCommand:
+                ShowAudioSettings();
+                return;
+            case BackToMainCommand:
+                HideMenuSurface();
+                ShowMain();
+                Fade(false);
+                return;
+            default:
+                Debug.LogWarning($"Unknown settings menu command: {request.Command}");
+                return;
+        }
+    }
+
+    private void HandleInputSettingsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        {
+            ShowSettings();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown input settings command: {request.Command}");
+    }
+
+    private void HandleAudioSettingsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        {
+            ShowSettings();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown audio settings command: {request.Command}");
+    }
+
+    private void HandlePlayerSettingsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        {
+            ShowSettings();
+            return;
+        }
+
+        if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload))
+        {
+            Debug.LogWarning($"Unknown player-settings command: {request.Command}");
+            return;
+        }
+
+        CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
+        ShowPlayerSettingsSurface();
+    }
+
+    private void HideMenuSurface()
+    {
+        if (_menuSurfaceDocument == null)
             return;
 
-        _playerSettingsSurfaceDocument.rootVisualElement.Clear();
-        _playerSettingsSurfaceDocument.gameObject.SetActive(false);
+        _menuSurfaceDocument.rootVisualElement.Clear();
+        _menuSurfaceDocument.gameObject.SetActive(false);
     }
 
-    private UIDocument ResolvePlayerSettingsSurfaceDocument()
+    private UIDocument ResolveMenuSurfaceDocument()
     {
-        if (_playerSettingsSurfaceDocument != null)
-            return _playerSettingsSurfaceDocument;
+        if (_menuSurfaceDocument != null)
+            return _menuSurfaceDocument;
 
-        var host = new GameObject("Aetheria Player Settings Surface");
+        var host = new GameObject("Aetheria Menu Surface");
         host.transform.SetParent(transform, false);
         var document = host.AddComponent<UIDocument>();
         document.sortingOrder = 1000;
         host.SetActive(false);
-        _playerSettingsSurfaceDocument = document;
+        _menuSurfaceDocument = document;
         return document;
     }
 
@@ -406,6 +434,177 @@ public class MainMenu : MonoBehaviour
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
                 DateTime.UtcNow.ToString("O")));
+    }
+
+    private static EveSurfaceDocument BuildSettingsSurfaceDefinition()
+    {
+        return BuildMenuSurfaceDocument(
+            SettingsSurfaceId,
+            "Aetheria Settings",
+            new[]
+            {
+                new EveCommandTemplate(ShowPlayerSettingsCommand, "Player Settings", "unity-uitoolkit"),
+                new EveCommandTemplate(ShowInputSettingsCommand, "Input", "unity-uitoolkit"),
+                new EveCommandTemplate(ShowAudioSettingsCommand, "Audio", "unity-uitoolkit"),
+                new EveCommandTemplate(BackToMainCommand, "Back", "unity-uitoolkit")
+            },
+            Card(
+                "aetheria.mainMenu.settings.card",
+                "Settings",
+                Text(
+                    "aetheria.mainMenu.settings.note",
+                    "Typed Verse settings already lower through Eve. Input rebinding and audio still have narrower local authority."),
+                ButtonRow(
+                    "aetheria.mainMenu.settings.actions",
+                    Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", ShowPlayerSettingsCommand),
+                    Button("aetheria.mainMenu.settings.input", "Input", ShowInputSettingsCommand),
+                    Button("aetheria.mainMenu.settings.audio", "Audio", ShowAudioSettingsCommand),
+                    Button("aetheria.mainMenu.settings.back", "Back", BackToMainCommand))));
+    }
+
+    private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition()
+    {
+        return BuildMenuSurfaceDocument(
+            InputSettingsSurfaceId,
+            "Aetheria Input Settings",
+            new[]
+            {
+                new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
+            },
+            Card(
+                "aetheria.mainMenu.input.card",
+                "Input Settings",
+                Metric(
+                    "aetheria.mainMenu.input.bindingOverrides",
+                    "Binding Overrides",
+                    ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count.ToString()),
+                Metric(
+                    "aetheria.mainMenu.input.actionBarInputs",
+                    "Action-Bar Inputs",
+                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count.ToString()),
+                Text(
+                    "aetheria.mainMenu.input.note",
+                    "Typed input rebinding controls are not lowered through Eve yet. The live remapping screen still owns drag/drop rebinding and low-level InputSystem edits."),
+                ButtonRow(
+                    "aetheria.mainMenu.input.actions",
+                    Button("aetheria.mainMenu.input.back", "Back", BackToSettingsCommand))));
+    }
+
+    private static EveSurfaceDocument BuildAudioSettingsSurfaceDefinition()
+    {
+        return BuildMenuSurfaceDocument(
+            AudioSettingsSurfaceId,
+            "Aetheria Audio Settings",
+            new[]
+            {
+                new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
+            },
+            Card(
+                "aetheria.mainMenu.audio.card",
+                "Audio Settings",
+                Text(
+                    "aetheria.mainMenu.audio.note",
+                    "No typed audio controls are published yet. This screen is lowered through Eve so the old menu shell stops owning the page while the real audio surface catches up."),
+                ButtonRow(
+                    "aetheria.mainMenu.audio.actions",
+                    Button("aetheria.mainMenu.audio.back", "Back", BackToSettingsCommand))));
+    }
+
+    private static EveSurfaceDocument WithBackAction(
+        EveSurfaceDocument document,
+        string surfaceId,
+        string backCommand,
+        string backLabel)
+    {
+        return new EveSurfaceDocument(
+            document.Type,
+            document.Schema,
+            document.ProviderId,
+            document.ProviderKind,
+            document.Title,
+            document.Version,
+            document.UpdatedAtUtc,
+            new EveSurfaceTree(
+                surfaceId,
+                Node(
+                    $"{surfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    document.Surface.Root,
+                    ButtonRow(
+                        $"{surfaceId}.actions",
+                        Button($"{surfaceId}.back", backLabel, backCommand))),
+                document.Surface.Styles),
+            document.Commands
+                .Concat(new[]
+                {
+                    new EveCommandTemplate(backCommand, backLabel, "unity-uitoolkit")
+                })
+                .ToArray());
+    }
+
+    private static EveSurfaceDocument BuildMenuSurfaceDocument(
+        string surfaceId,
+        string title,
+        IReadOnlyList<EveCommandTemplate> commands,
+        params EveSurfaceComponent[] children)
+    {
+        return new EveSurfaceDocument(
+            MenuSurfaceType,
+            MenuSurfaceSchema,
+            MenuSurfaceProviderId,
+            MenuSurfaceProviderKind,
+            title,
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                surfaceId,
+                Node($"{surfaceId}.root", "surface", Array.Empty<(string Key, string Value)>(), children),
+                Array.Empty<EveStyleToken>()),
+            commands);
+    }
+
+    private static EveSurfaceComponent Card(
+        string id,
+        string title,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "card", new[] { ("title", title) }, children);
+    }
+
+    private static EveSurfaceComponent Metric(string id, string label, string value)
+    {
+        return Node(id, "metric", new[] { ("label", label), ("value", value) });
+    }
+
+    private static EveSurfaceComponent Text(string id, string value)
+    {
+        return Node(id, "text", new[] { ("value", value) });
+    }
+
+    private static EveSurfaceComponent Button(string id, string label, string command)
+    {
+        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
+    }
+
+    private static EveSurfaceComponent ButtonRow(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent Node(
+        string id,
+        string kind,
+        IEnumerable<(string Key, string Value)> props,
+        params EveSurfaceComponent[] children)
+    {
+        return new EveSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
+            children ?? Array.Empty<EveSurfaceComponent>());
     }
 
     private static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
@@ -440,10 +639,10 @@ public class MainMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (_playerSettingsSurfaceDocument != null)
+        if (_menuSurfaceDocument != null)
         {
-            Destroy(_playerSettingsSurfaceDocument.gameObject);
-            _playerSettingsSurfaceDocument = null;
+            Destroy(_menuSurfaceDocument.gameObject);
+            _menuSurfaceDocument = null;
         }
     }
 }

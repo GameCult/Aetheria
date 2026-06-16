@@ -112,7 +112,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipped non-launcher weapons through typed behavior kind rows instead of
   inspecting runtime behavior config classes. Unity boot reads typed player
   settings back through the package-owned CultCache reader before falling back
-  to defaults.
+  to defaults. The main-menu settings navigation, input, and audio subpages now
+  also lower through local Eve/UI Toolkit surfaces instead of repopulating the
+  old `PropertiesPanel` button shell, even though typed rebinding controls and
+  typed audio controls are still future work.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1537,7 +1540,12 @@ First Aetheria surfaces to publish:
      `aetheria.player_settings` Eve surface contract. `MainMenu` no longer owns
      a special-case text field; UI Toolkit lowers the shared Eve text control
      and gameplay still owns the typed player-settings commit.
-   - Replace the next concrete uGUI screen with an Eve-owned surface.
+   - Done: replace the main-menu settings/input/audio subpages with
+     Eve-owned UI Toolkit surfaces. `MainMenu` still owns root navigation and
+     entry/exit flow, but the old `PropertiesPanel` settings shell no longer
+     owns those pages. Input rebinding itself remains on the runtime-owned
+     remap screen until Eve grows typed rebinding controls, and audio still
+     lacks a typed state surface.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1893,6 +1901,9 @@ First Aetheria surfaces to publish:
   typed run checkpoint immediately, and typed continue-run restore rebuilds slot
   bindings onto the live current entity instead of leaving stale `ActionBarBinding`
   instances pointed at the previous entity body.
+- Main-menu settings navigation, input, and audio pages now lower through a
+  shared UI Toolkit `UIDocument` host and local Eve surface documents instead
+  of rebuilding those pages through `PropertiesPanel.AddButton(...)` calls.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and

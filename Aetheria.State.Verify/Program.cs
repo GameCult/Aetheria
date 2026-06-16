@@ -32,6 +32,7 @@ RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
+RequireMainMenuSettingsShellUsesEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -496,6 +497,7 @@ Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI T
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
+Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2408,6 +2410,65 @@ static void RequireMainMenuSettingsCommit(string root)
         throw new InvalidOperationException(
             "MainMenu still uses legacy field widgets for Eve-owned gameplay/graphics settings: " +
             string.Join("; ", uiFieldHits));
+    }
+}
+
+static void RequireMainMenuSettingsShellUsesEveSurface(string root)
+{
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    if (!File.Exists(mainMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu settings shell; MainMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(mainMenuPath);
+    var requiredSymbols = new[]
+    {
+        "RenderMenuSurface(",
+        "BuildSettingsSurfaceDefinition()",
+        "BuildInputSettingsSurfaceDefinition()",
+        "BuildAudioSettingsSurfaceDefinition()",
+        "HandleSettingsSurfaceCommand(",
+        "HandleInputSettingsSurfaceCommand(",
+        "HandleAudioSettingsSurfaceCommand(",
+        "WithBackAction(",
+        "ShowPlayerSettingsCommand",
+        "ShowInputSettingsCommand",
+        "ShowAudioSettingsCommand",
+        "BackToMainCommand",
+        "BackToSettingsCommand"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer lowers the settings shell through Eve surfaces: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "_nextMenu.panel.AddButton(\"Player Settings\"",
+        "_nextMenu.panel.AddButton(\"Input\"",
+        "_nextMenu.panel.AddButton(\"Audio\"",
+        "_nextMenu.panel.Title.text = \"settings\"",
+        "_nextMenu.panel.Title.text = TitleSubtitle(\"input\", \"settings\")",
+        "_nextMenu.panel.Title.text = TitleSubtitle(\"audio\", \"settings\")"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still owns settings/input/audio subpages through the old PropertiesPanel shell: " +
+            string.Join(", ", hits));
     }
 }
 
