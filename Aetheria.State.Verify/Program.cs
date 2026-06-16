@@ -718,11 +718,15 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
     var checkedFiles = new[]
     {
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
-        Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")
+        Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "ItemManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")
     };
 
     var forbiddenSymbols = new[]
     {
+        "IRuntimeItemCatalogReader",
+        "AetheriaRuntimeItemCatalog",
         "_itemsByLegacyId",
         "_corporationsByLegacyId",
         "_nameFilesByLegacyId",
@@ -751,7 +755,7 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity runtime catalog snapshot must expose typed-key lookups only; legacy-ID indexes belong to migration boundaries: " +
+            "Unity runtime catalog lookup authority must stay on the typed snapshot; legacy-ID indexes and redundant catalog adapters belong to migration boundaries: " +
             string.Join("; ", hits));
     }
 }

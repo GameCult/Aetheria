@@ -170,6 +170,9 @@ The shared runtime item catalog reader is also item-key-only now: its GUID index
 `GetRuntimeItem(Guid)` entry point, raw GUID string fallback,
 `AetheriaRuntimeItemReference(Guid)` constructor, `FromLegacyId`, and reverse
 legacy-GUID projections have been deleted.
+`ItemManager` now reads typed item rows directly from the shared
+`AetheriaRuntimeCatalogSnapshot`; the redundant `AetheriaRuntimeItemCatalog`
+adapter layer has been deleted.
 The old generic `RuntimeCatalogLink<T>` abstraction, `ItemManager.GetData`
 hydration path, vague `ItemInstance.Data` identity field, and old
 `RuntimeItemReference.Projection` cache have been deleted; runtime item facts

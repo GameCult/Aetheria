@@ -2068,9 +2068,8 @@ public class ActionGameManager : MonoBehaviour
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
         }
 
-        var runtimeItemCatalog = new AetheriaRuntimeItemCatalog(RuntimeCatalog);
         ItemManager = new ItemManager(
-            runtimeItemCatalog,
+            RuntimeCatalog,
             Settings.GameplaySettings,
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);

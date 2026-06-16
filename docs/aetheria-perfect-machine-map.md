@@ -19,7 +19,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 - Unity client/runtime lives under `Assets/`. Gameplay now opens the typed
   runtime catalog from `GameData/aetheria-world.cc` and projects current
-  `ItemData` DTOs through `AetheriaRuntimeItemCatalog`. `ActionGameManager` no
+  `ItemData` DTOs through `ItemManager` over the typed runtime catalog snapshot. `ActionGameManager` no
   longer owns or opens a legacy catalog cache.
   `GameCult.Aetheria.State.Unity`, the embedded Unity package under
   `Packages/org.gamecult.aetheria.state`, owns the Unity runtime path to
@@ -213,8 +213,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   construction blueprints for the restore menu. The in-memory list remains a
   UI/session cache, not durable authority.
 - `ActionGameManager` opens `AetheriaRuntimeCatalogStore` over
-  `aetheria-world.cc`, projects it through `AetheriaRuntimeItemCatalog`, and
-  gives `ItemManager` explicit item lookup authority. Item instances carry
+  `aetheria-world.cc`, hands the typed runtime catalog snapshot directly to
+  `ItemManager`, and gives it explicit item lookup authority. Item instances carry
   `AetheriaRuntimeItemReference`, a typed item key, not a process-global catalog
   resolver, hydrated projection cache, bare GUID owner, or durable item-data owner. The old
   `LegacyItemCatalogBoundary`,
@@ -225,8 +225,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   item-specific runtime reference.
 - `ItemManager` no longer exposes the raw runtime item catalog reader as public
   gameplay/UI API, and its old `GetData`/`Hydrate` item DTO projection path has
-  been deleted. `AetheriaRuntimeItemCatalog` no longer materializes whole
-  `ItemData` DTOs as a runtime cache; it exposes typed item rows only. The
+  been deleted. `ItemManager` no longer routes through a duplicate
+  `AetheriaRuntimeItemCatalog` cache; it reads typed item rows from the shared
+  runtime catalog snapshot only. The
   temporary behavior config bridge has moved under `ItemManager` behavior
   construction. The item properties UI no longer uses
   `ItemManager` for manufacturer display; it resolves the manufacturer through
@@ -667,7 +668,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   typed state file path plus the boot-time state-file probe, and is the landing
   zone for future typed catalog boot.
   `ActionGameManager` opens the package-owned typed runtime catalog snapshot
-  and binds item reference resolution through `AetheriaRuntimeItemCatalog`.
+  and binds item reference resolution directly through `ItemManager`.
   Runtime code receives narrow `ItemManager` projection methods over typed
   runtime catalog rows and no longer hydrates old `ItemData` DTOs. `Galaxy`,
   entity restore, and faction-distance loadout weighting have been moved off
@@ -678,7 +679,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.State.Unity` facade maps typed `.cc` documents into the same
   contract for full .NET smokes and Eve surface reads. Neither writes state or
   owns simulation. The runtime no longer has a MessagePack catalog cache or
-  whole-item DTO projection cache. `AetheriaRuntimeItemCatalog` exposes typed
+  whole-item DTO projection cache. The typed runtime catalog snapshot exposes typed
   item rows only. `ItemManager.CreateRuntimeBehaviors` owns the explicit typed
   behavior-kind switch from typed payloads into live behavior instances. There
   is no remaining `RuntimeBehaviorConfig` projection and no reflection over
@@ -705,8 +706,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   migration/catalog inspection boundary.
   The shared runtime item catalog reader no longer has a GUID index or
   `GetRuntimeItem(Guid)` entry point; item-key strings are the only lookup authority;
-  there is no remaining `ItemInstance.Data` identity/backing field. The reader interface for this
-  bridge is named `IRuntimeItemCatalogReader` and exposes only typed catalog
+  there is no remaining `ItemInstance.Data` identity/backing field. `ItemManager`
+  reads typed catalog
   row lookup. Behavior
   type selection now uses an explicit runtime catalog map instead of
   `UnionAttribute` reflection, and the temporary behavior config constructor
@@ -1270,7 +1271,7 @@ First Aetheria surfaces to publish:
      blueprint projection path.
    - Done: delete the runtime item DTO hydration bridge; `ItemManager.GetData`,
      `ItemManager.Hydrate`, the old projection reader item DTO API, the
-     `AetheriaRuntimeItemCatalog` whole-item DTO cache, and
+     redundant `AetheriaRuntimeItemCatalog` cache wrapper, and
      `RuntimeItemReference.Projection` are gone.
    - Done: move final `Entity.ItemFits`, `TryFindSpace`, `TryEquip`, and
      `TryUnequip` gear occupancy/mass deltas onto typed catalog rows for item
@@ -1329,8 +1330,7 @@ First Aetheria surfaces to publish:
      remain migration inputs only.
    - Done: narrow `ILegacyItemCatalogReader` and `DatabaseLink<T>` to `ItemData`;
      `LegacyItemCatalogCache` ignores non-item entries from `AetherDB.msgpack`.
-   - Done: replace `ActionGameManager` cache bootstrap with
-     `AetheriaRuntimeItemCatalog`, a typed-state-backed projection from
+   - Done: replace `ActionGameManager` cache bootstrap with the typed
      `AetheriaRuntimeCatalogSnapshot`; delete `LegacyItemCatalogBoundary`,
      `LegacyItemCatalogCache`, and the runtime MessagePack deserializer path.
    - Done: demote `DatabaseEntry` and `DatabaseLink<T>` from MessagePack
@@ -1627,11 +1627,11 @@ First Aetheria surfaces to publish:
      after loadout generation stopped hydrating selected typed rows into
      `EquippableItemData` merely to instantiate equipment.
    - Done: rename the surviving runtime item read port from
-     `IRuntimeItemProjectionReader` to `IRuntimeItemCatalogReader`, and rename
-     behavior config methods to temporary behavior config construction so
+     `IRuntimeItemProjectionReader` to an item-key-only typed catalog lookup,
+     and rename behavior config methods to temporary behavior config construction so
      old projection vocabulary no longer implies item DTO authority.
-   - Done: delete `IRuntimeItemCatalogReader.GetTemporaryBehaviorConfigs`; the
-     runtime catalog reader now exposes typed item rows only.
+   - Done: delete the temporary behavior-config reader path; the
+     runtime catalog lookup now exposes typed item rows only.
    - Done: rename the temporary behavior construction DTO family from
      `BehaviorData`/`*Data` to `RuntimeBehaviorConfig`/`*Config`; live
      `Behavior` instances expose typed kind/group values while typed behavior
@@ -1724,8 +1724,10 @@ First Aetheria surfaces to publish:
      controller/galaxy-zone GUID caches, force-load GUID sketch, and dead time
      property sketch. ItemManager no longer pretends to own a zone/time cache
      while the runtime state spine owns durable state.
-   - Remaining: delete or quarantine old cache abstractions that no longer
-     protect an invariant once catalog migration has a typed reader.
+   - Done: delete the redundant `AetheriaRuntimeItemCatalog`/`IRuntimeItemCatalogReader`
+     adapter layer. `ItemManager` now reads item rows straight from the shared
+     typed runtime catalog snapshot instead of rebuilding a duplicate lookup
+     cache over the same item-key index.
 
 ## Verification
 
@@ -1780,7 +1782,7 @@ First Aetheria surfaces to publish:
 - Unity batchmode compile with Editor `6000.4.2f1` returned cleanly after the
   runtime catalog resolver cut; `Logs/codex-unity-compile.log` has no compiler
   error hits.
-- `rg ".Data.Value|SetValue|GetCatalogEntry|IRuntimeItemCatalogReader|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
+- `rg ".Data.Value|SetValue|GetCatalogEntry|IRuntimeItemCatalogReader|AetheriaRuntimeItemCatalog|BindRuntimeItemCatalog|ResolveRuntimeItemCatalog|private static IRuntimeItemCatalogReader"` in
   `Assets/Scripts` is zero for the old item value/catalog-entry/resolver path.
 - Live Unity source has no `RuntimeCatalogLink<T>` or `RuntimeCatalogLinkBase`;
   item instances expose `ItemId` and `Reference`; the old `ItemInstance.Data`

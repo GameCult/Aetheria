@@ -17,14 +17,13 @@ public class ItemManager
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
 
     private Action<string> _logger;
-    
-    private readonly IRuntimeItemCatalogReader _runtimeItems;
+    private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
 
     public GameplaySettings GameplaySettings { get; }
 
-    public ItemManager(IRuntimeItemCatalogReader runtimeItems, GameplaySettings settings, Action<string> logger)
+    public ItemManager(AetheriaRuntimeCatalogSnapshot runtimeCatalog, GameplaySettings settings, Action<string> logger)
     {
-        _runtimeItems = runtimeItems;
+        _runtimeCatalog = runtimeCatalog ?? throw new ArgumentNullException(nameof(runtimeCatalog));
         GameplaySettings = settings;
         _logger = logger;
     }
@@ -34,7 +33,7 @@ public class ItemManager
         return item == null
             ? null
             : !string.IsNullOrWhiteSpace(item.ItemKey)
-                ? _runtimeItems.GetRuntimeItem(item.ItemKey)
+                ? _runtimeCatalog.FindItem(item.ItemKey)
                 : null;
     }
 
