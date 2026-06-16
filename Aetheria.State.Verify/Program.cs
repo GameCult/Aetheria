@@ -820,7 +820,8 @@ static void RequireFactionKeyIdentity(string root)
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs"),
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "Narrative", "ZoneConstraints.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
-        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs")
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorMap.cs")
     };
 
     var forbiddenSymbols = new[]
@@ -834,7 +835,9 @@ static void RequireFactionKeyIdentity(string root)
         ".ID != zone.Owner",
         "pair.Key.ID",
         "f.ID != zone.Owner",
-        "Owner.ID =="
+        "Owner.ID ==",
+        "zone.Owner == adjacentZone.Owner",
+        "zone.Owner != mega"
     };
 
     var hits = checkedFiles

@@ -130,7 +130,7 @@ public class SectorMap : MonoBehaviour
                         var link = LinkPrototype.Instantiate<Transform>();
                         var critical = isOnCriticalPath && (ActionGameManager.CurrentGalaxy.ExitPath?.Contains(adjacentZone) ?? false);
                         linksToReveal.Add((zone.Position, adjacentZone.Position, link, critical));
-                        if (zone.Owner != null && zone.Owner == adjacentZone.Owner)
+                        if (zone.Owner != null && zone.Owner.HasSameKey(adjacentZone.Owner))
                             link.GetComponent<MeshRenderer>().sharedMaterial = _factionMaterials[zone.Owner].linkMaterial;
 
                         var dir = normalize(zone.Position - adjacentZone.Position);
@@ -326,7 +326,7 @@ public class SectorMap : MonoBehaviour
                         if (zone.Factions.Contains(mega))
                         {
                             influence = 10;
-                            if (zone.Owner != mega)
+                            if (!zone.Owner.HasSameKey(mega))
                                 influence *= .5f;
                         }
                         else influence = -10;
