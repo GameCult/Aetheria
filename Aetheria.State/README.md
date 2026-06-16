@@ -105,10 +105,9 @@ item GUID fields.
 Unity runtime commit DTOs now carry typed `FactionKey` only for loadout
 entities, run entity snapshots, and faction relationship state. The old
 pending-command `CorporationLegacyId` fallback fields are deleted.
-`EntityConstructionBlueprint` also carries `FactionKey` now. Loadout restore and
-entity construction resolve factions by typed key first, with the old GUID
-field kept as compatibility for construction callers that have not yet been
-lowered.
+`EntityConstructionBlueprint` also carries `FactionKey` only. Loadout restore,
+entity construction, run entity snapshots, and faction relationship commits no
+longer rebuild corporation references from legacy `Faction.ID` GUIDs.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` only for zone orbit/body snapshots. The old pending-command
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are

@@ -1007,9 +1007,10 @@ First Aetheria surfaces to publish:
      decide generated sector factions or zone names.
    - Done: move entity faction restore to `Galaxy.ResolveFactionByKey` through
      `EntityConstructionBlueprint.FactionKey`, so typed loadout readback and
-     entity construction resolve corporation identity by typed key first. The
-     old blueprint `Faction` GUID remains compatibility/fallback for callers
-     that have not yet been lowered.
+     entity construction resolve corporation identity by typed key only. The
+     old blueprint `Faction` GUID compatibility field is deleted, and runtime
+     entity/faction-relationship commits no longer rebuild faction keys from
+     legacy `Faction.ID` GUIDs.
    - Done: move package and canonical manufacturer/corporation/name-file lookup
      to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
      and `NameFileKey`), and move loadout manufacturer-distance weighting to
@@ -1731,6 +1732,9 @@ First Aetheria surfaces to publish:
   `AetheriaRuntimePendingCultCacheStore`, `AetheriaRuntimeStateCommitDocument`,
   and `AetheriaRuntimeEveCommandDocument` until CultLib generated serializers
   become the Unity runtime owner.
+- `Aetheria.State.Verify` also guards runtime faction identity ownership:
+  construction blueprints cannot carry a legacy faction GUID, and runtime
+  entity/faction commits cannot rebuild `FactionKey` from `Faction.ID`.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

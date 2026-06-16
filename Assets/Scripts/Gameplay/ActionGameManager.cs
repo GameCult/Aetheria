@@ -235,7 +235,6 @@ public class ActionGameManager : MonoBehaviour
 
         blueprint.Name = entity.Name;
         blueprint.FactionKey = entity.FactionKey ?? "";
-        blueprint.Faction = ParseLegacyGuidFromReferenceKey(blueprint.FactionKey, "aetheria.corporation");
         blueprint.Hull = hull;
         blueprint.Equipment = CreateEquippableSlots(entity.Equipment);
         blueprint.CargoBays = CreateEquippableSlots(entity.CargoBays);
@@ -277,7 +276,6 @@ public class ActionGameManager : MonoBehaviour
 
         blueprint.Name = entity.Name ?? "";
         blueprint.FactionKey = entity.FactionKey ?? "";
-        blueprint.Faction = ParseLegacyGuidFromReferenceKey(blueprint.FactionKey, "aetheria.corporation");
         blueprint.Hull = hull;
         blueprint.Equipment = CreateEquippableSlots(entity.Equipment);
         blueprint.CargoBays = CreateEquippableSlots(entity.CargoBays);
@@ -559,7 +557,7 @@ public class ActionGameManager : MonoBehaviour
         {
             Name = blueprint.Name ?? "",
             Kind = blueprint is ShipConstructionBlueprint ? "ship" : blueprint is OrbitalEntityConstructionBlueprint ? "orbital" : "entity",
-            FactionKey = ReferenceKey(blueprint.FactionKey ?? "", "aetheria.corporation", LegacyId(blueprint.Faction)),
+            FactionKey = blueprint.FactionKey ?? "",
             Hull = ProjectLoadoutItem(blueprint.Hull),
             Equipment = ProjectSlots(blueprint.Equipment),
             CargoBays = ProjectSlots(blueprint.CargoBays),
@@ -687,7 +685,7 @@ public class ActionGameManager : MonoBehaviour
             .OrderBy(pair => pair.Key.ID)
             .Select(pair => new AetheriaRuntimeFactionRelationshipCommit
             {
-                FactionKey = CorporationKey(pair.Key.ID),
+                FactionKey = pair.Key.FactionKey ?? "",
                 Relationship = pair.Value.ToString(),
                 Standing = (int)pair.Value
             })
@@ -958,7 +956,7 @@ public class ActionGameManager : MonoBehaviour
             TractorPower = entity.TractorPower,
             Heatstroke = entity.Heatstroke,
             Hypothermia = entity.Hypothermia,
-            FactionKey = CorporationKey(entity.Faction?.ID ?? Guid.Empty),
+            FactionKey = entity.Faction?.FactionKey ?? "",
             HullItemKey = entity.Hull?.ItemKey ?? "",
             Equipment = ProjectEquippedSlots(entity.Equipment),
             CargoBays = ProjectEquippedSlots(entity.CargoBays),
@@ -1396,16 +1394,6 @@ public class ActionGameManager : MonoBehaviour
             .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
     }
 
-    private static string LegacyId(Guid id)
-    {
-        return id == Guid.Empty ? "" : id.ToString("D");
-    }
-
-    private static string CorporationKey(Guid id)
-    {
-        return id == Guid.Empty ? "" : $"aetheria.corporation:legacy:{id:D}";
-    }
-
     private static string OrbitKey(Guid id)
     {
         return id == Guid.Empty ? "" : $"aetheria.orbit:legacy:{id:D}";
@@ -1557,18 +1545,6 @@ public class ActionGameManager : MonoBehaviour
             .Select(bay => new AetheriaRuntimeCargoBayLoadoutSnapshot(
                 CreateRuntimeLoadoutItemSlotSnapshots(bay.Items)))
             .ToArray();
-    }
-
-    private static string ReferenceKey(string prefix, string legacyId)
-    {
-        return string.IsNullOrWhiteSpace(legacyId) ? "" : $"{prefix}:legacy:{legacyId}";
-    }
-
-    private static string ReferenceKey(string typedKey, string prefix, string legacyId)
-    {
-        return !string.IsNullOrWhiteSpace(typedKey)
-            ? typedKey
-            : ReferenceKey(prefix, legacyId);
     }
 
     private void OnApplicationQuit() => QueueRunCheckpoint("application-quit");

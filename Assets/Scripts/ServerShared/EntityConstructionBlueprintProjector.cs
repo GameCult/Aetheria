@@ -29,8 +29,7 @@ public static class EntityConstructionBlueprintProjector
         
         blueprint.Hull = entity.Hull;
         blueprint.Name = entity.Name;
-        blueprint.Faction = entity.Faction?.ID ?? Guid.Empty;
-        blueprint.FactionKey = entity.Faction?.FactionKey ?? CorporationKey(blueprint.Faction);
+        blueprint.FactionKey = entity.Faction?.FactionKey ?? "";
         blueprint.Equipment = entity.Equipment.Select(e => (e.Position, e.EquippableItem)).ToArray();
         blueprint.CargoBays = entity.CargoBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
         blueprint.DockingBays = entity.DockingBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
@@ -116,12 +115,7 @@ public static class EntityConstructionBlueprintProjector
     {
         return galaxy == null
             ? null
-            : galaxy.ResolveFactionByKey(blueprint.FactionKey) ?? galaxy.ResolveFaction(blueprint.Faction);
-    }
-
-    private static string CorporationKey(Guid id)
-    {
-        return id == Guid.Empty ? "" : $"aetheria.corporation:legacy:{id:D}";
+            : galaxy.ResolveFactionByKey(blueprint.FactionKey);
     }
 }
 
@@ -152,7 +146,6 @@ public abstract class EntityConstructionBlueprint
     public (int2 position, ItemInstance item)[][] DockingBayContents;
     public EntityConstructionBlueprint[] Children;
     public EntitySettings Settings;
-    public Guid Faction;
     public string FactionKey;
     public int[][] WeaponGroups;
 

@@ -10,6 +10,7 @@ var statePath = args.Length > 1
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireTypedPendingCommitKeys(root);
+RequireTypedRuntimeFactionKeys(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -618,6 +619,45 @@ static void RequireTypedPendingCommitKeys(string root)
     {
         throw new InvalidOperationException(
             "Pending runtime commit authority still accepts legacy ID fallback fields: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedRuntimeFactionKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "public Guid Faction",
+        "blueprint.Faction =",
+        "blueprint.Faction)",
+        "blueprint.Faction,",
+        "blueprint.Faction;",
+        "ResolveFaction(blueprint.Faction",
+        "LegacyId(blueprint.Faction",
+        "ReferenceKey(blueprint.FactionKey",
+        "CorporationKey(entity.Faction?.ID",
+        "CorporationKey(pair.Key.ID",
+        "private static string CorporationKey"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime faction commits must use typed FactionKey authority, not legacy GUID fallback: " +
             string.Join("; ", hits));
     }
 }
