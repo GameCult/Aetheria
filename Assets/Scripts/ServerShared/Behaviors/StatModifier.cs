@@ -143,11 +143,9 @@ public enum StatModifierType
     Multiplier
 }
 
-[Inspectable]
 public class StatReference
 {
     public string Target;
 
-    [Inspectable]
     public string Stat;
 }

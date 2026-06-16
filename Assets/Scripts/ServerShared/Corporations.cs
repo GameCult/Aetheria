@@ -7,46 +7,34 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
 
-[Inspectable]
 public class Faction : INamedEntry
 {
     public string FactionKey;
 
-    [Inspectable]
     public string Name;
 
-    [Inspectable]
     public string ShortName;
 
-    [Inspectable]
     public string Description;
 
-    [Inspectable]
     public string Logo;
 
-    // [Inspectable]
     // public bool PlayerHostile;
 
-    [Inspectable]
     public float3 PrimaryColor;
 
-    [Inspectable]
     public float3 SecondaryColor;
     public string GeonameFileKey;
     public string BossHullItemKey;
 
-    [Inspectable]
     public int InfluenceDistance = 4;
 
     public Dictionary<string, float> AllegianceByKey = new Dictionary<string, float>();
 
-    [Inspectable]
     public uint OverworldMusic;
 
-    [Inspectable]
     public uint CombatMusic;
 
-    [Inspectable]
     public uint BossMusic;
 
     public string EntryName

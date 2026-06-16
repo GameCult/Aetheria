@@ -7,7 +7,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
@@ -700,53 +699,6 @@ public class PropertiesPanel : MonoBehaviour
 		}
 
 		RefreshValues();
-	}
-
-	public void Inspect(object obj, bool inspectablesOnly = false, bool topLevel = true)
-	{
-		var fields = obj.GetType().GetFields();
-		foreach (var field in fields)
-			Inspect(obj, field, inspectablesOnly);
-		
-		// if(topLevel)
-		// 	foreach (var field in _propertyFields) 
-		// 		field.transform.SetSiblingIndex(_propertyFields.IndexOf(field));
-	
-		RefreshValues();
-	}
-	
-	public void Inspect(object obj, FieldInfo field, bool inspectablesOnly = false)
-	{
-		var inspectable = field.GetCustomAttribute<InspectableAttribute>();
-		if (inspectable == null && inspectablesOnly) return;
-		var type = field.FieldType;
-		
-		if (type == typeof(float))
-		{
-			AddProperty(field.Name.SplitCamelCase(), () => ((float) field.GetValue(obj)).ToString("0.##"));
-		} 
-		else if (type == typeof(int))
-		{
-			AddProperty(field.Name.SplitCamelCase(), () => ((int) field.GetValue(obj)).ToString());
-		}
-		else if (type.IsEnum)
-		{
-			AddProperty(field.Name.SplitCamelCase(), () => Enum.GetName(type, field.GetValue(obj)).SplitCamelCase());
-		}
-		else if (type == typeof(string))
-		{
-			AddProperty(field.Name.SplitCamelCase(), () => (string) field.GetValue(obj));
-		}
-		else if (field.FieldType == typeof(bool)) AddProperty(field.Name.SplitCamelCase(), () => ((bool) field.GetValue(obj)).ToString());
-		else if (type.GetCustomAttribute<InspectableAttribute>() != null)
-		{
-			// 	if(!_propertyFields.Any() || !_propertyFields.Last().gameObject.name.ToUpper().Contains("DIVIDER"))
-			// 		_propertyFields.Add(Divider.Instantiate<Prototype>());
-			var list = AddList(field.Name);
-			list.Inspect(field.GetValue(obj), inspectablesOnly, false);
-		}
-		else 
-			Debug.Log($"Field \"{field.Name}\" has unknown type {field.FieldType.Name}. No inspector was generated.");
 	}
 
 	public void RefreshValues()

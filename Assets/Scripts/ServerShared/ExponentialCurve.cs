@@ -11,13 +11,10 @@ using static Unity.Mathematics.math;
 [Serializable]
 public class ExponentialCurve
 {
-    [Inspectable]
     public float Exponent;
 
-    [Inspectable]
     public float Multiplier;
 
-    [Inspectable]
     public float Constant;
 
     public float Evaluate(float value) => Multiplier * pow(value, Exponent) + Constant;
@@ -26,13 +23,10 @@ public class ExponentialCurve
 [Serializable]
 public class ExponentialLerp
 {
-    [Inspectable]
     public float Exponent;
 
-    [Inspectable]
     public float Minimum;
 
-    [Inspectable]
     public float Maximum;
 
     public float Evaluate(float value) => Minimum + pow(saturate(value), Exponent) * (Maximum - Minimum);

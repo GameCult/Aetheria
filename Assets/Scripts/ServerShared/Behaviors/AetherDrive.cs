@@ -5,7 +5,6 @@
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Inspectable, EntityTypeRestriction(HullType.Ship)]
 public class AetherDrive : Behavior
 {
     private readonly float3 _rotorDiameter;

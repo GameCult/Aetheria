@@ -12,59 +12,35 @@ public class FieldDriver : MonoBehaviour
     public float2 Push;
     public float FrontTwist;
     public float RearTwist;
-    [Inspectable]
     public float TestMagnitude;
-    [Inspectable]
     public float FlowSpeed;
-    [Inspectable]
     public float FlowSpeedThrottleExponent;
-    [Inspectable]
     public float WaveThrottleExponent;
     
     public int MaxHits;
-    [Inspectable]
     public ExponentialCurve MagnitudeTimeScaling;
     
-    [Inspectable]
     public float MeleeRange;
-    [Inspectable]
     public float MeleeRangeExponent;
-    [Inspectable]
     public float MeleeFlatness;
-    [Inspectable]
     public float MeleeShaping;
-    [Inspectable]
     public float MeleeDuration;
-    [Inspectable]
     public float MeleeAngle;
-    [Inspectable]
     public float MeleeAngleExponent;
     
-    [Inspectable]
     public float TendrilBaseRadius = 3;
-    [Inspectable]
     public float TendrilTipRadius = .1f;
-    [Inspectable]
     public float TendrilExtensionExponent = .75f;
-    [Inspectable]
     public float TendrilExtendBaseAnimationExponent = .5f;
-    [Inspectable]
     public float TendrilBaseDamping = 2;
-    [Inspectable]
     public float TendrilTipRadiusAnimationExponent = 2f;
-    [Inspectable]
     public float TendrilFadeExponent = 2;
-    // [Inspectable]
     // public float GrabScaleAnimationExponent = .5f;
 
-    [Inspectable]
     public float GrabExtendTime;
-    [Inspectable]
     public float GrabEnvelopTime;
-    [Inspectable]
     public float GrabPullTime;
     
-    [Inspectable]
     public RectTransform.Axis RefractionAxis = RectTransform.Axis.Horizontal;
     
     private Material _field;

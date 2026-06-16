@@ -488,7 +488,7 @@ Console.WriteLine("Renderer-local console authority: deleted; UI commands flow t
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: gameplay and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
-Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is read-only display");
+Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
@@ -910,15 +910,19 @@ static void RequireNoDeadInspectorMetadata(string root)
 {
     var checkedFiles = new[]
     {
-        Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection", "Attributes.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "FieldDriver.cs"),
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "Corporations.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "AetherDrive.cs"),
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "StatModifier.cs"),
-        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "VelocityLimit.cs")
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "VelocityLimit.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "ExponentialCurve.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeGeometry.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs")
     };
 
     var forbiddenSymbols = new[]
     {
+        "InspectableAttribute",
         "PreferredInspectorAttribute",
         "InspectableTextAttribute",
         "InspectablePrefabAttribute",
@@ -934,7 +938,9 @@ static void RequireNoDeadInspectorMetadata(string root)
         "InspectableRangedFloatAttribute",
         "InspectableRangedIntAttribute",
         "OrderAttribute",
+        "EntityTypeRestrictionAttribute",
         "InspectorHeaderAttribute",
+        "[Inspectable",
         "[InspectableText",
         "[InspectablePrefab",
         "[InspectableTexture",
@@ -949,6 +955,7 @@ static void RequireNoDeadInspectorMetadata(string root)
         "[InspectableRangedFloat",
         "[InspectableRangedInt",
         "[Order(",
+        "EntityTypeRestriction(",
         "[InspectorHeader("
     };
 
@@ -963,8 +970,22 @@ static void RequireNoDeadInspectorMetadata(string root)
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Dead inspector-specialization metadata should stay deleted; the live read-only inspector only uses plain Inspectable markers: " +
+            "Dead inspector-specialization metadata should stay deleted; no generic Inspectable attribute path should remain in live runtime code: " +
             string.Join("; ", hits));
+    }
+
+    var deletedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection", "Attributes.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Attributes.cs")
+    };
+
+    var stillPresent = deletedFiles.Where(File.Exists).Select(path => Path.GetRelativePath(root, path)).ToArray();
+    if (stillPresent.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Dead inspector attribute definition files should be deleted once the generic reflection inspector path is gone: " +
+            string.Join(", ", stillPresent));
     }
 }
 
@@ -2351,6 +2372,11 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
     var source = File.ReadAllText(propertiesPanelPath);
     var forbiddenSymbols = new[]
     {
+        "Inspect(object obj",
+        "Inspect(object obj, FieldInfo field",
+        "GetCustomAttribute<InspectableAttribute>",
+        "type.GetCustomAttribute<InspectableAttribute>()",
+        "field.GetValue(obj)",
         "readWrite",
         "field.SetValue",
         "f => field.SetValue",
@@ -2365,7 +2391,7 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "PropertiesPanel reflection inspection still has renderer-local write authority: " +
+            "PropertiesPanel should not keep the dead generic reflection inspector path or renderer-local write authority: " +
             string.Join(", ", hits));
     }
 }

@@ -10,7 +10,6 @@ using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using int2 = Unity.Mathematics.int2;
 
-[Inspectable]
 public class Shape
 {
     public bool[,] Cells;
@@ -257,15 +256,14 @@ public class Shape
     }
 }
 
-[Inspectable]
 public class HardpointData : ITintInspector
 {
-    [Inspectable] public HardpointType Type;
-    [Inspectable] public int2 Position;
-    [Inspectable] public Shape Shape = new Shape();
-    [Inspectable] public string Transform;
-    [Inspectable] public ItemRotation Rotation;
-    [Inspectable] public float Armor;
+    public HardpointType Type;
+    public int2 Position;
+    public Shape Shape = new Shape();
+    public string Transform;
+    public ItemRotation Rotation;
+    public float Armor;
 
     public override string ToString()
     {

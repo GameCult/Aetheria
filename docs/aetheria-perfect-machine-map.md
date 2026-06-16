@@ -1732,10 +1732,13 @@ First Aetheria surfaces to publish:
      now keeps only the live string-formatting helpers used by `TradeMenu` and
      `PropertiesPanel`; it no longer scans loaded assemblies or keeps static
      type-cache dictionaries for the old inspector/projection path.
-   - Done: delete the dead inspector-specialization metadata. The live
-     `PropertiesPanel` read-only inspector only checks plain `Inspectable`
-     markers now; unused header/order/preferred-inspector attribute types and
-     their stale annotations are gone.
+   - Done: delete the dead inspector-specialization metadata. Unused
+     header/order/preferred-inspector attribute types and their stale
+     annotations are gone.
+   - Done: delete the generic `PropertiesPanel` reflection inspector fallback
+     and the last `Inspectable`/`EntityTypeRestriction` attribute cargo cult.
+     Live item inspection stays on the typed item/property paths; there is no
+     remaining runtime object walker generating UI from reflection metadata.
 
 ## Verification
 
@@ -1886,8 +1889,8 @@ The typed state spine, direct behavior factories, and migration quarantine
 exist; the next cuts should remove remaining live predicates that still need
 legacy DTO vocabulary, keep package-level MessagePack/JSON at explicit
 boundaries, and replace runtime/operator UI truth with Eve surfaces. The old
-`PropertiesPanel` reflection inspector is display-only; do not restore writable
-inspection as a shortcut around typed command/state ownership. Runtime simulation
+Do not restore the deleted generic `PropertiesPanel` reflection inspector as a
+shortcut around typed command/state ownership. Runtime simulation
 tuning controls may remain temporarily on uGUI only when they delegate to
 gameplay-owned commit methods that queue typed checkpoint state; direct UI
 mutation of entity/item/behavior settings is obsolete authority. Hull
