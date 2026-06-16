@@ -7,15 +7,29 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
+using GameCult.Eve.UnityUIToolkit;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
 using Unity.Mathematics;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 public class InventoryMenu : MonoBehaviour
 {
+    private const string ShipSettingsSurfaceType = "surface-state";
+    private const string ShipSettingsSurfaceSchema = "gamecult.eve.surface.v1";
+    private const string ShipSettingsSurfaceProviderId = "aetheria";
+    private const string ShipSettingsSurfaceProviderKind = "inventory.menu";
+    private const string ShipSettingsSurfaceId = "aetheria.inventory.current_ship_settings";
+    private const string DecrementShutdownThresholdCommand = "aetheria.inventory.current_ship_settings.shutdown.decrement";
+    private const string IncrementShutdownThresholdCommand = "aetheria.inventory.current_ship_settings.shutdown.increment";
+    private const string ResetShutdownThresholdCommand = "aetheria.inventory.current_ship_settings.shutdown.reset";
+    private const string CloseShipSettingsCommand = "aetheria.inventory.current_ship_settings.close";
+    private const float ShutdownThresholdStep = 0.05f;
+
     public InventoryPanel[] InventoryPanels;
     public PropertiesPanel PropertiesPanel;
     public ActionGameManager GameManager;
@@ -29,6 +43,7 @@ public class InventoryMenu : MonoBehaviour
     private InventoryPanel _selectedPanel;
     private ItemInstance _selectedItem;
     private int2[] _selectedCells;
+    private UIDocument _shipSettingsSurfaceDocument;
     // private List<IDisposable> _backgroundSubscriptions;
 
     // private ItemInstance _dragItem;
@@ -70,6 +85,7 @@ public class InventoryMenu : MonoBehaviour
 
     private void OnDisable()
     {
+        HideCurrentShipSettingsSurface();
         // Background.gameObject.SetActive(false);
     }
 
@@ -99,6 +115,8 @@ public class InventoryMenu : MonoBehaviour
                         }
                         else
                         {
+                            HideCurrentShipSettingsSurface();
+                            PropertiesPanel.gameObject.SetActive(true);
                             ClearSelectedCellHighlight();
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.Position;
@@ -131,6 +149,8 @@ public class InventoryMenu : MonoBehaviour
                         }
                         else
                         {
+                            HideCurrentShipSettingsSurface();
+                            PropertiesPanel.gameObject.SetActive(true);
                             ClearSelectedCellHighlight();
 
                             PropertiesPanel.Inspect(item);
@@ -148,15 +168,206 @@ public class InventoryMenu : MonoBehaviour
             panel.OnBackgroundClick.Subscribe(data =>
             {
                 if (GameManager.CurrentEntity == null) return; // Only show ship settings if there's a ship, duh!
-                
-                PropertiesPanel.Clear();
-                PropertiesPanel.AddField("Shutdown Threshold",
-                    () => GameManager.CurrentEntity.Settings.ShutdownPerformance,
-                    f => GameManager.CommitEntityShutdownPerformance(GameManager.CurrentEntity, f),
-                    0,
-                    1);
+
+                RenderCurrentShipSettingsSurface(GameManager.CurrentEntity);
             });
         }
+    }
+
+    private void RenderCurrentShipSettingsSurface(Entity entity)
+    {
+        if (entity == null)
+            return;
+
+        PropertiesPanel.gameObject.SetActive(false);
+        ClearSelectedCellHighlight();
+
+        var document = ResolveShipSettingsSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexStart;
+        root.style.justifyContent = Justify.FlexStart;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 360;
+        shell.style.maxWidth = 420;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildCurrentShipSettingsSurfaceDefinition(entity), HandleCurrentShipSettingsSurfaceCommand));
+    }
+
+    private void HandleCurrentShipSettingsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        var entity = GameManager.CurrentEntity;
+        if (entity?.Settings == null)
+        {
+            HideCurrentShipSettingsSurface();
+            return;
+        }
+
+        switch (request.Command)
+        {
+            case DecrementShutdownThresholdCommand:
+                GameManager.CommitEntityShutdownPerformance(
+                    entity,
+                    Mathf.Clamp01(entity.Settings.ShutdownPerformance - ShutdownThresholdStep));
+                RenderCurrentShipSettingsSurface(entity);
+                return;
+            case IncrementShutdownThresholdCommand:
+                GameManager.CommitEntityShutdownPerformance(
+                    entity,
+                    Mathf.Clamp01(entity.Settings.ShutdownPerformance + ShutdownThresholdStep));
+                RenderCurrentShipSettingsSurface(entity);
+                return;
+            case ResetShutdownThresholdCommand:
+                GameManager.CommitEntityShutdownPerformance(
+                    entity,
+                    Mathf.Clamp01(GameManager.Settings.GameplaySettings.DefaultShutdownPerformance));
+                RenderCurrentShipSettingsSurface(entity);
+                return;
+            case CloseShipSettingsCommand:
+                HideCurrentShipSettingsSurface();
+                return;
+            default:
+                Debug.LogWarning($"Unknown inventory ship settings command: {request.Command}");
+                return;
+        }
+    }
+
+    private void HideCurrentShipSettingsSurface()
+    {
+        if (_shipSettingsSurfaceDocument == null)
+            return;
+
+        _shipSettingsSurfaceDocument.rootVisualElement.Clear();
+        _shipSettingsSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveShipSettingsSurfaceDocument()
+    {
+        if (_shipSettingsSurfaceDocument != null)
+            return _shipSettingsSurfaceDocument;
+
+        var host = new GameObject("Aetheria Inventory Ship Settings Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1000;
+        host.SetActive(false);
+        _shipSettingsSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildCurrentShipSettingsSurfaceDefinition(Entity entity)
+    {
+        return new EveSurfaceDocument(
+            ShipSettingsSurfaceType,
+            ShipSettingsSurfaceSchema,
+            ShipSettingsSurfaceProviderId,
+            ShipSettingsSurfaceProviderKind,
+            "Current Ship Settings",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                ShipSettingsSurfaceId,
+                Node(
+                    $"{ShipSettingsSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    Card(
+                        $"{ShipSettingsSurfaceId}.card",
+                        entity.Name,
+                        Metric(
+                            $"{ShipSettingsSurfaceId}.shutdown.metric",
+                            "Shutdown Threshold",
+                            ActionGameManager.RuntimePlayerSettings.Format(entity.Settings.ShutdownPerformance)),
+                        Text(
+                            $"{ShipSettingsSurfaceId}.note",
+                            "Gameplay still owns the mutation. This surface only lowers the current ship setting."),
+                        ButtonRow(
+                            $"{ShipSettingsSurfaceId}.shutdown.buttons",
+                            Button($"{ShipSettingsSurfaceId}.shutdown.decrement", "Threshold -", DecrementShutdownThresholdCommand),
+                            Button($"{ShipSettingsSurfaceId}.shutdown.increment", "Threshold +", IncrementShutdownThresholdCommand),
+                            Button($"{ShipSettingsSurfaceId}.shutdown.reset", "Default", ResetShutdownThresholdCommand),
+                            Button($"{ShipSettingsSurfaceId}.close", "Close", CloseShipSettingsCommand)))),
+                Array.Empty<EveStyleToken>()),
+            new[]
+            {
+                new EveCommandTemplate(DecrementShutdownThresholdCommand, "Threshold -", "unity-uitoolkit"),
+                new EveCommandTemplate(IncrementShutdownThresholdCommand, "Threshold +", "unity-uitoolkit"),
+                new EveCommandTemplate(ResetShutdownThresholdCommand, "Default", "unity-uitoolkit"),
+                new EveCommandTemplate(CloseShipSettingsCommand, "Close", "unity-uitoolkit")
+            });
+    }
+
+    private static EveSurfaceComponent Card(
+        string id,
+        string title,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "card", new[] { ("title", title) }, children);
+    }
+
+    private static EveSurfaceComponent Metric(string id, string label, string value)
+    {
+        return Node(id, "metric", new[] { ("label", label), ("value", value) });
+    }
+
+    private static EveSurfaceComponent Text(string id, string value)
+    {
+        return Node(id, "text", new[] { ("value", value) });
+    }
+
+    private static EveSurfaceComponent Button(string id, string label, string command)
+    {
+        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
+    }
+
+    private static EveSurfaceComponent ButtonRow(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent Node(
+        string id,
+        string kind,
+        IEnumerable<(string Key, string Value)> props,
+        params EveSurfaceComponent[] children)
+    {
+        return new EveSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
+            children ?? Array.Empty<EveSurfaceComponent>());
     }
 
     private bool CommitCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
@@ -242,5 +453,14 @@ public class InventoryMenu : MonoBehaviour
             ItemRotation.CounterClockwise => new int2(item.ShapeHeight - 1 - cell.Y, cell.X),
             _ => new int2(cell.X, cell.Y)
         };
+    }
+
+    private void OnDestroy()
+    {
+        if (_shipSettingsSurfaceDocument != null)
+        {
+            Destroy(_shipSettingsSurfaceDocument.gameObject);
+            _shipSettingsSurfaceDocument = null;
+        }
     }
 }

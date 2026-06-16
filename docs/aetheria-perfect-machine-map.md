@@ -119,7 +119,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   lowers through a local Eve/UI Toolkit surface as well instead of rebuilding
   `PropertiesPanel` rows on each zone click. The runtime in-game menu tab strip
   now lowers through a local Eve/UI Toolkit surface instead of wiring old
-  `MenuTabButton` clicks.
+  `MenuTabButton` clicks. Inventory background ship tuning now lowers through a
+  local Eve/UI Toolkit surface instead of rebuilding a `PropertiesPanel`
+  float field.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1557,6 +1559,11 @@ First Aetheria surfaces to publish:
    - Done: replace the runtime in-game menu tab strip with an Eve-owned UI
      Toolkit surface. `MenuPanel` still owns tab-content activation, but old
      `MenuTabButton` click wiring no longer owns tab navigation.
+   - Done: replace inventory background ship tuning with an Eve-owned UI
+     Toolkit surface. `InventoryMenu` still owns click routing and the
+     gameplay commit primitive still owns mutation, but the old
+     `PropertiesPanel.AddField("Shutdown Threshold", ...)` path no longer owns
+     that settings shell.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
@@ -1921,6 +1928,9 @@ First Aetheria surfaces to publish:
 - Runtime in-game menu tab navigation now lowers through a shared UI Toolkit
   `UIDocument` host and a local Eve surface document instead of wiring
   `MenuTabButton` click handlers.
+- Inventory background ship tuning now lowers through a shared UI Toolkit
+  `UIDocument` host and a local Eve surface document instead of rebuilding a
+  mutable `PropertiesPanel.AddField(...)` control for shutdown threshold.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and

@@ -35,6 +35,7 @@ RequireMainMenuSettingsCommit(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
+RequireInventoryShipSettingsUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -502,6 +503,7 @@ Console.WriteLine("Main-menu settings authority: player name, gameplay, and grap
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
+Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2584,6 +2586,59 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "MenuPanel still owns tab-shell behavior through the old MenuTabButton path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireInventoryShipSettingsUseEveSurface(string root)
+{
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    if (!File.Exists(inventoryMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory ship-settings shell; InventoryMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(inventoryMenuPath);
+    var requiredSymbols = new[]
+    {
+        "ShipSettingsSurfaceId",
+        "RenderCurrentShipSettingsSurface(",
+        "HandleCurrentShipSettingsSurfaceCommand(",
+        "ResolveShipSettingsSurfaceDocument(",
+        "BuildCurrentShipSettingsSurfaceDefinition(",
+        "DecrementShutdownThresholdCommand",
+        "IncrementShutdownThresholdCommand",
+        "ResetShutdownThresholdCommand",
+        "CloseShipSettingsCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu no longer lowers current ship settings through an Eve surface shell: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "PropertiesPanel.AddField(\"Shutdown Threshold\"",
+        "() => GameManager.CurrentEntity.Settings.ShutdownPerformance",
+        "f => GameManager.CommitEntityShutdownPerformance(GameManager.CurrentEntity, f)"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still owns ship settings through the old PropertiesPanel field path: " +
             string.Join(", ", hits));
     }
 }
