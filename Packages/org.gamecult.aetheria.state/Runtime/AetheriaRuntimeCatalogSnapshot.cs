@@ -774,6 +774,7 @@ namespace GameCult.Aetheria.State.Unity
     public sealed class AetheriaRuntimeZoneStateSnapshot
     {
         public AetheriaRuntimeZoneStateSnapshot(
+            string recordKey,
             string name,
             double positionX,
             double positionY,
@@ -785,6 +786,7 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<AetheriaRuntimeBodySnapshot> bodies,
             IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> droppedPickups)
         {
+            RecordKey = recordKey;
             Name = name;
             PositionX = positionX;
             PositionY = positionY;
@@ -797,6 +799,7 @@ namespace GameCult.Aetheria.State.Unity
             DroppedPickups = droppedPickups;
         }
 
+        public string RecordKey { get; }
         public string Name { get; }
         public double PositionX { get; }
         public double PositionY { get; }

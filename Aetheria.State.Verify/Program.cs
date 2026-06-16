@@ -475,7 +475,7 @@ Console.WriteLine("Weapon group authority: UI assignment flows through gameplay 
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
 Console.WriteLine("Loot pickup authority: collision pickup requests flow through gameplay checkpoint commits");
 Console.WriteLine("Entity destruction authority: hull-death observers flow through gameplay checkpoint commits");
-Console.WriteLine("Dropped pickup state: zone checkpoints carry typed dropped-pickup snapshots");
+Console.WriteLine("Dropped pickup state: zone checkpoints carry typed dropped-pickup snapshots and keyed live lowering");
 Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests flow through gameplay checkpoint commits");
 Console.WriteLine("Docked current-ship authority: UI selection requests flow through gameplay checkpoint commits");
@@ -1246,18 +1246,23 @@ static void RequireDroppedPickupCheckpointState(string root)
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
         {
+            "ReadZoneStatePayload(record.Key, record.Payload)",
             "ReadFieldDroppedPickups",
             "AetheriaRuntimeDroppedPickupSnapshot"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
         {
+            "public string RecordKey",
             "AetheriaRuntimeDroppedPickupSnapshot",
             "public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
             "ProjectDroppedPickups",
-            "DroppedPickups = ProjectDroppedPickups(zone)"
+            "DroppedPickups = ProjectDroppedPickups(zone)",
+            "RestoreDroppedPickupsFromTypedZoneState",
+            "AetheriaRuntimeCatalogStore.ReadZoneStates(RuntimeStateFilePath)",
+            "ZoneRenderer.DropItem("
         },
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
@@ -1266,6 +1271,7 @@ static void RequireDroppedPickupCheckpointState(string root)
         [Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")] = new[]
         {
             "new AetheriaRuntimeDroppedPickupCommit",
+            "packageZones[0].RecordKey",
             "packageZones[0].DroppedPickups"
         }
     };

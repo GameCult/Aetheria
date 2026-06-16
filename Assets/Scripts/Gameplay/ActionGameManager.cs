@@ -2316,11 +2316,55 @@ public class ActionGameManager : MonoBehaviour
         }
         
         ZoneRenderer.LoadZone(Zone);
+        RestoreDroppedPickupsFromTypedZoneState(galaxyZone);
         
         if (CurrentEntity != null)
         {
             UnbindEntity();
             BindToEntity(CurrentEntity);
+        }
+    }
+
+    private void RestoreDroppedPickupsFromTypedZoneState(GalaxyZone galaxyZone)
+    {
+        if (RuntimeCatalog == null ||
+            ZoneRenderer == null ||
+            galaxyZone == null)
+        {
+            return;
+        }
+
+        var zoneIndex = ZoneIndex(galaxyZone);
+        if (zoneIndex < 0)
+            return;
+
+        var runId = IsTutorial ? "tutorial" : "local";
+        var zoneKey = $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.v1";
+        AetheriaRuntimeZoneStateSnapshot zoneState;
+        try
+        {
+            zoneState = AetheriaRuntimeCatalogStore.ReadZoneStates(RuntimeStateFilePath)
+                .FirstOrDefault(zone => string.Equals(zone.RecordKey, zoneKey, StringComparison.Ordinal));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed dropped pickup state for zone {zoneKey}: {ex}");
+            return;
+        }
+
+        if (zoneState?.DroppedPickups == null || zoneState.DroppedPickups.Count == 0)
+            return;
+
+        foreach (var pickup in zoneState.DroppedPickups.OrderBy(pickup => pickup.PickupIndex))
+        {
+            var item = CreateLoadoutItem(pickup.Item);
+            if (item == null)
+                continue;
+
+            ZoneRenderer.DropItem(
+                new Vector3((float)pickup.PositionX, (float)pickup.PositionY, (float)pickup.PositionZ),
+                new Vector3((float)pickup.VelocityX, (float)pickup.VelocityY, (float)pickup.VelocityZ),
+                item);
         }
     }
 

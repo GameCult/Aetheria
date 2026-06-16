@@ -885,6 +885,7 @@ try
         packageRuns[0].FactionRelationships.Count != 1 ||
         packageRuns[0].FactionRelationships[0].FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
         packageZones.Count != 1 ||
+        packageZones[0].RecordKey != "global:aetheria.run_state.smoke-run.zone.0.v1" ||
         packageZones[0].Name != "Unity Smoke Zone" ||
         packageZones[0].EntityKeys.Count != 1 ||
         packageZones[0].Orbits.Count != 1 ||

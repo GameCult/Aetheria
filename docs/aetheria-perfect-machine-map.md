@@ -958,11 +958,15 @@ First Aetheria surfaces to publish:
      checkpoints now carry pickup index, position, velocity, item key, quality,
      durability, quantity, and package readback through
      `AetheriaRuntimeZoneStateSnapshot.DroppedPickups`.
+   - Done: lower typed dropped-pickup zone rows back into live scene pickups on
+     zone load. `AetheriaRuntimeZoneStateSnapshot.RecordKey` preserves the exact
+     typed zone identity, and `ActionGameManager` restores only the matching
+     `RunId + ZoneIndex` pickup rows through `ZoneRenderer.DropItem`.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     restore/lowering of dropped pickups back into live scene objects, typed
-     behavior factory construction, remaining behavior-private state not covered
-     by progress, weapon, sensor, radiator, reactor, or capacitor rows, and any
-     catalog fields not covered by the stable scalar/fingerprint/payload pass.
+     complete Continue/run restore from typed state, typed behavior factory
+     construction, remaining behavior-private state not covered by progress,
+     weapon, sensor, radiator, reactor, or capacitor rows, and any catalog
+     fields not covered by the stable scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
@@ -1423,8 +1427,8 @@ First Aetheria surfaces to publish:
      death and may spawn the local destruction effect, but gameplay owns
      equipment/cargo drop decisions, zone entity removal, and the typed run
      checkpoint. Dropped world pickups are now projected into typed zone
-     snapshot state; restoring/lowering those typed pickup rows back into live
-     scene objects remains future runtime object graph work.
+     snapshot state and lowered back into live scene pickups by exact typed zone
+     record key during zone load.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1764,7 +1768,7 @@ follows the same rule: collision code reports the pickup opportunity, gameplay
 owns cargo storage and checkpoint. Entity destruction follows the same rule:
 instance code observes death, gameplay owns drop decisions, zone removal, and
 checkpoint. Dropped world pickups are typed zone-snapshot state, not only
-renderer-local objects; restore/lowering work must consume that typed state
+renderer-local objects; live lowering consumes the exact typed zone record key
 instead of rehydrating a parallel presentation list. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet

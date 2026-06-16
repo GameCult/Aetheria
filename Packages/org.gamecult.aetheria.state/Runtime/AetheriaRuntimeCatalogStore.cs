@@ -143,7 +143,7 @@ namespace GameCult.Aetheria.State.Unity
                     schemaName != ZoneStateSchema)
                     continue;
 
-                zones.Add(ReadZoneStatePayload(record.Payload));
+                zones.Add(ReadZoneStatePayload(record.Key, record.Payload));
             }
 
             return zones.OrderBy(zone => zone.Name, StringComparer.Ordinal).ToArray();
@@ -479,7 +479,7 @@ namespace GameCult.Aetheria.State.Unity
                 generationSeed);
         }
 
-        private static AetheriaRuntimeZoneStateSnapshot ReadZoneStatePayload(byte[] payload)
+        private static AetheriaRuntimeZoneStateSnapshot ReadZoneStatePayload(string recordKey, byte[] payload)
         {
             var reader = new MessagePackReader(payload);
             var fields = reader.ReadArrayHeader();
@@ -494,6 +494,7 @@ namespace GameCult.Aetheria.State.Unity
             var droppedPickups = ReadFieldDroppedPickups(ref reader, fields, 8);
             SkipRemaining(ref reader, fields, 9);
             return new AetheriaRuntimeZoneStateSnapshot(
+                recordKey,
                 name,
                 position.X,
                 position.Y,
