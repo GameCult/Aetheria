@@ -322,6 +322,37 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(9)]
         public IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> Bodies { get; set; } = Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+
+        [Key(10)]
+        public IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> DroppedPickups { get; set; } = Array.Empty<AetheriaRuntimeDroppedPickupCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeDroppedPickupCommit
+    {
+        [Key(0)]
+        public int PickupIndex { get; set; } = -1;
+
+        [Key(1)]
+        public double PositionX { get; set; }
+
+        [Key(2)]
+        public double PositionY { get; set; }
+
+        [Key(3)]
+        public double PositionZ { get; set; }
+
+        [Key(4)]
+        public double VelocityX { get; set; }
+
+        [Key(5)]
+        public double VelocityY { get; set; }
+
+        [Key(6)]
+        public double VelocityZ { get; set; }
+
+        [Key(7)]
+        public AetheriaRuntimeLoadoutItemCommit Item { get; set; } = new AetheriaRuntimeLoadoutItemCommit();
     }
 
     [MessagePackObject]

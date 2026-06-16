@@ -491,7 +491,8 @@ namespace GameCult.Aetheria.State.Unity
             var entityKeys = ReadFieldStringArray(ref reader, fields, 5);
             var orbits = ReadFieldOrbitSnapshots(ref reader, fields, 6);
             var bodies = ReadFieldBodySnapshots(ref reader, fields, 7);
-            SkipRemaining(ref reader, fields, 8);
+            var droppedPickups = ReadFieldDroppedPickups(ref reader, fields, 8);
+            SkipRemaining(ref reader, fields, 9);
             return new AetheriaRuntimeZoneStateSnapshot(
                 name,
                 position.X,
@@ -501,7 +502,35 @@ namespace GameCult.Aetheria.State.Unity
                 ownerFactionIndex,
                 entityKeys,
                 orbits,
-                bodies);
+                bodies,
+                droppedPickups);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> ReadFieldDroppedPickups(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeDroppedPickupSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var pickups = new AetheriaRuntimeDroppedPickupSnapshot[count];
+            for (var pickup = 0; pickup < count; pickup++)
+            {
+                var pickupFields = reader.ReadArrayHeader();
+                var pickupIndex = pickupFields > 0 ? ReadFieldInt32(ref reader, pickupFields, 0) : -1;
+                var position = ReadFieldVector3(ref reader, pickupFields, 1);
+                var velocity = ReadFieldVector3(ref reader, pickupFields, 2);
+                var item = ReadFieldLoadoutItem(ref reader, pickupFields, 3);
+                SkipRemaining(ref reader, pickupFields, 4);
+                pickups[pickup] = new AetheriaRuntimeDroppedPickupSnapshot(
+                    pickupIndex,
+                    position.X,
+                    position.Y,
+                    position.Z,
+                    velocity.X,
+                    velocity.Y,
+                    velocity.Z,
+                    item);
+            }
+
+            return pickups;
         }
 
         private static AetheriaRuntimeEntitySnapshot ReadEntitySnapshotPayload(byte[] payload)

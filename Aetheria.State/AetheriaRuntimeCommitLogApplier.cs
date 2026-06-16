@@ -273,7 +273,8 @@ public static class AetheriaRuntimeCommitLogApplier
                     OwnerFactionIndex = zone.OwnerFactionIndex,
                     EntityKeys = entityKeys.ToArray(),
                     Orbits = ToOrbitSnapshots(zone.Orbits),
-                    Bodies = ToBodySnapshots(zone.Bodies, run.RunId, zone.ZoneIndex)
+                    Bodies = ToBodySnapshots(zone.Bodies, run.RunId, zone.ZoneIndex),
+                    DroppedPickups = ToDroppedPickups(zone.DroppedPickups)
                 })
                 .ConfigureAwait(false);
             zoneKeys.Add(zoneKey.ToString());
@@ -282,6 +283,30 @@ public static class AetheriaRuntimeCommitLogApplier
         if (zoneKeys.Count > 0)
             run.ZoneKeys = zoneKeys.ToArray();
         await node.PutRunStateAsync(RunKey(run.RunId), run).ConfigureAwait(false);
+    }
+
+    private static AetheriaDroppedPickupSnapshot[] ToDroppedPickups(
+        IReadOnlyList<AetheriaRuntimeDroppedPickupCommit>? pickups)
+    {
+        return (pickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+            .Select(pickup => new AetheriaDroppedPickupSnapshot
+            {
+                PickupIndex = pickup.PickupIndex,
+                Position = new AetheriaVector3
+                {
+                    X = pickup.PositionX,
+                    Y = pickup.PositionY,
+                    Z = pickup.PositionZ
+                },
+                Velocity = new AetheriaVector3
+                {
+                    X = pickup.VelocityX,
+                    Y = pickup.VelocityY,
+                    Z = pickup.VelocityZ
+                },
+                Item = ToLoadoutItem(pickup.Item)
+            })
+            .ToArray();
     }
 
     private static AetheriaOrbitSnapshot[] ToOrbitSnapshots(

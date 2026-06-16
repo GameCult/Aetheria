@@ -954,11 +954,15 @@ First Aetheria surfaces to publish:
    - Done: preserve entity contact rows for gathered info, hostility, and
      visible classification, so detection/contact state is typed snapshot data
      instead of only reactive runtime collections.
+   - Done: preserve dropped world-pickup rows in typed zone snapshots. Run
+     checkpoints now carry pickup index, position, velocity, item key, quality,
+     durability, quantity, and package readback through
+     `AetheriaRuntimeZoneStateSnapshot.DroppedPickups`.
    - Remaining: add typed documents/mappers for runtime object graphs,
-     typed behavior factory construction, remaining behavior-private state not
-     covered by progress, weapon, sensor, radiator, reactor, or capacitor rows,
-     and any catalog fields not covered by the stable scalar/fingerprint/
-     payload pass.
+     restore/lowering of dropped pickups back into live scene objects, typed
+     behavior factory construction, remaining behavior-private state not covered
+     by progress, weapon, sensor, radiator, reactor, or capacitor rows, and any
+     catalog fields not covered by the stable scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can
@@ -1418,8 +1422,9 @@ First Aetheria surfaces to publish:
      `ActionGameManager.CommitEntityDestroyed`. `EntityInstance` observes hull
      death and may spawn the local destruction effect, but gameplay owns
      equipment/cargo drop decisions, zone entity removal, and the typed run
-     checkpoint. Dropped world pickups are still presentation/runtime objects
-     until the runtime object graph pass gives them typed documents.
+     checkpoint. Dropped world pickups are now projected into typed zone
+     snapshot state; restoring/lowering those typed pickup rows back into live
+     scene objects remains future runtime object graph work.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1648,7 +1653,8 @@ First Aetheria surfaces to publish:
   the embedded package-owned read-only catalog opener, receiving the same
   package-owned runtime catalog read models without a MessagePack catalog cache,
   including typed item masks, interior masks, hardpoint definitions,
-  corporation/name-file links, and typed behavior payloads. It also proves the
+  corporation/name-file links, typed behavior payloads, and dropped world
+  pickup rows in zone snapshots. It also proves the
   embedded package can read provider-owned Eve surface documents from the same
   CultCache store. The smoke proves the Unity runtime state commit log can
   queue player-settings and run snapshot commands, the `Aetheria.State` node
@@ -1757,7 +1763,9 @@ owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Loot pickup
 follows the same rule: collision code reports the pickup opportunity, gameplay
 owns cargo storage and checkpoint. Entity destruction follows the same rule:
 instance code observes death, gameplay owns drop decisions, zone removal, and
-checkpoint. Any
+checkpoint. Dropped world pickups are typed zone-snapshot state, not only
+renderer-local objects; restore/lowering work must consume that typed state
+instead of rehydrating a parallel presentation list. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

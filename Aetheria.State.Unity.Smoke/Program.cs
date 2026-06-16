@@ -330,6 +330,24 @@ try
                             }
                         }
                     },
+                    DroppedPickups = new[]
+                    {
+                        new AetheriaRuntimeDroppedPickupCommit
+                        {
+                            PickupIndex = 2,
+                            PositionX = 9.0,
+                            PositionY = 1.5,
+                            PositionZ = -3.0,
+                            VelocityX = 0.25,
+                            VelocityY = -0.5,
+                            VelocityZ = 2.0,
+                            Item = new AetheriaRuntimeLoadoutItemCommit
+                            {
+                                ItemKey = "aetheria.item_definition:legacy:smoke:ore",
+                                Quantity = 11
+                            }
+                        }
+                    },
                     Entities = new[]
                     {
                         new AetheriaRuntimeEntitySnapshotCommit
@@ -727,6 +745,12 @@ try
             zone.Bodies[0].Asteroids[0].MiningAccumulators.Length == 1 &&
             zone.Bodies[0].Asteroids[0].MiningAccumulators[0].MinerEntityKey == "global:aetheria.run_state.smoke-run.zone.0.entity.0.v1" &&
             zone.Bodies[0].Asteroids[0].MiningAccumulators[0].Amount == 0.75 &&
+            zone.DroppedPickups.Length == 1 &&
+            zone.DroppedPickups[0].PickupIndex == 2 &&
+            zone.DroppedPickups[0].Position.X == 9.0 &&
+            zone.DroppedPickups[0].Velocity.Z == 2.0 &&
+            zone.DroppedPickups[0].Item.ItemKey == "aetheria.item_definition:legacy:smoke:ore" &&
+            zone.DroppedPickups[0].Item.Quantity == 11 &&
             entity?.Equipment.Length == 1 &&
             entity.FactionKey == "aetheria.corporation:legacy:smoke:faction" &&
             entity.Equipment[0].Quality == 0.9 &&
@@ -875,6 +899,12 @@ try
         packageZones[0].Bodies[0].DamagedAsteroidCount != 1 ||
         packageZones[0].Bodies[0].RespawningAsteroidCount != 1 ||
         packageZones[0].Bodies[0].AsteroidMiningAccumulatorCount != 1 ||
+        packageZones[0].DroppedPickups.Count != 1 ||
+        packageZones[0].DroppedPickups[0].PickupIndex != 2 ||
+        packageZones[0].DroppedPickups[0].PositionX != 9.0 ||
+        packageZones[0].DroppedPickups[0].VelocityZ != 2.0 ||
+        packageZones[0].DroppedPickups[0].Item.ItemKey != "aetheria.item_definition:legacy:smoke:ore" ||
+        packageZones[0].DroppedPickups[0].Item.Quantity != 11 ||
         packageEntities.Count != 1 ||
         packageEntities[0].Name != "Unity Smoke Ship" ||
         packageEntities[0].FactionKey != "aetheria.corporation:legacy:smoke:faction" ||
@@ -971,7 +1001,7 @@ Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayloa
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
 Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
-Console.WriteLine("Runtime state commit log smoke: settings, loadouts, action-bar bindings, faction relationships, and run zone/entity snapshots queued, applied, and cleared");
+Console.WriteLine("Runtime state commit log smoke: settings, loadouts, action-bar bindings, faction relationships, and run zone/entity/pickup snapshots queued, applied, and cleared");
 Console.WriteLine("Runtime Eve command log smoke: surface command queued separately from state commits");
 
 static void AssertPendingCultCacheEnvelope(string path, string expectedSchemaId)

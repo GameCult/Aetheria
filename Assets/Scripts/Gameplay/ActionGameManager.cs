@@ -661,8 +661,36 @@ public class ActionGameManager : MonoBehaviour
             Bodies = ProjectZoneBodies(zone),
             Entities = zone.Entities
                 .Select((entity, index) => ProjectEntitySnapshot(zone, entity, index))
-                .ToArray()
+                .ToArray(),
+            DroppedPickups = ProjectDroppedPickups(zone)
         };
+    }
+
+    private AetheriaRuntimeDroppedPickupCommit[] ProjectDroppedPickups(Zone zone)
+    {
+        if (Zone != zone || ZoneRenderer?.ActiveLoot == null)
+            return Array.Empty<AetheriaRuntimeDroppedPickupCommit>();
+
+        return ZoneRenderer.ActiveLoot
+            .Where(pickup => pickup != null && pickup.Item != null)
+            .Select((pickup, index) =>
+            {
+                var gridObject = pickup.GetComponent<GridObject>();
+                var position = pickup.transform.position;
+                var velocity = gridObject == null ? Vector3.zero : gridObject.Velocity;
+                return new AetheriaRuntimeDroppedPickupCommit
+                {
+                    PickupIndex = index,
+                    PositionX = position.x,
+                    PositionY = position.y,
+                    PositionZ = position.z,
+                    VelocityX = velocity.x,
+                    VelocityY = velocity.y,
+                    VelocityZ = velocity.z,
+                    Item = ProjectLoadoutItem(pickup.Item)
+                };
+            })
+            .ToArray();
     }
 
     private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(Zone zone)

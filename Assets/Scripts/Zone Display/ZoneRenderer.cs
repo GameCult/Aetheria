@@ -91,6 +91,7 @@ public class ZoneRenderer : MonoBehaviour
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
     public Zone Zone { get; private set; }
+    public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
     public ItemManager ItemManager { get; set; }
 
     public Entity PerspectiveEntity

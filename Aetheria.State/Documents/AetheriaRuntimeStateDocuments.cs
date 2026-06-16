@@ -265,6 +265,25 @@ public sealed class AetheriaZoneState
 
     [Key(7)]
     public AetheriaBodySnapshot[] Bodies { get; set; } = [];
+
+    [Key(8)]
+    public AetheriaDroppedPickupSnapshot[] DroppedPickups { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaDroppedPickupSnapshot
+{
+    [Key(0)]
+    public int PickupIndex { get; set; } = -1;
+
+    [Key(1)]
+    public AetheriaVector3 Position { get; set; } = new();
+
+    [Key(2)]
+    public AetheriaVector3 Velocity { get; set; } = new();
+
+    [Key(3)]
+    public AetheriaLoadoutItem Item { get; set; } = new();
 }
 
 [MessagePackObject]

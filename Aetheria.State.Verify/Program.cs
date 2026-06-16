@@ -21,6 +21,7 @@ RequireWeaponGroupCommitAuthority(root);
 RequireInventoryDoubleClickTransferCommitAuthority(root);
 RequireLootPickupCommitAuthority(root);
 RequireEntityDestroyedCommitAuthority(root);
+RequireDroppedPickupCheckpointState(root);
 RequireTradePurchaseCommitAuthority(root);
 RequireInventoryLoadoutRestoreCommitAuthority(root);
 RequireDockedCurrentShipCommitAuthority(root);
@@ -474,6 +475,7 @@ Console.WriteLine("Weapon group authority: UI assignment flows through gameplay 
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
 Console.WriteLine("Loot pickup authority: collision pickup requests flow through gameplay checkpoint commits");
 Console.WriteLine("Entity destruction authority: hull-death observers flow through gameplay checkpoint commits");
+Console.WriteLine("Dropped pickup state: zone checkpoints carry typed dropped-pickup snapshots");
 Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests flow through gameplay checkpoint commits");
 Console.WriteLine("Docked current-ship authority: UI selection requests flow through gameplay checkpoint commits");
@@ -1220,6 +1222,72 @@ static void RequireEntityDestroyedCommitAuthority(string root)
     if (!entityInstance.Contains("ActionGameManager.Instance?.CommitEntityDestroyed", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("EntityInstance no longer routes destruction through ActionGameManager.");
+    }
+}
+
+static void RequireDroppedPickupCheckpointState(string root)
+{
+    var requiredFiles = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs")] = new[]
+        {
+            "AetheriaRuntimeDroppedPickupCommit",
+            "DroppedPickups"
+        },
+        [Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs")] = new[]
+        {
+            "AetheriaDroppedPickupSnapshot",
+            "DroppedPickups"
+        },
+        [Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")] = new[]
+        {
+            "ToDroppedPickups",
+            "DroppedPickups = ToDroppedPickups(zone.DroppedPickups)"
+        },
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
+        {
+            "ReadFieldDroppedPickups",
+            "AetheriaRuntimeDroppedPickupSnapshot"
+        },
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
+        {
+            "AetheriaRuntimeDroppedPickupSnapshot",
+            "public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
+        {
+            "ProjectDroppedPickups",
+            "DroppedPickups = ProjectDroppedPickups(zone)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
+        {
+            "ActiveLoot"
+        },
+        [Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")] = new[]
+        {
+            "new AetheriaRuntimeDroppedPickupCommit",
+            "packageZones[0].DroppedPickups"
+        }
+    };
+
+    var missing = requiredFiles
+        .SelectMany(pair =>
+        {
+            if (!File.Exists(pair.Key))
+                return new[] { $"{Path.GetRelativePath(root, pair.Key)}: missing file" };
+
+            var text = File.ReadAllText(pair.Key);
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missing.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Dropped pickup checkpoint state is incomplete: " +
+            string.Join("; ", missing));
     }
 }
 

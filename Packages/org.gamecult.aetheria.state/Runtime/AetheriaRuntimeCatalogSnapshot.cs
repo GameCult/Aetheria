@@ -782,7 +782,8 @@ namespace GameCult.Aetheria.State.Unity
             int ownerFactionIndex,
             IReadOnlyList<string> entityKeys,
             IReadOnlyList<AetheriaRuntimeOrbitSnapshot> orbits,
-            IReadOnlyList<AetheriaRuntimeBodySnapshot> bodies)
+            IReadOnlyList<AetheriaRuntimeBodySnapshot> bodies,
+            IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> droppedPickups)
         {
             Name = name;
             PositionX = positionX;
@@ -793,6 +794,7 @@ namespace GameCult.Aetheria.State.Unity
             EntityKeys = entityKeys;
             Orbits = orbits;
             Bodies = bodies;
+            DroppedPickups = droppedPickups;
         }
 
         public string Name { get; }
@@ -804,6 +806,39 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<string> EntityKeys { get; }
         public IReadOnlyList<AetheriaRuntimeOrbitSnapshot> Orbits { get; }
         public IReadOnlyList<AetheriaRuntimeBodySnapshot> Bodies { get; }
+        public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups { get; }
+    }
+
+    public sealed class AetheriaRuntimeDroppedPickupSnapshot
+    {
+        public AetheriaRuntimeDroppedPickupSnapshot(
+            int pickupIndex,
+            double positionX,
+            double positionY,
+            double positionZ,
+            double velocityX,
+            double velocityY,
+            double velocityZ,
+            AetheriaRuntimeLoadoutItemSnapshot item)
+        {
+            PickupIndex = pickupIndex;
+            PositionX = positionX;
+            PositionY = positionY;
+            PositionZ = positionZ;
+            VelocityX = velocityX;
+            VelocityY = velocityY;
+            VelocityZ = velocityZ;
+            Item = item;
+        }
+
+        public int PickupIndex { get; }
+        public double PositionX { get; }
+        public double PositionY { get; }
+        public double PositionZ { get; }
+        public double VelocityX { get; }
+        public double VelocityY { get; }
+        public double VelocityZ { get; }
+        public AetheriaRuntimeLoadoutItemSnapshot Item { get; }
     }
 
     public sealed class AetheriaRuntimeEntitySnapshot
