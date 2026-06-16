@@ -1389,13 +1389,13 @@ First Aetheria surfaces to publish:
      remains a uGUI control for now, but it no longer adds/removes items or
      weapons from `Entity.WeaponGroups` directly; gameplay owns the membership
      mutation and typed checkpoint.
-   - Done: route inventory double-click transfer through gameplay-owned
-     checkpoint commits. `InventoryMenu` no longer drops items, removes cargo,
-     or unequips gear directly for the double-click path; it asks
-     `ActionGameManager` to commit cargo-to-cargo, cargo-to-equipment, or
-     equipment-to-cargo movement and then refreshes display. The deeper
-     `InventoryPanel` drag/drop path still has direct mutation and is the next
-     inventory cut.
+   - Done: route inventory double-click transfer and drag/drop placement through
+     gameplay-owned checkpoint commits. `InventoryMenu` and `InventoryPanel` no
+     longer drop items, remove cargo, unequip gear, equip gear, or store cargo
+     directly for those UI paths; they ask `ActionGameManager` to commit
+     cargo-to-cargo, cargo-to-equipment, equipment-to-cargo, or
+     equipment-to-equipment movement and then refresh display. uGUI still owns
+     the presentation shell for now, not the inventory mutation.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1718,9 +1718,8 @@ the grid mutation and checkpoint. Entity renames follow the same rule: UI
 collects text, gameplay owns the name mutation and checkpoint. Weapon group
 assignment follows the same rule: UI requests membership, gameplay owns the
 group mutation and checkpoint. Inventory double-click transfer follows the same
-rule: UI requests cargo/equipment movement, gameplay owns the move and queues
-the checkpoint. Drag/drop inventory placement is not pure yet and should be cut
-through the same commit primitive family next. Any
+rule, and drag/drop placement now shares that commit family: UI requests
+cargo/equipment movement, gameplay owns the move and queues the checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

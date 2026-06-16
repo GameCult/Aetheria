@@ -466,7 +466,7 @@ Console.WriteLine("Runtime simulation tuning authority: UI writes flow through g
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
 Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
-Console.WriteLine("Inventory double-click transfer authority: UI transfer requests flow through gameplay checkpoint commits");
+Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -931,9 +931,11 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
         "CommitCargoItemTransfer",
         "CommitCargoItemEquip",
         "CommitEquippedItemStore",
+        "CommitEquippedItemEquip",
         "QueueRunCheckpoint(\"cargo-item-transfer\")",
         "QueueRunCheckpoint(\"cargo-item-equip\")",
-        "QueueRunCheckpoint(\"equipped-item-store\")"
+        "QueueRunCheckpoint(\"equipped-item-store\")",
+        "QueueRunCheckpoint(\"equipped-item-equip\")"
     };
 
     var missingCommits = requiredCommits
@@ -947,6 +949,11 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
             string.Join(", ", missingCommits));
     }
 
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryPanel = File.Exists(inventoryPanelPath)
+        ? File.ReadAllText(inventoryPanelPath)
+        : throw new InvalidOperationException("Cannot verify inventory transfer authority; InventoryPanel.cs is missing.");
+
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
@@ -956,19 +963,23 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
     {
         ".DropItem(",
         ".CargoBay.Remove(",
-        ".TryUnequip("
+        ".TryUnequip(",
+        ".TryEquip(",
+        ".TryStore(",
+        ".OriginInventory.Remove("
     };
 
-    var hits = File.ReadLines(inventoryMenuPath)
-        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+    var hits = new[] { inventoryMenuPath, inventoryPanelPath }
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
         .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
-        .Select(line => $"{Path.GetRelativePath(root, inventoryMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
         .ToArray();
 
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryMenu double-click transfer still owns direct inventory mutation: " +
+            "Inventory UI still owns direct inventory mutation: " +
             string.Join("; ", hits));
     }
 
@@ -976,17 +987,20 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
     {
         "GameManager.CommitCargoItemTransfer",
         "GameManager.CommitCargoItemEquip",
-        "GameManager.CommitEquippedItemStore"
+        "GameManager.CommitEquippedItemStore",
+        "GameManager.CommitEquippedItemEquip"
     };
 
     var missingUiCalls = requiredUiCalls
-        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol =>
+            !inventoryMenu.Contains(symbol, StringComparison.Ordinal) &&
+            !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
     if (missingUiCalls.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryMenu no longer routes double-click transfers through ActionGameManager: " +
+            "Inventory UI no longer routes transfer requests through ActionGameManager: " +
             string.Join(", ", missingUiCalls));
     }
 }

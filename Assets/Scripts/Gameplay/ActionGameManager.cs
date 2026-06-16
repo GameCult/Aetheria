@@ -1493,6 +1493,61 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public bool CommitCargoItemTransfer(
+        EquippedCargoBay origin,
+        EquippedCargoBay destination,
+        ItemInstance item,
+        int2 destinationPosition)
+    {
+        if (origin == null ||
+            destination == null ||
+            item == null ||
+            !origin.Cargo.ContainsKey(item) ||
+            !destination.ItemFits(item, destinationPosition))
+        {
+            return false;
+        }
+
+        if (origin == destination)
+        {
+            var originalPosition = origin.Cargo[item];
+            origin.Remove(item);
+            if (!destination.TryStore(item, destinationPosition))
+            {
+                origin.TryStore(item, originalPosition);
+                return false;
+            }
+
+            QueueRunCheckpoint("cargo-item-transfer");
+            return true;
+        }
+
+        if (item is SimpleCommodity commodity)
+        {
+            var quantity = commodity.Quantity;
+            var transferItem = new SimpleCommodity
+            {
+                Reference = commodity.Reference,
+                Quantity = quantity,
+                Rotation = commodity.Rotation
+            };
+
+            if (!destination.TryStore(transferItem, destinationPosition))
+                return false;
+
+            origin.Remove(commodity, quantity);
+            QueueRunCheckpoint("cargo-item-transfer");
+            return true;
+        }
+
+        if (!destination.TryStore(item, destinationPosition))
+            return false;
+
+        origin.Remove(item);
+        QueueRunCheckpoint("cargo-item-transfer");
+        return true;
+    }
+
     public bool CommitCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
     {
         if (origin == null ||
@@ -1505,6 +1560,29 @@ public class ActionGameManager : MonoBehaviour
         }
 
         if (!destination.TryEquip(item))
+            return false;
+
+        origin.Remove(item);
+        QueueRunCheckpoint("cargo-item-equip");
+        return true;
+    }
+
+    public bool CommitCargoItemEquip(
+        EquippedCargoBay origin,
+        Entity destination,
+        EquippableItem item,
+        int2 destinationPosition)
+    {
+        if (origin == null ||
+            destination == null ||
+            item == null ||
+            !origin.Cargo.ContainsKey(item) ||
+            !destination.ItemFits(item, destinationPosition))
+        {
+            return false;
+        }
+
+        if (!destination.TryEquip(item, destinationPosition))
             return false;
 
         origin.Remove(item);
@@ -1534,6 +1612,66 @@ public class ActionGameManager : MonoBehaviour
         }
 
         QueueRunCheckpoint("equipped-item-store");
+        return true;
+    }
+
+    public bool CommitEquippedItemStore(
+        Entity origin,
+        EquippedItem equippedItem,
+        EquippedCargoBay destination,
+        int2 destinationPosition)
+    {
+        if (origin == null ||
+            equippedItem?.EquippableItem == null ||
+            destination == null ||
+            !origin.Equipment.Contains(equippedItem) ||
+            !destination.ItemFits(equippedItem.EquippableItem, destinationPosition))
+        {
+            return false;
+        }
+
+        var originalPosition = equippedItem.Position;
+        var item = origin.TryUnequip(equippedItem);
+        if (item == null)
+            return false;
+
+        if (!destination.TryStore(item, destinationPosition))
+        {
+            origin.TryEquip(item, originalPosition);
+            return false;
+        }
+
+        QueueRunCheckpoint("equipped-item-store");
+        return true;
+    }
+
+    public bool CommitEquippedItemEquip(
+        Entity origin,
+        EquippedItem equippedItem,
+        Entity destination,
+        int2 destinationPosition)
+    {
+        if (origin == null ||
+            equippedItem?.EquippableItem == null ||
+            destination == null ||
+            !origin.Equipment.Contains(equippedItem) ||
+            !destination.ItemFits(equippedItem.EquippableItem, destinationPosition))
+        {
+            return false;
+        }
+
+        var originalPosition = equippedItem.Position;
+        var item = origin.TryUnequip(equippedItem);
+        if (item == null)
+            return false;
+
+        if (!destination.TryEquip(item, destinationPosition))
+        {
+            origin.TryEquip(item, originalPosition);
+            return false;
+        }
+
+        QueueRunCheckpoint("equipped-item-equip");
         return true;
     }
 

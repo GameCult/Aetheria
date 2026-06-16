@@ -438,27 +438,10 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                     GameManager.RegisterDragTarget(drag =>
                                     {
                                         //Debug.Log("Entity Drag Callback");
-                                        if (GameManager.DragObject is EquippedItemDragObject equippedItemDragObject)
-                                        {
-                                            if(equippedItemDragObject.OriginEntity.TryUnequip(equippedItemDragObject.EquippedItem) == null)
-                                            {
-                                                // AkSoundEngine.PostEvent("UI_Fail", gameObject);
-                                                // TODO: SFX: Fail
-                                                Dialog.Clear();
-                                                Dialog.Title.text = "Unable to move item!";
-                                                Dialog.AddProperty("Verify that cargo bays are empty before un-equipping them.");
-                                                Dialog.Show();
-                                                Dialog.MoveToCursor();
-                                            }
-                                            // else 
-                                            //     AkSoundEngine.PostEvent("Unequip", gameObject);
-                                            // TODO: SFX: Unequip
-                                        }
-                                        else if (GameManager.DragObject is ItemInstanceDragObject itemInstanceDragObject)
-                                            itemInstanceDragObject.OriginInventory.Remove(itemInstanceDragObject.Item);
-
                                         FakeOccupancy = null;
-                                        var success = entity.TryEquip(equippableItem, placementPosition);
+                                        var success = CommitDraggedItemToEntity(drag, entity, placementPosition);
+                                        if (!success)
+                                            ShowUnableToMoveItemDialog();
                                         RefreshCells();
                                         // TODO: SFX: Equip
                                         return success;
@@ -658,26 +641,12 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                             GameManager.RegisterDragTarget(drag =>
                             {
                                 //Debug.Log("Inventory Drag Callback");
-                                if (GameManager.DragObject is EquippedItemDragObject equippedItemDragObject)
-                                {
-                                    if(equippedItemDragObject.OriginEntity.TryUnequip(equippedItemDragObject.EquippedItem) == null)
-                                    {
-                                        // TODO: SFX: Fail
-                                        Dialog.Clear();
-                                        Dialog.Title.text = "Unable to move item!";
-                                        Dialog.AddProperty("Verify that cargo bays are empty before un-equipping them.");
-                                        Dialog.Show();
-                                        Dialog.MoveToCursor();
-                                    }
-                                    //else 
-                                    // TODO: SFX: Unequip
-                                }
-                                else if (GameManager.DragObject is ItemInstanceDragObject itemInstanceDragObject)
-                                    itemInstanceDragObject.OriginInventory.Remove(itemInstanceDragObject.Item);
-                                cargo.TryStore(item, placementPosition);
                                 FakeOccupancy = null;
+                                var success = CommitDraggedItemToCargo(drag, cargo, placementPosition);
+                                if (!success)
+                                    ShowUnableToMoveItemDialog();
                                 // TODO: SFX: Drop
-                                return true;
+                                return success;
                             });
                         }
                     });
@@ -937,34 +906,55 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
-    public bool CanDropItem(ItemInstance item)
+    private bool CommitDraggedItemToEntity(DragObject drag, Entity destination, int2 destinationPosition)
     {
-        if (_displayedEntity != null && item is EquippableItem equippableItem)
+        switch (drag)
         {
-            return _displayedEntity.TryFindSpace(equippableItem, out _);
+            case EquippedItemDragObject equippedItemDragObject:
+                return GameManager.CommitEquippedItemEquip(
+                    equippedItemDragObject.OriginEntity,
+                    equippedItemDragObject.EquippedItem,
+                    destination,
+                    destinationPosition);
+            case ItemInstanceDragObject itemInstanceDragObject when itemInstanceDragObject.Item is EquippableItem equippableItem:
+                return GameManager.CommitCargoItemEquip(
+                    itemInstanceDragObject.OriginInventory,
+                    destination,
+                    equippableItem,
+                    destinationPosition);
+            default:
+                return false;
         }
-
-        if (_displayedCargo != null)
-        {
-            return _displayedCargo.TryFindSpace(item);
-        }
-
-        return false;
     }
 
-    public bool DropItem(ItemInstance item)
+    private bool CommitDraggedItemToCargo(DragObject drag, EquippedCargoBay destination, int2 destinationPosition)
     {
-        if (_displayedEntity != null && item is EquippableItem equippableItem)
+        switch (drag)
         {
-            return _displayedEntity.TryEquip(equippableItem);
+            case EquippedItemDragObject equippedItemDragObject:
+                return GameManager.CommitEquippedItemStore(
+                    equippedItemDragObject.OriginEntity,
+                    equippedItemDragObject.EquippedItem,
+                    destination,
+                    destinationPosition);
+            case ItemInstanceDragObject itemInstanceDragObject:
+                return GameManager.CommitCargoItemTransfer(
+                    itemInstanceDragObject.OriginInventory,
+                    destination,
+                    itemInstanceDragObject.Item,
+                    destinationPosition);
+            default:
+                return false;
         }
+    }
 
-        if(_displayedCargo != null)
-        {
-            return _displayedCargo.TryStore(item);
-        }
-
-        return false;
+    private void ShowUnableToMoveItemDialog()
+    {
+        Dialog.Clear();
+        Dialog.Title.text = "Unable to move item!";
+        Dialog.AddProperty("Verify that cargo bays are empty before un-equipping them.");
+        Dialog.Show();
+        Dialog.MoveToCursor();
     }
 
     public Subject<PointerEventData> OnBackgroundClick = new Subject<PointerEventData>();
