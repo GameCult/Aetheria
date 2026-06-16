@@ -129,6 +129,9 @@ and `MiningTool` now retain typed body-key runtime state directly, while
 `Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime body/orbit
 key surfaces used for projection, and `ActionGameManager` no longer formats or
 resolves body/orbit keys locally while checkpointing or restoring state.
+Orbit-targeting agent runtime also now retains typed orbit keys directly:
+`PatrolOrbitsTask`, `MoveToOrbitState`, and `StationTowing` no longer own raw
+orbit GUID targets, and `Zone` resolves orbit keys for agent orbit movement.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

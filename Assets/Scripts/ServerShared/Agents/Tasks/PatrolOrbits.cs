@@ -3,13 +3,13 @@ using System;
 public class PatrolOrbitsTask : AgentTask
 {
     public override TaskType Type => TaskType.Defend;
-    public Guid[] Circuit;
+    public string[] Circuit = Array.Empty<string>();
 }
 
 public class PatrolOrbitsState : BaseState
 {
     public PatrolOrbitsTask Task;
-    public Guid CurrentTarget
+    public string CurrentTarget
     {
         get => Task.Circuit[_currentTargetIndex];
     }
@@ -25,7 +25,7 @@ public class PatrolOrbitsState : BaseState
         var patrolMoveState = new MoveToOrbitState(agent);
         Transitions.Add(new StateTransition(patrolMoveState, 
             () => true, 
-            () => patrolMoveState.Orbit = CurrentTarget));
+            () => patrolMoveState.OrbitKey = CurrentTarget));
         patrolMoveState.Transitions.Add(new StateTransition(this, () => patrolMoveState.Distance < 10, NextTarget));
     }
 }

@@ -1201,6 +1201,9 @@ First Aetheria surfaces to publish:
    - Done: rename `OrbitalEntity.OrbitData` to `OrbitId` and delete the unused
      `Zone.CreateOrbit` construction-row writer; runtime entities no longer
      expose an orbit id through DTO-shaped naming.
+   - Done: move patrol/tow orbit targets onto typed orbit keys: `PatrolOrbitsTask`,
+     `MoveToOrbitState`, and `StationTowing` now retain keyed orbit references,
+     and `Zone` owns orbit-key parsing/resolution for agent orbit movement.
    - Done: move live asteroid-belt simulation, scanning, and mesh setup reads
      off `AsteroidBeltConstructionData`; `Zone`, `ResourceScanner`, and `AsteroidBeltUI`
      consume `AsteroidBelt` runtime asteroid/resource/orbit properties, and
@@ -1363,8 +1366,10 @@ First Aetheria surfaces to publish:
      mining-tool body references are named and serialized as typed body keys
      through commit/readback state, with the behaviors retaining keyed runtime
      state directly and `Zone` owning GUID parsing/resolution at the current
-     Unity body runtime boundary. Remaining broader simulation paths still
-     derive legacy GUIDs until those structures move to typed keys.
+     Unity body runtime boundary. Patrol/tow orbit task targets now also retain
+     typed orbit keys with `Zone` owning orbit-key resolution. Remaining broader
+     simulation paths still derive legacy GUIDs until those structures move to
+     typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup
@@ -1779,6 +1784,10 @@ First Aetheria surfaces to publish:
   return. `Zone`, `Planet`, `AsteroidBelt`, and `Orbit` now own the runtime
   body/orbit key surfaces consumed by `ActionGameManager` projection, so local
   body/orbit key formatters may not return there either.
+- `Aetheria.State.Verify` guards orbit-targeting agent runtime naming:
+  patrol/tow task orbit references and move-state orbit targets use `OrbitKey`
+  fields, and `Zone` owns orbit-key parsing/resolution instead of agent-local
+  raw GUID targets.
 - `Aetheria.State.Verify` guards temporary `Faction` shell links: geoname and
   boss-hull relationships use typed keys, not legacy GUID projection fields.
 - `Aetheria.State.Verify` guards temporary `Faction` identity: equality,

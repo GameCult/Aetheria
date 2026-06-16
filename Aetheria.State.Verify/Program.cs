@@ -14,6 +14,7 @@ RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
+RequireTypedOrbitTaskKeys(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -853,6 +854,95 @@ static void RequireTypedBehaviorBodyKeys(string root)
         throw new InvalidOperationException(
             "ResourceScanner and MiningTool must own typed body-key runtime references rather than raw GUID fields: " +
             string.Join("; ", missingBehaviorSymbols));
+    }
+}
+
+static void RequireTypedOrbitTaskKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "States", "MoveTo.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "PatrolOrbits.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "StationTowing.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "public Guid Orbit { get; set; }",
+        "Guid[] Circuit",
+        "public Guid OrbitParent",
+        "Select(x => x.Key)"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbit-targeting agent tasks and move states must stay on typed OrbitKey surfaces, with Zone owning orbit-key resolution: " +
+            string.Join("; ", hits));
+    }
+
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify orbit-key task ownership; Zone source is missing.");
+    var requiredZoneSymbols = new[]
+    {
+        "public static Guid ParseOrbitGuid(string orbitKey)",
+        "public bool TryGetOrbit(string orbitKey, out Orbit orbit)",
+        "public float2 GetOrbitPosition(string orbitKey)"
+    };
+    var missingZoneSymbols = requiredZoneSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone must own typed orbit-key parsing and resolution for agent/runtime orbit movement: " +
+            string.Join(", ", missingZoneSymbols));
+    }
+
+    var requiredTaskSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "States", "MoveTo.cs")] = new[]
+        {
+            "public string OrbitKey { get; set; } = \"\";",
+            "_agent.Ship.Zone.GetOrbitPosition(OrbitKey)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "PatrolOrbits.cs")] = new[]
+        {
+            "public string[] Circuit = Array.Empty<string>();",
+            "public string CurrentTarget",
+            "patrolMoveState.OrbitKey = CurrentTarget"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Agents", "Tasks", "StationTowing.cs")] = new[]
+        {
+            "public string OrbitParentKey = \"\";"
+        }
+    };
+    var missingTaskSymbols = requiredTaskSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+    if (missingTaskSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbit-targeting agent tasks must retain typed orbit keys rather than raw GUIDs: " +
+            string.Join("; ", missingTaskSymbols));
     }
 }
 

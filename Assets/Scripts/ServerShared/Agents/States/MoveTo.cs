@@ -37,8 +37,8 @@ public class MoveToEntityState : MoveToState
 
 public class MoveToOrbitState : MoveToState
 {
-    public Guid Orbit { get; set; }
+    public string OrbitKey { get; set; } = "";
     public MoveToOrbitState(Agent agent) : base(agent) { }
 
-    protected override float2 TargetPosition => _agent.Ship.Zone.GetOrbitPosition(Orbit);
+    protected override float2 TargetPosition => _agent.Ship.Zone.GetOrbitPosition(OrbitKey);
 }

@@ -100,7 +100,11 @@ public class Zone
     {
         var agent = new Minion(ship);
         var task = new PatrolOrbitsTask();
-        task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
+        task.Circuit = Orbits.Values
+            .OrderBy(_ => _itemManager.Random.NextFloat())
+            .Take(4)
+            .Select(orbit => orbit.OrbitKey)
+            .ToArray();
         agent.Task = task;
         return agent;
     }
@@ -113,6 +117,17 @@ public class Zone
     public static string BodyKey(Guid id)
     {
         return id == Guid.Empty ? "" : $"{BodyKeyPrefix}{id:D}";
+    }
+
+    public static Guid ParseOrbitGuid(string orbitKey)
+    {
+        if (string.IsNullOrWhiteSpace(orbitKey))
+            return Guid.Empty;
+
+        var runtimeOrbitId = orbitKey.StartsWith(OrbitKeyPrefix, StringComparison.OrdinalIgnoreCase)
+            ? orbitKey.Substring(OrbitKeyPrefix.Length)
+            : orbitKey;
+        return Guid.TryParse(runtimeOrbitId, out var id) ? id : Guid.Empty;
     }
 
     public string GetBodyKey(Guid bodyId)
@@ -145,6 +160,11 @@ public class Zone
     public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)
     {
         return AsteroidBelts.TryGetValue(ParseBodyGuid(bodyKey), out belt);
+    }
+
+    public bool TryGetOrbit(string orbitKey, out Orbit orbit)
+    {
+        return Orbits.TryGetValue(ParseOrbitGuid(orbitKey), out orbit);
     }
 
     public void Update(float deltaTime)
@@ -210,6 +230,11 @@ public class Zone
         }
 
         return Orbits[orbitID].Position;
+    }
+
+    public float2 GetOrbitPosition(string orbitKey)
+    {
+        return GetOrbitPosition(ParseOrbitGuid(orbitKey));
     }
 
     public float2 GetOrbitVelocity(Guid orbit)

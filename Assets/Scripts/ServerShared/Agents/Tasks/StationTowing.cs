@@ -10,7 +10,7 @@ public class StationTowing : AgentTask
 
     public OrbitalEntity Station;
 
-    public Guid OrbitParent;
+    public string OrbitParentKey = "";
 
     public float OrbitDistance;
 }
