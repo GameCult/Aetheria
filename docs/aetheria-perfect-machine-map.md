@@ -1019,6 +1019,9 @@ First Aetheria surfaces to publish:
      `Galaxy.ResolveFaction(Guid)`; galaxy/loadout faction relationship logic
      now uses `AllegianceByKey`, `ContainsFaction(string)`, and
      `ResolveFactionByKey` only.
+   - Done: delete the temporary `Faction` shell's `GeonameFile` and `BossHull`
+     GUID link fields; galaxy name generation and boss-zone eligibility use
+     `GeonameFileKey` and `BossHullItemKey`.
    - Done: move package and canonical manufacturer/corporation/name-file lookup
      to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
      and `NameFileKey`), and move loadout manufacturer-distance weighting to
@@ -1759,6 +1762,8 @@ First Aetheria surfaces to publish:
   resource-scanner and mining-tool runtime state surfaces use `BodyKey` fields;
   old `*BodyId` readback names and generic legacy reference parsers may not
   return.
+- `Aetheria.State.Verify` guards temporary `Faction` shell links: geoname and
+  boss-hull relationships use typed keys, not legacy GUID projection fields.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

@@ -14,6 +14,7 @@ RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
+RequireTypedFactionShellLinks(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -768,6 +769,42 @@ static void RequireTypedBehaviorBodyKeys(string root)
     {
         throw new InvalidOperationException(
             "Runtime behavior body references must be named typed BodyKey surfaces; GUID parsing is confined to ParseBodyGuidFromKey: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireTypedFactionShellLinks(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Corporations.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Galaxy.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "Guid GeonameFile",
+        "Guid BossHull",
+        "GeonameFile =",
+        "BossHull =",
+        "ParseOptionalLegacyId",
+        "GeonameFileLegacyId",
+        "BossHullLegacyId",
+        ".BossHull != Guid.Empty"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Temporary Faction shell links must use typed key fields, not geoname/boss-hull legacy GUID projections: " +
             string.Join("; ", hits));
     }
 }

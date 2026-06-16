@@ -33,9 +33,8 @@ public class Faction : INamedEntry
 
     [InspectableColor]
     public float3 SecondaryColor;
-    public Guid GeonameFile;
     public string GeonameFileKey;
-    public Guid BossHull;
+    public string BossHullItemKey;
 
     [Inspectable]
     public int InfluenceDistance = 4;

@@ -261,9 +261,8 @@ public class Galaxy
             Name = corporation.Name,
             ShortName = corporation.ShortName,
             Description = corporation.Description,
-            GeonameFile = ParseLegacyId(corporation.GeonameFileLegacyId, nameof(corporation.GeonameFileLegacyId), corporation.Name),
             GeonameFileKey = corporation.GeonameFileKey,
-            BossHull = ParseOptionalLegacyId(corporation.BossHullLegacyId),
+            BossHullItemKey = corporation.BossHullItemKey,
             InfluenceDistance = corporation.InfluenceDistance,
         };
     }
@@ -276,11 +275,6 @@ public class Galaxy
         }
 
         throw new InvalidOperationException($"Typed catalog corporation {ownerName} has invalid {fieldName} '{legacyId}'.");
-    }
-
-    private static Guid ParseOptionalLegacyId(string legacyId)
-    {
-        return Guid.TryParse(legacyId, out var parsed) ? parsed : Guid.Empty;
     }
 
     private void PlaceFactionsMain(int bossCount, Action<string> progressCallback = null)
@@ -298,7 +292,7 @@ public class Galaxy
 
         // Choose some megas to have bosses placed based on whether a boss hull is assigned
         var bossMegas = Factions
-            .Where(m => m.BossHull != Guid.Empty)
+            .Where(m => !string.IsNullOrWhiteSpace(m.BossHullItemKey))
             .Take(bossCount)
             .ToArray();
 

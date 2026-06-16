@@ -111,6 +111,9 @@ longer rebuild corporation references from legacy `Faction.ID` GUIDs.
 Galaxy faction relationship projection is also typed-key-only: the old
 `Faction.Allegiance` GUID dictionary, GUID containment helper, and GUID faction
 resolver are deleted from the simulation shell.
+The remaining temporary `Faction` shell also uses `GeonameFileKey` and
+`BossHullItemKey`; it no longer parses name-file or boss-hull legacy IDs into
+GUID link fields.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` only for zone orbit/body snapshots. The old pending-command
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are
