@@ -66,7 +66,7 @@ public class Zone
             switch (planet)
             {
                 case AsteroidBeltConstructionData belt:
-                    AsteroidBelts[belt.ID] = new AsteroidBelt(belt);
+                    AsteroidBelts[belt.ID] = new AsteroidBelt(belt, Orbits[belt.Orbit]);
                     break;
                 case SunConstructionData sun:
                     PlanetInstances.Add(sun.ID, new Sun(settings, sun, Orbits[planet.Orbit]));
@@ -280,8 +280,7 @@ public class Zone
     {
         var belt = AsteroidBelts[planetDataID];
 
-        var orbit = Orbits[belt.Orbit];
-        belt.NewOrbitPosition = GetOrbitPosition(orbit.Parent);
+        belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);
         for (var i = 0; i < belt.AsteroidCount; i++)
         {
             var asteroid = belt.GetAsteroid(i);
@@ -455,7 +454,6 @@ public class Planet
     public Guid ID { get; }
     public string BodyKey { get; }
     public string Name { get; }
-    public Guid OrbitId { get; }
     public string OrbitKey { get; }
     public float Mass { get; }
     public IReadOnlyDictionary<string, float> Resources { get; }
@@ -474,7 +472,6 @@ public class Planet
         ID = data.ID;
         BodyKey = Zone.BodyKey(data.ID);
         Name = data.Name ?? "";
-        OrbitId = data.Orbit;
         OrbitKey = Zone.OrbitKey(data.Orbit);
         Mass = data.Mass;
         Resources = data.Resources;
@@ -561,10 +558,10 @@ public class Sun : GasGiant
 public class AsteroidBelt
 {
     private readonly Asteroid[] _asteroids;
+    public Orbit Orbit { get; }
     public Guid ID { get; }
     public string BodyKey { get; }
     public string Name { get; }
-    public Guid Orbit { get; }
     public string OrbitKey { get; }
     public float Mass { get; }
     public IReadOnlyDictionary<string, float> Resources { get; }
@@ -581,13 +578,13 @@ public class AsteroidBelt
     public Dictionary<int, float> Damage = new Dictionary<int, float>();
     public Dictionary<(Entity, int), float> MiningAccumulator = new Dictionary<(Entity, int), float>();
 
-    public AsteroidBelt(AsteroidBeltConstructionData data)
+    public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)
     {
         _asteroids = data.Asteroids;
+        Orbit = orbit;
         ID = data.ID;
         BodyKey = Zone.BodyKey(data.ID);
         Name = data.Name ?? "";
-        Orbit = data.Orbit;
         OrbitKey = Zone.OrbitKey(data.Orbit);
         Mass = data.Mass;
         Resources = data.Resources;

@@ -17,6 +17,7 @@ RequireTypedBehaviorBodyKeys(root);
 RequireTypedOrbitTaskKeys(root);
 RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedOrbitConsumerKeys(root);
+RequireKeyedOrbitRuntimeWrappers(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -1116,6 +1117,53 @@ static void RequireTypedOrbitConsumerKeys(string root)
         throw new InvalidOperationException(
             "Orbit consumer edges must stay keyed at the public runtime wrapper surface: " +
             string.Join("; ", missingSymbols));
+    }
+}
+
+static void RequireKeyedOrbitRuntimeWrappers(string root)
+{
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify keyed orbit runtime wrappers; Zone source is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        "public Guid OrbitId { get; }",
+        "public Guid Orbit { get; }",
+        "OrbitId = data.Orbit;",
+        "Orbit = data.Orbit;",
+        "AsteroidBelts[belt.ID] = new AsteroidBelt(belt);",
+        "var orbit = Orbits[belt.Orbit];"
+    };
+    var hits = forbiddenSymbols
+        .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/ServerShared/Zone.cs: contains {symbol}")
+        .ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Planet and asteroid-belt runtime wrappers must not publish wrapper orbit GUID fields once keyed/object orbit surfaces exist: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new[]
+    {
+        "public Orbit Orbit;",
+        "public Orbit Orbit { get; }",
+        "AsteroidBelts[belt.ID] = new AsteroidBelt(belt, Orbits[belt.Orbit]);",
+        "belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);",
+        "public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)",
+        "Orbit = orbit;"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Planet and asteroid-belt runtime wrappers must keep orbit authority on Orbit objects plus OrbitKey surfaces: " +
+            string.Join(", ", missingSymbols));
     }
 }
 

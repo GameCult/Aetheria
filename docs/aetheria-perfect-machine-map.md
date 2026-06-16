@@ -1198,9 +1198,10 @@ First Aetheria surfaces to publish:
    - Done: move orbit phase evaluation off `OrbitConstructionData`; runtime zone updates,
      asteroid transforms, and generator rosette spacing now use `Orbit.Evaluate`,
      leaving `OrbitConstructionData` as a construction input only.
-   - Done: rename `OrbitalEntity.OrbitData` to `OrbitId` and delete the unused
-     `Zone.CreateOrbit` construction-row writer; runtime entities no longer
-     expose an orbit id through DTO-shaped naming.
+   - Done: move orbital runtime entity ownership from the old DTO-shaped
+     `OrbitData` scar all the way onto `OrbitKey`; the obsolete `OrbitId`
+     intermediate field is gone, and runtime entities now resolve through
+     `Zone` instead of exposing wrapper orbit GUID authority.
    - Done: move patrol/tow orbit targets onto typed orbit keys: `PatrolOrbitsTask`,
      `MoveToOrbitState`, and `StationTowing` now retain keyed orbit references,
      and `Zone` owns orbit-key parsing/resolution for agent orbit movement.
@@ -1372,8 +1373,11 @@ First Aetheria surfaces to publish:
      `OrbitKey` values, with `Zone` owning orbital movement and dock-camera
      parent-orbit resolution for that seam. Renderer, intro-cutscene, and
      `ResourceScanner` orbit readers now also consume the wrapper `OrbitKey`
-     edge instead of wrapper GUID orbit fields. Remaining broader simulation
-     paths still derive legacy GUIDs until those structures move to typed keys.
+     edge instead of wrapper GUID orbit fields. `Planet` and `AsteroidBelt`
+     runtime wrappers no longer publish separate wrapper orbit GUID fields
+     either; they retain `OrbitKey` plus their runtime `Orbit` object. Remaining
+     broader simulation paths still derive legacy GUIDs until those structures
+     move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup
