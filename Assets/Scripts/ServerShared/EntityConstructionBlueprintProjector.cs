@@ -12,7 +12,7 @@ public static class EntityConstructionBlueprintProjector
         if (entity is OrbitalEntity orbital)
             blueprint = new OrbitalEntityConstructionBlueprint
             {
-                Orbit = orbital.OrbitId,
+                OrbitKey = orbital.OrbitKey,
                 SecurityLevel = orbital.SecurityLevel,
                 SecurityRadius = orbital.SecurityRadius
             };
@@ -66,7 +66,7 @@ public static class EntityConstructionBlueprintProjector
 
     private static OrbitalEntity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, OrbitalEntityConstructionBlueprint blueprint, bool instantiate = false)
     {
-        var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.Orbit, blueprint.Settings);
+        var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.OrbitKey, blueprint.Settings);
         Restore(itemManager, zone, blueprint, entity, instantiate);
         entity.SecurityLevel = blueprint.SecurityLevel;
         entity.SecurityRadius = blueprint.SecurityRadius;
@@ -128,7 +128,7 @@ public class ShipConstructionBlueprint : EntityConstructionBlueprint
 
 public class OrbitalEntityConstructionBlueprint : EntityConstructionBlueprint
 {
-    public Guid Orbit;
+    public string OrbitKey = "";
     public int Story = -1;
     public SecurityLevel SecurityLevel;
     public float SecurityRadius;

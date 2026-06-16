@@ -81,7 +81,7 @@ public class LoadoutGenerator
             return null;
         }
         var hull = ItemManager.CreateEquippableInstance(hullRow);
-        var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
+        var entity = new OrbitalEntity(ItemManager, null, hull, "", ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
         return EntityConstructionBlueprintProjector.CaptureBlueprint(entity) as OrbitalEntityConstructionBlueprint;
@@ -96,7 +96,7 @@ public class LoadoutGenerator
             return null;
         }
         var hull = ItemManager.CreateEquippableInstance(hullRow);
-        var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
+        var entity = new OrbitalEntity(ItemManager, null, hull, "", ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         
         var emptyShape = entity.UnoccupiedSpace;

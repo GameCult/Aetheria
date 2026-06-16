@@ -15,6 +15,7 @@ RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
 RequireTypedOrbitTaskKeys(root);
+RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -943,6 +944,99 @@ static void RequireTypedOrbitTaskKeys(string root)
         throw new InvalidOperationException(
             "Orbit-targeting agent tasks must retain typed orbit keys rather than raw GUIDs: " +
             string.Join("; ", missingTaskSymbols));
+    }
+}
+
+static void RequireTypedOrbitalEntityOrbitKeys(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "OrbitalEntity.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "LoadoutGenerator.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "public Guid OrbitId;",
+        "public Guid Orbit;",
+        "Orbit = orbital.OrbitId",
+        "blueprint.Orbit,",
+        "Zone.Orbits[orbital.OrbitId]",
+        "GetOrbitPosition(OrbitId)",
+        "GetOrbitVelocity(OrbitId)",
+        "new OrbitalEntity(ItemManager, null, hull, Guid.Empty"
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbital runtime entities and construction blueprints must retain typed OrbitKey state, with Zone owning orbit-key resolution: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "OrbitalEntity.cs")] = new[]
+        {
+            "public string OrbitKey = \"\";",
+            "OrbitKey = orbitKey ?? \"\";",
+            "Zone.GetOrbitPosition(OrbitKey)",
+            "Zone.GetOrbitVelocity(OrbitKey)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs")] = new[]
+        {
+            "OrbitKey = orbital.OrbitKey,",
+            "blueprint.OrbitKey",
+            "public string OrbitKey = \"\";"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "LoadoutGenerator.cs")] = new[]
+        {
+            "new OrbitalEntity(ItemManager, null, hull, \"\", ItemManager.GameplaySettings.DefaultEntitySettings)"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs")] = new[]
+        {
+            "turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);",
+            "station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
+        {
+            "Zone.TryGetOrbit(orbital.OrbitKey, out var orbit)",
+            "planet => planet.OrbitKey == parentOrbitKey"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")] = new[]
+        {
+            "public float2 GetOrbitVelocity(string orbitKey)"
+        }
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Orbital runtime seam must stay on typed orbit keys through the entity owner, blueprint projector, and docking path: " +
+            string.Join("; ", missingSymbols));
     }
 }
 

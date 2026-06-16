@@ -277,7 +277,7 @@ public static class ZoneGenerator
 	        blueprint.Orbits.Add(turretOrbit);
 	        var turret = loadoutGenerator.GenerateTurretLoadout();
 	        if (turret == null) return;
-	        turret.Orbit = turretOrbit.ID;
+	        turret.OrbitKey = Zone.OrbitKey(turretOrbit.ID);
 	        blueprint.Entities.Add(turret);
         }
 
@@ -297,7 +297,7 @@ public static class ZoneGenerator
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
-	        station.Orbit = lagrangeOrbit.ID;
+	        station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);
 	        station.SecurityLevel = story.Security;
 	        station.SecurityRadius = blueprint.Radius;
 	        station.Story = i;
@@ -314,7 +314,7 @@ public static class ZoneGenerator
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout();
 	        if (station == null) continue;
-	        station.Orbit = lagrangeOrbit.ID;
+	        station.OrbitKey = Zone.OrbitKey(lagrangeOrbit.ID);
 	        station.SecurityLevel = security;
 	        station.SecurityRadius = blueprint.Radius;
 	        blueprint.Entities.Add(station);

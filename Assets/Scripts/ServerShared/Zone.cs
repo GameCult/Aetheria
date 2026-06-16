@@ -244,6 +244,11 @@ public class Zone
         return float2.zero;
     }
 
+    public float2 GetOrbitVelocity(string orbitKey)
+    {
+        return GetOrbitVelocity(ParseOrbitGuid(orbitKey));
+    }
+
     public int NearestAsteroid(Guid planetDataID, float2 position)
     {
         var belt = AsteroidBelts[planetDataID];

@@ -132,6 +132,11 @@ resolves body/orbit keys locally while checkpointing or restoring state.
 Orbit-targeting agent runtime also now retains typed orbit keys directly:
 `PatrolOrbitsTask`, `MoveToOrbitState`, and `StationTowing` no longer own raw
 orbit GUID targets, and `Zone` resolves orbit keys for agent orbit movement.
+Orbital runtime entities and their construction blueprints now follow the same
+rule: `OrbitalEntity` and `OrbitalEntityConstructionBlueprint` retain
+`OrbitKey`, runtime loadout generation seeds the empty value as `""`, and
+`Zone` resolves orbit keys for orbital entity movement and dock camera parent
+lookup.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.
