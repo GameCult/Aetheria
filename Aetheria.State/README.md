@@ -117,8 +117,7 @@ GUID link fields.
 `Faction` equality, hashing, narrative constraints, sector display filtering,
 sector-map link/influence rendering, zone security ownership checks, and
 runtime faction-relationship ordering now use `FactionKey`. The legacy
-`Faction.ID` remains projection residue only until the temporary simulation
-shell is removed.
+`Faction.ID` projection field is deleted from the temporary simulation shell.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` only for zone orbit/body snapshots. The old pending-command
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are

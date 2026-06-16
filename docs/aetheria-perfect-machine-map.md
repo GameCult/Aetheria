@@ -1025,8 +1025,8 @@ First Aetheria surfaces to publish:
    - Done: move temporary `Faction` equality, hashing, narrative constraints,
      sector display filtering, sector-map link/influence rendering, zone
      security ownership checks, and runtime faction-relationship ordering to
-     `FactionKey`. `Faction.ID` is now projection residue rather than
-     comparison/order authority.
+     `FactionKey`. The legacy `Faction.ID` projection field is deleted from
+     the temporary simulation shell.
    - Done: move package and canonical manufacturer/corporation/name-file lookup
      to typed keys (`ManufacturerKey`, `CorporationKey`, `GeonameFileKey`,
      and `NameFileKey`), and move loadout manufacturer-distance weighting to
@@ -1771,8 +1771,8 @@ First Aetheria surfaces to publish:
   boss-hull relationships use typed keys, not legacy GUID projection fields.
 - `Aetheria.State.Verify` guards temporary `Faction` identity: equality,
   hashing, ordering, narrative checks, sector filtering/rendering, and zone
-  security checks must use `FactionKey`, leaving `Faction.ID` as projection
-  residue only.
+  security checks must use `FactionKey`; the legacy `Faction.ID` projection
+  field may not return.
 - Unity batchmode compile returned cleanly after the runtime blueprint rename;
   live Unity source has no `EntityPack`, `ShipPack`, `OrbitalEntityPack`,
   `ZonePack`, `PackedContents`, `PackZone`, `EntitySerializer.Pack`, or

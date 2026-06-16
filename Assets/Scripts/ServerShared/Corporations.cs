@@ -10,7 +10,6 @@ using Unity.Mathematics;
 [Inspectable]
 public class Faction : INamedEntry
 {
-    public Guid ID = Guid.NewGuid();
     public string FactionKey;
 
     [Inspectable]

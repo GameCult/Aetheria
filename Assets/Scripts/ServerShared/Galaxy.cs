@@ -261,7 +261,6 @@ public class Galaxy
 
         return new Faction
         {
-            ID = ParseLegacyId(corporation.LegacyId, nameof(corporation.LegacyId), corporation.Name),
             FactionKey = corporation.CorporationKey,
             Name = corporation.Name,
             ShortName = corporation.ShortName,
@@ -270,16 +269,6 @@ public class Galaxy
             BossHullItemKey = corporation.BossHullItemKey,
             InfluenceDistance = corporation.InfluenceDistance,
         };
-    }
-
-    private static Guid ParseLegacyId(string legacyId, string fieldName, string ownerName)
-    {
-        if (Guid.TryParse(legacyId, out var parsed) && parsed != Guid.Empty)
-        {
-            return parsed;
-        }
-
-        throw new InvalidOperationException($"Typed catalog corporation {ownerName} has invalid {fieldName} '{legacyId}'.");
     }
 
     private void PlaceFactionsMain(int bossCount, Action<string> progressCallback = null)

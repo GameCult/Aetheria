@@ -791,7 +791,10 @@ static void RequireTypedFactionShellLinks(string root)
         "ParseOptionalLegacyId",
         "GeonameFileLegacyId",
         "BossHullLegacyId",
-        ".BossHull != Guid.Empty"
+        ".BossHull != Guid.Empty",
+        "public Guid ID",
+        "ID = ParseLegacyId",
+        "ParseLegacyId(corporation.LegacyId"
     };
 
     var hits = checkedFiles
