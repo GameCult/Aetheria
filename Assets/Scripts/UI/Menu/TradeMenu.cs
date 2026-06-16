@@ -24,6 +24,8 @@ public class TradeMenu : MonoBehaviour
     private const string CloseFilterSurfaceCommand = "aetheria.trade.filter_selector.close";
     private const string RowActionSurfaceId = "aetheria.trade.row_actions";
     private const string CloseRowActionSurfaceCommand = "aetheria.trade.row_actions.close";
+    private const string TradeItemSurfaceId = "aetheria.trade.item_details";
+    private const string CloseTradeItemDetailsCommand = "aetheria.trade.item_details.close";
 
     public ActionGameManager GameManager;
     public ConfirmationDialog Dialog;
@@ -31,7 +33,6 @@ public class TradeMenu : MonoBehaviour
     public Prototype FilterPrototype;
     public SizeFilter MinimumSizeFilter;
     public SizeFilter MaximumSizeFilter;
-    public PropertiesPanel Properties;
     public Spreadsheet Spreadsheet;
     public TextMeshProUGUI TargetCargoLabel;
     public UnityEngine.UI.Button FoldoutButton;
@@ -49,6 +50,7 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _cargoSelectorSurfaceDocument;
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
+    private UIDocument _tradeItemSurfaceDocument;
     private string _rowActionTitle = "Trade Actions";
     
     public EquippedCargoBay Inventory { get; set; }
@@ -61,7 +63,7 @@ public class TradeMenu : MonoBehaviour
         HideCargoSelectorSurface();
         HideFilterSurface();
         HideRowActionSurface();
-        Properties.GameManager = GameManager;
+        HideTradeItemDetailsSurface();
         UpdateCreditsLabel();
         
         MinimumSizeFilter.Width.onEndEdit.RemoveAllListeners();
@@ -223,7 +225,7 @@ public class TradeMenu : MonoBehaviour
                     Output = x.output(i),
                     SortKey = x.sortKey(i)
                 }).ToArray(),
-                OnClick = () => Properties.Inspect(i.TypedItem),
+                OnClick = () => RenderTradeItemDetailsSurface(i.TypedItem),
                 OnDoubleClick = () =>
                 {
                     switch (i.Item)
@@ -496,6 +498,295 @@ public class TradeMenu : MonoBehaviour
             Populate();
         });
         Dialog.MoveToCursor();
+    }
+
+    private void RenderTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
+    {
+        if (item == null)
+            return;
+
+        var document = ResolveTradeItemDetailsSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexStart;
+        root.style.justifyContent = Justify.FlexStart;
+        root.style.paddingTop = 16;
+        root.style.paddingLeft = 16;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 420;
+        shell.style.maxWidth = 520;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildTradeItemDetailsSurfaceDefinition(item), HandleTradeItemDetailsSurfaceCommand));
+    }
+
+    private void HandleTradeItemDetailsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, CloseTradeItemDetailsCommand, StringComparison.Ordinal))
+        {
+            HideTradeItemDetailsSurface();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown trade item details command: {request.Command}");
+    }
+
+    private void HideTradeItemDetailsSurface()
+    {
+        if (_tradeItemSurfaceDocument == null)
+            return;
+
+        _tradeItemSurfaceDocument.rootVisualElement.Clear();
+        _tradeItemSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveTradeItemDetailsSurfaceDocument()
+    {
+        if (_tradeItemSurfaceDocument != null)
+            return _tradeItemSurfaceDocument;
+
+        var host = new GameObject("Aetheria Trade Item Details Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1003;
+        host.SetActive(false);
+        _tradeItemSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildTradeItemDetailsSurfaceDefinition(AetheriaRuntimeCatalogItem item)
+    {
+        var children = new List<EveSurfaceComponent>
+        {
+            Card(
+                $"{TradeItemSurfaceId}.summary",
+                item.Name,
+                Text($"{TradeItemSurfaceId}.description", item.Description ?? "No typed item description is available."),
+                Text(
+                    $"{TradeItemSurfaceId}.note",
+                    "Trade still owns purchase and row population. This surface replaces the old PropertiesPanel item-inspection shell."),
+                Metric(
+                    $"{TradeItemSurfaceId}.manufacturer",
+                    "Manufacturer",
+                    ActionGameManager.RuntimeCatalog?.GetManufacturer(item)?.Name ?? "GameCult"),
+                Metric(
+                    $"{TradeItemSurfaceId}.mass",
+                    "Mass",
+                    ActionGameManager.RuntimePlayerSettings.Format((float)item.Mass)),
+                Metric(
+                    $"{TradeItemSurfaceId}.price",
+                    "Price",
+                    item.Price.ToString("N0")))
+        };
+
+        if (!string.IsNullOrWhiteSpace(item.HardpointType))
+        {
+            children.Add(Card(
+                $"{TradeItemSurfaceId}.durability.card",
+                "Durability",
+                Metric(
+                    $"{TradeItemSurfaceId}.durability",
+                    "Max Durability",
+                    ActionGameManager.RuntimePlayerSettings.Format((float)item.Durability)),
+                Metric(
+                    $"{TradeItemSurfaceId}.temperature_range",
+                    "Thermal Range",
+                    FormatTemperatureRange(item))));
+
+            foreach (var behaviorCard in BuildTradeItemBehaviorCards(item))
+            {
+                children.Add(behaviorCard);
+            }
+        }
+
+        children.Add(ButtonRow(
+            $"{TradeItemSurfaceId}.actions",
+            Button($"{TradeItemSurfaceId}.close", "Close", CloseTradeItemDetailsCommand)));
+
+        return new EveSurfaceDocument(
+            CargoSelectorSurfaceType,
+            CargoSelectorSurfaceSchema,
+            CargoSelectorSurfaceProviderId,
+            CargoSelectorSurfaceProviderKind,
+            "Trade Item Details",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                TradeItemSurfaceId,
+                Node(
+                    $"{TradeItemSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    children.ToArray()),
+                Array.Empty<EveStyleToken>()),
+            new[]
+            {
+                new EveCommandTemplate(CloseTradeItemDetailsCommand, "Close", "unity-uitoolkit")
+            });
+    }
+
+    private IEnumerable<EveSurfaceComponent> BuildTradeItemBehaviorCards(AetheriaRuntimeCatalogItem item)
+    {
+        foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
+        {
+            if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
+            {
+                var statReference = ReadTypedStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
+                var modifier = ReadTypedPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
+                var modifierType = ReadTypedEnum(FindTypedBehaviorField(behavior, 3)?.Value, StatModifierType.Constant);
+                yield return Card(
+                    $"{TradeItemSurfaceId}.behavior.{behavior.Kind}.stat_modifier",
+                    "Stat Modifier",
+                    Metric(
+                        $"{TradeItemSurfaceId}.behavior.{behavior.Kind}.target",
+                        $"{statReference.target.SplitCamelCase()}:{statReference.stat.SplitCamelCase()}",
+                        $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(modifier.Min)}"));
+                continue;
+            }
+
+            var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
+            if (metadata == null)
+                continue;
+
+            var fields = metadata.DisplayFields
+                .Select(field => BuildTradeItemBehaviorMetric(behavior, field))
+                .Where(metric => metric != null)
+                .ToArray();
+
+            if (fields.Length == 0)
+                continue;
+
+            yield return Card(
+                $"{TradeItemSurfaceId}.behavior.{behavior.Kind}",
+                behavior.Kind.FormatTypeName(),
+                fields);
+        }
+    }
+
+    private EveSurfaceComponent BuildTradeItemBehaviorMetric(
+        AetheriaRuntimeBehaviorPayload behavior,
+        AetheriaRuntimeBehaviorFieldMetadata field)
+    {
+        var payloadField = FindTypedBehaviorField(behavior, field.Key);
+        if (payloadField == null)
+            return null;
+
+        string value;
+        switch (field.ValueKind)
+        {
+            case AetheriaRuntimeBehaviorFieldValueKind.Number:
+                value = ActionGameManager.RuntimePlayerSettings.Format((float)payloadField.Value.NumberValue);
+                break;
+            case AetheriaRuntimeBehaviorFieldValueKind.Temperature:
+                value = ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)payloadField.Value.NumberValue);
+                break;
+            case AetheriaRuntimeBehaviorFieldValueKind.Integer:
+                value = ((int)payloadField.Value.NumberValue).ToString();
+                break;
+            case AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat:
+                value = ActionGameManager.RuntimePlayerSettings.Format(ReadTypedPerformanceStat(payloadField.Value).Min);
+                break;
+            default:
+                return null;
+        }
+
+        return Metric(
+            $"{TradeItemSurfaceId}.behavior.{behavior.Kind}.{field.Key}",
+            field.Name.SplitCamelCase(),
+            value);
+    }
+
+    private static string FormatTemperatureRange(AetheriaRuntimeCatalogItem item)
+    {
+        if (item.MaximumTemperature > item.MinimumTemperature)
+        {
+            return
+                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MinimumTemperature)} to " +
+                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MaximumTemperature)}";
+        }
+
+        return "No typed thermal range";
+    }
+
+    private static AetheriaRuntimeBehaviorField FindTypedBehaviorField(AetheriaRuntimeBehaviorPayload behavior, int? key)
+    {
+        return key == null
+            ? null
+            : behavior.Fields.FirstOrDefault(field => field.Key == key.Value);
+    }
+
+    private static PerformanceStat ReadTypedPerformanceStat(AetheriaRuntimeBehaviorValue value)
+    {
+        return new PerformanceStat
+        {
+            Min = ReadTypedChildNumber(value, 0),
+            Max = ReadTypedChildNumber(value, 1),
+            HeatExponentMultiplier = ReadTypedChildNumber(value, 2),
+            DurabilityExponentMultiplier = ReadTypedChildNumber(value, 3),
+            QualityExponent = ReadTypedChildNumber(value, 4)
+        };
+    }
+
+    private static (string target, string stat) ReadTypedStatReference(AetheriaRuntimeBehaviorValue value)
+    {
+        return (
+            ReadTypedChildString(value, 1),
+            ReadTypedChildString(value, 2));
+    }
+
+    private static float ReadTypedChildNumber(AetheriaRuntimeBehaviorValue value, int index)
+    {
+        return value != null && value.Children.Count > index
+            ? (float)value.Children[index].NumberValue
+            : 0f;
+    }
+
+    private static string ReadTypedChildString(AetheriaRuntimeBehaviorValue value, int index)
+    {
+        return value != null && value.Children.Count > index
+            ? value.Children[index].StringValue ?? ""
+            : "";
+    }
+
+    private static T ReadTypedEnum<T>(AetheriaRuntimeBehaviorValue value, T fallback) where T : struct
+    {
+        if (!string.IsNullOrWhiteSpace(value?.StringValue) && Enum.TryParse(value.StringValue, true, out T parsed))
+        {
+            return parsed;
+        }
+
+        return value != null && Enum.IsDefined(typeof(T), (int)value.NumberValue)
+            ? (T)Enum.ToObject(typeof(T), (int)value.NumberValue)
+            : fallback;
     }
 
     void Start()
@@ -1275,6 +1566,7 @@ public class TradeMenu : MonoBehaviour
         HideCargoSelectorSurface();
         HideFilterSurface();
         HideRowActionSurface();
+        HideTradeItemDetailsSurface();
     }
 
     private void OnDestroy()
@@ -1295,6 +1587,12 @@ public class TradeMenu : MonoBehaviour
         {
             Destroy(_rowActionSurfaceDocument.gameObject);
             _rowActionSurfaceDocument = null;
+        }
+
+        if (_tradeItemSurfaceDocument != null)
+        {
+            Destroy(_tradeItemSurfaceDocument.gameObject);
+            _tradeItemSurfaceDocument = null;
         }
     }
 }

@@ -38,6 +38,7 @@ RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
+RequireTradeItemDetailsUseEveSurface(root);
 RequireInventoryDropdownUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
@@ -509,6 +510,7 @@ Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve 
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
 Console.WriteLine("Trade filter and row-action shells: filter selection and buy-quantity entry lower through Eve UI Toolkit surfaces instead of ContextMenu dropdowns");
+Console.WriteLine("Trade item-details shell: typed item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
 Console.WriteLine("Inventory dropdown shell: entity and loadout navigation lowers through an Eve UI Toolkit surface instead of ContextMenu.AddDropdown");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
@@ -2756,6 +2758,57 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "TradeMenu still owns filter or row-action behavior through the old context-menu path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireTradeItemDetailsUseEveSurface(string root)
+{
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    if (!File.Exists(tradeMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade item-details shell; TradeMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(tradeMenuPath);
+    var requiredSymbols = new[]
+    {
+        "TradeItemSurfaceId",
+        "RenderTradeItemDetailsSurface(",
+        "HandleTradeItemDetailsSurfaceCommand(",
+        "ResolveTradeItemDetailsSurfaceDocument(",
+        "BuildTradeItemDetailsSurfaceDefinition(",
+        "BuildTradeItemBehaviorCards(",
+        "BuildTradeItemBehaviorMetric(",
+        "CloseTradeItemDetailsCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu no longer lowers typed item inspection through an Eve surface: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "public PropertiesPanel Properties;",
+        "OnClick = () => Properties.Inspect(i.TypedItem)"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still owns typed item inspection through the old PropertiesPanel path: " +
             string.Join(", ", hits));
     }
 }
