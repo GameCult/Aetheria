@@ -33,6 +33,7 @@ RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
+RequireSectorMapZoneDetailsUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -498,6 +499,7 @@ Console.WriteLine("Renderer-local console authority: deleted; UI commands flow t
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
+Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2468,6 +2470,66 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     {
         throw new InvalidOperationException(
             "MainMenu still owns settings/input/audio subpages through the old PropertiesPanel shell: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireSectorMapZoneDetailsUseEveSurface(string root)
+{
+    var sectorRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs");
+    if (!File.Exists(sectorRendererPath))
+    {
+        throw new InvalidOperationException("Cannot verify sector-map zone details shell; SectorRenderer.cs is missing.");
+    }
+
+    var source = File.ReadAllText(sectorRendererPath);
+    var requiredSymbols = new[]
+    {
+        "ZoneDetailsSurfaceId",
+        "CloseZoneDetailsCommand",
+        "RenderZoneDetailsSurface(",
+        "HandleZoneDetailsSurfaceCommand(",
+        "HideZoneDetailsSurface(",
+        "ResolveZoneDetailsSurfaceDocument(",
+        "BuildZoneDetailsSurfaceDefinition(",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorRenderer no longer lowers zone details through an Eve surface shell: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "Properties.Clear();",
+        "Properties.Title.text = zone.Name;",
+        "Properties.AddProperty(\"Owner\"",
+        "Properties.AddProperty(\"Mass\"",
+        "Properties.AddProperty(\"Radius\"",
+        "Properties.AddProperty(\"Planets\"",
+        "Properties.AddProperty(\"Asteroid Belts\"",
+        "Properties.AddProperty(\"Gas Giants\"",
+        "Properties.AddProperty(\"Stars\"",
+        "Properties.AddProperty(\"Stations\"",
+        "Properties.AddProperty(\"Turrets\"",
+        "Properties.AddProperty(\"Ships\""
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorRenderer still owns zone details through the old PropertiesPanel path: " +
             string.Join(", ", hits));
     }
 }

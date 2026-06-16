@@ -115,7 +115,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   to defaults. The main-menu settings navigation, input, and audio subpages now
   also lower through local Eve/UI Toolkit surfaces instead of repopulating the
   old `PropertiesPanel` button shell, even though typed rebinding controls and
-  typed audio controls are still future work.
+  typed audio controls are still future work. Sector-map zone inspection now
+  lowers through a local Eve/UI Toolkit surface as well instead of rebuilding
+  `PropertiesPanel` rows on each zone click.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -1546,12 +1548,16 @@ First Aetheria surfaces to publish:
      owns those pages. Input rebinding itself remains on the runtime-owned
      remap screen until Eve grows typed rebinding controls, and audio still
      lacks a typed state surface.
+   - Done: replace the sector-map zone details panel with an Eve-owned UI
+     Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
+     zone inspection no longer rebuilds `PropertiesPanel` rows when the player
+     clicks a zone.
    - Done: move the shared `org.gamecult.eve.surface` and
      `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
      Aetheria to import them from there instead of carrying local staged
      copies.
-   - Replace the old IMGUI DB inspector first, because it is closest to state
-     authority.
+   - Done: delete the old IMGUI DB inspector; it is no longer a blocker on the
+     live UI migration path.
    - Then replace runtime HUD/menu/inventory/map screens.
 
 7. Purge
@@ -1904,6 +1910,9 @@ First Aetheria surfaces to publish:
 - Main-menu settings navigation, input, and audio pages now lower through a
   shared UI Toolkit `UIDocument` host and local Eve surface documents instead
   of rebuilding those pages through `PropertiesPanel.AddButton(...)` calls.
+- Sector-map zone inspection now lowers through a shared UI Toolkit
+  `UIDocument` host and a local Eve surface document instead of rebuilding
+  `PropertiesPanel.AddProperty(...)` rows on each zone click.
 - Keyboard display layout parsing is no longer JSON-backed:
   `InputDisplayLayout` builds its static ANSI-104 display projection from typed
   `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
