@@ -846,6 +846,9 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.RecordKey",
         "CreateEntityConstructionBlueprint(entitySnapshot, true)",
         "BindToEntity(entity)",
+        "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
+        "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
+        "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
         "ContinueRunState = null",
         "RestoreDroppedPickupsFromTypedZoneState"
     };
@@ -878,6 +881,27 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "Unity package entity readback no longer preserves record identity for Continue: " +
             string.Join(", ", missingPackageSymbols));
+    }
+
+    var entitySourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Entity.cs");
+    var entitySource = File.Exists(entitySourcePath)
+        ? File.ReadAllText(entitySourcePath)
+        : throw new InvalidOperationException("Cannot verify Continue entity restore ownership; Entity.cs is missing.");
+    var requiredEntityRestoreSymbols = new[]
+    {
+        "RestoreThermalExposure",
+        "RestoreActiveConsumable",
+        "new ConsumableItemEffect(item, this, remainingDuration, duration)"
+    };
+    var missingEntityRestoreSymbols = requiredEntityRestoreSymbols
+        .Where(symbol => !entitySource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingEntityRestoreSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Entity no longer exposes narrow runtime-owned restore primitives for typed Continue state: " +
+            string.Join(", ", missingEntityRestoreSymbols));
     }
 }
 

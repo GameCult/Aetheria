@@ -974,16 +974,16 @@ First Aetheria surfaces to publish:
      `RunId + ZoneIndex + CurrentZoneEntityIndex` entity record, lowers it
      through the existing construction blueprint path, restores hull,
      equipment, cargo, docking contents, weapon groups, position, direction,
-     velocity, shutdown override, and tractor power, then binds the lowered
-     entity as the current player ship.
+     velocity, shutdown override, heatsink toggle, tractor power,
+     heatstroke/hypothermia exposure, and active consumable item/timer rows,
+     then binds the lowered entity as the current player ship.
    - Remaining: add typed documents/mappers for runtime object graphs,
      complete full Continue/run entity graph reconstruction from typed state
      for non-current entities, child/docked entity activation, targets,
-     contacts, active consumables, behavior-private state not covered by
-     progress, weapon, sensor, radiator, reactor, or capacitor rows,
-     heatstroke/hypothermia runtime restore, typed behavior factory
-     construction, and any catalog fields not covered by the stable
-     scalar/fingerprint/payload pass.
+     contacts, restored active-consumable behavior runtime internals,
+     behavior-private state not covered by progress, weapon, sensor, radiator,
+     reactor, or capacitor rows, typed behavior factory construction, and any
+     catalog fields not covered by the stable scalar/fingerprint/payload pass.
 
 4. Runtime cutover
    - Done: add a Unity-facing typed catalog read facade and smoke proving it can

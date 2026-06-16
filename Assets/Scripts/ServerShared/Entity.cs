@@ -315,6 +315,20 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this));
     }
 
+    public void RestoreThermalExposure(float heatstroke, float hypothermia)
+    {
+        Heatstroke = saturate(heatstroke);
+        Hypothermia = saturate(hypothermia);
+    }
+
+    public void RestoreActiveConsumable(ConsumableItem item, float remainingDuration, float duration)
+    {
+        if (item == null)
+            return;
+
+        _activeConsumables.Add(new ConsumableItemEffect(item, this, remainingDuration, duration));
+    }
+
     public ConsumableItemEffect FindActiveConsumable(string itemKey)
     {
         return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
@@ -1182,13 +1196,20 @@ public class ConsumableItemEffect
     private readonly BezierCurve _effectiveness;
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
+        : this(item, entity, null, null)
+    {
+    }
+
+    public ConsumableItemEffect(ConsumableItem item, Entity entity, float? remainingDuration, float? duration)
     {
         Item = item;
         Entity = entity;
         RuntimeItem = entity.ItemManager.GetRuntimeItem(item);
-        _duration = RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0;
+        _duration = duration.GetValueOrDefault(RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0);
         _effectiveness = CreateEffectivenessCurve(RuntimeItem);
-        RemainingDuration = _duration;
+        RemainingDuration = remainingDuration.HasValue
+            ? clamp(remainingDuration.Value, 0, Duration)
+            : _duration;
 
         Behaviors = entity.ItemManager.CreateRuntimeBehaviors(this);
     }

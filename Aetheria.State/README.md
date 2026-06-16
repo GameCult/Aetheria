@@ -176,9 +176,11 @@ sessions publish typed state-host liveness. Zone checkpoints persist generated
 orbit/body rows into `AetheriaZoneState`, so `ZoneConstructionBlueprint` is a
 one-shot construction input rather than the retained surface carrying celestial graph facts. Entity checkpoints
 persist hull simulation grids into `AetheriaEntitySnapshot`, so
-`RuntimeEntityBlueprint` is no longer the only surface carrying those live
-values. Broader runtime object graphs and behavior-private simulation state
-remain legacy until dedicated typed runtime documents exist. Live behavior
+`EntityConstructionBlueprint` is no longer the only surface carrying those live
+values. Continue restore lowers the current player entity from the exact typed
+entity snapshot record, including position, velocity, shutdown/heatsink state,
+thermal exposure, and active consumable timers. Broader runtime object graphs
+and behavior-private simulation state remain legacy until dedicated typed runtime documents exist. Live behavior
 instances expose typed behavior kind and group through `Behavior.Kind` and
 `Behavior.Group`; behavior construction now reads typed payload fields through
 `RuntimeBehaviorDefinition` instead of projecting through config DTOs. Stat

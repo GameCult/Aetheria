@@ -2543,7 +2543,34 @@ public class ActionGameManager : MonoBehaviour
         entity.Zone = Zone;
         Zone.Entities.Add(entity);
         entity.Activate();
+        entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled;
+        entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
+        RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
         BindToEntity(entity);
+    }
+
+    private void RestoreActiveConsumablesFromTypedEntitySnapshot(Entity entity, AetheriaRuntimeEntitySnapshot snapshot)
+    {
+        foreach (var activeConsumable in snapshot.ActiveConsumables)
+        {
+            var item = CreateLoadoutItem(new AetheriaRuntimeLoadoutItemSnapshot(
+                activeConsumable.ItemKey,
+                activeConsumable.Quality,
+                1,
+                1,
+                true,
+                false)) as ConsumableItem;
+            if (item == null)
+            {
+                Debug.LogWarning($"Typed active consumable {activeConsumable.ItemKey} could not be lowered for restored entity {snapshot.RecordKey}.");
+                continue;
+            }
+
+            entity.RestoreActiveConsumable(
+                item,
+                (float)activeConsumable.RemainingDuration,
+                (float)activeConsumable.Duration);
+        }
     }
 
     private static GalaxyZone ResolveStartZone(AetheriaRuntimeRunStateSnapshot run)
