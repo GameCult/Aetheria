@@ -36,6 +36,7 @@ RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
+RequireTradeCargoSelectorUseEveSurface(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -504,6 +505,7 @@ Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: tab navigation lowers through an Eve UI Toolkit surface instead of MenuTabButton click wiring");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
+Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -2639,6 +2641,56 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
     {
         throw new InvalidOperationException(
             "InventoryMenu still owns ship settings through the old PropertiesPanel field path: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireTradeCargoSelectorUseEveSurface(string root)
+{
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    if (!File.Exists(tradeMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade cargo-selector shell; TradeMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(tradeMenuPath);
+    var requiredSymbols = new[]
+    {
+        "CargoSelectorSurfaceId",
+        "RenderCargoSelectorSurface(",
+        "BuildCargoSelectionCommands(",
+        "HandleCargoSelectorSurfaceCommand(",
+        "ResolveCargoSelectorSurfaceDocument(",
+        "BuildCargoSelectorSurfaceDefinition(",
+        "CloseCargoSelectorCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu no longer lowers the cargo selector through an Eve surface shell: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "ContextMenu.AddOption(\"Docking Bay\"",
+        "ContextMenu.AddOption($\"{ship.Name} Bay {bay.index+1}\""
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still owns cargo selection through the old context-menu option path: " +
             string.Join(", ", hits));
     }
 }

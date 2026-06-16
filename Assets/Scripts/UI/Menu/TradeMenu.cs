@@ -3,25 +3,35 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
+using GameCult.Eve.Surface;
+using GameCult.Eve.UnityUIToolkit;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 public class TradeMenu : MonoBehaviour
 {
+    private const string CargoSelectorSurfaceType = "surface-state";
+    private const string CargoSelectorSurfaceSchema = "gamecult.eve.surface.v1";
+    private const string CargoSelectorSurfaceProviderId = "aetheria";
+    private const string CargoSelectorSurfaceProviderKind = "trade.menu";
+    private const string CargoSelectorSurfaceId = "aetheria.trade.target_cargo_selector";
+    private const string CloseCargoSelectorCommand = "aetheria.trade.target_cargo_selector.close";
+
     public ActionGameManager GameManager;
     public ContextMenu ContextMenu;
     public ConfirmationDialog Dialog;
-    public Button NewFilterButton;
+    public UnityEngine.UI.Button NewFilterButton;
     public Prototype FilterPrototype;
     public SizeFilter MinimumSizeFilter;
     public SizeFilter MaximumSizeFilter;
     public PropertiesPanel Properties;
     public Spreadsheet Spreadsheet;
     public TextMeshProUGUI TargetCargoLabel;
-    public Button FoldoutButton;
+    public UnityEngine.UI.Button FoldoutButton;
     public TextMeshProUGUI CreditsLabel;
 
     private EquippedCargoBay _targetCargo;
@@ -29,6 +39,9 @@ public class TradeMenu : MonoBehaviour
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
+    private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands =
+        new Dictionary<string, (EquippedCargoBay Cargo, string Label)>(StringComparer.Ordinal);
+    private UIDocument _cargoSelectorSurfaceDocument;
     
     public EquippedCargoBay Inventory { get; set; }
     
@@ -37,6 +50,7 @@ public class TradeMenu : MonoBehaviour
         if (GameManager.DockedEntity == null) return;
         _targetCargo = GameManager.DockingBay;
         TargetCargoLabel.text = "Docking Bay";
+        HideCargoSelectorSurface();
         Properties.GameManager = GameManager;
         UpdateCreditsLabel();
         
@@ -604,35 +618,238 @@ public class TradeMenu : MonoBehaviour
     {
         FoldoutButton.onClick.AddListener(() =>
         {
-            ContextMenu.Clear();
-            if(_targetCargo != GameManager.DockingBay)
-                ContextMenu.AddOption("Docking Bay",
-                    () =>
-                    {
-                        _targetCargo = GameManager.DockingBay;
-                        TargetCargoLabel.text = "Docking Bay";
-                    });
-            foreach (var ship in GameManager.CurrentEntity.Parent.Children.Where(e => e is Ship {IsPlayerShip: true}))
-            {
-                foreach (var bay in ship.CargoBays.Select((bay, index) => (bay, index)))
-                {
-                    if(_targetCargo != bay.bay)
-                    {
-                        ContextMenu.AddOption($"{ship.Name} Bay {bay.index+1}",
-                            () =>
-                            {
-                                _targetCargo = bay.bay;
-                                TargetCargoLabel.text = $"{ship.Name} Bay {bay.index+1}";
-                            });
-                    }
-                }
-            }
-            ContextMenu.Show();
+            RenderCargoSelectorSurface();
         });
     }
 
     void Update()
     {
         
+    }
+
+    private void RenderCargoSelectorSurface()
+    {
+        BuildCargoSelectionCommands();
+
+        var document = ResolveCargoSelectorSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexEnd;
+        root.style.justifyContent = Justify.FlexStart;
+        root.style.paddingTop = 16;
+        root.style.paddingRight = 16;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 360;
+        shell.style.maxWidth = 420;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildCargoSelectorSurfaceDefinition(), HandleCargoSelectorSurfaceCommand));
+    }
+
+    private void BuildCargoSelectionCommands()
+    {
+        _cargoSelectionCommands.Clear();
+
+        if (GameManager.DockingBay != null && _targetCargo != GameManager.DockingBay)
+        {
+            _cargoSelectionCommands["aetheria.trade.target_cargo_selector.docking_bay"] =
+                (GameManager.DockingBay, "Docking Bay");
+        }
+
+        if (GameManager.CurrentEntity?.Parent == null)
+            return;
+
+        foreach (var ship in GameManager.CurrentEntity.Parent.Children
+                     .Where(entity => entity is Ship { IsPlayerShip: true })
+                     .Cast<Ship>()
+                     .Select((ship, shipIndex) => (ship, shipIndex)))
+        {
+            foreach (var bay in ship.ship.CargoBays.Select((cargoBay, index) => (cargoBay, index)))
+            {
+                if (_targetCargo == bay.cargoBay)
+                    continue;
+
+                var command = $"aetheria.trade.target_cargo_selector.ship_{ship.shipIndex}_bay_{bay.index}";
+                _cargoSelectionCommands[command] = (bay.cargoBay, $"{ship.ship.Name} Bay {bay.index + 1}");
+            }
+        }
+    }
+
+    private void HandleCargoSelectorSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, CloseCargoSelectorCommand, StringComparison.Ordinal))
+        {
+            HideCargoSelectorSurface();
+            return;
+        }
+
+        if (_cargoSelectionCommands.TryGetValue(request.Command, out var option))
+        {
+            _targetCargo = option.Cargo;
+            TargetCargoLabel.text = option.Label;
+            HideCargoSelectorSurface();
+            Populate();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown trade cargo selector command: {request.Command}");
+    }
+
+    private void HideCargoSelectorSurface()
+    {
+        if (_cargoSelectorSurfaceDocument == null)
+            return;
+
+        _cargoSelectorSurfaceDocument.rootVisualElement.Clear();
+        _cargoSelectorSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveCargoSelectorSurfaceDocument()
+    {
+        if (_cargoSelectorSurfaceDocument != null)
+            return _cargoSelectorSurfaceDocument;
+
+        var host = new GameObject("Aetheria Trade Cargo Selector Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1000;
+        host.SetActive(false);
+        _cargoSelectorSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildCargoSelectorSurfaceDefinition()
+    {
+        var buttons = _cargoSelectionCommands
+            .OrderBy(pair => pair.Value.Label, StringComparer.Ordinal)
+            .Select(pair => Button(
+                $"{CargoSelectorSurfaceId}.{pair.Key.Split('.').Last()}",
+                pair.Value.Label,
+                pair.Key))
+            .ToArray();
+
+        return new EveSurfaceDocument(
+            CargoSelectorSurfaceType,
+            CargoSelectorSurfaceSchema,
+            CargoSelectorSurfaceProviderId,
+            CargoSelectorSurfaceProviderKind,
+            "Trade Target Cargo Selector",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                CargoSelectorSurfaceId,
+                Node(
+                    $"{CargoSelectorSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    Card(
+                        $"{CargoSelectorSurfaceId}.card",
+                        "Target Cargo",
+                        Metric($"{CargoSelectorSurfaceId}.current", "Current", TargetCargoLabel.text ?? ""),
+                        Text(
+                            $"{CargoSelectorSurfaceId}.note",
+                            "Trade still owns local presentation state here; this surface cuts out the old context-menu option list."),
+                        ButtonColumn($"{CargoSelectorSurfaceId}.options", buttons),
+                        ButtonRow(
+                            $"{CargoSelectorSurfaceId}.actions",
+                            Button($"{CargoSelectorSurfaceId}.close", "Close", CloseCargoSelectorCommand)))),
+                Array.Empty<EveStyleToken>()),
+            _cargoSelectionCommands.Keys
+                .Select(command => new EveCommandTemplate(command, _cargoSelectionCommands[command].Label, "unity-uitoolkit"))
+                .Append(new EveCommandTemplate(CloseCargoSelectorCommand, "Close", "unity-uitoolkit"))
+                .ToArray());
+    }
+
+    private static EveSurfaceComponent Card(
+        string id,
+        string title,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "card", new[] { ("title", title) }, children);
+    }
+
+    private static EveSurfaceComponent Metric(string id, string label, string value)
+    {
+        return Node(id, "metric", new[] { ("label", label), ("value", value) });
+    }
+
+    private static EveSurfaceComponent Text(string id, string value)
+    {
+        return Node(id, "text", new[] { ("value", value) });
+    }
+
+    private static EveSurfaceComponent Button(string id, string label, string command)
+    {
+        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
+    }
+
+    private static EveSurfaceComponent ButtonRow(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent ButtonColumn(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "column", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent Node(
+        string id,
+        string kind,
+        IEnumerable<(string Key, string Value)> props,
+        params EveSurfaceComponent[] children)
+    {
+        return new EveSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
+            children ?? Array.Empty<EveSurfaceComponent>());
+    }
+
+    private void OnDisable()
+    {
+        HideCargoSelectorSurface();
+    }
+
+    private void OnDestroy()
+    {
+        if (_cargoSelectorSurfaceDocument != null)
+        {
+            Destroy(_cargoSelectorSurfaceDocument.gameObject);
+            _cargoSelectorSurfaceDocument = null;
+        }
     }
 }
