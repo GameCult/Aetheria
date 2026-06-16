@@ -1424,6 +1424,37 @@ public class ActionGameManager : MonoBehaviour
         QueueRunCheckpoint("entity-name");
     }
 
+    public bool CommitWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
+    {
+        if (item?.Entity?.WeaponGroups == null ||
+            groupIndex < 0 ||
+            groupIndex >= item.Entity.WeaponGroups.Length)
+        {
+            return false;
+        }
+
+        var weapon = item.GetBehavior<Weapon>();
+        if (weapon == null)
+            return false;
+
+        var group = item.Entity.WeaponGroups[groupIndex];
+        if (assigned)
+        {
+            if (!group.items.Contains(item))
+                group.items.Add(item);
+            if (!group.weapons.Contains(weapon))
+                group.weapons.Add(weapon);
+        }
+        else
+        {
+            group.items.Remove(item);
+            group.weapons.Remove(weapon);
+        }
+
+        QueueRunCheckpoint("weapon-group-membership");
+        return true;
+    }
+
     public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
     {
         if (item?.EquippableItem == null)

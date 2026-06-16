@@ -1384,6 +1384,11 @@ First Aetheria surfaces to publish:
      `ActionGameManager.CommitEntityName`. `InventoryPanel` may collect the name
      in a dialog, but gameplay owns the entity `Name` mutation and queues the
      typed entity snapshot checkpoint.
+   - Done: route weapon group membership changes through
+     `ActionGameManager.CommitWeaponGroupMembership`. `WeaponGroupAssignment`
+     remains a uGUI control for now, but it no longer adds/removes items or
+     weapons from `Entity.WeaponGroups` directly; gameplay owns the membership
+     mutation and typed checkpoint.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
    - Move the staged packages into the Eve repo once its worktree is clean, then
      import them back into Aetheria from Eve instead of carrying a local copy.
@@ -1703,7 +1708,9 @@ gameplay-owned commit methods that queue typed checkpoint state; direct UI
 mutation of entity/item/behavior settings is obsolete authority. Hull
 conductivity changes follow the same rule: UI requests the toggle, gameplay owns
 the grid mutation and checkpoint. Entity renames follow the same rule: UI
-collects text, gameplay owns the name mutation and checkpoint. Any
+collects text, gameplay owns the name mutation and checkpoint. Weapon group
+assignment follows the same rule: UI requests membership, gameplay owns the
+group mutation and checkpoint. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.

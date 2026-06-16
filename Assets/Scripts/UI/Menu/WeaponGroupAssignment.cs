@@ -33,18 +33,9 @@ public class WeaponGroupAssignment : MonoBehaviour
             group.Label.color = groupContainsItem() ? ActiveColor : InactiveColor;
             group.Button.onClick.AddListener(() =>
             {
-                if (groupContainsItem())
-                {
-                    item.Entity.WeaponGroups[i1].items.Remove(item);
-                    item.Entity.WeaponGroups[i1].weapons.Remove(weapon);
-                    group.Label.color = InactiveColor;
-                }
-                else
-                {
-                    item.Entity.WeaponGroups[i1].items.Add(item);
-                    item.Entity.WeaponGroups[i1].weapons.Add(weapon);
-                    group.Label.color = ActiveColor;
-                }
+                var assigned = !groupContainsItem();
+                if (ActionGameManager.Instance.CommitWeaponGroupMembership(item, i1, assigned))
+                    group.Label.color = assigned ? ActiveColor : InactiveColor;
             });
             
             group.BeginDragTrigger.OnBeginDragAsObservable()

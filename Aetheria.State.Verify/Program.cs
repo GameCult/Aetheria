@@ -17,6 +17,7 @@ RequirePropertiesPanelReadOnlyInspector(root);
 RequireRuntimeSimulationTuningCommits(root);
 RequireHullConductivityCommitAuthority(root);
 RequireInventoryEntityRenameCommitAuthority(root);
+RequireWeaponGroupCommitAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -463,6 +464,7 @@ Console.WriteLine("PropertiesPanel inspector authority: reflection inspection is
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
+Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -868,6 +870,50 @@ static void RequireInventoryEntityRenameCommitAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.CommitEntityName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes entity rename through ActionGameManager.");
+    }
+}
+
+static void RequireWeaponGroupCommitAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify weapon group authority; ActionGameManager.cs is missing.");
+
+    if (!actionGameManager.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("QueueRunCheckpoint(\"weapon-group-membership\")", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Weapon group membership no longer has a gameplay-owned checkpoint commit primitive.");
+    }
+
+    var assignmentPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupAssignment.cs");
+    var assignment = File.Exists(assignmentPath)
+        ? File.ReadAllText(assignmentPath)
+        : throw new InvalidOperationException("Cannot verify weapon group authority; WeaponGroupAssignment.cs is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        ".WeaponGroups[i1].items.Add",
+        ".WeaponGroups[i1].items.Remove",
+        ".WeaponGroups[i1].weapons.Add",
+        ".WeaponGroups[i1].weapons.Remove"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => assignment.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "WeaponGroupAssignment still mutates weapon groups directly: " +
+            string.Join(", ", hits));
+    }
+
+    if (!assignment.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("WeaponGroupAssignment no longer routes membership changes through ActionGameManager.");
     }
 }
 
