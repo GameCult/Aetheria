@@ -630,8 +630,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   documents, not text parsed by a Unity component or a test-scene uGUI panel and
   invoked directly against gameplay objects.
 - Aetheria already has Unity UIElements support available through
-  `com.unity.modules.uielements`. It now imports local staged
-  `org.gamecult.eve.surface` and `org.gamecult.eve.unity-uitoolkit` packages:
+  `com.unity.modules.uielements`. It now imports
+  `org.gamecult.eve.surface` and `org.gamecult.eve.unity-uitoolkit` from the
+  neighboring Eve repository:
   the first carries no-engine `gamecult.eve.surface.v1` contract DTOs, and the
   second lowers those retained trees into UI Toolkit `VisualElement` trees.
   These packages are renderer boundaries, not UI truth owners.
@@ -817,8 +818,8 @@ a bespoke Unity lowering. The existing CultLib Unity uGUI package remains useful
 as prior art for resolver-backed controls and inspector generation, but it is
 not the new portable UI authority.
 
-Until the shared Eve package lands upstream, Aetheria carries a local staged
-Unity package pair:
+The shared Eve Unity package pair now lives upstream in the neighboring Eve
+repository, and Aetheria imports it by sibling-repo file path:
 
 - `org.gamecult.eve.surface`: no-engine DTOs for `gamecult.eve.surface.v1`.
 - `org.gamecult.eve.unity-uitoolkit`: UI Toolkit lowering from those DTOs to
@@ -1428,8 +1429,8 @@ First Aetheria surfaces to publish:
 6. Eve UI
    - Done: publish the typed catalog operator surface from `Aetheria.State`.
    - Done: stage the Eve surface contract DTO package and UI Toolkit lowering
-     package as importable Unity packages in Aetheria while the neighboring Eve
-     repo is dirty on unrelated work.
+     package as importable Unity packages, then move their shared home into the
+     neighboring Eve repo once that worktree was clean.
    - Done: teach the embedded Unity state package to read
      `gamecult.eve.surface` records from the `.cc` store into that shared
      contract.
@@ -1527,8 +1528,10 @@ First Aetheria surfaces to publish:
      a special-case text field; UI Toolkit lowers the shared Eve text control
      and gameplay still owns the typed player-settings commit.
    - Replace the next concrete uGUI screen with an Eve-owned surface.
-   - Move the staged packages into the Eve repo once its worktree is clean, then
-     import them back into Aetheria from Eve instead of carrying a local copy.
+   - Done: move the shared `org.gamecult.eve.surface` and
+     `org.gamecult.eve.unity-uitoolkit` packages into the Eve repo and retarget
+     Aetheria to import them from there instead of carrying local staged
+     copies.
    - Replace the old IMGUI DB inspector first, because it is closest to state
      authority.
    - Then replace runtime HUD/menu/inventory/map screens.

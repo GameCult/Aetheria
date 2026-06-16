@@ -9,6 +9,7 @@ var statePath = args.Length > 1
 
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
+RequireSharedEvePackagesImportedFromEveRepo(root);
 RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
@@ -484,6 +485,7 @@ Console.WriteLine($"Corporation allegiance edges: {corporationAllegianceEdges}")
 Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 Console.WriteLine("Package serializer boundary: MessagePack symbols remain in named CultCache transport files only");
+Console.WriteLine("Shared Eve package ownership: generic Unity Eve packages import from the neighboring Eve repo instead of local staged copies");
 Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
@@ -556,6 +558,81 @@ static void RequireGameplaySourcePurity(string root)
         throw new InvalidOperationException(
             "Live gameplay source still contains serializer or legacy database symbols: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireSharedEvePackagesImportedFromEveRepo(string root)
+{
+    var manifestPath = Path.Combine(root, "Packages", "manifest.json");
+    var lockPath = Path.Combine(root, "Packages", "packages-lock.json");
+    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var localSurfacePath = Path.Combine(root, "Packages", "org.gamecult.eve.surface");
+    var localUnityUiToolkitPath = Path.Combine(root, "Packages", "org.gamecult.eve.unity-uitoolkit");
+    var evePackagesRoot = Path.GetFullPath(Path.Combine(root, "..", "Eve", "packages"));
+    var upstreamSurfacePath = Path.Combine(evePackagesRoot, "org.gamecult.eve.surface", "package.json");
+    var upstreamUnityUiToolkitPath = Path.Combine(evePackagesRoot, "org.gamecult.eve.unity-uitoolkit", "package.json");
+
+    var manifest = File.Exists(manifestPath)
+        ? File.ReadAllText(manifestPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; manifest.json is missing.");
+    var packageLock = File.Exists(lockPath)
+        ? File.ReadAllText(lockPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; packages-lock.json is missing.");
+    var unityFacadeProject = File.Exists(unityFacadeProjectPath)
+        ? File.ReadAllText(unityFacadeProjectPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; Aetheria.State.Unity.csproj is missing.");
+
+    var requiredManifestSymbols = new[]
+    {
+        "\"org.gamecult.eve.surface\": \"file:../../Eve/packages/org.gamecult.eve.surface\"",
+        "\"org.gamecult.eve.unity-uitoolkit\": \"file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit\""
+    };
+
+    var missingManifestSymbols = requiredManifestSymbols
+        .Where(symbol => !manifest.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingManifestSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria manifest no longer imports the shared Eve Unity packages from the neighboring Eve repo: " +
+            string.Join(", ", missingManifestSymbols));
+    }
+
+    var requiredLockSymbols = new[]
+    {
+        "\"version\": \"file:../../Eve/packages/org.gamecult.eve.surface\"",
+        "\"version\": \"file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit\"",
+        "\"source\": \"local\""
+    };
+
+    var missingLockSymbols = requiredLockSymbols
+        .Where(symbol => !packageLock.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingLockSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity lockfile no longer records the shared Eve packages as sibling-repo local imports: " +
+            string.Join(", ", missingLockSymbols));
+    }
+
+    if (Directory.Exists(localSurfacePath) || Directory.Exists(localUnityUiToolkitPath))
+    {
+        throw new InvalidOperationException(
+            "Aetheria should not keep local staged copies of the shared Eve Unity packages under Packages/.");
+    }
+
+    if (!File.Exists(upstreamSurfacePath) || !File.Exists(upstreamUnityUiToolkitPath))
+    {
+        throw new InvalidOperationException(
+            "The neighboring Eve repo is missing the shared Unity package roots Aetheria imports.");
+    }
+
+    if (!unityFacadeProject.Contains(@"..\..\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Unity still points at the deleted local Eve surface package path.");
     }
 }
 
