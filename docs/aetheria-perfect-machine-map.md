@@ -1377,9 +1377,10 @@ First Aetheria surfaces to publish:
      runtime wrappers no longer publish separate wrapper orbit GUID fields
      either; they retain `OrbitKey` plus their runtime `Orbit` object. `Zone`'s
      key-facing lookup surface also resolves through native key-indexed runtime
-     dictionaries instead of reparsing GUIDs from key strings. Remaining broader
-     simulation paths still derive legacy GUIDs until those structures move to
-     typed keys.
+     dictionaries instead of reparsing GUIDs from key strings. Zone asteroid
+     helpers now also route through typed body keys or runtime `AsteroidBelt`
+     objects instead of Guid overloads. Remaining broader simulation paths still
+     derive legacy GUIDs until those structures move to typed keys.
    - Done: delete the `ItemInstance.ItemId` legacy-GUID projection; diagnostics
      now report `ItemKey` so item instances expose only typed item-key identity.
    - Done: delete `Entity`/`EquippedCargoBay` cargo and consumable GUID lookup

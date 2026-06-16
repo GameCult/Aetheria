@@ -150,6 +150,10 @@ instead of reading a raw wrapper orbit GUID.
 body and orbit lookups resolve through key-indexed runtime dictionaries rather
 than reparsing GUIDs from `BodyKey` or `OrbitKey` strings before touching the
 Guid-indexed substrate.
+The live asteroid helper surface follows the same rule: nearest-asteroid,
+asteroid-exists, transform-update, and mining paths now use typed body keys or
+runtime `AsteroidBelt` objects directly instead of Guid asteroid-belt helper
+overloads.
 The package runtime catalog snapshot indexes items by canonical item key; Unity
 gameplay, HUD, inventory, trade, ship, and zone helper lookups use `ItemKey`
 directly instead of deriving `ItemId` and searching by legacy GUID.

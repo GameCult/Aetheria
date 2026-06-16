@@ -173,11 +173,11 @@ public class Zone
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }
 
-        foreach (var belt in AsteroidBelts)
+        foreach (var belt in AsteroidBelts.Values)
         {
-            Array.Copy(belt.Value.NewTransforms, belt.Value.Transforms, belt.Value.Transforms.Length);
-            belt.Value.OrbitPosition = belt.Value.NewOrbitPosition;
-            BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt.Key)));
+            Array.Copy(belt.NewTransforms, belt.Transforms, belt.Transforms.Length);
+            belt.OrbitPosition = belt.NewOrbitPosition;
+            BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt)));
         }
         
         foreach(var agent in Agents)
@@ -245,9 +245,10 @@ public class Zone
             : float2.zero;
     }
 
-    public int NearestAsteroid(Guid planetDataID, float2 position)
+    public int NearestAsteroid(string asteroidBeltKey, float2 position)
     {
-        var belt = AsteroidBelts[planetDataID];
+        if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt))
+            return -1;
         var asteroidPositions = belt.Transforms;
 
         int nearest = 0;
@@ -255,7 +256,7 @@ public class Zone
         for (int i = 0; i < belt.AsteroidCount; i++)
         {
             var dist = lengthsq(asteroidPositions[i].xz - position);
-            if (AsteroidExists(planetDataID, i) && dist < nearestDistance)
+            if (belt.ContainsAsteroid(i) && dist < nearestDistance)
             {
                 nearest = i;
                 nearestDistance = dist;
@@ -265,17 +266,13 @@ public class Zone
         return nearest;
     }
 
-    public bool AsteroidExists(Guid planetDataID, int asteroid) => AsteroidBelts[planetDataID].ContainsAsteroid(asteroid);
-
     public bool AsteroidExists(string asteroidBeltKey, int asteroid)
     {
         return TryGetAsteroidBelt(asteroidBeltKey, out var belt) && belt.ContainsAsteroid(asteroid);
     }
 
-    private void UpdateAsteroidTransforms(Guid planetDataID)
+    private void UpdateAsteroidTransforms(AsteroidBelt belt)
     {
-        var belt = AsteroidBelts[planetDataID];
-
         belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);
         for (var i = 0; i < belt.AsteroidCount; i++)
         {
@@ -298,9 +295,10 @@ public class Zone
         }
     }
 
-    public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
+    public void MineAsteroid(Entity miner, string asteroidBeltKey, int asteroid, float damage, float efficiency, float penetration)
     {
-        var belt = AsteroidBelts[asteroidBelt];
+        if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt))
+            return;
         //var asteroidTransform = belt.Transforms[asteroid];
 
         var size = belt.GetAsteroid(asteroid).Size;
@@ -335,12 +333,6 @@ public class Zone
             // TODO: Drop item onto the Grid
             //miner.AddCargo(newSimpleCommodity);
         }
-    }
-
-    public void MineAsteroid(Entity miner, string asteroidBeltKey, int asteroid, float damage, float efficiency, float penetration)
-    {
-        if (TryGetAsteroidBelt(asteroidBeltKey, out var belt))
-            MineAsteroid(miner, belt.ID, asteroid, damage, efficiency, penetration);
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)

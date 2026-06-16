@@ -19,6 +19,7 @@ RequireTypedOrbitalEntityOrbitKeys(root);
 RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
 RequireNativeZoneKeyResolution(root);
+RequireTypedAsteroidZoneApi(root);
 RequireTypedFactionShellLinks(root);
 RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
@@ -1258,6 +1259,54 @@ static void RequireNativeZoneKeyResolution(string root)
     {
         throw new InvalidOperationException(
             "Zone must keep native key-indexed runtime lookup tables for body and orbit resolution: " +
+            string.Join(", ", missingSymbols));
+    }
+}
+
+static void RequireTypedAsteroidZoneApi(string root)
+{
+    var zoneSourcePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zoneSourcePath)
+        ? File.ReadAllText(zoneSourcePath)
+        : throw new InvalidOperationException("Cannot verify typed asteroid Zone API; Zone source is missing.");
+
+    var forbiddenSymbols = new[]
+    {
+        "public int NearestAsteroid(Guid planetDataID, float2 position)",
+        "public bool AsteroidExists(Guid planetDataID, int asteroid)",
+        "public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)",
+        "BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt.Key)));",
+        "private void UpdateAsteroidTransforms(Guid planetDataID)",
+        "MineAsteroid(miner, belt.ID, asteroid, damage, efficiency, penetration);"
+    };
+    var hits = forbiddenSymbols
+        .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Assets/Scripts/ServerShared/Zone.cs: contains {symbol}")
+        .ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone asteroid helpers must keep typed body-key or runtime-object authority rather than Guid overloads: " +
+            string.Join("; ", hits));
+    }
+
+    var requiredSymbols = new[]
+    {
+        "foreach (var belt in AsteroidBelts.Values)",
+        "BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt)));",
+        "public int NearestAsteroid(string asteroidBeltKey, float2 position)",
+        "if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt))",
+        "public bool AsteroidExists(string asteroidBeltKey, int asteroid)",
+        "private void UpdateAsteroidTransforms(AsteroidBelt belt)",
+        "public void MineAsteroid(Entity miner, string asteroidBeltKey, int asteroid, float damage, float efficiency, float penetration)"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !zoneSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Zone asteroid helpers must route through typed body keys or runtime belt objects: " +
             string.Join(", ", missingSymbols));
     }
 }
