@@ -15,6 +15,7 @@ RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
 RequireTypedBehaviorBodyKeys(root);
 RequireTypedFactionShellLinks(root);
+RequireFactionKeyIdentity(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
@@ -805,6 +806,49 @@ static void RequireTypedFactionShellLinks(string root)
     {
         throw new InvalidOperationException(
             "Temporary Faction shell links must use typed key fields, not geoname/boss-hull legacy GUID projections: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireFactionKeyIdentity(string root)
+{
+    var checkedFiles = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Corporations.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Entity.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Galaxy.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Narrative", "ZoneConstraints.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "ID.GetHashCode",
+        "faction.ID == ID",
+        "Faction.ID ==",
+        "faction.ID ==",
+        ".ID == TargetFaction",
+        ".ID == GalaxyZone.Owner",
+        ".ID != zone.Owner",
+        "pair.Key.ID",
+        "f.ID != zone.Owner",
+        "Owner.ID =="
+    };
+
+    var hits = checkedFiles
+        .Where(File.Exists)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Faction identity must compare and order by FactionKey; Faction.ID is temporary projection residue only: " +
             string.Join("; ", hits));
     }
 }

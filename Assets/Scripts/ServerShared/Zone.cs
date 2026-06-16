@@ -269,7 +269,7 @@ public class Zone
         var security = SecurityLevel.Open;
         foreach (var entity in Entities)
         {
-            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction.ID == GalaxyZone.Owner.ID)
+            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction.HasSameKey(GalaxyZone.Owner))
             {
                 if (orbitalEntity.SecurityLevel > security && length(orbitalEntity.Position.xz - pos) < orbitalEntity.SecurityRadius * Settings.SecureAreaRadiusMultiplier)
                     security = orbitalEntity.SecurityLevel;

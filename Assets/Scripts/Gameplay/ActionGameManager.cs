@@ -677,7 +677,7 @@ public class ActionGameManager : MonoBehaviour
     {
         return CurrentGalaxy?.FactionRelationships?
             .Where(pair => pair.Key != null)
-            .OrderBy(pair => pair.Key.ID)
+            .OrderBy(pair => pair.Key.FactionKey ?? "", StringComparer.OrdinalIgnoreCase)
             .Select(pair => new AetheriaRuntimeFactionRelationshipCommit
             {
                 FactionKey = pair.Key.FactionKey ?? "",

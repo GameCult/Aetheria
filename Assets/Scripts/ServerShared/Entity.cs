@@ -289,7 +289,7 @@ public abstract class Entity
 
         // TODO: Inter-faction hostility
         // When the entity faction owns the zone, they are hostile to trespassers or those hostile to them
-        if (Faction.ID == Zone.GalaxyZone.Owner?.ID)
+        if (Faction.HasSameKey(Zone.GalaxyZone.Owner))
             return recursive ? !(other.PresencePermitted?.Value ?? true) : !(other.PresencePermitted?.Value ?? true)|| other.IsHostileTo(this, true);
 
         return !recursive && other.IsHostileTo(this, true);
@@ -302,7 +302,7 @@ public abstract class Entity
             return FactionRelationship.Neutral;
         if (this is Ship {IsPlayerShip: true})
             return Zone.Galaxy.FactionRelationships[faction];
-        return faction.ID == Faction.ID ? FactionRelationship.Beloved : FactionRelationship.Neutral;
+        return faction.HasSameKey(Faction) ? FactionRelationship.Beloved : FactionRelationship.Neutral;
     }
 
     public static bool IsPresencePermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 

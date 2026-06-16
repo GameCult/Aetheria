@@ -34,7 +34,7 @@ public class FactionPresenceConstraint : ZoneConstraint
 
     protected override bool TestZone(GalaxyZone zone)
     {
-        return zone.Factions.Any(f=>f.ID == TargetFaction?.ID);
+        return zone.Factions.Any(f => f.HasSameKey(TargetFaction));
     }
 }
 
@@ -49,7 +49,7 @@ public class FactionOwnerConstraint : ZoneConstraint
 
     protected override bool TestZone(GalaxyZone zone)
     {
-        return zone.Owner.ID == TargetFaction?.ID;
+        return zone.Owner?.HasSameKey(TargetFaction) ?? false;
     }
 }
 

@@ -56,13 +56,20 @@ public class Faction : INamedEntry
         set => Name = value;
     }
 
+    public bool HasSameKey(Faction other)
+    {
+        return other != null &&
+               !string.IsNullOrWhiteSpace(FactionKey) &&
+               string.Equals(FactionKey, other.FactionKey, StringComparison.OrdinalIgnoreCase);
+    }
+
     public override int GetHashCode()
     {
-        return ID.GetHashCode();
+        return StringComparer.OrdinalIgnoreCase.GetHashCode(FactionKey ?? "");
     }
 
     public override bool Equals(object obj)
     {
-        return obj is Faction faction && faction.ID == ID;
+        return obj is Faction faction && HasSameKey(faction);
     }
 }

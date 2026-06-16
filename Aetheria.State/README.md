@@ -114,6 +114,10 @@ resolver are deleted from the simulation shell.
 The remaining temporary `Faction` shell also uses `GeonameFileKey` and
 `BossHullItemKey`; it no longer parses name-file or boss-hull legacy IDs into
 GUID link fields.
+`Faction` equality, hashing, narrative constraints, sector display filtering,
+zone security ownership checks, and runtime faction-relationship ordering now
+use `FactionKey`. The legacy `Faction.ID` remains projection residue only until
+the temporary simulation shell is removed.
 Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
 `BodyKey` only for zone orbit/body snapshots. The old pending-command
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are

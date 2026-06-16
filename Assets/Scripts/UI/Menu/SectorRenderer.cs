@@ -63,7 +63,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             Properties.Title.text = zone.Name;
             Properties.AddProperty("Owner", () => zone.Owner?.Name ?? "None");
             var otherFactions = zone.Factions
-                .Where(f => f.ID != zone.Owner?.ID)
+                .Where(f => !f.HasSameKey(zone.Owner))
                 .Select(f=>f.Name).ToArray();
             if (otherFactions.Length > 0)
                 Properties.AddProperty("Factions Present", () => string.Join(", ", otherFactions));

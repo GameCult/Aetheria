@@ -254,6 +254,11 @@ public class Galaxy
 
     private static Faction ProjectFaction(AetheriaRuntimeCorporation corporation)
     {
+        if (string.IsNullOrWhiteSpace(corporation.CorporationKey))
+        {
+            throw new InvalidOperationException($"Typed catalog corporation {corporation.Name} has no corporation key.");
+        }
+
         return new Faction
         {
             ID = ParseLegacyId(corporation.LegacyId, nameof(corporation.LegacyId), corporation.Name),
