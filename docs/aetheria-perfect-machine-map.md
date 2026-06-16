@@ -544,9 +544,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   not registered as a VoidBot Discord identity yet, so mutations use the
   repo-local `void-self-state.mjs apply-operation` typed boundary rather than
   the registered Face MCP path.
-- The old IMGUI DB inspector has been deleted. `NameTools` can still
-  clean/generate names, but the legacy NameFile `.msgpack` export control has
-  been deleted instead of leaving a warning-only writer stub. The
+- The old IMGUI DB inspector has been deleted. `NameTools` still
+  clean/generate names, but it now uses a UI Toolkit editor shell, and the
+  legacy NameFile `.msgpack` export control has been deleted instead of leaving
+  a warning-only writer stub. The
   remaining Unity helper files formerly under `Assets/Scripts/CultCache` now
   live under `Assets/Scripts/UnitySupport` because they are color/curve helpers,
   not cache authority.

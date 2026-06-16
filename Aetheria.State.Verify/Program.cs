@@ -35,6 +35,7 @@ RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
 RequireTypedBehaviorMetadataCoverage(root);
+RequireNameToolsUsesUiToolkit(root);
 RequireNoDeadRuntimeProjectionCaches(root);
 RequireNoDeadInspectorMetadata(root);
 RequireRuntimeSimulationTuningCommits(root);
@@ -495,6 +496,7 @@ Console.WriteLine("Main-menu settings authority: player name, gameplay, and grap
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
+Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
@@ -2723,6 +2725,56 @@ static void RequireTypedBehaviorMetadataCoverage(string root)
         throw new InvalidOperationException(
             "TradeMenu no longer renders typed temperature-bearing behavior metadata: " +
             string.Join(", ", missingTradeSymbols));
+    }
+}
+
+static void RequireNameToolsUsesUiToolkit(string root)
+{
+    var nameToolsPath = Path.Combine(root, "Assets", "Scripts", "Editor", "NameTools.cs");
+    var source = File.Exists(nameToolsPath)
+        ? File.ReadAllText(nameToolsPath)
+        : throw new InvalidOperationException("Cannot verify NameTools editor shell; NameTools.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "using UnityEditor.UIElements;",
+        "using UnityEngine.UIElements;",
+        "private void CreateGUI()",
+        "new ObjectField(\"Name File\")",
+        "new IntegerField(",
+        "new Toggle(\"Strip Number Tokens\")",
+        "new Button(CleanNameFile)",
+        "new Button(ProcessNameFile)",
+        "new Button(GenerateName)"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "NameTools no longer owns a UI Toolkit editor shell for the remaining name helper workflow: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "void OnGUI()",
+        "EditorGUILayout.",
+        "GUILayout."
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "NameTools should not regress to IMGUI editor widgets: " +
+            string.Join(", ", hits));
     }
 }
 
