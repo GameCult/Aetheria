@@ -52,7 +52,14 @@ public class MainMenu : MonoBehaviour
 
     private void ShowMain()
     {
-        RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), LatestVerseHostSettings(), InGame), HandleMainSurfaceCommand);
+        var stateBoot = CurrentStateBoot();
+        RenderMenuSurface(
+            BuildMainSurfaceDefinition(
+                stateBoot,
+                LatestContinueRun(stateBoot),
+                LatestVerseHostSettings(stateBoot),
+                InGame),
+            HandleMainSurfaceCommand);
     }
 
     private void HandleMainSurfaceCommand(EveSurfaceCommandRequest request)
@@ -60,7 +67,7 @@ public class MainMenu : MonoBehaviour
         switch (request.Command)
         {
             case ContinueRunCommand:
-                var continueRun = LatestContinueRun();
+                var continueRun = LatestContinueRun(CurrentStateBoot());
                 if (continueRun == null)
                 {
                     Debug.LogWarning("Main-menu Continue requested without a typed run state.");
@@ -156,12 +163,20 @@ public class MainMenu : MonoBehaviour
         return seed == 0 ? 1u : seed;
     }
 
-    private static AetheriaRuntimeRunStateSnapshot LatestContinueRun()
+    private static AetheriaRuntimeStateBootReport CurrentStateBoot()
     {
+        return AetheriaRuntimeStateBoot.Inspect(ActionGameManager.GameDataDirectory);
+    }
+
+    private static AetheriaRuntimeRunStateSnapshot LatestContinueRun(AetheriaRuntimeStateBootReport stateBoot)
+    {
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+            return null;
+
         try
         {
             return AetheriaRuntimeStateReader
-                .ReadRunStates(ActionGameManager.RuntimeStateFilePath)
+                .ReadRunStates(stateBoot.StateFilePath)
                 .Where(run => !string.IsNullOrWhiteSpace(run.RunId))
                 .OrderByDescending(run => run.UpdatedAtUtc, StringComparer.Ordinal)
                 .ThenByDescending(run => run.RunId, StringComparer.Ordinal)
@@ -174,11 +189,14 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings()
+    private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+            return null;
+
         try
         {
-            return AetheriaRuntimeStateReader.ReadVerseHostSettings(ActionGameManager.RuntimeStateFilePath);
+            return AetheriaRuntimeStateReader.ReadVerseHostSettings(stateBoot.StateFilePath);
         }
         catch (Exception ex)
         {
@@ -386,6 +404,7 @@ public class MainMenu : MonoBehaviour
     }
 
     private static EveSurfaceDocument BuildMainSurfaceDefinition(
+        AetheriaRuntimeStateBootReport stateBoot,
         AetheriaRuntimeRunStateSnapshot continueRun,
         AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
         bool inGame)
@@ -393,6 +412,9 @@ public class MainMenu : MonoBehaviour
         var commands = new List<EveCommandTemplate>();
         var actionButtons = new List<EveSurfaceComponent>();
         var cardChildren = new List<EveSurfaceComponent>();
+        var targetLabel = stateBoot.TargetLabel;
+        var targetKind = string.IsNullOrWhiteSpace(stateBoot.TargetKind) ? "unknown" : stateBoot.TargetKind;
+        var targetSource = string.IsNullOrWhiteSpace(stateBoot.TargetSource) ? "unknown" : stateBoot.TargetSource;
         var verseTitle = string.IsNullOrWhiteSpace(verseHost?.Title) ? "Unknown Verse" : verseHost.Title;
         var verseId = string.IsNullOrWhiteSpace(verseHost?.VerseId) ? "unknown" : verseHost.VerseId;
         var verseVisibility = string.IsNullOrWhiteSpace(verseHost?.Visibility) ? "unknown" : verseHost.Visibility;
@@ -403,7 +425,13 @@ public class MainMenu : MonoBehaviour
 
         if (!inGame)
         {
-            if (continueRun == null)
+            if (!stateBoot.SupportsLocalStateFileRead)
+            {
+                cardChildren.Add(Text(
+                    $"{MainSurfaceId}.continue.note",
+                    stateBoot.FailureMessage));
+            }
+            else if (continueRun == null)
             {
                 cardChildren.Add(Text(
                     $"{MainSurfaceId}.continue.note",
@@ -419,6 +447,19 @@ public class MainMenu : MonoBehaviour
                     continueRun.RunId));
             }
         }
+
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.target.title",
+            "Client Target",
+            targetLabel));
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.target.transport",
+            "Transport",
+            targetKind));
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.target.source",
+            "Target Source",
+            targetSource));
 
         cardChildren.Add(Metric(
             $"{MainSurfaceId}.verse.title",
@@ -443,7 +484,7 @@ public class MainMenu : MonoBehaviour
 
         cardChildren.Add(Text(
             $"{MainSurfaceId}.note",
-            $"The client lowers this shell through Eve. Verse state and game truth belong to the daemon serving {verseLabel}."));
+            $"The client lowers this shell through Eve. The client target chooses which Verse it follows; game truth belongs to the daemon serving {verseLabel}."));
         cardChildren.Add(ButtonColumn($"{MainSurfaceId}.actions", actionButtons.ToArray()));
 
         return BuildMenuSurfaceDocument(

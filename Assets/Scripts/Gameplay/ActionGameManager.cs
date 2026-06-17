@@ -48,7 +48,7 @@ public class ActionGameManager : MonoBehaviour
 
     private static string _runtimeStateFilePath;
     public static string RuntimeStateFilePath =>
-        _runtimeStateFilePath ??= AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory);
+        _runtimeStateFilePath ??= AetheriaRuntimeStateBoot.Inspect(GameDataDirectory).StateFilePath;
 
     private static RuntimePlayerSettings _runtimePlayerSettings;
     public static RuntimePlayerSettings RuntimePlayerSettings
@@ -2301,7 +2301,15 @@ public class ActionGameManager : MonoBehaviour
 
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
         _runtimeStateFilePath = stateBoot.StateFilePath;
+        Debug.Log(
+            $"Aetheria runtime target: {stateBoot.TargetLabel} via {stateBoot.TargetKind} ({stateBoot.TargetSource})");
         Debug.Log($"Aetheria typed state file: {stateBoot.StateFilePath}");
+        if (!stateBoot.SupportsLocalStateFileRead)
+        {
+            throw new InvalidOperationException(
+                $"Aetheria runtime target cannot boot gameplay from local typed state: {stateBoot.FailureMessage}");
+        }
+
         if (!stateBoot.StateFileExists)
         {
             Debug.LogWarning("Aetheria typed state file is missing. Run the Aetheria.State importer before treating legacy catalog data as runtime state.");

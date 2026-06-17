@@ -43,8 +43,15 @@ namespace GameCult.Aetheria.EveRuntime
             var root = document.rootVisualElement;
             root.Clear();
 
-            var statePath = ResolveStateFilePath();
-            if (!File.Exists(statePath))
+            var stateBoot = ResolveStateBoot();
+            if (!stateBoot.SupportsLocalStateFileRead)
+            {
+                root.Add(BuildError(stateBoot.FailureMessage));
+                return;
+            }
+
+            var statePath = stateBoot.StateFilePath;
+            if (!stateBoot.StateFileExists)
             {
                 root.Add(BuildError($"Aetheria state file not found: {statePath}"));
                 return;
@@ -74,13 +81,10 @@ namespace GameCult.Aetheria.EveRuntime
             return _document;
         }
 
-        private string ResolveStateFilePath()
+        private AetheriaRuntimeStateBootReport ResolveStateBoot()
         {
-            if (!string.IsNullOrWhiteSpace(stateFilePathOverride))
-                return Path.GetFullPath(stateFilePathOverride);
-
             var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-            return AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory);
+            return AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, stateFilePathOverride);
         }
 
         private static VisualElement BuildError(string message)

@@ -50,6 +50,7 @@ RequireInventoryDropdownUseEveSurface(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
+RequireClientTargetBootAuthority(root);
 RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
 RequireDeadPropertiesPanelShellDeleted(root);
@@ -536,6 +537,7 @@ Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotog
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
 Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
+Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
 Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
@@ -692,6 +694,7 @@ static void RequirePackageSerializerBoundary(string root)
     var allowedFiles = new HashSet<string>(StringComparer.Ordinal)
     {
         "AetheriaRuntimeCatalogStore.cs",
+        "AetheriaRuntimeClientTargetStore.cs",
         "AetheriaRuntimePendingCultCacheStore.cs",
         "AetheriaRuntimeStateCommitDocument.cs",
         "AetheriaRuntimeEveCommandDocument.cs"
@@ -2525,7 +2528,9 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "QuitCommand",
         "BuildMainSurfaceDefinition(",
         "HandleMainSurfaceCommand(",
-        "RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), LatestVerseHostSettings(), InGame), HandleMainSurfaceCommand);",
+        "BuildMainSurfaceDefinition(",
+        "LatestContinueRun(stateBoot)",
+        "LatestVerseHostSettings(stateBoot)",
         "HideMenuSurface();"
     };
 
@@ -3813,6 +3818,223 @@ static void RequireVerseHostSettingsAuthority(string root)
     }
 }
 
+static void RequireClientTargetBootAuthority(string root)
+{
+    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
+    var bootPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoot.cs");
+    var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var bootstrapPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeBootstrap.cs");
+    var presenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+
+    var requiredFiles = new[]
+    {
+        unityFacadeProjectPath,
+        boundaryPath,
+        bootPath,
+        clientTargetStorePath,
+        bootstrapPath,
+        presenterPath,
+        actionGameManagerPath,
+        mainMenuPath
+    };
+
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Client target boot authority cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var boundary = File.ReadAllText(boundaryPath);
+    var boot = File.ReadAllText(bootPath);
+    var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var bootstrap = File.ReadAllText(bootstrapPath);
+    var presenter = File.ReadAllText(presenterPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var mainMenu = File.ReadAllText(mainMenuPath);
+
+    var requiredUnityFacadeSymbols = new[]
+    {
+        "AetheriaRuntimeClientTargetStore.cs",
+        "AetheriaRuntimeStateBoundary.cs",
+        "AetheriaRuntimeStateBoot.cs"
+    };
+    var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
+        .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingUnityFacadeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Unity.csproj no longer compiles the shared client-target boot files: " +
+            string.Join(", ", missingUnityFacadeSymbols));
+    }
+
+    var requiredBoundarySymbols = new[]
+    {
+        "RuntimeClientTargetFileName = \"aetheria-client.cc\"",
+        "RuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_STATE_PATH\"",
+        "LegacyRuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_EVE_STATE_PATH\"",
+        "GetClientTargetPath",
+        "ResolveStatePathOverride"
+    };
+    var missingBoundarySymbols = requiredBoundarySymbols
+        .Where(symbol => !boundary.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBoundarySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime state boundary no longer owns the client target file and override resolution: " +
+            string.Join(", ", missingBoundarySymbols));
+    }
+
+    var requiredClientTargetSymbols = new[]
+    {
+        "public static class AetheriaRuntimeClientTargetKinds",
+        "public sealed class AetheriaRuntimeClientTargetDocument",
+        "SchemaId = \"gamecult.aetheria.runtime_client_target.v1\"",
+        "TargetKind",
+        "StateFilePath",
+        "CultMeshAddress",
+        "ReadOrInitialize",
+        "CreateDefault",
+        "Write(string clientTargetPath, AetheriaRuntimeClientTargetDocument document)",
+        "Read(string clientTargetPath)"
+    };
+    var missingClientTargetSymbols = requiredClientTargetSymbols
+        .Where(symbol => !clientTargetStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientTargetSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed client target store is incomplete: " +
+            string.Join(", ", missingClientTargetSymbols));
+    }
+
+    var requiredBootSymbols = new[]
+    {
+        "ClientTargetPath",
+        "TargetKind",
+        "TargetSource",
+        "SupportsLocalStateFileRead",
+        "FailureMessage",
+        "TargetLabel",
+        "AetheriaRuntimeClientTargetStore.ReadOrInitialize",
+        "AetheriaRuntimeStateBoundary.ResolveStatePathOverride()",
+        "AetheriaRuntimeClientTargetKinds.CultMeshVerse",
+        "state-path-override",
+        "client-target"
+    };
+    var missingBootSymbols = requiredBootSymbols
+        .Where(symbol => !boot.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBootSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime boot no longer resolves the active Verse through the client target owner: " +
+            string.Join(", ", missingBootSymbols));
+    }
+
+    var requiredActionGameManagerSymbols = new[]
+    {
+        "AetheriaRuntimeStateBoot.Inspect(GameDataDirectory)",
+        "Aetheria runtime target: {stateBoot.TargetLabel} via {stateBoot.TargetKind} ({stateBoot.TargetSource})",
+        "!stateBoot.SupportsLocalStateFileRead"
+    };
+    var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingActionGameManagerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager no longer boots gameplay through the shared client-target report: " +
+            string.Join(", ", missingActionGameManagerSymbols));
+    }
+
+    var requiredPresenterSymbols = new[]
+    {
+        "AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, stateFilePathOverride)",
+        "!stateBoot.SupportsLocalStateFileRead",
+        "stateBoot.StateFileExists"
+    };
+    var missingPresenterSymbols = requiredPresenterSymbols
+        .Where(symbol => !presenter.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingPresenterSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter no longer mounts through the shared client-target boot report: " +
+            string.Join(", ", missingPresenterSymbols));
+    }
+
+    if (bootstrap.Contains("StatePathEnvironmentVariable", StringComparison.Ordinal) ||
+        bootstrap.Contains("presenter.StateFilePathOverride =", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve runtime bootstrap still tries to own state-path override resolution.");
+    }
+
+    var requiredMainMenuSymbols = new[]
+    {
+        "CurrentStateBoot()",
+        "LatestContinueRun(AetheriaRuntimeStateBootReport stateBoot)",
+        "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        "stateBoot.FailureMessage",
+        "\"Client Target\"",
+        "\"Transport\"",
+        "\"Target Source\""
+    };
+    var missingMainMenuSymbols = requiredMainMenuSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMainMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer lowers the shared client-target boot state through Eve: " +
+            string.Join(", ", missingMainMenuSymbols));
+    }
+
+    var forbiddenDirectPathSymbols = new Dictionary<string, string[]>
+    {
+        [actionGameManagerPath] = new[]
+        {
+            "AetheriaRuntimeStateBoundary.GetStateFilePath(GameDataDirectory)"
+        },
+        [presenterPath] = new[]
+        {
+            "AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory)"
+        },
+        [bootstrapPath] = new[]
+        {
+            "StatePathOverride()"
+        }
+    };
+
+    var hits = forbiddenDirectPathSymbols
+        .SelectMany(entry =>
+        {
+            var source = File.ReadAllText(entry.Key);
+            return entry.Value
+                .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)} -> {symbol}");
+        })
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity boot still contains direct local state-path owners instead of the shared client target: " +
+            string.Join("; ", hits));
+    }
+}
+
 static void RequireMainMenuVerseHostProjection(string root)
 {
     var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs");
@@ -3887,12 +4109,15 @@ static void RequireMainMenuVerseHostProjection(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "LatestVerseHostSettings()",
-        "AetheriaRuntimeStateReader.ReadVerseHostSettings(ActionGameManager.RuntimeStateFilePath)",
+        "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        "AetheriaRuntimeStateReader.ReadVerseHostSettings(stateBoot.StateFilePath)",
+        "\"Client Target\"",
+        "\"Transport\"",
+        "\"Target Source\"",
         "\"Verse\"",
         "\"Visibility\"",
         "\"CultMesh\"",
-        "Verse state and game truth belong to the daemon serving"
+        "The client target chooses which Verse it follows; game truth belongs to the daemon serving"
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
@@ -3948,7 +4173,7 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "LatestContinueRun",
         "AetheriaRuntimeStateReader",
-        "ReadRunStates(ActionGameManager.RuntimeStateFilePath)",
+        "ReadRunStates(stateBoot.StateFilePath)",
         "ContinueGame(continueRun)",
         "ActionGameManager.ContinueRunState = run",
         "SceneManager.LoadScene(\"ARPG\")"
@@ -4379,7 +4604,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
-        !mainMenu.Contains("ReadRunStates(ActionGameManager.RuntimeStateFilePath)", StringComparison.Ordinal))
+        !mainMenu.Contains("ReadRunStates(stateBoot.StateFilePath)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes Continue-run lookup through the shared runtime state reader.");

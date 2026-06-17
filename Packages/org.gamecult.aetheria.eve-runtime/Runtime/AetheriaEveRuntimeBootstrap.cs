@@ -12,7 +12,6 @@ namespace GameCult.Aetheria.EveRuntime
         public const string DefaultSurfaceId = "aetheria.operations";
         public const string DisableEnvironmentVariable = "AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP";
         public const string SurfaceEnvironmentVariable = "AETHERIA_EVE_SURFACE_ID";
-        public const string StatePathEnvironmentVariable = "AETHERIA_EVE_STATE_PATH";
         public const string DisableCommandLineSwitch = "--aetheria-disable-eve-runtime-bootstrap";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -27,7 +26,6 @@ namespace GameCult.Aetheria.EveRuntime
             host.AddComponent<UIDocument>();
             var presenter = host.AddComponent<AetheriaEveSurfacePresenter>();
             presenter.SurfaceId = SurfaceId();
-            presenter.StateFilePathOverride = StatePathOverride();
         }
 
         private static bool IsDisabled()
@@ -50,11 +48,6 @@ namespace GameCult.Aetheria.EveRuntime
         {
             var configured = Environment.GetEnvironmentVariable(SurfaceEnvironmentVariable);
             return string.IsNullOrWhiteSpace(configured) ? DefaultSurfaceId : configured;
-        }
-
-        private static string StatePathOverride()
-        {
-            return Environment.GetEnvironmentVariable(StatePathEnvironmentVariable) ?? "";
         }
     }
 }

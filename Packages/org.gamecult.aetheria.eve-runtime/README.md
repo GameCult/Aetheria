@@ -5,7 +5,9 @@ CultCache state into Unity UI Toolkit.
 
 `AetheriaEveSurfacePresenter` is a projection bridge:
 
-- it reads `gamecult.eve.surface.v1` from `GameData/aetheria-world.cc`;
+- it resolves the active client target from `GameData/aetheria-client.cc`;
+- it reads `gamecult.eve.surface.v1` from the selected typed state source, which
+  is currently still a local `.cc` file transport;
 - it lowers the retained tree through `org.gamecult.eve.unity-uitoolkit`;
 - it queues renderer-emitted commands as typed `.cc.eve.pending` command
   envelopes for Aetheria's provider-owned command bridge.
@@ -14,8 +16,9 @@ CultCache state into Unity UI Toolkit.
 By default it creates a `UIDocument` host for `aetheria.operations`, so the
 provider-owned operations surface is present at runtime without a hand-wired
 scene object. Set `AETHERIA_EVE_SURFACE_ID` to mount a different surface, set
-`AETHERIA_EVE_STATE_PATH` to point at a non-default `.cc` state file, or disable
-the automatic mount with `AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or
+`AETHERIA_STATE_PATH` to override the selected local `.cc` state file (`AETHERIA_EVE_STATE_PATH`
+still works as a legacy fallback), or disable the automatic mount with
+`AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or
 `--aetheria-disable-eve-runtime-bootstrap`. Batchmode disables the bootstrap so
 compile and smoke gates do not accidentally create renderer state.
 
