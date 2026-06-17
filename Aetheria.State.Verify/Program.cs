@@ -3830,6 +3830,7 @@ static void RequireClientTargetBootAuthority(string root)
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
     var bootPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoot.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
     var bootstrapPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeBootstrap.cs");
     var presenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
@@ -3841,6 +3842,7 @@ static void RequireClientTargetBootAuthority(string root)
         boundaryPath,
         bootPath,
         clientTargetStorePath,
+        verseDiscoveryPath,
         bootstrapPath,
         presenterPath,
         actionGameManagerPath,
@@ -3862,6 +3864,7 @@ static void RequireClientTargetBootAuthority(string root)
     var boundary = File.ReadAllText(boundaryPath);
     var boot = File.ReadAllText(bootPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
     var bootstrap = File.ReadAllText(bootstrapPath);
     var presenter = File.ReadAllText(presenterPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
@@ -3870,6 +3873,7 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredUnityFacadeSymbols = new[]
     {
         "AetheriaRuntimeClientTargetStore.cs",
+        "AetheriaRuntimeVerseDiscovery.cs",
         "AetheriaRuntimeStateBoundary.cs",
         "AetheriaRuntimeStateBoot.cs"
     };
@@ -3909,6 +3913,10 @@ static void RequireClientTargetBootAuthority(string root)
         "TargetKind",
         "StateFilePath",
         "CultMeshAddress",
+        "DiscoveryEndpoints",
+        "DiscoveredVerses",
+        "LastDiscoveryAtUtc",
+        "LastDiscoveryError",
         "ReadOrInitialize",
         "CreateDefault",
         "Write(string clientTargetPath, AetheriaRuntimeClientTargetDocument document)",
@@ -3931,6 +3939,10 @@ static void RequireClientTargetBootAuthority(string root)
         "TargetSource",
         "SupportsLocalStateFileRead",
         "FailureMessage",
+        "DiscoveryEndpoints",
+        "DiscoveredVerses",
+        "LastDiscoveryAtUtc",
+        "LastDiscoveryError",
         "TargetLabel",
         "AetheriaRuntimeClientTargetStore.ReadOrInitialize",
         "AetheriaRuntimeStateBoundary.ResolveStatePathOverride()",
@@ -3946,6 +3958,25 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Runtime boot no longer resolves the active Verse through the client target owner: " +
             string.Join(", ", missingBootSymbols));
+    }
+
+    var requiredVerseDiscoverySymbols = new[]
+    {
+        "CultMesh.CreateVerseCatalog()",
+        "CultMesh.CreateVerseDiscoveryClient()",
+        "DiscoverAsync(catalog, endpoints)",
+        "DiscoveredVerses",
+        "LastDiscoveryAtUtc",
+        "LastDiscoveryError"
+    };
+    var missingVerseDiscoverySymbols = requiredVerseDiscoverySymbols
+        .Where(symbol => !verseDiscovery.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVerseDiscoverySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime Verse discovery helper no longer refreshes the typed client-target catalog through CultMesh discovery: " +
+            string.Join(", ", missingVerseDiscoverySymbols));
     }
 
     var requiredActionGameManagerSymbols = new[]
@@ -3993,6 +4024,10 @@ static void RequireClientTargetBootAuthority(string root)
         "LatestContinueRun(AetheriaRuntimeStateBootReport stateBoot)",
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "stateBoot.FailureMessage",
+        "stateBoot.DiscoveryEndpoints",
+        "stateBoot.DiscoveredVerses",
+        "stateBoot.LastDiscoveryAtUtc",
+        "stateBoot.LastDiscoveryError",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""
@@ -4049,6 +4084,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var clientTargetSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetSurfaceBuilder.cs");
     var verseHostCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseHostCommands.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var commandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var drainStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandDrainStatus.cs");
@@ -4064,6 +4100,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         clientTargetSurfaceBuilderPath,
         verseHostCommandsPath,
         clientTargetStorePath,
+        verseDiscoveryPath,
         mainMenuPath,
         commandBridgePath,
         drainStatusPath,
@@ -4089,6 +4126,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var clientTargetSurfaceBuilder = File.ReadAllText(clientTargetSurfaceBuilderPath);
     var verseHostCommands = File.ReadAllText(verseHostCommandsPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var commandBridge = File.ReadAllText(commandBridgePath);
     var drainStatus = File.ReadAllText(drainStatusPath);
@@ -4099,7 +4137,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var requiredUnityFacadeSymbols = new[]
     {
         "AetheriaRuntimeClientTargetCommands.cs",
-        "AetheriaRuntimeClientTargetSurfaceBuilder.cs"
+        "AetheriaRuntimeClientTargetSurfaceBuilder.cs",
+        "AetheriaRuntimeVerseDiscovery.cs"
     };
     var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
         .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
@@ -4125,6 +4164,9 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "SetVerseId",
         "SetCultMeshAddress",
         "SetStateFilePath",
+        "SetDiscoveryEndpoints",
+        "DiscoverVerses",
+        "SelectDiscoveredVerse",
         "IsKnown"
     };
     var missingClientTargetCommandSymbols = requiredClientTargetCommandSymbols
@@ -4159,8 +4201,12 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "public sealed class AetheriaRuntimeClientTargetSurfaceState",
         "\"Client Target\"",
         "\"Target Fields\"",
+        "\"Verse Discovery\"",
         "\"Daemon Verse Host\"",
         "AetheriaRuntimeClientTargetCommands.SetStateFilePath",
+        "AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints",
+        "AetheriaRuntimeClientTargetCommands.DiscoverVerses",
+        "AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse",
         "AetheriaRuntimeVerseHostCommands.CycleVisibility",
         "AetheriaRuntimeVerseHostCommands.Refresh"
     };
@@ -4180,6 +4226,22 @@ static void RequireVerseSettingsShellAndBridge(string root)
             "Client-target store no longer exposes typed update ownership for local target edits.");
     }
 
+    var requiredVerseDiscoverySymbols = new[]
+    {
+        "CultMesh.CreateVerseCatalog()",
+        "CultMesh.CreateVerseDiscoveryClient()",
+        "DiscoverAsync(catalog, endpoints)"
+    };
+    var missingVerseDiscoverySymbols = requiredVerseDiscoverySymbols
+        .Where(symbol => !verseDiscovery.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVerseDiscoverySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse discovery helper no longer routes scans through the CultMesh catalog client: " +
+            string.Join(", ", missingVerseDiscoverySymbols));
+    }
+
     var requiredMainMenuSymbols = new[]
     {
         "VerseSettingsShellSurfaceId",
@@ -4191,6 +4253,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "TryCommitClientTargetCommand(",
         "TryQueueVerseHostCommand(",
         "AetheriaRuntimeClientTargetStore.Update(",
+        "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+        "ParseDiscoveryEndpoints(",
         "new EveSurfaceCommandRequest(",
         "AetheriaRuntimeVerseHostCommands.SurfaceId"
     };

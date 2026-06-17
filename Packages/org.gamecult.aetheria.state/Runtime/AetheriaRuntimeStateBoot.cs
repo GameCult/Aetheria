@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 
 namespace GameCult.Aetheria.State.Unity
 {
@@ -15,7 +16,11 @@ namespace GameCult.Aetheria.State.Unity
             string stateFilePath,
             bool stateFileExists,
             bool supportsLocalStateFileRead,
-            string failureMessage)
+            string failureMessage,
+            string[] discoveryEndpoints,
+            AetheriaRuntimeDiscoveredVerse[] discoveredVerses,
+            string lastDiscoveryAtUtc,
+            string lastDiscoveryError)
         {
             ClientTargetPath = clientTargetPath;
             TargetKind = targetKind;
@@ -27,6 +32,10 @@ namespace GameCult.Aetheria.State.Unity
             StateFileExists = stateFileExists;
             SupportsLocalStateFileRead = supportsLocalStateFileRead;
             FailureMessage = failureMessage;
+            DiscoveryEndpoints = discoveryEndpoints ?? Array.Empty<string>();
+            DiscoveredVerses = discoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
+            LastDiscoveryAtUtc = lastDiscoveryAtUtc ?? "";
+            LastDiscoveryError = lastDiscoveryError ?? "";
         }
 
         public string ClientTargetPath { get; }
@@ -39,6 +48,10 @@ namespace GameCult.Aetheria.State.Unity
         public bool StateFileExists { get; }
         public bool SupportsLocalStateFileRead { get; }
         public string FailureMessage { get; }
+        public string[] DiscoveryEndpoints { get; }
+        public AetheriaRuntimeDiscoveredVerse[] DiscoveredVerses { get; }
+        public string LastDiscoveryAtUtc { get; }
+        public string LastDiscoveryError { get; }
 
         public string TargetLabel =>
             string.IsNullOrWhiteSpace(Title)
@@ -104,7 +117,11 @@ namespace GameCult.Aetheria.State.Unity
                 stateFilePath,
                 supportsLocalStateFileRead && File.Exists(stateFilePath),
                 supportsLocalStateFileRead,
-                failureMessage);
+                failureMessage,
+                target.DiscoveryEndpoints?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? Array.Empty<string>(),
+                target.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+                target.LastDiscoveryAtUtc ?? "",
+                target.LastDiscoveryError ?? "");
         }
 
         private static string BuildTargetLabel(string title, string verseId)

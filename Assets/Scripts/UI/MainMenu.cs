@@ -453,6 +453,10 @@ public class MainMenu : MonoBehaviour
                 stateBoot.VerseId,
                 stateBoot.CultMeshAddress,
                 stateBoot.StateFilePath,
+                string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
+                stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+                stateBoot.LastDiscoveryAtUtc,
+                stateBoot.LastDiscoveryError,
                 stateBoot.TargetSource,
                 stateBoot.SupportsLocalStateFileRead,
                 stateBoot.FailureMessage,
@@ -615,6 +619,12 @@ public class MainMenu : MonoBehaviour
             var gameDataDirectory = ActionGameManager.GameDataDirectory;
             var clientTargetPath = AetheriaRuntimeStateBoundary.GetClientTargetPath(gameDataDirectory);
             var defaultStateFilePath = AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory);
+            if (string.Equals(command, AetheriaRuntimeClientTargetCommands.DiscoverVerses, StringComparison.Ordinal))
+            {
+                AetheriaRuntimeVerseDiscovery.RefreshClientTarget(clientTargetPath, defaultStateFilePath);
+                return true;
+            }
+
             AetheriaRuntimeClientTargetStore.Update(
                 clientTargetPath,
                 defaultStateFilePath,
@@ -638,6 +648,18 @@ public class MainMenu : MonoBehaviour
                             break;
                         case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetStateFilePath, StringComparison.Ordinal):
                             document.StateFilePath = ReadPayloadValue(payload, "value");
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints, StringComparison.Ordinal):
+                            document.DiscoveryEndpoints = ParseDiscoveryEndpoints(ReadPayloadValue(payload, "value"));
+                            document.LastDiscoveryError = "";
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse, StringComparison.Ordinal):
+                            document.TargetKind = AetheriaRuntimeClientTargetKinds.CultMeshVerse;
+                            document.Title = ReadPayloadValue(payload, "title");
+                            document.VerseId = ReadPayloadValue(payload, "verseId");
+                            document.CultMeshAddress = ReadPayloadValue(payload, "cultMeshAddress");
+                            document.DiscoveryEndpoints = ParseDiscoveryEndpoints(ReadPayloadValue(payload, "discoveryEndpoints"));
+                            document.LastDiscoveryError = "";
                             break;
                     }
 
@@ -695,6 +717,16 @@ public class MainMenu : MonoBehaviour
         return payload != null && payload.TryGetValue(key, out var value)
             ? value ?? ""
             : "";
+    }
+
+    private static string[] ParseDiscoveryEndpoints(string value)
+    {
+        return (value ?? "")
+            .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(endpoint => endpoint.Trim())
+            .Where(endpoint => !string.IsNullOrWhiteSpace(endpoint))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition(bool canOpenRuntimeInputScreen, bool inGame)

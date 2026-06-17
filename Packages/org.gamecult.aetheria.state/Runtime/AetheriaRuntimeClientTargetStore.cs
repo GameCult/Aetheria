@@ -28,6 +28,24 @@ namespace GameCult.Aetheria.State.Unity
         [Key(4)] public string CultMeshAddress { get; set; } = "asgard.local.aetheria/eve";
         [Key(5)] public string StateFilePath { get; set; } = "";
         [Key(6)] public string UpdatedAtUtc { get; set; } = "";
+        [Key(7)] public string[] DiscoveryEndpoints { get; set; } = Array.Empty<string>();
+        [Key(8)] public AetheriaRuntimeDiscoveredVerse[] DiscoveredVerses { get; set; } = Array.Empty<AetheriaRuntimeDiscoveredVerse>();
+        [Key(9)] public string LastDiscoveryAtUtc { get; set; } = "";
+        [Key(10)] public string LastDiscoveryError { get; set; } = "";
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeDiscoveredVerse
+    {
+        [Key(0)] public string VerseId { get; set; } = "";
+        [Key(1)] public string DisplayName { get; set; } = "";
+        [Key(2)] public string AuthorityModel { get; set; } = "";
+        [Key(3)] public string TransportVersion { get; set; } = "";
+        [Key(4)] public string RulesHash { get; set; } = "";
+        [Key(5)] public string Description { get; set; } = "";
+        [Key(6)] public string[] DiscoveryEndpoints { get; set; } = Array.Empty<string>();
+        [Key(7)] public string[] AuthorityRuntimeIds { get; set; } = Array.Empty<string>();
+        [Key(8)] public string ParentVerseId { get; set; } = "";
     }
 
     public static class AetheriaRuntimeClientTargetStore
@@ -69,6 +87,26 @@ namespace GameCult.Aetheria.State.Unity
             if (document == null) throw new ArgumentNullException(nameof(document));
 
             document.Schema = AetheriaRuntimeClientTargetDocument.SchemaId;
+            document.DiscoveryEndpoints ??= Array.Empty<string>();
+            document.DiscoveredVerses ??= Array.Empty<AetheriaRuntimeDiscoveredVerse>();
+            document.LastDiscoveryAtUtc ??= "";
+            document.LastDiscoveryError ??= "";
+            foreach (var verse in document.DiscoveredVerses)
+            {
+                if (verse == null)
+                    continue;
+
+                verse.VerseId ??= "";
+                verse.DisplayName ??= "";
+                verse.AuthorityModel ??= "";
+                verse.TransportVersion ??= "";
+                verse.RulesHash ??= "";
+                verse.Description ??= "";
+                verse.DiscoveryEndpoints ??= Array.Empty<string>();
+                verse.AuthorityRuntimeIds ??= Array.Empty<string>();
+                verse.ParentVerseId ??= "";
+            }
+
             document.UpdatedAtUtc = string.IsNullOrWhiteSpace(document.UpdatedAtUtc)
                 ? DateTime.UtcNow.ToString("O")
                 : document.UpdatedAtUtc;
