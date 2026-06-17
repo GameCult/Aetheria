@@ -402,8 +402,11 @@ depth, accepted/applied/rejected counts, failures, timestamps, and player
 settings controls are typed state rather than console-only status. It also
 persists daemon-owned `aetheria.verse_host_settings.v1`, with boot-time
 defaults or overrides for service id, Verse id, visibility, and CultMesh
-address. The operations surface and provider advertisement project from that
-typed host document instead of hardcoded daemon identity strings. The provider
+address. When visibility is `public`, the long-running daemon also serves a
+derived CultMesh Verse catalog from that same typed host document, using the
+located service name as the discoverable `cultnet://...:3075` endpoint. The
+operations surface and provider advertisement project from that typed host
+document instead of hardcoded daemon identity strings. The provider
 advertisement still publishes `gamecult.eve.provider_advertisement.v1` for the
 `aetheria` provider, advertising the catalog, operations, and player-settings
 surfaces plus the typed schemas witnessed by the local `.cc` state file.

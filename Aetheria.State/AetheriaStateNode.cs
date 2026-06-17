@@ -21,6 +21,8 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
     public string StatePath { get; }
 
+    public CultMeshNode MeshNode => _node;
+
     public CultCache Cache => _node.Cache;
 
     public CultNetDatabase Database => _node.Database;

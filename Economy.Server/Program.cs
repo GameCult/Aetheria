@@ -17,13 +17,16 @@ internal static class Program
             statePath,
             runtimeId: RuntimeId,
             startServer: true).ConfigureAwait(false);
+        using var verseDiscovery = new AetheriaVerseDiscoveryHost(node);
 
         await EnsureVerseHostSettingsAsync(node).ConfigureAwait(false);
+        await RefreshVerseDiscoveryAsync(node, verseDiscovery).ConfigureAwait(false);
         var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
         await PublishRuntimeSessionAsync(node, startedAtUtc, "starting").ConfigureAwait(false);
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
         await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
         await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
+        await RefreshVerseDiscoveryAsync(node, verseDiscovery).ConfigureAwait(false);
         await PublishRuntimeSessionAsync(node, startedAtUtc, "running").ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
@@ -34,7 +37,7 @@ internal static class Program
         }
 
         Console.WriteLine("Aetheria CultMesh state host is running. Press Ctrl+C to stop.");
-        await RunUntilShutdownAsync(node, startedAtUtc, PendingInterval(args)).ConfigureAwait(false);
+        await RunUntilShutdownAsync(node, verseDiscovery, startedAtUtc, PendingInterval(args)).ConfigureAwait(false);
 
         await PublishRuntimeSessionAsync(node, startedAtUtc, "stopping").ConfigureAwait(false);
         Console.WriteLine("Aetheria CultMesh state host stopping.");
@@ -286,6 +289,7 @@ internal static class Program
 
     private static async Task RunUntilShutdownAsync(
         AetheriaStateNode node,
+        AetheriaVerseDiscoveryHost verseDiscovery,
         string startedAtUtc,
         TimeSpan pendingInterval)
     {
@@ -305,8 +309,17 @@ internal static class Program
 
             await ApplyPendingRuntimeCommitsAsync(node).ConfigureAwait(false);
             await ApplyPendingEveCommandsAsync(node).ConfigureAwait(false);
+            await RefreshVerseDiscoveryAsync(node, verseDiscovery).ConfigureAwait(false);
             await PublishRuntimeSessionAsync(node, startedAtUtc, "running").ConfigureAwait(false);
         }
+    }
+
+    private static async Task RefreshVerseDiscoveryAsync(
+        AetheriaStateNode node,
+        AetheriaVerseDiscoveryHost verseDiscovery)
+    {
+        var settings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
+        verseDiscovery.Update(settings);
     }
 
     private static TimeSpan PendingInterval(IReadOnlyList<string> args)

@@ -537,7 +537,7 @@ Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesLis
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
 Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
-Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
+Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement, operations telemetry, and served Verse discovery");
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
 Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
 Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
@@ -3665,6 +3665,8 @@ static void RequireVerseHostSettingsAuthority(string root)
 {
     var settingsPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaVerseHostSettings.cs");
     var normalizerPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseHostSettingsNormalizer.cs");
+    var verseCatalogProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseCatalogProjector.cs");
+    var verseDiscoveryHostPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseDiscoveryHost.cs");
     var registryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var nodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
@@ -3677,6 +3679,8 @@ static void RequireVerseHostSettingsAuthority(string root)
     {
         settingsPath,
         normalizerPath,
+        verseCatalogProjectorPath,
+        verseDiscoveryHostPath,
         registryPath,
         nodePath,
         providerPath,
@@ -3698,6 +3702,8 @@ static void RequireVerseHostSettingsAuthority(string root)
 
     var settings = File.ReadAllText(settingsPath);
     var normalizer = File.ReadAllText(normalizerPath);
+    var verseCatalogProjector = File.ReadAllText(verseCatalogProjectorPath);
+    var verseDiscoveryHost = File.ReadAllText(verseDiscoveryHostPath);
     var registry = File.ReadAllText(registryPath);
     var node = File.ReadAllText(nodePath);
     var provider = File.ReadAllText(providerPath);
@@ -3731,6 +3737,42 @@ static void RequireVerseHostSettingsAuthority(string root)
             "Verse-host settings normalizer is missing normalize/equivalence ownership.");
     }
 
+    var requiredVerseCatalogProjectorSymbols = new[]
+    {
+        "public static class AetheriaVerseCatalogProjector",
+        "CultMeshVerseDescriptor",
+        "BuildDiscoveryEndpoint",
+        "CultMeshVerseDescriptor.ComputeRulesHash",
+        "cultnet://"
+    };
+    var missingVerseCatalogProjectorSymbols = requiredVerseCatalogProjectorSymbols
+        .Where(symbol => !verseCatalogProjector.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVerseCatalogProjectorSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse catalog projector no longer derives public CultMesh discovery from typed host settings: " +
+            string.Join(", ", missingVerseCatalogProjectorSymbols));
+    }
+
+    var requiredVerseDiscoveryHostSymbols = new[]
+    {
+        "public sealed class AetheriaVerseDiscoveryHost",
+        "AetheriaVerseCatalogProjector.Build(normalized)",
+        "CultMesh.CreateVerseCatalog()",
+        "CultMesh.ServeVerseCatalog(_node.MeshNode, _catalog)",
+        "normalized.Visibility"
+    };
+    var missingVerseDiscoveryHostSymbols = requiredVerseDiscoveryHostSymbols
+        .Where(symbol => !verseDiscoveryHost.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVerseDiscoveryHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse discovery host no longer gates served Verse catalogs through the typed host settings: " +
+            string.Join(", ", missingVerseDiscoveryHostSymbols));
+    }
+
     if (!registry.Contains("CultNetDocumentBinding.ForDocument<AetheriaVerseHostSettings>", StringComparison.Ordinal) ||
         !registry.Contains("typeof(AetheriaVerseHostSettings)", StringComparison.Ordinal))
     {
@@ -3740,6 +3782,7 @@ static void RequireVerseHostSettingsAuthority(string root)
 
     if (!node.Contains("PutVerseHostSettingsAsync", StringComparison.Ordinal) ||
         !node.Contains("GetVerseHostSettingsAsync", StringComparison.Ordinal) ||
+        !node.Contains("public CultMeshNode MeshNode => _node;", StringComparison.Ordinal) ||
         !node.Contains("global:aetheria.verse_host_settings.v1", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -3783,6 +3826,8 @@ static void RequireVerseHostSettingsAuthority(string root)
     var requiredServerSymbols = new[]
     {
         "EnsureVerseHostSettingsAsync",
+        "AetheriaVerseDiscoveryHost",
+        "RefreshVerseDiscoveryAsync",
         "LoadVerseHostOverrides",
         "GetVerseHostSettingsAsync",
         "PutVerseHostSettingsAsync",
