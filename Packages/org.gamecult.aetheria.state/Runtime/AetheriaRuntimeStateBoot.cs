@@ -14,6 +14,7 @@ namespace GameCult.Aetheria.State.Unity
             string verseId,
             string cultMeshAddress,
             string stateFilePath,
+            string replicaStateFilePath,
             bool stateFileExists,
             bool supportsLocalStateFileRead,
             string failureMessage,
@@ -29,6 +30,7 @@ namespace GameCult.Aetheria.State.Unity
             VerseId = verseId;
             CultMeshAddress = cultMeshAddress;
             StateFilePath = stateFilePath;
+            ReplicaStateFilePath = replicaStateFilePath;
             StateFileExists = stateFileExists;
             SupportsLocalStateFileRead = supportsLocalStateFileRead;
             FailureMessage = failureMessage;
@@ -45,6 +47,7 @@ namespace GameCult.Aetheria.State.Unity
         public string VerseId { get; }
         public string CultMeshAddress { get; }
         public string StateFilePath { get; }
+        public string ReplicaStateFilePath { get; }
         public bool StateFileExists { get; }
         public bool SupportsLocalStateFileRead { get; }
         public string FailureMessage { get; }
@@ -87,17 +90,23 @@ namespace GameCult.Aetheria.State.Unity
             var supportsLocalStateFileRead = true;
             var failureMessage = "";
             string stateFilePath;
+            string replicaStateFilePath;
 
             if (!string.IsNullOrWhiteSpace(configuredOverride))
             {
                 stateFilePath = Path.GetFullPath(configuredOverride);
+                replicaStateFilePath = target.ReplicaStateFilePath ?? "";
             }
             else if (string.Equals(targetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal))
             {
-                stateFilePath = "";
-                supportsLocalStateFileRead = false;
-                failureMessage =
-                    $"Selected client Verse target '{BuildTargetLabel(targetTitle, targetVerseId)}' points at CultMesh address '{targetCultMeshAddress}', but Unity still boots from local typed state until daemon transport lands.";
+                replicaStateFilePath = string.IsNullOrWhiteSpace(target.ReplicaStateFilePath)
+                    ? AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, targetVerseId)
+                    : Path.GetFullPath(target.ReplicaStateFilePath);
+                stateFilePath = replicaStateFilePath;
+                supportsLocalStateFileRead = File.Exists(replicaStateFilePath);
+                failureMessage = supportsLocalStateFileRead
+                    ? ""
+                    : $"Selected client Verse target '{BuildTargetLabel(targetTitle, targetVerseId)}' follows remote CultMesh endpoint '{targetCultMeshAddress}'. Sync the local replica at '{replicaStateFilePath}' before booting Unity from that Verse.";
             }
             else
             {
@@ -105,6 +114,9 @@ namespace GameCult.Aetheria.State.Unity
                     ? defaultStateFilePath
                     : target.StateFilePath;
                 stateFilePath = Path.GetFullPath(configuredStateFilePath);
+                replicaStateFilePath = string.IsNullOrWhiteSpace(target.ReplicaStateFilePath)
+                    ? AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, targetVerseId)
+                    : Path.GetFullPath(target.ReplicaStateFilePath);
             }
 
             return new AetheriaRuntimeStateBootReport(
@@ -115,6 +127,7 @@ namespace GameCult.Aetheria.State.Unity
                 targetVerseId,
                 targetCultMeshAddress,
                 stateFilePath,
+                replicaStateFilePath,
                 supportsLocalStateFileRead && File.Exists(stateFilePath),
                 supportsLocalStateFileRead,
                 failureMessage,

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.Linq;
 using MessagePack;
 
 #nullable enable
@@ -32,6 +33,7 @@ namespace GameCult.Aetheria.State.Unity
         [Key(8)] public AetheriaRuntimeDiscoveredVerse[] DiscoveredVerses { get; set; } = Array.Empty<AetheriaRuntimeDiscoveredVerse>();
         [Key(9)] public string LastDiscoveryAtUtc { get; set; } = "";
         [Key(10)] public string LastDiscoveryError { get; set; } = "";
+        [Key(11)] public string ReplicaStateFilePath { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -70,6 +72,7 @@ namespace GameCult.Aetheria.State.Unity
 
         public static AetheriaRuntimeClientTargetDocument CreateDefault(string defaultStateFilePath)
         {
+            var gameDataDirectory = ResolveGameDataDirectory(defaultStateFilePath);
             return new AetheriaRuntimeClientTargetDocument
             {
                 Schema = AetheriaRuntimeClientTargetDocument.SchemaId,
@@ -78,6 +81,7 @@ namespace GameCult.Aetheria.State.Unity
                 VerseId = "aetheria.local",
                 CultMeshAddress = "asgard.local.aetheria/eve",
                 StateFilePath = defaultStateFilePath ?? "",
+                ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, "aetheria.local"),
                 UpdatedAtUtc = DateTime.UtcNow.ToString("O")
             };
         }
@@ -91,6 +95,7 @@ namespace GameCult.Aetheria.State.Unity
             document.DiscoveredVerses ??= Array.Empty<AetheriaRuntimeDiscoveredVerse>();
             document.LastDiscoveryAtUtc ??= "";
             document.LastDiscoveryError ??= "";
+            document.ReplicaStateFilePath = NormalizeReplicaStateFilePath(document, clientTargetPath, document.ReplicaStateFilePath);
             foreach (var verse in document.DiscoveredVerses)
             {
                 if (verse == null)
@@ -130,6 +135,7 @@ namespace GameCult.Aetheria.State.Unity
 
             var document = ReadOrInitialize(clientTargetPath, defaultStateFilePath);
             mutate(document);
+            document.ReplicaStateFilePath = NormalizeReplicaStateFilePath(document, clientTargetPath, document.ReplicaStateFilePath);
             Write(clientTargetPath, document);
             return document;
         }
@@ -312,6 +318,32 @@ namespace GameCult.Aetheria.State.Unity
             }
 
             File.Move(tempPath, path);
+        }
+
+        private static string NormalizeReplicaStateFilePath(
+            AetheriaRuntimeClientTargetDocument document,
+            string clientTargetPath,
+            string configuredPath)
+        {
+            if (!string.IsNullOrWhiteSpace(configuredPath))
+                return Path.GetFullPath(configuredPath);
+
+            var gameDataDirectory = ResolveGameDataDirectoryFromClientTarget(clientTargetPath);
+            return AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document?.VerseId ?? "");
+        }
+
+        private static DirectoryInfo ResolveGameDataDirectory(string defaultStateFilePath)
+        {
+            var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(defaultStateFilePath) ? "." : defaultStateFilePath);
+            var directory = Path.GetDirectoryName(fullPath);
+            return new DirectoryInfo(string.IsNullOrWhiteSpace(directory) ? "." : directory);
+        }
+
+        private static DirectoryInfo ResolveGameDataDirectoryFromClientTarget(string clientTargetPath)
+        {
+            var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(clientTargetPath) ? "." : clientTargetPath);
+            var directory = Path.GetDirectoryName(fullPath);
+            return new DirectoryInfo(string.IsNullOrWhiteSpace(directory) ? "." : directory);
         }
     }
 }

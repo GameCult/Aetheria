@@ -453,6 +453,7 @@ public class MainMenu : MonoBehaviour
                 stateBoot.VerseId,
                 stateBoot.CultMeshAddress,
                 stateBoot.StateFilePath,
+                stateBoot.ReplicaStateFilePath,
                 string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
                 stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
                 stateBoot.LastDiscoveryAtUtc,

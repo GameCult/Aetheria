@@ -411,6 +411,18 @@ advertisement still publishes `gamecult.eve.provider_advertisement.v1` for the
 `aetheria` provider, advertising the catalog, operations, and player-settings
 surfaces plus the typed schemas witnessed by the local `.cc` state file.
 
+Remote Unity clients should not pretend a public Verse is local authority. Use
+`Aetheria.State.Replica` to pull a cache-only local witness from the daemon:
+
+```powershell
+dotnet run --project .\Aetheria.State.Replica\Aetheria.State.Replica.csproj -- sync --endpoint cultnet://host:3075 --game-data-root .\GameData --verse-id aetheria.public
+```
+
+That writes `GameData\Verses\<verse>.cc` as a replica projection of daemon
+truth. The selected remote client target resolves to that replica path. The
+daemon still owns accepted state; the replica is only the local read surface
+Unity lowers from.
+
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits and Eve commands when the server host is not being
 used. It also republishes the typed drain status, operations surface,

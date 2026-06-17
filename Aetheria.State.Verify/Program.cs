@@ -51,6 +51,7 @@ RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
 RequireClientTargetBootAuthority(root);
+RequireVerseReplicaTool(root);
 RequireVerseSettingsShellAndBridge(root);
 RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
@@ -539,6 +540,7 @@ Console.WriteLine("NameTools editor shell: the remaining name helper window lowe
 Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement, operations telemetry, and served Verse discovery");
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
+Console.WriteLine("Verse replica authority: remote client targets resolve to cache-only replica .cc files fed from the daemon");
 Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
 Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
@@ -3935,9 +3937,11 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredBoundarySymbols = new[]
     {
         "RuntimeClientTargetFileName = \"aetheria-client.cc\"",
+        "RuntimeReplicaDirectoryName = \"Verses\"",
         "RuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_STATE_PATH\"",
         "LegacyRuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_EVE_STATE_PATH\"",
         "GetClientTargetPath",
+        "GetReplicaStateFilePath",
         "ResolveStatePathOverride"
     };
     var missingBoundarySymbols = requiredBoundarySymbols
@@ -3962,6 +3966,7 @@ static void RequireClientTargetBootAuthority(string root)
         "DiscoveredVerses",
         "LastDiscoveryAtUtc",
         "LastDiscoveryError",
+        "ReplicaStateFilePath",
         "ReadOrInitialize",
         "CreateDefault",
         "Write(string clientTargetPath, AetheriaRuntimeClientTargetDocument document)",
@@ -3988,10 +3993,13 @@ static void RequireClientTargetBootAuthority(string root)
         "DiscoveredVerses",
         "LastDiscoveryAtUtc",
         "LastDiscoveryError",
+        "ReplicaStateFilePath",
         "TargetLabel",
         "AetheriaRuntimeClientTargetStore.ReadOrInitialize",
         "AetheriaRuntimeStateBoundary.ResolveStatePathOverride()",
         "AetheriaRuntimeClientTargetKinds.CultMeshVerse",
+        "GetReplicaStateFilePath",
+        "Sync the local replica",
         "state-path-override",
         "client-target"
     };
@@ -4073,6 +4081,7 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.DiscoveredVerses",
         "stateBoot.LastDiscoveryAtUtc",
         "stateBoot.LastDiscoveryError",
+        "stateBoot.ReplicaStateFilePath",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""
@@ -4118,6 +4127,99 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Unity boot still contains direct local state-path owners instead of the shared client target: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireVerseReplicaTool(string root)
+{
+    var replicaToolProjectPath = Path.Combine(root, "Aetheria.State.Replica", "Aetheria.State.Replica.csproj");
+    var replicaToolProgramPath = Path.Combine(root, "Aetheria.State.Replica", "Program.cs");
+    var replicaHostPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseReplica.cs");
+    var stateReadmePath = Path.Combine(root, "Aetheria.State", "README.md");
+
+    var requiredFiles = new[]
+    {
+        replicaToolProjectPath,
+        replicaToolProgramPath,
+        replicaHostPath,
+        stateReadmePath
+    };
+
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse replica tool cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var replicaToolProject = File.ReadAllText(replicaToolProjectPath);
+    var replicaToolProgram = File.ReadAllText(replicaToolProgramPath);
+    var replicaHost = File.ReadAllText(replicaHostPath);
+    var stateReadme = File.ReadAllText(stateReadmePath);
+
+    var requiredProjectSymbols = new[]
+    {
+        "<ProjectReference Include=\"..\\Aetheria.State\\Aetheria.State.csproj\" />",
+        "<ProjectReference Include=\"..\\Aetheria.State.Unity\\Aetheria.State.Unity.csproj\" />"
+    };
+    var missingProjectSymbols = requiredProjectSymbols
+        .Where(symbol => !replicaToolProject.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProjectSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse replica tool project is incomplete: " +
+            string.Join(", ", missingProjectSymbols));
+    }
+
+    var requiredProgramSymbols = new[]
+    {
+        "sync",
+        "follow",
+        "AetheriaVerseReplica",
+        "GetReplicaStateFilePath",
+        "--endpoint",
+        "--replica"
+    };
+    var missingProgramSymbols = requiredProgramSymbols
+        .Where(symbol => !replicaToolProgram.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProgramSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse replica tool program is incomplete: " +
+            string.Join(", ", missingProgramSymbols));
+    }
+
+    var requiredReplicaHostSymbols = new[]
+    {
+        "public static class AetheriaVerseReplica",
+        "SyncSnapshotAsync",
+        "RunReplicaAsync",
+        "CultNetSchemaShardSnapshotFetcher",
+        "CultNetSchemaShardLogFetcher",
+        "CultNetShardReplicator",
+        "ApplyShardSnapshotResponseAsync"
+    };
+    var missingReplicaHostSymbols = requiredReplicaHostSymbols
+        .Where(symbol => !replicaHost.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingReplicaHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse replica host is incomplete: " +
+            string.Join(", ", missingReplicaHostSymbols));
+    }
+
+    if (!stateReadme.Contains("Aetheria.State.Replica", StringComparison.Ordinal) ||
+        !stateReadme.Contains("GameData\\Verses\\<verse>.cc", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State README does not describe the cache-only Verse replica workflow.");
     }
 }
 
@@ -4248,6 +4350,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "\"Target Fields\"",
         "\"Verse Discovery\"",
         "\"Daemon Verse Host\"",
+        "\"Replica State File\"",
         "AetheriaRuntimeClientTargetCommands.SetStateFilePath",
         "AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints",
         "AetheriaRuntimeClientTargetCommands.DiscoverVerses",

@@ -12,6 +12,7 @@ namespace GameCult.Aetheria.State.Unity
             string targetVerseId,
             string targetCultMeshAddress,
             string targetStateFilePath,
+            string targetReplicaStateFilePath,
             string discoveryEndpointsText,
             IReadOnlyList<AetheriaRuntimeDiscoveredVerse> discoveredVerses,
             string lastDiscoveryAtUtc,
@@ -30,6 +31,7 @@ namespace GameCult.Aetheria.State.Unity
             TargetVerseId = targetVerseId ?? "";
             TargetCultMeshAddress = targetCultMeshAddress ?? "";
             TargetStateFilePath = targetStateFilePath ?? "";
+            TargetReplicaStateFilePath = targetReplicaStateFilePath ?? "";
             DiscoveryEndpointsText = discoveryEndpointsText ?? "";
             DiscoveredVerses = discoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
             LastDiscoveryAtUtc = lastDiscoveryAtUtc ?? "";
@@ -49,6 +51,7 @@ namespace GameCult.Aetheria.State.Unity
         public string TargetVerseId { get; }
         public string TargetCultMeshAddress { get; }
         public string TargetStateFilePath { get; }
+        public string TargetReplicaStateFilePath { get; }
         public string DiscoveryEndpointsText { get; }
         public IReadOnlyList<AetheriaRuntimeDiscoveredVerse> DiscoveredVerses { get; }
         public string LastDiscoveryAtUtc { get; }
@@ -85,6 +88,7 @@ namespace GameCult.Aetheria.State.Unity
         {
             state ??= new AetheriaRuntimeClientTargetSurfaceState(
                 AetheriaRuntimeClientTargetKinds.StateFile,
+                "",
                 "",
                 "",
                 "",
@@ -209,6 +213,10 @@ namespace GameCult.Aetheria.State.Unity
                                 "State File Path",
                                 state.TargetStateFilePath,
                                 AetheriaRuntimeClientTargetCommands.SetStateFilePath),
+                            Metric(
+                                "aetheria.clientTarget.target.replicaStateFilePath",
+                                "Replica State File",
+                                state.TargetReplicaStateFilePath),
                             ButtonRow(
                                 "aetheria.clientTarget.target.actions",
                                 Button(
