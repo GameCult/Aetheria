@@ -53,6 +53,7 @@ var eveStatus = new AetheriaEveCommandDrainStatus
     AppliedCatalogRefreshes = eveReport.AppliedCatalogRefreshes,
     AppliedOperationsRefreshes = eveReport.AppliedOperationsRefreshes,
     AppliedPlayerSettingsCommands = eveReport.AppliedPlayerSettingsCommands,
+    AppliedVerseHostCommands = eveReport.AppliedVerseHostCommands,
     LastRejectedCommand = eveReport.LastRejectedCommand,
     LastRejectedReason = eveReport.LastRejectedReason,
     Status = eveReport.RejectedCommands > 0 ? "rejected" : "ok"
@@ -89,6 +90,7 @@ Console.WriteLine($"Eve commands rejected: {eveReport.RejectedCommands}");
 Console.WriteLine($"Eve catalog refreshes: {eveReport.AppliedCatalogRefreshes}");
 Console.WriteLine($"Eve operations refreshes: {eveReport.AppliedOperationsRefreshes}");
 Console.WriteLine($"Eve player settings commands: {eveReport.AppliedPlayerSettingsCommands}");
+Console.WriteLine($"Eve verse host commands: {eveReport.AppliedVerseHostCommands}");
 if (!deleteApplied)
     Console.WriteLine("Applied command files were kept because --keep was supplied.");
 

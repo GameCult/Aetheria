@@ -8,6 +8,7 @@ public sealed class AetheriaEveCommandApplyReport
     public int AppliedCatalogRefreshes { get; set; }
     public int AppliedOperationsRefreshes { get; set; }
     public int AppliedPlayerSettingsCommands { get; set; }
+    public int AppliedVerseHostCommands { get; set; }
     public int RejectedCommands { get; set; }
     public string[] AcceptedPaths { get; set; } = [];
     public string[] RejectedPaths { get; set; } = [];
@@ -85,6 +86,11 @@ public static class AetheriaEveCommandBridge
                     await ApplyPlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
                     report.AppliedPlayerSettingsCommands++;
                     break;
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.Refresh:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.CycleVisibility:
+                    await ApplyVerseHostCommandAsync(node, command).ConfigureAwait(false);
+                    report.AppliedVerseHostCommands++;
+                    break;
             }
 
             accepted.Add(path);
@@ -122,7 +128,9 @@ public static class AetheriaEveCommandBridge
             (string.Equals(surfaceId, AetheriaOperationsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
              string.Equals(command, "aetheria.operations.refresh", StringComparison.Ordinal)) ||
             (string.Equals(surfaceId, AetheriaPlayerSettingsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-             GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IsKnown(command));
+             GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IsKnown(command)) ||
+            (string.Equals(surfaceId, GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.SurfaceId, StringComparison.Ordinal) &&
+             GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.IsKnown(command));
     }
 
     private static async Task ApplyPlayerSettingsCommandAsync(
@@ -183,6 +191,46 @@ public static class AetheriaEveCommandBridge
         await node.PutPlayerSettingsSurfaceAsync(
             AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
             .ConfigureAwait(false);
+    }
+
+    private static async Task ApplyVerseHostCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var settings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false) ?? new AetheriaVerseHostSettings();
+        var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
+        var persistSettings = false;
+
+        switch (command.Command)
+        {
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.CycleVisibility:
+                normalized.Visibility = Cycle(normalized.Visibility, "private", "public");
+                persistSettings = true;
+                break;
+        }
+
+        if (persistSettings)
+        {
+            normalized.LastUpdatedAtUtc = command.IssuedAtUtc;
+            await node.PutVerseHostSettingsAsync(normalized).ConfigureAwait(false);
+        }
+
+        var commitStatus = await node.GetRuntimeCommitDrainStatusAsync().ConfigureAwait(false) ??
+            EmptyCommitDrainStatus(node.StatePath, command.IssuedAtUtc);
+        var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false) ??
+            EmptyEveCommandDrainStatus(node.StatePath, command.IssuedAtUtc);
+        var runtimeSession = string.IsNullOrWhiteSpace(commitStatus.RuntimeId)
+            ? null
+            : await node.GetRuntimeSessionAsync(commitStatus.RuntimeId).ConfigureAwait(false);
+
+        await node.PutOperationsSurfaceAsync(
+            AetheriaOperationsSurfaceProjector.Build(
+                commitStatus,
+                eveStatus,
+                normalized,
+                runtimeSession)).ConfigureAwait(false);
+        await node.PutProviderAdvertisementAsync(
+            AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc)).ConfigureAwait(false);
     }
 
     private static string Cycle(string current, params string[] values)

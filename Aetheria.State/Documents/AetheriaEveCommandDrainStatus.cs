@@ -57,4 +57,7 @@ public sealed class AetheriaEveCommandDrainStatus
 
     [Key(15)]
     public int AppliedPlayerSettingsCommands { get; set; }
+
+    [Key(16)]
+    public int AppliedVerseHostCommands { get; set; }
 }

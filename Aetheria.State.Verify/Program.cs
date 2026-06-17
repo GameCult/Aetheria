@@ -51,6 +51,7 @@ RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
 RequireClientTargetBootAuthority(root);
+RequireVerseSettingsShellAndBridge(root);
 RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
 RequireDeadPropertiesPanelShellDeleted(root);
@@ -538,6 +539,7 @@ Console.WriteLine("NameTools editor shell: the remaining name helper window lowe
 Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
+Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
 Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
@@ -2464,11 +2466,14 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     {
         "RenderMenuSurface(",
         "BuildSettingsSurfaceDefinition()",
+        "BuildVerseSettingsSurfaceDefinition()",
         "BuildInputSettingsSurfaceDefinition(",
         "HandleSettingsSurfaceCommand(",
+        "HandleVerseSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
         "WithBackAction(",
         "ShowPlayerSettingsCommand",
+        "ShowVerseSettingsCommand",
         "ShowInputSettingsCommand",
         "BackToMainCommand",
         "BackToSettingsCommand"
@@ -2488,6 +2493,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     var forbiddenSymbols = new[]
     {
         "_nextMenu.panel.AddButton(\"Player Settings\"",
+        "_nextMenu.panel.AddButton(\"Verse\"",
         "_nextMenu.panel.AddButton(\"Input\"",
         "_nextMenu.panel.AddButton(\"Audio\"",
         "BuildAudioSettingsSurfaceDefinition(",
@@ -4032,6 +4038,225 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Unity boot still contains direct local state-path owners instead of the shared client target: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireVerseSettingsShellAndBridge(string root)
+{
+    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var stateProjectPath = Path.Combine(root, "Aetheria.State", "Aetheria.State.csproj");
+    var clientTargetCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetCommands.cs");
+    var clientTargetSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetSurfaceBuilder.cs");
+    var verseHostCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseHostCommands.cs");
+    var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var commandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var drainStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandDrainStatus.cs");
+    var operationsProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
+    var applyPendingPath = Path.Combine(root, "Aetheria.State.ApplyPending", "Program.cs");
+    var economyServerPath = Path.Combine(root, "Economy.Server", "Program.cs");
+
+    var requiredFiles = new[]
+    {
+        unityFacadeProjectPath,
+        stateProjectPath,
+        clientTargetCommandsPath,
+        clientTargetSurfaceBuilderPath,
+        verseHostCommandsPath,
+        clientTargetStorePath,
+        mainMenuPath,
+        commandBridgePath,
+        drainStatusPath,
+        operationsProjectorPath,
+        applyPendingPath,
+        economyServerPath
+    };
+
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse settings shell/bridge cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var stateProject = File.ReadAllText(stateProjectPath);
+    var clientTargetCommands = File.ReadAllText(clientTargetCommandsPath);
+    var clientTargetSurfaceBuilder = File.ReadAllText(clientTargetSurfaceBuilderPath);
+    var verseHostCommands = File.ReadAllText(verseHostCommandsPath);
+    var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var mainMenu = File.ReadAllText(mainMenuPath);
+    var commandBridge = File.ReadAllText(commandBridgePath);
+    var drainStatus = File.ReadAllText(drainStatusPath);
+    var operationsProjector = File.ReadAllText(operationsProjectorPath);
+    var applyPending = File.ReadAllText(applyPendingPath);
+    var economyServer = File.ReadAllText(economyServerPath);
+
+    var requiredUnityFacadeSymbols = new[]
+    {
+        "AetheriaRuntimeClientTargetCommands.cs",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.cs"
+    };
+    var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
+        .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingUnityFacadeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Unity.csproj does not compile the Verse settings shell files: " +
+            string.Join(", ", missingUnityFacadeSymbols));
+    }
+
+    if (!stateProject.Contains("AetheriaRuntimeVerseHostCommands.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.csproj does not compile the Verse-host Eve command contract.");
+    }
+
+    var requiredClientTargetCommandSymbols = new[]
+    {
+        "SurfaceId = \"aetheria.client_target\"",
+        "CycleTargetKind",
+        "SetTitle",
+        "SetVerseId",
+        "SetCultMeshAddress",
+        "SetStateFilePath",
+        "IsKnown"
+    };
+    var missingClientTargetCommandSymbols = requiredClientTargetCommandSymbols
+        .Where(symbol => !clientTargetCommands.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientTargetCommandSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Client-target command contract is incomplete: " +
+            string.Join(", ", missingClientTargetCommandSymbols));
+    }
+
+    var requiredVerseHostCommandSymbols = new[]
+    {
+        "SurfaceId = \"aetheria.verse_host_settings\"",
+        "CycleVisibility",
+        "Refresh",
+        "IsKnown"
+    };
+    var missingVerseHostCommandSymbols = requiredVerseHostCommandSymbols
+        .Where(symbol => !verseHostCommands.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVerseHostCommandSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse-host command contract is incomplete: " +
+            string.Join(", ", missingVerseHostCommandSymbols));
+    }
+
+    var requiredSurfaceBuilderSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeClientTargetSurfaceState",
+        "\"Client Target\"",
+        "\"Target Fields\"",
+        "\"Daemon Verse Host\"",
+        "AetheriaRuntimeClientTargetCommands.SetStateFilePath",
+        "AetheriaRuntimeVerseHostCommands.CycleVisibility",
+        "AetheriaRuntimeVerseHostCommands.Refresh"
+    };
+    var missingSurfaceBuilderSymbols = requiredSurfaceBuilderSymbols
+        .Where(symbol => !clientTargetSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSurfaceBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Client-target Eve surface builder is incomplete: " +
+            string.Join(", ", missingSurfaceBuilderSymbols));
+    }
+
+    if (!clientTargetStore.Contains("Update(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Client-target store no longer exposes typed update ownership for local target edits.");
+    }
+
+    var requiredMainMenuSymbols = new[]
+    {
+        "VerseSettingsShellSurfaceId",
+        "ShowVerseSettingsCommand",
+        "ShowVerseSettingsSurface()",
+        "HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)",
+        "BuildVerseSettingsSurfaceDefinition()",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
+        "TryCommitClientTargetCommand(",
+        "TryQueueVerseHostCommand(",
+        "AetheriaRuntimeClientTargetStore.Update(",
+        "new EveSurfaceCommandRequest(",
+        "AetheriaRuntimeVerseHostCommands.SurfaceId"
+    };
+    var missingMainMenuSymbols = requiredMainMenuSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMainMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer owns the typed Verse settings shell handoff: " +
+            string.Join(", ", missingMainMenuSymbols));
+    }
+
+    var requiredBridgeSymbols = new[]
+    {
+        "AppliedVerseHostCommands",
+        "AetheriaRuntimeVerseHostCommands.Refresh",
+        "AetheriaRuntimeVerseHostCommands.CycleVisibility",
+        "ApplyVerseHostCommandAsync",
+        "PutVerseHostSettingsAsync",
+        "PutProviderAdvertisementAsync",
+        "AetheriaOperationsSurfaceProjector.Build(",
+        "AetheriaRuntimeVerseHostCommands.IsKnown(command)"
+    };
+    var missingBridgeSymbols = requiredBridgeSymbols
+        .Where(symbol => !commandBridge.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBridgeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve command bridge no longer routes Verse-host commands through the provider owner: " +
+            string.Join(", ", missingBridgeSymbols));
+    }
+
+    var requiredDrainSymbols = new[]
+    {
+        "AppliedVerseHostCommands"
+    };
+    var missingDrainSymbols = requiredDrainSymbols
+        .Where(symbol => !drainStatus.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDrainSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve command drain status no longer records Verse-host command counts.");
+    }
+
+    if (!operationsProjector.Contains("Verse Host Commands", StringComparison.Ordinal) ||
+        !operationsProjector.Contains("AppliedVerseHostCommands", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Operations surface no longer projects Verse-host Eve command counts.");
+    }
+
+    if (!applyPending.Contains("AppliedVerseHostCommands = eveReport.AppliedVerseHostCommands", StringComparison.Ordinal) ||
+        !applyPending.Contains("Eve verse host commands: {eveReport.AppliedVerseHostCommands}", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.ApplyPending no longer publishes Verse-host Eve command totals.");
+    }
+
+    if (!economyServer.Contains("AppliedVerseHostCommands = report.AppliedVerseHostCommands", StringComparison.Ordinal) ||
+        !economyServer.Contains("verseHost={report.AppliedVerseHostCommands}", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Economy.Server no longer publishes Verse-host Eve command totals.");
     }
 }
 

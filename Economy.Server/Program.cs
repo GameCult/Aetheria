@@ -159,6 +159,7 @@ internal static class Program
                 AppliedCatalogRefreshes = report.AppliedCatalogRefreshes,
                 AppliedOperationsRefreshes = report.AppliedOperationsRefreshes,
                 AppliedPlayerSettingsCommands = report.AppliedPlayerSettingsCommands,
+                AppliedVerseHostCommands = report.AppliedVerseHostCommands,
                 LastRejectedCommand = report.LastRejectedCommand,
                 LastRejectedReason = report.LastRejectedReason,
                 ConsecutiveFailures = 0,
@@ -178,7 +179,8 @@ internal static class Program
                 $"rejected={report.RejectedCommands}, " +
                 $"catalogRefreshes={report.AppliedCatalogRefreshes}, " +
                 $"operationsRefreshes={report.AppliedOperationsRefreshes}, " +
-                $"playerSettings={report.AppliedPlayerSettingsCommands}");
+                $"playerSettings={report.AppliedPlayerSettingsCommands}, " +
+                $"verseHost={report.AppliedVerseHostCommands}");
         }
         catch (Exception ex)
         {

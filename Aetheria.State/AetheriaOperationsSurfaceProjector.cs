@@ -62,6 +62,7 @@ public static class AetheriaOperationsSurfaceProjector
                         Metric("eveCommandDrain.catalogRefreshes", "Catalog Refreshes", (eveCommandStatus?.AppliedCatalogRefreshes ?? 0).ToString()),
                         Metric("eveCommandDrain.operationsRefreshes", "Operations Refreshes", (eveCommandStatus?.AppliedOperationsRefreshes ?? 0).ToString()),
                         Metric("eveCommandDrain.playerSettings", "Player Settings Commands", (eveCommandStatus?.AppliedPlayerSettingsCommands ?? 0).ToString()),
+                        Metric("eveCommandDrain.verseHost", "Verse Host Commands", (eveCommandStatus?.AppliedVerseHostCommands ?? 0).ToString()),
                         Metric("eveCommandDrain.failures", "Consecutive Failures", (eveCommandStatus?.ConsecutiveFailures ?? 0).ToString()),
                         Row(
                             "eveCommandDrain.last",

@@ -11,6 +11,7 @@
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateCommitDocument.cs" Link="AetheriaRuntimeStateCommitDocument.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveCommandDocument.cs" Link="AetheriaRuntimeEveCommandDocument.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePendingCultCacheStore.cs" Link="AetheriaRuntimePendingCultCacheStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseHostCommands.cs" Link="AetheriaRuntimeVerseHostCommands.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePlayerSettingsSurfaceBuilder.cs" Link="AetheriaRuntimePlayerSettingsSurfaceBuilder.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePlayerSettingsCommands.cs" Link="AetheriaRuntimePlayerSettingsCommands.cs" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Caching\GameCult.Caching.csproj" />

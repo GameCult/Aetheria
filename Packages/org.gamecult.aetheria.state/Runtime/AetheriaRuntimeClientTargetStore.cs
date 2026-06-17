@@ -83,6 +83,19 @@ namespace GameCult.Aetheria.State.Unity
                 MessagePackSerializer.Serialize(document));
         }
 
+        public static AetheriaRuntimeClientTargetDocument Update(
+            string clientTargetPath,
+            string defaultStateFilePath,
+            Action<AetheriaRuntimeClientTargetDocument> mutate)
+        {
+            if (mutate == null) throw new ArgumentNullException(nameof(mutate));
+
+            var document = ReadOrInitialize(clientTargetPath, defaultStateFilePath);
+            mutate(document);
+            Write(clientTargetPath, document);
+            return document;
+        }
+
         public static AetheriaRuntimeClientTargetDocument Read(string clientTargetPath)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeClientTargetDocument>(

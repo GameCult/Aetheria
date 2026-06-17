@@ -1,0 +1,263 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace GameCult.Aetheria.State.Unity
+{
+    public sealed class AetheriaRuntimeClientTargetSurfaceState
+    {
+        public AetheriaRuntimeClientTargetSurfaceState(
+            string targetKind,
+            string targetTitle,
+            string targetVerseId,
+            string targetCultMeshAddress,
+            string targetStateFilePath,
+            string targetSource,
+            bool supportsLocalStateFileRead,
+            string bootFailureMessage,
+            string hostTitle,
+            string hostVerseId,
+            string hostVisibility,
+            string hostCultMeshAddress,
+            string updatedAtUtc)
+        {
+            TargetKind = targetKind ?? "";
+            TargetTitle = targetTitle ?? "";
+            TargetVerseId = targetVerseId ?? "";
+            TargetCultMeshAddress = targetCultMeshAddress ?? "";
+            TargetStateFilePath = targetStateFilePath ?? "";
+            TargetSource = targetSource ?? "";
+            SupportsLocalStateFileRead = supportsLocalStateFileRead;
+            BootFailureMessage = bootFailureMessage ?? "";
+            HostTitle = hostTitle ?? "";
+            HostVerseId = hostVerseId ?? "";
+            HostVisibility = hostVisibility ?? "";
+            HostCultMeshAddress = hostCultMeshAddress ?? "";
+            UpdatedAtUtc = updatedAtUtc ?? "";
+        }
+
+        public string TargetKind { get; }
+        public string TargetTitle { get; }
+        public string TargetVerseId { get; }
+        public string TargetCultMeshAddress { get; }
+        public string TargetStateFilePath { get; }
+        public string TargetSource { get; }
+        public bool SupportsLocalStateFileRead { get; }
+        public string BootFailureMessage { get; }
+        public string HostTitle { get; }
+        public string HostVerseId { get; }
+        public string HostVisibility { get; }
+        public string HostCultMeshAddress { get; }
+        public string UpdatedAtUtc { get; }
+
+        public string TargetLabel =>
+            string.IsNullOrWhiteSpace(TargetTitle)
+                ? (string.IsNullOrWhiteSpace(TargetVerseId) ? "Unknown Verse" : TargetVerseId)
+                : (string.IsNullOrWhiteSpace(TargetVerseId) || string.Equals(TargetTitle, TargetVerseId, StringComparison.Ordinal)
+                    ? TargetTitle
+                    : $"{TargetTitle} ({TargetVerseId})");
+
+        public string HostLabel =>
+            string.IsNullOrWhiteSpace(HostTitle)
+                ? (string.IsNullOrWhiteSpace(HostVerseId) ? "Unknown Verse" : HostVerseId)
+                : (string.IsNullOrWhiteSpace(HostVerseId) || string.Equals(HostTitle, HostVerseId, StringComparison.Ordinal)
+                    ? HostTitle
+                    : $"{HostTitle} ({HostVerseId})");
+    }
+
+    public static class AetheriaRuntimeClientTargetSurfaceBuilder
+    {
+        public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimeClientTargetSurfaceState state,
+            long version = 1)
+        {
+            state ??= new AetheriaRuntimeClientTargetSurfaceState(
+                AetheriaRuntimeClientTargetKinds.StateFile,
+                "",
+                "",
+                "",
+                "",
+                "",
+                supportsLocalStateFileRead: true,
+                bootFailureMessage: "",
+                hostTitle: "",
+                hostVerseId: "",
+                hostVisibility: "",
+                hostCultMeshAddress: "",
+                updatedAtUtc: "");
+
+            var targetKindLabel = string.Equals(state.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
+                ? "CultMesh Verse"
+                : "Local State File";
+            var visibilityLabel = string.IsNullOrWhiteSpace(state.HostVisibility) ? "unknown" : state.HostVisibility;
+            var visibilityActionLabel = string.Equals(visibilityLabel, "public", StringComparison.OrdinalIgnoreCase)
+                ? "Make Private"
+                : "Make Public";
+            var summaryNote = !state.SupportsLocalStateFileRead && !string.IsNullOrWhiteSpace(state.BootFailureMessage)
+                ? state.BootFailureMessage
+                : string.Equals(state.TargetSource, "state-path-override", StringComparison.Ordinal)
+                    ? "AETHERIA_STATE_PATH is overriding the persisted client target. Update the environment if you want boot to follow the saved target again."
+                    : "Client target edits persist in aetheria-client.cc. Verse visibility changes queue typed Eve commands for the provider bridge.";
+
+            return new AetheriaRuntimeSurfaceDocument(
+                providerId: "aetheria",
+                providerKind: "game.menu",
+                title: "Aetheria Verse Settings",
+                version: version,
+                updatedAtUtc: state.UpdatedAtUtc,
+                surface: new AetheriaRuntimeSurfaceTree(
+                    AetheriaRuntimeClientTargetCommands.SurfaceId,
+                    Node(
+                        "aetheria.clientTarget.root",
+                        "surface",
+                        Array.Empty<(string Key, string Value)>(),
+                        Node(
+                            "aetheria.clientTarget.summary",
+                            "card",
+                            new[] { ("title", "Client Target") },
+                            Metric("aetheria.clientTarget.summary.target", "Target", state.TargetLabel),
+                            Metric("aetheria.clientTarget.summary.transport", "Transport", targetKindLabel),
+                            Metric("aetheria.clientTarget.summary.source", "Target Source", state.TargetSource),
+                            Text("aetheria.clientTarget.summary.note", summaryNote)),
+                        Node(
+                            "aetheria.clientTarget.target",
+                            "card",
+                            new[] { ("title", "Target Fields") },
+                            TextInput(
+                                "aetheria.clientTarget.target.title",
+                                "Title",
+                                state.TargetTitle,
+                                AetheriaRuntimeClientTargetCommands.SetTitle),
+                            TextInput(
+                                "aetheria.clientTarget.target.verseId",
+                                "Verse Id",
+                                state.TargetVerseId,
+                                AetheriaRuntimeClientTargetCommands.SetVerseId),
+                            TextInput(
+                                "aetheria.clientTarget.target.cultMeshAddress",
+                                "CultMesh Address",
+                                state.TargetCultMeshAddress,
+                                AetheriaRuntimeClientTargetCommands.SetCultMeshAddress),
+                            TextInput(
+                                "aetheria.clientTarget.target.stateFilePath",
+                                "State File Path",
+                                state.TargetStateFilePath,
+                                AetheriaRuntimeClientTargetCommands.SetStateFilePath),
+                            ButtonRow(
+                                "aetheria.clientTarget.target.actions",
+                                Button(
+                                    "aetheria.clientTarget.target.cycleTransport",
+                                    string.Equals(state.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
+                                        ? "Use Local State File"
+                                        : "Use CultMesh Verse",
+                                    AetheriaRuntimeClientTargetCommands.CycleTargetKind),
+                                Button(
+                                    "aetheria.clientTarget.target.refresh",
+                                    "Refresh",
+                                    AetheriaRuntimeClientTargetCommands.Refresh))),
+                        Node(
+                            "aetheria.clientTarget.host",
+                            "card",
+                            new[] { ("title", "Daemon Verse Host") },
+                            Metric("aetheria.clientTarget.host.verse", "Verse", state.HostLabel),
+                            Metric("aetheria.clientTarget.host.visibility", "Visibility", visibilityLabel),
+                            Metric("aetheria.clientTarget.host.cultMesh", "CultMesh", state.HostCultMeshAddress),
+                            ButtonRow(
+                                "aetheria.clientTarget.host.actions",
+                                Button(
+                                    "aetheria.clientTarget.host.toggleVisibility",
+                                    visibilityActionLabel,
+                                    AetheriaRuntimeVerseHostCommands.CycleVisibility),
+                                Button(
+                                    "aetheria.clientTarget.host.refresh",
+                                    "Refresh Host",
+                                    AetheriaRuntimeVerseHostCommands.Refresh))),
+                        Node(
+                            "aetheria.clientTarget.host.noteCard",
+                            "card",
+                            new[] { ("title", "Ownership") },
+                            Text(
+                                "aetheria.clientTarget.host.note",
+                                "Client target edits are local. Visibility changes queue provider-owned Eve commands against the selected local Verse state file."))),
+                    Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+                commands: new[]
+                {
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.Refresh,
+                        "Refresh",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.CycleTargetKind,
+                        "Cycle Transport",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SetTitle,
+                        "Set Title",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SetVerseId,
+                        "Set Verse Id",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SetCultMeshAddress,
+                        "Set CultMesh Address",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SetStateFilePath,
+                        "Set State File Path",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeVerseHostCommands.CycleVisibility,
+                        "Toggle Visibility",
+                        "cultmesh"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeVerseHostCommands.Refresh,
+                        "Refresh Host",
+                        "cultmesh")
+                });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)
+        {
+            return Node(id, "metric", new[] { ("label", label), ("value", value ?? "") });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Text(string id, string value)
+        {
+            return Node(id, "text", new[] { ("value", value ?? "") });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Button(string id, string label, string command)
+        {
+            return Node(id, "control.button", new[] { ("label", label ?? ""), ("command", command ?? "") });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent TextInput(string id, string label, string value, string command)
+        {
+            return Node(
+                id,
+                "control.text",
+                new[] { ("label", label ?? ""), ("value", value ?? ""), ("command", command ?? "") });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent ButtonRow(
+            string id,
+            params AetheriaRuntimeSurfaceComponent[] children)
+        {
+            return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Node(
+            string id,
+            string kind,
+            IEnumerable<(string Key, string Value)> props,
+            params AetheriaRuntimeSurfaceComponent[] children)
+        {
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                kind,
+                props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
+                children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+    }
+}

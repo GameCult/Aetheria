@@ -56,8 +56,9 @@ Unity Eve surfaces also emit typed `gamecult.eve.command.v1` documents under
 provider-owned acceptance organ for those commands: it validates the provider,
 surface, and command template before running the narrow refresh handlers for
 the catalog and operations surfaces plus the typed player-settings mutation
-handlers for gameplay/graphics Eve controls. Renderer callbacks do not accept
-commands or mutate game state locally.
+handlers for gameplay/graphics Eve controls and typed Verse-host visibility
+commands. Renderer callbacks do not accept commands or mutate game state
+locally.
 `AetheriaEveRuntimeBootstrap` mounts the `aetheria.operations` surface through a
 runtime-created `UIDocument` after scene load, with environment and command-line
 switches for diagnostics. UI Toolkit is now a live runtime lowering path, not
@@ -316,6 +317,10 @@ can read typed player settings for Unity boot, and can read the published Eve
 catalog surface. It does not deserialize legacy runtime projection objects and
 does not write daemon-owned Verse state. Unity can use this as the first
 package boundary once CultLib/Eve runtime packaging is available.
+Unity `MainMenu` now lowers a typed Verse settings shell over that split:
+client-target edits persist locally in `aetheria-client.cc`, while Verse-host
+visibility changes queue provider-owned Eve commands against the selected local
+Verse state file.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection
 and name generation, so generated sectors use typed corporation v2 and
 `aetheria.name_file.v2` records instead of legacy `Faction`/`NameFile`

@@ -28,12 +28,14 @@ public class MainMenu : MonoBehaviour
     private const string SettingsSurfaceId = "aetheria.main_menu.settings";
     private const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
     private const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
+    private const string VerseSettingsShellSurfaceId = "aetheria.main_menu.verse_settings";
     private const string ContinueRunCommand = "aetheria.main_menu.root.continue";
     private const string NewGameCommand = "aetheria.main_menu.root.new_game";
     private const string ShowSettingsCommand = "aetheria.main_menu.root.show_settings";
     private const string QuitCommand = "aetheria.main_menu.root.quit";
     private const string OpenRuntimeInputScreenCommand = "aetheria.main_menu.input_settings.open_runtime_screen";
     private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
+    private const string ShowVerseSettingsCommand = "aetheria.main_menu.settings.show_verse_settings";
     private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
     private const string BackToMainCommand = "aetheria.main_menu.settings.back_to_main";
     private const string BackToSettingsCommand = "aetheria.main_menu.settings.back_to_settings";
@@ -275,6 +277,17 @@ public class MainMenu : MonoBehaviour
             HandlePlayerSettingsSurfaceCommand);
     }
 
+    private void ShowVerseSettingsSurface()
+    {
+        RenderMenuSurface(
+            WithBackAction(
+                ToEveSurfaceDocument(BuildVerseSettingsSurfaceDefinition()),
+                VerseSettingsShellSurfaceId,
+                BackToSettingsCommand,
+                "Back"),
+            HandleVerseSettingsSurfaceCommand);
+    }
+
     private void RenderMenuSurface(
         EveSurfaceDocument document,
         Action<EveSurfaceCommandRequest> commandHandler)
@@ -314,6 +327,9 @@ public class MainMenu : MonoBehaviour
         {
             case ShowPlayerSettingsCommand:
                 ShowPlayerSettingsSurface();
+                return;
+            case ShowVerseSettingsCommand:
+                ShowVerseSettingsSurface();
                 return;
             case ShowInputSettingsCommand:
                 ShowInputSettings();
@@ -366,6 +382,29 @@ public class MainMenu : MonoBehaviour
         ShowPlayerSettingsSurface();
     }
 
+    private void HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        {
+            ShowSettings();
+            return;
+        }
+
+        if (TryCommitClientTargetCommand(request.Command, request.Payload))
+        {
+            ShowVerseSettingsSurface();
+            return;
+        }
+
+        if (TryQueueVerseHostCommand(request.Command, request.Payload))
+        {
+            ShowVerseSettingsSurface();
+            return;
+        }
+
+        Debug.LogWarning($"Unknown verse-settings command: {request.Command}");
+    }
+
     private void HideMenuSurface()
     {
         if (_menuSurfaceDocument == null)
@@ -400,6 +439,27 @@ public class MainMenu : MonoBehaviour
                 max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
+                DateTime.UtcNow.ToString("O")));
+    }
+
+    private static AetheriaRuntimeSurfaceDocument BuildVerseSettingsSurfaceDefinition()
+    {
+        var stateBoot = CurrentStateBoot();
+        var verseHost = LatestVerseHostSettings(stateBoot);
+        return AetheriaRuntimeClientTargetSurfaceBuilder.Build(
+            new AetheriaRuntimeClientTargetSurfaceState(
+                stateBoot.TargetKind,
+                stateBoot.Title,
+                stateBoot.VerseId,
+                stateBoot.CultMeshAddress,
+                stateBoot.StateFilePath,
+                stateBoot.TargetSource,
+                stateBoot.SupportsLocalStateFileRead,
+                stateBoot.FailureMessage,
+                verseHost?.Title ?? stateBoot.Title,
+                verseHost?.VerseId ?? stateBoot.VerseId,
+                verseHost?.Visibility ?? "unknown",
+                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
                 DateTime.UtcNow.ToString("O")));
     }
 
@@ -505,6 +565,7 @@ public class MainMenu : MonoBehaviour
             new[]
             {
                 new EveCommandTemplate(ShowPlayerSettingsCommand, "Player Settings", "unity-uitoolkit"),
+                new EveCommandTemplate(ShowVerseSettingsCommand, "Verse", "unity-uitoolkit"),
                 new EveCommandTemplate(ShowInputSettingsCommand, "Input", "unity-uitoolkit"),
                 new EveCommandTemplate(BackToMainCommand, "Back", "unity-uitoolkit")
             },
@@ -513,10 +574,11 @@ public class MainMenu : MonoBehaviour
                 "Settings",
                 Text(
                     "aetheria.mainMenu.settings.note",
-                    "Typed Verse settings already lower through Eve. Input rebinding now opens the runtime Eve input screen, and audio still has no typed surface."),
+                    "Player settings, client target selection, and input rebinding all lower through typed Eve surfaces. Audio still has no typed owner."),
                 ButtonRow(
                     "aetheria.mainMenu.settings.actions",
                     Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", ShowPlayerSettingsCommand),
+                    Button("aetheria.mainMenu.settings.verse", "Verse", ShowVerseSettingsCommand),
                     Button("aetheria.mainMenu.settings.input", "Input", ShowInputSettingsCommand),
                     Button("aetheria.mainMenu.settings.back", "Back", BackToMainCommand))));
     }
@@ -538,6 +600,101 @@ public class MainMenu : MonoBehaviour
         gameObject.SetActive(false);
         ActionGameManager.Instance.ShowInputScreenFromMenu();
         return true;
+    }
+
+    private static bool TryCommitClientTargetCommand(string command, IReadOnlyDictionary<string, string> payload)
+    {
+        if (!AetheriaRuntimeClientTargetCommands.IsKnown(command))
+            return false;
+
+        if (string.Equals(command, AetheriaRuntimeClientTargetCommands.Refresh, StringComparison.Ordinal))
+            return true;
+
+        try
+        {
+            var gameDataDirectory = ActionGameManager.GameDataDirectory;
+            var clientTargetPath = AetheriaRuntimeStateBoundary.GetClientTargetPath(gameDataDirectory);
+            var defaultStateFilePath = AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory);
+            AetheriaRuntimeClientTargetStore.Update(
+                clientTargetPath,
+                defaultStateFilePath,
+                document =>
+                {
+                    switch (command)
+                    {
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.CycleTargetKind, StringComparison.Ordinal):
+                            document.TargetKind = string.Equals(document.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
+                                ? AetheriaRuntimeClientTargetKinds.StateFile
+                                : AetheriaRuntimeClientTargetKinds.CultMeshVerse;
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetTitle, StringComparison.Ordinal):
+                            document.Title = ReadPayloadValue(payload, "value");
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetVerseId, StringComparison.Ordinal):
+                            document.VerseId = ReadPayloadValue(payload, "value");
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetCultMeshAddress, StringComparison.Ordinal):
+                            document.CultMeshAddress = ReadPayloadValue(payload, "value");
+                            break;
+                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetStateFilePath, StringComparison.Ordinal):
+                            document.StateFilePath = ReadPayloadValue(payload, "value");
+                            break;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(document.TargetKind))
+                        document.TargetKind = AetheriaRuntimeClientTargetKinds.StateFile;
+                    if (string.IsNullOrWhiteSpace(document.StateFilePath))
+                        document.StateFilePath = defaultStateFilePath;
+                    document.UpdatedAtUtc = DateTime.UtcNow.ToString("O");
+                });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to update typed Aetheria client target: {ex}");
+            return true;
+        }
+    }
+
+    private static bool TryQueueVerseHostCommand(string command, IReadOnlyDictionary<string, string> payload)
+    {
+        if (!AetheriaRuntimeVerseHostCommands.IsKnown(command))
+            return false;
+
+        var stateBoot = CurrentStateBoot();
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+        {
+            Debug.LogWarning(
+                $"Cannot queue Verse-host command '{command}' because the active target is not a readable local Verse state file.");
+            return true;
+        }
+
+        try
+        {
+            var request = new EveSurfaceCommandRequest(
+                "aetheria",
+                AetheriaRuntimeVerseHostCommands.SurfaceId,
+                command,
+                payload?.ToDictionary(entry => entry.Key, entry => entry.Value ?? "", StringComparer.Ordinal)
+                    ?? new Dictionary<string, string>(StringComparer.Ordinal),
+                DateTimeOffset.UtcNow,
+                "unity-main-menu");
+            var envelope = AetheriaRuntimeEveCommandLog.QueueCommand(stateBoot.StateFilePath, request);
+            Debug.Log($"Queued Aetheria Verse-host Eve command: {envelope.Path}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to queue typed Aetheria Verse-host Eve command: {ex}");
+            return true;
+        }
+    }
+
+    private static string ReadPayloadValue(IReadOnlyDictionary<string, string> payload, string key)
+    {
+        return payload != null && payload.TryGetValue(key, out var value)
+            ? value ?? ""
+            : "";
     }
 
     private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition(bool canOpenRuntimeInputScreen, bool inGame)
