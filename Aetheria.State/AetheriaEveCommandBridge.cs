@@ -63,8 +63,16 @@ public static class AetheriaEveCommandBridge
                         EmptyCommitDrainStatus(node.StatePath, command.IssuedAtUtc);
                     var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false) ??
                         EmptyEveCommandDrainStatus(node.StatePath, command.IssuedAtUtc);
+                    var verseHostSettings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
+                    var runtimeSession = string.IsNullOrWhiteSpace(commitStatus.RuntimeId)
+                        ? null
+                        : await node.GetRuntimeSessionAsync(commitStatus.RuntimeId).ConfigureAwait(false);
                     await node.PutOperationsSurfaceAsync(
-                        AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus)).ConfigureAwait(false);
+                        AetheriaOperationsSurfaceProjector.Build(
+                            commitStatus,
+                            eveStatus,
+                            verseHostSettings,
+                            runtimeSession)).ConfigureAwait(false);
                     report.AppliedOperationsRefreshes++;
                     break;
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh:

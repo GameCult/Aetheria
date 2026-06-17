@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Aetheria.State;
 using Aetheria.State.Documents;
 
@@ -17,6 +18,7 @@ internal static class Program
             runtimeId: RuntimeId,
             startServer: true).ConfigureAwait(false);
 
+        await EnsureVerseHostSettingsAsync(node).ConfigureAwait(false);
         var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
         await PublishRuntimeSessionAsync(node, startedAtUtc, "starting").ConfigureAwait(false);
         await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
@@ -218,12 +220,20 @@ internal static class Program
                 Status = "idle"
             };
         var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false);
+        var verseHostSettings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false) ??
+            new AetheriaVerseHostSettings();
         var runtimeSession = await node.GetRuntimeSessionAsync(RuntimeId).ConfigureAwait(false);
-        await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, runtimeSession))
+        await node.PutOperationsSurfaceAsync(
+                AetheriaOperationsSurfaceProjector.Build(
+                    commitStatus,
+                    eveStatus,
+                    verseHostSettings,
+                    runtimeSession))
             .ConfigureAwait(false);
         await PublishPlayerSettingsSurfaceAsync(node, updatedAtUtc).ConfigureAwait(false);
         await node.PutProviderAdvertisementAsync(
-            AetheriaProviderAdvertisementProjector.Build(node.StatePath, updatedAtUtc)).ConfigureAwait(false);
+                AetheriaProviderAdvertisementProjector.Build(verseHostSettings, node.StatePath, updatedAtUtc))
+            .ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
     }
 
@@ -315,5 +325,110 @@ internal static class Program
     private static bool HasFlag(IReadOnlyList<string> args, string flag)
     {
         return args.Any(arg => string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static async Task EnsureVerseHostSettingsAsync(AetheriaStateNode node)
+    {
+        var existing = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
+        var candidate = AetheriaVerseHostSettingsNormalizer.Normalize(existing);
+        ApplyVerseHostOverrides(candidate, LoadVerseHostOverrides());
+
+        if (existing == null ||
+            string.IsNullOrWhiteSpace(existing.LastUpdatedAtUtc) ||
+            !AetheriaVerseHostSettingsNormalizer.Equivalent(existing, candidate))
+        {
+            candidate.LastUpdatedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+            await node.PutVerseHostSettingsAsync(candidate).ConfigureAwait(false);
+            await node.FlushAsync().ConfigureAwait(false);
+        }
+    }
+
+    private static VerseHostOverrides LoadVerseHostOverrides()
+    {
+        var candidatePaths = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Economy.Server", "appsettings.json"))
+        };
+
+        var settingsPath = candidatePaths.FirstOrDefault(File.Exists);
+        if (string.IsNullOrWhiteSpace(settingsPath))
+        {
+            return new VerseHostOverrides();
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+        if (!TryGetPropertyIgnoreCase(document.RootElement, "Aetheria", out var aetheriaSection) ||
+            !TryGetPropertyIgnoreCase(aetheriaSection, "VerseHost", out var verseHostSection))
+        {
+            return new VerseHostOverrides();
+        }
+
+        return new VerseHostOverrides
+        {
+            ServiceId = ReadOptionalString(verseHostSection, "ServiceId"),
+            VerseId = ReadOptionalString(verseHostSection, "VerseId"),
+            RootVerse = ReadOptionalString(verseHostSection, "RootVerse"),
+            CanonicalService = ReadOptionalString(verseHostSection, "CanonicalService"),
+            LocatedService = ReadOptionalString(verseHostSection, "LocatedService"),
+            CultMeshAddress = ReadOptionalString(verseHostSection, "CultMeshAddress"),
+            Title = ReadOptionalString(verseHostSection, "Title"),
+            Visibility = ReadOptionalString(verseHostSection, "Visibility")
+        };
+    }
+
+    private static void ApplyVerseHostOverrides(AetheriaVerseHostSettings settings, VerseHostOverrides overrides)
+    {
+        settings.ServiceId = ChooseOverride(overrides.ServiceId, settings.ServiceId);
+        settings.VerseId = ChooseOverride(overrides.VerseId, settings.VerseId);
+        settings.RootVerse = ChooseOverride(overrides.RootVerse, settings.RootVerse);
+        settings.CanonicalService = ChooseOverride(overrides.CanonicalService, settings.CanonicalService);
+        settings.LocatedService = ChooseOverride(overrides.LocatedService, settings.LocatedService);
+        settings.CultMeshAddress = ChooseOverride(overrides.CultMeshAddress, settings.CultMeshAddress);
+        settings.Title = ChooseOverride(overrides.Title, settings.Title);
+        settings.Visibility = ChooseOverride(overrides.Visibility, settings.Visibility);
+    }
+
+    private static string ChooseOverride(string? candidate, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(candidate) ? fallback : candidate.Trim();
+    }
+
+    private static string ReadOptionalString(JsonElement element, string propertyName)
+    {
+        if (!TryGetPropertyIgnoreCase(element, propertyName, out var value) ||
+            value.ValueKind != JsonValueKind.String)
+        {
+            return "";
+        }
+
+        return value.GetString()?.Trim() ?? "";
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private sealed class VerseHostOverrides
+    {
+        public string ServiceId { get; init; } = "";
+        public string VerseId { get; init; } = "";
+        public string RootVerse { get; init; } = "";
+        public string CanonicalService { get; init; } = "";
+        public string LocatedService { get; init; } = "";
+        public string CultMeshAddress { get; init; } = "";
+        public string Title { get; init; } = "";
+        public string Visibility { get; init; } = "";
     }
 }

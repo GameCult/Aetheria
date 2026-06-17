@@ -516,6 +516,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaRuntimeCommitDrainStatus` and the `aetheria.operations` Eve surface
   publish pending-drain health, pending depth, applied counts, failures, and
   timestamps as typed state. Console logs are notification-only.
+- Daemon Verse/service identity now lives in typed
+  `aetheria.verse_host_settings.v1`, owned by the Aetheria daemon. Provider
+  advertisement and operations telemetry project from that document, so public
+  or private Verse exposure and seed-galaxy Verse routing no longer hide in
+  hardcoded projector strings.
 - `AetheriaPlayerSettingsSurfaceProjector` now emits a provider-owned
   `aetheria.player_settings` Eve surface from canonical `AetheriaPlayerSettings`
   state. Gameplay and graphics settings are exposed as typed read models plus
@@ -523,8 +528,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaProviderAdvertisementProjector` publishes
   `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
   advertising the catalog, operations, and player-settings surfaces, command
-  boundaries, schemas, and `.cc` witness path. This is the discovery map for
-  Odin/Eve, not a health page.
+  boundaries, schemas, and `.cc` witness path. Its Verse/service identity now
+  comes from typed daemon host settings instead of hardcoded projector fields.
+  This is the discovery map for Odin/Eve, not a health page.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -1660,6 +1666,9 @@ First Aetheria surfaces to publish:
      operations surface.
    - Done: publish Eve command-drain health as typed CultCache state and include
      it in the operations surface.
+   - Done: move daemon Verse/service identity into typed
+     `aetheria.verse_host_settings.v1`, with provider advertisement and
+     operations telemetry deriving from that daemon-owned host document.
    - Done: publish provider-owned player-settings controls as a typed Eve
      surface and advertise their command boundary through the provider ad.
    - Done: publish an Eve provider advertisement so Odin/Eve can discover

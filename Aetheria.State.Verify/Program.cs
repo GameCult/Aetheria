@@ -48,6 +48,7 @@ RequireTradeItemDetailsUseEveSurface(root);
 RequireInventoryDropdownUseEveSurface(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
+RequireVerseHostSettingsAuthority(root);
 RequireMainMenuContinueRunState(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
@@ -529,6 +530,7 @@ Console.WriteLine("Main-menu Continue authority: Continue selects typed run stat
 Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesList, and DropdownMenu are deleted from source and serialized assets");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
+Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
@@ -3529,6 +3531,169 @@ static void RequirePlayerSettingsEveSurface(string root)
     {
         throw new InvalidOperationException(
             "Shared player-settings Eve surface builder no longer owns the portable settings surface contract.");
+    }
+}
+
+static void RequireVerseHostSettingsAuthority(string root)
+{
+    var settingsPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaVerseHostSettings.cs");
+    var normalizerPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseHostSettingsNormalizer.cs");
+    var registryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
+    var nodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
+    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
+    var operationsPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
+    var serverPath = Path.Combine(root, "Economy.Server", "Program.cs");
+    var serverSettingsPath = Path.Combine(root, "Economy.Server", "appsettings.json");
+    var applyPendingPath = Path.Combine(root, "Aetheria.State.ApplyPending", "Program.cs");
+
+    var requiredFiles = new[]
+    {
+        settingsPath,
+        normalizerPath,
+        registryPath,
+        nodePath,
+        providerPath,
+        operationsPath,
+        serverPath,
+        serverSettingsPath,
+        applyPendingPath
+    };
+
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse host authority cut is incomplete; missing files: " + string.Join(", ", missingFiles));
+    }
+
+    var settings = File.ReadAllText(settingsPath);
+    var normalizer = File.ReadAllText(normalizerPath);
+    var registry = File.ReadAllText(registryPath);
+    var node = File.ReadAllText(nodePath);
+    var provider = File.ReadAllText(providerPath);
+    var operations = File.ReadAllText(operationsPath);
+    var server = File.ReadAllText(serverPath);
+    var serverSettings = File.ReadAllText(serverSettingsPath);
+    var applyPending = File.ReadAllText(applyPendingPath);
+
+    var requiredSettingsSymbols = new[]
+    {
+        "[CultDocument(\"aetheria.verse_host_settings\", \"aetheria.verse_host_settings.v1\")]",
+        "public sealed class AetheriaVerseHostSettings",
+        "public string VerseId",
+        "public string CultMeshAddress",
+        "public string Visibility"
+    };
+    var missingSettingsSymbols = requiredSettingsSymbols
+        .Where(symbol => !settings.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSettingsSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed verse-host settings document is missing required authority fields: " +
+            string.Join(", ", missingSettingsSymbols));
+    }
+
+    if (!normalizer.Contains("public static AetheriaVerseHostSettings Normalize", StringComparison.Ordinal) ||
+        !normalizer.Contains("public static bool Equivalent", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Verse-host settings normalizer is missing normalize/equivalence ownership.");
+    }
+
+    if (!registry.Contains("CultNetDocumentBinding.ForDocument<AetheriaVerseHostSettings>", StringComparison.Ordinal) ||
+        !registry.Contains("typeof(AetheriaVerseHostSettings)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria document registry does not register typed verse-host settings.");
+    }
+
+    if (!node.Contains("PutVerseHostSettingsAsync", StringComparison.Ordinal) ||
+        !node.Contains("GetVerseHostSettingsAsync", StringComparison.Ordinal) ||
+        !node.Contains("global:aetheria.verse_host_settings.v1", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state node does not expose typed verse-host settings get/put ports.");
+    }
+
+    var forbiddenHardcodedProviderSymbols = new[]
+    {
+        "VerseId = \"aetheria.local\"",
+        "RootVerse = \"asgard\"",
+        "CanonicalService = \"asgard.aetheria\"",
+        "LocatedService = \"asgard.local.aetheria\"",
+        "CultMeshAddress = \"asgard.local.aetheria/eve\""
+    };
+    var survivingHardcodedProviderSymbols = forbiddenHardcodedProviderSymbols
+        .Where(symbol => provider.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingHardcodedProviderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Provider advertisement still hardcodes daemon verse identity: " +
+            string.Join(", ", survivingHardcodedProviderSymbols));
+    }
+
+    if (!provider.Contains("AetheriaVerseHostSettings settings", StringComparison.Ordinal) ||
+        !provider.Contains("AetheriaVerseHostSettingsNormalizer.Normalize(settings)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Provider advertisement no longer derives Verse identity from typed daemon settings.");
+    }
+
+    if (!operations.Contains("AetheriaVerseHostSettings? verseHostSettings = null", StringComparison.Ordinal) ||
+        !operations.Contains("AetheriaVerseHostSettingsNormalizer.Normalize(verseHostSettings)", StringComparison.Ordinal) ||
+        !operations.Contains("\"aetheria.operations.verseHost\"", StringComparison.Ordinal) ||
+        !operations.Contains("Metric(\"verseHost.visibility\"", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Operations surface does not expose the typed daemon Verse-host telemetry card.");
+    }
+
+    var requiredServerSymbols = new[]
+    {
+        "EnsureVerseHostSettingsAsync",
+        "LoadVerseHostOverrides",
+        "GetVerseHostSettingsAsync",
+        "PutVerseHostSettingsAsync",
+        "AetheriaProviderAdvertisementProjector.Build(verseHostSettings, node.StatePath, updatedAtUtc)"
+    };
+    var missingServerSymbols = requiredServerSymbols
+        .Where(symbol => !server.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingServerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Economy.Server is missing typed verse-host startup authority: " +
+            string.Join(", ", missingServerSymbols));
+    }
+
+    var requiredServerSettingsSymbols = new[]
+    {
+        "\"Aetheria\"",
+        "\"VerseHost\"",
+        "\"VerseId\"",
+        "\"CultMeshAddress\"",
+        "\"Visibility\""
+    };
+    var missingServerSettingsSymbols = requiredServerSettingsSymbols
+        .Where(symbol => !serverSettings.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingServerSettingsSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Economy.Server appsettings are missing the daemon Verse-host section: " +
+            string.Join(", ", missingServerSettingsSymbols));
+    }
+
+    if (!applyPending.Contains("EnsureVerseHostSettingsAsync", StringComparison.Ordinal) ||
+        !applyPending.Contains("AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.ApplyPending does not preserve typed verse-host projection authority.");
     }
 }
 

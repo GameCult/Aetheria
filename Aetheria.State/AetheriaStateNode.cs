@@ -270,6 +270,18 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.GetAsync<AetheriaEntitySnapshot>(key);
     }
 
+    public Task<CultRecordHandle<AetheriaVerseHostSettings>> PutVerseHostSettingsAsync(
+        AetheriaVerseHostSettings settings)
+    {
+        return Database.PutAsync(new CultRecordKey("global:aetheria.verse_host_settings.v1"), settings);
+    }
+
+    public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync()
+    {
+        return Database.GetAsync<AetheriaVerseHostSettings>(
+            new CultRecordKey("global:aetheria.verse_host_settings.v1"));
+    }
+
     public Task<CultRecordHandle<AetheriaRuntimeCommitDrainStatus>> PutRuntimeCommitDrainStatusAsync(
         AetheriaRuntimeCommitDrainStatus status)
     {

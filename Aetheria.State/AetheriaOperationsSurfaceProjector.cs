@@ -10,12 +10,15 @@ public static class AetheriaOperationsSurfaceProjector
     public static EveSurfaceState Build(
         AetheriaRuntimeCommitDrainStatus drainStatus,
         AetheriaEveCommandDrainStatus? eveCommandStatus = null,
+        AetheriaVerseHostSettings? verseHostSettings = null,
         AetheriaRuntimeSession? runtimeSession = null,
         long version = 1)
     {
+        var normalizedVerseHost = AetheriaVerseHostSettingsNormalizer.Normalize(verseHostSettings);
         var updatedAtUtc = LatestTimestamp(
             drainStatus.LastPollAtUtc,
             eveCommandStatus?.LastPollAtUtc,
+            normalizedVerseHost.LastUpdatedAtUtc,
             runtimeSession?.LastSeenAtUtc);
         return new EveSurfaceState
         {
@@ -68,6 +71,19 @@ public static class AetheriaOperationsSurfaceProjector
                             ("lastRejected", eveCommandStatus?.LastRejectedCommand ?? ""),
                             ("rejectedReason", eveCommandStatus?.LastRejectedReason ?? ""),
                             ("error", eveCommandStatus?.LastError ?? ""))),
+                    Node(
+                        "aetheria.operations.verseHost",
+                        "card",
+                        [("title", "Verse Host")],
+                        Metric("verseHost.visibility", "Visibility", normalizedVerseHost.Visibility),
+                        Metric("verseHost.service", "Service", normalizedVerseHost.ServiceId),
+                        Metric("verseHost.verse", "Verse", normalizedVerseHost.VerseId),
+                        Row(
+                            "verseHost.identity",
+                            ("rootVerse", normalizedVerseHost.RootVerse),
+                            ("canonicalService", normalizedVerseHost.CanonicalService),
+                            ("locatedService", normalizedVerseHost.LocatedService),
+                            ("cultMeshAddress", normalizedVerseHost.CultMeshAddress))),
                     Node(
                         "aetheria.operations.runtimeSession",
                         "card",

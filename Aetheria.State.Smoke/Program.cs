@@ -105,8 +105,15 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Status = "ok"
     };
     await node.PutRuntimeCommitDrainStatusAsync(drainStatus);
-    await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(drainStatus));
-    await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
+    var verseHostSettings = AetheriaVerseHostSettingsNormalizer.Normalize(new AetheriaVerseHostSettings
+    {
+        LastUpdatedAtUtc = now
+    });
+    await node.PutVerseHostSettingsAsync(verseHostSettings);
+    await node.PutOperationsSurfaceAsync(
+        AetheriaOperationsSurfaceProjector.Build(drainStatus, verseHostSettings: verseHostSettings));
+    await node.PutProviderAdvertisementAsync(
+        AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now));
     await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
     {
         RuntimeId = "smoke-runtime",
@@ -117,6 +124,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     });
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
         drainStatus,
+        verseHostSettings: verseHostSettings,
         runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
 
     await node.PutLoadoutTemplateAsync(loadoutKey, new AetheriaLoadoutTemplate
@@ -537,7 +545,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
         drainStatus,
         eveCommandStatus,
-        await node.GetRuntimeSessionAsync("smoke-runtime")));
+        verseHostSettings: await node.GetVerseHostSettingsAsync(),
+        runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
 
     await node.FlushAsync();
 }

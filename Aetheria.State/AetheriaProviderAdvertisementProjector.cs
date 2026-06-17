@@ -7,18 +7,22 @@ public static class AetheriaProviderAdvertisementProjector
     public const string AdvertisementKey = "eve:provider:aetheria";
     public const string ProviderId = "aetheria";
 
-    public static EveProviderAdvertisementState Build(string statePath, string updatedAtUtc)
+    public static EveProviderAdvertisementState Build(
+        AetheriaVerseHostSettings settings,
+        string statePath,
+        string updatedAtUtc)
     {
+        var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
         return new EveProviderAdvertisementState
         {
             ProviderId = ProviderId,
-            ServiceId = "aetheria.runtime",
-            VerseId = "aetheria.local",
-            RootVerse = "asgard",
-            CanonicalService = "asgard.aetheria",
-            LocatedService = "asgard.local.aetheria",
-            CultMeshAddress = "asgard.local.aetheria/eve",
-            Title = "Aetheria",
+            ServiceId = normalized.ServiceId,
+            VerseId = normalized.VerseId,
+            RootVerse = normalized.RootVerse,
+            CanonicalService = normalized.CanonicalService,
+            LocatedService = normalized.LocatedService,
+            CultMeshAddress = normalized.CultMeshAddress,
+            Title = normalized.Title,
             Kind = "game.runtime",
             UpdatedAtUtc = updatedAtUtc,
             Freshness = new EveProviderFreshness
@@ -38,6 +42,7 @@ public static class AetheriaProviderAdvertisementProjector
                 "aetheria.run_state.v1",
                 "aetheria.zone_state.v1",
                 "aetheria.entity_snapshot.v1",
+                "aetheria.verse_host_settings.v1",
                 "aetheria.runtime_session.v1",
                 "aetheria.runtime_commit_drain_status.v1",
                 "aetheria.eve_command_drain_status.v1",

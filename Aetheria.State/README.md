@@ -389,15 +389,19 @@ The server publishes `AetheriaRuntimeCommitDrainStatus`,
 typed `aetheria.player_settings` Eve surface after drain attempts, so pending
 depth, accepted/applied/rejected counts, failures, timestamps, and player
 settings controls are typed state rather than console-only status. It also
-publishes `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
-advertising the catalog, operations, and player-settings surfaces plus the
-typed schemas witnessed by the local `.cc` state file.
+persists daemon-owned `aetheria.verse_host_settings.v1`, with boot-time
+defaults or overrides for service id, Verse id, visibility, and CultMesh
+address. The operations surface and provider advertisement project from that
+typed host document instead of hardcoded daemon identity strings. The provider
+advertisement still publishes `gamecult.eve.provider_advertisement.v1` for the
+`aetheria` provider, advertising the catalog, operations, and player-settings
+surfaces plus the typed schemas witnessed by the local `.cc` state file.
 
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits and Eve commands when the server host is not being
 used. It also republishes the typed drain status, operations surface,
-player-settings surface, and provider advertisement after applying pending
-files:
+player-settings surface, typed `aetheria.verse_host_settings.v1`, and provider
+advertisement after applying pending files:
 
 ```powershell
 dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .

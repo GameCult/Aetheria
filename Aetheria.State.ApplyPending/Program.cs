@@ -17,6 +17,7 @@ var evePendingBefore = CountPendingEveCommands(statePath);
 var now = DateTimeOffset.UtcNow.ToString("O");
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, runtimeId);
+var verseHostSettings = await EnsureVerseHostSettingsAsync(node, now);
 await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
 {
     RuntimeId = runtimeId,
@@ -67,9 +68,15 @@ var completedSession = new AetheriaRuntimeSession
     Status = "completed"
 };
 await node.PutRuntimeSessionAsync(completedSession);
-await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(commitStatus, eveStatus, completedSession));
+await node.PutOperationsSurfaceAsync(
+    AetheriaOperationsSurfaceProjector.Build(
+        commitStatus,
+        eveStatus,
+        verseHostSettings,
+        completedSession));
 await PublishPlayerSettingsSurfaceAsync(node, now);
-await node.PutProviderAdvertisementAsync(AetheriaProviderAdvertisementProjector.Build(statePath, now));
+await node.PutProviderAdvertisementAsync(
+    AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now));
 await node.FlushAsync();
 
 Console.WriteLine($"Applied pending Aetheria runtime commits: {statePath}");
@@ -109,4 +116,17 @@ static async Task PublishPlayerSettingsSurfaceAsync(AetheriaStateNode node, stri
         : settings.LastUpdatedAtUtc;
     await node.PutPlayerSettingsSurfaceAsync(
         AetheriaPlayerSettingsSurfaceProjector.Build(settings, publishedAtUtc)).ConfigureAwait(false);
+}
+
+static async Task<AetheriaVerseHostSettings> EnsureVerseHostSettingsAsync(AetheriaStateNode node, string now)
+{
+    var existing = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
+    var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(existing);
+    if (existing == null || string.IsNullOrWhiteSpace(existing.LastUpdatedAtUtc))
+    {
+        normalized.LastUpdatedAtUtc = now;
+        await node.PutVerseHostSettingsAsync(normalized).ConfigureAwait(false);
+    }
+
+    return normalized;
 }
