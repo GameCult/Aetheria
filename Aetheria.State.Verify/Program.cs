@@ -37,6 +37,7 @@ RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
 RequireInventoryCargoItemDetailsUseEveSurface(root);
+RequireInventoryEquippedItemDetailsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireTradeItemDetailsUseEveSurface(root);
@@ -510,6 +511,7 @@ Console.WriteLine("Sector-map zone details shell: zone inspection lowers through
 Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
 Console.WriteLine("Inventory cargo-item shell: cargo item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
+Console.WriteLine("Inventory equipped-item shell: equipped item inspection and weapon-group controls lower through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
 Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
 Console.WriteLine("Trade filter and row-action shells: filter selection and buy-quantity entry lower through Eve UI Toolkit surfaces instead of ContextMenu dropdowns");
 Console.WriteLine("Trade item-details shell: typed item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
@@ -2700,19 +2702,100 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     {
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
     }
+}
 
-    var propertiesInspectCount = CountOccurrences(source, "PropertiesPanel.Inspect(item);");
-    if (propertiesInspectCount != 1)
+static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
+{
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    if (!File.Exists(inventoryMenuPath))
     {
-        throw new InvalidOperationException(
-            $"InventoryMenu should keep exactly one equipped-item PropertiesPanel inspect path for now; found {propertiesInspectCount}.");
+        throw new InvalidOperationException("Cannot verify inventory equipped-item shell; InventoryMenu.cs is missing.");
     }
 
-    var propertiesSetActiveCount = CountOccurrences(source, "PropertiesPanel.gameObject.SetActive(true);");
-    if (propertiesSetActiveCount != 1)
+    if (!File.Exists(actionGameManagerPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory equipped-item shell; ActionGameManager.cs is missing.");
+    }
+
+    var source = File.ReadAllText(inventoryMenuPath);
+    var requiredSymbols = new[]
+    {
+        "EquippedItemDetailsSurfaceId",
+        "RenderEquippedItemDetailsSurface(",
+        "HandleEquippedItemDetailsSurfaceCommand(",
+        "ResolveEquippedItemDetailsSurfaceDocument(",
+        "BuildEquippedItemDetailsSurfaceDefinition(",
+        "BuildEquippedItemControlCard(",
+        "BuildEquippedItemWeaponGroupCard(",
+        "BuildEquippedItemActionBarCards(",
+        "BuildItemBehaviorCards(",
+        "CommandButton(",
+        "TextField(",
+        "CloseEquippedItemDetailsCommand",
+        "ToggleEquippedItemOverrideShutdownCommand",
+        "SetEquippedItemTargetTemperatureCommand",
+        "ToggleEquippedItemWeaponGroupCommand",
+        "BindEquippedItemWeaponGroupCommand",
+        "ClearEquippedItemActionBarBindingCommand",
+        "new EveUiToolkitSurfaceLowerer()"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            $"InventoryMenu should keep exactly one equipped-item PropertiesPanel activation path for now; found {propertiesSetActiveCount}.");
+            "InventoryMenu no longer lowers equipped-item inspection through an Eve surface shell: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    if (!source.Contains("RenderEquippedItemDetailsSurface(item);", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("InventoryMenu equipped-item click path no longer routes inspection through the Eve surface.");
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "public PropertiesPanel PropertiesPanel;",
+        "PropertiesPanel.GameManager = GameManager;",
+        "PropertiesPanel.gameObject.SetActive(true);",
+        "PropertiesPanel.Inspect(item);"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still owns equipped-item inspection through the old PropertiesPanel shell: " +
+            string.Join(", ", hits));
+    }
+
+    var actionGameManagerSource = File.ReadAllText(actionGameManagerPath);
+    var requiredActionBarSymbols = new[]
+    {
+        "GetActionBarSlotCount(",
+        "GetActionBarSlotLabel(",
+        "GetActionBarBindingLabel(",
+        "CommitWeaponGroupActionBarBinding(",
+        "CommitClearActionBarBinding(",
+        "QueueRunCheckpoint(\"action-bar-binding\")"
+    };
+
+    var missingActionBarSymbols = requiredActionBarSymbols
+        .Where(symbol => !actionGameManagerSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingActionBarSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager no longer exposes the equipped-item action-bar binding authority surface: " +
+            string.Join(", ", missingActionBarSymbols));
     }
 }
 

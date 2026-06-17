@@ -30096,9 +30096,7 @@ MonoBehaviour:
   InventoryPanels:
   - {fileID: 1897237531}
   - {fileID: 1010491577}
-  PropertiesPanel: {fileID: 7399108074413661592}
   GameManager: {fileID: 1009503729}
-  DragParent: {fileID: 245842385}
   Dialog: {fileID: 620555924}
 --- !u!1 &1998350928
 GameObject:

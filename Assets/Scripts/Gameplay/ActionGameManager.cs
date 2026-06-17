@@ -742,6 +742,56 @@ public class ActionGameManager : MonoBehaviour
         return true;
     }
 
+    public int GetActionBarSlotCount()
+    {
+        return _actionBarSlots?.Count ?? 0;
+    }
+
+    public string GetActionBarSlotLabel(int slotIndex)
+    {
+        var slot = ResolveActionBarSlot(slotIndex);
+        return slot == null ? "" : GetActionBarSlotLabel(slot);
+    }
+
+    public string GetActionBarBindingLabel(int slotIndex)
+    {
+        var slot = ResolveActionBarSlot(slotIndex);
+        return slot?.Binding switch
+        {
+            ActionBarWeaponGroupBinding weaponGroup => $"G{weaponGroup.Group + 1}",
+            ActionBarConsumableBinding consumable => consumable.Target?.Name ?? "Consumable",
+            ActionBarGearBinding gear => RuntimeCatalog?.FindItem(gear.Item?.EquippableItem?.ItemKey ?? "")?.Name ?? "Gear",
+            _ => "Empty"
+        };
+    }
+
+    public bool CommitWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
+    {
+        var slot = ResolveActionBarSlot(slotIndex);
+        if (slot == null ||
+            CurrentEntity?.WeaponGroups == null ||
+            groupIndex < 0 ||
+            groupIndex >= CurrentEntity.WeaponGroups.Length)
+        {
+            return false;
+        }
+
+        slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, groupIndex);
+        QueueRunCheckpoint("action-bar-binding");
+        return true;
+    }
+
+    public bool CommitClearActionBarBinding(int slotIndex)
+    {
+        var slot = ResolveActionBarSlot(slotIndex);
+        if (slot == null)
+            return false;
+
+        slot.Binding = null;
+        QueueRunCheckpoint("action-bar-binding");
+        return true;
+    }
+
     private void RestoreActionBarBindingsFromTypedRun(
         IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> bindings)
     {
@@ -870,6 +920,27 @@ public class ActionGameManager : MonoBehaviour
             default:
                 return null;
         }
+    }
+
+    private ActionBarSlot ResolveActionBarSlot(int slotIndex)
+    {
+        return _actionBarSlots != null &&
+               slotIndex >= 0 &&
+               slotIndex < _actionBarSlots.Count
+            ? _actionBarSlots[slotIndex]
+            : null;
+    }
+
+    private static string GetActionBarSlotLabel(ActionBarSlot slot)
+    {
+        var controlPath = slot?.ControlPath ?? "";
+        if (string.IsNullOrWhiteSpace(controlPath))
+            return "Action Bar";
+
+        var slashIndex = controlPath.LastIndexOf('/');
+        return slashIndex >= 0 && slashIndex < controlPath.Length - 1
+            ? controlPath.Substring(slashIndex + 1)
+            : controlPath;
     }
 
     private AetheriaRuntimeCatalogItem FindTypedActionBarConsumable(ItemInstance item)

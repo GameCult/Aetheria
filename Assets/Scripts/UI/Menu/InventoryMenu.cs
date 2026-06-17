@@ -3,8 +3,8 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
@@ -13,8 +13,6 @@ using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
 using Unity.Mathematics;
-using UnityEngine.InputSystem;
-using UnityEngine.UI;
 using UnityEngine.UIElements;
 
 public class InventoryMenu : MonoBehaviour
@@ -30,12 +28,17 @@ public class InventoryMenu : MonoBehaviour
     private const string CloseShipSettingsCommand = "aetheria.inventory.current_ship_settings.close";
     private const string CargoItemDetailsSurfaceId = "aetheria.inventory.cargo_item_details";
     private const string CloseCargoItemDetailsCommand = "aetheria.inventory.cargo_item_details.close";
+    private const string EquippedItemDetailsSurfaceId = "aetheria.inventory.equipped_item_details";
+    private const string CloseEquippedItemDetailsCommand = "aetheria.inventory.equipped_item_details.close";
+    private const string ToggleEquippedItemOverrideShutdownCommand = "aetheria.inventory.equipped_item_details.override_shutdown.toggle";
+    private const string SetEquippedItemTargetTemperatureCommand = "aetheria.inventory.equipped_item_details.target_temperature.set";
+    private const string ToggleEquippedItemWeaponGroupCommand = "aetheria.inventory.equipped_item_details.weapon_group.toggle";
+    private const string BindEquippedItemWeaponGroupCommand = "aetheria.inventory.equipped_item_details.weapon_group.bind";
+    private const string ClearEquippedItemActionBarBindingCommand = "aetheria.inventory.equipped_item_details.action_bar.clear";
     private const float ShutdownThresholdStep = 0.05f;
 
     public InventoryPanel[] InventoryPanels;
-    public PropertiesPanel PropertiesPanel;
     public ActionGameManager GameManager;
-    public RectTransform DragParent;
     public ConfirmationDialog Dialog;
     // public ClickCatcher Background;
 
@@ -44,9 +47,11 @@ public class InventoryMenu : MonoBehaviour
     private int2 _selectedPosition;
     private InventoryPanel _selectedPanel;
     private ItemInstance _selectedItem;
+    private EquippedItem _selectedEquippedItem;
     private int2[] _selectedCells;
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
+    private UIDocument _equippedItemDetailsSurfaceDocument;
     // private List<IDisposable> _backgroundSubscriptions;
 
     // private ItemInstance _dragItem;
@@ -90,12 +95,12 @@ public class InventoryMenu : MonoBehaviour
     {
         HideCurrentShipSettingsSurface();
         HideCargoItemDetailsSurface();
+        HideEquippedItemDetailsSurface();
         // Background.gameObject.SetActive(false);
     }
 
     void Start()
     {
-        PropertiesPanel.GameManager = GameManager;
         foreach (var panel in InventoryPanels)
         {
             panel.OnClickAsObservable().Subscribe(e =>
@@ -108,6 +113,7 @@ public class InventoryMenu : MonoBehaviour
                         if (e.clickCount == 2)
                         {
                             HideCargoItemDetailsSurface();
+                            HideEquippedItemDetailsSurface();
                             ClearSelectedItemSelection();
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
                             if (CommitCargoItemTransfer(cargoEvent.CargoBay, otherPanel, item))
@@ -123,7 +129,7 @@ public class InventoryMenu : MonoBehaviour
                         {
                             HideCurrentShipSettingsSurface();
                             HideCargoItemDetailsSurface();
-                            PropertiesPanel.gameObject.SetActive(false);
+                            HideEquippedItemDetailsSurface();
                             ClearSelectedItemSelection();
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.CargoBay.Cargo[item];
@@ -143,6 +149,7 @@ public class InventoryMenu : MonoBehaviour
                         if (e.clickCount == 2)
                         {
                             HideCargoItemDetailsSurface();
+                            HideEquippedItemDetailsSurface();
                             ClearSelectedItemSelection();
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
                             if (CommitEquippedItemTransfer(entityEvent.Entity, item, otherPanel))
@@ -158,15 +165,14 @@ public class InventoryMenu : MonoBehaviour
                         {
                             HideCurrentShipSettingsSurface();
                             HideCargoItemDetailsSurface();
-                            PropertiesPanel.gameObject.SetActive(true);
                             ClearSelectedItemSelection();
-
-                            PropertiesPanel.Inspect(item);
                             _selectedPanel = panel;
                             _selectedPosition = item.Position;
                             _selectedItem = item.EquippableItem;
+                            _selectedEquippedItem = item;
                             _selectedCells = GetSelectedCells(item.EquippableItem, _selectedPosition);
                             ApplySelectedCellHighlight();
+                            RenderEquippedItemDetailsSurface(item);
                             // TODO: SFX: Success
                         }
                     }
@@ -188,7 +194,7 @@ public class InventoryMenu : MonoBehaviour
             return;
 
         HideCargoItemDetailsSurface();
-        PropertiesPanel.gameObject.SetActive(false);
+        HideEquippedItemDetailsSurface();
         ClearSelectedItemSelection();
 
         var document = ResolveShipSettingsSurfaceDocument();
@@ -286,6 +292,8 @@ public class InventoryMenu : MonoBehaviour
         if (item == null || typedItem == null)
             return;
 
+        HideEquippedItemDetailsSurface();
+
         var document = ResolveCargoItemDetailsSurfaceDocument();
         document.gameObject.SetActive(true);
 
@@ -347,6 +355,327 @@ public class InventoryMenu : MonoBehaviour
 
         _cargoItemDetailsSurfaceDocument.rootVisualElement.Clear();
         _cargoItemDetailsSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private void RenderEquippedItemDetailsSurface(EquippedItem item)
+    {
+        var typedItem = FindTypedInventoryItem(item?.EquippableItem);
+        if (item?.EquippableItem == null || typedItem == null)
+            return;
+
+        var document = ResolveEquippedItemDetailsSurfaceDocument();
+        document.gameObject.SetActive(true);
+
+        var root = document.rootVisualElement;
+        root.Clear();
+        root.style.flexGrow = 1;
+        root.style.position = Position.Absolute;
+        root.style.left = 0;
+        root.style.top = 0;
+        root.style.right = 0;
+        root.style.bottom = 0;
+        root.style.alignItems = Align.FlexStart;
+        root.style.justifyContent = Justify.FlexStart;
+        root.pickingMode = PickingMode.Ignore;
+
+        var shell = new VisualElement();
+        shell.style.width = 460;
+        shell.style.maxWidth = 560;
+        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.94f);
+        shell.style.borderTopLeftRadius = 8;
+        shell.style.borderTopRightRadius = 8;
+        shell.style.borderBottomLeftRadius = 8;
+        shell.style.borderBottomRightRadius = 8;
+        shell.style.paddingLeft = 18;
+        shell.style.paddingRight = 18;
+        shell.style.paddingTop = 18;
+        shell.style.paddingBottom = 18;
+        shell.style.borderLeftWidth = 1;
+        shell.style.borderRightWidth = 1;
+        shell.style.borderTopWidth = 1;
+        shell.style.borderBottomWidth = 1;
+        shell.style.borderLeftColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderRightColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderTopColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.style.borderBottomColor = new Color(0.3f, 0.47f, 0.71f, 0.8f);
+        shell.pickingMode = PickingMode.Position;
+        root.Add(shell);
+
+        var lowerer = new EveUiToolkitSurfaceLowerer();
+        shell.Add(lowerer.Lower(BuildEquippedItemDetailsSurfaceDefinition(item, typedItem), HandleEquippedItemDetailsSurfaceCommand));
+    }
+
+    private void HandleEquippedItemDetailsSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        var item = _selectedEquippedItem;
+        if (item?.EquippableItem == null)
+        {
+            HideEquippedItemDetailsSurface();
+            ClearSelectedItemSelection();
+            return;
+        }
+
+        switch (request.Command)
+        {
+            case CloseEquippedItemDetailsCommand:
+                HideEquippedItemDetailsSurface();
+                ClearSelectedItemSelection();
+                return;
+            case ToggleEquippedItemOverrideShutdownCommand:
+                GameManager.CommitEquippedItemOverrideShutdown(item, !item.EquippableItem.OverrideShutdown);
+                RenderEquippedItemDetailsSurface(item);
+                return;
+            case SetEquippedItemTargetTemperatureCommand:
+                if (TryReadPayloadInt(request, "behaviorIndex", out var behaviorIndex) &&
+                    behaviorIndex >= 0 &&
+                    behaviorIndex < (item.Behaviors?.Length ?? 0) &&
+                    item.Behaviors[behaviorIndex] is Thermotoggle thermotoggle &&
+                    thermotoggle.Adjustable &&
+                    TryReadPayloadFloat(request, "value", out var targetTemperature))
+                {
+                    GameManager.CommitThermotoggleTargetTemperature(thermotoggle, targetTemperature);
+                    RenderEquippedItemDetailsSurface(item);
+                    return;
+                }
+
+                Debug.LogWarning("Unable to apply equipped-item target temperature command.");
+                RenderEquippedItemDetailsSurface(item);
+                return;
+            case ToggleEquippedItemWeaponGroupCommand:
+                if (TryReadPayloadInt(request, "group", out var groupIndex))
+                {
+                    var assigned = !IsWeaponGroupAssigned(item, groupIndex);
+                    if (GameManager.CommitWeaponGroupMembership(item, groupIndex, assigned))
+                    {
+                        RenderEquippedItemDetailsSurface(item);
+                        return;
+                    }
+                }
+
+                Debug.LogWarning("Unable to toggle equipped-item weapon group membership.");
+                return;
+            case BindEquippedItemWeaponGroupCommand:
+                if (TryReadPayloadInt(request, "group", out var bindGroupIndex) &&
+                    TryReadPayloadInt(request, "slot", out var slotIndex) &&
+                    GameManager.CommitWeaponGroupActionBarBinding(slotIndex, bindGroupIndex))
+                {
+                    RenderEquippedItemDetailsSurface(item);
+                    return;
+                }
+
+                Debug.LogWarning("Unable to bind equipped-item weapon group to action bar.");
+                return;
+            case ClearEquippedItemActionBarBindingCommand:
+                if (TryReadPayloadInt(request, "slot", out var clearSlotIndex) &&
+                    GameManager.CommitClearActionBarBinding(clearSlotIndex))
+                {
+                    RenderEquippedItemDetailsSurface(item);
+                    return;
+                }
+
+                Debug.LogWarning("Unable to clear equipped-item action bar binding.");
+                return;
+            default:
+                Debug.LogWarning($"Unknown inventory equipped item details command: {request.Command}");
+                return;
+        }
+    }
+
+    private void HideEquippedItemDetailsSurface()
+    {
+        if (_equippedItemDetailsSurfaceDocument == null)
+            return;
+
+        _equippedItemDetailsSurfaceDocument.rootVisualElement.Clear();
+        _equippedItemDetailsSurfaceDocument.gameObject.SetActive(false);
+    }
+
+    private UIDocument ResolveEquippedItemDetailsSurfaceDocument()
+    {
+        if (_equippedItemDetailsSurfaceDocument != null)
+            return _equippedItemDetailsSurfaceDocument;
+
+        var host = new GameObject("Aetheria Inventory Equipped Item Details Surface");
+        host.transform.SetParent(transform, false);
+        var document = host.AddComponent<UIDocument>();
+        document.sortingOrder = 1002;
+        host.SetActive(false);
+        _equippedItemDetailsSurfaceDocument = document;
+        return document;
+    }
+
+    private EveSurfaceDocument BuildEquippedItemDetailsSurfaceDefinition(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
+    {
+        var children = new List<EveSurfaceComponent>
+        {
+            Card(
+                $"{EquippedItemDetailsSurfaceId}.summary",
+                BuildEquippedItemTitle(item, typedItem),
+                Text(
+                    $"{EquippedItemDetailsSurfaceId}.description",
+                    typedItem.Description ?? "No typed item description is available."),
+                Text(
+                    $"{EquippedItemDetailsSurfaceId}.note",
+                    "InventoryMenu still owns cell selection. This surface replaces the old equipped-item PropertiesPanel shell, including weapon-group and behavior controls."),
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.manufacturer",
+                    "Manufacturer",
+                    ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)?.Name ?? "GameCult"),
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.mass",
+                    "Mass",
+                    ActionGameManager.RuntimePlayerSettings.Format((float)typedItem.Mass))),
+            Card(
+                $"{EquippedItemDetailsSurfaceId}.status.card",
+                "Status",
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.durability",
+                    "Durability",
+                    item.EquippableItem.Durability < .01f
+                        ? "Item Destroyed!"
+                        : $"{(int)(item.EquippableItem.Durability / GetMaxDurability(typedItem, item.EquippableItem) * 100)}%"),
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.temperature",
+                    "Temperature",
+                    ActionGameManager.RuntimePlayerSettings.FormatTemperature(item.Temperature)),
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.thermal_range",
+                    "Thermal Range",
+                    FormatTemperatureRange(typedItem)))
+        };
+
+        foreach (var behaviorCard in BuildItemBehaviorCards(EquippedItemDetailsSurfaceId, typedItem, item.EquippableItem))
+        {
+            children.Add(behaviorCard);
+        }
+
+        children.Add(BuildEquippedItemControlCard(item));
+
+        if (item.GetBehavior<Weapon>() != null)
+        {
+            children.Add(BuildEquippedItemWeaponGroupCard(item));
+            children.AddRange(BuildEquippedItemActionBarCards(item));
+        }
+
+        children.Add(ButtonRow(
+            $"{EquippedItemDetailsSurfaceId}.actions",
+            Button($"{EquippedItemDetailsSurfaceId}.close", "Close", CloseEquippedItemDetailsCommand)));
+
+        return new EveSurfaceDocument(
+            ShipSettingsSurfaceType,
+            ShipSettingsSurfaceSchema,
+            ShipSettingsSurfaceProviderId,
+            ShipSettingsSurfaceProviderKind,
+            "Inventory Equipped Item Details",
+            version: 1,
+            DateTime.UtcNow.ToString("O"),
+            new EveSurfaceTree(
+                EquippedItemDetailsSurfaceId,
+                Node(
+                    $"{EquippedItemDetailsSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    children.ToArray()),
+                Array.Empty<EveStyleToken>()),
+            new[]
+            {
+                new EveCommandTemplate(CloseEquippedItemDetailsCommand, "Close", "unity-uitoolkit"),
+                new EveCommandTemplate(ToggleEquippedItemOverrideShutdownCommand, "Toggle Override Shutdown", "unity-uitoolkit"),
+                new EveCommandTemplate(SetEquippedItemTargetTemperatureCommand, "Set Target Temperature", "unity-uitoolkit"),
+                new EveCommandTemplate(ToggleEquippedItemWeaponGroupCommand, "Toggle Weapon Group", "unity-uitoolkit"),
+                new EveCommandTemplate(BindEquippedItemWeaponGroupCommand, "Bind Weapon Group", "unity-uitoolkit"),
+                new EveCommandTemplate(ClearEquippedItemActionBarBindingCommand, "Clear Action Bar Binding", "unity-uitoolkit")
+            });
+    }
+
+    private EveSurfaceComponent BuildEquippedItemControlCard(EquippedItem item)
+    {
+        var children = new List<EveSurfaceComponent>
+        {
+            Metric(
+                $"{EquippedItemDetailsSurfaceId}.controls.override_shutdown.metric",
+                "Override Shutdown",
+                item.EquippableItem.OverrideShutdown ? "Enabled" : "Disabled"),
+            ButtonRow(
+                $"{EquippedItemDetailsSurfaceId}.controls.override_shutdown.actions",
+                Button(
+                    $"{EquippedItemDetailsSurfaceId}.controls.override_shutdown.toggle",
+                    item.EquippableItem.OverrideShutdown ? "Disable Override" : "Enable Override",
+                    ToggleEquippedItemOverrideShutdownCommand))
+        };
+
+        for (var i = 0; i < (item.Behaviors?.Length ?? 0); i++)
+        {
+            if (item.Behaviors[i] is not Thermotoggle thermotoggle || !thermotoggle.Adjustable)
+                continue;
+
+            children.Add(Metric(
+                $"{EquippedItemDetailsSurfaceId}.controls.thermotoggle.{i}.metric",
+                $"Target Temperature {i + 1}",
+                ActionGameManager.RuntimePlayerSettings.FormatTemperature(thermotoggle.TargetTemperature)));
+            children.Add(TextField(
+                $"{EquippedItemDetailsSurfaceId}.controls.thermotoggle.{i}.input",
+                $"Target Temperature {i + 1}",
+                SetEquippedItemTargetTemperatureCommand,
+                thermotoggle.TargetTemperature.ToString(CultureInfo.InvariantCulture),
+                ("behaviorIndex", i.ToString(CultureInfo.InvariantCulture))));
+        }
+
+        return Card(
+            $"{EquippedItemDetailsSurfaceId}.controls.card",
+            "Controls",
+            children.ToArray());
+    }
+
+    private EveSurfaceComponent BuildEquippedItemWeaponGroupCard(EquippedItem item)
+    {
+        var groupButtons = Enumerable.Range(0, item.Entity?.WeaponGroups?.Length ?? 0)
+            .Select(groupIndex => CommandButton(
+                $"{EquippedItemDetailsSurfaceId}.weapon_groups.{groupIndex}",
+                IsWeaponGroupAssigned(item, groupIndex) ? $"G{groupIndex + 1} On" : $"G{groupIndex + 1} Off",
+                ToggleEquippedItemWeaponGroupCommand,
+                ("group", groupIndex.ToString(CultureInfo.InvariantCulture))))
+            .ToArray();
+
+        return Card(
+            $"{EquippedItemDetailsSurfaceId}.weapon_groups.card",
+            "Weapon Groups",
+            Text(
+                $"{EquippedItemDetailsSurfaceId}.weapon_groups.note",
+                "Toggle membership directly; action-bar group binding is handled below."),
+            ButtonRow($"{EquippedItemDetailsSurfaceId}.weapon_groups.actions", groupButtons));
+    }
+
+    private IEnumerable<EveSurfaceComponent> BuildEquippedItemActionBarCards(EquippedItem item)
+    {
+        for (var slotIndex = 0; slotIndex < GameManager.GetActionBarSlotCount(); slotIndex++)
+        {
+            var bindButtons = Enumerable.Range(0, item.Entity?.WeaponGroups?.Length ?? 0)
+                .Select(groupIndex => CommandButton(
+                    $"{EquippedItemDetailsSurfaceId}.action_bar.{slotIndex}.group.{groupIndex}",
+                    $"G{groupIndex + 1}",
+                    BindEquippedItemWeaponGroupCommand,
+                    ("slot", slotIndex.ToString(CultureInfo.InvariantCulture)),
+                    ("group", groupIndex.ToString(CultureInfo.InvariantCulture))))
+                .Concat(new[]
+                {
+                    CommandButton(
+                        $"{EquippedItemDetailsSurfaceId}.action_bar.{slotIndex}.clear",
+                        "Clear",
+                        ClearEquippedItemActionBarBindingCommand,
+                        ("slot", slotIndex.ToString(CultureInfo.InvariantCulture)))
+                })
+                .ToArray();
+
+            yield return Card(
+                $"{EquippedItemDetailsSurfaceId}.action_bar.{slotIndex}.card",
+                $"Action Bar {GameManager.GetActionBarSlotLabel(slotIndex)}",
+                Metric(
+                    $"{EquippedItemDetailsSurfaceId}.action_bar.{slotIndex}.binding",
+                    "Current",
+                    GameManager.GetActionBarBindingLabel(slotIndex)),
+                ButtonRow($"{EquippedItemDetailsSurfaceId}.action_bar.{slotIndex}.actions", bindButtons));
+        }
     }
 
     private UIDocument ResolveCargoItemDetailsSurfaceDocument()
@@ -463,6 +792,14 @@ public class InventoryMenu : MonoBehaviour
         AetheriaRuntimeCatalogItem typedItem,
         EquippableItem equippableItem)
     {
+        return BuildItemBehaviorCards(CargoItemDetailsSurfaceId, typedItem, equippableItem);
+    }
+
+    private IEnumerable<EveSurfaceComponent> BuildItemBehaviorCards(
+        string surfaceId,
+        AetheriaRuntimeCatalogItem typedItem,
+        EquippableItem equippableItem)
+    {
         foreach (var behavior in typedItem.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
         {
             if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
@@ -471,10 +808,10 @@ public class InventoryMenu : MonoBehaviour
                 var modifier = ReadTypedPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
                 var modifierType = ReadTypedEnum(FindTypedBehaviorField(behavior, 3)?.Value, StatModifierType.Constant);
                 yield return Card(
-                    $"{CargoItemDetailsSurfaceId}.behavior.{behavior.Kind}.stat_modifier",
+                    $"{surfaceId}.behavior.{behavior.Kind}.stat_modifier",
                     "Stat Modifier",
                     Metric(
-                        $"{CargoItemDetailsSurfaceId}.behavior.{behavior.Kind}.target",
+                        $"{surfaceId}.behavior.{behavior.Kind}.target",
                         $"{statReference.target.SplitCamelCase()}:{statReference.stat.SplitCamelCase()}",
                         $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(GameManager.ItemManager.Evaluate(modifier, equippableItem))}"));
                 continue;
@@ -485,7 +822,7 @@ public class InventoryMenu : MonoBehaviour
                 continue;
 
             var fields = metadata.DisplayFields
-                .Select(field => BuildCargoItemBehaviorMetric(behavior, field, equippableItem))
+                .Select(field => BuildItemBehaviorMetric(surfaceId, behavior, field, equippableItem))
                 .Where(metric => metric != null)
                 .ToArray();
 
@@ -493,13 +830,22 @@ public class InventoryMenu : MonoBehaviour
                 continue;
 
             yield return Card(
-                $"{CargoItemDetailsSurfaceId}.behavior.{behavior.Kind}",
+                $"{surfaceId}.behavior.{behavior.Kind}",
                 behavior.Kind.FormatTypeName(),
                 fields);
         }
     }
 
     private EveSurfaceComponent BuildCargoItemBehaviorMetric(
+        AetheriaRuntimeBehaviorPayload behavior,
+        AetheriaRuntimeBehaviorFieldMetadata field,
+        EquippableItem equippableItem)
+    {
+        return BuildItemBehaviorMetric(CargoItemDetailsSurfaceId, behavior, field, equippableItem);
+    }
+
+    private EveSurfaceComponent BuildItemBehaviorMetric(
+        string surfaceId,
         AetheriaRuntimeBehaviorPayload behavior,
         AetheriaRuntimeBehaviorFieldMetadata field,
         EquippableItem equippableItem)
@@ -528,7 +874,7 @@ public class InventoryMenu : MonoBehaviour
         }
 
         return Metric(
-            $"{CargoItemDetailsSurfaceId}.behavior.{behavior.Kind}.{field.Key}",
+            $"{surfaceId}.behavior.{behavior.Kind}.{field.Key}",
             field.Name.SplitCamelCase(),
             value);
     }
@@ -612,6 +958,44 @@ public class InventoryMenu : MonoBehaviour
         return Node(id, "control.button", new[] { ("label", label), ("command", command) });
     }
 
+    private static EveSurfaceComponent CommandButton(
+        string id,
+        string label,
+        string command,
+        params (string Key, string Value)[] props)
+    {
+        var buttonProps = new List<(string Key, string Value)>
+        {
+            ("label", label),
+            ("command", command)
+        };
+
+        if (props != null && props.Length > 0)
+            buttonProps.AddRange(props);
+
+        return Node(id, "control.button", buttonProps);
+    }
+
+    private static EveSurfaceComponent TextField(
+        string id,
+        string label,
+        string command,
+        string value,
+        params (string Key, string Value)[] props)
+    {
+        var fieldProps = new List<(string Key, string Value)>
+        {
+            ("label", label),
+            ("command", command),
+            ("value", value ?? "")
+        };
+
+        if (props != null && props.Length > 0)
+            fieldProps.AddRange(props);
+
+        return Node(id, "control.text", fieldProps);
+    }
+
     private static EveSurfaceComponent ButtonRow(
         string id,
         params EveSurfaceComponent[] children)
@@ -632,6 +1016,36 @@ public class InventoryMenu : MonoBehaviour
             children ?? Array.Empty<EveSurfaceComponent>());
     }
 
+    private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
+    {
+        var (tier, upgrades) = GameManager.ItemManager.GetTier(item.EquippableItem);
+        return $"{typedItem?.Name ?? "Unknown Item"} ({tier.Name}{new string('+', upgrades)})";
+    }
+
+    private static bool IsWeaponGroupAssigned(EquippedItem item, int groupIndex)
+    {
+        return item?.Entity?.WeaponGroups != null &&
+               groupIndex >= 0 &&
+               groupIndex < item.Entity.WeaponGroups.Length &&
+               item.Entity.WeaponGroups[groupIndex].items.Contains(item);
+    }
+
+    private static bool TryReadPayloadInt(EveSurfaceCommandRequest request, string key, out int value)
+    {
+        value = 0;
+        return request?.Payload != null &&
+               request.Payload.TryGetValue(key, out var raw) &&
+               int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryReadPayloadFloat(EveSurfaceCommandRequest request, string key, out float value)
+    {
+        value = 0f;
+        return request?.Payload != null &&
+               request.Payload.TryGetValue(key, out var raw) &&
+               float.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
+    }
+
     private bool CommitCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
     {
         if (destination.DisplayedEntity != null && item is EquippableItem equippableItem)
@@ -648,6 +1062,7 @@ public class InventoryMenu : MonoBehaviour
         ClearSelectedCellHighlight();
         _selectedPanel = null;
         _selectedItem = null;
+        _selectedEquippedItem = null;
         _selectedCells = null;
         _selectedPosition = default;
     }
@@ -820,6 +1235,12 @@ public class InventoryMenu : MonoBehaviour
         {
             Destroy(_cargoItemDetailsSurfaceDocument.gameObject);
             _cargoItemDetailsSurfaceDocument = null;
+        }
+
+        if (_equippedItemDetailsSurfaceDocument != null)
+        {
+            Destroy(_equippedItemDetailsSurfaceDocument.gameObject);
+            _equippedItemDetailsSurfaceDocument = null;
         }
     }
 }
