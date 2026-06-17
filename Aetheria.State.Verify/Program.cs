@@ -512,7 +512,7 @@ Console.WriteLine("Renderer-local console authority: deleted; UI commands flow t
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve UI Toolkit surface instead of the legacy PropertiesPanel/fade shell");
-Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
+Console.WriteLine("Main-menu settings shell: settings/input subpages lower through Eve UI Toolkit surfaces, and the fake audio page is deleted until a typed audio owner exists");
 Console.WriteLine("Confirmation dialog shell: runtime prompts no longer inherit the generic PropertiesPanel machinery");
 Console.WriteLine("Main-menu input shell: the Eve input page delegates to the live runtime remap screen when that owner exists");
 Console.WriteLine("Runtime input-screen authority: hotkey and menu handoff share the same fullscreen-menu primitive");
@@ -2454,14 +2454,11 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "RenderMenuSurface(",
         "BuildSettingsSurfaceDefinition()",
         "BuildInputSettingsSurfaceDefinition(",
-        "BuildAudioSettingsSurfaceDefinition()",
         "HandleSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
-        "HandleAudioSettingsSurfaceCommand(",
         "WithBackAction(",
         "ShowPlayerSettingsCommand",
         "ShowInputSettingsCommand",
-        "ShowAudioSettingsCommand",
         "BackToMainCommand",
         "BackToSettingsCommand"
     };
@@ -2482,6 +2479,9 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "_nextMenu.panel.AddButton(\"Player Settings\"",
         "_nextMenu.panel.AddButton(\"Input\"",
         "_nextMenu.panel.AddButton(\"Audio\"",
+        "BuildAudioSettingsSurfaceDefinition(",
+        "HandleAudioSettingsSurfaceCommand(",
+        "ShowAudioSettingsCommand",
         "_nextMenu.panel.Title.text = \"settings\"",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"input\", \"settings\")",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"audio\", \"settings\")"
@@ -2494,7 +2494,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu still owns settings/input/audio subpages through the old PropertiesPanel shell: " +
+            "MainMenu still keeps a fake audio/settings shell or old PropertiesPanel settings shell alive: " +
             string.Join(", ", hits));
     }
 }

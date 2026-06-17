@@ -112,11 +112,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipped non-launcher weapons through typed behavior kind rows instead of
   inspecting runtime behavior config classes. Unity boot reads typed player
   settings back through the package-owned CultCache reader before falling back
-  to defaults. The main-menu settings navigation, input, and audio subpages now
-  also lower through local Eve/UI Toolkit surfaces instead of repopulating the
-  old `PropertiesPanel` button shell, even though typed rebinding controls and
-  typed audio controls are still future work. Sector-map zone inspection now
-  lowers through a local Eve/UI Toolkit surface as well instead of rebuilding
+  to defaults. The main-menu settings navigation and input subpages now lower
+  through local Eve/UI Toolkit surfaces instead of repopulating the old
+  `PropertiesPanel` button shell, and the input page delegates to the live
+  runtime remap screen when that owner exists. The fake audio page has been
+  deleted until audio has a typed owner. Sector-map zone inspection now lowers
+  through a local Eve/UI Toolkit surface as well instead of rebuilding
   `PropertiesPanel` rows on each zone click. The runtime in-game menu tab strip
   now lowers through a local Eve/UI Toolkit surface, with `MenuPanel`
   serializing tab metadata directly instead of routing authority through old
@@ -1563,13 +1564,14 @@ First Aetheria surfaces to publish:
      a special-case text field; UI Toolkit lowers the shared Eve text control
      and gameplay still owns the typed player-settings commit.
    - Done: replace the whole main-menu shell with Eve-owned UI Toolkit
-     surfaces. Root navigation, settings, input, and audio now lower through a
+     surfaces. Root navigation and settings/input pages now lower through a
      single Eve host instead of the old `PropertiesPanel`/fade shell. The menu
      remains a client-side projection: the Aetheria daemon owns Verse state and
      Unity renders and submits commands. The input page now reports typed state
      and delegates to the live runtime remap screen in the in-game overlay
      instead of pretending that owner is still future work; typed Eve rebinding
-     controls are still future work. Audio still lacks a typed state surface.
+     controls are still future work. The fake audio page is deleted until audio
+     has a typed state owner.
    - Done: replace the sector-map zone details panel with an Eve-owned UI
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player

@@ -27,7 +27,6 @@ public class MainMenu : MonoBehaviour
     private const string MainSurfaceId = "aetheria.main_menu.root";
     private const string SettingsSurfaceId = "aetheria.main_menu.settings";
     private const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
-    private const string AudioSettingsSurfaceId = "aetheria.main_menu.audio_settings";
     private const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
     private const string ContinueRunCommand = "aetheria.main_menu.root.continue";
     private const string NewGameCommand = "aetheria.main_menu.root.new_game";
@@ -36,7 +35,6 @@ public class MainMenu : MonoBehaviour
     private const string OpenRuntimeInputScreenCommand = "aetheria.main_menu.input_settings.open_runtime_screen";
     private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
     private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
-    private const string ShowAudioSettingsCommand = "aetheria.main_menu.settings.show_audio_settings";
     private const string BackToMainCommand = "aetheria.main_menu.settings.back_to_main";
     private const string BackToSettingsCommand = "aetheria.main_menu.settings.back_to_settings";
 
@@ -235,11 +233,6 @@ public class MainMenu : MonoBehaviour
         RenderMenuSurface(BuildInputSettingsSurfaceDefinition(CanOpenRuntimeInputScreen(), InGame), HandleInputSettingsSurfaceCommand);
     }
 
-    private void ShowAudioSettings()
-    {
-        RenderMenuSurface(BuildAudioSettingsSurfaceDefinition(), HandleAudioSettingsSurfaceCommand);
-    }
-
     private void ShowPlayerSettingsSurface()
     {
         RenderMenuSurface(
@@ -294,9 +287,6 @@ public class MainMenu : MonoBehaviour
             case ShowInputSettingsCommand:
                 ShowInputSettings();
                 return;
-            case ShowAudioSettingsCommand:
-                ShowAudioSettings();
-                return;
             case BackToMainCommand:
                 ShowMain();
                 return;
@@ -325,17 +315,6 @@ public class MainMenu : MonoBehaviour
         }
 
         Debug.LogWarning($"Unknown input settings command: {request.Command}");
-    }
-
-    private void HandleAudioSettingsSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
-        {
-            ShowSettings();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown audio settings command: {request.Command}");
     }
 
     private void HandlePlayerSettingsSurfaceCommand(EveSurfaceCommandRequest request)
@@ -452,7 +431,6 @@ public class MainMenu : MonoBehaviour
             {
                 new EveCommandTemplate(ShowPlayerSettingsCommand, "Player Settings", "unity-uitoolkit"),
                 new EveCommandTemplate(ShowInputSettingsCommand, "Input", "unity-uitoolkit"),
-                new EveCommandTemplate(ShowAudioSettingsCommand, "Audio", "unity-uitoolkit"),
                 new EveCommandTemplate(BackToMainCommand, "Back", "unity-uitoolkit")
             },
             Card(
@@ -460,12 +438,11 @@ public class MainMenu : MonoBehaviour
                 "Settings",
                 Text(
                     "aetheria.mainMenu.settings.note",
-                    "Typed Verse settings already lower through Eve. Input rebinding and audio still have narrower local authority."),
+                    "Typed Verse settings already lower through Eve. Input rebinding still hands off to the runtime-owned remap screen, and audio still has no typed surface."),
                 ButtonRow(
                     "aetheria.mainMenu.settings.actions",
                     Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", ShowPlayerSettingsCommand),
                     Button("aetheria.mainMenu.settings.input", "Input", ShowInputSettingsCommand),
-                    Button("aetheria.mainMenu.settings.audio", "Audio", ShowAudioSettingsCommand),
                     Button("aetheria.mainMenu.settings.back", "Back", BackToMainCommand))));
     }
 
@@ -544,26 +521,6 @@ public class MainMenu : MonoBehaviour
                 "aetheria.mainMenu.input.card",
                 "Input Settings",
                 cardChildren.ToArray()));
-    }
-
-    private static EveSurfaceDocument BuildAudioSettingsSurfaceDefinition()
-    {
-        return BuildMenuSurfaceDocument(
-            AudioSettingsSurfaceId,
-            "Aetheria Audio Settings",
-            new[]
-            {
-                new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
-            },
-            Card(
-                "aetheria.mainMenu.audio.card",
-                "Audio Settings",
-                Text(
-                    "aetheria.mainMenu.audio.note",
-                    "No typed audio controls are published yet. This screen is lowered through Eve so the old menu shell stops owning the page while the real audio surface catches up."),
-                ButtonRow(
-                    "aetheria.mainMenu.audio.actions",
-                    Button("aetheria.mainMenu.audio.back", "Back", BackToSettingsCommand))));
     }
 
     private static EveSurfaceDocument WithBackAction(
