@@ -123,7 +123,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   serializing tab metadata directly instead of routing authority through old
   `MenuTabButton` components. Inventory background ship tuning now lowers through a
   local Eve/UI Toolkit surface instead of rebuilding a `PropertiesPanel`
-  float field. Trade target-cargo selection now lowers through a local
+  float field. The dead generic `PropertiesPanel`/`DropdownMenu` shell is now
+  deleted from the main menu, trade, inventory, and map serialized assets
+  instead of lingering as inert prefab ballast. Trade target-cargo selection now lowers through a local
   Eve/UI Toolkit surface instead of rebuilding a `ContextMenu` option list.
   Inventory entity/bay/loadout dropdown navigation now lowers through a local
   Eve/UI Toolkit surface instead of rebuilding nested `ContextMenu`
@@ -1620,6 +1622,8 @@ First Aetheria surfaces to publish:
      inheritance. Runtime prompts still use local uGUI content prefabs for now,
      but the dialog only owns prompt text and text/integer entry instead of
      serializing the whole dead inspector field zoo.
+   - Done: delete the dead generic `PropertiesPanel` / `PropertiesList` /
+     `DropdownMenu` shell from live source plus serialized scene/prefab assets.
    - Then replace runtime HUD/menu/inventory/map screens.
 
 7. Purge
@@ -1827,8 +1831,8 @@ First Aetheria surfaces to publish:
      typed runtime catalog snapshot instead of rebuilding a duplicate lookup
      cache over the same item-key index.
    - Done: delete the dead runtime-projection reflection caches. `ReflectionExtensions`
-     now keeps only the live string-formatting helpers used by `TradeMenu` and
-     `PropertiesPanel`; it no longer scans loaded assemblies or keeps static
+     now keeps only the live string-formatting helpers used by the surviving
+     typed UI surfaces; it no longer scans loaded assemblies or keeps static
      type-cache dictionaries for the old inspector/projection path.
    - Done: delete the dead inspector-specialization metadata. Unused
      header/order/preferred-inspector attribute types and their stale

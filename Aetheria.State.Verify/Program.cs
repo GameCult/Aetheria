@@ -49,7 +49,7 @@ RequireInventoryDropdownUseEveSurface(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
-RequirePropertiesPanelReadOnlyInspector(root);
+RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
 RequireNameToolsUsesUiToolkit(root);
 RequireNoDeadRuntimeProjectionCaches(root);
@@ -526,7 +526,7 @@ Console.WriteLine("Trade filter and row-action shells: filter selection and buy-
 Console.WriteLine("Trade item-details shell: typed item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
 Console.WriteLine("Inventory dropdown shell: entity and loadout navigation lowers through an Eve UI Toolkit surface instead of ContextMenu.AddDropdown");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
-Console.WriteLine("PropertiesPanel inspector authority: dead generic reflection inspector path is deleted");
+Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesList, and DropdownMenu are deleted from source and serialized assets");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
@@ -3718,59 +3718,90 @@ static void RequireMainMenuContinueRunState(string root)
     }
 }
 
-static void RequirePropertiesPanelReadOnlyInspector(string root)
+static void RequireDeadPropertiesPanelShellDeleted(string root)
 {
-    var propertiesPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs");
-    if (!File.Exists(propertiesPanelPath))
+    var deletedShellPaths = new[]
     {
-        throw new InvalidOperationException("Cannot verify PropertiesPanel inspector authority; PropertiesPanel.cs is missing.");
-    }
-
-    var source = File.ReadAllText(propertiesPanelPath);
-    var forbiddenSymbols = new[]
-    {
-        "Inspect(object obj",
-        "Inspect(object obj, FieldInfo field",
-        "public void Inspect(EquippedItem item)",
-        "GetCustomAttribute<InspectableAttribute>",
-        "type.GetCustomAttribute<InspectableAttribute>()",
-        "field.GetValue(obj)",
-        "readWrite",
-        "field.SetValue",
-        "f => field.SetValue",
-        "i => field.SetValue",
-        "b => field.SetValue",
-        "public WeaponGroupAssignment WeaponGroupAssignment;",
-        "public RectTransform DragParent;",
-        "CommitEquippedItemOverrideShutdown(",
-        "CommitThermotoggleTargetTemperature(",
-        "WeaponGroupDragObject"
+        Path.Combine(root, "Assets", "Scripts", "UI", "DropdownMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "DropdownMenu.cs.meta"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs.meta"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesList.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesList.cs.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Dropdown Menu.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Dropdown Menu.prefab.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Properties.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Properties.prefab.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Property List.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Property List.prefab.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Property List 1.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Property List 1.prefab.meta")
     };
 
-    var hits = forbiddenSymbols
-        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+    var survivingShells = deletedShellPaths
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
         .ToArray();
 
-    if (hits.Length > 0)
+    if (survivingShells.Length > 0)
     {
         throw new InvalidOperationException(
-            "PropertiesPanel should not keep the dead generic reflection inspector path or renderer-local write authority: " +
-            string.Join(", ", hits));
+            "The dead generic popup inspector shell still survives in source or prefab assets: " +
+            string.Join(", ", survivingShells));
+    }
+
+    var guidChecks = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scenes", "ARPG.unity")] = new[]
+        {
+            "8c2bf4a7080061d42a87046c37bf0c60",
+            "2544c9c8b6358c54ea58c5fb33bb48b7",
+            "848ae49aff071f5458dcc0322b8b84eb"
+        },
+        [Path.Combine(root, "Assets", "Scenes", "FieldShieldTest.unity")] = new[]
+        {
+            "8c2bf4a7080061d42a87046c37bf0c60",
+            "2544c9c8b6358c54ea58c5fb33bb48b7",
+            "848ae49aff071f5458dcc0322b8b84eb"
+        },
+        [Path.Combine(root, "Assets", "Prefabs", "UI", "Main Menu Canvas.prefab")] = new[]
+        {
+            "8c2bf4a7080061d42a87046c37bf0c60",
+            "2544c9c8b6358c54ea58c5fb33bb48b7",
+            "848ae49aff071f5458dcc0322b8b84eb"
+        }
+    };
+
+    var survivingGuidLinks = guidChecks
+        .SelectMany(entry =>
+        {
+            var text = File.Exists(entry.Key) ? File.ReadAllText(entry.Key) : "";
+            return entry.Value
+                .Where(guid => text.Contains(guid, StringComparison.Ordinal))
+                .Select(guid => $"{Path.GetRelativePath(root, entry.Key)}: {guid}");
+        })
+        .ToArray();
+
+    if (survivingGuidLinks.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Scene or prefab YAML still serializes the deleted generic popup inspector shell: " +
+            string.Join("; ", survivingGuidLinks));
     }
 }
 
 static void RequireTypedBehaviorMetadataCoverage(string root)
 {
     var metadataPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeBehaviorMetadata.cs");
-    var propertiesPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Properties Panel", "PropertiesPanel.cs");
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
 
     var metadata = File.Exists(metadataPath)
         ? File.ReadAllText(metadataPath)
         : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; AetheriaRuntimeBehaviorMetadata.cs is missing.");
-    var propertiesPanel = File.Exists(propertiesPanelPath)
-        ? File.ReadAllText(propertiesPanelPath)
-        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; PropertiesPanel.cs is missing.");
+    var inventoryMenu = File.Exists(inventoryMenuPath)
+        ? File.ReadAllText(inventoryMenuPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; InventoryMenu.cs is missing.");
     var tradeMenu = File.Exists(tradeMenuPath)
         ? File.ReadAllText(tradeMenuPath)
         : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; TradeMenu.cs is missing.");
@@ -3803,14 +3834,14 @@ static void RequireTypedBehaviorMetadataCoverage(string root)
         "FormatTemperature"
     };
 
-    var missingPropertiesSymbols = requiredUiSymbols
-        .Where(symbol => !propertiesPanel.Contains(symbol, StringComparison.Ordinal))
+    var missingInventorySymbols = requiredUiSymbols
+        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingPropertiesSymbols.Length > 0)
+    if (missingInventorySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "PropertiesPanel no longer renders typed temperature-bearing behavior metadata: " +
-            string.Join(", ", missingPropertiesSymbols));
+            "InventoryMenu no longer renders typed temperature-bearing behavior metadata: " +
+            string.Join(", ", missingInventorySymbols));
     }
 
     var missingTradeSymbols = requiredUiSymbols
