@@ -52,7 +52,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowMain()
     {
-        RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), InGame), HandleMainSurfaceCommand);
+        RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), LatestVerseHostSettings(), InGame), HandleMainSurfaceCommand);
     }
 
     private void HandleMainSurfaceCommand(EveSurfaceCommandRequest request)
@@ -170,6 +170,19 @@ public class MainMenu : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"Failed to read typed Aetheria run state for Continue: {ex}");
+            return null;
+        }
+    }
+
+    private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings()
+    {
+        try
+        {
+            return AetheriaRuntimeStateReader.ReadVerseHostSettings(ActionGameManager.RuntimeStateFilePath);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed Aetheria Verse host settings for the main menu: {ex}");
             return null;
         }
     }
@@ -374,11 +387,19 @@ public class MainMenu : MonoBehaviour
 
     private static EveSurfaceDocument BuildMainSurfaceDefinition(
         AetheriaRuntimeRunStateSnapshot continueRun,
+        AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
         bool inGame)
     {
         var commands = new List<EveCommandTemplate>();
         var actionButtons = new List<EveSurfaceComponent>();
         var cardChildren = new List<EveSurfaceComponent>();
+        var verseTitle = string.IsNullOrWhiteSpace(verseHost?.Title) ? "Unknown Verse" : verseHost.Title;
+        var verseId = string.IsNullOrWhiteSpace(verseHost?.VerseId) ? "unknown" : verseHost.VerseId;
+        var verseVisibility = string.IsNullOrWhiteSpace(verseHost?.Visibility) ? "unknown" : verseHost.Visibility;
+        var verseMeshAddress = string.IsNullOrWhiteSpace(verseHost?.CultMeshAddress) ? "unpublished" : verseHost.CultMeshAddress;
+        var verseLabel = string.Equals(verseTitle, verseId, StringComparison.Ordinal)
+            ? verseTitle
+            : $"{verseTitle} ({verseId})";
 
         if (!inGame)
         {
@@ -386,7 +407,7 @@ public class MainMenu : MonoBehaviour
             {
                 cardChildren.Add(Text(
                     $"{MainSurfaceId}.continue.note",
-                    "No typed run state is available yet. Start a new galaxy or connect to a Verse that already has one."));
+                    $"No typed run state is available in {verseLabel} yet. Start a new galaxy or connect to a Verse that already has one."));
             }
             else
             {
@@ -399,6 +420,19 @@ public class MainMenu : MonoBehaviour
             }
         }
 
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.verse.title",
+            "Verse",
+            verseLabel));
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.verse.visibility",
+            "Visibility",
+            verseVisibility));
+        cardChildren.Add(Metric(
+            $"{MainSurfaceId}.verse.mesh",
+            "CultMesh",
+            verseMeshAddress));
+
         commands.Add(new EveCommandTemplate(NewGameCommand, "New Game", "unity-uitoolkit"));
         commands.Add(new EveCommandTemplate(ShowSettingsCommand, "Settings", "unity-uitoolkit"));
         commands.Add(new EveCommandTemplate(QuitCommand, "Quit", "unity-uitoolkit"));
@@ -409,7 +443,7 @@ public class MainMenu : MonoBehaviour
 
         cardChildren.Add(Text(
             $"{MainSurfaceId}.note",
-            "The client lowers this shell through Eve. Verse state and game truth belong to the daemon."));
+            $"The client lowers this shell through Eve. Verse state and game truth belong to the daemon serving {verseLabel}."));
         cardChildren.Add(ButtonColumn($"{MainSurfaceId}.actions", actionButtons.ToArray()));
 
         return BuildMenuSurfaceDocument(

@@ -17,11 +17,13 @@ namespace GameCult.Aetheria.State.Unity
         private const string NameFileSchema = "aetheria.name_file";
         private const string EveSurfaceSchema = "gamecult.eve.surface";
         private const string PlayerSettingsSchema = "aetheria.player_settings";
+        private const string VerseHostSettingsSchema = "aetheria.verse_host_settings";
         private const string LoadoutTemplateSchema = "aetheria.loadout_template";
         private const string RunStateSchema = "aetheria.run_state";
         private const string ZoneStateSchema = "aetheria.zone_state";
         private const string EntitySnapshotSchema = "aetheria.entity_snapshot";
         private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
+        private const string VerseHostSettingsKey = "global:aetheria.verse_host_settings.v1";
 
         public static AetheriaRuntimeCatalogSnapshot OpenReadOnly(string stateFilePath)
         {
@@ -85,6 +87,26 @@ namespace GameCult.Aetheria.State.Unity
                     continue;
 
                 settings = ReadPlayerSettingsPayload(record.Payload);
+            }
+
+            return settings;
+        }
+
+        public static AetheriaRuntimeVerseHostSettingsSnapshot? ReadVerseHostSettings(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            AetheriaRuntimeVerseHostSettingsSnapshot? settings = null;
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (record.Key != VerseHostSettingsKey ||
+                    !catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != VerseHostSettingsSchema)
+                    continue;
+
+                settings = ReadVerseHostSettingsPayload(record.Payload);
             }
 
             return settings;
@@ -427,6 +449,33 @@ namespace GameCult.Aetheria.State.Unity
                 graphics.ShowAsteroidsInMinimap,
                 input.BindingOverrides,
                 input.ActionBarInputs);
+        }
+
+        private static AetheriaRuntimeVerseHostSettingsSnapshot ReadVerseHostSettingsPayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            SkipFields(ref reader, fields, 0, 1);
+            var serviceId = ReadFieldString(ref reader, fields, 1);
+            var verseId = ReadFieldString(ref reader, fields, 2);
+            var rootVerse = ReadFieldString(ref reader, fields, 3);
+            var canonicalService = ReadFieldString(ref reader, fields, 4);
+            var locatedService = ReadFieldString(ref reader, fields, 5);
+            var cultMeshAddress = ReadFieldString(ref reader, fields, 6);
+            var title = ReadFieldString(ref reader, fields, 7);
+            var visibility = ReadFieldString(ref reader, fields, 8);
+            var lastUpdatedAtUtc = ReadFieldString(ref reader, fields, 9);
+            SkipRemaining(ref reader, fields, 10);
+            return new AetheriaRuntimeVerseHostSettingsSnapshot(
+                serviceId,
+                verseId,
+                rootVerse,
+                canonicalService,
+                locatedService,
+                cultMeshAddress,
+                title,
+                visibility,
+                lastUpdatedAtUtc);
         }
 
         private static AetheriaRuntimeLoadoutTemplateSnapshot ReadLoadoutTemplatePayload(byte[] payload)

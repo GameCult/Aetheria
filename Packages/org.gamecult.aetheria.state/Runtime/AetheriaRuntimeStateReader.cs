@@ -20,6 +20,11 @@ namespace GameCult.Aetheria.State.Unity
             return AetheriaRuntimeCatalogStore.ReadPlayerSettings(stateFilePath);
         }
 
+        public static AetheriaRuntimeVerseHostSettingsSnapshot? ReadVerseHostSettings(string stateFilePath)
+        {
+            return AetheriaRuntimeCatalogStore.ReadVerseHostSettings(stateFilePath);
+        }
+
         public static IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot> ReadLoadoutTemplates(string stateFilePath)
         {
             return AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);

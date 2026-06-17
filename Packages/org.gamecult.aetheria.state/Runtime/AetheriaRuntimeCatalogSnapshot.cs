@@ -545,6 +545,41 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<string> ActionBarInputs { get; }
     }
 
+    public sealed class AetheriaRuntimeVerseHostSettingsSnapshot
+    {
+        public AetheriaRuntimeVerseHostSettingsSnapshot(
+            string serviceId,
+            string verseId,
+            string rootVerse,
+            string canonicalService,
+            string locatedService,
+            string cultMeshAddress,
+            string title,
+            string visibility,
+            string lastUpdatedAtUtc)
+        {
+            ServiceId = serviceId;
+            VerseId = verseId;
+            RootVerse = rootVerse;
+            CanonicalService = canonicalService;
+            LocatedService = locatedService;
+            CultMeshAddress = cultMeshAddress;
+            Title = title;
+            Visibility = visibility;
+            LastUpdatedAtUtc = lastUpdatedAtUtc;
+        }
+
+        public string ServiceId { get; }
+        public string VerseId { get; }
+        public string RootVerse { get; }
+        public string CanonicalService { get; }
+        public string LocatedService { get; }
+        public string CultMeshAddress { get; }
+        public string Title { get; }
+        public string Visibility { get; }
+        public string LastUpdatedAtUtc { get; }
+    }
+
     public sealed class AetheriaRuntimeStoryFileHash
     {
         public AetheriaRuntimeStoryFileHash(string storyPath, string hash)

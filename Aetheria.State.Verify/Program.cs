@@ -50,6 +50,7 @@ RequireInventoryDropdownUseEveSurface(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
+RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
@@ -535,6 +536,7 @@ Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotog
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
 Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
+Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
 Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
@@ -2523,7 +2525,7 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "QuitCommand",
         "BuildMainSurfaceDefinition(",
         "HandleMainSurfaceCommand(",
-        "RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), InGame), HandleMainSurfaceCommand);",
+        "RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), LatestVerseHostSettings(), InGame), HandleMainSurfaceCommand);",
         "HideMenuSurface();"
     };
 
@@ -3811,6 +3813,98 @@ static void RequireVerseHostSettingsAuthority(string root)
     }
 }
 
+static void RequireMainMenuVerseHostProjection(string root)
+{
+    var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs");
+    var packageStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
+    var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+
+    var requiredFiles = new[]
+    {
+        packageSnapshotPath,
+        packageStorePath,
+        runtimeStateReaderPath,
+        mainMenuPath
+    };
+
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Main-menu Verse projection cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var packageSnapshot = File.ReadAllText(packageSnapshotPath);
+    var packageStore = File.ReadAllText(packageStorePath);
+    var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
+    var mainMenu = File.ReadAllText(mainMenuPath);
+
+    var requiredSnapshotSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeVerseHostSettingsSnapshot",
+        "public string VerseId",
+        "public string CultMeshAddress",
+        "public string Visibility"
+    };
+    var missingSnapshotSymbols = requiredSnapshotSymbols
+        .Where(symbol => !packageSnapshot.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSnapshotSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime snapshot does not expose typed verse-host settings: " +
+            string.Join(", ", missingSnapshotSymbols));
+    }
+
+    var requiredStoreSymbols = new[]
+    {
+        "VerseHostSettingsSchema = \"aetheria.verse_host_settings\"",
+        "VerseHostSettingsKey = \"global:aetheria.verse_host_settings.v1\"",
+        "ReadVerseHostSettings(string stateFilePath)",
+        "ReadVerseHostSettingsPayload",
+        "AetheriaRuntimeVerseHostSettingsSnapshot"
+    };
+    var missingStoreSymbols = requiredStoreSymbols
+        .Where(symbol => !packageStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStoreSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime store does not preserve typed verse-host read authority: " +
+            string.Join(", ", missingStoreSymbols));
+    }
+
+    if (!runtimeStateReader.Contains("ReadVerseHostSettings", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader no longer exposes typed verse-host settings.");
+    }
+
+    var requiredMainMenuSymbols = new[]
+    {
+        "LatestVerseHostSettings()",
+        "AetheriaRuntimeStateReader.ReadVerseHostSettings(ActionGameManager.RuntimeStateFilePath)",
+        "\"Verse\"",
+        "\"Visibility\"",
+        "\"CultMesh\"",
+        "Verse state and game truth belong to the daemon serving"
+    };
+    var missingMainMenuSymbols = requiredMainMenuSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMainMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer lowers daemon-owned Verse identity through its Eve shell: " +
+            string.Join(", ", missingMainMenuSymbols));
+    }
+}
+
 static void RequireMainMenuContinueRunState(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
@@ -4239,6 +4333,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaRuntimeStateReader",
         "OpenRuntimeCatalog",
         "ReadPlayerSettings",
+        "ReadVerseHostSettings",
         "ReadLoadoutTemplates",
         "ReadRunStates",
         "ReadZoneStates",
@@ -4308,7 +4403,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         },
         [mainMenuPath] = new[]
         {
-            "AetheriaRuntimeCatalogStore.ReadRunStates"
+            "AetheriaRuntimeCatalogStore.ReadRunStates",
+            "AetheriaRuntimeCatalogStore.ReadVerseHostSettings"
         },
         [eveSurfacePresenterPath] = new[]
         {
