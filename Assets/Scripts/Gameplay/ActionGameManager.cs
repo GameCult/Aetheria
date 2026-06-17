@@ -182,7 +182,7 @@ public class ActionGameManager : MonoBehaviour
         var settings = CreateDefaultRuntimePlayerSettings();
         try
         {
-            var stored = AetheriaRuntimeCatalogStore.ReadPlayerSettings(RuntimeStateFilePath);
+            var stored = AetheriaRuntimeStateReader.ReadPlayerSettings(RuntimeStateFilePath);
             if (stored == null)
                 return settings;
 
@@ -245,7 +245,7 @@ public class ActionGameManager : MonoBehaviour
     {
         try
         {
-            var loadouts = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);
+            var loadouts = AetheriaRuntimeStateReader.ReadLoadoutTemplates(stateFilePath);
             LoadoutTemplates.Clear();
             LoadoutTemplates.AddRange(loadouts);
 
@@ -2308,7 +2308,7 @@ public class ActionGameManager : MonoBehaviour
         }
         else
         {
-            RuntimeCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(stateBoot.StateFilePath);
+            RuntimeCatalog = AetheriaRuntimeStateReader.OpenRuntimeCatalog(stateBoot.StateFilePath);
             Debug.Log($"Aetheria typed runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
         }
 
@@ -2629,7 +2629,7 @@ public class ActionGameManager : MonoBehaviour
         AetheriaRuntimeZoneStateSnapshot zoneState;
         try
         {
-            zoneState = AetheriaRuntimeCatalogStore.ReadZoneStates(RuntimeStateFilePath)
+            zoneState = AetheriaRuntimeStateReader.ReadZoneStates(RuntimeStateFilePath)
                 .FirstOrDefault(zone => string.Equals(zone.RecordKey, zoneKey, StringComparison.Ordinal));
         }
         catch (Exception ex)
@@ -2781,7 +2781,7 @@ public class ActionGameManager : MonoBehaviour
         AetheriaRuntimeEntitySnapshot[] entitySnapshots;
         try
         {
-            entitySnapshots = AetheriaRuntimeCatalogStore.ReadEntitySnapshots(RuntimeStateFilePath)
+            entitySnapshots = AetheriaRuntimeStateReader.ReadEntitySnapshots(RuntimeStateFilePath)
                 .Where(entity => entity.RecordKey.StartsWith(zoneEntityKeyPrefix, StringComparison.Ordinal))
                 .OrderBy(entity => EntityIndexFromRecordKey(entity.RecordKey))
                 .ToArray();

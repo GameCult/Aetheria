@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
 using GameCult.Eve.UnityUIToolkit;
@@ -51,8 +50,7 @@ namespace GameCult.Aetheria.EveRuntime
                 return;
             }
 
-            var surface = AetheriaRuntimeCatalogStore.ReadEveSurfaces(statePath)
-                .FirstOrDefault(candidate => string.Equals(candidate.Surface.Id, surfaceId, StringComparison.Ordinal));
+            var surface = AetheriaRuntimeStateReader.ReadEveSurface(statePath, surfaceId);
             if (surface == null)
             {
                 root.Add(BuildError($"Eve surface not found: {surfaceId}"));

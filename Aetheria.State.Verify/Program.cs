@@ -54,6 +54,7 @@ RequireMainMenuContinueRunState(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
 RequireNameToolsUsesUiToolkit(root);
+RequireRuntimeStateReaderOwnsUnityStateAcquisition(root);
 RequireNoDeadRuntimeProjectionCaches(root);
 RequireNoDeadInspectorMetadata(root);
 RequireRuntimeSimulationTuningCommits(root);
@@ -532,6 +533,7 @@ Console.WriteLine("Main-menu Continue authority: Continue selects typed run stat
 Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesList, and DropdownMenu are deleted from source and serialized assets");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
+Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement and operations telemetry");
 Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
 Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
@@ -3829,6 +3831,15 @@ static void RequireMainMenuContinueRunState(string root)
     var packageSnapshot = File.Exists(packageSnapshotPath)
         ? File.ReadAllText(packageSnapshotPath)
         : throw new InvalidOperationException("Cannot verify Continue entity identity; package runtime snapshots are missing.");
+    var runtimeStateReaderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeStateReader.cs");
+    var runtimeStateReader = File.Exists(runtimeStateReaderPath)
+        ? File.ReadAllText(runtimeStateReaderPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity readback; shared runtime state reader is missing.");
     var packageStorePath = Path.Combine(
         root,
         "Packages",
@@ -3837,12 +3848,12 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeCatalogStore.cs");
     var packageStore = File.Exists(packageStorePath)
         ? File.ReadAllText(packageStorePath)
-        : throw new InvalidOperationException("Cannot verify Continue entity readback; package runtime store is missing.");
+        : throw new InvalidOperationException("Cannot verify Continue entity payload readback; package runtime store is missing.");
 
     var requiredMenuSymbols = new[]
     {
         "LatestContinueRun",
-        "AetheriaRuntimeCatalogStore",
+        "AetheriaRuntimeStateReader",
         "ReadRunStates(ActionGameManager.RuntimeStateFilePath)",
         "ContinueGame(continueRun)",
         "ActionGameManager.ContinueRunState = run",
@@ -3858,6 +3869,12 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "MainMenu Continue no longer selects typed run state: " +
             string.Join(", ", missingMenuSymbols));
+    }
+
+    if (!runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader no longer exposes typed run-state lookup for Continue.");
     }
 
     if (mainMenu.Contains("AddButton(\"Continue\", null)", StringComparison.Ordinal))
@@ -4179,6 +4196,141 @@ static void RequireNameToolsUsesUiToolkit(string root)
         throw new InvalidOperationException(
             "NameTools should not regress to IMGUI editor widgets: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
+{
+    var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
+    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var eveSurfacePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
+
+    var requiredPaths = new[]
+    {
+        runtimeStateReaderPath,
+        unityFacadeProjectPath,
+        actionGameManagerPath,
+        mainMenuPath,
+        eveSurfacePresenterPath
+    };
+
+    var missingPaths = requiredPaths
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+
+    if (missingPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime state reader authority cannot be verified because required files are missing: " +
+            string.Join(", ", missingPaths));
+    }
+
+    var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
+    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var mainMenu = File.ReadAllText(mainMenuPath);
+    var eveSurfacePresenter = File.ReadAllText(eveSurfacePresenterPath);
+
+    var requiredReaderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeStateReader",
+        "OpenRuntimeCatalog",
+        "ReadPlayerSettings",
+        "ReadLoadoutTemplates",
+        "ReadRunStates",
+        "ReadZoneStates",
+        "ReadEntitySnapshots",
+        "ReadEveSurface"
+    };
+
+    var missingReaderSymbols = requiredReaderSymbols
+        .Where(symbol => !runtimeStateReader.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingReaderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader is incomplete: " +
+            string.Join(", ", missingReaderSymbols));
+    }
+
+    if (!unityFacadeProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Unity.csproj does not include the shared runtime state reader.");
+    }
+
+    var requiredActionGameManagerSymbols = new[]
+    {
+        "AetheriaRuntimeStateReader.ReadPlayerSettings",
+        "AetheriaRuntimeStateReader.ReadLoadoutTemplates",
+        "AetheriaRuntimeStateReader.OpenRuntimeCatalog",
+        "AetheriaRuntimeStateReader.ReadZoneStates",
+        "AetheriaRuntimeStateReader.ReadEntitySnapshots"
+    };
+
+    var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingActionGameManagerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager does not route typed state reads through the shared runtime reader: " +
+            string.Join(", ", missingActionGameManagerSymbols));
+    }
+
+    if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
+        !mainMenu.Contains("ReadRunStates(ActionGameManager.RuntimeStateFilePath)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer routes Continue-run lookup through the shared runtime state reader.");
+    }
+
+    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.ReadEveSurface", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve surface presenter no longer routes provider surface lookup through the shared runtime state reader.");
+    }
+
+    var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>
+    {
+        [actionGameManagerPath] = new[]
+        {
+            "AetheriaRuntimeCatalogStore.ReadPlayerSettings",
+            "AetheriaRuntimeCatalogStore.ReadLoadoutTemplates",
+            "AetheriaRuntimeCatalogStore.OpenReadOnly",
+            "AetheriaRuntimeCatalogStore.ReadZoneStates",
+            "AetheriaRuntimeCatalogStore.ReadEntitySnapshots"
+        },
+        [mainMenuPath] = new[]
+        {
+            "AetheriaRuntimeCatalogStore.ReadRunStates"
+        },
+        [eveSurfacePresenterPath] = new[]
+        {
+            "AetheriaRuntimeCatalogStore.ReadEveSurfaces"
+        }
+    };
+
+    var directStoreHits = forbiddenDirectStoreSymbols
+        .SelectMany(entry =>
+        {
+            var source = File.ReadAllText(entry.Key);
+            return entry.Value
+                .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)} -> {symbol}");
+        })
+        .ToArray();
+
+    if (directStoreHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay/UI still reads typed state directly from the raw store instead of the shared runtime state reader: " +
+            string.Join("; ", directStoreHits));
     }
 }
 
@@ -4679,7 +4831,7 @@ static void RequireDroppedPickupCheckpointState(string root)
             "ProjectDroppedPickups",
             "DroppedPickups = ProjectDroppedPickups(zone)",
             "RestoreDroppedPickupsFromTypedZoneState",
-            "AetheriaRuntimeCatalogStore.ReadZoneStates(RuntimeStateFilePath)",
+            "AetheriaRuntimeStateReader.ReadZoneStates(RuntimeStateFilePath)",
             "ZoneRenderer.DropItem("
         },
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]

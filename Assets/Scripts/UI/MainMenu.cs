@@ -160,7 +160,7 @@ public class MainMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaRuntimeCatalogStore
+            return AetheriaRuntimeStateReader
                 .ReadRunStates(ActionGameManager.RuntimeStateFilePath)
                 .Where(run => !string.IsNullOrWhiteSpace(run.RunId))
                 .OrderByDescending(run => run.UpdatedAtUtc, StringComparer.Ordinal)
