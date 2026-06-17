@@ -37,7 +37,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     public bool Flip;
     public GameSettings Settings;
     public ActionGameManager GameManager;
-    public ContextMenu ContextMenu;
     public TextMeshProUGUI Title;
     public TextMeshProUGUI MinTempLabel;
     public TextMeshProUGUI MaxTempLabel;

@@ -441,8 +441,6 @@ public class ActionGameManager : MonoBehaviour
     public InventoryPanel ShipPanel;
     public InventoryPanel TargetShipPanel;
     public ConfirmationDialog Dialog;
-    public ContextMenu Context;
-    public DropdownMenu Dropdown;
     
     [Header("Gameplay UI")]
     public CanvasGroup GameplayUI;

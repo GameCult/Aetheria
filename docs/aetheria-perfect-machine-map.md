@@ -1980,6 +1980,10 @@ First Aetheria surfaces to publish:
   UI Toolkit `UIDocument` host and a local Eve surface document instead of
   rebuilding nested `ContextMenu.AddDropdown(...)` and `ContextMenu.AddOption(...)`
   menus.
+- The dead `ContextMenu` popup shell, its prefab assets, and orphan
+  scene/prefab references are deleted outright; `InventoryPanel`,
+  `ActionGameManager`, `TradeMenu`, and `SectorRenderer` no longer keep
+  serialized hooks into dead popup or properties-panel shells.
 - Trade filter selection and simple-commodity buy-quantity entry now lower
   through shared UI Toolkit `UIDocument` hosts and local Eve surface documents
   instead of rebuilding `ContextMenu.AddDropdown(...)`, `ContextMenu.AddOption(...)`,

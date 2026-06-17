@@ -1496,7 +1496,6 @@ MonoBehaviour:
   Flip: 0
   Settings: {fileID: 0}
   GameManager: {fileID: 0}
-  ContextMenu: {fileID: 0}
   Title: {fileID: 2279630453679143108}
   MinTempLabel: {fileID: 5147778229255501832}
   MaxTempLabel: {fileID: 5621828991514048865}

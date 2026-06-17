@@ -23,7 +23,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private const string CloseZoneDetailsCommand = "aetheria.sector_map.zone_details.close";
 
     public ClickRaycaster Raycaster;
-    public PropertiesPanel Properties;
     public Canvas Canvas;
     public SectorMap Map;
     public ActionGameManager GameManager;
@@ -87,8 +86,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void RenderZoneDetailsSurface(GalaxyZone zone)
     {
-        Properties.gameObject.SetActive(false);
-
         var document = ResolveZoneDetailsSurfaceDocument();
         document.gameObject.SetActive(true);
 
@@ -146,7 +143,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void HideZoneDetailsSurface()
     {
-        Properties.gameObject.SetActive(false);
         if (_zoneDetailsSurfaceDocument == null)
             return;
 

@@ -42,6 +42,7 @@ RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireTradeItemDetailsUseEveSurface(root);
 RequireInventoryDropdownUseEveSurface(root);
+RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireMainMenuContinueRunState(root);
 RequirePropertiesPanelReadOnlyInspector(root);
@@ -3012,6 +3013,100 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         throw new InvalidOperationException(
             "InventoryPanel still owns dropdown behavior through the old ContextMenu path: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireNoDeadPopupShells(string root)
+{
+    var deletedShellPaths = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "UI", "ContextMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "ContextMenu.cs.meta"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "ContextMenuOption.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "ContextMenuOption.cs.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Context Menu.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Context Menu.prefab.meta"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Context Menu Option.prefab"),
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Context Menu Option.prefab.meta")
+    };
+
+    var survivingShells = deletedShellPaths
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+
+    if (survivingShells.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "The dead ContextMenu popup shell still survives in source or prefab assets: " +
+            string.Join(", ", survivingShells));
+    }
+
+    var sourceChecks = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs")] = new[]
+        {
+            "public ContextMenu ContextMenu;"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
+        {
+            "public ContextMenu Context;",
+            "public DropdownMenu Dropdown;"
+        },
+        [Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs")] = new[]
+        {
+            "public PropertiesPanel Properties;",
+            "Properties.gameObject.SetActive(false);"
+        }
+    };
+
+    var survivingSymbols = sourceChecks
+        .SelectMany(entry =>
+        {
+            var text = File.Exists(entry.Key) ? File.ReadAllText(entry.Key) : "";
+            return entry.Value
+                .Where(symbol => text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)}: {symbol}");
+        })
+        .ToArray();
+
+    if (survivingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer-local popup shell authority still survives in live source: " +
+            string.Join("; ", survivingSymbols));
+    }
+
+    var serializedChecks = new Dictionary<string, string[]>
+    {
+        [Path.Combine(root, "Assets", "Scenes", "ARPG.unity")] = new[]
+        {
+            "ContextMenu: {",
+            "propertyPath: ContextMenu",
+            "Context: {fileID:",
+            "Properties: {fileID:"
+        },
+        [Path.Combine(root, "Assets", "Prefabs", "UI", "Inventory.prefab")] = new[]
+        {
+            "ContextMenu: {"
+        }
+    };
+
+    var survivingSerializedShells = serializedChecks
+        .SelectMany(entry =>
+        {
+            var text = File.Exists(entry.Key) ? File.ReadAllText(entry.Key) : "";
+            return entry.Value
+                .Where(symbol => text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)}: {symbol}");
+        })
+        .ToArray();
+
+    if (survivingSerializedShells.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Scene or prefab YAML still serializes the deleted popup shell or orphan PropertiesPanel links: " +
+            string.Join("; ", survivingSerializedShells));
     }
 }
 
