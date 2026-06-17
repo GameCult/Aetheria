@@ -423,6 +423,10 @@ truth. The selected remote client target resolves to that replica path. The
 daemon still owns accepted state; the replica is only the local read surface
 Unity lowers from.
 
+The Unity Verse-settings shell can also trigger the same one-shot sync through
+the `Aetheria.State.Replica` bridge when the repo-local tool is available. That
+keeps target selection local while the replica organ owns daemon transport.
+
 `Aetheria.State.ApplyPending` is the smaller local operator applicator for
 queued Unity runtime commits and Eve commands when the server host is not being
 used. It also republishes the typed drain status, operations surface,

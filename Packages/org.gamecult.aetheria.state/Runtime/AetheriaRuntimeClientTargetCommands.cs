@@ -12,6 +12,7 @@ namespace GameCult.Aetheria.State.Unity
         public const string SetDiscoveryEndpoints = "aetheria.client_target.discovery_endpoints.set";
         public const string DiscoverVerses = "aetheria.client_target.discovery.refresh";
         public const string SelectDiscoveredVerse = "aetheria.client_target.discovery.select";
+        public const string SyncReplica = "aetheria.client_target.replica.sync";
 
         public static bool IsKnown(string command)
         {
@@ -23,7 +24,8 @@ namespace GameCult.Aetheria.State.Unity
                 command == SetStateFilePath ||
                 command == SetDiscoveryEndpoints ||
                 command == DiscoverVerses ||
-                command == SelectDiscoveredVerse;
+                command == SelectDiscoveredVerse ||
+                command == SyncReplica;
         }
     }
 }

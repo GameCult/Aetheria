@@ -17,6 +17,8 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<AetheriaRuntimeDiscoveredVerse> discoveredVerses,
             string lastDiscoveryAtUtc,
             string lastDiscoveryError,
+            string lastReplicaSyncAtUtc,
+            string lastReplicaSyncError,
             string targetSource,
             bool supportsLocalStateFileRead,
             string bootFailureMessage,
@@ -36,6 +38,8 @@ namespace GameCult.Aetheria.State.Unity
             DiscoveredVerses = discoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
             LastDiscoveryAtUtc = lastDiscoveryAtUtc ?? "";
             LastDiscoveryError = lastDiscoveryError ?? "";
+            LastReplicaSyncAtUtc = lastReplicaSyncAtUtc ?? "";
+            LastReplicaSyncError = lastReplicaSyncError ?? "";
             TargetSource = targetSource ?? "";
             SupportsLocalStateFileRead = supportsLocalStateFileRead;
             BootFailureMessage = bootFailureMessage ?? "";
@@ -56,6 +60,8 @@ namespace GameCult.Aetheria.State.Unity
         public IReadOnlyList<AetheriaRuntimeDiscoveredVerse> DiscoveredVerses { get; }
         public string LastDiscoveryAtUtc { get; }
         public string LastDiscoveryError { get; }
+        public string LastReplicaSyncAtUtc { get; }
+        public string LastReplicaSyncError { get; }
         public string TargetSource { get; }
         public bool SupportsLocalStateFileRead { get; }
         public string BootFailureMessage { get; }
@@ -98,6 +104,8 @@ namespace GameCult.Aetheria.State.Unity
                 "",
                 "",
                 "",
+                "",
+                "",
                 supportsLocalStateFileRead: true,
                 bootFailureMessage: "",
                 hostTitle: "",
@@ -114,11 +122,12 @@ namespace GameCult.Aetheria.State.Unity
                 ? "Make Private"
                 : "Make Public";
             var lastDiscoveryLabel = string.IsNullOrWhiteSpace(state.LastDiscoveryAtUtc) ? "never" : state.LastDiscoveryAtUtc;
+            var lastReplicaSyncLabel = string.IsNullOrWhiteSpace(state.LastReplicaSyncAtUtc) ? "never" : state.LastReplicaSyncAtUtc;
             var summaryNote = !state.SupportsLocalStateFileRead && !string.IsNullOrWhiteSpace(state.BootFailureMessage)
                 ? state.BootFailureMessage
                 : string.Equals(state.TargetSource, "state-path-override", StringComparison.Ordinal)
                     ? "AETHERIA_STATE_PATH is overriding the persisted client target. Update the environment if you want boot to follow the saved target again."
-                    : "Client target edits persist in aetheria-client.cc. Verse discovery and selection mutate the same typed owner. Verse visibility changes queue provider-owned Eve commands for the daemon bridge.";
+                    : "Client target edits persist in aetheria-client.cc. Verse discovery and selection mutate the same typed owner. Verse visibility changes queue provider-owned Eve commands for the daemon bridge. Remote Verse targets hydrate a cache-only local replica before Unity reads them.";
 
             var discoveryChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
@@ -217,6 +226,13 @@ namespace GameCult.Aetheria.State.Unity
                                 "aetheria.clientTarget.target.replicaStateFilePath",
                                 "Replica State File",
                                 state.TargetReplicaStateFilePath),
+                            Metric(
+                                "aetheria.clientTarget.target.replicaSyncAt",
+                                "Replica Sync",
+                                lastReplicaSyncLabel),
+                            Text(
+                                "aetheria.clientTarget.target.replicaSyncError",
+                                state.LastReplicaSyncError),
                             ButtonRow(
                                 "aetheria.clientTarget.target.actions",
                                 Button(
@@ -225,6 +241,10 @@ namespace GameCult.Aetheria.State.Unity
                                         ? "Use Local State File"
                                         : "Use CultMesh Verse",
                                     AetheriaRuntimeClientTargetCommands.CycleTargetKind),
+                                Button(
+                                    "aetheria.clientTarget.target.syncReplica",
+                                    "Sync Replica",
+                                    AetheriaRuntimeClientTargetCommands.SyncReplica),
                                 Button(
                                     "aetheria.clientTarget.target.refresh",
                                     "Refresh",
@@ -296,6 +316,10 @@ namespace GameCult.Aetheria.State.Unity
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse,
                         "Select Discovered Verse",
+                        "unity-uitoolkit"),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SyncReplica,
+                        "Sync Replica",
                         "unity-uitoolkit"),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeVerseHostCommands.CycleVisibility,

@@ -3878,6 +3878,7 @@ static void RequireClientTargetBootAuthority(string root)
     var bootPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoot.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
     var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
+    var replicaBridgePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseReplicaBridge.cs");
     var bootstrapPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeBootstrap.cs");
     var presenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
@@ -3890,6 +3891,7 @@ static void RequireClientTargetBootAuthority(string root)
         bootPath,
         clientTargetStorePath,
         verseDiscoveryPath,
+        replicaBridgePath,
         bootstrapPath,
         presenterPath,
         actionGameManagerPath,
@@ -3912,6 +3914,7 @@ static void RequireClientTargetBootAuthority(string root)
     var boot = File.ReadAllText(bootPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
     var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
+    var replicaBridge = File.ReadAllText(replicaBridgePath);
     var bootstrap = File.ReadAllText(bootstrapPath);
     var presenter = File.ReadAllText(presenterPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
@@ -3922,7 +3925,8 @@ static void RequireClientTargetBootAuthority(string root)
         "AetheriaRuntimeClientTargetStore.cs",
         "AetheriaRuntimeVerseDiscovery.cs",
         "AetheriaRuntimeStateBoundary.cs",
-        "AetheriaRuntimeStateBoot.cs"
+        "AetheriaRuntimeStateBoot.cs",
+        "AetheriaRuntimeVerseReplicaBridge.cs"
     };
     var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
         .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
@@ -3967,6 +3971,8 @@ static void RequireClientTargetBootAuthority(string root)
         "LastDiscoveryAtUtc",
         "LastDiscoveryError",
         "ReplicaStateFilePath",
+        "LastReplicaSyncAtUtc",
+        "LastReplicaSyncError",
         "ReadOrInitialize",
         "CreateDefault",
         "Write(string clientTargetPath, AetheriaRuntimeClientTargetDocument document)",
@@ -3994,6 +4000,8 @@ static void RequireClientTargetBootAuthority(string root)
         "LastDiscoveryAtUtc",
         "LastDiscoveryError",
         "ReplicaStateFilePath",
+        "LastReplicaSyncAtUtc",
+        "LastReplicaSyncError",
         "TargetLabel",
         "AetheriaRuntimeClientTargetStore.ReadOrInitialize",
         "AetheriaRuntimeStateBoundary.ResolveStatePathOverride()",
@@ -4030,6 +4038,25 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Runtime Verse discovery helper no longer refreshes the typed client-target catalog through CultMesh discovery: " +
             string.Join(", ", missingVerseDiscoverySymbols));
+    }
+
+    var requiredReplicaBridgeSymbols = new[]
+    {
+        "public static class AetheriaRuntimeVerseReplicaBridge",
+        "AetheriaRuntimeVerseReplicaSyncResult",
+        "Aetheria.State.Replica",
+        "Sync(",
+        "ProcessStartInfo",
+        "AetheriaRuntimeStateBoundary.GetReplicaStateFilePath"
+    };
+    var missingReplicaBridgeSymbols = requiredReplicaBridgeSymbols
+        .Where(symbol => !replicaBridge.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingReplicaBridgeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime Verse replica bridge is incomplete: " +
+            string.Join(", ", missingReplicaBridgeSymbols));
     }
 
     var requiredActionGameManagerSymbols = new[]
@@ -4082,6 +4109,8 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.LastDiscoveryAtUtc",
         "stateBoot.LastDiscoveryError",
         "stateBoot.ReplicaStateFilePath",
+        "stateBoot.LastReplicaSyncAtUtc",
+        "stateBoot.LastReplicaSyncError",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""
@@ -4232,6 +4261,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var verseHostCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseHostCommands.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
     var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
+    var replicaBridgePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseReplicaBridge.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var commandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var drainStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandDrainStatus.cs");
@@ -4248,6 +4278,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         verseHostCommandsPath,
         clientTargetStorePath,
         verseDiscoveryPath,
+        replicaBridgePath,
         mainMenuPath,
         commandBridgePath,
         drainStatusPath,
@@ -4274,6 +4305,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var verseHostCommands = File.ReadAllText(verseHostCommandsPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
     var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
+    var replicaBridge = File.ReadAllText(replicaBridgePath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var commandBridge = File.ReadAllText(commandBridgePath);
     var drainStatus = File.ReadAllText(drainStatusPath);
@@ -4285,7 +4317,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
     {
         "AetheriaRuntimeClientTargetCommands.cs",
         "AetheriaRuntimeClientTargetSurfaceBuilder.cs",
-        "AetheriaRuntimeVerseDiscovery.cs"
+        "AetheriaRuntimeVerseDiscovery.cs",
+        "AetheriaRuntimeVerseReplicaBridge.cs"
     };
     var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
         .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
@@ -4314,6 +4347,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "SetDiscoveryEndpoints",
         "DiscoverVerses",
         "SelectDiscoveredVerse",
+        "SyncReplica",
         "IsKnown"
     };
     var missingClientTargetCommandSymbols = requiredClientTargetCommandSymbols
@@ -4351,10 +4385,12 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "\"Verse Discovery\"",
         "\"Daemon Verse Host\"",
         "\"Replica State File\"",
+        "\"Replica Sync\"",
         "AetheriaRuntimeClientTargetCommands.SetStateFilePath",
         "AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints",
         "AetheriaRuntimeClientTargetCommands.DiscoverVerses",
         "AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse",
+        "AetheriaRuntimeClientTargetCommands.SyncReplica",
         "AetheriaRuntimeVerseHostCommands.CycleVisibility",
         "AetheriaRuntimeVerseHostCommands.Refresh"
     };
@@ -4390,6 +4426,23 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", missingVerseDiscoverySymbols));
     }
 
+    var requiredReplicaBridgeSymbols = new[]
+    {
+        "public static class AetheriaRuntimeVerseReplicaBridge",
+        "ProcessStartInfo",
+        "Aetheria.State.Replica",
+        "Sync("
+    };
+    var missingReplicaBridgeSymbols = requiredReplicaBridgeSymbols
+        .Where(symbol => !replicaBridge.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingReplicaBridgeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse replica bridge no longer exposes the sync transport used by the Unity shell: " +
+            string.Join(", ", missingReplicaBridgeSymbols));
+    }
+
     var requiredMainMenuSymbols = new[]
     {
         "VerseSettingsShellSurfaceId",
@@ -4402,6 +4455,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "TryQueueVerseHostCommand(",
         "AetheriaRuntimeClientTargetStore.Update(",
         "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+        "AetheriaRuntimeVerseReplicaBridge.Sync(",
         "ParseDiscoveryEndpoints(",
         "new EveSurfaceCommandRequest(",
         "AetheriaRuntimeVerseHostCommands.SurfaceId"

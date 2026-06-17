@@ -21,7 +21,9 @@ namespace GameCult.Aetheria.State.Unity
             string[] discoveryEndpoints,
             AetheriaRuntimeDiscoveredVerse[] discoveredVerses,
             string lastDiscoveryAtUtc,
-            string lastDiscoveryError)
+            string lastDiscoveryError,
+            string lastReplicaSyncAtUtc,
+            string lastReplicaSyncError)
         {
             ClientTargetPath = clientTargetPath;
             TargetKind = targetKind;
@@ -38,6 +40,8 @@ namespace GameCult.Aetheria.State.Unity
             DiscoveredVerses = discoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
             LastDiscoveryAtUtc = lastDiscoveryAtUtc ?? "";
             LastDiscoveryError = lastDiscoveryError ?? "";
+            LastReplicaSyncAtUtc = lastReplicaSyncAtUtc ?? "";
+            LastReplicaSyncError = lastReplicaSyncError ?? "";
         }
 
         public string ClientTargetPath { get; }
@@ -55,6 +59,8 @@ namespace GameCult.Aetheria.State.Unity
         public AetheriaRuntimeDiscoveredVerse[] DiscoveredVerses { get; }
         public string LastDiscoveryAtUtc { get; }
         public string LastDiscoveryError { get; }
+        public string LastReplicaSyncAtUtc { get; }
+        public string LastReplicaSyncError { get; }
 
         public string TargetLabel =>
             string.IsNullOrWhiteSpace(Title)
@@ -134,7 +140,9 @@ namespace GameCult.Aetheria.State.Unity
                 target.DiscoveryEndpoints?.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? Array.Empty<string>(),
                 target.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
                 target.LastDiscoveryAtUtc ?? "",
-                target.LastDiscoveryError ?? "");
+                target.LastDiscoveryError ?? "",
+                target.LastReplicaSyncAtUtc ?? "",
+                target.LastReplicaSyncError ?? "");
         }
 
         private static string BuildTargetLabel(string title, string verseId)

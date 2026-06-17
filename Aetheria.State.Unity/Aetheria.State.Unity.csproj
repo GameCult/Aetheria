@@ -17,6 +17,7 @@
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseDiscovery.cs" Link="AetheriaRuntimeVerseDiscovery.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoundary.cs" Link="AetheriaRuntimeStateBoundary.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoot.cs" Link="AetheriaRuntimeStateBoot.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseReplicaBridge.cs" Link="AetheriaRuntimeVerseReplicaBridge.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateReader.cs" Link="AetheriaRuntimeStateReader.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeBehaviorMetadata.cs" Link="AetheriaRuntimeBehaviorMetadata.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeBehaviorKinds.cs" Link="AetheriaRuntimeBehaviorKinds.cs" />

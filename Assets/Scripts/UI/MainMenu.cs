@@ -458,6 +458,8 @@ public class MainMenu : MonoBehaviour
                 stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
                 stateBoot.LastDiscoveryAtUtc,
                 stateBoot.LastDiscoveryError,
+                stateBoot.LastReplicaSyncAtUtc,
+                stateBoot.LastReplicaSyncError,
                 stateBoot.TargetSource,
                 stateBoot.SupportsLocalStateFileRead,
                 stateBoot.FailureMessage,
@@ -626,6 +628,41 @@ public class MainMenu : MonoBehaviour
                 return true;
             }
 
+            if (string.Equals(command, AetheriaRuntimeClientTargetCommands.SyncReplica, StringComparison.Ordinal))
+            {
+                var target = AetheriaRuntimeClientTargetStore.ReadOrInitialize(clientTargetPath, defaultStateFilePath);
+                var syncedAtUtc = DateTime.UtcNow.ToString("O");
+                try
+                {
+                    var result = AetheriaRuntimeVerseReplicaBridge.Sync(gameDataDirectory, target);
+                    AetheriaRuntimeClientTargetStore.Update(
+                        clientTargetPath,
+                        defaultStateFilePath,
+                        document =>
+                        {
+                            document.ReplicaStateFilePath = result.ReplicaStateFilePath;
+                            document.LastReplicaSyncAtUtc = syncedAtUtc;
+                            document.LastReplicaSyncError = "";
+                            document.UpdatedAtUtc = syncedAtUtc;
+                        });
+                }
+                catch (Exception ex)
+                {
+                    AetheriaRuntimeClientTargetStore.Update(
+                        clientTargetPath,
+                        defaultStateFilePath,
+                        document =>
+                        {
+                            document.LastReplicaSyncAtUtc = syncedAtUtc;
+                            document.LastReplicaSyncError = ex.Message ?? ex.GetType().Name;
+                            document.UpdatedAtUtc = syncedAtUtc;
+                        });
+                    throw;
+                }
+
+                return true;
+            }
+
             AetheriaRuntimeClientTargetStore.Update(
                 clientTargetPath,
                 defaultStateFilePath,
@@ -637,15 +674,19 @@ public class MainMenu : MonoBehaviour
                             document.TargetKind = string.Equals(document.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
                                 ? AetheriaRuntimeClientTargetKinds.StateFile
                                 : AetheriaRuntimeClientTargetKinds.CultMeshVerse;
+                            document.LastReplicaSyncError = "";
                             break;
                         case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetTitle, StringComparison.Ordinal):
                             document.Title = ReadPayloadValue(payload, "value");
                             break;
                         case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetVerseId, StringComparison.Ordinal):
                             document.VerseId = ReadPayloadValue(payload, "value");
+                            document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
+                            document.LastReplicaSyncError = "";
                             break;
                         case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetCultMeshAddress, StringComparison.Ordinal):
                             document.CultMeshAddress = ReadPayloadValue(payload, "value");
+                            document.LastReplicaSyncError = "";
                             break;
                         case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetStateFilePath, StringComparison.Ordinal):
                             document.StateFilePath = ReadPayloadValue(payload, "value");
@@ -659,8 +700,10 @@ public class MainMenu : MonoBehaviour
                             document.Title = ReadPayloadValue(payload, "title");
                             document.VerseId = ReadPayloadValue(payload, "verseId");
                             document.CultMeshAddress = ReadPayloadValue(payload, "cultMeshAddress");
+                            document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
                             document.DiscoveryEndpoints = ParseDiscoveryEndpoints(ReadPayloadValue(payload, "discoveryEndpoints"));
                             document.LastDiscoveryError = "";
+                            document.LastReplicaSyncError = "";
                             break;
                     }
 

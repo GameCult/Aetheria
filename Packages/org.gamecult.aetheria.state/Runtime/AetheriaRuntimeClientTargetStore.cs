@@ -34,6 +34,8 @@ namespace GameCult.Aetheria.State.Unity
         [Key(9)] public string LastDiscoveryAtUtc { get; set; } = "";
         [Key(10)] public string LastDiscoveryError { get; set; } = "";
         [Key(11)] public string ReplicaStateFilePath { get; set; } = "";
+        [Key(12)] public string LastReplicaSyncAtUtc { get; set; } = "";
+        [Key(13)] public string LastReplicaSyncError { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -96,6 +98,8 @@ namespace GameCult.Aetheria.State.Unity
             document.LastDiscoveryAtUtc ??= "";
             document.LastDiscoveryError ??= "";
             document.ReplicaStateFilePath = NormalizeReplicaStateFilePath(document, clientTargetPath, document.ReplicaStateFilePath);
+            document.LastReplicaSyncAtUtc ??= "";
+            document.LastReplicaSyncError ??= "";
             foreach (var verse in document.DiscoveredVerses)
             {
                 if (verse == null)
