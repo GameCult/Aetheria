@@ -32,6 +32,7 @@ RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
+RequireMainMenuRootUsesEveSurface(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
@@ -507,6 +508,7 @@ Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI T
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
+Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve UI Toolkit surface instead of the legacy PropertiesPanel/fade shell");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
@@ -2488,6 +2490,101 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         throw new InvalidOperationException(
             "MainMenu still owns settings/input/audio subpages through the old PropertiesPanel shell: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireMainMenuRootUsesEveSurface(string root)
+{
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    if (!File.Exists(mainMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu root shell; MainMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(mainMenuPath);
+    var requiredSymbols = new[]
+    {
+        "MainSurfaceId",
+        "ContinueRunCommand",
+        "NewGameCommand",
+        "ShowSettingsCommand",
+        "QuitCommand",
+        "BuildMainSurfaceDefinition(",
+        "HandleMainSurfaceCommand(",
+        "RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), InGame), HandleMainSurfaceCommand);",
+        "HideMenuSurface();"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer lowers the root shell through Eve surfaces: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "PanelPrototype",
+        "FadeTime",
+        "FadeDistance",
+        "FadeAlphaExponent",
+        "FadePositionExponent",
+        "_currentMenu",
+        "_nextMenu",
+        "_fadeFromRight",
+        "_fadeLerp",
+        "_fading",
+        "_panelPosition",
+        "TitleSubtitle(",
+        "IsMenuSurfaceVisible(",
+        "_nextMenu.panel.AddButton(\"Continue\"",
+        "_nextMenu.panel.AddButton(\"New Game\"",
+        "_nextMenu.panel.AddButton(\"Settings\"",
+        "_nextMenu.panel.AddButton(\"Quit\"",
+        "Fade(true)",
+        "Fade(false)"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still owns root navigation through the legacy PropertiesPanel/fade shell: " +
+            string.Join(", ", hits));
+    }
+
+    var prefabPath = Path.Combine(root, "Assets", "Prefabs", "UI", "Main Menu Canvas.prefab");
+    if (!File.Exists(prefabPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu prefab shell; Main Menu Canvas.prefab is missing.");
+    }
+
+    var prefab = File.ReadAllText(prefabPath);
+    var forbiddenPrefabSymbols = new[]
+    {
+        "PanelPrototype:",
+        "FadeTime:",
+        "FadeDistance:",
+        "FadeAlphaExponent:",
+        "FadePositionExponent:"
+    };
+
+    var prefabHits = forbiddenPrefabSymbols
+        .Where(symbol => prefab.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (prefabHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Main-menu prefab still serializes the dead root shell: " +
+            string.Join(", ", prefabHits));
     }
 }
 

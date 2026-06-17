@@ -24,10 +24,15 @@ public class MainMenu : MonoBehaviour
     private const string MenuSurfaceSchema = "gamecult.eve.surface.v1";
     private const string MenuSurfaceProviderId = "aetheria";
     private const string MenuSurfaceProviderKind = "game.menu";
+    private const string MainSurfaceId = "aetheria.main_menu.root";
     private const string SettingsSurfaceId = "aetheria.main_menu.settings";
     private const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
     private const string AudioSettingsSurfaceId = "aetheria.main_menu.audio_settings";
     private const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
+    private const string ContinueRunCommand = "aetheria.main_menu.root.continue";
+    private const string NewGameCommand = "aetheria.main_menu.root.new_game";
+    private const string ShowSettingsCommand = "aetheria.main_menu.root.show_settings";
+    private const string QuitCommand = "aetheria.main_menu.root.quit";
     private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
     private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
     private const string ShowAudioSettingsCommand = "aetheria.main_menu.settings.show_audio_settings";
@@ -38,160 +43,112 @@ public class MainMenu : MonoBehaviour
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
     public bool InGame;
-    public Prototype PanelPrototype;
-    public float FadeTime = .5f;
-    public float FadeDistance = 512;
-    public float FadeAlphaExponent = 2;
-    public float FadePositionExponent = 2;
 
-    private (PropertiesPanel panel, CanvasGroup group) _currentMenu, _nextMenu;
-    private bool _fadeFromRight;
-    private float _fadeLerp;
-    private bool _fading;
-    private Vector3 _panelPosition;
     private UIDocument _menuSurfaceDocument;
     
     void Start()
     {
-        _panelPosition = PanelPrototype.transform.position;
-        
-        var panel1 = PanelPrototype.Instantiate<PropertiesPanel>();
-        _currentMenu = (panel1, panel1.GetComponent<CanvasGroup>());
-        
-        var panel2 = PanelPrototype.Instantiate<PropertiesPanel>();
-        _nextMenu = (panel2, panel2.GetComponent<CanvasGroup>());
-
-        _currentMenu.panel.gameObject.SetActive(false);
-        
         ShowMain();
-        Fade(true);
-    }
-
-    private void Update()
-    {
-        if (_fading)
-        {
-            _fadeLerp += Time.deltaTime / FadeTime;
-
-            _currentMenu.panel.transform.position = 
-                _panelPosition + (_fadeFromRight ? Vector3.left : Vector3.right) * (FadeDistance * pow(_fadeLerp, FadePositionExponent));
-            _nextMenu.panel.transform.position = 
-                _panelPosition + (_fadeFromRight ? Vector3.right : Vector3.left) * (FadeDistance * pow(1-_fadeLerp, FadePositionExponent));
-            _currentMenu.group.alpha = pow(1 - _fadeLerp, FadeAlphaExponent);
-            _nextMenu.group.alpha = pow(_fadeLerp, FadeAlphaExponent);
-            
-            if (_fadeLerp > 1)
-            {
-                _fading = false;
-                _currentMenu.panel.gameObject.SetActive(false);
-                var temp = _currentMenu;
-                _currentMenu = _nextMenu;
-                _nextMenu = temp;
-                if (IsMenuSurfaceVisible())
-                    _currentMenu.panel.gameObject.SetActive(false);
-            }
-        }
-    }
-
-    private string TitleSubtitle(string title, string subtitle) => $"{title}\n<smallcaps><size=50%>{subtitle}";
-
-    private void Fade(bool fromRight)
-    {
-        _nextMenu.panel.gameObject.SetActive(true);
-        _nextMenu.group.alpha = 0;
-        _fading = true;
-        _fadeLerp = 0;
-        _fadeFromRight = fromRight;
-    }
-
-    private bool IsMenuSurfaceVisible()
-    {
-        return _menuSurfaceDocument != null && _menuSurfaceDocument.gameObject.activeSelf;
     }
 
     private void ShowMain()
     {
-        HideMenuSurface();
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
-        if (!InGame)
+        RenderMenuSurface(BuildMainSurfaceDefinition(LatestContinueRun(), InGame), HandleMainSurfaceCommand);
+    }
+
+    private void HandleMainSurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        switch (request.Command)
         {
-            var continueRun = LatestContinueRun();
-            _nextMenu.panel.AddButton("Continue", continueRun == null ? null : () => ContinueGame(continueRun));
-        }
-        _nextMenu.panel.AddButton("New Game",
-            () =>
-            {
-                var generatorState = "Loading typed catalog";
-                Action<string> setState = s => generatorState = s;
-
-                Fade(true);
-                _nextMenu.panel.gameObject.SetActive(false);
-                Dialog.Clear();
-                Dialog.Title.text = "Generating Galaxy";
-                Dialog.AddProperty(() => generatorState);
-                Dialog.Show();
-
-                if (ActionGameManager.RuntimePlayerSettings.TutorialPassed)
+            case ContinueRunCommand:
+                var continueRun = LatestContinueRun();
+                if (continueRun == null)
                 {
-                    Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
-                    ActionGameManager.IsTutorial = false;
-                    var generationSeed = NextGenerationSeed();
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.SectorGenerationSettings,
-                            Settings.SectorBackgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.RuntimeCatalog,
-                            Debug.Log,
-                            setState,
-                            generationSeed);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
-                        });
-                    }).WrapErrors();
+                    Debug.LogWarning("Main-menu Continue requested without a typed run state.");
+                    ShowMain();
+                    return;
                 }
-                else
-                {
-                    int iteration = 1;
-                    do
-                    {
-                        Settings.TutorialBackgroundSettings.NoisePosition = Random.value * 1000;
-                        setState($"Finding Galaxy Position: iteration {iteration++}");
-                    } while (Settings.TutorialBackgroundSettings.CloudDensity(float2(0.5f)) < .5f);
-                    
-                    ActionGameManager.IsTutorial = true;
-                    var generationSeed = NextGenerationSeed();
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.TutorialGenerationSettings,
-                            Settings.TutorialBackgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.RuntimeCatalog,
-                            ActionGameManager.RuntimePlayerSettings,
-                            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
-                            Debug.Log,
-                            setState,
-                            generationSeed);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
-                        });
-                    }).WrapErrors();
-                }
-            });
-        _nextMenu.panel.AddButton("Settings",
-            () =>
-            {
+
+                ContinueGame(continueRun);
+                return;
+            case NewGameCommand:
+                StartNewGame();
+                return;
+            case ShowSettingsCommand:
                 ShowSettings();
-                Fade(true);
-            });
-        _nextMenu.panel.AddButton("Quit", Application.Quit);
+                return;
+            case QuitCommand:
+                Application.Quit();
+                return;
+            default:
+                Debug.LogWarning($"Unknown main menu command: {request.Command}");
+                return;
+        }
+    }
+
+    private void StartNewGame()
+    {
+        var generatorState = "Loading typed catalog";
+        Action<string> setState = s => generatorState = s;
+
+        HideMenuSurface();
+        Dialog.Clear();
+        Dialog.Title.text = "Generating Galaxy";
+        Dialog.AddProperty(() => generatorState);
+        Dialog.Show();
+
+        if (ActionGameManager.RuntimePlayerSettings.TutorialPassed)
+        {
+            Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
+            ActionGameManager.IsTutorial = false;
+            var generationSeed = NextGenerationSeed();
+            Task.Run(() =>
+            {
+                var sector = new Galaxy(
+                    Settings.SectorGenerationSettings,
+                    Settings.SectorBackgroundSettings,
+                    Settings.NameGeneratorSettings,
+                    ActionGameManager.RuntimeCatalog,
+                    Debug.Log,
+                    setState,
+                    generationSeed);
+                Observable.NextFrame().Subscribe(_ =>
+                {
+                    ActionGameManager.CurrentGalaxy = sector;
+                    SceneManager.LoadScene("ARPG");
+                });
+            }).WrapErrors();
+        }
+        else
+        {
+            int iteration = 1;
+            do
+            {
+                Settings.TutorialBackgroundSettings.NoisePosition = Random.value * 1000;
+                setState($"Finding Galaxy Position: iteration {iteration++}");
+            } while (Settings.TutorialBackgroundSettings.CloudDensity(float2(0.5f)) < .5f);
+
+            ActionGameManager.IsTutorial = true;
+            var generationSeed = NextGenerationSeed();
+            Task.Run(() =>
+            {
+                var sector = new Galaxy(
+                    Settings.TutorialGenerationSettings,
+                    Settings.TutorialBackgroundSettings,
+                    Settings.NameGeneratorSettings,
+                    ActionGameManager.RuntimeCatalog,
+                    ActionGameManager.RuntimePlayerSettings,
+                    ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
+                    Debug.Log,
+                    setState,
+                    generationSeed);
+                Observable.NextFrame().Subscribe(_ =>
+                {
+                    ActionGameManager.CurrentGalaxy = sector;
+                    SceneManager.LoadScene("ARPG");
+                });
+            }).WrapErrors();
+        }
     }
 
     private static uint NextGenerationSeed()
@@ -226,8 +183,7 @@ public class MainMenu : MonoBehaviour
         var generatorState = "Loading typed run";
         Action<string> setState = s => generatorState = s;
 
-        Fade(true);
-        _nextMenu.panel.gameObject.SetActive(false);
+        HideMenuSurface();
         Dialog.Clear();
         Dialog.Title.text = "Continuing Run";
         Dialog.AddProperty(() => generatorState);
@@ -270,29 +226,21 @@ public class MainMenu : MonoBehaviour
 
     private void ShowSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.gameObject.SetActive(false);
         RenderMenuSurface(BuildSettingsSurfaceDefinition(), HandleSettingsSurfaceCommand);
     }
 
     private void ShowInputSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.gameObject.SetActive(false);
         RenderMenuSurface(BuildInputSettingsSurfaceDefinition(), HandleInputSettingsSurfaceCommand);
     }
 
     private void ShowAudioSettings()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.gameObject.SetActive(false);
         RenderMenuSurface(BuildAudioSettingsSurfaceDefinition(), HandleAudioSettingsSurfaceCommand);
     }
 
     private void ShowPlayerSettingsSurface()
     {
-        _nextMenu.panel.Clear();
-        _nextMenu.panel.gameObject.SetActive(false);
         RenderMenuSurface(
             WithBackAction(
                 ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
@@ -349,9 +297,7 @@ public class MainMenu : MonoBehaviour
                 ShowAudioSettings();
                 return;
             case BackToMainCommand:
-                HideMenuSurface();
                 ShowMain();
-                Fade(false);
                 return;
             default:
                 Debug.LogWarning($"Unknown settings menu command: {request.Command}");
@@ -434,6 +380,56 @@ public class MainMenu : MonoBehaviour
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
                 DateTime.UtcNow.ToString("O")));
+    }
+
+    private static EveSurfaceDocument BuildMainSurfaceDefinition(
+        AetheriaRuntimeRunStateSnapshot continueRun,
+        bool inGame)
+    {
+        var commands = new List<EveCommandTemplate>();
+        var actionButtons = new List<EveSurfaceComponent>();
+        var cardChildren = new List<EveSurfaceComponent>();
+
+        if (!inGame)
+        {
+            if (continueRun == null)
+            {
+                cardChildren.Add(Text(
+                    $"{MainSurfaceId}.continue.note",
+                    "No typed run state is available yet. Start a new galaxy or connect to a Verse that already has one."));
+            }
+            else
+            {
+                commands.Add(new EveCommandTemplate(ContinueRunCommand, "Continue", "unity-uitoolkit"));
+                actionButtons.Add(Button($"{MainSurfaceId}.continue", "Continue", ContinueRunCommand));
+                cardChildren.Add(Metric(
+                    $"{MainSurfaceId}.continue.run",
+                    "Latest Run",
+                    continueRun.RunId));
+            }
+        }
+
+        commands.Add(new EveCommandTemplate(NewGameCommand, "New Game", "unity-uitoolkit"));
+        commands.Add(new EveCommandTemplate(ShowSettingsCommand, "Settings", "unity-uitoolkit"));
+        commands.Add(new EveCommandTemplate(QuitCommand, "Quit", "unity-uitoolkit"));
+
+        actionButtons.Add(Button($"{MainSurfaceId}.newGame", "New Game", NewGameCommand));
+        actionButtons.Add(Button($"{MainSurfaceId}.settings", "Settings", ShowSettingsCommand));
+        actionButtons.Add(Button($"{MainSurfaceId}.quit", "Quit", QuitCommand));
+
+        cardChildren.Add(Text(
+            $"{MainSurfaceId}.note",
+            "The client lowers this shell through Eve. Verse state and game truth belong to the daemon."));
+        cardChildren.Add(ButtonColumn($"{MainSurfaceId}.actions", actionButtons.ToArray()));
+
+        return BuildMenuSurfaceDocument(
+            MainSurfaceId,
+            "Aetheria Terminus",
+            commands,
+            Card(
+                $"{MainSurfaceId}.card",
+                "Aetheria Terminus",
+                cardChildren.ToArray()));
     }
 
     private static EveSurfaceDocument BuildSettingsSurfaceDefinition()
@@ -592,6 +588,13 @@ public class MainMenu : MonoBehaviour
         params EveSurfaceComponent[] children)
     {
         return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static EveSurfaceComponent ButtonColumn(
+        string id,
+        params EveSurfaceComponent[] children)
+    {
+        return Node(id, "column", Array.Empty<(string Key, string Value)>(), children);
     }
 
     private static EveSurfaceComponent Node(

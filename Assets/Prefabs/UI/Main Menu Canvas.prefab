@@ -916,11 +916,6 @@ MonoBehaviour:
   Settings: {fileID: 11400000, guid: cd2344e2001a37544aab0960c164d4ff, type: 2}
   Dialog: {fileID: 4533226043449861657}
   InGame: 0
-  PanelPrototype: {fileID: 7329274282942065594}
-  FadeTime: 0.5
-  FadeDistance: 1024
-  FadeAlphaExponent: 2
-  FadePositionExponent: 2
 --- !u!1 &4533226043526995715
 GameObject:
   m_ObjectHideFlags: 0

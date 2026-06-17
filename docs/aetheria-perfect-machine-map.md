@@ -1562,12 +1562,13 @@ First Aetheria surfaces to publish:
      `aetheria.player_settings` Eve surface contract. `MainMenu` no longer owns
      a special-case text field; UI Toolkit lowers the shared Eve text control
      and gameplay still owns the typed player-settings commit.
-   - Done: replace the main-menu settings/input/audio subpages with
-     Eve-owned UI Toolkit surfaces. `MainMenu` still owns root navigation and
-     entry/exit flow, but the old `PropertiesPanel` settings shell no longer
-     owns those pages. Input rebinding itself remains on the runtime-owned
-     remap screen until Eve grows typed rebinding controls, and audio still
-     lacks a typed state surface.
+   - Done: replace the whole main-menu shell with Eve-owned UI Toolkit
+     surfaces. Root navigation, settings, input, and audio now lower through a
+     single Eve host instead of the old `PropertiesPanel`/fade shell. The menu
+     remains a client-side projection: the Aetheria daemon owns Verse state and
+     Unity renders and submits commands. Input rebinding itself remains on the
+     runtime-owned remap screen until Eve grows typed rebinding controls, and
+     audio still lacks a typed state surface.
    - Done: replace the sector-map zone details panel with an Eve-owned UI
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player
