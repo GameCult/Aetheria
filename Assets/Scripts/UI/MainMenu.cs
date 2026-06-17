@@ -33,6 +33,7 @@ public class MainMenu : MonoBehaviour
     private const string NewGameCommand = "aetheria.main_menu.root.new_game";
     private const string ShowSettingsCommand = "aetheria.main_menu.root.show_settings";
     private const string QuitCommand = "aetheria.main_menu.root.quit";
+    private const string OpenRuntimeInputScreenCommand = "aetheria.main_menu.input_settings.open_runtime_screen";
     private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
     private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
     private const string ShowAudioSettingsCommand = "aetheria.main_menu.settings.show_audio_settings";
@@ -231,7 +232,7 @@ public class MainMenu : MonoBehaviour
 
     private void ShowInputSettings()
     {
-        RenderMenuSurface(BuildInputSettingsSurfaceDefinition(), HandleInputSettingsSurfaceCommand);
+        RenderMenuSurface(BuildInputSettingsSurfaceDefinition(CanOpenRuntimeInputScreen(), InGame), HandleInputSettingsSurfaceCommand);
     }
 
     private void ShowAudioSettings()
@@ -310,6 +311,16 @@ public class MainMenu : MonoBehaviour
         if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
         {
             ShowSettings();
+            return;
+        }
+
+        if (string.Equals(request.Command, OpenRuntimeInputScreenCommand, StringComparison.Ordinal))
+        {
+            if (!TryOpenRuntimeInputScreen())
+            {
+                ShowInputSettings();
+            }
+
             return;
         }
 
@@ -458,32 +469,81 @@ public class MainMenu : MonoBehaviour
                     Button("aetheria.mainMenu.settings.back", "Back", BackToMainCommand))));
     }
 
-    private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition()
+    private bool CanOpenRuntimeInputScreen()
     {
+        return InGame &&
+               ActionGameManager.Instance != null &&
+               ActionGameManager.Instance.CanShowInputScreenFromMenu() &&
+               ActionGameManager.Instance.InputDisplayLayout != null;
+    }
+
+    private bool TryOpenRuntimeInputScreen()
+    {
+        if (!CanOpenRuntimeInputScreen())
+            return false;
+
+        HideMenuSurface();
+        gameObject.SetActive(false);
+        ActionGameManager.Instance.ShowInputScreenFromMenu();
+        return true;
+    }
+
+    private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition(bool canOpenRuntimeInputScreen, bool inGame)
+    {
+        var commands = new List<EveCommandTemplate>
+        {
+            new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
+        };
+
+        var cardChildren = new List<EveSurfaceComponent>
+        {
+            Metric(
+                "aetheria.mainMenu.input.bindingOverrides",
+                "Binding Overrides",
+                ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count.ToString()),
+            Metric(
+                "aetheria.mainMenu.input.actionBarInputs",
+                "Action-Bar Inputs",
+                ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count.ToString())
+        };
+
+        if (canOpenRuntimeInputScreen)
+        {
+            commands.Insert(0, new EveCommandTemplate(OpenRuntimeInputScreenCommand, "Open Remap Screen", "unity-uitoolkit"));
+            cardChildren.Add(Text(
+                "aetheria.mainMenu.input.note",
+                "The live remap screen owns drag/drop rebinding and low-level InputSystem edits. This surface reports the typed player-settings state and hands off to that owner."));
+        }
+        else if (inGame)
+        {
+            cardChildren.Add(Text(
+                "aetheria.mainMenu.input.note",
+                "The live remap screen should own drag/drop rebinding here, but this scene has no active remap surface to hand off to."));
+        }
+        else
+        {
+            cardChildren.Add(Text(
+                "aetheria.mainMenu.input.note",
+                "This title shell reports the typed player-settings state. Launch a run to open the live remap screen that owns drag/drop rebinding and low-level InputSystem edits."));
+        }
+
+        var buttons = new List<EveSurfaceComponent>();
+        if (canOpenRuntimeInputScreen)
+        {
+            buttons.Add(Button("aetheria.mainMenu.input.openRuntimeScreen", "Open Remap Screen", OpenRuntimeInputScreenCommand));
+        }
+
+        buttons.Add(Button("aetheria.mainMenu.input.back", "Back", BackToSettingsCommand));
+        cardChildren.Add(ButtonRow("aetheria.mainMenu.input.actions", buttons.ToArray()));
+
         return BuildMenuSurfaceDocument(
             InputSettingsSurfaceId,
             "Aetheria Input Settings",
-            new[]
-            {
-                new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
-            },
+            commands,
             Card(
                 "aetheria.mainMenu.input.card",
                 "Input Settings",
-                Metric(
-                    "aetheria.mainMenu.input.bindingOverrides",
-                    "Binding Overrides",
-                    ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count.ToString()),
-                Metric(
-                    "aetheria.mainMenu.input.actionBarInputs",
-                    "Action-Bar Inputs",
-                    ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count.ToString()),
-                Text(
-                    "aetheria.mainMenu.input.note",
-                    "Typed input rebinding controls are not lowered through Eve yet. The live remapping screen still owns drag/drop rebinding and low-level InputSystem edits."),
-                ButtonRow(
-                    "aetheria.mainMenu.input.actions",
-                    Button("aetheria.mainMenu.input.back", "Back", BackToSettingsCommand))));
+                cardChildren.ToArray()));
     }
 
     private static EveSurfaceDocument BuildAudioSettingsSurfaceDefinition()

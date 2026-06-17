@@ -1566,9 +1566,10 @@ First Aetheria surfaces to publish:
      surfaces. Root navigation, settings, input, and audio now lower through a
      single Eve host instead of the old `PropertiesPanel`/fade shell. The menu
      remains a client-side projection: the Aetheria daemon owns Verse state and
-     Unity renders and submits commands. Input rebinding itself remains on the
-     runtime-owned remap screen until Eve grows typed rebinding controls, and
-     audio still lacks a typed state surface.
+     Unity renders and submits commands. The input page now reports typed state
+     and delegates to the live runtime remap screen in the in-game overlay
+     instead of pretending that owner is still future work; typed Eve rebinding
+     controls are still future work. Audio still lacks a typed state surface.
    - Done: replace the sector-map zone details panel with an Eve-owned UI
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player

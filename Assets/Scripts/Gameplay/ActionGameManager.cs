@@ -2654,29 +2654,59 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    public bool CanShowInputScreenFromMenu()
+    {
+        return CurrentEntity != null && HelpScreen != null;
+    }
+
+    public void ShowInputScreenFromMenu()
+    {
+        ShowFullscreenMenu(HelpScreen);
+    }
+
     private void ToggleFullscreenMenu(GameObject menu)
     {
         if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>() != null) return;
-        if (CurrentEntity == null) return;
+        if (menu == null || CurrentEntity == null) return;
         if (menu.activeSelf)
         {
-            _paused = false;
-            menu.SetActive(false);
-            UiRoot.SetActive(true);
-            if (!_menuShown)
-            {
-                EnablePlayerInput();
-                UpdatePlayerPanel();
-                UpdateTargetPanel(CurrentEntity.Target.Value);
-            }
+            HideFullscreenMenu(menu);
         }
         else
         {
-            _paused = true;
-            menu.SetActive(true);
-            UiRoot.SetActive(false);
-            _menuShown = Menu.gameObject.activeSelf;
-            if (!_menuShown) DisablePlayerInput();
+            ShowFullscreenMenu(menu);
+        }
+    }
+
+    private void ShowFullscreenMenu(GameObject menu)
+    {
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.GetComponent<TMP_InputField>() != null) return;
+        if (menu == null || CurrentEntity == null) return;
+
+        if (MainMenu != null && MainMenu.gameObject != menu)
+            MainMenu.gameObject.SetActive(false);
+        if (HelpScreen != null && HelpScreen != menu)
+            HelpScreen.SetActive(false);
+
+        _paused = true;
+        menu.SetActive(true);
+        UiRoot.SetActive(false);
+        _menuShown = Menu.gameObject.activeSelf;
+        if (!_menuShown) DisablePlayerInput();
+    }
+
+    private void HideFullscreenMenu(GameObject menu)
+    {
+        if (menu == null || CurrentEntity == null) return;
+
+        _paused = false;
+        menu.SetActive(false);
+        UiRoot.SetActive(true);
+        if (!_menuShown)
+        {
+            EnablePlayerInput();
+            UpdatePlayerPanel();
+            UpdateTargetPanel(CurrentEntity.Target.Value);
         }
     }
 

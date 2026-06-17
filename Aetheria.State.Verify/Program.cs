@@ -35,6 +35,8 @@ RequireMainMenuSettingsCommit(root);
 RequireMainMenuRootUsesEveSurface(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireConfirmationDialogOwnsMinimalPromptShell(root);
+RequireMainMenuInputSettingsDelegateToRuntimeScreen(root);
+RequireActionGameManagerInputScreenUsesSharedFullscreenPrimitive(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
@@ -512,6 +514,8 @@ Console.WriteLine("Main-menu settings authority: player name, gameplay, and grap
 Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve UI Toolkit surface instead of the legacy PropertiesPanel/fade shell");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
 Console.WriteLine("Confirmation dialog shell: runtime prompts no longer inherit the generic PropertiesPanel machinery");
+Console.WriteLine("Main-menu input shell: the Eve input page delegates to the live runtime remap screen when that owner exists");
+Console.WriteLine("Runtime input-screen authority: hotkey and menu handoff share the same fullscreen-menu primitive");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
@@ -2449,7 +2453,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     {
         "RenderMenuSurface(",
         "BuildSettingsSurfaceDefinition()",
-        "BuildInputSettingsSurfaceDefinition()",
+        "BuildInputSettingsSurfaceDefinition(",
         "BuildAudioSettingsSurfaceDefinition()",
         "HandleSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
@@ -2728,6 +2732,84 @@ static string ReadSerializedMonoBehaviourBlock(string path, string scriptGuid)
 
     throw new InvalidOperationException(
         $"Cannot inspect serialized MonoBehaviour block for script guid {scriptGuid} in {path}.");
+}
+
+static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
+{
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    if (!File.Exists(mainMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu input delegation; MainMenu.cs is missing.");
+    }
+
+    var source = File.ReadAllText(mainMenuPath);
+    var requiredSymbols = new[]
+    {
+        "OpenRuntimeInputScreenCommand",
+        "CanOpenRuntimeInputScreen()",
+        "TryOpenRuntimeInputScreen()",
+        "BuildInputSettingsSurfaceDefinition(CanOpenRuntimeInputScreen(), InGame)",
+        "ActionGameManager.Instance.ShowInputScreenFromMenu();"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu input page no longer delegates to the live runtime remap screen: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "Typed input rebinding controls are not lowered through Eve yet.",
+        "The live remapping screen still owns drag/drop rebinding and low-level InputSystem edits."
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu input page still reports the live remap owner as future work instead of delegating to it: " +
+            string.Join(", ", hits));
+    }
+}
+
+static void RequireActionGameManagerInputScreenUsesSharedFullscreenPrimitive(string root)
+{
+    var managerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    if (!File.Exists(managerPath))
+    {
+        throw new InvalidOperationException("Cannot verify ActionGameManager input-screen delegation; ActionGameManager.cs is missing.");
+    }
+
+    var source = File.ReadAllText(managerPath);
+    var requiredSymbols = new[]
+    {
+        "public bool CanShowInputScreenFromMenu()",
+        "public void ShowInputScreenFromMenu()",
+        "ShowFullscreenMenu(HelpScreen);",
+        "private void ShowFullscreenMenu(GameObject menu)",
+        "private void HideFullscreenMenu(GameObject menu)",
+        "Input.Global.InputScreen.performed += context => ToggleFullscreenMenu(HelpScreen);"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager no longer exposes the shared fullscreen primitive for the live input-screen owner: " +
+            string.Join(", ", missingSymbols));
+    }
 }
 
 static void RequireSectorMapZoneDetailsUseEveSurface(string root)
