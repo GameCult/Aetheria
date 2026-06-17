@@ -92,9 +92,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   remapping UI that calls Unity's InputSystem at the binding/action layer;
   Unity's generated
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
-  the durable owner. Binding drag/drop and action-bar remapping both route
-  through named runtime input commit methods instead of writing the input
-  collections directly. The
+  the durable owner. The runtime Eve input screen now owns low-level rebinding
+  and action-bar input toggles, routing them through named runtime input commit
+  methods instead of writing the input collections directly. The
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops and creates consumable bindings around typed
   catalog rows. Missing typed rows are rejected for consumable binding instead
@@ -1576,10 +1576,12 @@ First Aetheria surfaces to publish:
      single Eve host instead of the old `PropertiesPanel`/fade shell. The menu
      remains a client-side projection: the Aetheria daemon owns Verse state and
      Unity renders and submits commands. The input page now reports typed state
-     and delegates to the live runtime remap screen in the in-game overlay
-     instead of pretending that owner is still future work; typed Eve rebinding
-     controls are still future work. The fake audio page is deleted until audio
-     has a typed state owner.
+     and opens the live runtime Eve input screen in the in-game overlay instead
+     of the old drag/drop uGUI remap shell. The fake audio page is deleted
+     until audio has a typed state owner.
+   - Done: replace the live runtime input remap screen with an Eve-owned UI
+     Toolkit surface that still calls into Aetheria's low-level InputSystem
+     remapping layer through typed player-settings commit methods.
    - Done: replace the sector-map zone details panel with an Eve-owned UI
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player
@@ -2020,9 +2022,11 @@ First Aetheria surfaces to publish:
   owning weapon-group toggles, action-bar group binding, override shutdown,
   and thermotoggle controls directly instead of `PropertiesPanel.Inspect(...)`.
 - Keyboard display layout parsing is no longer JSON-backed:
-  `InputDisplayLayout` builds its static ANSI-104 display projection from typed
-  `InputLayout` rows/columns. The dead commented Ink `ToJson` write path and
-  checked-in `ansi104.json` display file have been removed from live source.
+  the runtime input screen builds its action-bar candidates and rebinding UI
+  from typed input paths, and `InputLayout` remains the typed ANSI-104 keyboard
+  geometry helper instead of a JSON text asset. The dead commented Ink `ToJson`
+  write path and checked-in `ansi104.json` display file have been removed from
+  live source.
 - `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands plus
   player-settings mutation commands, rejects unknown commands, persists

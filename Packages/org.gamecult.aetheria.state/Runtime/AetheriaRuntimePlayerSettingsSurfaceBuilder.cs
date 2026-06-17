@@ -192,7 +192,7 @@ namespace GameCult.Aetheria.State.Unity
                                 ("activeRun", settings.ActiveRunKey)),
                             Text(
                                 "playerSettings.summary.note",
-                                "Input remapping still lives on the runtime-owned screen until Eve grows typed rebinding controls.")),
+                                "Input remapping lowers through the runtime Eve input screen and queues typed player-settings commits.")),
                         Node(
                             "aetheria.playerSettings.gameplay",
                             "card",

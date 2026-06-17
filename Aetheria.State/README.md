@@ -76,8 +76,10 @@ still calls Unity's `InputActionAsset.FromJson`; that is an engine-owned
 lowering boundary under Aetheria's remapping layer, not a save format or state
 owner. The old generated `GameData/KeyboardLayouts/*.msgpack` cache and the
 checked-in `ansi104.json` display file are deleted. Remapping and action-bar
-edits are owned by typed `AetheriaPlayerSettings` commits; keyboard display
-layout edits remain runtime-only until Verse owns a typed layout document.
+edits are owned by typed `AetheriaPlayerSettings` commits, and the live input
+screen now lowers through Eve/UI Toolkit instead of the old drag/drop uGUI
+shell. Keyboard display layout edits remain runtime-only until Verse owns a
+typed layout document.
 The unused Unity Localization package and imported Google Sheets localization
 sample have been removed; the old transitive Unity Newtonsoft package is no
 longer in the manifest or package lock.

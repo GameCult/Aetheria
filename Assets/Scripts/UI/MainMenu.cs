@@ -438,7 +438,7 @@ public class MainMenu : MonoBehaviour
                 "Settings",
                 Text(
                     "aetheria.mainMenu.settings.note",
-                    "Typed Verse settings already lower through Eve. Input rebinding still hands off to the runtime-owned remap screen, and audio still has no typed surface."),
+                    "Typed Verse settings already lower through Eve. Input rebinding now opens the runtime Eve input screen, and audio still has no typed surface."),
                 ButtonRow(
                     "aetheria.mainMenu.settings.actions",
                     Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", ShowPlayerSettingsCommand),
@@ -489,19 +489,19 @@ public class MainMenu : MonoBehaviour
             commands.Insert(0, new EveCommandTemplate(OpenRuntimeInputScreenCommand, "Open Remap Screen", "unity-uitoolkit"));
             cardChildren.Add(Text(
                 "aetheria.mainMenu.input.note",
-                "The live remap screen owns drag/drop rebinding and low-level InputSystem edits. This surface reports the typed player-settings state and hands off to that owner."));
+                "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner."));
         }
         else if (inGame)
         {
             cardChildren.Add(Text(
                 "aetheria.mainMenu.input.note",
-                "The live remap screen should own drag/drop rebinding here, but this scene has no active remap surface to hand off to."));
+                "The runtime Eve input screen should own rebinding here, but this scene has no active input surface to hand off to."));
         }
         else
         {
             cardChildren.Add(Text(
                 "aetheria.mainMenu.input.note",
-                "This title shell reports the typed player-settings state. Launch a run to open the live remap screen that owns drag/drop rebinding and low-level InputSystem edits."));
+                "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding."));
         }
 
         var buttons = new List<EveSurfaceComponent>();

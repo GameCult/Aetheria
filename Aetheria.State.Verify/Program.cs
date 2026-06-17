@@ -36,6 +36,7 @@ RequireMainMenuRootUsesEveSurface(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireConfirmationDialogOwnsMinimalPromptShell(root);
 RequireMainMenuInputSettingsDelegateToRuntimeScreen(root);
+RequireRuntimeInputScreenUsesEveSurface(root);
 RequireActionGameManagerInputScreenUsesSharedFullscreenPrimitive(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
@@ -516,6 +517,7 @@ Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve U
 Console.WriteLine("Main-menu settings shell: settings/input subpages lower through Eve UI Toolkit surfaces, and the fake audio page is deleted until a typed audio owner exists");
 Console.WriteLine("Confirmation dialog shell: runtime prompts no longer inherit the generic PropertiesPanel machinery");
 Console.WriteLine("Main-menu input shell: the Eve input page delegates to the live runtime remap screen when that owner exists");
+Console.WriteLine("Runtime input screen shell: input rebinding lowers through an Eve UI Toolkit surface instead of the old drag/drop uGUI screen");
 Console.WriteLine("Runtime input-screen authority: hotkey and menu handoff share the same fullscreen-menu primitive");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
@@ -2780,6 +2782,116 @@ static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
         throw new InvalidOperationException(
             "MainMenu input page still reports the live remap owner as future work instead of delegating to it: " +
             string.Join(", ", hits));
+    }
+}
+
+static void RequireRuntimeInputScreenUsesEveSurface(string root)
+{
+    var inputScreenPath = Path.Combine(root, "Assets", "Scripts", "UI", "InputScreen", "InputDisplayLayout.cs");
+    var commandsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeInputSettingsCommands.cs");
+    var builderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.cs");
+
+    if (!File.Exists(inputScreenPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime input-screen Eve lowering; InputDisplayLayout.cs is missing.");
+    }
+
+    if (!File.Exists(commandsPath) || !File.Exists(builderPath))
+    {
+        throw new InvalidOperationException(
+            "Cannot verify runtime input-screen Eve lowering; the shared input-settings Eve contract is missing.");
+    }
+
+    var inputScreen = File.ReadAllText(inputScreenPath);
+    var commands = File.ReadAllText(commandsPath);
+    var builder = File.ReadAllText(builderPath);
+
+    var requiredInputScreenSymbols = new[]
+    {
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.Build(",
+        "AetheriaRuntimeInputSettingsCommands.BeginCapture",
+        "AetheriaRuntimeInputSettingsCommands.ToggleActionBar",
+        "new EveUiToolkitSurfaceLowerer()",
+        "UIDocument",
+        "ActionGameManager.CommitRuntimeInputBindingOverride",
+        "ActionGameManager.CommitRuntimeActionBarInput",
+        "action.ApplyBindingOverride",
+        "new InputAction(\"Aetheria Input Capture\")",
+        "HideLegacyChildren()"
+    };
+
+    var missingInputScreenSymbols = requiredInputScreenSymbols
+        .Where(symbol => !inputScreen.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingInputScreenSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime input screen no longer lowers through the Eve UI Toolkit surface contract: " +
+            string.Join(", ", missingInputScreenSymbols));
+    }
+
+    var forbiddenInputScreenSymbols = new[]
+    {
+        "OnPointerClickAsObservable",
+        "BeginDragTrigger",
+        "EndDragTrigger",
+        "VerticalLayoutGroup",
+        "LayoutRebuilder",
+        "UILineRenderer",
+        "Observable.NextFrame()",
+        "DisplayLayout(_inputLayout)"
+    };
+
+    var survivingLegacySymbols = forbiddenInputScreenSymbols
+        .Where(symbol => inputScreen.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (survivingLegacySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime input screen still carries the old drag/drop uGUI authority path: " +
+            string.Join(", ", survivingLegacySymbols));
+    }
+
+    if (!commands.Contains("SurfaceId = \"aetheria.input_settings\"", StringComparison.Ordinal) ||
+        !commands.Contains("BeginCapture", StringComparison.Ordinal) ||
+        !commands.Contains("ToggleActionBar", StringComparison.Ordinal) ||
+        !commands.Contains("public static bool IsKnown", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared input-settings command contract is incomplete.");
+    }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeInputSettingsSurfaceState",
+        "public sealed class AetheriaRuntimeInputBindingSurfaceState",
+        "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
+        "AetheriaRuntimeInputSettingsCommands.BeginCapture",
+        "AetheriaRuntimeInputSettingsCommands.ToggleActionBar",
+        "\"Low-level InputSystem edits flow through this Eve surface and queue typed player-settings commits.\""
+    };
+
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !builder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared input-settings Eve surface builder is incomplete: " +
+            string.Join(", ", missingBuilderSymbols));
     }
 }
 
