@@ -34,6 +34,7 @@ RequireNoRendererLocalDebugPanels(root);
 RequireMainMenuSettingsCommit(root);
 RequireMainMenuRootUsesEveSurface(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
+RequireConfirmationDialogOwnsMinimalPromptShell(root);
 RequireSectorMapZoneDetailsUseEveSurface(root);
 RequireRuntimeMenuTabsUseEveSurface(root);
 RequireInventoryShipSettingsUseEveSurface(root);
@@ -510,6 +511,7 @@ Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester autho
 Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
 Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve UI Toolkit surface instead of the legacy PropertiesPanel/fade shell");
 Console.WriteLine("Main-menu settings shell: settings/input/audio subpages lower through Eve UI Toolkit surfaces instead of PropertiesPanel buttons");
+Console.WriteLine("Confirmation dialog shell: runtime prompts no longer inherit the generic PropertiesPanel machinery");
 Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
 Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
 Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
@@ -2586,6 +2588,146 @@ static void RequireMainMenuRootUsesEveSurface(string root)
             "Main-menu prefab still serializes the dead root shell: " +
             string.Join(", ", prefabHits));
     }
+}
+
+static void RequireConfirmationDialogOwnsMinimalPromptShell(string root)
+{
+    var dialogPath = Path.Combine(root, "Assets", "Scripts", "UI", "ConfirmationDialog.cs");
+    if (!File.Exists(dialogPath))
+    {
+        throw new InvalidOperationException("Cannot verify confirmation dialog shell; ConfirmationDialog.cs is missing.");
+    }
+
+    var source = File.ReadAllText(dialogPath);
+    var requiredSymbols = new[]
+    {
+        "public class ConfirmationDialog : MonoBehaviour",
+        "public TextMeshProUGUI Title;",
+        "public RectTransform Content;",
+        "public Property Property;",
+        "public InputField InputField;",
+        "public void Clear()",
+        "public Property AddProperty(Func<string> read)",
+        "public void AddField(string name, Func<string> read, Action<string> write)",
+        "public void AddField(string name, Func<int> read, Action<int> write)"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ConfirmationDialog no longer owns the minimal prompt shell contract: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        ": PropertiesPanel",
+        "OnPropertyAdded",
+        "RefreshPropertyValues",
+        "PropertyLabel",
+        "Dropdown",
+        "RangedFloatField",
+        "BoolField",
+        "EnumField",
+        "StatSheet"
+    };
+
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ConfirmationDialog still drags generic PropertiesPanel machinery into the prompt shell: " +
+            string.Join(", ", hits));
+    }
+
+    var prefabBlock = ReadSerializedMonoBehaviourBlock(
+        Path.Combine(root, "Assets", "Prefabs", "UI", "Main Menu Canvas.prefab"),
+        "83488dc4b5e58cd40b4d1c4ee98207b5");
+    var sceneBlock = ReadSerializedMonoBehaviourBlock(
+        Path.Combine(root, "Assets", "Scenes", "ARPG.unity"),
+        "83488dc4b5e58cd40b4d1c4ee98207b5");
+
+    var forbiddenSerializedFields = new[]
+    {
+        "Spacer:",
+        "Dropdown:",
+        "Section:",
+        "List:",
+        "PropertyLabel:",
+        "Attribute:",
+        "RangedFloatField:",
+        "ProgressField:",
+        "EnumField:",
+        "BoolField:",
+        "PropertyButton:",
+        "ButtonField:",
+        "IncrementField:",
+        "StatSheet:",
+        "CurveField:",
+        "SelectedChild:",
+        "GameManager:"
+    };
+
+    foreach (var (label, block) in new[] { ("Main Menu Canvas.prefab", prefabBlock), ("ARPG.unity", sceneBlock) })
+    {
+        var blockHits = forbiddenSerializedFields
+            .Where(symbol => block.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+
+        if (blockHits.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"ConfirmationDialog still serializes dead PropertiesPanel fields in {label}: " +
+                string.Join(", ", blockHits));
+        }
+    }
+}
+
+static string ReadSerializedMonoBehaviourBlock(string path, string scriptGuid)
+{
+    if (!File.Exists(path))
+    {
+        throw new InvalidOperationException($"Cannot inspect serialized MonoBehaviour block; file is missing: {path}");
+    }
+
+    var lines = File.ReadAllLines(path);
+    var scriptLine = $"guid: {scriptGuid}";
+    for (var index = 0; index < lines.Length; index++)
+    {
+        if (!lines[index].Contains(scriptLine, StringComparison.Ordinal))
+        {
+            continue;
+        }
+
+        var start = index;
+        while (start >= 0 && !lines[start].StartsWith("--- !u!114 ", StringComparison.Ordinal))
+        {
+            start--;
+        }
+
+        if (start < 0)
+        {
+            break;
+        }
+
+        var end = start + 1;
+        while (end < lines.Length && !lines[end].StartsWith("--- !u!", StringComparison.Ordinal))
+        {
+            end++;
+        }
+
+        return string.Join(Environment.NewLine, lines.Skip(start).Take(end - start));
+    }
+
+    throw new InvalidOperationException(
+        $"Cannot inspect serialized MonoBehaviour block for script guid {scriptGuid} in {path}.");
 }
 
 static void RequireSectorMapZoneDetailsUseEveSurface(string root)

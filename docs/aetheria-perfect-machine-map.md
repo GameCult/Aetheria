@@ -1613,6 +1613,10 @@ First Aetheria surfaces to publish:
      copies.
    - Done: delete the old IMGUI DB inspector; it is no longer a blocker on the
      live UI migration path.
+   - Done: cut `ConfirmationDialog` loose from generic `PropertiesPanel`
+     inheritance. Runtime prompts still use local uGUI content prefabs for now,
+     but the dialog only owns prompt text and text/integer entry instead of
+     serializing the whole dead inspector field zoo.
    - Then replace runtime HUD/menu/inventory/map screens.
 
 7. Purge

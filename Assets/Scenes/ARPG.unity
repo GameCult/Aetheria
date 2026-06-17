@@ -9857,37 +9857,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 83488dc4b5e58cd40b4d1c4ee98207b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Spacer: {fileID: 0}
-  Dropdown: {fileID: 178733681}
   Title: {fileID: 738229278}
-  Section: {fileID: 1026668114703092140, guid: 3a149ea40b43fbf47b51ec165cb04e5f, type: 3}
-  List: {fileID: 6914334813923144328, guid: 93e63e3a8b352a04897123288d70f04b, type: 3}
   Property: {fileID: 9159917045172241898, guid: be88722a74d512d45a454fe91327a389,
-    type: 3}
-  PropertyLabel: {fileID: 279061376544739623, guid: 5b8c5126640066e4fabe6e65b7225b3b,
-    type: 3}
-  Attribute: {fileID: 4447025208748278043, guid: 5e3a258a5b91c8246b20962ba6eccb09,
     type: 3}
   InputField: {fileID: 6586910564433979167, guid: fb49ef180533e3e488fa39d80cc2423a,
     type: 3}
-  RangedFloatField: {fileID: 1663396771457720812, guid: c214f62d8f2188140b96ed12798034c8,
-    type: 3}
-  ProgressField: {fileID: 256436433275418348, guid: e6524d59d9bc67545b0eb1304bfb9d4b,
-    type: 3}
-  EnumField: {fileID: 1444953514731475975, guid: f19a14cd178d48f49ace9ad217bea2ed,
-    type: 3}
-  BoolField: {fileID: 7661950293931311388, guid: 001ad6a15f0d582458d359c0ae4405ed,
-    type: 3}
-  PropertyButton: {fileID: 4311087511401681413, guid: 99bde06e2f0ca504bb95f2a4e3429462,
-    type: 3}
-  ButtonField: {fileID: 6566784227922820057, guid: 6db1feb4cda7b8c419384cd42c85a5c4,
-    type: 3}
-  IncrementField: {fileID: 5486709585343280439, guid: 9c14c92a1a08b0a4fb4f6aa6f8504082,
-    type: 3}
-  StatSheet: {fileID: 0}
-  CurveField: {fileID: 0}
   Content: {fileID: 620555923}
-  GameManager: {fileID: 0}
   CancelClickCatcher: {fileID: 1420548305}
   ButtonGroup: {fileID: 947321577}
   Cancel: {fileID: 1176624628}
