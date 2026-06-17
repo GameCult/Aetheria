@@ -3315,6 +3315,7 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
     {
         "Inspect(object obj",
         "Inspect(object obj, FieldInfo field",
+        "public void Inspect(EquippedItem item)",
         "GetCustomAttribute<InspectableAttribute>",
         "type.GetCustomAttribute<InspectableAttribute>()",
         "field.GetValue(obj)",
@@ -3322,7 +3323,12 @@ static void RequirePropertiesPanelReadOnlyInspector(string root)
         "field.SetValue",
         "f => field.SetValue",
         "i => field.SetValue",
-        "b => field.SetValue"
+        "b => field.SetValue",
+        "public WeaponGroupAssignment WeaponGroupAssignment;",
+        "public RectTransform DragParent;",
+        "CommitEquippedItemOverrideShutdown(",
+        "CommitThermotoggleTargetTemperature(",
+        "WeaponGroupDragObject"
     };
 
     var hits = forbiddenSymbols
@@ -3582,33 +3588,32 @@ static void RequireWeaponGroupCommitAuthority(string root)
             "Weapon group membership no longer has a gameplay-owned checkpoint commit primitive.");
     }
 
-    var assignmentPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupAssignment.cs");
-    var assignment = File.Exists(assignmentPath)
-        ? File.ReadAllText(assignmentPath)
-        : throw new InvalidOperationException("Cannot verify weapon group authority; WeaponGroupAssignment.cs is missing.");
-
-    var forbiddenSymbols = new[]
-    {
-        ".WeaponGroups[i1].items.Add",
-        ".WeaponGroups[i1].items.Remove",
-        ".WeaponGroups[i1].weapons.Add",
-        ".WeaponGroups[i1].weapons.Remove"
-    };
-
-    var hits = forbiddenSymbols
-        .Where(symbol => assignment.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-
-    if (hits.Length > 0)
+    if (actionGameManager.Contains("WeaponGroupDragObject", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "WeaponGroupAssignment still mutates weapon groups directly: " +
-            string.Join(", ", hits));
+            "Weapon-group action-bar binding still keeps the dead drag-object path alive instead of routing through live gameplay APIs.");
     }
 
-    if (!assignment.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal))
+    var assignmentPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupAssignment.cs");
+    var elementPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupElement.cs");
+    var weaponGroupsPrefabPath = Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Fancy", "Weapon Groups.prefab");
+    var weaponGroupPrefabPath = Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Fancy", "Weapon Group.prefab");
+
+    var survivingLegacyPaths = new[]
     {
-        throw new InvalidOperationException("WeaponGroupAssignment no longer routes membership changes through ActionGameManager.");
+        assignmentPath,
+        elementPath,
+        weaponGroupsPrefabPath,
+        weaponGroupPrefabPath
+    }
+        .Where(File.Exists)
+        .ToArray();
+
+    if (survivingLegacyPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Legacy inventory weapon-group uGUI shells still survive after the Eve surface cut: " +
+            string.Join(", ", survivingLegacyPaths.Select(path => Path.GetRelativePath(root, path))));
     }
 }
 
@@ -4100,24 +4105,6 @@ static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)
     return string.Equals(value.Kind, kind, StringComparison.OrdinalIgnoreCase) ||
            value.Children.Any(child => ContainsBehaviorValueKind(child, kind)) ||
            value.MapEntries.Any(entry => ContainsBehaviorValueKind(entry.Value, kind));
-}
-
-static int CountOccurrences(string source, string pattern)
-{
-    if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(pattern))
-    {
-        return 0;
-    }
-
-    var count = 0;
-    var index = 0;
-    while ((index = source.IndexOf(pattern, index, StringComparison.Ordinal)) >= 0)
-    {
-        count++;
-        index += pattern.Length;
-    }
-
-    return count;
 }
 
 static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaBehaviorPayload payload)

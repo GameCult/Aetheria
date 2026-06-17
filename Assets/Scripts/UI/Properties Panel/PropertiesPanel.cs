@@ -3,7 +3,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -11,7 +10,6 @@ using GameCult.Aetheria.State.Unity;
 using TMPro;
 using UniRx;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
@@ -36,18 +34,13 @@ public class PropertiesPanel : MonoBehaviour
     public IncrementField IncrementField;
     public StatSheet StatSheet;
     public CurveField CurveField;
-    public WeaponGroupAssignment WeaponGroupAssignment;
     public RectTransform Content;
-    public RectTransform DragParent;
     
     [HideInInspector] public ActionGameManager GameManager;
 
     protected List<GameObject> Properties = new List<GameObject>();
     protected event Action RefreshPropertyValues;
     protected bool RadioSelection = false;
-
-    private RectTransform _dragObject;
-    
 
     protected event Action<GameObject> OnPropertyAdded;
     protected Action OnPropertiesChanged;
@@ -568,81 +561,6 @@ public class PropertiesPanel : MonoBehaviour
 		var name = typedItem?.Name ?? "Unknown Item";
 		return
 			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
-	}
-
-	public void Inspect(EquippedItem item)
-	{
-		Clear();
-		if (item?.EquippableItem == null) return;
-		
-		Title.text = GetTitle(item.EquippableItem);
-		
-		AddItemProperties(item.EquippableItem);
-		AddSpacer();
-
-		if (item.GetBehavior<Weapon>() != null)
-		{
-			var weaponGroups = Instantiate(WeaponGroupAssignment, Content ?? transform);
-			weaponGroups.Inspect(item);
-			var dragOffset = Vector2.zero;
-			Transform dragObject = null;
-			weaponGroups.OnBeginDragAsObservable().Subscribe(x =>
-			{
-				//Debug.Log($"Began dragging weapon group {x.group}");
-				GameManager.BeginDrag(new WeaponGroupDragObject(x.group));
-				dragObject = Instantiate(weaponGroups.Groups[x.group], DragParent, true).transform;
-				dragOffset = (Vector2)dragObject.position - x.pointerEventData.position;
-			});
-			weaponGroups.OnDragAsObservable().Subscribe(x =>
-			{
-				dragObject.position = x.pointerEventData.position + dragOffset;
-			});
-			weaponGroups.OnEndDragAsObservable().Subscribe(x =>
-			{
-				//Debug.Log($"Ended dragging weapon group {x.group}");
-				GameManager.EndDrag();
-				Destroy(dragObject.gameObject);
-			});
-			Properties.Add(weaponGroups.gameObject);
-			OnPropertyAdded?.Invoke(weaponGroups.gameObject);
-		}
-		
-		var typedItem = FindTypedPropertyItem(item.EquippableItem);
-		var thermalRange = GetThermalRange(typedItem);
-		var thermalCurve = GetThermalPerformanceCurve(typedItem);
-		var statusSheet = AddStatSheet();
-		if (item.EquippableItem.Durability < .01f)
-			statusSheet.AddStat("Durability", () => "Item Destroyed!");
-		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / GetMaxDurability(item.EquippableItem) * 100)}%");
-		statusSheet.AddStat("Temperature", () => ActionGameManager.RuntimePlayerSettings.FormatTemperature(item.Temperature));
-		
-		var heatCurve = AddCurveField();
-		heatCurve.Show(
-			"Thermal Performance",
-			thermalCurve,
-			t => ActionGameManager.RuntimePlayerSettings.FormatTemperature(lerp(thermalRange.minimum, thermalRange.maximum, t)),
-			true);
-		RefreshPropertyValues += () => heatCurve.SetCurrent(unlerp(thermalRange.minimum, thermalRange.maximum, item.Temperature));
-		AddEquippableItemProperties(item.EquippableItem, item.Evaluate);
-		AddSpacer();
-		
-		AddField("Override Shutdown",
-			() => item.EquippableItem.OverrideShutdown,
-			b => ActionGameManager.Instance?.CommitEquippedItemOverrideShutdown(item, b));
-		
-		foreach (var behavior in item.Behaviors)
-		{
-			switch (behavior)
-			{
-				case Thermotoggle thermotoggle when thermotoggle.Adjustable:
-					AddField("Target Temperature",
-						() => thermotoggle.TargetTemperature,
-						temp => ActionGameManager.Instance?.CommitThermotoggleTargetTemperature(thermotoggle, temp));
-					break;
-			}
-		}
-
-		RefreshValues();
 	}
 
 	public void Inspect(ItemInstance item)

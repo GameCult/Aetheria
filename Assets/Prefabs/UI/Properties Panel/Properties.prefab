@@ -787,8 +787,6 @@ MonoBehaviour:
   CurveField: {fileID: 3018914896466881005, guid: 168887bbd3de8c74eb3f06d3d46dda4e,
     type: 3}
   Content: {fileID: 257019179596293679}
-  WeaponGroupAssignment: {fileID: 8654742830357802168, guid: fbe6efeb205a68946af7a6f1cb8b9904,
-    type: 3}
   SelectedChild: {fileID: 0}
   GameManager: {fileID: 0}
 --- !u!222 &7131821417165215473

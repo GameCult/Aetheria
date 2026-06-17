@@ -9890,9 +9890,7 @@ MonoBehaviour:
     type: 3}
   StatSheet: {fileID: 0}
   CurveField: {fileID: 0}
-  WeaponGroupAssignment: {fileID: 0}
   Content: {fileID: 620555923}
-  DragParent: {fileID: 0}
   GameManager: {fileID: 0}
   CancelClickCatcher: {fileID: 1420548305}
   ButtonGroup: {fileID: 947321577}
@@ -36898,9 +36896,7 @@ MonoBehaviour:
     type: 3}
   StatSheet: {fileID: 0}
   CurveField: {fileID: 0}
-  WeaponGroupAssignment: {fileID: 0}
   Content: {fileID: 3255828831356619720}
-  DragParent: {fileID: 0}
   GameManager: {fileID: 0}
 --- !u!114 &5496444666756201237
 MonoBehaviour:

@@ -1521,10 +1521,9 @@ First Aetheria surfaces to publish:
      in a dialog, but gameplay owns the entity `Name` mutation and queues the
      typed entity snapshot checkpoint.
    - Done: route weapon group membership changes through
-     `ActionGameManager.CommitWeaponGroupMembership`. `WeaponGroupAssignment`
-     remains a uGUI control for now, but it no longer adds/removes items or
-     weapons from `Entity.WeaponGroups` directly; gameplay owns the membership
-     mutation and typed checkpoint.
+     `ActionGameManager.CommitWeaponGroupMembership`. The old
+     `WeaponGroupAssignment` uGUI shell and its prefab chain have been deleted;
+     gameplay owns the membership mutation and typed checkpoint outright.
    - Done: route action-bar drag/drop bindings through
      `ActionGameManager.CommitActionBarBinding`, and restore them from typed
      run-state descriptors when the current entity changes or a typed continue

@@ -865,12 +865,6 @@ public class ActionGameManager : MonoBehaviour
                 return consumable == null
                     ? null
                     : new ActionBarConsumableBinding(entity, slot, consumable);
-            case WeaponGroupDragObject weaponGroupDragAction:
-                return entity.WeaponGroups != null &&
-                       weaponGroupDragAction.Group >= 0 &&
-                       weaponGroupDragAction.Group < entity.WeaponGroups.Length
-                    ? new ActionBarWeaponGroupBinding(entity, slot, weaponGroupDragAction.Group)
-                    : null;
             default:
                 return null;
         }
@@ -3688,16 +3682,6 @@ public class ActionGameManager : MonoBehaviour
 }
 
 public abstract class DragObject{}
-
-public class WeaponGroupDragObject : DragObject
-{
-    public WeaponGroupDragObject(int group)
-    {
-        Group = group;
-    }
-
-    public int Group { get; }
-}
 
 public abstract class ItemDragObject : DragObject
 {
