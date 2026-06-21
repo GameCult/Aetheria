@@ -22,6 +22,9 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
         new Dictionary<int, AetheriaDaemonRenderGroupBatch>();
     private readonly HashSet<int> _seenGroupIds = new HashSet<int>();
     private readonly List<int> _staleGroupIds = new List<int>();
+    private readonly List<AetheriaRuntimeDaemonRenderGroupDocument> _visibleRenderGroups =
+        new List<AetheriaRuntimeDaemonRenderGroupDocument>();
+    private readonly Vector3[] _frustumCorners = new Vector3[8];
     private static readonly int MatrixBufferPropertyId =
         Shader.PropertyToID(AetheriaDaemonRenderBuffer.MatrixBufferPropertyName);
     private static readonly int InstanceCountPropertyId =
@@ -60,7 +63,8 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
         var index = observer.LastSoaIndex;
         var view = observer.LastRenderNativeView;
         _seenGroupIds.Clear();
-        foreach (var renderGroup in index.RenderGroups)
+        var renderGroups = QueryRenderGroups(index);
+        foreach (var renderGroup in renderGroups)
         {
             _seenGroupIds.Add(renderGroup.GroupId);
             if (!assetCatalog.TryResolveMesh(renderGroup.MeshKey, out var mesh) ||
@@ -115,6 +119,58 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
 
         ReleaseStaleBatches();
         return drewAny;
+    }
+
+    private IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> QueryRenderGroups(
+        AetheriaRuntimeDaemonSoaViewIndex index)
+    {
+        if (!TryGetCameraQueryBounds(out var min, out var max))
+        {
+            return index.RenderGroups;
+        }
+
+        AetheriaRuntimeDaemonRenderQueries.QueryRenderGroups(
+            index,
+            min.x,
+            min.y,
+            min.z,
+            max.x,
+            max.y,
+            max.z,
+            _visibleRenderGroups);
+        return _visibleRenderGroups;
+    }
+
+    private bool TryGetCameraQueryBounds(out Vector3 min, out Vector3 max)
+    {
+        var camera = targetCamera != null ? targetCamera : Camera.main;
+        if (camera == null || !camera.enabled)
+        {
+            min = default;
+            max = default;
+            return false;
+        }
+
+        var near = Mathf.Max(0.0f, camera.nearClipPlane);
+        var far = Mathf.Max(near, camera.farClipPlane);
+        _frustumCorners[0] = camera.ViewportToWorldPoint(new Vector3(0, 0, near));
+        _frustumCorners[1] = camera.ViewportToWorldPoint(new Vector3(1, 0, near));
+        _frustumCorners[2] = camera.ViewportToWorldPoint(new Vector3(0, 1, near));
+        _frustumCorners[3] = camera.ViewportToWorldPoint(new Vector3(1, 1, near));
+        _frustumCorners[4] = camera.ViewportToWorldPoint(new Vector3(0, 0, far));
+        _frustumCorners[5] = camera.ViewportToWorldPoint(new Vector3(1, 0, far));
+        _frustumCorners[6] = camera.ViewportToWorldPoint(new Vector3(0, 1, far));
+        _frustumCorners[7] = camera.ViewportToWorldPoint(new Vector3(1, 1, far));
+
+        min = _frustumCorners[0];
+        max = _frustumCorners[0];
+        for (var i = 1; i < _frustumCorners.Length; i++)
+        {
+            min = Vector3.Min(min, _frustumCorners[i]);
+            max = Vector3.Max(max, _frustumCorners[i]);
+        }
+
+        return true;
     }
 
     private Bounds GetDrawBounds(AetheriaRuntimeDaemonRenderGroupDocument renderGroup)

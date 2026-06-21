@@ -1783,6 +1783,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ? File.ReadAllText(packageSnapshotPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; package snapshot documents are missing.");
 
+    var indirectRendererPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonIndirectRenderer.cs");
+    var indirectRenderer = File.Exists(indirectRendererPath)
+        ? File.ReadAllText(indirectRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaDaemonIndirectRenderer.cs is missing.");
+
     var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
     var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
         ? File.ReadAllText(canonicalSnapshotPath)
@@ -1835,6 +1840,23 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "Daemon body snapshots must publish resolved gravity influence fields so render clients do not reconstruct Unity gravity state: " +
             string.Join("; ", missingSnapshotSymbols));
+    }
+
+    var requiredRendererSymbols = new[]
+    {
+        "private readonly List<AetheriaRuntimeDaemonRenderGroupDocument> _visibleRenderGroups",
+        "AetheriaRuntimeDaemonRenderQueries.QueryRenderGroups(",
+        "TryGetCameraQueryBounds(out var min, out var max)",
+        "return index.RenderGroups;"
+    };
+    var missingRendererSymbols = requiredRendererSymbols
+        .Where(symbol => !indirectRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingRendererSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity's daemon indirect renderer must query daemon SoA render groups by camera bounds before lowering draw calls: " +
+            string.Join(", ", missingRendererSymbols));
     }
 }
 

@@ -591,6 +591,139 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesFilterRenderGroupsByBounds()
+    {
+        var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
+            "aetheria-daemon",
+            "session-render-query",
+            130,
+            131,
+            new[]
+            {
+                new AetheriaRuntimeDaemonSoaBufferDocument
+                {
+                    BufferId = "render-hot",
+                    ByteLength = 128
+                }
+            },
+            new[]
+            {
+                new AetheriaRuntimeDaemonSoaColumnDocument
+                {
+                    ColumnId = "render-group-id",
+                    Kind = AetheriaRuntimeDaemonSoaColumnKinds.RenderGroupId,
+                    BufferId = "render-hot",
+                    ScalarType = "uint32",
+                    ElementStride = 4,
+                    ElementCount = 16
+                }
+            },
+            renderGroups: new[]
+            {
+                new AetheriaRuntimeDaemonRenderGroupDocument
+                {
+                    GroupId = 1,
+                    MeshKey = "ships/djinni",
+                    MaterialKey = "materials/ships/hull",
+                    BoundsCenterX = 0,
+                    BoundsCenterY = 0,
+                    BoundsCenterZ = 0,
+                    BoundsSizeX = 8,
+                    BoundsSizeY = 8,
+                    BoundsSizeZ = 8
+                },
+                new AetheriaRuntimeDaemonRenderGroupDocument
+                {
+                    GroupId = 2,
+                    MeshKey = "ships/far",
+                    MaterialKey = "materials/ships/hull",
+                    BoundsCenterX = 100,
+                    BoundsCenterY = 0,
+                    BoundsCenterZ = 0,
+                    BoundsSizeX = 8,
+                    BoundsSizeY = 8,
+                    BoundsSizeZ = 8
+                }
+            });
+
+        var index = AetheriaRuntimeDaemonSoaViewIndex.Build(view);
+        var groups = new List<AetheriaRuntimeDaemonRenderGroupDocument>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryRenderGroups(
+            index,
+            -10,
+            -10,
+            -10,
+            10,
+            10,
+            10,
+            groups);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual(1, groups[0].GroupId);
+    }
+
+    [Test]
+    public void DaemonRenderQueriesFilterGravityInfluencesByXzViewport()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:near",
+                    OrbitKey = "orbit:near",
+                    Kind = "gas_giant",
+                    GravityInfluenceCenterX = 4,
+                    GravityInfluenceCenterZ = 0,
+                    GravityInfluenceRadius = 6,
+                    GravityWellDepth = 20,
+                    GravityDepthExponent = 12,
+                    GravityWaveRadius = 9,
+                    GravityWaveDepth = 3,
+                    GravityWaveSpeed = 2
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:far",
+                    OrbitKey = "orbit:far",
+                    Kind = "planet",
+                    GravityInfluenceCenterX = 100,
+                    GravityInfluenceCenterZ = 0,
+                    GravityInfluenceRadius = 4,
+                    GravityWellDepth = 10
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:legacy-missing-radius",
+                    OrbitKey = "orbit:legacy",
+                    Kind = "planet",
+                    GravityInfluenceCenterX = 0,
+                    GravityInfluenceCenterZ = 0
+                }
+            }
+        };
+
+        var brushes = new List<AetheriaRuntimeGravityInfluenceBrush>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryGravityInfluences(
+            zone,
+            new AetheriaRuntimeXzRect(-10, -10, 10, 10),
+            brushes);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual("body:near", brushes[0].BodyKey);
+        Assert.AreEqual(AetheriaRuntimeGravityInfluenceKind.GasGiant, brushes[0].Kind);
+        Assert.AreEqual(9, brushes[0].Radius);
+        Assert.AreEqual(20, brushes[0].GravityDepth);
+        Assert.AreEqual(12, brushes[0].GravityDepthExponent);
+        Assert.AreEqual(9, brushes[0].WaveRadius);
+        Assert.AreEqual(3, brushes[0].WaveDepth);
+        Assert.AreEqual(2, brushes[0].WaveSpeed);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
