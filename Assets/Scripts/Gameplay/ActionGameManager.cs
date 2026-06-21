@@ -851,11 +851,6 @@ public class ActionGameManager : MonoBehaviour
         return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
-    private static int ZoneIndex(GalaxyZone zone)
-    {
-        return zone?.ZoneIndex ?? -1;
-    }
-
     private static GalaxyZone FindObservedGalaxyZone(int daemonZoneIndex)
     {
         return daemonZoneIndex < 0
@@ -863,15 +858,14 @@ public class ActionGameManager : MonoBehaviour
             : ObservedGalaxy?.Zones?.FirstOrDefault(zone => zone != null && zone.ZoneIndex == daemonZoneIndex);
     }
 
-    public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(GalaxyZone zone)
+    public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(int daemonZoneIndex)
     {
-        var zoneIndex = ZoneIndex(zone);
-        if (zoneIndex < 0)
+        if (daemonZoneIndex < 0)
             return null;
 
         var run = ResolveDaemonObserver()?.LastObservedState?.Run;
         return (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-            .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == zoneIndex);
+            .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == daemonZoneIndex);
     }
 
     public GalaxyZone CurrentDaemonGalaxyZone
