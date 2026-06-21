@@ -1995,6 +1995,38 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsRejectsMissingLoadoutTemplateWithoutChargingCredits()
+    {
+        var run = RunWithTwoEntities();
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.RestoreLoadout,
+            "codex",
+            "session-loadout",
+            32,
+            "zone.0.entity.0");
+        command.TargetEntityKey = "zone.0.entity.0";
+        command.TextValue = "Missing";
+        command.ScalarValue = 250;
+        command.LoadoutRestore.DockedEntityKey = "zone.0.entity.0";
+        command.LoadoutRestore.TemplateName = "Missing";
+        command.LoadoutRestore.Price = 250;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            new[] { command },
+            new AetheriaRuntimeDaemonOperationContext
+            {
+                LoadoutTemplates = Array.Empty<AetheriaRuntimeLoadoutTemplateCommit>()
+            });
+
+        Assert.AreEqual(0, result.AppliedCommandIds.Count);
+        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(1000, run.Credits);
+        Assert.AreEqual(2, run.Zones[0].Entities.Count);
+        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.0.entity.0.v1", run.CurrentEntityKey);
+    }
+
+    [Test]
     public void DaemonOperationsDestroysEntityInDaemonState()
     {
         var run = RunWithTwoEntities();

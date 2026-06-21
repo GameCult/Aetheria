@@ -9204,6 +9204,20 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
             "Unity loadout restore still rejects requests through renderer-local credits instead of daemon acceptance.");
     }
 
+    var daemonOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var daemonOperations = File.Exists(daemonOperationsPath)
+        ? File.ReadAllText(daemonOperationsPath)
+        : throw new InvalidOperationException("Cannot verify loadout restore authority; daemon operations are missing.");
+    var missingTemplateCheck = daemonOperations.IndexOf("if (template == null)", StringComparison.Ordinal);
+    var creditMutation = daemonOperations.IndexOf("run.Credits -= price", StringComparison.Ordinal);
+    if (missingTemplateCheck < 0 ||
+        creditMutation < 0 ||
+        missingTemplateCheck > creditMutation)
+    {
+        throw new InvalidOperationException(
+            "Daemon loadout restore must reject missing templates before charging credits or mutating run state.");
+    }
+
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
     var inventoryPanel = File.Exists(inventoryPanelPath)
         ? File.ReadAllText(inventoryPanelPath)

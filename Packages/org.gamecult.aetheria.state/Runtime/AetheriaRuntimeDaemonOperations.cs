@@ -873,22 +873,21 @@ namespace GameCult.Aetheria.State.Verse
                 .FirstOrDefault(candidate =>
                     candidate != null &&
                     string.Equals(candidate.Name ?? "", templateName, StringComparison.Ordinal));
-            if (template != null)
-            {
-                if (!TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out _))
-                    return false;
+            if (template == null)
+                return false;
 
-                var newEntityKey = AetheriaRuntimeLoadoutSnapshotProjector.AppendToZone(
-                    run,
-                    zoneIndex,
-                    command.TargetEntityKey,
-                    template);
-                if (string.IsNullOrWhiteSpace(newEntityKey))
-                    return false;
+            if (!TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out _))
+                return false;
 
-                run.CurrentEntityKey = newEntityKey;
-            }
+            var newEntityKey = AetheriaRuntimeLoadoutSnapshotProjector.AppendToZone(
+                run,
+                zoneIndex,
+                command.TargetEntityKey,
+                template);
+            if (string.IsNullOrWhiteSpace(newEntityKey))
+                return false;
 
+            run.CurrentEntityKey = newEntityKey;
             run.Credits -= price;
             return true;
         }
