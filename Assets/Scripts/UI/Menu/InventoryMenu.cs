@@ -202,19 +202,16 @@ public class InventoryMenu : MonoBehaviour
                 GameManager.RequestEntityShutdownPerformance(
                     entity,
                     Mathf.Clamp01(entity.Settings.ShutdownPerformance - ShutdownThresholdStep));
-                RenderCurrentShipSettingsSurface(entity);
                 return;
             case AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold:
                 GameManager.RequestEntityShutdownPerformance(
                     entity,
                     Mathf.Clamp01(entity.Settings.ShutdownPerformance + ShutdownThresholdStep));
-                RenderCurrentShipSettingsSurface(entity);
                 return;
             case AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold:
                 GameManager.RequestEntityShutdownPerformance(
                     entity,
                     Mathf.Clamp01(GameManager.Settings.GameplaySettings.DefaultShutdownPerformance));
-                RenderCurrentShipSettingsSurface(entity);
                 return;
             case AetheriaRuntimeShipSettingsCommandKind.Close:
                 HideCurrentShipSettingsSurface();

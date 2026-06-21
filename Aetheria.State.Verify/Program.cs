@@ -8723,6 +8723,18 @@ static void RequireRuntimeSimulationTuningRequests(string root)
             string.Join("; ", hits));
     }
 
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var inventoryMenu = File.Exists(inventoryMenuPath)
+        ? File.ReadAllText(inventoryMenuPath)
+        : throw new InvalidOperationException("Cannot verify runtime simulation tuning authority; InventoryMenu.cs is missing.");
+    var shutdownRequest = inventoryMenu.IndexOf("GameManager.RequestEntityShutdownPerformance", StringComparison.Ordinal);
+    var staleShipSettingsRender = inventoryMenu.IndexOf("RenderCurrentShipSettingsSurface(entity);", shutdownRequest, StringComparison.Ordinal);
+    if (shutdownRequest >= 0 && staleShipSettingsRender >= 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still redraws ship settings immediately after submitting daemon shutdown-performance requests.");
+    }
+
     var forbiddenUnityAcceptanceSymbols = new[]
     {
         "entity?.Settings == null",
