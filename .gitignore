@@ -32,6 +32,10 @@
 # Visual Studio cache directory
 .vs/
 
+# Local agent/editor runtime state
+.brokkr/
+.codex/
+
 # Gradle cache directory
 .gradle/
 
@@ -128,4 +132,5 @@ GameData/*.cc.records.*/
 GameData/*.cc.eve.pending/
 GameData/*.cc.before-*
 GameData/*.cc.daemon.*.cc
+UserSettings/Search.index
 Vault/Aetheria/.obsidian/plugins/copilot/data.json
