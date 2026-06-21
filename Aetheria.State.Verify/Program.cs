@@ -1838,6 +1838,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static int QueryCompassMarkers(",
         "public static int[] QueryVisibleEntityIndices(",
         "public static int QueryVisibleEntityIndices(",
+        "AetheriaRuntimeDaemonEntityContact",
+        "public static bool TryQueryEntityContact(",
         "AetheriaRuntimeDaemonWormholeExit",
         "public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(",
         "public static int QueryWormholeExits(",
@@ -7712,11 +7714,21 @@ static void RequireMainMenuContinueRunState(string root)
         "lockWeapon.RestoreRuntimeState(",
         "drive.RestoreRuntimeState(",
         "resourceScanner.RestoreRuntimeState(",
+        "AetheriaRuntimeDaemonRenderQueries.TryQueryEntityContact(",
+        "GetObservedInfoGathered(CurrentEntity, target)",
+        "IsObservedHostileContact(CurrentEntity, CurrentEntity.Target.Value)",
+        "_observedEntityFacadesByRecordKey",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
         "RestoreDroppedPickupsFromDaemonZoneState"
     };
+
+    if (actionGameManager.Contains("_authoritativeDaemonEntities", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity entity wrappers are observed daemon facades, not authoritative state; keep the daemon as authority.");
+    }
 
     var missingGameplaySymbols = requiredGameplaySymbols
         .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -7732,7 +7744,10 @@ static void RequireMainMenuContinueRunState(string root)
     var forbiddenGameplaySymbols = new[]
     {
         "if (run == null ||\r\n            run.CurrentZoneIndex < 0 ||\r\n            run.CurrentZoneEntityIndex < 0)",
-        "var currentEntityKey = $\"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1\""
+        "var currentEntityKey = $\"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1\"",
+        "TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold) / (1 - threshold));",
+        "VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);",
+        "CurrentEntity.Target.Value.IsHostileTo(CurrentEntity)"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols

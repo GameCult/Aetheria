@@ -188,6 +188,44 @@ namespace GameCult.Aetheria.State.Verse
         public bool Hostile { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonEntityContact
+    {
+        public AetheriaRuntimeDaemonEntityContact(
+            int observerEntityIndex,
+            int targetEntityIndex,
+            double targetPositionX,
+            double targetPositionZ,
+            double deltaX,
+            double deltaZ,
+            double distance,
+            double infoGathered,
+            bool hostile,
+            bool visible)
+        {
+            ObserverEntityIndex = observerEntityIndex;
+            TargetEntityIndex = targetEntityIndex;
+            TargetPositionX = targetPositionX;
+            TargetPositionZ = targetPositionZ;
+            DeltaX = deltaX;
+            DeltaZ = deltaZ;
+            Distance = Math.Max(0, distance);
+            InfoGathered = infoGathered;
+            Hostile = hostile;
+            Visible = visible;
+        }
+
+        public int ObserverEntityIndex { get; }
+        public int TargetEntityIndex { get; }
+        public double TargetPositionX { get; }
+        public double TargetPositionZ { get; }
+        public double DeltaX { get; }
+        public double DeltaZ { get; }
+        public double Distance { get; }
+        public double InfoGathered { get; }
+        public bool Hostile { get; }
+        public bool Visible { get; }
+    }
+
     public readonly struct AetheriaRuntimeDaemonWormholeExit
     {
         public AetheriaRuntimeDaemonWormholeExit(
@@ -519,6 +557,48 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return entityIndices.Count;
+        }
+
+        public static bool TryQueryEntityContact(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            int targetEntityIndex,
+            out AetheriaRuntimeDaemonEntityContact entityContact)
+        {
+            entityContact = default;
+            if (zone == null || observerEntityIndex < 0 || targetEntityIndex < 0)
+                return false;
+
+            var entities = BuildEntityMap(zone);
+            if (!entities.TryGetValue(observerEntityIndex, out var observer) ||
+                !entities.TryGetValue(targetEntityIndex, out var target))
+            {
+                return false;
+            }
+
+            foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact == null || contact.TargetEntityIndex != targetEntityIndex)
+                    continue;
+
+                var deltaX = target.PositionX - observer.PositionX;
+                var deltaZ = target.PositionZ - observer.PositionZ;
+                var distance = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                entityContact = new AetheriaRuntimeDaemonEntityContact(
+                    observer.EntityIndex,
+                    target.EntityIndex,
+                    target.PositionX,
+                    target.PositionZ,
+                    deltaX,
+                    deltaZ,
+                    distance,
+                    contact.InfoGathered,
+                    contact.Hostile,
+                    contact.Visible);
+                return true;
+            }
+
+            return false;
         }
 
         public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(

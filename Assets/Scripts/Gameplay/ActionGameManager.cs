@@ -66,7 +66,7 @@ public class ActionGameManager : MonoBehaviour
     private string _lastAppliedAuthoritativeDaemonFramePath = "";
     private string _lastAppliedAuthoritativeDaemonRunId = "";
     private int _lastAppliedAuthoritativeDaemonZoneIndex = -1;
-    private readonly Dictionary<string, Entity> _authoritativeDaemonEntities = new Dictionary<string, Entity>(StringComparer.Ordinal);
+    private readonly Dictionary<string, Entity> _observedEntityFacadesByRecordKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
     private static DirectoryInfo _gameDataDirectory;
     public static DirectoryInfo GameDataDirectory
     {
@@ -2665,14 +2665,14 @@ public class ActionGameManager : MonoBehaviour
     {
         if (!string.Equals(_lastAppliedAuthoritativeDaemonRunId, runId, StringComparison.Ordinal) ||
             _lastAppliedAuthoritativeDaemonZoneIndex != zoneIndex ||
-            _authoritativeDaemonEntities.Count != entitySnapshots.Count)
+            _observedEntityFacadesByRecordKey.Count != entitySnapshots.Count)
         {
             return false;
         }
 
         foreach (var snapshot in entitySnapshots)
         {
-            if (!_authoritativeDaemonEntities.ContainsKey(snapshot.RecordKey))
+            if (!_observedEntityFacadesByRecordKey.ContainsKey(snapshot.RecordKey))
             {
                 return false;
             }
@@ -2688,7 +2688,7 @@ public class ActionGameManager : MonoBehaviour
     {
         foreach (var entitySnapshot in entitySnapshots)
         {
-            if (!_authoritativeDaemonEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
+            if (!_observedEntityFacadesByRecordKey.TryGetValue(entitySnapshot.RecordKey, out var entity))
                 continue;
 
             entity.DaemonEntityIndex = EntityIndexFromRecordKey(entitySnapshot.RecordKey);
@@ -2702,10 +2702,10 @@ public class ActionGameManager : MonoBehaviour
             if (entity.Settings != null)
                 entity.Settings.ShutdownPerformance = (float)entitySnapshot.ShutdownPerformance;
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
-            RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, _authoritativeDaemonEntities);
+            RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, _observedEntityFacadesByRecordKey);
         }
 
-        foreach (var entity in _authoritativeDaemonEntities.Values)
+        foreach (var entity in _observedEntityFacadesByRecordKey.Values)
         {
             entity.EntityInfoGathered.Clear();
             entity.EntityHostility.Clear();
@@ -2717,15 +2717,15 @@ public class ActionGameManager : MonoBehaviour
 
         foreach (var entitySnapshot in entitySnapshots)
         {
-            if (!_authoritativeDaemonEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
+            if (!_observedEntityFacadesByRecordKey.TryGetValue(entitySnapshot.RecordKey, out var entity))
                 continue;
 
-            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, _authoritativeDaemonEntities);
-            if (_authoritativeDaemonEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
+            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, _observedEntityFacadesByRecordKey);
+            if (_observedEntityFacadesByRecordKey.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
                 entity.Target.Value = target;
         }
 
-        if (_authoritativeDaemonEntities.TryGetValue(currentEntityKey, out var currentEntity) &&
+        if (_observedEntityFacadesByRecordKey.TryGetValue(currentEntityKey, out var currentEntity) &&
             CurrentEntity != currentEntity)
         {
             RestoreCurrentEntityBinding(currentEntity, Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>());
@@ -2788,9 +2788,9 @@ public class ActionGameManager : MonoBehaviour
                 entity.Target.Value = target;
         }
 
-        _authoritativeDaemonEntities.Clear();
+        _observedEntityFacadesByRecordKey.Clear();
         foreach (var restoredEntity in restoredEntities)
-            _authoritativeDaemonEntities[restoredEntity.Key] = restoredEntity.Value;
+            _observedEntityFacadesByRecordKey[restoredEntity.Key] = restoredEntity.Value;
 
         if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
             RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
@@ -3135,6 +3135,42 @@ public class ActionGameManager : MonoBehaviour
         return FindDaemonZoneSnapshot(CurrentDaemonGalaxyZone);
     }
 
+    private bool TryQueryDaemonEntityContact(
+        Entity observer,
+        Entity target,
+        out AetheriaRuntimeDaemonEntityContact contact)
+    {
+        contact = default;
+        if (observer == null || target == null)
+            return false;
+
+        return AetheriaRuntimeDaemonRenderQueries.TryQueryEntityContact(
+            FindCurrentDaemonZoneSnapshot(),
+            observer.DaemonEntityIndex,
+            target.DaemonEntityIndex,
+            out contact);
+    }
+
+    private float GetObservedInfoGathered(Entity observer, Entity target)
+    {
+        if (TryQueryDaemonEntityContact(observer, target, out var contact))
+            return (float)contact.InfoGathered;
+
+        return observer != null &&
+               target != null &&
+               observer.EntityInfoGathered.TryGetValue(target, out var infoGathered)
+            ? infoGathered
+            : 0f;
+    }
+
+    private bool IsObservedHostileContact(Entity observer, Entity target)
+    {
+        if (TryQueryDaemonEntityContact(observer, target, out var contact))
+            return contact.Hostile;
+
+        return target != null && target.IsHostileTo(observer);
+    }
+
     public void RequestTowToStation()
     {
         TryRequestDaemonTowToStation();
@@ -3442,8 +3478,10 @@ public class ActionGameManager : MonoBehaviour
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
-                    TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold) / (1 - threshold));
-                    VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
+                    var targetInfoGathered = GetObservedInfoGathered(CurrentEntity, target);
+                    var visibilityToTarget = GetObservedInfoGathered(target, CurrentEntity);
+                    TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (targetInfoGathered - threshold) / (1 - threshold));
+                    VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, visibilityToTarget / threshold);
                     var targetHull = ItemManager.GetRuntimeItem(target.Hull);
                     var targetMaxDurability = targetHull?.Durability > 0
                         ? (float)targetHull.Durability
@@ -3887,7 +3925,7 @@ public class ActionGameManager : MonoBehaviour
             return "";
         }
 
-        foreach (var pair in _authoritativeDaemonEntities)
+        foreach (var pair in _observedEntityFacadesByRecordKey)
         {
             if (ReferenceEquals(pair.Value, entity))
                 return pair.Key;
@@ -4009,7 +4047,9 @@ public class ActionGameManager : MonoBehaviour
 
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.Target.Value.IsHostileTo(CurrentEntity);
+            var showLockingIndicator = targetLock.Lock > .01f &&
+                                       CurrentEntity.Target.Value != null &&
+                                       IsObservedHostileContact(CurrentEntity, CurrentEntity.Target.Value);
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {
