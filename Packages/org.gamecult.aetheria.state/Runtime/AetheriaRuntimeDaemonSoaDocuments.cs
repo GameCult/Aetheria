@@ -23,6 +23,7 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeDaemonSoaColumnKinds
     {
+        public const string EntityIndex = "entity.index";
         public const string EntityKey = "entity.key";
         public const string ZoneIndex = "entity.zone_index";
         public const string PositionX = "transform.position.x";

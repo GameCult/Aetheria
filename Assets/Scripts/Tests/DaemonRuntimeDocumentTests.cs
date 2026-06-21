@@ -1721,18 +1721,21 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, stored.Backend);
         Assert.AreEqual(1, stored.Buffers.Count);
         Assert.IsFalse(stored.Buffers[0].ObserverWritable);
-        Assert.AreEqual(14, stored.Columns.Count);
+        Assert.AreEqual(15, stored.Columns.Count);
         Assert.AreEqual(1, stored.RenderGroups.Count);
         Assert.AreEqual(2, stored.RenderGroups[0].InstanceCount);
 
         var index = AetheriaRuntimeDaemonSoaViewIndex.Build(stored);
         Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, out var entityIndex));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.PositionX, out var positionX));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ, out var velocityZ));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility, out var visibility));
 
         using var memory = MemoryMappedFile.OpenExisting(stored.Buffers[0].Location, MemoryMappedFileRights.Read);
         using var accessor = memory.CreateViewAccessor(0, stored.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
+        Assert.AreEqual(3, accessor.ReadInt32(entityIndex.AbsoluteByteOffset));
+        Assert.AreEqual(7, accessor.ReadInt32(entityIndex.AbsoluteByteOffset + entityIndex.Column.ElementStride));
         Assert.AreEqual(-2f, accessor.ReadSingle(positionX.AbsoluteByteOffset), 0.0001f);
         Assert.AreEqual(12f, accessor.ReadSingle(positionX.AbsoluteByteOffset + positionX.Column.ElementStride), 0.0001f);
         Assert.AreEqual(6f, accessor.ReadSingle(velocityZ.AbsoluteByteOffset + velocityZ.Column.ElementStride), 0.0001f);

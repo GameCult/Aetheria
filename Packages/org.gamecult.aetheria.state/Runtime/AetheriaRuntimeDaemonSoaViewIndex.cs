@@ -352,6 +352,13 @@ namespace GameCult.Aetheria.State.Verse
         {
             switch (column.Kind)
             {
+                case AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex:
+                    if (!string.Equals(column.ScalarType, "int32", StringComparison.Ordinal))
+                    {
+                        errors.Add($"SoA column '{column.ColumnId}' entity index must use int32.");
+                    }
+
+                    break;
                 case AetheriaRuntimeDaemonSoaColumnKinds.PositionX:
                 case AetheriaRuntimeDaemonSoaColumnKinds.PositionY:
                 case AetheriaRuntimeDaemonSoaColumnKinds.PositionZ:

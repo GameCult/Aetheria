@@ -7513,6 +7513,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile",
         "MemoryMappedFile.CreateOrOpen(",
         "ObserverWritable = false",
+        "AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex",
         "AetheriaRuntimeDaemonSoaColumnKinds.PositionX",
         "AetheriaRuntimeDaemonSoaColumnKinds.PositionY",
         "AetheriaRuntimeDaemonSoaColumnKinds.PositionZ",
@@ -9687,7 +9688,11 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
             "public string CastSphereUrl",
             "TryStepProjectile(",
             "TryCastZoneHulls(",
-            "TryBuildDaemonWorld("
+            "TryBuildDaemonWorld(",
+            "private const string DaemonEntityBodyPrefix = \"aetheria.daemon.entity.\"",
+            "id = DaemonEntityBodyPrefix + daemonEntityIndex",
+            "TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull)",
+            "TryParseDaemonEntityBodyId("
         },
         [projectilePath] = new[]
         {
@@ -9724,6 +9729,15 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         throw new InvalidOperationException(
             "Ymir gameplay query bridge is incomplete: " +
             string.Join("; ", missingSymbols));
+    }
+
+    var ymirBridge = File.ReadAllText(ymirBridgePath);
+    if (ymirBridge.Contains("BuildZoneWorld(", StringComparison.Ordinal) ||
+        ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
+        ymirBridge.Contains("bodyMap[bodyId] = hull", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Ymir zone queries must be built from daemon SOA entity bodies, not Unity HullCollider presentation geometry.");
     }
 
     var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>

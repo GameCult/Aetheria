@@ -9,6 +9,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 {
     private const string ProjectileBodyId = "aetheria.projectile";
     private const string TargetBodyPrefix = "aetheria.target.";
+    private const string DaemonEntityBodyPrefix = "aetheria.daemon.entity.";
 
     private static AetheriaYmirPhysicsBridge _instance;
 
@@ -26,7 +27,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
     private readonly List<YmirPhysicsBody> _projectileBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirPhysicsBody> _targetBodies = new List<YmirPhysicsBody>();
-    private readonly List<YmirPhysicsBody> _zoneBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirPhysicsBody> _daemonBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirSphereQueryBody> _clickableBodies = new List<YmirSphereQueryBody>();
     private readonly Dictionary<string, HullCollider> _hullBodyMap = new Dictionary<string, HullCollider>(StringComparer.Ordinal);
@@ -109,7 +109,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         out IReadOnlyList<YmirCircleOverlapHit> hits)
     {
         hits = Array.Empty<YmirCircleOverlapHit>();
-        if (!TryBuildDaemonWorld(out var world) || radius <= 0)
+        if (!TryBuildDaemonWorld(null, out var world) || radius <= 0)
             return false;
 
         var request = new YmirCircleOverlapRequest
@@ -130,7 +130,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         out IReadOnlyList<YmirCircleCastHit> hits)
     {
         hits = Array.Empty<YmirCircleCastHit>();
-        if (!TryBuildDaemonWorld(out var world) || distance <= 0 || radius < 0)
+        if (!TryBuildDaemonWorld(null, out var world) || distance <= 0 || radius < 0)
             return false;
 
         var planarDirection = new Vector3(direction.x, 0, direction.z);
@@ -325,9 +325,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || zoneRenderer == null || radius <= 0)
             return false;
 
-        _hullBodyMap.Clear();
-        var world = BuildZoneWorld(zoneRenderer, sourceEntity, _hullBodyMap);
-        if (world.bodies.Length == 0)
+        if (!TryBuildDaemonWorld(sourceEntity, out var world))
             return false;
 
         var request = new YmirCircleOverlapRequest
@@ -343,7 +341,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         var resolved = new List<AetheriaYmirOverlapHit>();
         foreach (var hit in ymirHits)
         {
-            if (!_hullBodyMap.TryGetValue(hit.bodyId ?? "", out var hull))
+            if (!TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull))
                 continue;
 
             resolved.Add(new AetheriaYmirOverlapHit(
@@ -371,9 +369,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || zoneRenderer == null || distance <= 0 || direction.sqrMagnitude <= 0.000001f)
             return false;
 
-        _hullBodyMap.Clear();
-        var world = BuildZoneWorld(zoneRenderer, sourceEntity, _hullBodyMap);
-        if (world.bodies.Length == 0)
+        if (!TryBuildDaemonWorld(sourceEntity, out var world))
             return false;
 
         var request = new YmirCircleCastRequest
@@ -385,13 +381,13 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             world = world
         };
 
-        if (!TryCastCircle(request, "Ymir zone cast query", out var ymirHits))
+        if (!TryCastCircle(request, "Ymir daemon zone cast query", out var ymirHits))
             return false;
 
         var resolved = new List<AetheriaYmirCastHit>();
         foreach (var hit in ymirHits)
         {
-            if (!_hullBodyMap.TryGetValue(hit.bodyId ?? "", out var hull))
+            if (!TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull))
                 continue;
 
             resolved.Add(new AetheriaYmirCastHit(
@@ -487,55 +483,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         };
     }
 
-    private YmirWorld BuildZoneWorld(
-        ZoneRenderer zoneRenderer,
-        Entity sourceEntity,
-        Dictionary<string, HullCollider> bodyMap)
-    {
-        _zoneBodies.Clear();
-        var entityIndex = 0;
-        foreach (var entityInstance in zoneRenderer.DaemonEntityInstances.Values)
-        {
-            if (entityInstance == null || entityInstance.Entity == sourceEntity)
-                continue;
-
-            for (var hullIndex = 0; hullIndex < entityInstance.HullColliders.Length; hullIndex++)
-            {
-                var hull = entityInstance.HullColliders[hullIndex];
-                if (hull == null)
-                    continue;
-
-                var bounds = hull.YmirBounds;
-                var bodyId = $"aetheria.entity.{entityIndex}.hull.{hullIndex}";
-                bodyMap[bodyId] = hull;
-                _zoneBodies.Add(new YmirPhysicsBody
-                {
-                    id = bodyId,
-                    position = ToVec2(bounds.center),
-                    velocity = default,
-                    direction = ToVec2(hull.transform.forward),
-                    angularVelocity = 0,
-                    torque = 0,
-                    momentOfInertia = 1,
-                    radius = hull.YmirPlanarRadius + TargetRadiusPadding,
-                    mass = 1,
-                    isStatic = true,
-                    restitution = 0
-                });
-            }
-
-            entityIndex++;
-        }
-
-        return new YmirWorld
-        {
-            time = 0,
-            bodies = _zoneBodies.ToArray(),
-            fields = Array.Empty<YmirRadialField>()
-        };
-    }
-
-    private bool TryBuildDaemonWorld(out YmirWorld world)
+    private bool TryBuildDaemonWorld(Entity sourceEntity, out YmirWorld world)
     {
         world = null;
         var observer = ResolveDaemonObserver();
@@ -553,6 +501,10 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             if (radius <= 0)
                 continue;
 
+            var daemonEntityIndex = view.HasEntityIndex ? view.EntityIndex[i] : i;
+            if (sourceEntity != null && sourceEntity.DaemonEntityIndex == daemonEntityIndex)
+                continue;
+
             var inverseMass = view.HasPhysicsInverseMass ? view.PhysicsBodyInverseMass[i] : 1.0f;
             var mass = view.HasPhysicsMass && view.PhysicsBodyMass[i] > 0
                 ? view.PhysicsBodyMass[i]
@@ -563,7 +515,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
             _daemonBodies.Add(new YmirPhysicsBody
             {
-                id = $"aetheria.daemon.body.{i}",
+                id = DaemonEntityBodyPrefix + daemonEntityIndex,
                 position = new YmirVec2 { x = view.PositionX[i], y = view.PositionZ[i] },
                 velocity = view.HasVelocity
                     ? new YmirVec2 { x = view.VelocityX[i], y = view.VelocityZ[i] }
@@ -589,6 +541,43 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             fields = Array.Empty<YmirRadialField>()
         };
         return true;
+    }
+
+    private static bool TryResolveDaemonEntityHull(
+        ZoneRenderer zoneRenderer,
+        string bodyId,
+        out HullCollider hull)
+    {
+        hull = null;
+        if (zoneRenderer == null || !TryParseDaemonEntityBodyId(bodyId, out var daemonEntityIndex))
+            return false;
+
+        if (!zoneRenderer.TryGetEntityInstance(daemonEntityIndex, out var instance) ||
+            instance == null ||
+            instance.HullColliders == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < instance.HullColliders.Length; i++)
+        {
+            hull = instance.HullColliders[i];
+            if (hull != null)
+                return true;
+        }
+
+        hull = null;
+        return false;
+    }
+
+    private static bool TryParseDaemonEntityBodyId(string bodyId, out int daemonEntityIndex)
+    {
+        daemonEntityIndex = -1;
+        return !string.IsNullOrWhiteSpace(bodyId) &&
+               bodyId.StartsWith(DaemonEntityBodyPrefix, StringComparison.Ordinal) &&
+               int.TryParse(
+                   bodyId.Substring(DaemonEntityBodyPrefix.Length),
+                   out daemonEntityIndex);
     }
 
     private AetheriaDaemonObserver ResolveDaemonObserver()

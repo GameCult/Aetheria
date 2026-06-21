@@ -124,6 +124,7 @@ namespace GameCult.Aetheria.State.Verse
             for (var index = 0; index < entities.Count; index++)
             {
                 var entity = entities[index];
+                accessor.Write(layout.EntityIndex + index * IntStride, entity.EntityIndex);
                 WriteFloat(accessor, layout.PositionX, index, entity.PositionX);
                 WriteFloat(accessor, layout.PositionY, index, entity.PositionY);
                 WriteFloat(accessor, layout.PositionZ, index, entity.PositionZ);
@@ -208,6 +209,7 @@ namespace GameCult.Aetheria.State.Verse
         private readonly struct EntityHotSlabLayout
         {
             private EntityHotSlabLayout(
+                long entityIndex,
                 long positionX,
                 long positionY,
                 long positionZ,
@@ -224,6 +226,7 @@ namespace GameCult.Aetheria.State.Verse
                 long renderGroupId,
                 long totalByteLength)
             {
+                EntityIndex = entityIndex;
                 PositionX = positionX;
                 PositionY = positionY;
                 PositionZ = positionZ;
@@ -241,6 +244,7 @@ namespace GameCult.Aetheria.State.Verse
                 TotalByteLength = totalByteLength;
             }
 
+            public long EntityIndex { get; }
             public long PositionX { get; }
             public long PositionY { get; }
             public long PositionZ { get; }
@@ -261,6 +265,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 count = Math.Max(0, count);
                 var offset = 0L;
+                var entityIndex = Take(ref offset, count, IntStride);
                 var positionX = Take(ref offset, count, FloatStride);
                 var positionY = Take(ref offset, count, FloatStride);
                 var positionZ = Take(ref offset, count, FloatStride);
@@ -277,6 +282,7 @@ namespace GameCult.Aetheria.State.Verse
                 var renderLod = Take(ref offset, count, IntStride);
                 var renderGroupId = Take(ref offset, count, IntStride);
                 return new EntityHotSlabLayout(
+                    entityIndex,
                     positionX,
                     positionY,
                     positionZ,
@@ -298,6 +304,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return new[]
                 {
+                    Column("entity-index", AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, "int32", EntityIndex, IntStride, count, "index", "world"),
                     Column("position-x", AetheriaRuntimeDaemonSoaColumnKinds.PositionX, "float32", PositionX, FloatStride, count, "world_units", "world"),
                     Column("position-y", AetheriaRuntimeDaemonSoaColumnKinds.PositionY, "float32", PositionY, FloatStride, count, "world_units", "world"),
                     Column("position-z", AetheriaRuntimeDaemonSoaColumnKinds.PositionZ, "float32", PositionZ, FloatStride, count, "world_units", "world"),

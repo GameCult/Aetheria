@@ -8,6 +8,7 @@ public struct AetheriaDaemonRenderNativeView
     public long FrameId;
     public long Generation;
     public int Count;
+    public NativeArray<int> EntityIndex;
     public NativeArray<float> PositionX;
     public NativeArray<float> PositionY;
     public NativeArray<float> PositionZ;
@@ -30,6 +31,7 @@ public struct AetheriaDaemonRenderNativeView
         PositionZ.IsCreated;
 
     public bool HasRotation => RotationRadians.IsCreated;
+    public bool HasEntityIndex => EntityIndex.IsCreated;
     public bool HasVelocity => VelocityX.IsCreated && VelocityY.IsCreated && VelocityZ.IsCreated;
     public bool HasPhysicsRadius => PhysicsBodyRadius.IsCreated;
     public bool HasPhysicsMass => PhysicsBodyMass.IsCreated;
@@ -109,6 +111,7 @@ public struct AetheriaDaemonRenderNativeView
             return false;
         }
 
+        TryAssignOptionalIntColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, view.Count, out view.EntityIndex);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians, view.Count, out view.RotationRadians);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.VelocityX, view.Count, out view.VelocityX);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.VelocityY, view.Count, out view.VelocityY);
