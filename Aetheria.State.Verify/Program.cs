@@ -1724,6 +1724,7 @@ static void RequireTypedZoneRuntimeCollections(string root)
         "_beltMeshes[runtimeBelt.ID] =",
         "_beltObjects[runtimeBelt.ID] =",
         "Planets[planetInstance.ID] = planet;",
+        "public Dictionary<string, PlanetObject> Planets",
         "private readonly List<AetheriaGravityInfluenceBrush> _visibleGravityBrushes",
         "public IReadOnlyList<AetheriaGravityInfluenceBrush> VisibleGravityBrushes",
         "Zone.QueryGravityInfluenceBrushes(viewportMin, viewportMax, _visibleGravityBrushes);"
@@ -1755,13 +1756,14 @@ static void RequireTypedZoneRuntimeCollections(string root)
 
     var requiredRendererSymbols = new[]
     {
-        "public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);",
+        "private readonly Dictionary<string, PlanetObject> _bodyViewsByBodyKey = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);",
+        "public bool TryGetBodyView(string bodyKey, out PlanetObject bodyView)",
         "private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);",
         "private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);",
         "private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);",
         "_beltMeshes[bodyKey] = meshes.ToArray();",
         "_beltObjects[bodyKey] = belt;",
-        "Planets[bodyKey] = planet;"
+        "_bodyViewsByBodyKey[bodyKey] = planet;"
     };
     var missingRendererSymbols = requiredRendererSymbols
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -1908,7 +1910,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
     }
 
     if (zoneRenderer.Contains("public Zone Zone", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("public void LoadZone(", StringComparison.Ordinal))
+        zoneRenderer.Contains("public void LoadZone(", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("public Dictionary<string, PlanetObject> Planets", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "ZoneRenderer must expose daemon-view rendering concepts instead of public mirrored Zone ownership.");
@@ -1993,6 +1996,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
+        "private readonly Dictionary<string, PlanetObject> _bodyViewsByBodyKey",
+        "public bool TryGetBodyView(string bodyKey, out PlanetObject bodyView)",
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
         "private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers",
         "private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex",
@@ -7904,6 +7909,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "PopulateLevel(TowingStation.Zone.GalaxyZone)",
         "Zone.PlanetInstances.Values.FirstOrDefault",
         "Zone.TryGetOrbit(orbital.OrbitKey",
+        "ZoneRenderer.Planets",
         "RestoreDaemonAsteroidRuntimeState",
         "belt.Damage.Clear()",
         "belt.RespawnTimers.Clear()",
@@ -7943,6 +7949,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",
         "daemonZone?.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()",
+        "ZoneRenderer.TryGetBodyView(parentOrbitPlanetBodyKey, out var parentBodyView)",
         "ResolveDaemonObserver()?.LastObservedState?.Run",
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",

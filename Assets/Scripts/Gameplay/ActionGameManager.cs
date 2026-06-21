@@ -3122,8 +3122,8 @@ public class ActionGameManager : MonoBehaviour
         var parentOrbitPlanetBodyKey = (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             .FirstOrDefault(body => body != null && string.Equals(body.OrbitKey ?? "", parentOrbitKey, StringComparison.Ordinal))
             ?.BodyKey ?? "";
-        if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanetBodyKey))
-            DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanetBodyKey].Body.transform;
+        if (ZoneRenderer.TryGetBodyView(parentOrbitPlanetBodyKey, out var parentBodyView))
+            DockCamera.LookAt = parentBodyView.Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;
         if (entity is OrbitalEntity {CanTow: true})
             TowingStation = entity;

@@ -65,9 +65,9 @@ public class ZoneRenderer : MonoBehaviour
     public Sprite WormholeIcon;
 
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
-    [HideInInspector] public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
 
     private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex = new Dictionary<int, EntityInstance>();
+    private readonly Dictionary<string, PlanetObject> _bodyViewsByBodyKey = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
     private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);
     private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);
     private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);
@@ -167,7 +167,12 @@ public class ZoneRenderer : MonoBehaviour
     public void SetIconSize(float size)
     {
         foreach(var entityInstance in _entityInstancesByDaemonIndex.Values) entityInstance.MapIcon.transform.localScale = Vector3.one * size;
-        foreach(var planet in Planets.Values) planet.Icon.transform.localScale = Vector3.one * size;
+        foreach(var planet in _bodyViewsByBodyKey.Values) planet.Icon.transform.localScale = Vector3.one * size;
+    }
+
+    public bool TryGetBodyView(string bodyKey, out PlanetObject bodyView)
+    {
+        return _bodyViewsByBodyKey.TryGetValue(bodyKey ?? "", out bodyView);
     }
 
     public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)
@@ -223,7 +228,7 @@ public class ZoneRenderer : MonoBehaviour
             }
         }
 
-        _suns = Planets.Values.Where(p => p is SunObject).ToArray();
+        _suns = _bodyViewsByBodyKey.Values.Where(p => p is SunObject).ToArray();
 
         var entitiesByDaemonIndex = new Dictionary<int, Entity>();
         foreach (var entity in legacyEntityFacadeZone.Entities)
@@ -295,14 +300,14 @@ public class ZoneRenderer : MonoBehaviour
         }
         _entityInstancesByDaemonIndex.Clear();
 
-        if (Planets.Count > 0)
+        if (_bodyViewsByBodyKey.Count > 0)
         {
-            foreach (var planet in Planets.Values)
+            foreach (var planet in _bodyViewsByBodyKey.Values)
             {
                 DestroyImmediate(planet.gameObject);
             }
 
-            Planets.Clear();
+            _bodyViewsByBodyKey.Clear();
             foreach (var beltObject in _beltObjects.Values)
             {
                 Destroy(beltObject.Filter);
@@ -470,7 +475,7 @@ public class ZoneRenderer : MonoBehaviour
         planet.Icon.transform.localScale = Settings.IconSize.Evaluate(mass) * Vector3.one;
 
 
-        Planets[bodyKey] = planet;
+        _bodyViewsByBodyKey[bodyKey] = planet;
         if (!_rootFound)
         {
             _rootFound = true;
@@ -594,7 +599,7 @@ public class ZoneRenderer : MonoBehaviour
                 _beltObjects[key].Update(_visibleAsteroidInstancePoses, center, height, (float)beltPose.Radius);
         }
 
-        foreach (var planet in Planets)
+        foreach (var planet in _bodyViewsByBodyKey)
         {
             if (!_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose))
                 continue;
