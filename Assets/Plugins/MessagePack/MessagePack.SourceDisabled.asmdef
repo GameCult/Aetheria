@@ -1,5 +1,5 @@
 {
-    "name": "MessagePack",
+    "name": "MessagePack.SourceDisabled",
     "references": [
         "GUID:215598cda61754a45bc1f34e1d38d3af"
     ],
@@ -9,7 +9,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": false,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "AETHERIA_USE_SOURCE_MESSAGEPACK"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }
