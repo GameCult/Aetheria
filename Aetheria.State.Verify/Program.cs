@@ -8134,13 +8134,23 @@ static void RequireMainMenuContinueRunState(string root)
         "ObservedAvailableEntities(",
         "TryGetObservedCurrentEntity(out var currentEntity)",
         "parentSnapshot.ChildEntityIndices",
-        "TryGetObservedEntityFacade(childEntityIndex, out var entity)"
+        "TryGetObservedEntityFacade(childEntityIndex, out var entity)",
+        "FindTypedRuntimeItem(",
+        "RuntimeCatalog?.FindItem(item?.ItemKey ?? \"\")",
+        "var typedItem = FindTypedRuntimeItem(item?.EquippableItem)",
+        "var targetHull = FindTypedRuntimeItem(target.Hull)"
     };
 
     if (actionGameManager.Contains("_authoritativeDaemonEntities", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Unity entity wrappers are observed daemon facades, not authoritative state; keep the daemon as authority.");
+    }
+
+    if (actionGameManager.Contains("ItemManager.GetRuntimeItem", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still resolves item metadata through Unity ItemManager instead of the runtime catalog.");
     }
 
     var missingGameplaySymbols = requiredGameplaySymbols

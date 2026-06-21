@@ -921,6 +921,11 @@ public class ActionGameManager : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedActionBarItem(ItemInstance item)
     {
+        return FindTypedRuntimeItem(item);
+    }
+
+    private static AetheriaRuntimeCatalogItem FindTypedRuntimeItem(ItemInstance item)
+    {
         return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
@@ -3480,7 +3485,7 @@ public class ActionGameManager : MonoBehaviour
 
     private bool HasArticulatedWeaponBehavior(EquippedItem item)
     {
-        var typedItem = ItemManager.GetRuntimeItem(item.EquippableItem);
+        var typedItem = FindTypedRuntimeItem(item?.EquippableItem);
         return typedItem?.BehaviorKinds.Any(ArticulatedWeaponBehaviorKinds.Contains) == true;
     }
 
@@ -3622,7 +3627,7 @@ public class ActionGameManager : MonoBehaviour
                     var visibilityToTarget = GetObservedInfoGathered(target, CurrentEntity);
                     TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (targetInfoGathered - threshold) / (1 - threshold));
                     VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, visibilityToTarget / threshold);
-                    var targetHull = ItemManager.GetRuntimeItem(target.Hull);
+                    var targetHull = FindTypedRuntimeItem(target.Hull);
                     var targetMaxDurability = targetHull?.Durability > 0
                         ? (float)targetHull.Durability
                         : Math.Max(target.Hull.Durability, 1f);
