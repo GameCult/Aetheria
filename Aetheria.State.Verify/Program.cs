@@ -3245,6 +3245,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
 
     var requiredActionGameManagerSymbols = new[]
     {
+        "SendRuntimeInputSettingsCommand(",
         "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled"
@@ -3265,6 +3266,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     {
         "public static void CommitRuntimeInputBindingOverride",
         "public static void CommitRuntimeActionBarInput",
+        "TrySendRuntimeInputSettingsCommand(",
+        "private static bool TrySendRuntimeInputSettingsCommand(",
         "RuntimePlayerSettings.InputSettings.SetBindingOverride(actionName, bindingIndex, inputSystemPath)",
         "RuntimePlayerSettings.InputSettings.SetActionBarInputEnabled(inputSystemPath, enabled)"
     };

@@ -88,7 +88,7 @@ public class ActionGameManager : MonoBehaviour
 
     public static void RequestRuntimeInputBindingOverride(string actionName, int bindingIndex, string inputSystemPath)
     {
-        TrySendRuntimeInputSettingsCommand(
+        SendRuntimeInputSettingsCommand(
             AetheriaRuntimeEveCommandKind.SetBindingOverride,
             new AetheriaRuntimeInputSettingsCommandBody
             {
@@ -102,7 +102,7 @@ public class ActionGameManager : MonoBehaviour
 
     public static void RequestRuntimeActionBarInput(string inputSystemPath, bool enabled)
     {
-        TrySendRuntimeInputSettingsCommand(
+        SendRuntimeInputSettingsCommand(
             AetheriaRuntimeEveCommandKind.SetActionBarEnabled,
             new AetheriaRuntimeInputSettingsCommandBody
             {
@@ -113,7 +113,7 @@ public class ActionGameManager : MonoBehaviour
             "action-bar input");
     }
 
-    private static bool TrySendRuntimeInputSettingsCommand(
+    private static void SendRuntimeInputSettingsCommand(
         AetheriaRuntimeEveCommandKind command,
         AetheriaRuntimeInputSettingsCommandBody body,
         string clientId,
@@ -130,16 +130,14 @@ public class ActionGameManager : MonoBehaviour
                     out var error))
             {
                 Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return false;
+                return;
             }
 
             Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
-            return true;
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
-            return false;
         }
     }
 
