@@ -4103,8 +4103,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "HandleCurrentShipSettingsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument)",
-        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurfaceState(",
-        "ProjectCurrentShipSettingsSurfaceState(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurface(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Project(",
         "AetheriaRuntimeShipSettingsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
@@ -4143,7 +4143,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "switch (request.Command)",
         "var entity = GameManager.CurrentEntity",
         "GameManager.CurrentEntity == null",
-        "RenderCurrentShipSettingsSurface(GameManager.CurrentEntity)"
+        "RenderCurrentShipSettingsSurface(GameManager.CurrentEntity)",
+        "new AetheriaRuntimeShipSettingsSurfaceState("
     };
 
     var hits = forbiddenSymbols
@@ -4170,6 +4171,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "public static class AetheriaRuntimeShipSettingsSurfaceCommands",
         "public static bool TryRead(",
         "AetheriaRuntimeShipSettingsSurfaceState",
+        "public static AetheriaRuntimeShipSettingsSurfaceState Project(",
         "public static AetheriaRuntimeSurfaceDocument Build("
     };
     var missingBuilderSymbols = requiredBuilderSymbols

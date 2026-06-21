@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
 
@@ -29,6 +30,23 @@ namespace GameCult.Aetheria.State.Verse
         public const string IncrementShutdownThreshold = "aetheria.inventory.current_ship_settings.shutdown.increment";
         public const string ResetShutdownThreshold = "aetheria.inventory.current_ship_settings.shutdown.reset";
         public const string Close = "aetheria.inventory.current_ship_settings.close";
+
+        public static AetheriaRuntimeShipSettingsSurfaceState Project(
+            string shipName,
+            float shutdownPerformance,
+            Func<float, string> formatShutdownPerformance,
+            DateTime updatedAtUtc = default(DateTime))
+        {
+            if (updatedAtUtc == default(DateTime))
+                updatedAtUtc = DateTime.UtcNow;
+
+            return new AetheriaRuntimeShipSettingsSurfaceState(
+                shipName,
+                formatShutdownPerformance == null
+                    ? shutdownPerformance.ToString("0.###", CultureInfo.InvariantCulture)
+                    : formatShutdownPerformance(shutdownPerformance),
+                updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
+        }
 
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeShipSettingsSurfaceState state,
