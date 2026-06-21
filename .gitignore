@@ -99,6 +99,8 @@ Economy.Shared/bin/
 Economy.Shared/obj/
 Aetheria.State/bin/
 Aetheria.State/obj/
+Aetheria.State.Daemon/bin/
+Aetheria.State.Daemon/obj/
 Aetheria.State.Import/bin/
 Aetheria.State.Import/obj/
 Aetheria.State.Smoke/bin/
@@ -121,4 +123,9 @@ Aetheria.State.Verify/obj/
 Packages/packages-lock.json
 GameData/PlayerSettings.msgpack
 GameData/*.cultmesh/
+GameData/*.cc.records/
+GameData/*.cc.records.*/
+GameData/*.cc.eve.pending/
+GameData/*.cc.before-*
+GameData/*.cc.daemon.*.cc
 Vault/Aetheria/.obsidian/plugins/copilot/data.json
