@@ -105,7 +105,7 @@ public class ZoneRenderer : MonoBehaviour
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
-    public Zone Zone { get; private set; }
+    private Zone _legacyEntityFacadeZone;
     public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
     public ItemManager ItemManager { get; set; }
@@ -194,13 +194,13 @@ public class ZoneRenderer : MonoBehaviour
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
     }
 
-    public void LoadZone(
-        Zone zone,
+    public void LoadDaemonZoneView(
+        Zone legacyEntityFacadeZone,
         AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
         AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         ClearZone();
-        Zone = zone;
+        _legacyEntityFacadeZone = legacyEntityFacadeZone;
         ApplyDaemonFrame(daemonZone, daemonRun);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
@@ -226,7 +226,7 @@ public class ZoneRenderer : MonoBehaviour
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
 
         var entitiesByDaemonIndex = new Dictionary<int, Entity>();
-        foreach (var entity in zone.Entities)
+        foreach (var entity in legacyEntityFacadeZone.Entities)
         {
             if (entity != null && entity.DaemonEntityIndex >= 0)
                 entitiesByDaemonIndex[entity.DaemonEntityIndex] = entity;
@@ -253,7 +253,7 @@ public class ZoneRenderer : MonoBehaviour
         _daemonZoneSnapshot = daemonZone;
         var zoneRenderRadius = (float)AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
             _daemonZoneSnapshot,
-            Zone?.Radius ?? 2000);
+            _legacyEntityFacadeZone?.Radius ?? 2000);
         SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zoneRenderRadius;
         SlimeRenderer.ZoneRadius = zoneRenderRadius;
@@ -276,7 +276,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public void ClearZone()
     {
-        if (Zone == null) return;
+        if (_legacyEntityFacadeZone == null) return;
         foreach (var wormhole in WormholeInstances.Values)
         {
             Destroy(wormhole.gravity);
@@ -748,7 +748,7 @@ public class ZoneRenderer : MonoBehaviour
         };
         var t = gridObject.transform;
         t.parent = ZoneRoot;
-        gridObject.Zone = Zone;
+        gridObject.Zone = _legacyEntityFacadeZone;
         t.position = position;
         gridObject.Velocity = velocity;
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();

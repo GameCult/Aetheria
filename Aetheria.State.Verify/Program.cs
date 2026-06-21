@@ -1906,6 +1906,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must evaluate gravity terrain from daemon render queries instead of the mirrored Unity Zone height evaluator.");
     }
 
+    if (zoneRenderer.Contains("public Zone Zone", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("public void LoadZone(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must expose daemon-view rendering concepts instead of public mirrored Zone ownership.");
+    }
+
     if (zoneRenderer.Contains("Zone.PowerPulse(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -1993,6 +2000,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
         "private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits",
         "public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances",
+        "private Zone _legacyEntityFacadeZone;",
+        "public void LoadDaemonZoneView(",
+        "Zone legacyEntityFacadeZone,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "public void ApplyDaemonFrame(",
         "AetheriaRuntimeZoneSnapshotCommit daemonZone,",
@@ -7925,6 +7935,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
+        "ZoneRenderer.LoadDaemonZoneView(Zone, daemonZone, daemonRun)",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",
