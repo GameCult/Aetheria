@@ -4552,6 +4552,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "host.AddComponent<UIDocument>",
         "ContextMenu.AddOption(\"Docking Bay\"",
         "ContextMenu.AddOption($\"{ship.Name} Bay {bay.index+1}\"",
+        "private static EveSurfaceComponent",
+        "new EveSurfaceComponent(",
         "string.Equals(request.Command, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Close",
         "_cargoSelectionCommands.TryGetValue(request.Command",
         "GameManager.DockedEntity.Children",
@@ -4670,6 +4672,8 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "ContextMenu.AddDropdown(",
         "ContextMenu.AddOption(",
         "ContextMenu.Show();",
+        "private static EveSurfaceComponent",
+        "new EveSurfaceComponent(",
         "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseFilter",
         "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseRowAction",
         "_filterSurfaceCommands.TryGetValue(request.Command",
@@ -4777,6 +4781,8 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "host.AddComponent<UIDocument>",
         "public PropertiesPanel Properties;",
         "OnClick = () => Properties.Inspect(i.TypedItem)",
+        "private static EveSurfaceComponent",
+        "new EveSurfaceComponent(",
         "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close"
     };
 

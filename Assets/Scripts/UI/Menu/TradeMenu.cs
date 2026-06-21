@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
@@ -1150,56 +1149,6 @@ public class TradeMenu : MonoBehaviour
             TargetCargoLabel.text ?? "",
             targets,
             DateTime.UtcNow.ToString("O"));
-    }
-
-    private static EveSurfaceComponent Card(
-        string id,
-        string title,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "card", new[] { ("title", title) }, children);
-    }
-
-    private static EveSurfaceComponent Metric(string id, string label, string value)
-    {
-        return Node(id, "metric", new[] { ("label", label), ("value", value) });
-    }
-
-    private static EveSurfaceComponent Text(string id, string value)
-    {
-        return Node(id, "text", new[] { ("value", value) });
-    }
-
-    private static EveSurfaceComponent Button(string id, string label, string command)
-    {
-        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
-    }
-
-    private static EveSurfaceComponent ButtonRow(
-        string id,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
-    }
-
-    private static EveSurfaceComponent ButtonColumn(
-        string id,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "column", Array.Empty<(string Key, string Value)>(), children);
-    }
-
-    private static EveSurfaceComponent Node(
-        string id,
-        string kind,
-        IEnumerable<(string Key, string Value)> props,
-        params EveSurfaceComponent[] children)
-    {
-        return new EveSurfaceComponent(
-            id,
-            kind,
-            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
-            children ?? Array.Empty<EveSurfaceComponent>());
     }
 
     private int CountAvailablePlayerShips(string itemKey)
