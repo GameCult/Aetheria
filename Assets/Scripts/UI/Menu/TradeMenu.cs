@@ -29,7 +29,6 @@ public class TradeMenu : MonoBehaviour
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
-    private readonly Dictionary<string, Action> _filterSurfaceCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
     private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands =
         new Dictionary<string, (EquippedCargoBay Cargo, string Label)>(StringComparer.Ordinal);
     private UIDocument _cargoSelectorSurfaceDocument;
@@ -40,6 +39,7 @@ public class TradeMenu : MonoBehaviour
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
+    private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
     
@@ -658,60 +658,16 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderFilterSurface()
     {
-        BuildFilterSurfaceCommands();
+        _filterSurfaceProjection = ProjectTradeFilterSurface();
 
         _filterSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _filterSurfaceDocument,
             "Aetheria Trade Filter Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(ProjectTradeFilterSurfaceState()),
+            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(_filterSurfaceProjection.State),
             HandleFilterSurfaceCommand,
             _filterSurfaceChrome,
             sortingOrder: 1001);
-    }
-
-    private void BuildFilterSurfaceCommands()
-    {
-        _filterSurfaceCommands.Clear();
-
-        foreach (var hardpointType in ((HardpointType[])Enum.GetValues(typeof(HardpointType)))
-                     .Where(type => _hardpointFilter.filter == null || type != _hardpointFilter.type))
-        {
-            var command = AetheriaRuntimeTradeInteractionSurfaceBuilder.HardpointFilterCommand(hardpointType.ToString());
-            _filterSurfaceCommands[command] = () => ApplyHardpointFilter(hardpointType);
-        }
-
-        foreach (var commodityType in ((SimpleCommodityCategory[])Enum.GetValues(typeof(SimpleCommodityCategory)))
-                     .Where(type => _commodityFilter.filter == null || type != _commodityFilter.type))
-        {
-            var command = AetheriaRuntimeTradeInteractionSurfaceBuilder.SimpleCommodityFilterCommand(commodityType.ToString());
-            _filterSurfaceCommands[command] = () => ApplySimpleCommodityFilter(commodityType);
-        }
-
-        foreach (var commodityType in ((CompoundCommodityCategory[])Enum.GetValues(typeof(CompoundCommodityCategory)))
-                     .Where(type => _compoundCommodityFilter.filter == null || type != _compoundCommodityFilter.type))
-        {
-            var command = AetheriaRuntimeTradeInteractionSurfaceBuilder.CompoundCommodityFilterCommand(commodityType.ToString());
-            _filterSurfaceCommands[command] = () => ApplyCompoundCommodityFilter(commodityType);
-        }
-
-        foreach (var metadata in AetheriaRuntimeBehaviorMetadataCatalog.All
-                     .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
-                     .OrderBy(option => option.Kind, StringComparer.Ordinal))
-        {
-            var command = AetheriaRuntimeTradeInteractionSurfaceBuilder.BehaviorFilterCommand(metadata.Kind);
-            _filterSurfaceCommands[command] = () => ApplyBehaviorFilter(metadata);
-        }
-
-        if (!MinimumSizeFilter.gameObject.activeSelf)
-        {
-            _filterSurfaceCommands[AetheriaRuntimeTradeInteractionSurfaceBuilder.MinimumSizeFilterCommand()] = EnableMinimumSizeFilter;
-        }
-
-        if (!MaximumSizeFilter.gameObject.activeSelf)
-        {
-            _filterSurfaceCommands[AetheriaRuntimeTradeInteractionSurfaceBuilder.MaximumSizeFilterCommand()] = EnableMaximumSizeFilter;
-        }
     }
 
     private void HandleFilterSurfaceCommand(EveSurfaceCommandRequest request)
@@ -729,9 +685,9 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _filterSurfaceCommands.TryGetValue(command.Command, out var action))
+            _filterSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
         {
-            action();
+            ExecuteTradeFilterSelection(selection);
             HideFilterSurface();
             return;
         }
@@ -747,49 +703,94 @@ public class TradeMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument);
     }
 
-    private AetheriaRuntimeTradeFilterSurfaceState ProjectTradeFilterSurfaceState()
+    private AetheriaRuntimeTradeFilterSurfaceProjection ProjectTradeFilterSurface()
     {
-        var groups = new List<AetheriaRuntimeTradeSurfaceGroup>();
-        AddTradeFilterGroup(groups, "hardpoint", "Gear Type", command => command.Contains(".hardpoint."));
-        AddTradeFilterGroup(groups, "simple", "Simple Commodity", command => command.Contains(".simple."));
-        AddTradeFilterGroup(groups, "compound", "Compound Commodity", command => command.Contains(".compound."));
-        AddTradeFilterGroup(groups, "behavior", "Item Behavior", command => command.Contains(".behavior."));
-        AddTradeFilterGroup(
-            groups,
-            "size",
-            "Size",
-            command => command.Contains(".size."),
-            command => command.EndsWith(".minimum", StringComparison.Ordinal) ? "Minimum Size" : "Maximum Size");
+        var options = new List<AetheriaRuntimeTradeFilterOption>();
+        options.AddRange(((HardpointType[])Enum.GetValues(typeof(HardpointType)))
+            .Where(type => _hardpointFilter.filter == null || type != _hardpointFilter.type)
+            .Select(type => new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.Hardpoint,
+                type.ToString(),
+                type.ToString().FormatTypeName())));
+        options.AddRange(((SimpleCommodityCategory[])Enum.GetValues(typeof(SimpleCommodityCategory)))
+            .Where(type => _commodityFilter.filter == null || type != _commodityFilter.type)
+            .Select(type => new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity,
+                type.ToString(),
+                type.ToString().FormatTypeName())));
+        options.AddRange(((CompoundCommodityCategory[])Enum.GetValues(typeof(CompoundCommodityCategory)))
+            .Where(type => _compoundCommodityFilter.filter == null || type != _compoundCommodityFilter.type)
+            .Select(type => new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity,
+                type.ToString(),
+                type.ToString().FormatTypeName())));
+        options.AddRange(AetheriaRuntimeBehaviorMetadataCatalog.All
+            .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
+            .OrderBy(option => option.Kind, StringComparer.Ordinal)
+            .Select(option => new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.Behavior,
+                option.Kind,
+                option.Kind.FormatTypeName())));
 
-        return new AetheriaRuntimeTradeFilterSurfaceState(
+        if (!MinimumSizeFilter.gameObject.activeSelf)
+        {
+            options.Add(new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.MinimumSize,
+                "minimum",
+                "Minimum Size"));
+        }
+
+        if (!MaximumSizeFilter.gameObject.activeSelf)
+        {
+            options.Add(new AetheriaRuntimeTradeFilterOption(
+                AetheriaRuntimeTradeFilterSelectionKind.MaximumSize,
+                "maximum",
+                "Maximum Size"));
+        }
+
+        return AetheriaRuntimeTradeInteractionSurfaceBuilder.ProjectFilters(
             BuildFilterSummary(),
-            groups,
+            options,
             DateTime.UtcNow.ToString("O"));
     }
 
-    private void AddTradeFilterGroup(
-        List<AetheriaRuntimeTradeSurfaceGroup> groups,
-        string key,
-        string title,
-        Func<string, bool> commandFilter,
-        Func<string, string> labelFactory = null)
+    private void ExecuteTradeFilterSelection(AetheriaRuntimeTradeFilterSelection selection)
     {
-        var options = _filterSurfaceCommands.Keys
-            .Where(commandFilter)
-            .OrderBy(command => command, StringComparer.Ordinal)
-            .Select(command => new AetheriaRuntimeTradeSurfaceOption(
-                command,
-                labelFactory?.Invoke(command) ?? command.Split('.').Last().FormatTypeName(),
-                command))
-            .ToArray();
-
-        if (options.Length == 0)
-            return;
-
-        groups.Add(new AetheriaRuntimeTradeSurfaceGroup(
-            $"{AetheriaRuntimeTradeInteractionSurfaceBuilder.FilterSurfaceId}.{key}.card",
-            title,
-            options));
+        switch (selection.Kind)
+        {
+            case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
+                if (Enum.TryParse(selection.Token, out HardpointType hardpointType))
+                {
+                    ApplyHardpointFilter(hardpointType);
+                }
+                return;
+            case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
+                if (Enum.TryParse(selection.Token, out SimpleCommodityCategory simpleCategory))
+                {
+                    ApplySimpleCommodityFilter(simpleCategory);
+                }
+                return;
+            case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
+                if (Enum.TryParse(selection.Token, out CompoundCommodityCategory compoundCategory))
+                {
+                    ApplyCompoundCommodityFilter(compoundCategory);
+                }
+                return;
+            case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
+                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.All
+                    .FirstOrDefault(option => string.Equals(option.Kind, selection.Token, StringComparison.Ordinal));
+                if (metadata != null)
+                {
+                    ApplyBehaviorFilter(metadata);
+                }
+                return;
+            case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
+                EnableMinimumSizeFilter();
+                return;
+            case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
+                EnableMaximumSizeFilter();
+                return;
+        }
     }
 
     private void RenderRowActionSurface(string title, params (string Label, Action Action)[] actions)

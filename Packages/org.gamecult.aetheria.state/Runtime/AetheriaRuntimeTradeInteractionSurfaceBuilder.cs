@@ -53,6 +53,73 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public enum AetheriaRuntimeTradeFilterSelectionKind
+    {
+        Unknown = 0,
+        Hardpoint = 1,
+        SimpleCommodity = 2,
+        CompoundCommodity = 3,
+        Behavior = 4,
+        MinimumSize = 5,
+        MaximumSize = 6
+    }
+
+    public sealed class AetheriaRuntimeTradeFilterOption
+    {
+        public AetheriaRuntimeTradeFilterOption(
+            AetheriaRuntimeTradeFilterSelectionKind kind,
+            string token,
+            string label)
+        {
+            Kind = kind;
+            Token = token ?? "";
+            Label = label ?? "";
+        }
+
+        public AetheriaRuntimeTradeFilterSelectionKind Kind { get; }
+        public string Token { get; }
+        public string Label { get; }
+    }
+
+    public readonly struct AetheriaRuntimeTradeFilterSelection
+    {
+        public AetheriaRuntimeTradeFilterSelection(
+            AetheriaRuntimeTradeFilterSelectionKind kind,
+            string command,
+            string token)
+        {
+            Kind = kind;
+            Command = command ?? "";
+            Token = token ?? "";
+        }
+
+        public AetheriaRuntimeTradeFilterSelectionKind Kind { get; }
+        public string Command { get; }
+        public string Token { get; }
+    }
+
+    public sealed class AetheriaRuntimeTradeFilterSurfaceProjection
+    {
+        public AetheriaRuntimeTradeFilterSurfaceProjection(
+            AetheriaRuntimeTradeFilterSurfaceState state,
+            IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> selections)
+        {
+            State = state ?? new AetheriaRuntimeTradeFilterSurfaceState(
+                "",
+                Array.Empty<AetheriaRuntimeTradeSurfaceGroup>(),
+                "");
+            Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeFilterSelection>(StringComparer.Ordinal);
+        }
+
+        public AetheriaRuntimeTradeFilterSurfaceState State { get; }
+        public IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> Selections { get; }
+
+        public bool TryResolve(string command, out AetheriaRuntimeTradeFilterSelection selection)
+        {
+            return Selections.TryGetValue(command ?? "", out selection);
+        }
+    }
+
     public sealed class AetheriaRuntimeTradeRowActionSurfaceState
     {
         public AetheriaRuntimeTradeRowActionSurfaceState(
@@ -156,6 +223,59 @@ namespace GameCult.Aetheria.State.Verse
         public static string RowActionCommand(int index)
         {
             return $"{RowActionSurfaceId}.action_{index}";
+        }
+
+        public static AetheriaRuntimeTradeFilterSurfaceProjection ProjectFilters(
+            string filterSummary,
+            IEnumerable<AetheriaRuntimeTradeFilterOption> options,
+            string updatedAtUtc)
+        {
+            var selections = new Dictionary<string, AetheriaRuntimeTradeFilterSelection>(StringComparer.Ordinal);
+            var grouped = new Dictionary<string, (AetheriaRuntimeTradeFilterSelectionKind Kind, List<AetheriaRuntimeTradeSurfaceOption> Options)>(StringComparer.Ordinal);
+
+            foreach (var option in options ?? Array.Empty<AetheriaRuntimeTradeFilterOption>())
+            {
+                if (option == null || option.Kind == AetheriaRuntimeTradeFilterSelectionKind.Unknown)
+                    continue;
+
+                var command = FilterCommand(option.Kind, option.Token);
+                if (string.IsNullOrWhiteSpace(command))
+                    continue;
+
+                var groupKey = FilterGroupKey(option.Kind);
+                if (!grouped.TryGetValue(groupKey, out var group))
+                {
+                    group = (option.Kind, new List<AetheriaRuntimeTradeSurfaceOption>());
+                    grouped[groupKey] = group;
+                }
+
+                group.Options.Add(new AetheriaRuntimeTradeSurfaceOption(
+                    $"{FilterSurfaceId}.{groupKey}.{StableToken(option.Token)}",
+                    string.IsNullOrWhiteSpace(option.Label) ? option.Token : option.Label,
+                    command));
+                selections[command] = new AetheriaRuntimeTradeFilterSelection(
+                    option.Kind,
+                    command,
+                    option.Token);
+            }
+
+            var groups = grouped
+                .OrderBy(entry => FilterGroupOrder(entry.Value.Kind))
+                .Select(entry => new AetheriaRuntimeTradeSurfaceGroup(
+                    $"{FilterSurfaceId}.{entry.Key}.card",
+                    FilterGroupTitle(entry.Value.Kind),
+                    entry.Value.Options
+                        .OrderBy(option => option.Label, StringComparer.Ordinal)
+                        .ToArray()))
+                .Where(group => group.Options.Count > 0)
+                .ToArray();
+
+            return new AetheriaRuntimeTradeFilterSurfaceProjection(
+                new AetheriaRuntimeTradeFilterSurfaceState(
+                    filterSummary,
+                    groups,
+                    updatedAtUtc),
+                selections);
         }
 
         public static AetheriaRuntimeTradeRowActionSurfaceProjection ProjectRowActions(
@@ -338,6 +458,97 @@ namespace GameCult.Aetheria.State.Verse
                 (props ?? Array.Empty<(string Key, string Value)>())
                     .ToDictionary(prop => prop.Key, prop => prop.Value ?? "", StringComparer.Ordinal),
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static string FilterCommand(AetheriaRuntimeTradeFilterSelectionKind kind, string token)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
+                    return HardpointFilterCommand(token);
+                case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
+                    return SimpleCommodityFilterCommand(token);
+                case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
+                    return CompoundCommodityFilterCommand(token);
+                case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
+                    return BehaviorFilterCommand(token);
+                case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
+                    return MinimumSizeFilterCommand();
+                case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
+                    return MaximumSizeFilterCommand();
+                default:
+                    return "";
+            }
+        }
+
+        private static string FilterGroupKey(AetheriaRuntimeTradeFilterSelectionKind kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
+                    return "hardpoint";
+                case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
+                    return "simple";
+                case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
+                    return "compound";
+                case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
+                    return "behavior";
+                case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
+                case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
+                    return "size";
+                default:
+                    return "unknown";
+            }
+        }
+
+        private static string FilterGroupTitle(AetheriaRuntimeTradeFilterSelectionKind kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
+                    return "Gear Type";
+                case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
+                    return "Simple Commodity";
+                case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
+                    return "Compound Commodity";
+                case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
+                    return "Item Behavior";
+                case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
+                case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
+                    return "Size";
+                default:
+                    return "Filters";
+            }
+        }
+
+        private static int FilterGroupOrder(AetheriaRuntimeTradeFilterSelectionKind kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
+                    return 0;
+                case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
+                    return 1;
+                case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
+                    return 2;
+                case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
+                    return 3;
+                case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
+                case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
+                    return 4;
+                default:
+                    return 99;
+            }
+        }
+
+        private static string StableToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "empty";
+
+            return new string(value
+                .Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-')
+                .ToArray()).Trim('-');
         }
     }
 
