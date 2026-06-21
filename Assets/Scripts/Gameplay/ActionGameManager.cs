@@ -901,11 +901,11 @@ public class ActionGameManager : MonoBehaviour
         var observer = ResolveDaemonObserver();
         if (observer != null && observer.HasAuthoritativeState)
         {
-            TryRequestDaemonLoadoutRestore(observer, template, price);
+            RequestDaemonLoadoutRestore(observer, template, price);
         }
     }
 
-    private bool TryRequestDaemonLoadoutRestore(
+    private void RequestDaemonLoadoutRestore(
         AetheriaDaemonObserver observer,
         AetheriaRuntimeLoadoutTemplateSnapshot template,
         int price)
@@ -916,24 +916,22 @@ public class ActionGameManager : MonoBehaviour
             string.IsNullOrWhiteSpace(template.Name) ||
             price < 0)
         {
-            return false;
+            return;
         }
 
         var dockedEntityKey = ResolveEntityRecordKey(DockedEntity);
         if (string.IsNullOrWhiteSpace(dockedEntityKey))
         {
-            return false;
+            return;
         }
 
         try
         {
             observer.Operations.RestoreLoadout(dockedEntityKey, template.Name, price);
-            return true;
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to send Aetheria daemon loadout restore operation: {ex.Message}");
-            return false;
         }
     }
 

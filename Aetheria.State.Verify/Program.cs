@@ -9714,7 +9714,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var requiredSymbols = new[]
     {
         "RequestRuntimeLoadoutRestore",
-        "TryRequestDaemonLoadoutRestore",
+        "RequestDaemonLoadoutRestore",
         "Operations.RestoreLoadout"
     };
 
@@ -9733,6 +9733,21 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     {
         throw new InvalidOperationException(
             "Unity loadout restore still rejects requests through renderer-local credits instead of daemon acceptance.");
+    }
+
+    var forbiddenActionSymbols = new[]
+    {
+        "TryRequestDaemonLoadoutRestore",
+        "private bool TryRequestDaemonLoadoutRestore("
+    };
+    var forbiddenActionHits = forbiddenActionSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenActionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity loadout restore still exposes daemon request submission as local acceptance state: " +
+            string.Join(", ", forbiddenActionHits));
     }
 
     var daemonOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
