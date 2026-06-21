@@ -192,16 +192,20 @@ public class ZoneRenderer : MonoBehaviour
         SlimeGravityCamera.orthographicSize = zone.Radius;
         SlimeRenderer.ZoneRadius = zone.Radius;
         RefreshDaemonBodyPoses();
-        foreach (var pose in _daemonBodyPoses)
+        foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
         {
-            if (zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet))
-            {
-                LoadPlanet(planet);
+            if (body == null)
                 continue;
-            }
 
-            if (zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt))
-                LoadAsteroidBelt(belt);
+            if (string.Equals(body.Kind ?? "", "asteroid_belt", StringComparison.OrdinalIgnoreCase))
+            {
+                if (zone.AsteroidBelts.TryGetValue(body.BodyKey ?? "", out var belt))
+                    LoadAsteroidBelt(belt);
+            }
+            else
+            {
+                LoadPlanet(body);
+            }
         }
 
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
@@ -375,49 +379,69 @@ public class ZoneRenderer : MonoBehaviour
         LODHandler.FindPlanets();
     }
 
-    void LoadPlanet(Planet planetInstance)
+    void LoadPlanet(AetheriaRuntimeBodySnapshotCommit body)
     {
+        var bodyKey = body.BodyKey ?? "";
+        if (bodyKey.Length == 0)
+            return;
+
         PlanetObject planet;
-        if (planetInstance is GasGiant gasGiant)
+        var kind = body.Kind ?? "";
+        var mass = (float)body.Mass;
+        var isSun = string.Equals(kind, "sun", StringComparison.OrdinalIgnoreCase);
+        var isGasGiant = isSun || string.Equals(kind, "gas_giant", StringComparison.OrdinalIgnoreCase);
+        if (isGasGiant)
         {
-            if (planetInstance is Sun sun)
+            if (isSun)
             {
                 planet = Instantiate(Sun, ZoneRoot);
                 var sunObject = (SunObject) planet;
-                sunObject.Light.color = sun.LightColor.ToColor();
-                sunObject.Light.range = sun.LightRadius;
-                sunObject.FogTint.transform.localScale = sun.LightRadius * Vector3.one;
-                sunObject.FogTint.material.SetColor("_Color", sun.FogTintColor.ToColor());
+                var sunVisual = body.SunVisual ?? new AetheriaRuntimeSunVisualCommit();
+                var lightRadius = Settings.PlanetSettings.LightRadius.Evaluate(mass) * (float)sunVisual.LightRadiusMultiplier;
+                sunObject.Light.color = new Color((float)sunVisual.LightColorX, (float)sunVisual.LightColorY, (float)sunVisual.LightColorZ);
+                sunObject.Light.range = lightRadius;
+                sunObject.FogTint.transform.localScale = lightRadius * Vector3.one;
+                sunObject.FogTint.material.SetColor(
+                    "_Color",
+                    new Color((float)sunVisual.FogTintColorX, (float)sunVisual.FogTintColorY, (float)sunVisual.FogTintColorZ));
             }
             else planet = Instantiate(GasGiant, ZoneRoot);
 
             var gas = (GasGiantObject) planet;
-            gas.Body.material.SetTexture("_ColorRamp", gasGiant.Colors.ToGradient(!(planetInstance is Sun)).ToTexture());
-            gas.GravityWaves.transform.localScale = gasGiant.GravityWavesRadius * Vector3.one;
-            gas.GravityWaves.material.SetFloat("_Depth", gasGiant.GravityWavesDepth);
-            gas.GravityWaves.material.SetFloat("_Frequency", Settings.PlanetSettings.WaveFrequency.Evaluate(planetInstance.Mass));
+            var colors = ToUnityColors(body.GasGiantVisual?.Colors);
+            gas.Body.material.SetTexture("_ColorRamp", colors.ToGradient(!isSun).ToTexture());
+            gas.GravityWaves.transform.localScale = (float)body.GravityWaveRadius * Vector3.one;
+            gas.GravityWaves.material.SetFloat("_Depth", (float)body.GravityWaveDepth);
+            gas.GravityWaves.material.SetFloat("_Frequency", Settings.PlanetSettings.WaveFrequency.Evaluate(mass));
         }
         else
         {
             planet = Instantiate(Planet, ZoneRoot);
             var possibleSettings = Settings.BodySettingsCollections
-                .Where(p => p.MinimumMass < planetInstance.Mass)
+                .Where(p => p.MinimumMass < mass)
                 .MaxBy(p => p.MinimumMass).BodySettings;
             planet.Generator.body = possibleSettings[Random.Range(0, possibleSettings.Length)];
-            //Debug.Log($"Generating planet with {planetInstance.Mass} mass! Choosing {planet.Generator.body.name} settings!");
+            //Debug.Log($"Generating planet with {mass} mass! Choosing {planet.Generator.body.name} settings!");
             //planet.Icon.material.mainTexture = planetInstance.Mass > Context.GlobalData.PlanetMass ? PlanetIcon : PlanetoidIcon;
         }
 
-        planet.Body.transform.localScale = planetInstance.BodyRadius * Vector3.one;
-        planet.GravityWell.transform.localScale = planetInstance.GravityWellRadius * Vector3.one;
+        var bodyRadius = Settings.PlanetSettings.BodyRadius.Evaluate(mass) * (float)body.BodyRadiusMultiplier;
+        var gravityWellRadius = body.GravityInfluenceRadius > 0
+            ? (float)body.GravityInfluenceRadius
+            : Settings.PlanetSettings.GravityRadius.Evaluate(mass) * (float)body.GravityRadiusMultiplier;
+        var gravityWellDepth = body.GravityWellDepth != 0
+            ? (float)body.GravityWellDepth
+            : Settings.PlanetSettings.GravityDepth.Evaluate(mass) * (float)body.GravityDepthMultiplier;
+        planet.Body.transform.localScale = bodyRadius * Vector3.one;
+        planet.GravityWell.transform.localScale = gravityWellRadius * Vector3.one;
         // var depth = planetInstance.GravityWellDepth;
         // if (depth > _maxDepth) _maxDepth = depth;
-        planet.GravityWell.material.SetFloat("_Depth", planetInstance.GravityWellDepth);
-        planet.Icon.transform.position = new Vector3(0, -planetInstance.GravityWellDepth, 0);
-        planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.Mass) * Vector3.one;
+        planet.GravityWell.material.SetFloat("_Depth", gravityWellDepth);
+        planet.Icon.transform.position = new Vector3(0, -gravityWellDepth, 0);
+        planet.Icon.transform.localScale = Settings.IconSize.Evaluate(mass) * Vector3.one;
 
 
-        Planets[planetInstance.BodyKey] = planet;
+        Planets[bodyKey] = planet;
         if (!_rootFound)
         {
             _rootFound = true;
@@ -425,6 +449,17 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         LODHandler.FindPlanets();
+    }
+
+    private static float4[] ToUnityColors(IReadOnlyList<AetheriaRuntimeColorCommit> colors)
+    {
+        var converted = (colors ?? Array.Empty<AetheriaRuntimeColorCommit>())
+            .Where(color => color != null)
+            .Select(color => new float4((float)color.X, (float)color.Y, (float)color.Z, (float)color.W))
+            .ToArray();
+        return converted.Length > 0
+            ? converted
+            : new[] { new float4(0.35f, 0.45f, 0.8f, 0), new float4(0.85f, 0.9f, 1f, 1) };
     }
 
     // private void Update()
