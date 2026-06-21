@@ -2158,7 +2158,7 @@ public class ActionGameManager : MonoBehaviour
         {
             EnablePlayerInput();
             UpdatePlayerPanel();
-            UpdateTargetPanel(CurrentEntity.Target.Value);
+            UpdateTargetPanel(GetObservedTarget(CurrentEntity));
         }
     }
 
@@ -2173,7 +2173,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 EnablePlayerInput();
                 UpdatePlayerPanel();
-                UpdateTargetPanel(CurrentEntity.Target.Value);
+                UpdateTargetPanel(GetObservedTarget(CurrentEntity));
                 GameplayUI.gameObject.SetActive(true);
             }
             return;
@@ -3155,6 +3155,31 @@ public class ActionGameManager : MonoBehaviour
             out contact);
     }
 
+    private bool TryQueryDaemonEntityTarget(
+        Entity observer,
+        out AetheriaRuntimeDaemonEntityTarget target)
+    {
+        target = default;
+        if (observer == null)
+            return false;
+
+        return AetheriaRuntimeDaemonRenderQueries.TryQueryEntityTarget(
+            FindCurrentDaemonZoneSnapshot(),
+            observer.DaemonEntityIndex,
+            out target);
+    }
+
+    private Entity GetObservedTarget(Entity observer)
+    {
+        if (TryQueryDaemonEntityTarget(observer, out var target) &&
+            TryGetObservedEntityFacade(target.TargetEntityIndex, out var targetEntity))
+        {
+            return targetEntity;
+        }
+
+        return observer?.Target.Value;
+    }
+
     private float GetObservedInfoGathered(Entity observer, Entity target)
     {
         if (TryQueryDaemonEntityContact(observer, target, out var contact))
@@ -3477,10 +3502,11 @@ public class ActionGameManager : MonoBehaviour
             // ItemManager.Time = _time;
             if(CurrentEntity !=null && CurrentEntity.Parent==null)
             {
+                var observedTarget = GetObservedTarget(CurrentEntity);
                 ReconcileVisibleTargetIndicators();
                 foreach (var indicator in _visibleHostileIndicators)
                 {
-                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
+                    indicator.Value.gameObject.SetActive(indicator.Key != observedTarget);
                     indicator.Value.Place.Target = indicator.Key.Position;
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
@@ -3496,7 +3522,7 @@ public class ActionGameManager : MonoBehaviour
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
-                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
+                    indicator.Value.gameObject.SetActive(indicator.Key != observedTarget);
                     indicator.Value.Place.Target = indicator.Key.Position;
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
@@ -3526,7 +3552,7 @@ public class ActionGameManager : MonoBehaviour
                     TryRequestDaemonMoveVector(movement);
                 }
 
-                var target = CurrentEntity.Target.Value;
+                var target = observedTarget;
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
@@ -4084,9 +4110,10 @@ public class ActionGameManager : MonoBehaviour
         if (!ZoneRenderer.TryGetEntityInstance(CurrentEntity, out var entityInstance))
             return;
 
+        var observedTarget = GetObservedTarget(CurrentEntity);
         ViewDot.Target = entityInstance.LookAtPoint.position;
-        if (CurrentEntity.Target.Value != null)
-            TargetIndicator.Target = CurrentEntity.Target.Value.Position;
+        if (observedTarget != null)
+            TargetIndicator.Target = observedTarget.Position;
         var distance = CultMath.math.length(AetheriaMath.ToCult((float3)ViewDot.Target) - CurrentEntity.CultPosition);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
@@ -4100,12 +4127,12 @@ public class ActionGameManager : MonoBehaviour
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
             var showLockingIndicator = targetLock.Lock > .01f &&
-                                       CurrentEntity.Target.Value != null &&
-                                       IsObservedHostileContact(CurrentEntity, CurrentEntity.Target.Value);
+                                       observedTarget != null &&
+                                       IsObservedHostileContact(CurrentEntity, observedTarget);
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Position;
+                indicator.Target = observedTarget.Position;
                 indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
                 indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
                 spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);

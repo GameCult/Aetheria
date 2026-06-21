@@ -226,6 +226,35 @@ namespace GameCult.Aetheria.State.Verse
         public bool Visible { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonEntityTarget
+    {
+        public AetheriaRuntimeDaemonEntityTarget(
+            int observerEntityIndex,
+            int targetEntityIndex,
+            double targetPositionX,
+            double targetPositionZ,
+            double deltaX,
+            double deltaZ,
+            double distance)
+        {
+            ObserverEntityIndex = observerEntityIndex;
+            TargetEntityIndex = targetEntityIndex;
+            TargetPositionX = targetPositionX;
+            TargetPositionZ = targetPositionZ;
+            DeltaX = deltaX;
+            DeltaZ = deltaZ;
+            Distance = Math.Max(0, distance);
+        }
+
+        public int ObserverEntityIndex { get; }
+        public int TargetEntityIndex { get; }
+        public double TargetPositionX { get; }
+        public double TargetPositionZ { get; }
+        public double DeltaX { get; }
+        public double DeltaZ { get; }
+        public double Distance { get; }
+    }
+
     public readonly struct AetheriaRuntimeDaemonWormholeExit
     {
         public AetheriaRuntimeDaemonWormholeExit(
@@ -631,6 +660,27 @@ namespace GameCult.Aetheria.State.Verse
             return contacts.Count;
         }
 
+        public static bool TryQueryEntityTarget(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            out AetheriaRuntimeDaemonEntityTarget entityTarget)
+        {
+            entityTarget = default;
+            if (zone == null || observerEntityIndex < 0)
+                return false;
+
+            var entities = BuildEntityMap(zone);
+            if (!entities.TryGetValue(observerEntityIndex, out var observer) ||
+                observer.TargetEntityIndex < 0 ||
+                !entities.TryGetValue(observer.TargetEntityIndex, out var target))
+            {
+                return false;
+            }
+
+            entityTarget = BuildEntityTarget(observer, target);
+            return true;
+        }
+
         public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(
             AetheriaRuntimeRunCheckpointCommit? run,
             AetheriaRuntimeZoneSnapshotCommit? zone,
@@ -817,6 +867,23 @@ namespace GameCult.Aetheria.State.Verse
                 contact.InfoGathered,
                 contact.Hostile,
                 contact.Visible);
+        }
+
+        private static AetheriaRuntimeDaemonEntityTarget BuildEntityTarget(
+            AetheriaRuntimeEntitySnapshotCommit observer,
+            AetheriaRuntimeEntitySnapshotCommit target)
+        {
+            var deltaX = target.PositionX - observer.PositionX;
+            var deltaZ = target.PositionZ - observer.PositionZ;
+            var distance = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+            return new AetheriaRuntimeDaemonEntityTarget(
+                observer.EntityIndex,
+                target.EntityIndex,
+                target.PositionX,
+                target.PositionZ,
+                deltaX,
+                deltaZ,
+                distance);
         }
 
         private static Dictionary<int, AetheriaRuntimeZoneSnapshotCommit> BuildZoneMap(AetheriaRuntimeRunCheckpointCommit run)

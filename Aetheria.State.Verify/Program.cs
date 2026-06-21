@@ -1842,6 +1842,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static bool TryQueryEntityContact(",
         "public static AetheriaRuntimeDaemonEntityContact[] QueryEntityContacts(",
         "public static int QueryEntityContacts(",
+        "AetheriaRuntimeDaemonEntityTarget",
+        "public static bool TryQueryEntityTarget(",
         "AetheriaRuntimeDaemonWormholeExit",
         "public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(",
         "public static int QueryWormholeExits(",
@@ -7718,9 +7720,11 @@ static void RequireMainMenuContinueRunState(string root)
         "resourceScanner.RestoreRuntimeState(",
         "AetheriaRuntimeDaemonRenderQueries.TryQueryEntityContact(",
         "AetheriaRuntimeDaemonRenderQueries.QueryEntityContacts(",
+        "AetheriaRuntimeDaemonRenderQueries.TryQueryEntityTarget(",
+        "GetObservedTarget(CurrentEntity)",
         "ReconcileVisibleTargetIndicators();",
         "GetObservedInfoGathered(CurrentEntity, target)",
-        "IsObservedHostileContact(CurrentEntity, CurrentEntity.Target.Value)",
+        "IsObservedHostileContact(CurrentEntity, observedTarget)",
         "_observedEntityFacadesByRecordKey",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
@@ -7758,7 +7762,11 @@ static void RequireMainMenuContinueRunState(string root)
         "CurrentEntity.VisibleFriendlies.ObserveAdd()",
         "CurrentEntity.VisibleFriendlies.ObserveRemove()",
         "foreach (var hostile in CurrentEntity.VisibleEnemies)",
-        "foreach (var friendly in CurrentEntity.VisibleFriendlies)"
+        "foreach (var friendly in CurrentEntity.VisibleFriendlies)",
+        "UpdateTargetPanel(CurrentEntity.Target.Value)",
+        "var target = CurrentEntity.Target.Value;",
+        "TargetIndicator.Target = CurrentEntity.Target.Value.Position",
+        "indicator.Target = CurrentEntity.Target.Value.Position"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols
