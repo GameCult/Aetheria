@@ -3051,7 +3051,9 @@ public class ActionGameManager : MonoBehaviour
 
     private AetheriaRuntimeZoneSnapshotCommit FindCurrentDaemonZoneSnapshot()
     {
-        return FindDaemonZoneSnapshot(CurrentDaemonGalaxyZone);
+        var run = ResolveDaemonObserver()?.LastObservedState?.Run;
+        return (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == run.CurrentZoneIndex);
     }
 
     private bool TryGetDaemonEntitySnapshot(Entity entity, out AetheriaRuntimeEntitySnapshotCommit snapshot)
@@ -3063,6 +3065,13 @@ public class ActionGameManager : MonoBehaviour
         snapshot = (FindCurrentDaemonZoneSnapshot()?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
             .FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == entity.DaemonEntityIndex);
         return snapshot != null;
+    }
+
+    private int ResolveObservedEntityZoneIndex(Entity entity)
+    {
+        return TryGetDaemonEntitySnapshot(entity, out _)
+            ? FindCurrentDaemonZoneSnapshot()?.ZoneIndex ?? -1
+            : -1;
     }
 
     private bool TryGetDaemonParentSnapshot(
@@ -3270,7 +3279,7 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var stationEntityKey = ResolveEntityRecordKey(TowingStation);
-        var targetZoneIndex = ZoneIndex(TowingStation.Zone?.GalaxyZone);
+        var targetZoneIndex = ResolveObservedEntityZoneIndex(TowingStation);
         if (string.IsNullOrWhiteSpace(stationEntityKey) || targetZoneIndex < 0)
         {
             return false;

@@ -8025,6 +8025,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "Zone.Entities.Add(CurrentEntity)",
         "CurrentEntity.CultPositionXZ = TowingStation.CultPositionXZ",
         "PopulateLevel(TowingStation.Zone.GalaxyZone)",
+        "TowingStation.Zone?.GalaxyZone",
         "Zone.PlanetInstances.Values.FirstOrDefault",
         "Zone.TryGetOrbit(orbital.OrbitKey",
         "ZoneRenderer.Planets",
@@ -8267,6 +8268,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observer.Operations.Undock()",
         "observer.Operations.Interact(",
         "observer.Operations.TowToStation(",
+        "ResolveObservedEntityZoneIndex(TowingStation)",
         "TowingStation.CultPositionXZ.x",
         "TowingStation.CultPositionXZ.y"
     };
