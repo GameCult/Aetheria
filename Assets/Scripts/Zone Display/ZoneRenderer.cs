@@ -105,7 +105,6 @@ public class ZoneRenderer : MonoBehaviour
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
-    private Zone _legacyLootFacadeZone;
     public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
     public ItemManager ItemManager { get; set; }
@@ -215,13 +214,11 @@ public class ZoneRenderer : MonoBehaviour
     }
 
     public void LoadDaemonZoneView(
-        Zone legacyLootFacadeZone,
         IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,
         AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
         AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         ClearZone();
-        _legacyLootFacadeZone = legacyLootFacadeZone;
         ApplyDaemonFrame(daemonZone, daemonRun);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
@@ -763,7 +760,6 @@ public class ZoneRenderer : MonoBehaviour
         };
         var t = gridObject.transform;
         t.parent = ZoneRoot;
-        gridObject.Zone = _legacyLootFacadeZone;
         t.position = position;
         gridObject.Velocity = velocity;
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();

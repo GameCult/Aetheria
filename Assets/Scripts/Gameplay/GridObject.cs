@@ -13,7 +13,6 @@ public class GridObject : MonoBehaviour
     
     private float _timeOffset;
     
-    public Zone Zone { get; set; }
     public Vector3 Velocity { get; set; }
 
     private void Start()

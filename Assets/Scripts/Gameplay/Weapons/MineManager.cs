@@ -24,6 +24,5 @@ public class MineManager : InstantWeaponEffectManager
         p.Damage = weapon.Damage;
         p.Range = weapon.Range;
         p.DamageType = weapon.DamageType;
-        p.GridObject.Zone = source.Entity.Zone;
     }
 }

@@ -1985,10 +1985,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
     }
 
     if (zoneRenderer.Contains("_legacyEntityFacadeZone", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("_legacyEntityFacadeZone?.Radius", StringComparison.Ordinal))
+        zoneRenderer.Contains("_legacyEntityFacadeZone?.Radius", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("_legacyLootFacadeZone", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("Zone legacyLootFacadeZone", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("gridObject.Zone = ", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer must not keep a broad Unity Zone facade; only explicitly scoped compatibility handles may remain.");
+            "ZoneRenderer must not keep Unity Zone facade handles; daemon snapshots and observed facade projections own renderer input.");
     }
 
     if (zoneRenderer.Contains("PerspectiveEntity.EntityInfoGathered", StringComparison.Ordinal))
@@ -2025,9 +2028,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
         "private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits",
         "public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances",
-        "private Zone _legacyLootFacadeZone;",
         "public void LoadDaemonZoneView(",
-        "Zone legacyLootFacadeZone,",
         "IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "public void ApplyDaemonFrame(",
@@ -2066,7 +2067,6 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
-        "gridObject.Zone = _legacyLootFacadeZone;",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "pose.GravityWaveSpeed"
@@ -7773,7 +7773,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_observedEntityFacadesByRecordKey",
         "_observedEntityFacadesByDaemonIndex",
         "RebuildObservedEntityFacadeIndex();",
-        "ZoneRenderer.LoadDaemonZoneView(Zone, _observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
+        "ZoneRenderer.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
@@ -8031,7 +8031,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
-        "ZoneRenderer.LoadDaemonZoneView(Zone, _observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
+        "ZoneRenderer.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",
