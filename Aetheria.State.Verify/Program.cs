@@ -4329,8 +4329,10 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, stateRefResolver)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
-        !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("IsStatePointerProp(prop.Key)", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("ResolvePointerValueKey(refProp.Key)", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("props.Add(AetheriaRuntimeSurfaceStateRefs.ValueRef(valueRef))", StringComparison.Ordinal) ||
         !equippedItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
@@ -9771,9 +9773,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaRuntimeEveSurfaceAdapter",
         "public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)",
         "public static EveSurfaceDocument ResolveStateRefs(",
+        "ResolvePropRefs(props, stateRefResolver)",
         "ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)",
-        "ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, \"value\", stateRefResolver)",
-        "ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Label, \"label\", stateRefResolver)",
+        "IsStatePointerProp(prop.Key)",
+        "ResolvePointerValueKey(refProp.Key)",
         "public static EveSurfaceDocument EmptySurface(string surfaceId)",
         "new EveSurfaceDocument(",
         "new EveSurfaceComponent("

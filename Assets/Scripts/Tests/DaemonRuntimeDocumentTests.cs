@@ -407,6 +407,43 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void EveSurfaceAdapterResolvesTypedPointerPropsBeforeLowering()
+    {
+        var surface = new EveSurfaceDocument(
+            "surface-state",
+            "gamecult.eve.surface.v1",
+            "aetheria.daemon",
+            "daemon",
+            "Daemon",
+            1,
+            "",
+            new EveSurfaceTree(
+                "aetheria.test.surface",
+                new EveSurfaceComponent(
+                    "aetheria.test.metric",
+                    "metric",
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["label"] = "Heat",
+                        ["description"] = "stale",
+                        ["descriptionRef"] = AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
+                        [AetheriaRuntimeSurfaceStateRefs.Value] = AetheriaRuntimeDaemonStateRefs.CurrentTargetName
+                    },
+                    Array.Empty<EveSurfaceComponent>()),
+                Array.Empty<EveStyleToken>()),
+            Array.Empty<EveCommandTemplate>());
+
+        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
+            surface,
+            stateRef => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+
+        Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "description", "Live Target"));
+        Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "descriptionRef", AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
+        Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "value", "Live Target"));
+        Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, AetheriaRuntimeSurfaceStateRefs.Value, AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
+    }
+
+    [Test]
     public void RuntimeStateReaderResolvesItemStatRefsFromDaemonFrame()
     {
         var frame = new AetheriaRuntimeDaemonFrameDocument
