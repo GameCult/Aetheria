@@ -105,8 +105,9 @@ namespace GameCult.Aetheria.State.Verse
                 return editorTuiSurface;
             }
 
-            return AetheriaRuntimeCatalogStore.ReadEveSurfaces(stateFilePath)
+            var surface = AetheriaRuntimeCatalogStore.ReadEveSurfaces(stateFilePath)
                 .FirstOrDefault(candidate => string.Equals(candidate.Surface.Id, surfaceId, StringComparison.Ordinal));
+            return surface == null ? null : ResolveSurfaceStateRefs(stateFilePath, surface);
         }
 
         public static string ResolveEveSurfaceStateRef(string stateFilePath, string stateRef)
@@ -220,7 +221,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            document = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface);
+            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
             return true;
         }
 
@@ -234,7 +235,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            document = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface);
+            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
             return true;
         }
 
@@ -248,7 +249,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            document = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface);
+            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
             return true;
         }
 
@@ -262,13 +263,42 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            document = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface);
+            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
             return true;
         }
 
         private static EveSurfaceDocument EmptySurface(string surfaceId)
         {
             return AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId);
+        }
+
+        private static EveSurfaceDocument ToResolvedEveSurfaceDocument(
+            string stateFilePath,
+            AetheriaRuntimeSurfaceDocument surface)
+        {
+            return AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+                surface,
+                CreateStateRefResolver(stateFilePath));
+        }
+
+        private static EveSurfaceDocument ResolveSurfaceStateRefs(
+            string stateFilePath,
+            EveSurfaceDocument surface)
+        {
+            return AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
+                surface,
+                CreateStateRefResolver(stateFilePath));
+        }
+
+        private static Func<string, string> CreateStateRefResolver(string stateFilePath)
+        {
+            TryReadDaemonFrame(stateFilePath, out var frame);
+            AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
+            AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
+
+            return stateRef => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
+                ? value
+                : "";
         }
 
         private static AetheriaRuntimeZoneSnapshotCommit FindCurrentZone(AetheriaRuntimeRunCheckpointCommit run)

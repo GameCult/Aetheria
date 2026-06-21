@@ -352,6 +352,11 @@ public class DaemonRuntimeDocumentTests
         Assert.IsNotNull(genericGameSurface);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, genericGameSurface.Surface.Id);
         Assert.AreEqual(unityGameSurface.ProviderId, genericGameSurface.ProviderId);
+        Assert.IsTrue(ContainsEveSurfaceMetric(genericGameSurface.Surface.Root, "Target", "Target"));
+        Assert.IsTrue(ContainsEveSurfaceProp(
+            genericGameSurface.Surface.Root,
+            AetheriaRuntimeSurfaceStateRefs.Source,
+            AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
         var genericGameTuiSurface = AetheriaRuntimeStateReader.ReadEveSurface(
             statePath,
             AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId);
@@ -362,6 +367,43 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId);
         Assert.IsNotNull(genericEditorTuiSurface);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, genericEditorTuiSurface.Surface.Id);
+    }
+
+    [Test]
+    public void EveSurfaceAdapterResolvesDaemonStateRefsBeforeLowering()
+    {
+        var surface = new EveSurfaceDocument(
+            "surface-state",
+            "gamecult.eve.surface.v1",
+            "aetheria.daemon",
+            "daemon",
+            "Daemon",
+            1,
+            "",
+            new EveSurfaceTree(
+                "aetheria.test.surface",
+                new EveSurfaceComponent(
+                    "aetheria.test.metric",
+                    "metric",
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["label"] = "Target",
+                        ["value"] = "stale",
+                        [AetheriaRuntimeSurfaceStateRefs.Source] = AetheriaRuntimeDaemonStateRefs.CurrentTargetName
+                    },
+                    Array.Empty<EveSurfaceComponent>()),
+                Array.Empty<EveStyleToken>()),
+            Array.Empty<EveCommandTemplate>());
+
+        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
+            surface,
+            stateRef => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+
+        Assert.IsTrue(ContainsEveSurfaceMetric(resolved.Surface.Root, "Target", "Live Target"));
+        Assert.IsTrue(ContainsEveSurfaceProp(
+            resolved.Surface.Root,
+            AetheriaRuntimeSurfaceStateRefs.Source,
+            AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
     }
 
     [Test]
@@ -3488,5 +3530,36 @@ public class DaemonRuntimeDocumentTests
         }
 
         return component.Children.Any(child => ContainsSurfaceProp(child, key, value));
+    }
+
+    private static bool ContainsEveSurfaceMetric(
+        EveSurfaceComponent component,
+        string label,
+        string value)
+    {
+        if (component.Kind == "metric" &&
+            component.Props.TryGetValue("label", out var actualLabel) &&
+            component.Props.TryGetValue("value", out var actualValue) &&
+            actualLabel == label &&
+            actualValue == value)
+        {
+            return true;
+        }
+
+        return component.Children.Any(child => ContainsEveSurfaceMetric(child, label, value));
+    }
+
+    private static bool ContainsEveSurfaceProp(
+        EveSurfaceComponent component,
+        string key,
+        string value)
+    {
+        if (component.Props.TryGetValue(key, out var actual) &&
+            string.Equals(actual, value, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return component.Children.Any(child => ContainsEveSurfaceProp(child, key, value));
     }
 }

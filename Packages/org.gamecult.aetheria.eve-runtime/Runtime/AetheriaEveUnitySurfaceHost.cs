@@ -62,7 +62,7 @@ namespace GameCult.Aetheria.EveRuntime
             var root = document.rootVisualElement;
             ConfigureRoot(root, chrome);
 
-            surface = ResolveStateRefs(surface, stateRefResolver);
+            surface = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, stateRefResolver);
             var lowerer = new EveUiToolkitSurfaceLowerer();
             if (chrome.UseShell)
             {
@@ -189,69 +189,5 @@ namespace GameCult.Aetheria.EveRuntime
             return shell;
         }
 
-        private static EveSurfaceDocument ResolveStateRefs(
-            EveSurfaceDocument surface,
-            Func<string, string> stateRefResolver)
-        {
-            if (surface == null || stateRefResolver == null)
-                return surface;
-
-            return new EveSurfaceDocument(
-                surface.Type,
-                surface.Schema,
-                surface.ProviderId,
-                surface.ProviderKind,
-                surface.Title,
-                surface.Version,
-                surface.UpdatedAtUtc,
-                new EveSurfaceTree(
-                    surface.Surface.Id,
-                    ResolveStateRefs(surface.Surface.Root, stateRefResolver),
-                    surface.Surface.Styles),
-                surface.Commands);
-        }
-
-        private static EveSurfaceComponent ResolveStateRefs(
-            EveSurfaceComponent component,
-            Func<string, string> stateRefResolver)
-        {
-            var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
-            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, "value", stateRefResolver);
-            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, "value", stateRefResolver);
-            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Label, "label", stateRefResolver);
-
-            return new EveSurfaceComponent(
-                component.Id,
-                component.Kind,
-                props,
-                ResolveStateRefs(component.Children, stateRefResolver));
-        }
-
-        private static IReadOnlyList<EveSurfaceComponent> ResolveStateRefs(
-            IReadOnlyList<EveSurfaceComponent> children,
-            Func<string, string> stateRefResolver)
-        {
-            if (children == null || children.Count == 0)
-                return Array.Empty<EveSurfaceComponent>();
-
-            var resolved = new EveSurfaceComponent[children.Count];
-            for (var index = 0; index < children.Count; index++)
-                resolved[index] = ResolveStateRefs(children[index], stateRefResolver);
-            return resolved;
-        }
-
-        private static void ResolvePropRef(
-            Dictionary<string, string> props,
-            string refKey,
-            string valueKey,
-            Func<string, string> stateRefResolver)
-        {
-            if (!props.TryGetValue(refKey, out var stateRef) || string.IsNullOrWhiteSpace(stateRef))
-                return;
-
-            var resolved = stateRefResolver(stateRef);
-            if (!string.IsNullOrWhiteSpace(resolved))
-                props[valueKey] = resolved;
-        }
     }
 }
