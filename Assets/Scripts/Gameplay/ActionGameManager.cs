@@ -582,7 +582,9 @@ public class ActionGameManager : MonoBehaviour
             Settings.GameplaySettings.HeatstrokeTemperature,
             Settings.GameplaySettings.SevereHeatstrokeRiskThreshold,
             Settings.GameplaySettings.TargetDetectionInfoThreshold,
-            Settings.GameplaySettings.LockIndicatorNoiseAmplitude);
+            Settings.GameplaySettings.LockIndicatorNoiseAmplitude,
+            Settings.HeatstrokePhasingFloor,
+            Settings.HeatstrokePhasingFrequency);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
@@ -3695,10 +3697,8 @@ public class ActionGameManager : MonoBehaviour
                 _viewDirection = Quaternion.Euler(_entityYawPitch.y * Mathf.Rad2Deg, _entityYawPitch.x * Mathf.Rad2Deg, 0) * Vector3.forward;
                 RequestLookDirection(_viewDirection);
                 HeatstrokePost.weight = (float)renderSettings.NormalizeHeatstrokePost(CurrentEntity.Heatstroke);
-                var severeHeatstrokeLerp = (float)renderSettings.NormalizeSevereHeatstrokePost(CurrentEntity.Heatstroke);
                 SevereHeatstrokePost.weight =
-                    severeHeatstrokeLerp + severeHeatstrokeLerp * (1 - severeHeatstrokeLerp) *
-                    Mathf.Max(Settings.HeatstrokePhasingFloor, Mathf.Sin(Time.time * Settings.HeatstrokePhasingFrequency));
+                    (float)renderSettings.ResolveSevereHeatstrokePostWeight(CurrentEntity.Heatstroke, Time.time);
 
                 if(CurrentEntity is Ship)
                 {

@@ -58,7 +58,9 @@ namespace GameCult.Aetheria.State.Verse
             double heatstrokeTemperature,
             double severeHeatstrokeRiskThreshold,
             double targetDetectionInfoThreshold,
-            double lockIndicatorNoiseAmplitude)
+            double lockIndicatorNoiseAmplitude,
+            double heatstrokePhasingFloor = 0.0,
+            double heatstrokePhasingFrequency = 5.0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -69,6 +71,8 @@ namespace GameCult.Aetheria.State.Verse
             SevereHeatstrokeRiskThreshold = severeHeatstrokeRiskThreshold;
             TargetDetectionInfoThreshold = targetDetectionInfoThreshold;
             LockIndicatorNoiseAmplitude = lockIndicatorNoiseAmplitude;
+            HeatstrokePhasingFloor = heatstrokePhasingFloor;
+            HeatstrokePhasingFrequency = heatstrokePhasingFrequency;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -80,6 +84,8 @@ namespace GameCult.Aetheria.State.Verse
         public double SevereHeatstrokeRiskThreshold { get; }
         public double TargetDetectionInfoThreshold { get; }
         public double LockIndicatorNoiseAmplitude { get; }
+        public double HeatstrokePhasingFloor { get; }
+        public double HeatstrokePhasingFrequency { get; }
 
         public double NormalizeThermalRisk(double temperature)
         {
@@ -105,6 +111,13 @@ namespace GameCult.Aetheria.State.Verse
                 return heatstroke >= 1.0 ? 1.0 : 0.0;
 
             return Saturate((heatstroke - SevereHeatstrokeRiskThreshold) / range);
+        }
+
+        public double ResolveSevereHeatstrokePostWeight(double heatstroke, double timeSeconds)
+        {
+            var normalized = NormalizeSevereHeatstrokePost(heatstroke);
+            return normalized + normalized * (1.0 - normalized) *
+                Math.Max(HeatstrokePhasingFloor, Math.Sin(timeSeconds * HeatstrokePhasingFrequency));
         }
 
         public double NormalizeDetectionProgress(double infoGathered)
