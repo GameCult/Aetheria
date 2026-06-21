@@ -1500,7 +1500,9 @@ static void RequireTypedOrbitConsumerKeys(string root)
     {
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
-            "body => body.OrbitKey == orbit.OrbitKey",
+            "foreach (var pose in _daemonBodyPoses)",
+            "zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)",
+            "zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt)",
             "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
             "var p = new float2((float)pose.CenterX, (float)pose.CenterZ);",
             "var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);"
@@ -1898,6 +1900,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer frame updates must read body render state from daemon body poses instead of indexed mirrored Unity planets.");
     }
 
+    if (zoneRenderer.Contains("foreach (var orbit in zone.Orbits.Values)", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("FirstOrDefault(body => body.OrbitKey == orbit.OrbitKey)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must instantiate body views from daemon body poses keyed by body id instead of rebuilding a Unity orbit hierarchy.");
+    }
+
     if (zoneRenderer.Contains("belt.OrbitPosition", StringComparison.Ordinal) ||
         zoneRenderer.Contains("belt.Radius", StringComparison.Ordinal))
     {
@@ -1915,6 +1924,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
+        "foreach (var pose in _daemonBodyPoses)",
+        "zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)",
+        "zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt)",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",

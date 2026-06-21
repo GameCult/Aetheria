@@ -197,17 +197,17 @@ public class ZoneRenderer : MonoBehaviour
         SectorBrushes.localScale = zone.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Radius;
         SlimeRenderer.ZoneRadius = zone.Radius;
-        foreach (var orbit in zone.Orbits.Values)
+        RefreshDaemonBodyPoses();
+        foreach (var pose in _daemonBodyPoses)
         {
-            var planet = zone.PlanetInstances.Values.FirstOrDefault(body => body.OrbitKey == orbit.OrbitKey);
-            if (planet != null)
+            if (zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet))
             {
                 LoadPlanet(planet);
                 continue;
             }
 
-            var belt = zone.AsteroidBelts.Values.FirstOrDefault(body => body.OrbitKey == orbit.OrbitKey);
-            if (belt != null) LoadAsteroidBelt(belt);
+            if (zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt))
+                LoadAsteroidBelt(belt);
         }
 
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
