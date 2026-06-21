@@ -584,7 +584,9 @@ public class ActionGameManager : MonoBehaviour
             Settings.GameplaySettings.TargetDetectionInfoThreshold,
             Settings.GameplaySettings.LockIndicatorNoiseAmplitude,
             Settings.HeatstrokePhasingFloor,
-            Settings.HeatstrokePhasingFrequency);
+            Settings.HeatstrokePhasingFrequency,
+            TargetSpottedBlinkFrequency,
+            TargetSpottedBlinkOffset);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
@@ -3671,9 +3673,9 @@ public class ActionGameManager : MonoBehaviour
                         var infoGatheredByHostile = GetObservedInfoGathered(indicator.Key, CurrentEntity);
                         indicator.Value.Fill.fillAmount =
                             (float)renderSettings.NormalizeDetectionProgress(infoGatheredByHostile);
-                        indicator.Value.Fill.enabled =
-                            !(infoGatheredByHostile > renderSettings.TargetDetectionInfoThreshold) ||
-                            Mathf.Sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
+                        indicator.Value.Fill.enabled = renderSettings.ResolveTargetSpottedFillEnabled(
+                            infoGatheredByHostile,
+                            Time.time);
                     }
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)

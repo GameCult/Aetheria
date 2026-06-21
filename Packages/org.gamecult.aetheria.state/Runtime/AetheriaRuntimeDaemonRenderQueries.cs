@@ -60,7 +60,9 @@ namespace GameCult.Aetheria.State.Verse
             double targetDetectionInfoThreshold,
             double lockIndicatorNoiseAmplitude,
             double heatstrokePhasingFloor = 0.0,
-            double heatstrokePhasingFrequency = 5.0)
+            double heatstrokePhasingFrequency = 5.0,
+            double targetSpottedBlinkFrequency = 20.0,
+            double targetSpottedBlinkOffset = -0.25)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -73,6 +75,8 @@ namespace GameCult.Aetheria.State.Verse
             LockIndicatorNoiseAmplitude = lockIndicatorNoiseAmplitude;
             HeatstrokePhasingFloor = heatstrokePhasingFloor;
             HeatstrokePhasingFrequency = heatstrokePhasingFrequency;
+            TargetSpottedBlinkFrequency = targetSpottedBlinkFrequency;
+            TargetSpottedBlinkOffset = targetSpottedBlinkOffset;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -86,6 +90,8 @@ namespace GameCult.Aetheria.State.Verse
         public double LockIndicatorNoiseAmplitude { get; }
         public double HeatstrokePhasingFloor { get; }
         public double HeatstrokePhasingFrequency { get; }
+        public double TargetSpottedBlinkFrequency { get; }
+        public double TargetSpottedBlinkOffset { get; }
 
         public double NormalizeThermalRisk(double temperature)
         {
@@ -125,6 +131,12 @@ namespace GameCult.Aetheria.State.Verse
             return TargetDetectionInfoThreshold <= 0
                 ? (infoGathered > 0 ? 1.0 : 0.0)
                 : Saturate(infoGathered / TargetDetectionInfoThreshold);
+        }
+
+        public bool ResolveTargetSpottedFillEnabled(double infoGathered, double timeSeconds)
+        {
+            return !(infoGathered > TargetDetectionInfoThreshold) ||
+                   Math.Sin(TargetSpottedBlinkFrequency * timeSeconds) + TargetSpottedBlinkOffset > 0;
         }
 
         public double NormalizeTargetVisibilityFill(double infoGathered)

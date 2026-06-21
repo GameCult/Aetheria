@@ -1825,11 +1825,14 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double LockIndicatorNoiseAmplitude { get; }",
         "public double HeatstrokePhasingFloor { get; }",
         "public double HeatstrokePhasingFrequency { get; }",
+        "public double TargetSpottedBlinkFrequency { get; }",
+        "public double TargetSpottedBlinkOffset { get; }",
         "public double NormalizeThermalRisk(double temperature)",
         "public double NormalizeHeatstrokePost(double heatstroke)",
         "public double NormalizeSevereHeatstrokePost(double heatstroke)",
         "public double ResolveSevereHeatstrokePostWeight(double heatstroke, double timeSeconds)",
         "public double NormalizeDetectionProgress(double infoGathered)",
+        "public bool ResolveTargetSpottedFillEnabled(double infoGathered, double timeSeconds)",
         "public double NormalizeTargetVisibilityFill(double infoGathered)",
         "public double NormalizeVisibilityToTargetFill(double infoGathered)",
         "public double NormalizeTargetStatusFill(double normalizedValue)",
@@ -2199,6 +2202,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var requiredActionGameManagerRenderSymbols = new[]
     {
         "renderSettings.NormalizeDetectionProgress(",
+        "renderSettings.ResolveTargetSpottedFillEnabled(",
         "renderSettings.NormalizeHeatstrokePost(",
         "renderSettings.ResolveSevereHeatstrokePostWeight(",
         "renderSettings.NormalizeTargetVisibilityFill(",
@@ -2212,7 +2216,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
         "Settings.GameplaySettings.LockIndicatorNoiseAmplitude",
         "Settings.HeatstrokePhasingFloor",
-        "Settings.HeatstrokePhasingFrequency"
+        "Settings.HeatstrokePhasingFrequency",
+        "TargetSpottedBlinkFrequency",
+        "TargetSpottedBlinkOffset"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
@@ -2234,6 +2240,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.GameplaySettings.LockSpinSpeed",
         "Settings.HeatstrokePhasingFloor",
         "Settings.HeatstrokePhasingFrequency",
+        "TargetSpottedBlinkFrequency",
+        "TargetSpottedBlinkOffset",
         "Mathf.Lerp(.25f, .75f,"
     };
     var renderLoopHits = FindMethodScopedLineHits(actionGameManager, forbiddenRenderLoopSymbols)
