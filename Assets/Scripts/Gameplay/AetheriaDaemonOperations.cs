@@ -20,6 +20,21 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.ClearTarget(observed));
     }
 
+    public AetheriaRuntimeDaemonCommandEnvelope TargetNearest()
+    {
+        return Send((client, observed) => client.TargetNearest(observed));
+    }
+
+    public AetheriaRuntimeDaemonCommandEnvelope TargetNext()
+    {
+        return Send((client, observed) => client.TargetNext(observed));
+    }
+
+    public AetheriaRuntimeDaemonCommandEnvelope TargetPrevious()
+    {
+        return Send((client, observed) => client.TargetPrevious(observed));
+    }
+
     public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
         double directionX,
         double directionY,

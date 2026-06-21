@@ -7686,6 +7686,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredTargetAuthoritySymbols = new[]
     {
         "ApplySetTarget(run, command)",
+        "ApplyTargetCycle(run, command, TargetCycleMode.Nearest)",
+        "ApplyTargetCycle(run, command, TargetCycleMode.Next)",
+        "ApplyTargetCycle(run, command, TargetCycleMode.Previous)",
+        "VisibleHostileTargets(zone, actor, actorIndex)",
         "actor.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>()",
         "contact.TargetEntityIndex == targetIndex && contact.Visible"
     };
@@ -7697,6 +7701,42 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Daemon target selection no longer validates visibility through authoritative contact state: " +
             string.Join(", ", missingTargetAuthoritySymbols));
+    }
+
+    var requiredUnityTargetRequestSymbols = new[]
+    {
+        "RequestTargetNearest()",
+        "RequestTargetNext()",
+        "RequestTargetPrevious()",
+        "observer.Operations.TargetNearest()",
+        "observer.Operations.TargetNext()",
+        "observer.Operations.TargetPrevious()"
+    };
+    var unityTargetRequestSources = actionGameManager + "\n" + daemonOperations;
+    var missingUnityTargetRequestSymbols = requiredUnityTargetRequestSymbols
+        .Where(symbol => !unityTargetRequestSources.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingUnityTargetRequestSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity target cycling no longer lowers through typed daemon requests: " +
+            string.Join(", ", missingUnityTargetRequestSymbols));
+    }
+
+    var forbiddenUnityTargetCycleSymbols = new[]
+    {
+        ".MaxBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))",
+        ".OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))",
+        "Array.IndexOf(targets"
+    };
+    var unityTargetCycleHits = forbiddenUnityTargetCycleSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityTargetCycleHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity target cycling still orders or selects targets from renderer-local entity state instead of daemon contacts: " +
+            string.Join(", ", unityTargetCycleHits));
     }
 
     var requiredIntentAuthoritySymbols = new[]

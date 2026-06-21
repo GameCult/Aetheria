@@ -1072,6 +1072,79 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsCyclesTargetsFromAuthoritativeContacts()
+    {
+        var run = RunWithTwoEntities();
+        var zone = run.Zones[0];
+        zone.Entities[0].PositionX = 0;
+        zone.Entities[0].PositionY = 0;
+        zone.Entities[1].PositionX = 5;
+        zone.Entities[1].PositionY = 0;
+        zone.Entities = zone.Entities
+            .Concat(new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 2,
+                    Name = "Near Hostile",
+                    PositionX = 2,
+                    PositionY = 0
+                }
+            })
+            .ToArray();
+        zone.Entities[0].Contacts = new[]
+        {
+            new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 1,
+                Visible = true,
+                Hostile = true
+            },
+            new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 2,
+                Visible = true,
+                Hostile = true
+            }
+        };
+
+        var nearest = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TargetNearest,
+            "codex",
+            "session-target",
+            15,
+            "zone.0.entity.0");
+        var next = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TargetNext,
+            "codex",
+            "session-target",
+            16,
+            "zone.0.entity.0");
+        var previous = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TargetPrevious,
+            "codex",
+            "session-target",
+            17,
+            "zone.0.entity.0");
+
+        var previousFromNoneResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { previous });
+        Assert.AreEqual(1, previousFromNoneResult.AppliedCommandIds.Count);
+        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
+
+        var nearestResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { nearest });
+        Assert.AreEqual(1, nearestResult.AppliedCommandIds.Count);
+        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
+
+        var nextResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { next });
+        Assert.AreEqual(1, nextResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, zone.Entities[0].TargetEntityIndex);
+
+        var previousResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { previous });
+        Assert.AreEqual(1, previousResult.AppliedCommandIds.Count);
+        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
+    }
+
+    [Test]
     public void DaemonOperationsMutatesHotEntityControlsInDaemonState()
     {
         var run = RunWithTwoEntities();

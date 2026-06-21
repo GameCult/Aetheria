@@ -79,6 +79,12 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplySetTarget(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.ClearTarget:
                     return ApplyClearTarget(run, command);
+                case AetheriaRuntimeDaemonCommandKinds.TargetNearest:
+                    return ApplyTargetCycle(run, command, TargetCycleMode.Nearest);
+                case AetheriaRuntimeDaemonCommandKinds.TargetNext:
+                    return ApplyTargetCycle(run, command, TargetCycleMode.Next);
+                case AetheriaRuntimeDaemonCommandKinds.TargetPrevious:
+                    return ApplyTargetCycle(run, command, TargetCycleMode.Previous);
                 case AetheriaRuntimeDaemonCommandKinds.SetLookDirection:
                     return ApplySetLookDirection(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetTractorPower:
@@ -187,6 +193,86 @@ namespace GameCult.Aetheria.State.Verse
 
             actor.TargetEntityIndex = targetIndex;
             return true;
+        }
+
+        private enum TargetCycleMode
+        {
+            Nearest,
+            Next,
+            Previous
+        }
+
+        private static bool ApplyTargetCycle(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command,
+            TargetCycleMode mode)
+        {
+            var actorKey = string.IsNullOrWhiteSpace(command.ActorEntityKey)
+                ? run.CurrentEntityKey
+                : command.ActorEntityKey;
+            if (!TryResolveEntity(run, actorKey, out var actorZone, out var actorIndex, out var actor))
+                return false;
+
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == actorZone);
+            if (zone == null)
+                return false;
+
+            var orderedTargets = VisibleHostileTargets(zone, actor, actorIndex)
+                .OrderBy(target => target.DistanceSq)
+                .ThenBy(target => target.EntityIndex)
+                .ToArray();
+            if (orderedTargets.Length == 0)
+                return false;
+
+            if (mode == TargetCycleMode.Nearest)
+            {
+                actor.TargetEntityIndex = orderedTargets[0].EntityIndex;
+                return true;
+            }
+
+            var currentIndex = Array.FindIndex(
+                orderedTargets,
+                target => target.EntityIndex == actor.TargetEntityIndex);
+            if (currentIndex < 0)
+            {
+                actor.TargetEntityIndex = orderedTargets[0].EntityIndex;
+                return true;
+            }
+
+            var nextIndex = mode == TargetCycleMode.Next
+                ? (currentIndex + 1 + orderedTargets.Length) % orderedTargets.Length
+                : (currentIndex - 1 + orderedTargets.Length) % orderedTargets.Length;
+            actor.TargetEntityIndex = orderedTargets[nextIndex].EntityIndex;
+            return true;
+        }
+
+        private static IEnumerable<(int EntityIndex, double DistanceSq)> VisibleHostileTargets(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit actor,
+            int actorIndex)
+        {
+            var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            foreach (var contact in actor.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact == null ||
+                    !contact.Visible ||
+                    !contact.Hostile ||
+                    contact.TargetEntityIndex == actorIndex ||
+                    contact.TargetEntityIndex < 0 ||
+                    contact.TargetEntityIndex >= entities.Count)
+                {
+                    continue;
+                }
+
+                var target = entities[contact.TargetEntityIndex];
+                if (target == null)
+                    continue;
+
+                var deltaX = target.PositionX - actor.PositionX;
+                var deltaY = target.PositionY - actor.PositionY;
+                yield return (contact.TargetEntityIndex, (deltaX * deltaX) + (deltaY * deltaY));
+            }
         }
 
         private static bool ApplyClearTarget(

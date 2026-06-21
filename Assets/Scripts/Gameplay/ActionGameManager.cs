@@ -2067,31 +2067,17 @@ public class ActionGameManager : MonoBehaviour
 
         Input.Player.TargetNearest.performed += context =>
         {
-            if(CurrentEntity.VisibleEnemies.Any())
-            {
-                RequestTargetSelection(CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MaxBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition)));
-            }
+            RequestTargetNearest();
         };
 
         Input.Player.TargetNext.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                .OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))
-                .ToArray();
-            var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            RequestTargetSelection(targets[(currentTargetIndex + 1) % targets.Length]);
+            RequestTargetNext();
         };
 
         Input.Player.TargetPrevious.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                .OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))
-                .ToArray();
-            var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            RequestTargetSelection(targets[(currentTargetIndex + targets.Length - 1) % targets.Length]);
+            RequestTargetPrevious();
         };
 
         #endregion
@@ -3743,6 +3729,21 @@ public class ActionGameManager : MonoBehaviour
         TryRequestDaemonTargetSelection(target);
     }
 
+    private void RequestTargetNearest()
+    {
+        TryRequestDaemonTargetCycle(AetheriaRuntimeDaemonCommandKinds.TargetNearest);
+    }
+
+    private void RequestTargetNext()
+    {
+        TryRequestDaemonTargetCycle(AetheriaRuntimeDaemonCommandKinds.TargetNext);
+    }
+
+    private void RequestTargetPrevious()
+    {
+        TryRequestDaemonTargetCycle(AetheriaRuntimeDaemonCommandKinds.TargetPrevious);
+    }
+
     private bool TryRequestDaemonTargetSelection(Entity target)
     {
         var observer = ResolveDaemonObserver();
@@ -3771,6 +3772,38 @@ public class ActionGameManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to send Aetheria daemon target operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonTargetCycle(AetheriaRuntimeDaemonCommandKinds command)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            switch (command)
+            {
+                case AetheriaRuntimeDaemonCommandKinds.TargetNearest:
+                    observer.Operations.TargetNearest();
+                    return true;
+                case AetheriaRuntimeDaemonCommandKinds.TargetNext:
+                    observer.Operations.TargetNext();
+                    return true;
+                case AetheriaRuntimeDaemonCommandKinds.TargetPrevious:
+                    observer.Operations.TargetPrevious();
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon target cycle operation; operation not submitted: {ex.Message}");
             return false;
         }
     }

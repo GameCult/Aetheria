@@ -117,6 +117,21 @@ namespace GameCult.Aetheria.State.Verse
             return Send(AetheriaRuntimeDaemonCommandKinds.ClearTarget, observed);
         }
 
+        public AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeObservedDaemonState? observed)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.TargetNearest, observed);
+        }
+
+        public AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeObservedDaemonState? observed)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.TargetNext, observed);
+        }
+
+        public AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeObservedDaemonState? observed)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed);
+        }
+
         public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
             AetheriaRuntimeObservedDaemonState? observed,
             double directionX,
