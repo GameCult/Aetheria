@@ -896,14 +896,16 @@ public class ActionGameManager : MonoBehaviour
             : ObservedGalaxy?.Zones?.FirstOrDefault(zone => zone != null && zone.ZoneIndex == daemonZoneIndex);
     }
 
-    public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(int daemonZoneIndex)
+    public bool TryGetObservedZoneSnapshot(int daemonZoneIndex, out AetheriaRuntimeZoneSnapshotCommit snapshot)
     {
+        snapshot = null;
         if (daemonZoneIndex < 0)
-            return null;
+            return false;
 
         var run = ResolveDaemonObserver()?.LastObservedState?.Run;
-        return (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+        snapshot = (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == daemonZoneIndex);
+        return snapshot != null;
     }
 
     public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)

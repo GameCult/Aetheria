@@ -153,8 +153,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToArray();
 
-        var daemonZone = GameManager?.FindDaemonZoneSnapshot(zone?.ZoneIndex ?? -1);
-        if (daemonZone == null)
+        if (GameManager == null ||
+            !GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone))
         {
             return new AetheriaRuntimeZoneDetailsSurfaceState(
                 zone.Name,

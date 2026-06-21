@@ -3712,7 +3712,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
         "ProjectZoneDetailsSurfaceState(",
-        "GameManager?.FindDaemonZoneSnapshot(zone?.ZoneIndex ?? -1)",
+        "GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone)",
         "daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()",
         "daemonZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()",
         "typedHull.HullType",
@@ -8130,7 +8130,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "ApplyLatestAuthoritativeDaemonFrame()",
         "ResolveDaemonObserver()",
-        "public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(int daemonZoneIndex)",
+        "public bool TryGetObservedZoneSnapshot(int daemonZoneIndex, out AetheriaRuntimeZoneSnapshotCommit snapshot)",
         "public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)",
         "snapshot.ZoneIndex == daemonZoneIndex",
         "FindObservedGalaxyZone(run.CurrentZoneIndex)",
@@ -8186,6 +8186,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         sectorRenderer.Contains("GameManager.CurrentEntity.Zone.GalaxyZone", StringComparison.Ordinal) ||
         mapRenderer.Contains("GameManager.CurrentDaemonGalaxyZone", StringComparison.Ordinal) ||
         sectorRenderer.Contains("GameManager.CurrentDaemonGalaxyZone", StringComparison.Ordinal) ||
+        mapRenderer.Contains("GameManager.ZoneRenderer", StringComparison.Ordinal) ||
         actionGameManager.Contains("public GalaxyZone CurrentDaemonGalaxyZone", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -8193,6 +8194,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     }
 
     if (!actionGameManager.Contains("public static bool TryGetObservedGalaxy(out Galaxy galaxy)", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("public bool TryGetObservedZoneSnapshot(int daemonZoneIndex, out AetheriaRuntimeZoneSnapshotCommit snapshot)", StringComparison.Ordinal) ||
         !actionGameManager.Contains("public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)", StringComparison.Ordinal) ||
         !mapRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
@@ -8247,8 +8249,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity gameplay must resolve observed zones by daemon zone identity, not projected array slot.");
     }
 
-    if (actionGameManager.Contains("FindDaemonZoneSnapshot(GalaxyZone", StringComparison.Ordinal) ||
-        sectorRenderer.Contains("FindDaemonZoneSnapshot(zone)", StringComparison.Ordinal))
+    if (actionGameManager.Contains("FindDaemonZoneSnapshot(", StringComparison.Ordinal) ||
+        sectorRenderer.Contains("FindDaemonZoneSnapshot(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Unity UI must query daemon zone snapshots by daemon zone identity instead of passing projected zone objects.");

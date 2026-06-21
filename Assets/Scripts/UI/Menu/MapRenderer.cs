@@ -129,6 +129,6 @@ public class MapRenderer : MonoBehaviour
         InfluenceCamera.transform.position = pos;
         InfluenceCamera.orthographicSize = _size.y * Scale * .5f;
         
-        GameManager.ZoneRenderer.SetIconSize(IconSize * Scale);
+        ZoneRenderer.SetIconSize(IconSize * Scale);
     }
 }
