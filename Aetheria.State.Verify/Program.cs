@@ -4216,6 +4216,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.Close",
+        "AetheriaRuntimeShipSettingsSurfaceCommands.ResolveShutdownPerformance(",
         "GameManager.TryGetObservedCurrentEntity(out var currentEntity)",
         "GameManager.TryGetObservedCurrentEntity(out var entity)"
     };
@@ -4247,6 +4248,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "() => GameManager.CurrentEntity.Settings.ShutdownPerformance",
         "f => GameManager.RequestEntityShutdownPerformance(GameManager.CurrentEntity, f)",
         "switch (request.Command)",
+        "ShutdownThresholdStep",
+        "Mathf.Clamp01(entity.Settings.ShutdownPerformance",
+        "Mathf.Clamp01(GameManager.Settings.GameplaySettings.DefaultShutdownPerformance",
         "var entity = GameManager.CurrentEntity",
         "GameManager.CurrentEntity == null",
         "RenderCurrentShipSettingsSurface(GameManager.CurrentEntity)",
@@ -4278,7 +4282,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "public static bool TryRead(",
         "AetheriaRuntimeShipSettingsSurfaceState",
         "public static AetheriaRuntimeShipSettingsSurfaceState Project(",
-        "public static AetheriaRuntimeSurfaceDocument Build("
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "public static float ResolveShutdownPerformance(",
+        "public static float ClampShutdownPerformance("
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !shipSettingsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
@@ -4432,6 +4438,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !unityProject.Contains("AetheriaRuntimeDaemonItemStatQueries.cs", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("prop.Key.EndsWith(\"Ref\", StringComparison.Ordinal)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||

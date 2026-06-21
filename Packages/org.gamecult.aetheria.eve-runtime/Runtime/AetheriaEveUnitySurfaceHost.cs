@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Eve.UnityUIToolkit;
@@ -202,9 +203,10 @@ namespace GameCult.Aetheria.EveRuntime
         private static bool ContainsStateRefs(EveSurfaceComponent component)
         {
             if (component.Props != null &&
-                (component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Source) ||
-                 component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Value) ||
-                 component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Label)))
+                component.Props.Any(prop =>
+                    !string.IsNullOrWhiteSpace(prop.Value) &&
+                    (string.Equals(prop.Key, AetheriaRuntimeSurfaceStateRefs.Source, StringComparison.Ordinal) ||
+                     prop.Key.EndsWith("Ref", StringComparison.Ordinal))))
             {
                 return true;
             }

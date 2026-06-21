@@ -17,8 +17,6 @@ using UnityEngine.UIElements;
 
 public class InventoryMenu : MonoBehaviour
 {
-    private const float ShutdownThresholdStep = 0.05f;
-
     public InventoryPanel[] InventoryPanels;
     public ActionGameManager GameManager;
     public ConfirmationDialog Dialog;
@@ -207,19 +205,14 @@ public class InventoryMenu : MonoBehaviour
         switch (command.Kind)
         {
             case AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold:
-                GameManager.RequestEntityShutdownPerformance(
-                    entity,
-                    Mathf.Clamp01(entity.Settings.ShutdownPerformance - ShutdownThresholdStep));
-                return;
             case AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold:
-                GameManager.RequestEntityShutdownPerformance(
-                    entity,
-                    Mathf.Clamp01(entity.Settings.ShutdownPerformance + ShutdownThresholdStep));
-                return;
             case AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold:
                 GameManager.RequestEntityShutdownPerformance(
                     entity,
-                    Mathf.Clamp01(GameManager.Settings.GameplaySettings.DefaultShutdownPerformance));
+                    AetheriaRuntimeShipSettingsSurfaceCommands.ResolveShutdownPerformance(
+                        command.Kind,
+                        entity.Settings.ShutdownPerformance,
+                        GameManager.Settings.GameplaySettings.DefaultShutdownPerformance));
                 return;
             case AetheriaRuntimeShipSettingsCommandKind.Close:
                 HideCurrentShipSettingsSurface();

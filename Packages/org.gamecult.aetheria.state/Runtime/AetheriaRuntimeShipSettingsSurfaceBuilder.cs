@@ -158,6 +158,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeShipSettingsSurfaceCommands
     {
+        public const float DefaultShutdownThresholdStep = 0.05f;
+
         public static bool TryRead(
             EveSurfaceCommandRequest request,
             out AetheriaRuntimeShipSettingsCommand command)
@@ -188,6 +190,34 @@ namespace GameCult.Aetheria.State.Verse
                 default:
                     return false;
             }
+        }
+
+        public static float ResolveShutdownPerformance(
+            AetheriaRuntimeShipSettingsCommandKind kind,
+            float currentShutdownPerformance,
+            float defaultShutdownPerformance,
+            float shutdownThresholdStep = DefaultShutdownThresholdStep)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold:
+                    return ClampShutdownPerformance(currentShutdownPerformance - shutdownThresholdStep);
+                case AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold:
+                    return ClampShutdownPerformance(currentShutdownPerformance + shutdownThresholdStep);
+                case AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold:
+                    return ClampShutdownPerformance(defaultShutdownPerformance);
+                default:
+                    return ClampShutdownPerformance(currentShutdownPerformance);
+            }
+        }
+
+        public static float ClampShutdownPerformance(float value)
+        {
+            if (float.IsNaN(value))
+                return 0f;
+            if (value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
         }
     }
 }
