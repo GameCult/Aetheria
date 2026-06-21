@@ -3115,8 +3115,10 @@ public class ActionGameManager : MonoBehaviour
         }
 
         DockCamera.Follow = orbitalInstance.transform;
-        var parentOrbitKey = Zone.TryGetOrbit(orbital.OrbitKey, out var orbit) ? orbit.ParentOrbitKey : "";
         var daemonZone = FindCurrentDaemonZoneSnapshot();
+        var parentOrbitKey = (daemonZone?.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
+            .FirstOrDefault(orbit => orbit != null && string.Equals(orbit.OrbitKey ?? "", orbital.OrbitKey, StringComparison.Ordinal))
+            ?.ParentOrbitKey ?? "";
         var parentOrbitPlanetBodyKey = (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             .FirstOrDefault(body => body != null && string.Equals(body.OrbitKey ?? "", parentOrbitKey, StringComparison.Ordinal))
             ?.BodyKey ?? "";

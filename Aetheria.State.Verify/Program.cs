@@ -1432,8 +1432,9 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
-            "Zone.TryGetOrbit(orbital.OrbitKey, out var orbit)",
             "FindCurrentDaemonZoneSnapshot()",
+            "daemonZone?.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()",
+            "string.Equals(orbit.OrbitKey ?? \"\", orbital.OrbitKey, StringComparison.Ordinal)",
             "string.Equals(body.OrbitKey ?? \"\", parentOrbitKey, StringComparison.Ordinal)"
         },
         [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")] = new[]
@@ -7902,6 +7903,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "CurrentEntity.CultPositionXZ = TowingStation.CultPositionXZ",
         "PopulateLevel(TowingStation.Zone.GalaxyZone)",
         "Zone.PlanetInstances.Values.FirstOrDefault",
+        "Zone.TryGetOrbit(orbital.OrbitKey",
         "RestoreDaemonAsteroidRuntimeState",
         "belt.Damage.Clear()",
         "belt.RespawnTimers.Clear()",
@@ -7940,6 +7942,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",
+        "daemonZone?.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()",
         "ResolveDaemonObserver()?.LastObservedState?.Run",
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",
