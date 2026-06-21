@@ -438,9 +438,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         var price = typedItem.Price;
-        var clampedQuantity = min(quantity, simpleCommodity.Quantity);
-
-        if (!GameManager.RequestTradePurchase(Inventory, _targetCargo, simpleCommodity, clampedQuantity, price))
+        if (!GameManager.RequestTradePurchase(Inventory, _targetCargo, simpleCommodity, quantity, price))
         {
             ShowUnableToBuy("Purchase request rejected!");
             return;
@@ -470,7 +468,7 @@ public class TradeMenu : MonoBehaviour
         Dialog.AddField(
             "Quantity",
             () => quantity,
-            q => quantity = min(q, simpleCommodity.Quantity));
+            q => quantity = q);
         Dialog.Show(() =>
         {
             Buy(simpleCommodity, quantity);

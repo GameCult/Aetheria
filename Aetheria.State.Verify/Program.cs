@@ -9173,6 +9173,8 @@ static void RequireTradePurchaseRequestAuthority(string root)
         "price > GameManager.Credits",
         "totalPrice > GameManager.Credits",
         "GameManager.Credits / price",
+        "min(quantity, simpleCommodity.Quantity)",
+        "quantity = min(q, simpleCommodity.Quantity)",
         "\"Insufficient Credits!\"",
         "\"Insufficient Cargo Space!\"",
         "\"Unable to create ship!\""
