@@ -89,6 +89,10 @@ public class ZoneRenderer : MonoBehaviour
     private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses = new List<AetheriaRuntimeDaemonBodyPose>();
     private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey =
         new Dictionary<string, AetheriaRuntimeDaemonBodyPose>(StringComparer.Ordinal);
+    private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses =
+        new List<AetheriaRuntimeDaemonAsteroidBeltPose>();
+    private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey =
+        new Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose>(StringComparer.Ordinal);
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -470,16 +474,21 @@ public class ZoneRenderer : MonoBehaviour
         
         Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
         RefreshDaemonBodyPoses();
+        RefreshDaemonAsteroidBeltPoses();
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
         
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
-            var height = GetTerrainHeight(belt.OrbitPosition);
+            if (!_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose))
+                continue;
+
+            var center = new float2((float)beltPose.CenterX, (float)beltPose.CenterZ);
+            var height = GetTerrainHeight(center);
             if(isVisible(new Bounds(
-                new Vector3(belt.OrbitPosition.x,height,belt.OrbitPosition.y),
-                new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
+                new Vector3(center.x,height,center.y),
+                new Vector3((float)beltPose.Radius * 2,100,(float)beltPose.Radius * 2))))
             {
                 var meshes = _beltMeshes[key];
                 var matrices = _beltMatrices[key];
@@ -503,7 +512,7 @@ public class ZoneRenderer : MonoBehaviour
             }
 
             if(_showAsteroidUI)
-                _beltObjects[key].Update(belt.Transforms, height);
+                _beltObjects[key].Update(belt.Transforms, center, height, (float)beltPose.Radius);
         }
 
         foreach (var planet in Planets)
@@ -580,6 +589,17 @@ public class ZoneRenderer : MonoBehaviour
         {
             if (!string.IsNullOrWhiteSpace(pose.BodyKey))
                 _daemonBodyPosesByBodyKey[pose.BodyKey] = pose;
+        }
+    }
+
+    private void RefreshDaemonAsteroidBeltPoses()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);
+        _daemonAsteroidBeltPosesByBodyKey.Clear();
+        foreach (var pose in _daemonAsteroidBeltPoses)
+        {
+            if (!string.IsNullOrWhiteSpace(pose.BodyKey))
+                _daemonAsteroidBeltPosesByBodyKey[pose.BodyKey] = pose;
         }
     }
 
@@ -716,9 +736,8 @@ public class AsteroidBeltUI
         //_collider.sharedMesh = _mesh;
     }
 
-    public void Update(float4[] transforms, float height)
+    public void Update(float4[] transforms, float2 center, float height, float radius)
     {
-        var parentPosition = _belt.OrbitPosition;
         for (var i = 0; i < transforms.Length; i++)
         {
             var transform = transforms[i];
@@ -730,7 +749,8 @@ public class AsteroidBeltUI
             _vertices[i * 4 + 3] = rotation * new Vector3(transform.w * _scale, -transform.w * _scale, 0) + position;
         }
 
-        _mesh.bounds = new Bounds(new Vector3(parentPosition.x, 0, parentPosition.y), Vector3.one * (_size * 2));
+        var boundsRadius = Math.Max(_size, radius);
+        _mesh.bounds = new Bounds(new Vector3(center.x, 0, center.y), Vector3.one * (boundsRadius * 2));
         _mesh.vertices = _vertices;
         //_collider.sharedMesh = _mesh;
     }

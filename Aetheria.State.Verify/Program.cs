@@ -1816,7 +1816,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "zone.GravityTerrainWaveFrequency",
         "public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(",
         "public static int QueryBodyPoses(",
-        "new AetheriaRuntimeDaemonBodyPose("
+        "new AetheriaRuntimeDaemonBodyPose(",
+        "AetheriaRuntimeDaemonAsteroidBeltPose",
+        "public static AetheriaRuntimeDaemonAsteroidBeltPose[] QueryAsteroidBeltPoses(",
+        "public static int QueryAsteroidBeltPoses(",
+        "ResolveAsteroidBeltRadius(body)"
     };
 
     var missingQuerySymbols = requiredQuerySymbols
@@ -1894,16 +1898,27 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer frame updates must read body render state from daemon body poses instead of indexed mirrored Unity planets.");
     }
 
+    if (zoneRenderer.Contains("belt.OrbitPosition", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("belt.Radius", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer frame updates must read asteroid belt pose and radius from daemon belt poses instead of mirrored Unity asteroid belts.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
+        "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
+        "private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey",
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
+        "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
+        "_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose)",
         "pose.GravityWaveSpeed"
     };
     var missingZoneRendererSymbols = requiredZoneRendererSymbols

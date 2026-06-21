@@ -104,6 +104,32 @@ namespace GameCult.Aetheria.State.Verse
         public double GravityWaveSpeed { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonAsteroidBeltPose
+    {
+        public AetheriaRuntimeDaemonAsteroidBeltPose(
+            string bodyKey,
+            string orbitKey,
+            double centerX,
+            double centerZ,
+            double radius,
+            int asteroidCount)
+        {
+            BodyKey = bodyKey ?? "";
+            OrbitKey = orbitKey ?? "";
+            CenterX = centerX;
+            CenterZ = centerZ;
+            Radius = Math.Max(0, radius);
+            AsteroidCount = Math.Max(0, asteroidCount);
+        }
+
+        public string BodyKey { get; }
+        public string OrbitKey { get; }
+        public double CenterX { get; }
+        public double CenterZ { get; }
+        public double Radius { get; }
+        public int AsteroidCount { get; }
+    }
+
     public static class AetheriaRuntimeDaemonRenderQueries
     {
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
@@ -193,6 +219,43 @@ namespace GameCult.Aetheria.State.Verse
                     parentCenter.x,
                     parentCenter.z,
                     ResolveWaveSpeed(body)));
+            }
+
+            return poses.Count;
+        }
+
+        public static AetheriaRuntimeDaemonAsteroidBeltPose[] QueryAsteroidBeltPoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone)
+        {
+            var poses = new List<AetheriaRuntimeDaemonAsteroidBeltPose>();
+            QueryAsteroidBeltPoses(zone, poses);
+            return poses.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonAsteroidBeltPose>() : poses.ToArray();
+        }
+
+        public static int QueryAsteroidBeltPoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            List<AetheriaRuntimeDaemonAsteroidBeltPose> poses)
+        {
+            if (poses == null) throw new ArgumentNullException(nameof(poses));
+            poses.Clear();
+            if (zone == null)
+                return 0;
+
+            var orbitPositions = BuildOrbitPositions(zone);
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (body == null ||
+                    !string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
+                    !TryResolveBodyCenter(body, orbitPositions, out var center))
+                    continue;
+
+                poses.Add(new AetheriaRuntimeDaemonAsteroidBeltPose(
+                    body.BodyKey,
+                    body.OrbitKey,
+                    center.x,
+                    center.z,
+                    ResolveAsteroidBeltRadius(body),
+                    body.Asteroids?.Count ?? 0));
             }
 
             return poses.Count;
@@ -417,6 +480,18 @@ namespace GameCult.Aetheria.State.Verse
         private static double ResolveWaveSpeed(AetheriaRuntimeBodySnapshotCommit body)
         {
             return body.GravityWaveSpeed;
+        }
+
+        private static double ResolveAsteroidBeltRadius(AetheriaRuntimeBodySnapshotCommit body)
+        {
+            var radius = 0.0;
+            foreach (var asteroid in body.Asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>())
+            {
+                if (asteroid != null && asteroid.Distance > radius)
+                    radius = asteroid.Distance;
+            }
+
+            return radius;
         }
 
         private static double Clamp(double value, double min, double max)

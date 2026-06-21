@@ -787,6 +787,54 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishAsteroidBeltPosesFromZoneSnapshot()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Orbits = new[]
+            {
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:belt",
+                    FixedPositionX = 11,
+                    FixedPositionY = -4
+                }
+            },
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:belt",
+                    OrbitKey = "orbit:belt",
+                    Kind = "asteroid_belt",
+                    Asteroids = new[]
+                    {
+                        new AetheriaRuntimeAsteroidCommit { Distance = 3 },
+                        new AetheriaRuntimeAsteroidCommit { Distance = 7 },
+                        new AetheriaRuntimeAsteroidCommit { Distance = 5 }
+                    }
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:planet",
+                    OrbitKey = "orbit:belt",
+                    Kind = "planet"
+                }
+            }
+        };
+
+        var poses = AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(zone);
+
+        Assert.AreEqual(1, poses.Length);
+        Assert.AreEqual("body:belt", poses[0].BodyKey);
+        Assert.AreEqual("orbit:belt", poses[0].OrbitKey);
+        Assert.AreEqual(11, poses[0].CenterX, 0.0001);
+        Assert.AreEqual(-4, poses[0].CenterZ, 0.0001);
+        Assert.AreEqual(7, poses[0].Radius, 0.0001);
+        Assert.AreEqual(3, poses[0].AsteroidCount);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
