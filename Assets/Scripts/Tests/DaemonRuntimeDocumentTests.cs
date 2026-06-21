@@ -1678,6 +1678,28 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonItemStatRefsRoundTripThroughSharedQueryHelper()
+    {
+        var stateRef = AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
+            "items/weapons/mining-laser",
+            "behavior/mining",
+            2,
+            7);
+
+        Assert.IsTrue(AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(
+            stateRef,
+            out var itemKey,
+            out var behaviorKind,
+            out var behaviorGroup,
+            out var fieldKey));
+
+        Assert.AreEqual("items/weapons/mining-laser", itemKey);
+        Assert.AreEqual("behavior/mining", behaviorKind);
+        Assert.AreEqual(2, behaviorGroup);
+        Assert.AreEqual(7, fieldKey);
+    }
+
+    [Test]
     public void DaemonOperationsMovesTargetSelectionIntoDaemonState()
     {
         var run = RunWithTwoEntities();

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 #nullable enable
@@ -48,6 +49,35 @@ namespace GameCult.Aetheria.State.Verse
             int fieldKey)
         {
             return $"{StateRefPrefix}/{Token(itemKey)}/behaviors/{Token(behaviorKind)}/{behaviorGroup}/stats/{fieldKey}";
+        }
+
+        public static bool TryReadItemStatRef(
+            string stateRef,
+            out string itemKey,
+            out string behaviorKind,
+            out int behaviorGroup,
+            out int fieldKey)
+        {
+            itemKey = "";
+            behaviorKind = "";
+            behaviorGroup = -1;
+            fieldKey = -1;
+
+            var parts = (stateRef ?? "").Split('/');
+            if (parts.Length != 8 ||
+                !string.Equals(parts[0], "aetheria.state", StringComparison.Ordinal) ||
+                !string.Equals(parts[1], "items", StringComparison.Ordinal) ||
+                !string.Equals(parts[3], "behaviors", StringComparison.Ordinal) ||
+                !string.Equals(parts[6], "stats", StringComparison.Ordinal) ||
+                !int.TryParse(parts[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out behaviorGroup) ||
+                !int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out fieldKey))
+            {
+                return false;
+            }
+
+            itemKey = DecodeToken(parts[2]);
+            behaviorKind = DecodeToken(parts[4]);
+            return !string.IsNullOrWhiteSpace(itemKey) && !string.IsNullOrWhiteSpace(behaviorKind);
         }
 
         public static AetheriaRuntimeStatRecipePreviewState ConditionsFor(
@@ -294,6 +324,11 @@ namespace GameCult.Aetheria.State.Verse
             return string.IsNullOrWhiteSpace(value)
                 ? "_"
                 : value.Trim().Replace("/", "%2F");
+        }
+
+        private static string DecodeToken(string value)
+        {
+            return (value ?? "").Replace("%2F", "/", StringComparison.Ordinal);
         }
     }
 }

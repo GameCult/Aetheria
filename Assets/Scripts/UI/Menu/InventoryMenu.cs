@@ -758,7 +758,12 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
     private bool TryResolveInventorySurfaceStateRef(string stateRef, out string value)
     {
         value = "";
-        if (!TryReadItemStatRef(stateRef, out var itemKey, out var behaviorKind, out var behaviorGroup, out var fieldKey))
+        if (!AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(
+                stateRef,
+                out var itemKey,
+                out var behaviorKind,
+                out var behaviorGroup,
+                out var fieldKey))
             return false;
 
         var item = ResolveSelectedEquippableItem(itemKey);
@@ -784,44 +789,10 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
         return ItemKeyMatches(cargo, itemKey) ? cargo : null;
     }
 
-    private static bool TryReadItemStatRef(
-        string stateRef,
-        out string itemKey,
-        out string behaviorKind,
-        out int behaviorGroup,
-        out int fieldKey)
-    {
-        itemKey = "";
-        behaviorKind = "";
-        behaviorGroup = -1;
-        fieldKey = -1;
-
-        var parts = (stateRef ?? "").Split('/');
-        if (parts.Length != 8 ||
-            !string.Equals(parts[0], "aetheria.state", StringComparison.Ordinal) ||
-            !string.Equals(parts[1], "items", StringComparison.Ordinal) ||
-            !string.Equals(parts[3], "behaviors", StringComparison.Ordinal) ||
-            !string.Equals(parts[6], "stats", StringComparison.Ordinal) ||
-            !int.TryParse(parts[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out behaviorGroup) ||
-            !int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out fieldKey))
-        {
-            return false;
-        }
-
-        itemKey = DecodeRefToken(parts[2]);
-        behaviorKind = DecodeRefToken(parts[4]);
-        return !string.IsNullOrWhiteSpace(itemKey) && !string.IsNullOrWhiteSpace(behaviorKind);
-    }
-
     private static bool ItemKeyMatches(EquippableItem item, string itemKey)
     {
         return item != null &&
                string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal);
-    }
-
-    private static string DecodeRefToken(string token)
-    {
-        return (token ?? "").Replace("%2F", "/", StringComparison.Ordinal);
     }
 
     private static AetheriaRuntimeBehaviorValue ToRuntimeBehaviorValue(PerformanceStat stat)
