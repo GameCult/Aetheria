@@ -2128,6 +2128,47 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsSelectsNearestDockTargetFromAuthoritativeSnapshot()
+    {
+        var run = RunWithTwoEntities();
+        var zone = run.Zones[0];
+        zone.Entities[0].PositionX = 0;
+        zone.Entities[0].PositionY = 0;
+        zone.Entities[1].PositionX = 3;
+        zone.Entities[1].PositionY = 4;
+        zone.Entities = zone.Entities
+            .Concat(new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 2,
+                    Name = "Far Dock",
+                    PositionX = 8,
+                    PositionY = 0
+                }
+            })
+            .ToArray();
+
+        var dock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.DockNearest,
+            "codex",
+            "session-navigation",
+            37,
+            "zone.0.entity.0");
+        dock.ScalarValue = 6.0;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { dock });
+
+        Assert.AreEqual(1, result.AppliedCommandIds.Count);
+        Assert.AreEqual(1, result.Intents.Docking.Count);
+        Assert.IsTrue(result.Intents.Docking[0].Dock);
+        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.0.entity.1.v1", result.Intents.Docking[0].TargetEntityKey);
+        CollectionAssert.Contains(zone.Entities[1].ChildEntityIndices, 0);
+        CollectionAssert.Contains(zone.Entities[1].DockingBayAssignments, 0);
+        CollectionAssert.DoesNotContain(zone.Entities[2].ChildEntityIndices, 0);
+    }
+
+    [Test]
     public void DaemonOperationsRejectsUndockWhenEntityIsNotDocked()
     {
         var run = RunWithTwoEntities();

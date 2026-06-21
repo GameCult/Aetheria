@@ -180,6 +180,11 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.Dock(observed, targetEntityKey));
     }
 
+    public AetheriaRuntimeDaemonCommandEnvelope DockNearest(double maxDistance)
+    {
+        return Send((client, observed) => client.DockNearest(observed, maxDistance));
+    }
+
     public AetheriaRuntimeDaemonCommandEnvelope Undock()
     {
         return Send((client, observed) => client.Undock(observed));

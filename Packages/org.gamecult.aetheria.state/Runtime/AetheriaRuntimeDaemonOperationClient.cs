@@ -365,6 +365,14 @@ namespace GameCult.Aetheria.State.Verse
                 command.TargetEntityKey = targetEntityKey ?? "");
         }
 
+        public AetheriaRuntimeDaemonCommandEnvelope DockNearest(
+            AetheriaRuntimeObservedDaemonState? observed,
+            double maxDistance)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed, command =>
+                command.ScalarValue = maxDistance);
+        }
+
         public AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(AetheriaRuntimeDaemonCommandKinds.Undock, observed);

@@ -7276,6 +7276,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var galaxyPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Galaxy.cs");
     var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
+    var daemonOperationClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationClient.cs");
     var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
@@ -7292,6 +7293,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonDocuments = File.Exists(daemonDocumentsPath)
         ? File.ReadAllText(daemonDocumentsPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon command documents are missing.");
+    var daemonOperationClient = File.Exists(daemonOperationClientPath)
+        ? File.ReadAllText(daemonOperationClientPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon operation client is missing.");
     var daemonOperationsSource = File.Exists(daemonRuntimeOperationsPath)
         ? File.ReadAllText(daemonRuntimeOperationsPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon operations is missing.");
@@ -7533,7 +7537,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryRequestDaemonDock()",
         "TryRequestDaemonUndock()",
         "TryRequestDaemonTowToStation()",
-        "observer.Operations.Dock(targetKey)",
+        "observer.Operations.DockNearest(Settings.GameplaySettings.DockingDistance)",
         "observer.Operations.Undock()",
         "observer.Operations.TowToStation(",
         "TowingStation.CultPositionXZ.x",
@@ -7595,6 +7599,37 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Unity dock request still rejects through renderer-local parent state instead of daemon acceptance: " +
             string.Join("; ", dockLocalAuthorityHits));
+    }
+
+    var dockTargetSelectionHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "FindDaemonDockTarget", "Zone.Entities", "CultPositionXZ - CurrentEntity.CultPositionXZ" })
+        .Where(hit => hit.MethodName == "TryRequestDaemonDock" || hit.MethodName == "FindDaemonDockTarget")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (dockTargetSelectionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity dock request still selects docking targets from renderer-local zone state instead of daemon acceptance: " +
+            string.Join("; ", dockTargetSelectionHits));
+    }
+
+    var requiredDaemonDockNearestSymbols = new[]
+    {
+        "AetheriaRuntimeDaemonCommandKinds.DockNearest",
+        "public AetheriaRuntimeDaemonCommandEnvelope DockNearest(",
+        "ApplyDockNearestIntent(run, command, context.Intents)",
+        "TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey)"
+    };
+    var daemonDockNearestSources = daemonDocuments + "\n" + daemonOperationClient + "\n" + daemonOperationsSource;
+    var missingDaemonDockNearestSymbols = requiredDaemonDockNearestSymbols
+        .Where(symbol => !daemonDockNearestSources.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonDockNearestSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon no longer owns nearest docking target selection: " +
+            string.Join(", ", missingDaemonDockNearestSymbols));
     }
 
     var movementLocalAuthorityHits = FindMethodScopedLineHits(

@@ -78,6 +78,7 @@ namespace GameCult.Aetheria.State.Verse
         PickUpLoot,
         RestoreLoadout,
         Dock,
+        DockNearest,
         Undock,
         SetDockedCurrentShip,
         TowToStation,

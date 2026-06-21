@@ -3883,21 +3883,14 @@ public class ActionGameManager : MonoBehaviour
     private bool TryRequestDaemonDock()
     {
         var observer = ResolveDaemonObserver();
-        if (observer == null || !observer.HasAuthoritativeState || CurrentEntity == null)
-        {
-            return false;
-        }
-
-        var target = FindDaemonDockTarget();
-        var targetKey = ResolveEntityRecordKey(target);
-        if (string.IsNullOrWhiteSpace(targetKey))
+        if (observer == null || !observer.HasAuthoritativeState)
         {
             return false;
         }
 
         try
         {
-            observer.Operations.Dock(targetKey);
+            observer.Operations.DockNearest(Settings.GameplaySettings.DockingDistance);
             return true;
         }
         catch (Exception ex)
@@ -3905,36 +3898,6 @@ public class ActionGameManager : MonoBehaviour
             Debug.LogWarning($"Failed to send Aetheria daemon dock operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private Entity FindDaemonDockTarget()
-    {
-        if (CurrentEntity == null || Zone == null)
-        {
-            return null;
-        }
-
-        var dockingDistanceSq = Settings.GameplaySettings.DockingDistance * Settings.GameplaySettings.DockingDistance;
-        Entity closest = null;
-        var closestDistanceSq = float.MaxValue;
-        foreach (var entity in Zone.Entities)
-        {
-            if (entity == null || entity == CurrentEntity)
-            {
-                continue;
-            }
-
-            var distanceSq = CultMath.math.lengthsq(entity.CultPositionXZ - CurrentEntity.CultPositionXZ);
-            if (distanceSq >= dockingDistanceSq || distanceSq >= closestDistanceSq)
-            {
-                continue;
-            }
-
-            closest = entity;
-            closestDistanceSq = distanceSq;
-        }
-
-        return closest;
     }
 
     public void RequestUndock()

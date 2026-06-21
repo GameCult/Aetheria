@@ -151,6 +151,8 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplySensorPing(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.Dock:
                     return ApplyDockIntent(run, command, context.Intents);
+                case AetheriaRuntimeDaemonCommandKinds.DockNearest:
+                    return ApplyDockNearestIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.Undock:
                     return ApplyUndockIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
@@ -913,6 +915,22 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
+        private static bool ApplyDockNearestIntent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonIntentState intents)
+        {
+            var actorKey = ResolveActorEntityKey(run, command);
+            if (string.IsNullOrWhiteSpace(actorKey) ||
+                !TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey))
+            {
+                return false;
+            }
+
+            command.TargetEntityKey = targetKey;
+            return ApplyDockIntent(run, command, intents);
+        }
+
         private static bool ApplyUndockIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
@@ -930,6 +948,48 @@ namespace GameCult.Aetheria.State.Verse
                 ActorEntityKey = actor,
                 Undock = true
             });
+            return true;
+        }
+
+        private static bool TryFindNearestDockTarget(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string actorEntityKey,
+            double maxDistance,
+            out string targetEntityKey)
+        {
+            targetEntityKey = "";
+            if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out var actorIndex, out var actor))
+                return false;
+
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            if (zone == null)
+                return false;
+
+            var maxDistanceSq = maxDistance > 0.0 ? maxDistance * maxDistance : double.PositiveInfinity;
+            var closestDistanceSq = double.PositiveInfinity;
+            var closestIndex = -1;
+            var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            for (var index = 0; index < entities.Count; index++)
+            {
+                var candidate = entities[index];
+                if (candidate == null || index == actorIndex)
+                    continue;
+
+                var deltaX = candidate.PositionX - actor.PositionX;
+                var deltaY = candidate.PositionY - actor.PositionY;
+                var distanceSq = (deltaX * deltaX) + (deltaY * deltaY);
+                if (distanceSq >= maxDistanceSq || distanceSq >= closestDistanceSq)
+                    continue;
+
+                closestDistanceSq = distanceSq;
+                closestIndex = index;
+            }
+
+            if (closestIndex < 0)
+                return false;
+
+            targetEntityKey = BuildEntityKey(run.RunId, zoneIndex, closestIndex);
             return true;
         }
 
