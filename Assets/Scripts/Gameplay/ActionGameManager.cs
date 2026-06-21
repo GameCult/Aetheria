@@ -565,6 +565,9 @@ public class ActionGameManager : MonoBehaviour
     {
         var emissionCurve = Settings.GameplaySettings.TemperatureEmissionCurve;
         var bodyIconSizeCurve = Settings.IconSize;
+        var bodyRadiusCurve = Settings.PlanetSettings.BodyRadius;
+        var lightRadiusCurve = Settings.PlanetSettings.LightRadius;
+        var gravityWaveFrequencyCurve = Settings.PlanetSettings.WaveFrequency;
         return new AetheriaRuntimeDaemonRenderSettings(
             new AetheriaRuntimeExponentialCurve(
                 emissionCurve.Exponent,
@@ -602,7 +605,20 @@ public class ActionGameManager : MonoBehaviour
             Settings.PlanetSettings.AsteroidVerticalOffset,
             Settings.PlanetRotationSpeed,
             Settings.PlanetSettings.ZoneDepthExponent,
-            Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
+            Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog,
+            Settings.AsteroidMeshCount,
+            new AetheriaRuntimeExponentialCurve(
+                bodyRadiusCurve.Exponent,
+                bodyRadiusCurve.Multiplier,
+                bodyRadiusCurve.Constant),
+            new AetheriaRuntimeExponentialCurve(
+                lightRadiusCurve.Exponent,
+                lightRadiusCurve.Multiplier,
+                lightRadiusCurve.Constant),
+            new AetheriaRuntimeExponentialCurve(
+                gravityWaveFrequencyCurve.Exponent,
+                gravityWaveFrequencyCurve.Multiplier,
+                gravityWaveFrequencyCurve.Constant));
     }
 
     private readonly (float2 direction, string name)[] _directions = {

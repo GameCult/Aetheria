@@ -74,7 +74,11 @@ namespace GameCult.Aetheria.State.Verse
             double asteroidVerticalOffset = 0.0,
             double planetRotationSpeed = 0.0,
             double zoneBoundaryPower = 0.0,
-            double zoneBoundaryDepth = 0.0)
+            double zoneBoundaryDepth = 0.0,
+            int asteroidMeshCount = int.MaxValue,
+            AetheriaRuntimeExponentialCurve bodyRadiusCurve = default,
+            AetheriaRuntimeExponentialCurve lightRadiusCurve = default,
+            AetheriaRuntimeExponentialCurve gravityWaveFrequencyCurve = default)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -101,6 +105,10 @@ namespace GameCult.Aetheria.State.Verse
             PlanetRotationSpeed = planetRotationSpeed;
             ZoneBoundaryPower = zoneBoundaryPower;
             ZoneBoundaryDepth = zoneBoundaryDepth;
+            AsteroidMeshCount = Math.Max(0, asteroidMeshCount);
+            BodyRadiusCurve = bodyRadiusCurve;
+            LightRadiusCurve = lightRadiusCurve;
+            GravityWaveFrequencyCurve = gravityWaveFrequencyCurve;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -128,6 +136,10 @@ namespace GameCult.Aetheria.State.Verse
         public double PlanetRotationSpeed { get; }
         public double ZoneBoundaryPower { get; }
         public double ZoneBoundaryDepth { get; }
+        public int AsteroidMeshCount { get; }
+        public AetheriaRuntimeExponentialCurve BodyRadiusCurve { get; }
+        public AetheriaRuntimeExponentialCurve LightRadiusCurve { get; }
+        public AetheriaRuntimeExponentialCurve GravityWaveFrequencyCurve { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {
@@ -165,6 +177,21 @@ namespace GameCult.Aetheria.State.Verse
         public double ResolveBodyIconSize(double mass)
         {
             return BodyIconSizeCurve.Evaluate(Math.Max(0.0, mass));
+        }
+
+        public double ResolveBodyRadius(double mass)
+        {
+            return BodyRadiusCurve.Evaluate(Math.Max(0.0, mass));
+        }
+
+        public double ResolveLightRadius(double mass)
+        {
+            return LightRadiusCurve.Evaluate(Math.Max(0.0, mass));
+        }
+
+        public double ResolveGravityWaveFrequency(double mass)
+        {
+            return GravityWaveFrequencyCurve.Evaluate(Math.Max(0.0, mass));
         }
 
         public double NormalizeThermalRisk(double temperature)

@@ -1839,12 +1839,19 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double PlanetRotationSpeed { get; }",
         "public double ZoneBoundaryPower { get; }",
         "public double ZoneBoundaryDepth { get; }",
+        "public int AsteroidMeshCount { get; }",
+        "public AetheriaRuntimeExponentialCurve BodyRadiusCurve { get; }",
+        "public AetheriaRuntimeExponentialCurve LightRadiusCurve { get; }",
+        "public AetheriaRuntimeExponentialCurve GravityWaveFrequencyCurve { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
         "public double ResolveDefaultMinimapDistance()",
         "public double ResolveMinimapIconSize(double minimapDistance)",
         "public double ResolveBodyIconSize(double mass)",
+        "public double ResolveBodyRadius(double mass)",
+        "public double ResolveLightRadius(double mass)",
+        "public double ResolveGravityWaveFrequency(double mass)",
         "public double NormalizeThermalRisk(double temperature)",
         "public double NormalizeHeatstrokePost(double heatstroke)",
         "public double NormalizeSevereHeatstrokePost(double heatstroke)",
@@ -2014,7 +2021,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ContainsUnitySettingsMember(zoneRenderer, "MinimapAsteroidSize") ||
         ContainsUnitySettingsMember(zoneRenderer, "IconSize") ||
         ContainsUnitySettingsMember(zoneRenderer, "MinimapZoneGravityRange") ||
-        ContainsUnitySettingsMember(zoneRenderer, "PlanetRotationSpeed"))
+        ContainsUnitySettingsMember(zoneRenderer, "PlanetRotationSpeed") ||
+        ContainsUnitySettingsMember(zoneRenderer, "AsteroidMeshCount"))
     {
         throw new InvalidOperationException(
             "ZoneRenderer must initialize view/minimap presentation through shared daemon render settings instead of Unity GameSettings.");
@@ -2179,6 +2187,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "RenderSettings.PlanetRotationSpeed",
         "RenderSettings.ZoneBoundaryPower",
         "RenderSettings.ZoneBoundaryDepth",
+        "RenderSettings.AsteroidMeshCount",
+        "RenderSettings.ResolveBodyRadius(mass)",
+        "RenderSettings.ResolveLightRadius(mass)",
+        "RenderSettings.ResolveGravityWaveFrequency(mass)",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
@@ -2283,7 +2295,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.PlanetSettings.AsteroidVerticalOffset",
         "Settings.PlanetRotationSpeed",
         "Settings.PlanetSettings.ZoneDepthExponent",
-        "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"
+        "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog",
+        "Settings.AsteroidMeshCount",
+        "Settings.PlanetSettings.BodyRadius",
+        "Settings.PlanetSettings.LightRadius",
+        "Settings.PlanetSettings.WaveFrequency"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
@@ -2301,11 +2317,15 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ["ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset"] = "ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset",
         ["PlanetRotationSpeed"] = "Settings.PlanetRotationSpeed",
         ["Settings.PlanetSettings.ZoneDepthExponent"] = "Settings.PlanetSettings.ZoneDepthExponent",
-        ["Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"] = "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"
+        ["Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"] = "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog",
+        ["AsteroidMeshCount"] = "Settings.AsteroidMeshCount",
+        ["Settings.PlanetSettings.BodyRadius"] = "Settings.PlanetSettings.BodyRadius",
+        ["Settings.PlanetSettings.LightRadius"] = "Settings.PlanetSettings.LightRadius",
+        ["Settings.PlanetSettings.WaveFrequency"] = "Settings.PlanetSettings.WaveFrequency"
     };
     var survivingZoneRendererPresentationSettings = zoneRendererPresentationSettings
         .Where(symbol =>
-            symbol.Key == "PlanetRotationSpeed"
+            symbol.Key == "PlanetRotationSpeed" || symbol.Key == "AsteroidMeshCount"
                 ? ContainsUnitySettingsMember(zoneRenderer, symbol.Key)
                 : zoneRenderer.Contains(symbol.Key, StringComparison.Ordinal))
         .Select(symbol => symbol.Value)

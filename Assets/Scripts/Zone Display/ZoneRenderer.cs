@@ -396,7 +396,7 @@ public class ZoneRenderer : MonoBehaviour
             return;
 
         var meshes = AsteroidMeshes.ToList();
-        while (meshes.Count > Settings.AsteroidMeshCount)
+        while (meshes.Count > RenderSettings.AsteroidMeshCount)
             meshes.RemoveAt(Random.Range(0, meshes.Count));
         _beltMeshes[bodyKey] = meshes.ToArray();
         _beltMatrices[bodyKey] = new Matrix4x4[meshes.Count][];
@@ -439,7 +439,7 @@ public class ZoneRenderer : MonoBehaviour
                 planet = Instantiate(Sun, ZoneRoot);
                 var sunObject = (SunObject) planet;
                 var sunVisual = body.SunVisual ?? new AetheriaRuntimeSunVisualCommit();
-                var lightRadius = Settings.PlanetSettings.LightRadius.Evaluate(mass) * (float)sunVisual.LightRadiusMultiplier;
+                var lightRadius = (float)RenderSettings.ResolveLightRadius(mass) * (float)sunVisual.LightRadiusMultiplier;
                 sunObject.Light.color = new Color((float)sunVisual.LightColorX, (float)sunVisual.LightColorY, (float)sunVisual.LightColorZ);
                 sunObject.Light.range = lightRadius;
                 sunObject.FogTint.transform.localScale = lightRadius * Vector3.one;
@@ -454,7 +454,7 @@ public class ZoneRenderer : MonoBehaviour
             gas.Body.material.SetTexture("_ColorRamp", colors.ToGradient(!isSun).ToTexture());
             gas.GravityWaves.transform.localScale = (float)body.GravityWaveRadius * Vector3.one;
             gas.GravityWaves.material.SetFloat("_Depth", (float)body.GravityWaveDepth);
-            gas.GravityWaves.material.SetFloat("_Frequency", Settings.PlanetSettings.WaveFrequency.Evaluate(mass));
+            gas.GravityWaves.material.SetFloat("_Frequency", (float)RenderSettings.ResolveGravityWaveFrequency(mass));
         }
         else
         {
@@ -467,7 +467,7 @@ public class ZoneRenderer : MonoBehaviour
             //planet.Icon.material.mainTexture = planetInstance.Mass > Context.GlobalData.PlanetMass ? PlanetIcon : PlanetoidIcon;
         }
 
-        var bodyRadius = Settings.PlanetSettings.BodyRadius.Evaluate(mass) * (float)body.BodyRadiusMultiplier;
+        var bodyRadius = (float)RenderSettings.ResolveBodyRadius(mass) * (float)body.BodyRadiusMultiplier;
         var gravityWellRadius = Mathf.Max(0f, (float)body.GravityInfluenceRadius);
         var gravityWellDepth = (float)body.GravityWellDepth;
         planet.Body.transform.localScale = bodyRadius * Vector3.one;
