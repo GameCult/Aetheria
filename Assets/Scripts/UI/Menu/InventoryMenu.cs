@@ -301,7 +301,7 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _equippedItemDetailsSurfaceDocument,
             "Aetheria Inventory Equipped Item Details Surface",
-            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurfaceState(item, typedItem)),
+            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurface(item, typedItem)),
             HandleEquippedItemDetailsSurfaceCommand,
             _equippedItemDetailsSurfaceChrome,
             ResolveInventorySurfaceStateRef,
@@ -407,30 +407,33 @@ public class InventoryMenu : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeEquippedItemDetailsSurfaceState ProjectEquippedItemDetailsSurfaceState(
+    private AetheriaRuntimeEquippedItemDetailsSurfaceState ProjectEquippedItemDetailsSurface(
         EquippedItem item,
         AetheriaRuntimeCatalogItem typedItem)
     {
-        var durability = item.EquippableItem.Durability < .01f
-            ? "Item Destroyed!"
-            : $"{(int)(item.EquippableItem.Durability / GetMaxDurability(typedItem, item.EquippableItem) * 100)}%";
         var hasWeapon = item.GetBehavior<Weapon>() != null;
 
-        return new AetheriaRuntimeEquippedItemDetailsSurfaceState(
+        return AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project(
+            typedItem,
+            ProjectEquippedItemObservation(item),
             BuildEquippedItemTitle(item, typedItem),
-            typedItem.Description ?? "",
             ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)?.Name ?? "GameCult",
-            ActionGameManager.RuntimePlayerSettings.Format((float)typedItem.Mass),
-            durability,
-            ActionGameManager.RuntimePlayerSettings.FormatTemperature(item.Temperature),
-            FormatTemperatureRange(typedItem),
-            item.EquippableItem.OverrideShutdown ? "Enabled" : "Disabled",
-            item.EquippableItem.OverrideShutdown ? "Disable Override" : "Enable Override",
+            ActionGameManager.RuntimePlayerSettings.Format,
+            ActionGameManager.RuntimePlayerSettings.FormatTemperature,
             ProjectEquippedItemTemperatureControls(item).ToArray(),
-            ProjectEquippedItemBehaviorSections(typedItem, item.EquippableItem).ToArray(),
             hasWeapon ? ProjectEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-            hasWeapon ? ProjectEquippedItemActionBarSlots(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>(),
-            DateTime.UtcNow.ToString("O"));
+            hasWeapon ? ProjectEquippedItemActionBarSlots(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>());
+    }
+
+    private static AetheriaRuntimeEquippedItemObservation ProjectEquippedItemObservation(EquippedItem item)
+    {
+        var equippableItem = item?.EquippableItem;
+        return new AetheriaRuntimeEquippedItemObservation(
+            equippableItem?.ItemKey ?? "",
+            equippableItem?.Quality ?? 1,
+            equippableItem?.Durability ?? 1,
+            item?.Temperature ?? 0,
+            equippableItem != null && equippableItem.OverrideShutdown);
     }
 
     private IEnumerable<AetheriaRuntimeEquippedItemTemperatureControl> ProjectEquippedItemTemperatureControls(
@@ -520,98 +523,7 @@ public class InventoryMenu : MonoBehaviour
             equippableItem != null && equippableItem.OverrideShutdown);
     }
 
-    private IEnumerable<AetheriaRuntimeEquippedItemSection> ProjectEquippedItemBehaviorSections(
-        AetheriaRuntimeCatalogItem typedItem,
-        EquippableItem equippableItem)
-    {
-        foreach (var behavior in typedItem.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
-        {
-            if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
-            {
-                var statReference = AetheriaRuntimeBehaviorValueReader.ReadStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
-                var modifier = AetheriaRuntimeBehaviorValueReader.ReadPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
-                var modifierType = AetheriaRuntimeBehaviorValueReader.ReadEnum(
-                    FindTypedBehaviorField(behavior, 3)?.Value,
-                    StatModifierType.Constant);
-                yield return new AetheriaRuntimeEquippedItemSection(
-                    $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.stat_modifier",
-                    "Stat Modifier",
-                    new[]
-                    {
-                        new AetheriaRuntimeEquippedItemMetric(
-                            $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.target",
-                            $"{statReference.Target.SplitCamelCase()}:{statReference.Stat.SplitCamelCase()}",
-                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}",
-                            AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
-                                equippableItem.ItemKey,
-                                behavior.Kind,
-                                behavior.Group,
-                                2))
-                    });
-                continue;
-            }
-
-            var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
-            if (metadata == null)
-                continue;
-
-            var fields = metadata.DisplayFields
-                .Select(field => ProjectEquippedItemBehaviorMetric(behavior, field, equippableItem))
-                .Where(metric => metric != null)
-                .ToArray();
-
-            if (fields.Length == 0)
-                continue;
-
-            yield return new AetheriaRuntimeEquippedItemSection(
-                $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}",
-                behavior.Kind.FormatTypeName(),
-                fields);
-        }
-    }
-
-    private AetheriaRuntimeEquippedItemMetric ProjectEquippedItemBehaviorMetric(
-        AetheriaRuntimeBehaviorPayload behavior,
-        AetheriaRuntimeBehaviorFieldMetadata field,
-        EquippableItem equippableItem)
-    {
-        var payloadField = FindTypedBehaviorField(behavior, field.Key);
-        if (payloadField == null)
-            return null;
-
-        string value;
-        switch (field.ValueKind)
-        {
-            case AetheriaRuntimeBehaviorFieldValueKind.Number:
-                value = ActionGameManager.RuntimePlayerSettings.Format((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Temperature:
-                value = ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Integer:
-                value = ((int)payloadField.Value.NumberValue).ToString();
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat:
-                value = FormatCurrentItemStat(payloadField.Value, equippableItem);
-                break;
-            default:
-                return null;
-        }
-
-        return new AetheriaRuntimeEquippedItemMetric(
-            $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
-            field.Name.SplitCamelCase(),
-            value,
-            field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat
-                ? AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
-                    equippableItem.ItemKey,
-                    behavior.Kind,
-                    behavior.Group,
-                    field.Key)
-                : "");
-    }
-
-private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
+    private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
     {
         return $"{typedItem?.Name ?? "Unknown Item"} ({FormatItemTier(typedItem, item.EquippableItem)})";
     }
@@ -625,11 +537,6 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
         return tradeProjection.HasTier
             ? $"{tradeProjection.TierName}{new string('+', tradeProjection.Upgrades)}"
             : "";
-    }
-
-    private static string FormatCurrentItemStat(PerformanceStat stat, EquippableItem item)
-    {
-        return FormatCurrentItemStat(ToRuntimeBehaviorValue(stat), item);
     }
 
     private static string FormatCurrentItemStat(AetheriaRuntimeBehaviorValue stat, EquippableItem item)
@@ -694,157 +601,6 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
     {
         return item != null &&
                string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal);
-    }
-
-    private static AetheriaRuntimeBehaviorValue ToRuntimeBehaviorValue(PerformanceStat stat)
-    {
-        return new AetheriaRuntimeBehaviorValue(
-            "performance-stat",
-            "",
-            0,
-            false,
-            "",
-            "",
-            new[]
-            {
-                Number(stat?.Min ?? 0),
-                Number(stat?.Max ?? 0),
-                Number(stat?.HeatExponentMultiplier ?? 0),
-                Number(stat?.DurabilityExponentMultiplier ?? 0),
-                Number(stat?.QualityExponent ?? 0),
-                ToRuntimeStatRecipeValue(stat?.Recipe)
-            },
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
-    }
-
-    private static AetheriaRuntimeBehaviorValue ToRuntimeStatRecipeValue(StatRecipe recipe)
-    {
-        if (recipe == null)
-            return Number(0);
-
-        return new AetheriaRuntimeBehaviorValue(
-            "stat-recipe",
-            "",
-            0,
-            false,
-            "",
-            "",
-            new[]
-            {
-                Number(recipe.BaseValue),
-                new AetheriaRuntimeBehaviorValue(
-                    "stat-recipe-modifiers",
-                    "",
-                    0,
-                    false,
-                    "",
-                    "",
-                    (recipe.Modifiers ?? Array.Empty<StatRecipeModifier>())
-                        .Where(modifier => modifier != null)
-                        .Select(ToRuntimeStatRecipeModifierValue)
-                        .ToArray(),
-                    Array.Empty<AetheriaRuntimeBehaviorMapEntry>())
-            },
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
-    }
-
-    private static AetheriaRuntimeBehaviorValue ToRuntimeStatRecipeModifierValue(StatRecipeModifier modifier)
-    {
-        return new AetheriaRuntimeBehaviorValue(
-            "stat-recipe-modifier",
-            "",
-            0,
-            false,
-            "",
-            "",
-            new[]
-            {
-                Text(ConditionToken(modifier.Condition)),
-                Text(OperationToken(modifier.Operation)),
-                Number(modifier.Amount),
-                Number(0),
-                Bool(modifier.Enabled)
-            },
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
-    }
-
-    private static string ConditionToken(StatConditionMask condition)
-    {
-        switch (condition)
-        {
-            case StatConditionMask.Quality:
-                return AetheriaRuntimeStatRecipeConditions.Quality;
-            case StatConditionMask.Durability:
-                return AetheriaRuntimeStatRecipeConditions.Durability;
-            case StatConditionMask.Heat:
-                return AetheriaRuntimeStatRecipeConditions.Heat;
-            case StatConditionMask.Charge:
-                return AetheriaRuntimeStatRecipeConditions.Charge;
-            case StatConditionMask.Ammo:
-                return AetheriaRuntimeStatRecipeConditions.Ammo;
-            case StatConditionMask.Range:
-                return AetheriaRuntimeStatRecipeConditions.Range;
-            case StatConditionMask.Integrity:
-                return AetheriaRuntimeStatRecipeConditions.Integrity;
-            case StatConditionMask.PilotSkill:
-                return AetheriaRuntimeStatRecipeConditions.PilotSkill;
-            case StatConditionMask.Environment:
-                return AetheriaRuntimeStatRecipeConditions.Environment;
-            default:
-                return "";
-        }
-    }
-
-    private static string OperationToken(StatModifierOperation operation)
-    {
-        switch (operation)
-        {
-            case StatModifierOperation.Multiply:
-                return AetheriaRuntimeStatRecipeOperations.Multiply;
-            case StatModifierOperation.Override:
-                return AetheriaRuntimeStatRecipeOperations.Override;
-            default:
-                return AetheriaRuntimeStatRecipeOperations.Add;
-        }
-    }
-
-    private static AetheriaRuntimeBehaviorValue Number(double value)
-    {
-        return new AetheriaRuntimeBehaviorValue(
-            "number",
-            "",
-            value,
-            false,
-            "",
-            "",
-            Array.Empty<AetheriaRuntimeBehaviorValue>(),
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
-    }
-
-    private static AetheriaRuntimeBehaviorValue Text(string value)
-    {
-        return new AetheriaRuntimeBehaviorValue(
-            "string",
-            value ?? "",
-            0,
-            false,
-            "",
-            "",
-            Array.Empty<AetheriaRuntimeBehaviorValue>(),
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
-    }
-
-    private static AetheriaRuntimeBehaviorValue Bool(bool value)
-    {
-        return new AetheriaRuntimeBehaviorValue(
-            "bool",
-            "",
-            0,
-            value,
-            "",
-            "",
-            Array.Empty<AetheriaRuntimeBehaviorValue>(),
-            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
     }
 
     private static bool IsWeaponGroupAssigned(EquippedItem item, int groupIndex)
@@ -933,43 +689,6 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
     private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
         return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
-    }
-
-    private static float GetCargoItemMass(ItemInstance item, AetheriaRuntimeCatalogItem typedItem)
-    {
-        if (typedItem == null)
-            return 0f;
-
-        return item is SimpleCommodity simpleCommodity
-            ? (float)typedItem.Mass * simpleCommodity.Quantity
-            : (float)typedItem.Mass;
-    }
-
-    private static float GetMaxDurability(AetheriaRuntimeCatalogItem typedItem, EquippableItem item)
-    {
-        if (typedItem != null && typedItem.Durability > 0)
-            return (float)typedItem.Durability;
-
-        return Math.Max(item?.Durability ?? 1f, 1f);
-    }
-
-    private static string FormatTemperatureRange(AetheriaRuntimeCatalogItem item)
-    {
-        if (item.MaximumTemperature > item.MinimumTemperature)
-        {
-            return
-                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MinimumTemperature)} to " +
-                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MaximumTemperature)}";
-        }
-
-        return "No typed thermal range";
-    }
-
-    private static AetheriaRuntimeBehaviorField FindTypedBehaviorField(AetheriaRuntimeBehaviorPayload behavior, int? key)
-    {
-        return key == null
-            ? null
-            : behavior.Fields.FirstOrDefault(field => field.Key == key.Value);
     }
 
     private static int2 RotateTypedShapeCell(

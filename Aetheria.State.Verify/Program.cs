@@ -4289,8 +4289,8 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
 
     if (!source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
         !source.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
-        !source.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
         !source.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+        !cargoItemSurfaceBuilder.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
         source.Contains("private static bool TryReadItemStatRef(", StringComparison.Ordinal) ||
         source.Contains("DecodeRefToken", StringComparison.Ordinal) ||
         source.Contains("GameManager.ItemManager.GetTier", StringComparison.Ordinal) ||
@@ -4419,10 +4419,10 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "HandleEquippedItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_equippedItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurfaceState(",
-        "ProjectEquippedItemDetailsSurfaceState(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurface(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project(",
+        "ProjectEquippedItemObservation(",
         "ProjectEquippedItemTemperatureControls(",
-        "ProjectEquippedItemBehaviorSections(",
         "ProjectEquippedItemWeaponGroupControls(",
         "ProjectEquippedItemActionBarSlots(",
         "AetheriaRuntimeEquippedItemDetailsSurfaceCommands.TryRead(request, out var command)",
@@ -4464,6 +4464,12 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "ResolveEquippedItemDetailsSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
         "host.AddComponent<UIDocument>",
+        "new AetheriaRuntimeEquippedItemDetailsSurfaceState(",
+        "ProjectEquippedItemDetailsSurfaceState(",
+        "ProjectEquippedItemBehaviorSections(",
+        "ProjectEquippedItemBehaviorMetric(",
+        "new AetheriaRuntimeEquippedItemSection(",
+        "new AetheriaRuntimeEquippedItemMetric(",
         "private static EveSurfaceComponent Card(",
         "private static EveSurfaceComponent Metric(",
         "private static EveSurfaceComponent Text(",
@@ -4516,6 +4522,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
     var requiredBuilderSymbols = new[]
     {
         "public sealed class AetheriaRuntimeEquippedItemDetailsSurfaceState",
+        "public sealed class AetheriaRuntimeEquippedItemObservation",
         "public sealed class AetheriaRuntimeEquippedItemSection",
         "public sealed class AetheriaRuntimeEquippedItemMetric",
         "public sealed class AetheriaRuntimeEquippedItemControl",
@@ -4532,6 +4539,10 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "public const string ToggleWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.toggle\"",
         "public const string BindWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.bind\"",
         "public const string ClearActionBarBinding = \"aetheria.inventory.equipped_item_details.action_bar.clear\"",
+        "public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(",
+        "ProjectBehaviorSections(",
+        "ProjectBehaviorMetric(",
+        "AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "new AetheriaRuntimeSurfaceCommandTemplate(Close",
         "new AetheriaRuntimeSurfaceCommandTemplate(ToggleOverrideShutdown",
@@ -9505,6 +9516,33 @@ static void RequireTypedBehaviorMetadataCoverage(string root)
     var tradeMenu = File.Exists(tradeMenuPath)
         ? File.ReadAllText(tradeMenuPath)
         : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; TradeMenu.cs is missing.");
+    var cargoBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs");
+    var equippedBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs");
+    var tradeItemBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.cs");
+    var cargoBuilder = File.Exists(cargoBuilderPath)
+        ? File.ReadAllText(cargoBuilderPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; cargo item details builder is missing.");
+    var equippedBuilder = File.Exists(equippedBuilderPath)
+        ? File.ReadAllText(equippedBuilderPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; equipped item details builder is missing.");
+    var tradeItemBuilder = File.Exists(tradeItemBuilderPath)
+        ? File.ReadAllText(tradeItemBuilderPath)
+        : throw new InvalidOperationException("Cannot verify typed behavior metadata coverage; trade item details builder is missing.");
 
     var requiredMetadataSymbols = new[]
     {
@@ -9534,24 +9572,33 @@ static void RequireTypedBehaviorMetadataCoverage(string root)
         "FormatTemperature"
     };
 
+    var inventoryBehaviorProjection = cargoBuilder + "\n" + equippedBuilder;
     var missingInventorySymbols = requiredUiSymbols
-        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !inventoryBehaviorProjection.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingInventorySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryMenu no longer renders typed temperature-bearing behavior metadata: " +
+            "Inventory item surface builders no longer render typed temperature-bearing behavior metadata: " +
             string.Join(", ", missingInventorySymbols));
     }
 
     var missingTradeSymbols = requiredUiSymbols
-        .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !tradeItemBuilder.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingTradeSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "TradeMenu no longer renders typed temperature-bearing behavior metadata: " +
+            "Trade item surface builder no longer renders typed temperature-bearing behavior metadata: " +
             string.Join(", ", missingTradeSymbols));
+    }
+
+    if (inventoryMenu.Contains("ProjectCargoItemBehaviorMetric(", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("ProjectEquippedItemBehaviorMetric(", StringComparison.Ordinal) ||
+        tradeMenu.Contains("ProjectTradeItemBehaviorMetric(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity menus must not own typed behavior metric projection after runtime surface builders take that role.");
     }
 }
 
