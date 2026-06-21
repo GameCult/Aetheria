@@ -7,9 +7,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using static CultMath.math;
+using cfloat3 = CultMath.float3;
+using cfloat4 = CultMath.float4;
 
 public abstract class Behavior
 {
@@ -23,7 +23,7 @@ public abstract class Behavior
     protected Entity Entity => Item?.Entity ?? Consumable.Entity;
     public float Temperature => Item?.Temperature ?? Consumable.Entity.MaxTemp;
 
-    public float3 Direction
+    public cfloat3 Direction
     {
         get
         {
@@ -36,12 +36,13 @@ public abstract class Behavior
                 }
                 else
                 {
-                    var itemDirection = Entity.Direction.Rotate(Item.EquippableItem.Rotation);
-                    return float3(itemDirection.x, 0, itemDirection.y);
+                    var itemDirection = AetheriaMath.Rotate(Entity.CultDirection, Item.EquippableItem.Rotation);
+                    return new cfloat3(itemDirection.x, 0, itemDirection.y);
                 }
             }
 
-            return float3(Entity.Direction.x, 0, Entity.Direction.y);
+            var entityDirection = Entity.CultDirection;
+            return new cfloat3(entityDirection.x, 0, entityDirection.y);
         }
     }
 
@@ -65,6 +66,18 @@ public abstract class Behavior
 
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
 
+    public float Evaluate(PerformanceStat stat, StatConditionMask condition, float value) =>
+        Item?.Evaluate(stat, condition, value) ?? Consumable.Evaluate(stat, condition, value);
+
+    public float Evaluate(
+        PerformanceStat stat,
+        StatConditionMask firstCondition,
+        float firstValue,
+        StatConditionMask secondCondition,
+        float secondValue) =>
+        Item?.Evaluate(stat, firstCondition, firstValue, secondCondition, secondValue) ??
+        Consumable.Evaluate(stat, firstCondition, firstValue, secondCondition, secondValue);
+
     public bool TryGetPerformanceStat(string statName, out PerformanceStat stat)
     {
         if (!string.IsNullOrWhiteSpace(statName) &&
@@ -82,6 +95,7 @@ public abstract class Behavior
         if (!string.IsNullOrWhiteSpace(statName) && stat != null)
         {
             _performanceStats[statName] = stat;
+            Item?.RegisterPerformanceStat(Kind, statName, stat);
         }
     }
 
@@ -208,7 +222,7 @@ public sealed class RuntimeBehaviorDefinition
         return _fields.TryGetValue(key, out var value) ? checked((uint)value.NumberValue) : fallback;
     }
 
-    public float3 Float3(int key, float3 fallback = default)
+    public cfloat3 Float3(int key, cfloat3 fallback = default)
     {
         return _fields.TryGetValue(key, out var value) ? ToFloat3(value) : fallback;
     }
@@ -228,7 +242,9 @@ public sealed class RuntimeBehaviorDefinition
 
     public PerformanceStat PerformanceStat(int key, PerformanceStat fallback)
     {
-        return _fields.TryGetValue(key, out var value) ? ToPerformanceStat(value) : fallback;
+        return _fields.TryGetValue(key, out var value)
+            ? AetheriaRuntimeBehaviorValueReader.ReadPerformanceStat(value)
+            : fallback;
     }
 
     public BezierCurve BezierCurve(int key, BezierCurve fallback)
@@ -238,15 +254,12 @@ public sealed class RuntimeBehaviorDefinition
             return fallback;
         }
 
-        return new BezierCurve
-        {
-            Keys = value.Children.Count > 0
-                ? value.Children[0].Children.Select(ToFloat4).ToArray()
-                : Array.Empty<float4>()
-        };
+        return global::BezierCurve.FromKeys(value.Children.Count > 0
+            ? value.Children[0].Children.Select(ToBezierKey)
+            : Enumerable.Empty<(float, float, float, float)>());
     }
 
-    public float4[] Float4Array(int key, float4[] fallback)
+    public cfloat4[] Float4Array(int key, cfloat4[] fallback)
     {
         return _fields.TryGetValue(key, out var value)
             ? value.Children.Select(ToFloat4).ToArray()
@@ -260,49 +273,29 @@ public sealed class RuntimeBehaviorDefinition
             return fallback;
         }
 
-        return new StatReference
-        {
-            Target = ChildString(value, 1),
-            Stat = ChildString(value, 2)
-        };
+        return AetheriaRuntimeBehaviorValueReader.ReadStatReference(value);
     }
 
     public T Enum<T>(int key, T fallback) where T : struct
     {
-        if (!_fields.TryGetValue(key, out var value))
-        {
-            return fallback;
-        }
-
-        if (!string.IsNullOrWhiteSpace(value.StringValue) &&
-            System.Enum.TryParse(value.StringValue, true, out T parsed))
-        {
-            return parsed;
-        }
-
-        return (T)System.Enum.ToObject(typeof(T), checked((int)value.NumberValue));
+        return _fields.TryGetValue(key, out var value)
+            ? AetheriaRuntimeBehaviorValueReader.ReadEnum(value, fallback)
+            : fallback;
     }
 
-    private static PerformanceStat ToPerformanceStat(AetheriaRuntimeBehaviorValue value)
+    private static cfloat4 ToFloat4(AetheriaRuntimeBehaviorValue value)
     {
-        return new PerformanceStat
-        {
-            Min = ChildFloat(value, 0),
-            Max = ChildFloat(value, 1),
-            HeatExponentMultiplier = ChildFloat(value, 2),
-            DurabilityExponentMultiplier = ChildFloat(value, 3),
-            QualityExponent = ChildFloat(value, 4)
-        };
+        return new cfloat4(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
     }
 
-    private static float4 ToFloat4(AetheriaRuntimeBehaviorValue value)
+    private static (float, float, float, float) ToBezierKey(AetheriaRuntimeBehaviorValue value)
     {
-        return new float4(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
+        return (ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2), ChildFloat(value, 3));
     }
 
-    private static float3 ToFloat3(AetheriaRuntimeBehaviorValue value)
+    private static cfloat3 ToFloat3(AetheriaRuntimeBehaviorValue value)
     {
-        return new float3(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2));
+        return new cfloat3(ChildFloat(value, 0), ChildFloat(value, 1), ChildFloat(value, 2));
     }
 
     private static float ChildFloat(AetheriaRuntimeBehaviorValue value, int index)
@@ -313,5 +306,10 @@ public sealed class RuntimeBehaviorDefinition
     private static string ChildString(AetheriaRuntimeBehaviorValue value, int index)
     {
         return value.Children.Count > index ? value.Children[index].StringValue ?? "" : "";
+    }
+
+    private static AetheriaRuntimeBehaviorValue ChildValue(AetheriaRuntimeBehaviorValue value, int index)
+    {
+        return value != null && value.Children.Count > index ? value.Children[index] : null;
     }
 }

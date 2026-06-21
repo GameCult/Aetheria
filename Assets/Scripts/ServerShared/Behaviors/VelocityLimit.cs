@@ -2,8 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class VelocityLimit : Behavior
 {
@@ -28,8 +27,9 @@ public class VelocityLimit : Behavior
     public override bool Execute(float dt)
     {
         Limit = Evaluate(_topSpeed);
-        if (length(Entity.Velocity) > Limit)
-            Entity.Velocity = normalize(Entity.Velocity) * Limit;
+        var velocity = Entity.CultVelocity;
+        if (length(velocity) > Limit)
+            Entity.CultVelocity = normalize(velocity) * Limit;
         return true;
     }
 

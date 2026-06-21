@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using GameCult.Eve.Surface;
 
 namespace GameCult.Aetheria.State.Unity
 {
@@ -109,7 +111,7 @@ namespace GameCult.Aetheria.State.Unity
                                 settings.ActionBarInputs.Count(entry => entry.Enabled).ToString()),
                             Text(
                                 "aetheria.inputSettings.summary.note",
-                                "Low-level InputSystem edits flow through this Eve surface and queue typed player-settings commits.")),
+                                "Low-level InputSystem edits flow through this Eve surface as typed input-setting requests.")),
                         Node(
                             "aetheria.inputSettings.capture",
                             "card",
@@ -147,7 +149,7 @@ namespace GameCult.Aetheria.State.Unity
                                 "aetheria.inputSettings.actionBarInputs.grid",
                                 "grid",
                                 Array.Empty<(string Key, string Value)>(),
-                                settings.ActionBarInputs.Select(BuildActionBarCard).ToArray())),
+                                settings.ActionBarInputs.Select(BuildActionBarCard).ToArray()))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {
@@ -257,6 +259,108 @@ namespace GameCult.Aetheria.State.Unity
                 kind,
                 props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+    }
+
+    public enum AetheriaRuntimeInputSettingsCommandKind
+    {
+        Unknown = 0,
+        Refresh = 1,
+        BeginCapture = 2,
+        CancelCapture = 3,
+        ToggleActionBar = 4
+    }
+
+    public readonly struct AetheriaRuntimeInputSettingsSurfaceCommand
+    {
+        public AetheriaRuntimeInputSettingsSurfaceCommand(
+            AetheriaRuntimeInputSettingsCommandKind kind,
+            string actionName = "",
+            int bindingIndex = -1,
+            string bindingLabel = "",
+            string inputPath = "",
+            bool enabled = false)
+        {
+            Kind = kind;
+            ActionName = actionName ?? "";
+            BindingIndex = bindingIndex;
+            BindingLabel = bindingLabel ?? "";
+            InputPath = inputPath ?? "";
+            Enabled = enabled;
+        }
+
+        public AetheriaRuntimeInputSettingsCommandKind Kind { get; }
+        public string ActionName { get; }
+        public int BindingIndex { get; }
+        public string BindingLabel { get; }
+        public string InputPath { get; }
+        public bool Enabled { get; }
+    }
+
+    public static class AetheriaRuntimeInputSettingsSurfaceCommands
+    {
+        public static bool TryRead(
+            EveSurfaceCommandRequest request,
+            out AetheriaRuntimeInputSettingsSurfaceCommand command)
+        {
+            command = default;
+            if (request == null ||
+                !string.Equals(request.SurfaceId, AetheriaRuntimeInputSettingsCommands.SurfaceId, StringComparison.Ordinal))
+                return false;
+
+            switch (request.Command ?? "")
+            {
+                case AetheriaRuntimeInputSettingsCommands.Refresh:
+                    command = new AetheriaRuntimeInputSettingsSurfaceCommand(
+                        AetheriaRuntimeInputSettingsCommandKind.Refresh);
+                    return true;
+                case AetheriaRuntimeInputSettingsCommands.CancelCapture:
+                    command = new AetheriaRuntimeInputSettingsSurfaceCommand(
+                        AetheriaRuntimeInputSettingsCommandKind.CancelCapture);
+                    return true;
+                case AetheriaRuntimeInputSettingsCommands.BeginCapture:
+                    var actionName = ReadString(request, "actionName");
+                    command = new AetheriaRuntimeInputSettingsSurfaceCommand(
+                        AetheriaRuntimeInputSettingsCommandKind.BeginCapture,
+                        actionName: actionName,
+                        bindingIndex: ReadInt(request, "bindingIndex", -1),
+                        bindingLabel: ReadString(request, "bindingLabel", actionName));
+                    return true;
+                case AetheriaRuntimeInputSettingsCommands.ToggleActionBar:
+                    command = new AetheriaRuntimeInputSettingsSurfaceCommand(
+                        AetheriaRuntimeInputSettingsCommandKind.ToggleActionBar,
+                        inputPath: ReadString(request, "inputPath"),
+                        enabled: ReadBool(request, "enabled", false));
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static string ReadString(EveSurfaceCommandRequest request, string key, string defaultValue = "")
+        {
+            return request.Payload != null &&
+                   request.Payload.TryGetValue(key, out var raw)
+                ? raw ?? defaultValue
+                : defaultValue;
+        }
+
+        private static int ReadInt(EveSurfaceCommandRequest request, string key, int defaultValue)
+        {
+            return request.Payload != null &&
+                   request.Payload.TryGetValue(key, out var raw) &&
+                   int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+                ? value
+                : defaultValue;
+        }
+
+        private static bool ReadBool(EveSurfaceCommandRequest request, string key, bool defaultValue)
+        {
+            return request.Payload != null &&
+                   request.Payload.TryGetValue(key, out var raw) &&
+                   bool.TryParse(raw, out var value)
+                ? value
+                : defaultValue;
         }
     }
 }

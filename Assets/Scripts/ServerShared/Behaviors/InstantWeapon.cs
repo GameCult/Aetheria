@@ -1,8 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
@@ -29,7 +28,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override float DamagePerSecond => Damage / Cooldown;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) / Cooldown;
+        return EvaluateRangeDamage(range) / Cooldown;
     }
 
     public override int Ammo

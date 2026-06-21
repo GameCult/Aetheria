@@ -3,15 +3,18 @@ using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State;
 
-public sealed class AetheriaEveCommandApplyReport
+public sealed class AetheriaEveCommandAcceptanceReport
 {
-    public int AppliedCatalogRefreshes { get; set; }
-    public int AppliedOperationsRefreshes { get; set; }
-    public int AppliedPlayerSettingsCommands { get; set; }
-    public int AppliedVerseHostCommands { get; set; }
+    public int AcceptedCatalogRefreshes { get; set; }
+    public int AcceptedOperationsRefreshes { get; set; }
+    public int AcceptedPlayerSettingsCommands { get; set; }
+    public int AcceptedInputSettingsCommands { get; set; }
+    public int AcceptedLoadoutTemplateCommands { get; set; }
+    public int AcceptedVerseHostCommands { get; set; }
     public int RejectedCommands { get; set; }
-    public string[] AcceptedPaths { get; set; } = [];
-    public string[] RejectedPaths { get; set; } = [];
+    public string[] AcceptedCommandIds { get; set; } = [];
+    public string[] RejectedCommandIds { get; set; } = [];
+    public string[] AccountedCommandIds { get; set; } = [];
     public string LastRejectedCommand { get; set; } = "";
     public string LastRejectedReason { get; set; } = "";
 }
@@ -20,61 +23,45 @@ public static class AetheriaEveCommandBridge
 {
     public const string CommandSchema = "gamecult.eve.command.v1";
 
-    public static string GetPendingDirectory(string stateFilePath)
-    {
-        if (string.IsNullOrWhiteSpace(stateFilePath))
-            throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
-
-        return stateFilePath + ".eve.pending";
-    }
-
-    public static async Task<AetheriaEveCommandApplyReport> ApplyPendingAsync(
+    public static async Task<AetheriaEveCommandAcceptanceReport> AcceptObservedAsync(
         AetheriaStateNode node,
-        bool deleteAccounted = true)
+        IEnumerable<string>? accountedCommandIds = null)
     {
         if (node == null) throw new ArgumentNullException(nameof(node));
 
-        var pendingDirectory = GetPendingDirectory(node.StatePath);
-        var report = new AetheriaEveCommandApplyReport();
+        var report = new AetheriaEveCommandAcceptanceReport();
         var accepted = new List<string>();
         var rejected = new List<string>();
-
-        if (!Directory.Exists(pendingDirectory))
-            return report;
-
-        foreach (var path in Directory.EnumerateFiles(pendingDirectory, "*.cc").OrderBy(path => path, StringComparer.Ordinal))
+        var accounted = new HashSet<string>(accountedCommandIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+        foreach (var command in node.ReadObservedEveCommands()
+                     .Where(command => !string.IsNullOrWhiteSpace(command.CommandId))
+                     .Where(command => !accounted.Contains(command.CommandId)))
         {
-            var command = ReadCommand(path);
             var rejection = Validate(command);
             if (!string.IsNullOrWhiteSpace(rejection))
             {
-                RecordRejection(report, command, rejection, path, rejected, deleteAccounted);
+                RecordRejection(report, command, rejection, rejected);
                 continue;
             }
 
             switch (command.Command)
             {
-                case "aetheria.catalog.refresh":
+                case AetheriaRuntimeCatalogCommands.Refresh:
                     await node.PutCatalogSurfaceAsync(
                         AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), command.IssuedAtUtc)).ConfigureAwait(false);
-                    report.AppliedCatalogRefreshes++;
+                    report.AcceptedCatalogRefreshes++;
                     break;
-                case "aetheria.operations.refresh":
-                    var commitStatus = await node.GetRuntimeCommitDrainStatusAsync().ConfigureAwait(false) ??
-                        EmptyCommitDrainStatus(node.StatePath, command.IssuedAtUtc);
-                    var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false) ??
-                        EmptyEveCommandDrainStatus(node.StatePath, command.IssuedAtUtc);
+                case AetheriaRuntimeOperationsCommands.Refresh:
+                    var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false) ??
+                        EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
                     var verseHostSettings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
-                    var runtimeSession = string.IsNullOrWhiteSpace(commitStatus.RuntimeId)
-                        ? null
-                        : await node.GetRuntimeSessionAsync(commitStatus.RuntimeId).ConfigureAwait(false);
+                    var runtimeSession = await node.GetRuntimeSessionAsync(eveStatus.RuntimeId).ConfigureAwait(false);
                     await node.PutOperationsSurfaceAsync(
                         AetheriaOperationsSurfaceProjector.Build(
-                            commitStatus,
                             eveStatus,
                             verseHostSettings,
                             runtimeSession)).ConfigureAwait(false);
-                    report.AppliedOperationsRefreshes++;
+                    report.AcceptedOperationsRefreshes++;
                     break;
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
@@ -83,30 +70,39 @@ public static class AetheriaEveCommandBridge
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
-                    await ApplyPlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
-                    report.AppliedPlayerSettingsCommands++;
+                    await ExecutePlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedPlayerSettingsCommands++;
+                    break;
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.Refresh:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.SetBindingOverride:
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled:
+                    await ExecuteInputSettingsCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedInputSettingsCommands++;
+                    break;
+                case GameCult.Aetheria.State.Unity.AetheriaRuntimeLoadoutTemplateCommands.Save:
+                    await ExecuteLoadoutTemplateCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedLoadoutTemplateCommands++;
                     break;
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.Refresh:
                 case GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.CycleVisibility:
-                    await ApplyVerseHostCommandAsync(node, command).ConfigureAwait(false);
-                    report.AppliedVerseHostCommands++;
+                    await ExecuteVerseHostCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedVerseHostCommands++;
                     break;
             }
 
-            accepted.Add(path);
-            if (deleteAccounted)
-                File.Delete(path);
+            accepted.Add(command.CommandId ?? "");
         }
 
         await node.FlushAsync().ConfigureAwait(false);
-        report.AcceptedPaths = accepted.ToArray();
-        report.RejectedPaths = rejected.ToArray();
+        report.AcceptedCommandIds = accepted.ToArray();
+        report.RejectedCommandIds = rejected.ToArray();
+        report.AccountedCommandIds = accounted
+            .Concat(report.AcceptedCommandIds)
+            .Concat(report.RejectedCommandIds)
+            .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
         return report;
-    }
-
-    private static AetheriaRuntimeEveCommandDocument ReadCommand(string path)
-    {
-        return AetheriaRuntimePendingCultCacheStore.ReadEveCommand(path);
     }
 
     private static string Validate(AetheriaRuntimeEveCommandDocument command)
@@ -123,17 +119,21 @@ public static class AetheriaEveCommandBridge
 
     private static bool KnownCommand(string surfaceId, string command)
     {
-        return (string.Equals(surfaceId, AetheriaCatalogSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-                string.Equals(command, "aetheria.catalog.refresh", StringComparison.Ordinal)) ||
-            (string.Equals(surfaceId, AetheriaOperationsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-             string.Equals(command, "aetheria.operations.refresh", StringComparison.Ordinal)) ||
+        return (string.Equals(surfaceId, AetheriaRuntimeCatalogCommands.SurfaceId, StringComparison.Ordinal) &&
+                AetheriaRuntimeCatalogCommands.IsKnown(command)) ||
+            (string.Equals(surfaceId, AetheriaRuntimeOperationsCommands.SurfaceId, StringComparison.Ordinal) &&
+             AetheriaRuntimeOperationsCommands.IsKnown(command)) ||
             (string.Equals(surfaceId, AetheriaPlayerSettingsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
              GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IsKnown(command)) ||
+            (string.Equals(surfaceId, GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.SurfaceId, StringComparison.Ordinal) &&
+             GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.IsKnown(command)) ||
+            (string.Equals(surfaceId, GameCult.Aetheria.State.Unity.AetheriaRuntimeLoadoutTemplateCommands.SurfaceId, StringComparison.Ordinal) &&
+             GameCult.Aetheria.State.Unity.AetheriaRuntimeLoadoutTemplateCommands.IsKnown(command)) ||
             (string.Equals(surfaceId, GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.SurfaceId, StringComparison.Ordinal) &&
              GameCult.Aetheria.State.Unity.AetheriaRuntimeVerseHostCommands.IsKnown(command));
     }
 
-    private static async Task ApplyPlayerSettingsCommandAsync(
+    private static async Task ExecutePlayerSettingsCommandAsync(
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
@@ -145,9 +145,7 @@ public static class AetheriaEveCommandBridge
         switch (command.Command)
         {
             case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
-                settings.PlayerName = command.Payload.TryGetValue("value", out var playerName)
-                    ? playerName ?? ""
-                    : "";
+                settings.PlayerName = command.PlayerSettings.PlayerName ?? "";
                 persistSettings = true;
                 break;
             case GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
@@ -193,7 +191,66 @@ public static class AetheriaEveCommandBridge
             .ConfigureAwait(false);
     }
 
-    private static async Task ApplyVerseHostCommandAsync(
+    private static async Task ExecuteInputSettingsCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        settings.Input ??= new AetheriaPlayerInputSettings();
+        var persistSettings = false;
+
+        switch (command.Command)
+        {
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.SetBindingOverride:
+                var actionName = command.InputSettings.ActionName ?? "";
+                var inputSystemPath = command.InputSettings.InputSystemPath ?? "";
+                var bindingIndex = command.InputSettings.BindingIndex;
+                if (!string.IsNullOrWhiteSpace(actionName) && bindingIndex >= 0)
+                {
+                    settings.Input.BindingOverrides = settings.Input.BindingOverrides
+                        .Where(binding => !string.Equals(binding.ActionName, actionName, StringComparison.Ordinal) ||
+                            binding.BindingIndex != bindingIndex)
+                        .Concat(new[]
+                        {
+                            new AetheriaInputBindingOverride
+                            {
+                                ActionName = actionName,
+                                BindingIndex = bindingIndex,
+                                BindingPath = inputSystemPath
+                            }
+                        })
+                        .OrderBy(binding => binding.ActionName, StringComparer.Ordinal)
+                        .ThenBy(binding => binding.BindingIndex)
+                        .ToArray();
+                    persistSettings = true;
+                }
+                break;
+            case GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled:
+                var inputPath = command.InputSettings.InputSystemPath ?? "";
+                var enabled = command.InputSettings.Enabled;
+                if (!string.IsNullOrWhiteSpace(inputPath))
+                {
+                    var inputs = settings.Input.ActionBarInputs
+                        .Where(path => !string.Equals(path, inputPath, StringComparison.Ordinal))
+                        .ToList();
+                    if (enabled)
+                        inputs.Add(inputPath);
+                    settings.Input.ActionBarInputs = inputs
+                        .OrderBy(path => path, StringComparer.Ordinal)
+                        .ToArray();
+                    persistSettings = true;
+                }
+                break;
+        }
+
+        if (persistSettings)
+        {
+            settings.LastUpdatedAtUtc = command.IssuedAtUtc;
+            await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ExecuteVerseHostCommandAsync(
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
@@ -215,22 +272,29 @@ public static class AetheriaEveCommandBridge
             await node.PutVerseHostSettingsAsync(normalized).ConfigureAwait(false);
         }
 
-        var commitStatus = await node.GetRuntimeCommitDrainStatusAsync().ConfigureAwait(false) ??
-            EmptyCommitDrainStatus(node.StatePath, command.IssuedAtUtc);
-        var eveStatus = await node.GetEveCommandDrainStatusAsync().ConfigureAwait(false) ??
-            EmptyEveCommandDrainStatus(node.StatePath, command.IssuedAtUtc);
-        var runtimeSession = string.IsNullOrWhiteSpace(commitStatus.RuntimeId)
-            ? null
-            : await node.GetRuntimeSessionAsync(commitStatus.RuntimeId).ConfigureAwait(false);
+        var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false) ??
+            EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
+        var runtimeSession = await node.GetRuntimeSessionAsync(eveStatus.RuntimeId).ConfigureAwait(false);
 
         await node.PutOperationsSurfaceAsync(
             AetheriaOperationsSurfaceProjector.Build(
-                commitStatus,
                 eveStatus,
                 normalized,
                 runtimeSession)).ConfigureAwait(false);
         await node.PutProviderAdvertisementAsync(
             AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc)).ConfigureAwait(false);
+    }
+
+    private static async Task ExecuteLoadoutTemplateCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var commit = command.LoadoutTemplate ?? throw new InvalidOperationException(
+            $"Loadout template command '{command.CommandId}' is missing its typed payload.");
+        var loadout = AetheriaRuntimeStateMapper.ToLoadoutTemplate(commit, command.IssuedAtUtc);
+        await node.PutLoadoutTemplateAsync(
+            AetheriaRuntimeStateMapper.LoadoutKey(loadout.Name),
+            loadout).ConfigureAwait(false);
     }
 
     private static string Cycle(string current, params string[] values)
@@ -246,37 +310,22 @@ public static class AetheriaEveCommandBridge
     }
 
     private static void RecordRejection(
-        AetheriaEveCommandApplyReport report,
+        AetheriaEveCommandAcceptanceReport report,
         AetheriaRuntimeEveCommandDocument command,
         string reason,
-        string path,
-        List<string> rejected,
-        bool deleteAccounted)
+        List<string> rejected)
     {
         report.RejectedCommands++;
         report.LastRejectedCommand = string.IsNullOrWhiteSpace(command.Command)
             ? command.CommandId
             : command.Command;
         report.LastRejectedReason = reason;
-        rejected.Add(path);
-        if (deleteAccounted)
-            File.Delete(path);
+        rejected.Add(command.CommandId ?? "");
     }
 
-    private static AetheriaRuntimeCommitDrainStatus EmptyCommitDrainStatus(string statePath, string now)
+    private static AetheriaEveCommandAcceptanceStatus EmptyEveCommandAcceptanceStatus(string statePath, string now)
     {
-        return new AetheriaRuntimeCommitDrainStatus
-        {
-            RuntimeId = "aetheria-state",
-            StatePath = statePath,
-            LastPollAtUtc = now,
-            Status = "idle"
-        };
-    }
-
-    private static AetheriaEveCommandDrainStatus EmptyEveCommandDrainStatus(string statePath, string now)
-    {
-        return new AetheriaEveCommandDrainStatus
+        return new AetheriaEveCommandAcceptanceStatus
         {
             RuntimeId = "aetheria-state",
             StatePath = statePath,

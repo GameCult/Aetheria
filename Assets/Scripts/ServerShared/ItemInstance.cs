@@ -6,8 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 
 public abstract class ItemInstance
 {

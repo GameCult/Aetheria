@@ -3,9 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
@@ -60,9 +58,8 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
     {
         if (Entity.Zone.TryGetAsteroidBelt(ScanTargetBodyKey, out var belt))
         {
-            if (Asteroid > -1 &&
-               belt.ContainsAsteroid(Asteroid) &&
-               length(Entity.Position.xz - belt.Transforms[Asteroid].xy) < Range)
+            if (Entity.Zone.TryGetCultAsteroidTransform(ScanTargetBodyKey, Asteroid, out var asteroidPosition, out _) &&
+               length(Entity.CultPositionXZ - asteroidPosition) < Range)
             {
                 _scanTime += dt;
                 if (_scanTime > ScanDuration)
@@ -75,7 +72,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
         }
         else if (Entity.Zone.TryGetPlanet(ScanTargetBodyKey, out var planet))
         {
-            if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planet.OrbitKey)) < Range)
+            if(length(Entity.CultPositionXZ - AetheriaMath.ToCult(Entity.Zone.GetOrbitPosition(planet.OrbitKey))) < Range)
             {
                 _scanTime += dt;
                 if (_scanTime > ScanDuration)

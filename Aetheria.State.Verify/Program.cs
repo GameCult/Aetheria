@@ -4755,6 +4755,7 @@ static void RequireClientTargetBootAuthority(string root)
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
     var bootPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoot.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var clientTargetCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetCommands.cs");
     var aetheriaStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaState.cs");
     var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
     var replicaBridgePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseReplicaBridge.cs");
@@ -4770,6 +4771,7 @@ static void RequireClientTargetBootAuthority(string root)
         boundaryPath,
         bootPath,
         clientTargetStorePath,
+        clientTargetCommandsPath,
         aetheriaStatePath,
         verseDiscoveryPath,
         replicaBridgePath,
@@ -4795,6 +4797,7 @@ static void RequireClientTargetBootAuthority(string root)
     var boundary = File.ReadAllText(boundaryPath);
     var boot = File.ReadAllText(bootPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var clientTargetCommands = File.ReadAllText(clientTargetCommandsPath);
     var aetheriaState = File.ReadAllText(aetheriaStatePath);
     var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
     var replicaBridge = File.ReadAllText(replicaBridgePath);
@@ -4941,9 +4944,6 @@ static void RequireClientTargetBootAuthority(string root)
         "public AetheriaRuntimeClientTargetDocument RequestStateFilePath(string stateFilePath)",
         "public AetheriaRuntimeClientTargetDocument RequestDiscoveryEndpoints(IEnumerable<string>? discoveryEndpoints)",
         "public AetheriaRuntimeClientTargetDocument SelectDiscoveredVerse(",
-        "public bool TryRequest(AetheriaClientTargetOperation operation, out AetheriaRuntimeClientTargetDocument? document)",
-        "public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation operation)",
-        "AetheriaClientTargetOperationKind.SelectDiscoveredVerse",
         "AetheriaRuntimeStateBoundary.GetClientTargetPath(_gameDataDirectory)",
         "AetheriaRuntimeStateBoundary.GetStateFilePath(_gameDataDirectory)",
         "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
@@ -4967,6 +4967,15 @@ static void RequireClientTargetBootAuthority(string root)
     {
         throw new InvalidOperationException(
             "Aetheria state sugar still exposes Apply vocabulary for client-target edits; Unity should request typed target changes.");
+    }
+
+    if (aetheriaState.Contains("public bool TryRequest(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        aetheriaState.Contains("public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        clientTargetCommands.Contains("public readonly struct AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        clientTargetCommands.Contains("public enum AetheriaClientTargetOperationKind", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria client-target sugar still exposes generic operation-bag dispatch instead of native request methods plus a surface adapter.");
     }
 
     var forbiddenClientTargetSetters = new[]
@@ -5081,8 +5090,7 @@ static void RequireClientTargetBootAuthority(string root)
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
         "TryRequestClientTargetCommand(request)",
-        "AetheriaRuntimeClientTargetSurfaceCommands.TryRead(request, out var operation)",
-        ".ClientTarget.Request(operation)",
+        "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ProjectMainMenuSurfaceState(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
@@ -5424,9 +5432,6 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "public AetheriaRuntimeClientTargetDocument RequestStateFilePath(string stateFilePath)",
         "public AetheriaRuntimeClientTargetDocument RequestDiscoveryEndpoints(IEnumerable<string>? discoveryEndpoints)",
         "public AetheriaRuntimeClientTargetDocument SelectDiscoveredVerse(",
-        "public bool TryRequest(AetheriaClientTargetOperation operation, out AetheriaRuntimeClientTargetDocument? document)",
-        "public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation operation)",
-        "AetheriaClientTargetOperationKind.SelectDiscoveredVerse",
         "AetheriaRuntimeClientTargetStore.Update(",
         "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
         "AetheriaRuntimeVerseReplicaBridge.Sync(",
@@ -5447,6 +5452,15 @@ static void RequireVerseSettingsShellAndBridge(string root)
     {
         throw new InvalidOperationException(
             "Aetheria state sugar still exposes Apply vocabulary for Verse settings edits; Unity should request typed target changes.");
+    }
+
+    if (aetheriaState.Contains("public bool TryRequest(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        aetheriaState.Contains("public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        clientTargetCommands.Contains("public readonly struct AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        clientTargetCommands.Contains("public enum AetheriaClientTargetOperationKind", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Verse settings sugar still exposes generic operation-bag dispatch instead of native request methods plus a surface adapter.");
     }
 
     var forbiddenClientTargetSetters = new[]
@@ -5536,8 +5550,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
-        "AetheriaRuntimeClientTargetSurfaceCommands.TryRead(request, out var operation)",
-        ".ClientTarget.Request(operation)",
+        "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "AetheriaRuntimeEveCommands.TrySendVerseHostCommand("
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -5892,7 +5905,6 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "public AetheriaRuntimeDaemonCommandEnvelope Send(",
         "public bool TrySend(",
         "ReadObservedDaemonCommands()",
-        "DeleteDaemonCommandAsync(",
         "_operationClient.Create(",
         "_operationClient.TrySend(command, out var envelope, out var error)",
         "command.ActionBarBinding.Kind",
@@ -6275,12 +6287,10 @@ static void RequireDaemonVersePublication(string root)
             string.Join(", ", survivingDaemonQueueSymbols));
     }
 
-    if (daemonDocuments.Contains("public int PendingBeforeApply", StringComparison.Ordinal) &&
-        (!daemonDocuments.Contains("[IgnoreMember]", StringComparison.Ordinal) ||
-         !daemonDocuments.Contains("public int ObservedCommandCount", StringComparison.Ordinal)))
+    if (daemonDocuments.Contains("PendingBeforeApply", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon health exposes PendingBeforeApply without the ObservedCommandCount compatibility wrapper.");
+            "Daemon health still exposes the legacy PendingBeforeApply queue vocabulary instead of observed Verse command documents.");
     }
 
     var requiredProviderAdvertisementSymbols = new[]
@@ -6339,7 +6349,9 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface",
         "ObservedCommands",
-        "ObservedCommandCount = commands.Length",
+        "AccountedCommandIds",
+        "frame.AccountedCommandIds = accountedBeforeTick",
+        "ObservedCommandCount = observedCommands.Length",
         "PublicationSource = \"daemon-published\""
     };
     var missingTickSymbols = requiredTickSymbols
@@ -6365,10 +6377,8 @@ static void RequireDaemonVersePublication(string root)
         "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface))",
         "PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorTuiSurface))",
         "AetheriaEveCommandBridge.AcceptObservedAsync(",
-        "!options.KeepAccountedCommandRecords",
         "ReadObservedDaemonCommands()",
-        "DeleteAccountedDaemonCommandsAsync(node, result)",
-        "DeleteDaemonCommandAsync(commandId)",
+        "AccountedCommandIds = currentFrame?.AccountedCommandIds ?? Array.Empty<string>()",
         "AetheriaRuntimeDaemonTickRunner.Tick(",
         "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)",
         "AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)",
@@ -6397,6 +6407,21 @@ static void RequireDaemonVersePublication(string root)
         "MapGet(",
         "JsonSerializer.Serialize"
     };
+    if (daemonHostSource.Contains("KeepAccountedCommandRecords", StringComparison.Ordinal) ||
+        daemonHostSource.Contains("--keep-accounted-command-records", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Daemon still exposes command-retention toggles after adopting receipt-ledger command accounting.");
+    }
+
+    if (stateNode.Contains("DeleteDaemonCommandAsync(", StringComparison.Ordinal) ||
+        daemonHostSource.Contains("DeleteAccountedDaemonCommandsAsync", StringComparison.Ordinal) ||
+        daemonHostSource.Contains("DeleteDaemonCommandAsync(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon command documents are still consumed by deletion instead of accounted by frame receipts.");
+    }
+
     var survivingDaemonHostSymbols = forbiddenDaemonHostSymbols
         .Where(symbol => daemonHostSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -6643,10 +6668,9 @@ static void RequireTypedEveCommandBodies(string root)
         "ToDocument(",
         "AcceptObservedAsync(",
         "node.ReadObservedEveCommands()",
-        "node.DeleteEveCommandAsync(",
+        "AccountedCommandIds",
         "SubmitEveCommandAsync(",
         "ReadObservedEveCommands(",
-        "DeleteEveCommandAsync(",
         "EveCommandKey(",
         "CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>",
         "typeof(AetheriaRuntimeEveCommandDocument)",
@@ -6661,6 +6685,19 @@ static void RequireTypedEveCommandBodies(string root)
     };
     var mainMenu = File.ReadAllText(mainMenuPath);
     var typedCommandSources = eveCommandClient + "\n" + runtimeCommandPort + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
+    if (typedCommandSources.Contains("DeleteEveCommandAsync(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command documents are still consumed by deletion instead of accounted by acceptance receipts.");
+    }
+
+    if (eveCommandBridge.Contains("AcceptedPaths", StringComparison.Ordinal) ||
+        eveCommandBridge.Contains("RejectedPaths", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command acceptance report still exposes path vocabulary instead of command-id receipts.");
+    }
+
     var missingTypedCommandSymbols = requiredTypedCommandSymbols
         .Where(symbol => !typedCommandSources.Contains(symbol, StringComparison.Ordinal))
         .ToArray();

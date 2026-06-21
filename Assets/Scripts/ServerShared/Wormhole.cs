@@ -1,4 +1,4 @@
-using Unity.Mathematics;
+using float2 = CultMath.float2;
 
 public class Wormhole
 {

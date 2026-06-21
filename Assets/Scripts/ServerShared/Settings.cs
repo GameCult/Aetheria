@@ -5,9 +5,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using float2 = Unity.Mathematics.float2;
+using float3 = Unity.Mathematics.float3;
+using unitynoise = Unity.Mathematics.noise;
 
 [Serializable]
 public class PlanetSettings
@@ -69,8 +69,8 @@ public class SectorBackgroundSettings
         for(int i = 0; i < octaves; i++)
         {
             if(i<4)
-                sum += (1-abs(snoise(p * freq))) * amp;
-            else sum += abs(snoise(p * freq)) * amp;
+                sum += (1 - MathF.Abs(unitynoise.snoise(p * freq))) * amp;
+            else sum += MathF.Abs(unitynoise.snoise(p * freq)) * amp;
             freq *= NoiseLacunarity;
             amp *= NoiseGain;
         }
@@ -80,7 +80,7 @@ public class SectorBackgroundSettings
     public float CloudDensity(float2 uv)
     {
         float noise = fBm(uv + NoisePosition, 10);
-        return pow(noise, CloudExponent) * CloudAmplitude;
+        return MathF.Pow(noise, CloudExponent) * CloudAmplitude;
     }
 }
 

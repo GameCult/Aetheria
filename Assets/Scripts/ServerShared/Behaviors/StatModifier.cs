@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 
@@ -14,14 +15,14 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private readonly StatModifierType _type;
     private readonly string _requiredBehaviorKind;
 
-    private PerformanceStat[] _stats;
+    private StatModifierTarget[] _targets;
 
     private bool _applied;
     private bool _executed;
 
     public bool Applied => _applied;
     public bool Executed => _executed;
-    public int TargetStatCount => _stats?.Length ?? 0;
+    public int TargetStatCount => _targets?.Length ?? 0;
 
     public StatModifier(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
     {
@@ -47,13 +48,19 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     public void Initialize()
     {
-        _stats = Entity.Equipment
-            .Where(HasRequiredBehavior)
-            .SelectMany(gear => gear.Behaviors ?? Array.Empty<Behavior>())
-            .Where(behavior => BehaviorKindMatches(behavior.Kind, _targetBehaviorKind))
-            .Select(FindTargetStat)
-            .Where(stat => stat != null)
-            .ToArray();
+        var targets = new List<StatModifierTarget>();
+        foreach (var gear in Entity.Equipment.Where(HasRequiredBehavior))
+        foreach (var behavior in gear.Behaviors ?? Array.Empty<Behavior>())
+        {
+            if (!BehaviorKindMatches(behavior.Kind, _targetBehaviorKind))
+                continue;
+
+            var stat = FindTargetStat(behavior);
+            if (stat != null)
+                targets.Add(new StatModifierTarget(gear, stat));
+        }
+
+        _targets = targets.ToArray();
     }
 
     private PerformanceStat FindTargetStat(Behavior behavior)
@@ -91,17 +98,21 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     private void ApplyModifier()
     {
         _applied = true;
-        foreach (var stat in _stats)
-            (_type == StatModifierType.Constant
-                ? stat.GetConstantModifiers(Entity)
-                : stat.GetScaleModifiers(Entity))[this] = Evaluate(_modifier);
+        RefreshModifier();
     }
 
     private void RemoveModifier()
     {
         _applied = false;
-        foreach (var stat in _stats)
-            (_type == StatModifierType.Constant ? stat.GetConstantModifiers(Entity) : stat.GetScaleModifiers(Entity)).Remove(this);
+        foreach (var target in _targets ?? Array.Empty<StatModifierTarget>())
+            target.Item.RemoveStatModifier(target.Stat, this, _type);
+    }
+
+    private void RefreshModifier()
+    {
+        var value = Evaluate(_modifier);
+        foreach (var target in _targets ?? Array.Empty<StatModifierTarget>())
+            target.Item.SetStatModifier(target.Stat, this, _type, value);
     }
 
     public override bool Execute(float dt)
@@ -120,6 +131,8 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     {
         if(_executed && !_applied)
             ApplyModifier();
+        else if(_executed && _applied)
+            RefreshModifier();
         if(!_executed && _applied)
             RemoveModifier();
         _executed = false;
@@ -127,13 +140,27 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
 
     public void RestoreRuntimeState(bool applied, bool executed)
     {
-        if (_stats == null)
+        if (_targets == null)
             Initialize();
         if (applied && !_applied)
             ApplyModifier();
+        if (applied && _applied)
+            RefreshModifier();
         if (!applied && _applied)
             RemoveModifier();
         _executed = executed;
+    }
+
+    private readonly struct StatModifierTarget
+    {
+        public StatModifierTarget(EquippedItem item, PerformanceStat stat)
+        {
+            Item = item;
+            Stat = stat;
+        }
+
+        public EquippedItem Item { get; }
+        public PerformanceStat Stat { get; }
     }
 }
 

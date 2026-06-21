@@ -1,13 +1,14 @@
 using System;
 using System.Linq;
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State;
 
 public static class AetheriaCatalogSurfaceProjector
 {
     public const string SurfaceKey = "eve:surface:aetheria.catalog.operator";
-    public const string SurfaceId = "aetheria.catalog.operator";
+    public const string SurfaceId = AetheriaRuntimeCatalogCommands.SurfaceId;
 
     public static EveSurfaceState Build(AetheriaCatalogSnapshot catalog, string updatedAtUtc, long version = 1)
     {
@@ -68,7 +69,7 @@ public static class AetheriaCatalogSurfaceProjector
             [
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.catalog.refresh",
+                    Command = AetheriaRuntimeCatalogCommands.Refresh,
                     Label = "Refresh",
                     Transport = "cultmesh"
                 }

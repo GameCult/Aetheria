@@ -3,7 +3,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UniRx;
 using UnityEngine;
@@ -21,17 +20,20 @@ public class ClickRaycaster : MonoBehaviour
         _clickCatcher = GetComponent<ClickCatcher>();
         _clickCatcher.OnDown.Subscribe(pointer =>
         {
-            RaycastHit hit;
             var ray = RayCamera.ScreenPointToRay(pointer.position);
-            Physics.Raycast(ray, out hit, 1000, Layers.value);
-            if (hit.collider != null)
+            var clickables = new List<ClickableCollider>();
+            foreach (var clickable in ClickableCollider.Active)
             {
-                //Debug.Log($"Clicked on gameobject {hit.collider.gameObject}");
-                var clickable = hit.collider.GetComponent<ClickableCollider>();
-                if (clickable != null)
-                    clickable.Click(pointer, ray, hit);
+                if (clickable == null || ((1 << clickable.gameObject.layer) & Layers.value) == 0)
+                    continue;
+
+                clickables.Add(clickable);
             }
-            else OnClickMiss?.Invoke(pointer);
+
+            if (AetheriaYmirPhysicsBridge.Instance.TryCastClickables(clickables, ray, 1000, out var hit))
+                hit.Clickable.Click(pointer, ray, hit);
+            else
+                OnClickMiss?.Invoke(pointer);
         });
     }
 }

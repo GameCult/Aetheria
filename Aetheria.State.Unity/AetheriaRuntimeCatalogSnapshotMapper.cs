@@ -78,7 +78,8 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
             stat.Max,
             stat.HeatExponentMultiplier,
             stat.DurabilityExponentMultiplier,
-            stat.QualityExponent);
+            stat.QualityExponent,
+            null);
     }
 
     private static AetheriaRuntimeShapeCell FromState(AetheriaShapeCell cell)

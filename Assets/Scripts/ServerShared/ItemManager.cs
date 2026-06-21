@@ -6,9 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 using JM.LinqFaster;
 using UniRx;
 
@@ -157,7 +155,7 @@ public class ItemManager
         if (cells == null) return shape;
 
         foreach (var cell in cells)
-            shape[new int2(cell.X, cell.Y)] = true;
+            shape.SetCell(cell.X, cell.Y, true);
 
         return shape;
     }
@@ -219,17 +217,28 @@ public class ItemManager
             maxDurability = Math.Max(item.Durability, 1f);
         }
 
-        var quality = pow(item.Quality, stat.QualityExponent);
-        var durabilityExponent = lerp(
+        var durabilityRatio = item.Durability / maxDurability;
+        var durabilityExponent = Lerp(
             GameplaySettings.DurabilityQualityMin,
             GameplaySettings.DurabilityQualityMax,
-            pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
-        var durability = pow(item.Durability / maxDurability, durabilityExponent * stat.DurabilityExponentMultiplier);
-        var result = lerp(stat.Min, stat.Max, quality * durability);
+            MathF.Pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
+        var result = stat.EvaluateRecipeOrLegacy(
+            new StatEvaluationContext(
+                quality: item.Quality,
+                durability: durabilityRatio,
+                heat: 1),
+            durabilityExponent,
+            thermalExponent: 0,
+            includeHeat: false);
         if (float.IsNaN(result)) 
             throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.ItemKey} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
         return result;
 
+    }
+
+    private static float Lerp(float from, float to, float t)
+    {
+        return from + (to - from) * t;
     }
 
     public int GetPrice(CraftedItemInstance item)

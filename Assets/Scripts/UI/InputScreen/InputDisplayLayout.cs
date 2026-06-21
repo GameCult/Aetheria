@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
+using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
-using GameCult.Eve.UnityUIToolkit;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
@@ -34,6 +33,28 @@ public class InputDisplayLayout : MonoBehaviour
     private string _captureActionName = "";
     private int _captureBindingIndex = -1;
     private string _captureBindingLabel = "";
+    private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome
+    {
+        RootAlignItems = Align.Center,
+        RootJustifyContent = Justify.Center,
+        RootPaddingLeft = 24f,
+        RootPaddingRight = 24f,
+        RootPaddingTop = 24f,
+        RootPaddingBottom = 24f,
+        RootBackgroundColor = new Color(0f, 0f, 0f, 0.72f),
+        Width = 1080f,
+        MinWidth = 0f,
+        MaxWidth = 1080f,
+        MaxHeight = 900f,
+        FlexGrow = 1f,
+        PaddingLeft = 20f,
+        PaddingRight = 20f,
+        PaddingTop = 20f,
+        PaddingBottom = 20f,
+        BorderRadius = 0f,
+        BorderWidth = 0f,
+        BackgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f)
+    };
 
     public InputActionAsset Input
     {
@@ -51,7 +72,6 @@ public class InputDisplayLayout : MonoBehaviour
     private void Start()
     {
         EnsureInputAsset();
-        EnsureSurfaceDocument();
         EnsureCaptureAction();
         HideLegacyChildren();
         RenderSurface();
@@ -60,7 +80,6 @@ public class InputDisplayLayout : MonoBehaviour
     private void OnEnable()
     {
         EnsureInputAsset();
-        EnsureSurfaceDocument();
         EnsureCaptureAction();
         HideLegacyChildren();
         RenderSurface();
@@ -76,7 +95,7 @@ public class InputDisplayLayout : MonoBehaviour
 
         if (_surfaceDocument != null)
         {
-            _surfaceDocument.rootVisualElement.Clear();
+            AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument);
         }
     }
 
@@ -90,7 +109,7 @@ public class InputDisplayLayout : MonoBehaviour
 
         if (_surfaceDocument != null)
         {
-            Destroy(_surfaceDocument.gameObject);
+            AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
             _surfaceDocument = null;
         }
     }
@@ -104,20 +123,6 @@ public class InputDisplayLayout : MonoBehaviour
 
         _ownedInput ??= new AetheriaInput();
         Input = _ownedInput.asset;
-    }
-
-    private void EnsureSurfaceDocument()
-    {
-        if (_surfaceDocument != null)
-        {
-            return;
-        }
-
-        var host = new GameObject("Aetheria Input Surface");
-        host.transform.SetParent(transform, false);
-        host.layer = gameObject.layer;
-        _surfaceDocument = host.AddComponent<UIDocument>();
-        _surfaceDocument.sortingOrder = 1000;
     }
 
     private void HideLegacyChildren()
@@ -159,38 +164,17 @@ public class InputDisplayLayout : MonoBehaviour
         }
 
         EnsureInputAsset();
-        EnsureSurfaceDocument();
         EnsureCaptureAction();
 
-        var document = ToEveSurfaceDocument(
-            AetheriaRuntimeInputSettingsSurfaceBuilder.Build(ProjectSurfaceState()));
+        var document = AetheriaRuntimeInputSettingsSurfaceBuilder.Build(ProjectSurfaceState());
 
-        var root = _surfaceDocument.rootVisualElement;
-        root.Clear();
-        root.style.flexGrow = 1;
-        root.style.justifyContent = Justify.Center;
-        root.style.alignItems = Align.Center;
-        root.style.paddingLeft = 24;
-        root.style.paddingRight = 24;
-        root.style.paddingTop = 24;
-        root.style.paddingBottom = 24;
-        root.style.backgroundColor = new Color(0f, 0f, 0f, 0.72f);
-
-        var shell = new VisualElement();
-        shell.style.flexDirection = FlexDirection.Column;
-        shell.style.width = 1080;
-        shell.style.maxWidth = 1080;
-        shell.style.maxHeight = 900;
-        shell.style.flexGrow = 1;
-        shell.style.paddingLeft = 20;
-        shell.style.paddingRight = 20;
-        shell.style.paddingTop = 20;
-        shell.style.paddingBottom = 20;
-        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f);
-        root.Add(shell);
-
-        var lowerer = new EveUiToolkitSurfaceLowerer();
-        shell.Add(lowerer.Lower(document, HandleSurfaceCommand));
+        _surfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
+            transform,
+            _surfaceDocument,
+            "Aetheria Input Surface",
+            document,
+            HandleSurfaceCommand,
+            _surfaceChrome);
     }
 
     private AetheriaRuntimeInputSettingsSurfaceState ProjectSurfaceState()
@@ -312,59 +296,59 @@ public class InputDisplayLayout : MonoBehaviour
 
     private void HandleSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        switch (request.Command)
+        if (!AetheriaRuntimeInputSettingsSurfaceCommands.TryRead(request, out var command))
         {
-            case var command when string.Equals(command, AetheriaRuntimeInputSettingsCommands.Refresh, StringComparison.Ordinal):
+            Debug.LogWarning($"Unknown input-settings command: {request?.Command}");
+            return;
+        }
+
+        switch (command.Kind)
+        {
+            case AetheriaRuntimeInputSettingsCommandKind.Refresh:
                 RenderSurface();
                 return;
-            case var command when string.Equals(command, AetheriaRuntimeInputSettingsCommands.CancelCapture, StringComparison.Ordinal):
+            case AetheriaRuntimeInputSettingsCommandKind.CancelCapture:
                 ClearCapture();
                 RenderSurface();
                 return;
-            case var command when string.Equals(command, AetheriaRuntimeInputSettingsCommands.BeginCapture, StringComparison.Ordinal):
-                BeginCapture(request.Payload);
+            case AetheriaRuntimeInputSettingsCommandKind.BeginCapture:
+                BeginCapture(command);
                 return;
-            case var command when string.Equals(command, AetheriaRuntimeInputSettingsCommands.ToggleActionBar, StringComparison.Ordinal):
-                ToggleActionBarInput(request.Payload);
+            case AetheriaRuntimeInputSettingsCommandKind.ToggleActionBar:
+                ToggleActionBarInput(command);
                 return;
             default:
-                Debug.LogWarning($"Unknown input-settings command: {request.Command}");
+                Debug.LogWarning($"Unknown input-settings command: {request?.Command}");
                 return;
         }
     }
 
-    private void BeginCapture(IReadOnlyDictionary<string, string> payload)
+    private void BeginCapture(AetheriaRuntimeInputSettingsSurfaceCommand command)
     {
-        if (payload == null ||
-            !payload.TryGetValue("actionName", out var actionName) ||
-            !payload.TryGetValue("bindingIndex", out var bindingIndexText) ||
-            !int.TryParse(bindingIndexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var bindingIndex))
+        if (string.IsNullOrWhiteSpace(command.ActionName) || command.BindingIndex < 0)
         {
             Debug.LogWarning("Input capture requested without a valid action name and binding index.");
             return;
         }
 
-        _captureActionName = actionName;
-        _captureBindingIndex = bindingIndex;
-        _captureBindingLabel = payload.TryGetValue("bindingLabel", out var bindingLabel)
-            ? bindingLabel ?? actionName
-            : actionName;
+        _captureActionName = command.ActionName;
+        _captureBindingIndex = command.BindingIndex;
+        _captureBindingLabel = string.IsNullOrWhiteSpace(command.BindingLabel)
+            ? command.ActionName
+            : command.BindingLabel;
         _captureAction?.Enable();
         RenderSurface();
     }
 
-    private void ToggleActionBarInput(IReadOnlyDictionary<string, string> payload)
+    private void ToggleActionBarInput(AetheriaRuntimeInputSettingsSurfaceCommand command)
     {
-        if (payload == null ||
-            !payload.TryGetValue("inputPath", out var inputPath) ||
-            !payload.TryGetValue("enabled", out var enabledText) ||
-            !bool.TryParse(enabledText, out var enabled))
+        if (string.IsNullOrWhiteSpace(command.InputPath))
         {
             Debug.LogWarning("Action-bar toggle requested without a valid input path and enabled state.");
             return;
         }
 
-        ActionGameManager.CommitRuntimeActionBarInput(inputPath, enabled);
+        ActionGameManager.RequestRuntimeActionBarInput(command.InputPath, command.Enabled);
         RenderSurface();
     }
 
@@ -394,7 +378,7 @@ public class InputDisplayLayout : MonoBehaviour
         }
 
         action.ApplyBindingOverride(_captureBindingIndex, inputPath);
-        ActionGameManager.CommitRuntimeInputBindingOverride(action.name, _captureBindingIndex, inputPath);
+        ActionGameManager.RequestRuntimeInputBindingOverride(action.name, _captureBindingIndex, inputPath);
         ClearCapture();
         RenderSurface();
     }
@@ -406,33 +390,4 @@ public class InputDisplayLayout : MonoBehaviour
         _captureBindingLabel = "";
     }
 
-    private static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
-    {
-        return new EveSurfaceDocument(
-            "surface-state",
-            "gamecult.eve.surface.v1",
-            document.ProviderId,
-            document.ProviderKind,
-            document.Title,
-            document.Version,
-            document.UpdatedAtUtc,
-            new EveSurfaceTree(
-                document.Surface.Id,
-                ToEveSurfaceComponent(document.Surface.Root),
-                document.Surface.Styles
-                    .Select(style => new EveStyleToken(style.Name, style.Value))
-                    .ToArray()),
-            document.Commands
-                .Select(command => new EveCommandTemplate(command.Command, command.Label, command.Transport))
-                .ToArray());
-    }
-
-    private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
-    {
-        return new EveSurfaceComponent(
-            component.Id,
-            component.Kind,
-            new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-            component.Children.Select(ToEveSurfaceComponent).ToArray());
-    }
 }

@@ -3,8 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 {
@@ -30,7 +29,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override float DamagePerSecond => Damage;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range)));
+        return EvaluateRangeDamage(range);
     }
 
     public event Action OnReloadBegin;

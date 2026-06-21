@@ -127,7 +127,7 @@ namespace GameCult.Aetheria.State.Unity
                 ? state.BootFailureMessage
                 : string.Equals(state.TargetSource, "state-path-override", StringComparison.Ordinal)
                     ? "AETHERIA_STATE_PATH is overriding the persisted client target. Update the environment if you want boot to follow the saved target again."
-                    : "Client target edits persist in aetheria-client.cc. Verse discovery and selection mutate the same typed owner. Verse visibility changes queue provider-owned Eve commands for the daemon bridge. Remote Verse targets hydrate a cache-only local replica before Unity reads them.";
+                    : "Client target edits persist in aetheria-client.cc. Verse discovery and selection mutate the same typed owner. Verse visibility changes append provider-owned Eve requests for the daemon bridge. Remote Verse targets hydrate a cache-only local replica before Unity reads them.";
 
             var discoveryChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
@@ -277,7 +277,7 @@ namespace GameCult.Aetheria.State.Unity
                             new[] { ("title", "Ownership") },
                             Text(
                                 "aetheria.clientTarget.host.note",
-                                "Client target edits are local. Visibility changes queue provider-owned Eve commands against the selected local Verse state file."))),
+                                "Client target edits are local. Visibility changes append provider-owned Eve requests against the selected local Verse state file."))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {

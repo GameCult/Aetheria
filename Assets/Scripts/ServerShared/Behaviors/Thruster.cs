@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
+using cfloat2 = CultMath.float2;
 
 public class Thruster : Behavior, IAnalogBehavior
 {
@@ -40,7 +40,7 @@ public class Thruster : Behavior, IAnalogBehavior
         var hullCenter = hullShape.CenterOfMass;
         var itemCenter = hullShape.Inset(itemShape, item.Position, item.EquippableItem.Rotation).CenterOfMass;
         var toCenter = hullCenter - itemCenter;
-        Torque = -dot(normalize(toCenter), float2(1, 0).Rotate(item.EquippableItem.Rotation));
+        Torque = -dot(normalize(toCenter), AetheriaMath.Rotate(new cfloat2(1, 0), item.EquippableItem.Rotation));
         Thrust = Evaluate(_thrust);
     }
 
@@ -65,9 +65,10 @@ public class Thruster : Behavior, IAnalogBehavior
         if(_input > .01f && Entity.TryConsumeEnergy(_input * Evaluate(_energyUsage)))
         {
             Thrust = Evaluate(_thrust);
-            Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
-            Entity.Direction = mul(Entity.Direction,
-                Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+            Entity.CultVelocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
+            Entity.CultDirection = AetheriaMath.Rotate(
+                Entity.CultDirection,
+                _input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt);
             AddHeat(_input * Evaluate(_heat) * dt);
             var vis = _input * Evaluate(_visibility);
             if (!Entity.VisibilitySources.TryGetValue(this, out var existingVisibility) || vis > existingVisibility)

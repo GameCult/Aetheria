@@ -227,14 +227,7 @@ namespace GameCult.Aetheria.State.Unity
         public long FrameId { get; set; }
 
         [Key(6)]
-        public int PendingBeforeApply { get; set; }
-
-        [IgnoreMember]
-        public int ObservedCommandCount
-        {
-            get => PendingBeforeApply;
-            set => PendingBeforeApply = value;
-        }
+        public int ObservedCommandCount { get; set; }
 
         [Key(7)]
         public int AppliedCommandCount { get; set; }
@@ -387,6 +380,9 @@ namespace GameCult.Aetheria.State.Unity
 
         [Key(12)]
         public IReadOnlyList<string> RejectedCommandIds { get; set; } = Array.Empty<string>();
+
+        [Key(13)]
+        public IReadOnlyList<string> AccountedCommandIds { get; set; } = Array.Empty<string>();
 
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,

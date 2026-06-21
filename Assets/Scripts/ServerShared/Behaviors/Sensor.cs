@@ -4,8 +4,7 @@
 
 using System;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class Sensor : Behavior, IEventBehavior
 {
@@ -117,12 +116,13 @@ public class Sensor : Behavior, IEventBehavior
 
         // TODO: Handle Active Detection / Visibility From Reflected Radiance
         var forward = Direction.xz;
+        var entityPosition = Entity.CultPositionXZ;
         foreach (var entity in Entity.Zone.Entities)
         {
             if (entity == Entity) continue;
 
-            var diff = entity.Position.xz - Entity.Position.xz;
-            var angle = acos(dot(forward, normalize(diff)));
+            var diff = entity.CultPositionXZ - entityPosition;
+            var angle = AetheriaMath.AngleRadians(forward, diff);
             var dist = length(diff);
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);

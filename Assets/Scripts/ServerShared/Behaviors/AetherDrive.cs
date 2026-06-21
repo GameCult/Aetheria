@@ -2,15 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
+using cfloat2 = CultMath.float2;
+using cfloat3 = CultMath.float3;
 
 public class AetherDrive : Behavior
 {
-    private readonly float3 _rotorDiameter;
-    private readonly float3 _rotorMass;
+    private readonly cfloat3 _rotorDiameter;
+    private readonly cfloat3 _rotorMass;
     private readonly PerformanceStat _maximumRpm;
-    private readonly float3 _couplingLambda;
+    private readonly cfloat3 _couplingLambda;
     private readonly PerformanceStat _lambdaMultiplier;
     private readonly PerformanceStat _couplingEfficiency;
     private readonly PerformanceStat _torque;
@@ -19,15 +20,15 @@ public class AetherDrive : Behavior
     private readonly PerformanceStat _passiveCoupling;
     private readonly uint _rpmAudioParameter;
     private readonly uint _torqueRatioAudioParameter;
-    private float3 _axis;
+    private cfloat3 _axis;
 
-    public float3 Thrust { get; private set; }
-    public float3 Rpm { get; private set; }
+    public cfloat3 Thrust { get; private set; }
+    public cfloat3 Rpm { get; private set; }
     public float MaximumRpm { get; private set; }
-    public float2 ThrustDirection { get; private set; }
+    public cfloat2 ThrustDirection { get; private set; }
     public string Particles { get; }
 
-    public float3 Axis
+    public cfloat3 Axis
     {
         get => _axis;
         set => _axis = clamp(value, -1, 1);
@@ -83,16 +84,17 @@ public class AetherDrive : Behavior
     {
         var rotorSpeed = Rpm * _rotorDiameter / 100;
 
-        var forward = normalize(Entity.Direction);
-        var right = forward.Rotate(ItemRotation.Clockwise);
+        var forward = normalize(Entity.CultDirection);
+        var right = AetheriaMath.Rotate(Entity.CultDirection, ItemRotation.Clockwise);
+        var velocity = Entity.CultVelocity;
 
-        var speed = float2(dot(Entity.Velocity, forward), dot(Entity.Velocity, right));
+        var speed = float2(dot(velocity, forward), dot(velocity, right));
         var couplingEfficiency = Evaluate(_couplingEfficiency);
         var efficiency = float3(saturate(1 - speed / max(rotorSpeed.xy, 1) * sign(_axis.xy)) * couplingEfficiency, 1);
 
         Thrust = (Rpm - AetheriaMath.Decay(Rpm, _couplingLambda, dt)) * _rotorMass * efficiency;
 
-        var couplingLambda = _couplingLambda * Item.Evaluate(_lambdaMultiplier) * max(abs(_axis), Evaluate(_passiveCoupling));
+        var couplingLambda = _couplingLambda * Evaluate(_lambdaMultiplier) * max(abs(_axis), Evaluate(_passiveCoupling));
         var previousRpm = Rpm;
         Rpm = AetheriaMath.Decay(Rpm, couplingLambda, dt);
         var rpmLoss = previousRpm - Rpm;
@@ -102,13 +104,14 @@ public class AetherDrive : Behavior
         AddHeat((heat.x + heat.y + heat.z)*ItemManager.GameplaySettings.AetherHeatMultiplier);
 
         ThrustDirection = forward * (_axis.x * force.x / Entity.Mass) + right * (_axis.y * force.y / Entity.Mass);
-        Entity.Velocity += ThrustDirection;
+        Entity.CultVelocity += ThrustDirection;
 
-        Entity.Direction = mul(Entity.Direction,
-            Unity.Mathematics.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
+        Entity.CultDirection = AetheriaMath.Rotate(
+            Entity.CultDirection,
+            force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass);
 
-        if(float.IsNaN(Entity.Velocity.x))
-            ItemManager.Log("FUCK FUCK FUCK FUCK");
+        if(float.IsNaN(Entity.CultVelocity.x))
+            ItemManager.Log("AetherDrive produced NaN velocity.");
 
         MaximumRpm = Evaluate(_maximumRpm);
         var torqueProfile = float3(
@@ -136,11 +139,11 @@ public class AetherDrive : Behavior
     }
 
     public void RestoreRuntimeState(
-        float3 axis,
-        float3 thrust,
-        float3 rpm,
+        cfloat3 axis,
+        cfloat3 thrust,
+        cfloat3 rpm,
         float maximumRpm,
-        float2 thrustDirection)
+        cfloat2 thrustDirection)
     {
         Axis = axis;
         Thrust = thrust;

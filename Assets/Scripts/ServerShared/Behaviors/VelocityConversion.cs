@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
+
 public class VelocityConversion : Behavior
 {
     private readonly PerformanceStat _lambda;
@@ -22,7 +22,8 @@ public class VelocityConversion : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.Velocity = AetheriaMath.Damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_lambda), dt);
+        var velocity = Entity.CultVelocity;
+        Entity.CultVelocity = AetheriaMath.Damp(velocity, Entity.CultDirection * length(velocity), Evaluate(_lambda), dt);
         return true;
     }
 }

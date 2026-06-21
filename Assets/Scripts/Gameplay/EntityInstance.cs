@@ -5,17 +5,13 @@ using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using UniRx;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using cfloat3 = CultMath.float3;
 
 public class EntityInstance : MonoBehaviour
 {
     public MeshRenderer MapIcon;
     public Transform InfluencePrefab;
-    public Transform PingPrefab;
     public Material InvisibleMaterial;
-    public static Transform EffectManagerParent;
     public ShieldManager Shield;
     public HullCollider[] HullColliders;
 
@@ -25,7 +21,6 @@ public class EntityInstance : MonoBehaviour
     public WeaponHardpoint[] WeaponHardpoints;
     public ArticulationPoint[] ArticulationPoints;
 
-    public GameObject DestroyEffect;
     
     public event Action OnFadedOut;
     public event Action OnFadedIn;
@@ -40,41 +35,21 @@ public class EntityInstance : MonoBehaviour
     private bool _fadedElementsVisible = false;
     private bool _unfadedElementsVisible = false;
     private float _fadeTime;
-    private bool _destroyed;
-    private (Transform transform, MeshRenderer meshRenderer) _currentPing;
-    private float _pingBrightness;
-    private Sensor _sensor;
     private Transform _influenceInstance;
 
     //private List<(GameObject source, EquippedItem item)> _audioSources = new List<(GameObject source, EquippedItem item)>();
     // private (Reactor reactor, GameObject sfxSource) _reactor;
     // private Dictionary<Radiator, GameObject> _radiatorSfx = new Dictionary<Radiator, GameObject>();
     
-    private static Dictionary<string, InstantWeaponEffectManager> _instantWeaponManagers = new Dictionary<string, InstantWeaponEffectManager>();
-    private static Dictionary<string, ConstantWeaponEffectManager> _constantWeaponManagers = new Dictionary<string, ConstantWeaponEffectManager>();
-
-    public static void ClearWeaponManagers()
-    {
-        _instantWeaponManagers.Clear();
-        _constantWeaponManagers.Clear();
-    }
-
     private static AetheriaRuntimeCatalogItem FindTypedHull(ItemInstance hull)
     {
         return ActionGameManager.RuntimeCatalog?.FindItem(hull?.ItemKey ?? "");
     }
 
-    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
-    {
-        var shape = new Shape(width, height);
-        foreach (var cell in cells)
-        {
-            if (cell.X >= 0 && cell.Y >= 0 && cell.X < width && cell.Y < height)
-                shape[int2(cell.X, cell.Y)] = true;
-        }
+    private static Vector2 ToVector2(CultMath.float2 value) => new Vector2(value.x, value.y);
+    private static Vector2 ToVector2(Unity.Mathematics.float2 value) => new Vector2(value.x, value.y);
 
-        return shape;
-    }
+    private static cfloat3 ToCult(Vector3 value) => new cfloat3(value.x, value.y, value.z);
 
     public CompassIcon CompassIcon { get; set; }
     public Dictionary<HardpointData, Transform[]> Barrels { get; private set; }
@@ -186,81 +161,10 @@ public class EntityInstance : MonoBehaviour
             return;
         }
 
-        var hullShape = ToShape(typedHull.ShapeWidth, typedHull.ShapeHeight, typedHull.ShapeCells);
-        var typedHardpoints = typedHull.Hardpoints.ToArray();
-
         if(Shield)
             Shield.Entity = entity;
         foreach (var hullCollider in HullColliders) hullCollider.Entity = entity;
 
-        foreach (var item in entity.Equipment)
-        {
-            foreach (var behavior in item.Behaviors)
-            {
-                if (behavior is Sensor sensor)
-                {
-                    _sensor = sensor;
-                    sensor.OnPingStart += () =>
-                    {
-                        var pingInstance = Instantiate(PingPrefab);
-                        var pingMesh = pingInstance.GetComponent<MeshRenderer>();
-                        pingInstance.position = entity.Position;
-                        _pingBrightness = pingMesh.material.GetFloat("_Depth");
-                        _currentPing = (pingInstance, pingMesh);
-                    };
-                    sensor.OnPingEnd += OnSensorPingEnd;
-                }
-                
-                if (behavior is InstantWeapon instantWeapon)
-                {
-                    var effectPrefab = instantWeapon.EffectPrefab;
-                    if (!_instantWeaponManagers.ContainsKey(effectPrefab))
-                    {
-                        var managerPrefab = UnityHelpers.LoadAsset<InstantWeaponEffectManager>(effectPrefab);
-                        if(managerPrefab)
-                        {
-                            _instantWeaponManagers.Add(effectPrefab, Instantiate(managerPrefab, EffectManagerParent));
-                        }
-                        else Debug.LogError($"No InstantWeaponEffectManager prefab found at path {effectPrefab}");
-                    }
-
-                    instantWeapon.OnFire += () => 
-                        _instantWeaponManagers[effectPrefab].Fire(instantWeapon, item, this, entity.Target.Value != null && ZoneRenderer.EntityInstances.ContainsKey(entity.Target.Value) ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
-
-                    if (behavior is ChargedWeapon chargedWeapon)
-                    {
-                        var chargeManager = _instantWeaponManagers[effectPrefab].GetComponent<ChargeEffectManager>();
-                        if (chargeManager)
-                        {
-                            chargedWeapon.OnStartCharging += () => chargeManager.StartCharging(chargedWeapon, item, this);
-                            chargedWeapon.OnStopCharging += () => chargeManager.StopCharging(chargedWeapon);
-                            chargedWeapon.OnCharged += () => chargeManager.Charged(chargedWeapon);
-                            chargedWeapon.OnFailed += () => chargeManager.Failed(chargedWeapon);
-                        }
-                    }
-                }
-
-                if (behavior is ConstantWeapon constantWeapon)
-                {
-                    var effectPrefab = constantWeapon.EffectPrefab;
-                    if (!_constantWeaponManagers.ContainsKey(effectPrefab))
-                    {
-                        var managerPrefab = UnityHelpers.LoadAsset<ConstantWeaponEffectManager>(effectPrefab);
-                        if(managerPrefab)
-                        {
-                            _constantWeaponManagers.Add(effectPrefab, Instantiate(managerPrefab, EffectManagerParent));
-                        }
-                        else Debug.LogError($"No ConstantWeaponEffectManager prefab found at path {effectPrefab}");
-                    }
-
-                    constantWeapon.OnStartFiring += () =>
-                        _constantWeaponManagers[effectPrefab].StartFiring(constantWeapon, item, this, entity.Target.Value != null ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
-                    constantWeapon.OnStopFiring += () => 
-                        _constantWeaponManagers[effectPrefab].StopFiring(item);
-                }
-            }
-            
-        }
         RadiatorMeshes = new Dictionary<Radiator, MeshRenderer>();
         Barrels = new Dictionary<HardpointData, Transform[]>();
         BarrelIndices = new Dictionary<HardpointData, int>();
@@ -289,128 +193,6 @@ public class EntityInstance : MonoBehaviour
             }
         }
 
-        void DamageSchematic(float damage, Shape hitShape)
-        {
-            foreach (var v in hitShape.Coordinates)
-                hitShape[v] = hitShape[v] && hullShape[v];
-
-            float hullDamage = 0;
-            var damagePerCell = damage / hitShape.Coordinates.Length;
-            foreach (var v in hitShape.Coordinates)
-            {
-                var d = damagePerCell;
-                
-                // Subtract surface damage from armor, passing on the remainder to the item and then to the hull
-                var prev = entity.Armor[v.x, v.y];
-                entity.Armor[v.x, v.y] = max(prev - d, 0);
-                entity.ArmorDamage.OnNext((v, d));
-                d = max(d - prev, 0);
-
-                if (d > 0.1f)
-                {
-                    var item = entity.GearOccupancy[v.x, v.y];
-                    if (item != null)
-                    {
-                        prev = item.EquippableItem.Durability;
-                        item.EquippableItem.Durability = max(prev - d, 0);
-                        entity.ItemDamage.OnNext((item, d));
-                        d = max(d - prev, 0);
-                    }
-                }
-
-                hullDamage += d;
-            }
-
-            if(hullDamage > .1f)
-            {
-                entity.Hull.Durability -= hullDamage;
-                entity.HullDamage.OnNext(hullDamage);
-            }
-        }
-
-        foreach (var collider in HullColliders)
-        {
-            collider.Splash.Subscribe(splash =>
-            {
-                var hitShape = new Shape(hullShape.Width, hullShape.Height);
-                foreach (var v in hullShape.Coordinates)
-                {
-                    var localHitDirection = transform.InverseTransformDirection(splash.Direction);
-                    var direction = normalize(float2(localHitDirection.x, localHitDirection.z));
-                    var cellDot = dot(normalize(v - hullShape.CenterOfMass), direction);
-                    if (cellDot < 0) hitShape[v] = true;
-                }
-                DamageSchematic(splash.Damage, hitShape);
-            });
-            
-            collider.Hit.Subscribe(hit =>
-            {
-                Entity.IncomingHit.OnNext(hit.Source);
-                var hardpointIndex = (int) hit.TexCoord.x - 1;
-                
-                var hitShape = new Shape(hullShape.Width, hullShape.Height);
-
-                // U coordinate between 0-1 indicates a hit that didn't land directly on a hardpoint
-                // Find the 2D position of the hit scaled to the schematic
-                float2 hitPos = float2.zero;
-                if (hardpointIndex < 0 || hardpointIndex >= typedHardpoints.Length)
-                {
-                    hitPos = float2(hit.TexCoord.x * hullShape.Width, hit.TexCoord.y * hullShape.Height);
-                    // Search all schematic border cells for the cell which is closest to the hit position
-                    var hitCell = int2(-1);
-                    var distance = float.MaxValue;
-                    foreach (var v in hullShape.Coordinates)
-                    {
-                        var cellDist = lengthsq(hitPos - v);
-                        if (cellDist < distance)
-                        {
-                            distance = cellDist;
-                            hitCell = v;
-                            hitPos = v + float2(.5f);
-                        }
-                    }
-
-                    hitShape[hitCell] = true;
-                }
-                else
-                {
-                    // Collider UV coordinates starting with 1 correspond to hardpoint index
-                    var hardpoint = typedHardpoints[hardpointIndex];
-                    
-                    // Obtain the hull coordinates of all cells occupied by the hardpoint
-                    var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
-                    var hardpointCells = hullShape.Inset(hardpointShape, int2(hardpoint.PositionX, hardpoint.PositionY));
-                    hitPos = hardpointCells.CenterOfMass;
-                    foreach (var v in hardpointCells.Coordinates)
-                        hitShape[v] = true;
-                }
-                
-                for (int i = 0; i < Mathf.RoundToInt(hit.Spread); i++)
-                {
-                    hitShape = hitShape.Expand();
-                }
-
-                if (hit.Penetration > .5f)
-                {
-                    // Find the local 2D vector corresponding to the direction of the incoming hit
-                    var localHitDirection = transform.InverseTransformDirection(hit.Direction);
-                    var penetrationVector = normalize(float2(localHitDirection.x, localHitDirection.z));
-                    // TODO: Bresenham's line algorithm
-                    // March a ray through the ship from the hit position
-                    var penetrationPoint = hitPos;
-                    var penetrationDistance = 0f;
-                    while (penetrationDistance < hit.Penetration && hullShape[int2(penetrationPoint)])
-                    {
-                        penetrationDistance += .5f;
-                        hitShape[int2(penetrationPoint)] = true;
-                        penetrationPoint += penetrationVector * .5f;
-                    }
-                }
-                
-                DamageSchematic(hit.Damage, hitShape);
-            });
-        }
-
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
         
         foreach (var articulationPoint in ArticulationPoints)
@@ -418,33 +200,11 @@ public class EntityInstance : MonoBehaviour
             articulationPoint.Target = LookAtPoint;
         }
 
-        _subscriptions.Add(Entity.HullDamage.Subscribe(_ =>
-        {
-            if (!_destroyed && Entity.Hull.Durability < .01f)
-            {
-                if (!this) return;
-                if (ActionGameManager.Instance?.CommitEntityDestroyed(entity, ZoneRenderer) != true)
-                    return;
-
-                _destroyed = true;
-                if (DestroyEffect != null)
-                {
-                    var t = Instantiate(DestroyEffect).transform;
-                    t.position = transform.position;
-                }
-            }
-        }));
-
         if (entity is OrbitalEntity orbital && orbital.IsSecureArea)
         {
             _influenceInstance = Instantiate(InfluencePrefab);
             _influenceInstance.transform.localScale = Vector3.one * orbital.SecurityRadius;
         }
-    }
-
-    private void OnSensorPingEnd()
-    {
-        Destroy(_currentPing.transform.gameObject);
     }
 
     public Transform GetBarrel(HardpointData hardpoint)
@@ -461,11 +221,6 @@ public class EntityInstance : MonoBehaviour
 
     public virtual void Update()
     {
-        if (_currentPing.transform)
-        {
-            _currentPing.transform.localScale = _sensor.PingRadius * Vector3.one;
-            _currentPing.meshRenderer.material.SetFloat("_Depth", _pingBrightness * _sensor.PingBrightness);
-        }
         if (_fading)
         {
             if (_fadingIn)
@@ -510,20 +265,23 @@ public class EntityInstance : MonoBehaviour
 
         foreach (var x in Barrels)
         {
-            Entity.HardpointTransforms[x.Key] = (x.Value[0].position, x.Value[0].forward);
+            Entity.HardpointTransforms[x.Key] = (
+                ToCult(x.Value[0].position),
+                ToCult(x.Value[0].forward));
         }
 
-        LookAtPoint.position = transform.position + (Vector3) Entity.LookDirection * 
-            (Entity.Target.Value != null ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
-        LocalSpace.localPosition = transform.position = Entity.Position;
+        var entityPosition = (Vector3)AetheriaMath.ToUnity(Entity.CultPosition);
+        var entityLookDirection = (Vector3)AetheriaMath.ToUnity(Entity.CultLookDirection);
+
+        LookAtPoint.position = transform.position + entityLookDirection *
+            (Entity.Target.Value != null ? Mathf.Max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
+        LocalSpace.localPosition = transform.position = entityPosition;
         if (_influenceInstance)
-            _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);
+            _influenceInstance.position = new Vector3(entityPosition.x, 0, entityPosition.z);
     }
 
     public virtual void OnDestroy()
     {
-        if(_sensor!=null)
-            _sensor.OnPingEnd -= OnSensorPingEnd;
         if (_influenceInstance) Destroy(_influenceInstance.gameObject);
         Destroy(LocalSpace.gameObject);
         foreach(var x in _subscriptions)

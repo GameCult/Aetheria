@@ -1,5 +1,6 @@
 using Aetheria.State.Documents;
 using GameCult.Caching;
+using GameCult.Aetheria.State.Unity;
 using GameCult.Networking;
 
 namespace Aetheria.State;
@@ -38,8 +39,14 @@ public static class AetheriaDocumentRegistry
                 CultNetDocumentBinding.ForDocument<AetheriaZoneState>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaEntitySnapshot>(registry),
                 CultNetDocumentBinding.ForDocument<AetheriaVerseHostSettings>(registry),
-                CultNetDocumentBinding.ForDocument<AetheriaRuntimeCommitDrainStatus>(registry),
-                CultNetDocumentBinding.ForDocument<AetheriaEveCommandDrainStatus>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaEveCommandAcceptanceStatus>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonHealthDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry),
+                CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry),
                 CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry),
                 CultNetDocumentBinding.ForDocument<EveProviderAdvertisementState>(registry)
             });
@@ -61,8 +68,14 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaZoneState),
         typeof(AetheriaEntitySnapshot),
         typeof(AetheriaVerseHostSettings),
-        typeof(AetheriaRuntimeCommitDrainStatus),
-        typeof(AetheriaEveCommandDrainStatus),
+        typeof(AetheriaEveCommandAcceptanceStatus),
+        typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument),
+        typeof(AetheriaRuntimeDaemonHealthDocument),
+        typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
+        typeof(AetheriaRuntimeDaemonFrameDocument),
+        typeof(AetheriaRuntimeDaemonSoaViewDocument),
+        typeof(AetheriaRuntimeDaemonCommandDocument),
+        typeof(AetheriaRuntimeEveCommandDocument),
         typeof(EveSurfaceState),
         typeof(EveProviderAdvertisementState)
     ];

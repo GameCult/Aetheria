@@ -5,10 +5,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using cfloat3 = CultMath.float3;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
+using float4 = Unity.Mathematics.float4;
 
 public class ZoneConstructionBlueprint
 {
@@ -84,9 +84,9 @@ public class GasGiantConstructionData : BodyConstructionData
 
 public class SunConstructionData : GasGiantConstructionData
 {
-    public float3 LightColor = float3.zero;
+    public cfloat3 LightColor = cfloat3.zero;
 
-    public float3 FogTintColor = float3.zero;
+    public cfloat3 FogTintColor = cfloat3.zero;
 
     public float LightRadiusMultiplier = 1;
 }
@@ -112,6 +112,6 @@ public class OrbitConstructionData
 
     public float Phase;
 
-    public float2 FixedPosition = float2.zero;
+    public float2 FixedPosition = new float2(0, 0);
 
 }

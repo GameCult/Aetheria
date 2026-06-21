@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
-using float2x2 = Unity.Mathematics.float2x2;
+using static CultMath.math;
+using cfloat3 = CultMath.float3;
 
 public class CombatState : BaseState
 {
@@ -13,7 +11,7 @@ public class CombatState : BaseState
     private float _optimumRange;
     private readonly List<(int index, float dps)> _availableGroups = new List<(int index, float dps)>();
     private readonly List<LockWeapon> _availableLockingWeapons = new List<LockWeapon>();
-    
+
     public CombatState(Agent agent) : base(agent)
     {
         SampleDps();
@@ -31,7 +29,9 @@ public class CombatState : BaseState
         _availableGroups.Clear();
         _availableLockingWeapons.Clear();
         
-        var toTarget = target.Position - _agent.Ship.Position;
+        var shipPosition = _agent.Ship.CultPosition;
+        var targetPosition = target.CultPosition;
+        var toTarget = targetPosition - shipPosition;
         var targetDistance = length(toTarget);
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
@@ -66,16 +66,17 @@ public class CombatState : BaseState
             }
         }
 
-        var targetRight = target.Direction.Rotate(ItemRotation.Clockwise);
+        var targetDirection = target.CultDirection;
+        var targetRight = AetheriaMath.Rotate(targetDirection, ItemRotation.Clockwise);
         var optimumRangeDelta = abs(_optimumRange - targetDistance);
         var directionToTarget = normalize(toTarget.xz);
         var targetPortAlignment = dot(targetRight, directionToTarget);
-        var targetForeAlignment = dot(-target.Direction, directionToTarget);
+        var targetForeAlignment = dot(-targetDirection, directionToTarget);
         var forwardness = saturate(optimumRangeDelta / _agent.Settings.AgentMaxForwardDistance) * _agent.Settings.AgentForwardLerp;
         if (targetForeAlignment > 0) forwardness = lerp(forwardness, 1, pow(targetPortAlignment, 2));
 
         var movementDirection = normalize(lerp(
-            directionToTarget.Rotate(targetPortAlignment > 0 ? ItemRotation.Clockwise : ItemRotation.CounterClockwise),
+            AetheriaMath.Rotate(directionToTarget, targetPortAlignment > 0 ? ItemRotation.Clockwise : ItemRotation.CounterClockwise),
             targetDistance > _optimumRange ? directionToTarget : -directionToTarget, forwardness));
 
         if (selectedGroup >= 0)
@@ -84,17 +85,16 @@ public class CombatState : BaseState
             if(testWeapon.Velocity > 1)
             {
                 var targetHull = _agent.ItemManager.GetRuntimeItem(target.Hull);
-                var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
-                var shipVelocity = float3(_agent.Ship.Velocity.x, 0, _agent.Ship.Velocity.y);
+                var targetVelocity = new cfloat3(target.CultVelocity.x, 0, target.CultVelocity.y);
                 var predictedPosition = AetheriaMath.FirstOrderIntercept(
-                    _agent.Ship.Position,
-                    float3.zero,
+                    shipPosition,
+                    cfloat3.zero,
                     testWeapon.Velocity,
-                    target.Position,
+                    targetPosition,
                     targetVelocity
                 );
                 predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + (float)(targetHull?.HullGridOffset ?? 0);
-                toTarget = normalize(predictedPosition - _agent.Ship.Position);
+                toTarget = normalize(predictedPosition - shipPosition);
             }
             
             var shouldFire = dot(
@@ -108,7 +108,7 @@ public class CombatState : BaseState
                     weapon.Deactivate();
             }
         }
-        _agent.Ship.LookDirection = toTarget;
+        _agent.Ship.CultLookDirection = toTarget;
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!

@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class BezierCurve
 {
@@ -12,6 +13,16 @@ public class BezierCurve
     private const int STEPS = 64;
 
     private float? _maximum;
+
+    public static BezierCurve FromKeys(IEnumerable<(float time, float value, float inTangent, float outTangent)> keys)
+    {
+        return new BezierCurve
+        {
+            Keys = keys
+                .Select(key => float4(key.time, key.value, key.inTangent, key.outTangent))
+                .ToArray()
+        };
+    }
 
     public float Maximum
     {

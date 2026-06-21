@@ -8,23 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs" Link="EveSurfaceDocument.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogSnapshot.cs" Link="AetheriaRuntimeCatalogSnapshot.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogStore.cs" Link="AetheriaRuntimeCatalogStore.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeClientTargetCommands.cs" Link="AetheriaRuntimeClientTargetCommands.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeClientTargetSurfaceBuilder.cs" Link="AetheriaRuntimeClientTargetSurfaceBuilder.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeClientTargetStore.cs" Link="AetheriaRuntimeClientTargetStore.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseDiscovery.cs" Link="AetheriaRuntimeVerseDiscovery.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoundary.cs" Link="AetheriaRuntimeStateBoundary.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoot.cs" Link="AetheriaRuntimeStateBoot.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseReplicaBridge.cs" Link="AetheriaRuntimeVerseReplicaBridge.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateReader.cs" Link="AetheriaRuntimeStateReader.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeBehaviorMetadata.cs" Link="AetheriaRuntimeBehaviorMetadata.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeBehaviorKinds.cs" Link="AetheriaRuntimeBehaviorKinds.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeItemCategories.cs" Link="AetheriaRuntimeItemCategories.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePendingCultCacheStore.cs" Link="AetheriaRuntimePendingCultCacheStore.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveCommandLog.cs" Link="AetheriaRuntimeEveCommandLog.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateCommitLog.cs" Link="AetheriaRuntimeStateCommitLog.cs" />
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
+    <ProjectReference Include="..\GameCult.Aetheria.State.Unity.csproj" />
   </ItemGroup>
 </Project>

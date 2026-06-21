@@ -5,7 +5,9 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.Mathematics",
-        "Aetheria.Shared.Unity"
+        "CultMath",
+        "Aetheria.Shared.Unity",
+        "GameCult.Aetheria.State.Unity"
     ],
     "includePlatforms": [
         "Editor"

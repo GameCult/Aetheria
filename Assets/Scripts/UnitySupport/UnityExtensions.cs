@@ -40,14 +40,24 @@ public static class UnityExtensions
         return new AnimationCurve(keys.Select(v => new Keyframe(v.x, v.y, v.z, v.w)).ToArray());
     }
 
+    public static AnimationCurve ToCurve(this CultMath.float4[] keys)
+    {
+        return new AnimationCurve(keys.Select(v => new Keyframe(v.x, v.y, v.z, v.w)).ToArray());
+    }
+
     public static AnimationCurve ToCurve(this BezierCurve curve)
     {
         return new AnimationCurve(curve.Keys.Select(v => new Keyframe(v.x, v.y, v.z, v.w)).ToArray());
     }
 	
     public static Color ToColor(this float3 v) => new Color(v.x,v.y,v.z);
+    public static Color ToColor(this CultMath.float3 v) => new Color(v.x,v.y,v.z);
+    public static float3 ToUnityFloat3(this CultMath.float3 v) => float3(v.x, v.y, v.z);
     public static float3 ToFloat3(this Color c) => float3(c.r,c.g,c.b);
+    public static CultMath.float3 ToCultFloat3(this Color c) => new(c.r, c.g, c.b);
 	
     public static Color ToColor(this float4 v) => new Color(v.x,v.y,v.z, v.w);
+    public static Color ToColor(this CultMath.float4 v) => new Color(v.x,v.y,v.z, v.w);
     public static float4 ToFloat4(this Color c) => float4(c.r, c.g, c.b, c.a);
+    public static CultMath.float4 ToCultFloat4(this Color c) => new(c.r, c.g, c.b, c.a);
 }

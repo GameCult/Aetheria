@@ -196,6 +196,8 @@ public class DaemonRuntimeDocumentTests
         CollectionAssert.Contains(frame.Capabilities, AetheriaRuntimeDaemonSchemas.GameSurface);
         CollectionAssert.Contains(frame.Capabilities, AetheriaRuntimeDaemonSchemas.EditorSurface);
         CollectionAssert.AreEquivalent(result.OperationResult.AppliedCommandIds, frame.AppliedCommandIds);
+        CollectionAssert.Contains(frame.AccountedCommandIds, targetCommand.CommandId);
+        CollectionAssert.Contains(frame.AccountedCommandIds, movementCommand.CommandId);
         Assert.AreEqual(1, frame.Run.Zones[0].Entities[0].TargetEntityIndex);
         Assert.AreEqual(
             AetheriaRuntimeDaemonPublicationStore.GetProviderAdvertisementPath(statePath),
@@ -334,6 +336,47 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId);
         Assert.IsNotNull(genericEditorTuiSurface);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, genericEditorTuiSurface.Surface.Id);
+    }
+
+    [Test]
+    public void TickRunnerSkipsPreviouslyAccountedObservedCommands()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-daemon-tick-runner-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var run = RunWithTwoEntities();
+        var targetCommand = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetTarget,
+            "codex",
+            "session-tick",
+            40,
+            "zone.0.entity.0");
+        targetCommand.TargetEntityKey = "zone.0.entity.1";
+
+        var result = AetheriaRuntimeDaemonTickRunner.Tick(
+            statePath,
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                DaemonId = "test-daemon",
+                SessionId = "session-tick",
+                FrameId = 43,
+                SimulationTimeSeconds = 12.52,
+                FixedDeltaSeconds = 0.02,
+                ObservedCommands = new[] { targetCommand },
+                AccountedCommandIds = new[] { targetCommand.CommandId }
+            });
+
+        Assert.AreEqual(0, result.OperationResult.AppliedCommandIds.Count);
+        Assert.AreEqual(0, result.OperationResult.RejectedCommandIds.Count);
+        Assert.AreEqual(-1, run.Zones[0].Entities[0].TargetEntityIndex);
+        CollectionAssert.Contains(result.Frame.AccountedCommandIds, targetCommand.CommandId);
+        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadHealth(statePath, out var health));
+        Assert.AreEqual(1, health.ObservedCommandCount);
+        Assert.AreEqual(0, health.AppliedCommandCount);
+        Assert.AreEqual(0, health.RejectedCommandCount);
     }
 
     [Test]

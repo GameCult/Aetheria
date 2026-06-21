@@ -1,7 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using static Unity.Mathematics.math;
 
 public class ConstantLaser : MonoBehaviour
 {
@@ -70,34 +67,34 @@ public class ConstantLaser : MonoBehaviour
         }
         
         LineRenderer.SetPosition(0, transform.position);
-        bool hitFound = false;
-        foreach (var hit in Physics.RaycastAll(new Ray(transform.position, transform.forward), Range, 1 | (1 << 17)))
+        var hitFound = false;
+        if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
+                ActionGameManager.Instance?.ZoneRenderer,
+                SourceEntity,
+                transform.position,
+                transform.forward,
+                Range,
+                0,
+                out var hits))
         {
-            var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield)
+            foreach (var hit in hits)
             {
-                if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
-                if (shield.Entity != SourceEntity)
+                var hull = hit.Hull;
+                var entity = hull.Entity;
+                if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    shield.Entity.Shield.TakeHit(DamageType, Damage);
-                    shield.ShowHit(hit.point, sqrt(Damage));
-                    LineRenderer.SetPosition(1, hit.point);
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                    LineRenderer.SetPosition(1, hit.Point);
                     hitFound = true;
                     break;
                 }
-            }
-            var hull = hit.collider.GetComponent<HullCollider>();
-            if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                if (hull.Entity != SourceEntity)
-                {
-                    hull.SendHit(Damage * Time.deltaTime, Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, transform.forward);
-                    LineRenderer.SetPosition(1, hit.point);
-                    hitFound = true;
-                    break;
-                }
+
+                LineRenderer.SetPosition(1, hit.Point);
+                hitFound = true;
+                break;
             }
         }
+
         if(!hitFound)
             LineRenderer.SetPosition(1, transform.position + transform.forward * Range);
     }

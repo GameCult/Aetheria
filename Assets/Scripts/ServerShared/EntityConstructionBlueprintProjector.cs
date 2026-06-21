@@ -1,8 +1,8 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
+using float2 = Unity.Mathematics.float2;
+using float3 = Unity.Mathematics.float3;
+using int2 = Unity.Mathematics.int2;
 
 public static class EntityConstructionBlueprintProjector
 {
@@ -19,8 +19,8 @@ public static class EntityConstructionBlueprintProjector
         else if (entity is Ship ship)
             blueprint = new ShipConstructionBlueprint
             {
-                Position = ship.Position,
-                Direction = ship.Direction,
+                Position = AetheriaMath.ToUnity(ship.CultPosition),
+                Direction = AetheriaMath.ToUnity(ship.CultDirection),
                 IsPlayerShip = ship.IsPlayerShip
             };
         else throw new ArgumentException("Attempted to capture an instance of abstract class Entity!");
@@ -41,30 +41,40 @@ public static class EntityConstructionBlueprintProjector
         return blueprint;
     }
 
-    public static Entity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint, bool instantiate = false)
+    public static Entity InstantiateAuthoritativeFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint)
+    {
+        return BuildFromBlueprint(itemManager, zone, blueprint, false);
+    }
+
+    public static Entity ProjectObservedFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint)
+    {
+        return BuildFromBlueprint(itemManager, zone, blueprint, true);
+    }
+
+    private static Entity BuildFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint, bool instantiate)
     {
         blueprint.Settings ??= itemManager.GameplaySettings.DefaultEntitySettings.Copy();
         return blueprint switch
         {
-            ShipConstructionBlueprint shipBlueprint => InstantiateFromBlueprint(itemManager, zone, shipBlueprint, instantiate),
-            OrbitalEntityConstructionBlueprint orbitalBlueprint => InstantiateFromBlueprint(itemManager, zone, orbitalBlueprint, instantiate),
+            ShipConstructionBlueprint shipBlueprint => BuildFromBlueprint(itemManager, zone, shipBlueprint, instantiate),
+            OrbitalEntityConstructionBlueprint orbitalBlueprint => BuildFromBlueprint(itemManager, zone, orbitalBlueprint, instantiate),
             _ => null
         };
     }
 
 
-    private static Ship InstantiateFromBlueprint(ItemManager itemManager, Zone zone, ShipConstructionBlueprint blueprint, bool instantiate = false)
+    private static Ship BuildFromBlueprint(ItemManager itemManager, Zone zone, ShipConstructionBlueprint blueprint, bool instantiate)
     {
         
         var entity = new Ship(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.Settings);
         Restore(itemManager, zone, blueprint, entity, instantiate);
-        entity.Position = blueprint.Position;
-        entity.Direction = blueprint.Direction;
+        entity.CultPosition = AetheriaMath.ToCult(blueprint.Position);
+        entity.CultDirection = AetheriaMath.ToCult(blueprint.Direction);
         entity.IsPlayerShip = blueprint.IsPlayerShip;
         return entity;
     }
 
-    private static OrbitalEntity InstantiateFromBlueprint(ItemManager itemManager, Zone zone, OrbitalEntityConstructionBlueprint blueprint, bool instantiate = false)
+    private static OrbitalEntity BuildFromBlueprint(ItemManager itemManager, Zone zone, OrbitalEntityConstructionBlueprint blueprint, bool instantiate)
     {
         var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(blueprint.Hull) : blueprint.Hull, blueprint.OrbitKey, blueprint.Settings);
         Restore(itemManager, zone, blueprint, entity, instantiate);
@@ -80,7 +90,7 @@ public static class EntityConstructionBlueprintProjector
         entity.Faction = ResolveFaction(zone?.Galaxy, blueprint);
         entity.Children = blueprint.Children.Select(c =>
         {
-            var child = InstantiateFromBlueprint(itemManager, zone, c, instantiate);
+            var child = BuildFromBlueprint(itemManager, zone, c, instantiate);
             child.Parent = entity;
             return child;
         }).ToList();

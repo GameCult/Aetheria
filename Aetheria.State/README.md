@@ -38,27 +38,28 @@ The Unity client no longer writes `PlayerSettings.msgpack`, `.loadout`, or
 replacement for bespoke loadout files, with structured hull/equipment/cargo/
 docking item slots, nested child-entity loadouts, and weapon groups.
 `RuntimePlayerSettings` is the Unity session projection for menus, formatting,
-and input binding edits; menu and input-screen changes queue typed
-`.cc.pending` player-settings commits and are not portable state authority.
-Unity settings, loadout templates, and run checkpoints now queue typed
-`.cc.pending` runtime commit documents beside
-`GameData/aetheria-world.cc`. `Aetheria.State` owns applying those documents
-into canonical typed state through `AetheriaRuntimeCommitLogApplier`; the
-Unity-side command log is command-only and cannot become durable truth by
-itself.
-`AetheriaRuntimeSession` is the typed Verse signal for the running state host
-or one-shot pending drain. `Economy.Server` owns the long-running
-`cultmesh-state-host` heartbeat and publishes `starting`, `running`, and
-`stopping` states through `Aetheria.State`; drain status remains operation
-telemetry, not daemon-session ownership.
-Unity Eve surfaces also emit typed `gamecult.eve.command.v1` documents under
-`GameData/aetheria-world.cc.eve.pending`. `AetheriaEveCommandBridge` is the
-provider-owned acceptance organ for those commands: it validates the provider,
-surface, and command template before running the narrow refresh handlers for
-the catalog and operations surfaces plus the typed player-settings mutation
-handlers for gameplay/graphics Eve controls and typed Verse-host visibility
-commands. Renderer callbacks do not accept commands or mutate game state
-locally.
+and input binding display. Menu and input-screen changes send typed Eve request
+documents to the provider-owned Aetheria Verse service; they are not portable
+state authority and must not mutate daemon-owned state inside Unity.
+The old `.cc.pending` runtime commit document lane is deleted. Gameplay state,
+loadout templates, and run checkpoints are accepted by the daemon/Verse owner
+through typed state operations and daemon command documents, not by
+renderer-side commit authority.
+`AetheriaRuntimeSession` is the typed Verse signal for the running daemon.
+`Aetheria.State.Daemon` owns the long-running `aetheria-daemon` heartbeat and
+publishes `starting`, `running`, and `stopping` states through `Aetheria.State`;
+legacy outbox status remains operation telemetry, not daemon-session ownership.
+Unity Eve surfaces construct typed `gamecult.eve.command.v1` command documents.
+The neutral `AetheriaCommandPort` owns command submission for headless and
+non-Unity clients; Unity input providers reach the same records through the
+`AetheriaRuntimeCommandPort` facade. The Verse daemon uses `AetheriaStateNode`
+to observe and accept those CultNet records in the Aetheria state graph.
+`AetheriaEveCommandBridge` is the provider-owned command acceptor for those
+records: it validates the provider, surface, and command template before
+running the narrow refresh handlers for the catalog and operations surfaces
+plus the typed player-settings mutation handlers for gameplay/graphics Eve
+controls and typed Verse-host visibility commands. Renderer callbacks do not
+accept commands or mutate game state locally.
 `AetheriaEveRuntimeBootstrap` mounts the `aetheria.operations` surface through a
 runtime-created `UIDocument` after scene load, with environment and command-line
 switches for diagnostics. UI Toolkit is now a live runtime lowering path, not
@@ -66,6 +67,15 @@ only a package sample.
 The old `SavedGame`/`SavedZone` DTOs and `Galaxy` loader constructor have also
 been deleted; the new document family is live Verse run/zone state, not a
 bespoke save-file format.
+Daemon run frames project into Unity through the explicit
+`EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint` lowering
+path; authoritative blueprint construction remains named separately as a
+migration target for code that still has to move into the daemon.
+Main-menu gameplay boot also projects the daemon run through
+`Galaxy.ProjectObservedDaemonRun` rather than constructing or generating a
+Unity-owned run. The Unity handle for this shell is
+`ActionGameManager.ObservedGalaxy` to keep the client-side object named as an
+observation.
 The dead `SavedStory` JSON DTO is gone. `ZoneConstructionBlueprint` and
 `RuntimeEntityBlueprint` remain in-memory construction/loadout projections for
 Unity runtime code, with `RuntimeEntityBlueprintProjector` capturing and
@@ -104,13 +114,13 @@ lookup overloads and the derived behavior `AmmoType`/`Item` GUID properties
 have been deleted. Action-bar consumable bindings now read the target `ItemKey`
 directly from typed runtime catalog rows instead of reconstructing it from
 legacy item IDs.
-Unity runtime commit DTOs carry typed `ItemKey`/`HullItemKey` fields only for
+Daemon snapshot DTOs carry typed `ItemKey`/`HullItemKey` fields only for
 loadout items, action-bar targets, body resources, entity hulls, and active
-consumables; the commit applier no longer reconstructs item keys from legacy
-item GUID fields.
-Unity runtime commit DTOs now carry typed `FactionKey` only for loadout
-entities, run entity snapshots, and faction relationship state. The old
-pending-command `CorporationLegacyId` fallback fields are deleted.
+consumables; daemon command application no longer reconstructs item keys from
+legacy item GUID fields.
+Daemon snapshot DTOs now carry typed `FactionKey` only for loadout entities,
+run entity snapshots, and faction relationship state. The old command-document
+`CorporationLegacyId` fallback fields are deleted.
 `EntityConstructionBlueprint` also carries `FactionKey` only. Loadout restore,
 entity construction, run entity snapshots, and faction relationship commits no
 longer rebuild corporation references from legacy `Faction.ID` GUIDs.
@@ -124,10 +134,10 @@ GUID link fields.
 sector-map link/influence rendering, zone security ownership checks, and
 runtime faction-relationship ordering now use `FactionKey`. The legacy
 `Faction.ID` projection field is deleted from the temporary simulation shell.
-Run checkpoint commit DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
-`BodyKey` only for zone orbit/body snapshots. The old pending-command
+Run checkpoint snapshot DTOs carry typed `OrbitKey`, `ParentOrbitKey`, and
+`BodyKey` only for zone orbit/body snapshots. The old command-document
 `OrbitLegacyId`, `ParentLegacyId`, and `BodyLegacyId` fallback fields are
-deleted. Behavior-state runtime commits and readback snapshots carry typed
+deleted. Behavior-state daemon snapshots and readback snapshots carry typed
 body-key fields for resource scanner targets and mining tool asteroid belts;
 the old raw body ID commit/readback field names are deleted. `ResourceScanner`
 and `MiningTool` now retain typed body-key runtime state directly, while
@@ -319,8 +329,8 @@ does not write daemon-owned Verse state. Unity can use this as the first
 package boundary once CultLib/Eve runtime packaging is available.
 Unity `MainMenu` now lowers a typed Verse settings shell over that split:
 client-target edits persist locally in `aetheria-client.cc`, while Verse-host
-visibility changes queue provider-owned Eve commands against the selected local
-Verse state file.
+visibility changes append provider-owned Eve request documents against the
+selected local Verse state file.
 `Galaxy` now consumes this package-owned runtime catalog for faction selection
 and name generation, so generated sectors use typed corporation v2 and
 `aetheria.name_file.v2` records instead of legacy `Faction`/`NameFile`
@@ -346,13 +356,13 @@ reviving `PlayerSettings.msgpack`, `.loadout`, or `.zone` serialization.
 Unity `MainMenu` now lowers that same player-settings Eve document contract
 locally through UI Toolkit instead of hand-authoring separate gameplay/graphics
 widgets; the menu shell keeps name entry and back-navigation while gameplay
-still owns command semantics through `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
+still owns command semantics through `ActionGameManager.RequestRuntimePlayerSettingsCommand`.
 The run document also carries `CurrentEntityKey`, so Continue restore binds the
 saved player entity by exact typed record identity instead of reconstructing it
 from a transient entity-slot index. Canonical typed run state no longer stores
 `CurrentZoneEntityIndex`; older stored runs are translated through the package
-reader into `CurrentEntityKey`, and older queued runtime commits are translated
-through the pending commit reader when those compatibility seams are needed.
+reader into `CurrentEntityKey`. The older runtime commit importer has
+been removed from the first-party state host and Unity package.
 
 `Aetheria.State.Verify` opens a materialized state file and checks that the
 typed migration ledger matches the actual item, corporation, and name-file
@@ -371,38 +381,38 @@ symbols such as MessagePack, Newtonsoft, JsonKnownTypes, RethinkDB, or old
 `DatabaseEntry`/`DatabaseLink` references; the remaining MessagePack usage is a
 named package/import CultCache transport boundary, not gameplay state authority.
 The package boundary is also fenced: MessagePack symbols may only appear in the
-runtime catalog reader, pending CultCache envelope store, and typed runtime/Eve
+runtime catalog reader, CultCache document store, and typed runtime/Eve
 command document files until generated CultCache serializers replace that
 temporary Unity-side codec. The verifier also checks that the Eve runtime
 bootstrap exists, mounts the operations surface through the UI Toolkit presenter,
-and keeps renderer commands routed through the typed Eve command log.
+and keeps renderer commands routed through the typed Eve command inbox.
 Use it after import when `GameData/aetheria-world.cc` changes.
 
 `Aetheria.State.Unity.Smoke` opens the materialized state through the runtime
 facade and proves read-only Unity-facing catalog access without the legacy
-catalog reader. It also proves runtime commit envelopes for settings and run
-zone/entity snapshots can be queued, applied through `Aetheria.State`, and
-cleared. Pending runtime state and Eve command queue files are CultCache-shaped
-`.cc` records with embedded schema catalogs; their current record payload codec
-is still temporary package code until Unity consumes generated CultCache
+catalog reader. Live Unity code uses typed Eve or daemon request documents
+instead of runtime commit outboxes. Runtime and Eve requests are typed `.cc`
+records with embedded schema catalogs; their current record payload codec is
+still temporary package code until Unity consumes generated CultCache
 serializers directly.
 
-`Economy.Server` opens the CultMesh state host, applies pending runtime commits
-and pending Eve surface commands on startup, and polls for new pending work
-while running. For a bounded one-shot drain without leaving the host running:
+`Aetheria.State.Daemon` opens the CultMesh Verse daemon, publishes daemon-owned
+Verse identity/health/game/editor surfaces, accepts observed Eve command
+documents on startup, and executes observed daemon command records each tick.
+For a bounded one-shot daemon tick:
 
 ```powershell
-dotnet run --project .\Economy.Server\Economy.Server.csproj -- --apply-pending-once
+dotnet run --project .\Aetheria.State.Daemon\Aetheria.State.Daemon.csproj -- --once
 ```
 
-The server publishes `AetheriaRuntimeCommitDrainStatus`,
-`AetheriaEveCommandDrainStatus`, the `aetheria.operations` Eve surface, and the
-typed `aetheria.player_settings` Eve surface after drain attempts, so pending
-depth, accepted/applied/rejected counts, failures, timestamps, and player
-settings controls are typed state rather than console-only status. It also
+The daemon publishes `AetheriaEveCommandAcceptanceStatus`, the
+`aetheria.operations` Eve surface, and the
+typed `aetheria.player_settings` Eve surface after request acceptance attempts,
+so observed depth, accepted/applied/rejected counts, failures, timestamps, and
+player settings controls are typed state rather than console-only status. It also
 persists daemon-owned `aetheria.verse_host_settings.v1`, with boot-time
 defaults or overrides for service id, Verse id, visibility, and CultMesh
-address. When visibility is `public`, the long-running daemon also serves a
+address. When visibility is `public`, the daemon also serves a
 derived CultMesh Verse catalog from that same typed host document, using the
 located service name as the discoverable `cultnet://...:3075` endpoint. The
 operations surface and provider advertisement project from that typed host
@@ -427,19 +437,10 @@ The Unity Verse-settings shell can also trigger the same one-shot sync through
 the `Aetheria.State.Replica` bridge when the repo-local tool is available. That
 keeps target selection local while the replica organ owns daemon transport.
 
-`Aetheria.State.ApplyPending` is the smaller local operator applicator for
-queued Unity runtime commits and Eve commands when the server host is not being
-used. It also republishes the typed drain status, operations surface,
-player-settings surface, typed `aetheria.verse_host_settings.v1`, and provider
-advertisement after applying pending files:
-
-```powershell
-dotnet run --project .\Aetheria.State.ApplyPending\Aetheria.State.ApplyPending.csproj -- .
-```
-
-Pass an explicit state path as the second argument when applying a non-default
-`.cc` file. Use `--keep` only for diagnostics; normal application deletes
-successfully applied command files.
+The old standalone `Aetheria.State.DrainCommands` applicator is deleted. Command
+acceptance is daemon behavior now; bounded operation uses `Aetheria.State.Daemon
+--once` so the same Verse member publishes the same provider, health, command
+boundary, and Eve surfaces.
 
 Current rebuild notes:
 

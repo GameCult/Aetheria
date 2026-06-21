@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
-using GameCult.Eve.UnityUIToolkit;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -15,7 +14,7 @@ namespace GameCult.Aetheria.EveRuntime
     public sealed class AetheriaEveSurfacePresenter : MonoBehaviour
     {
         [SerializeField]
-        private string surfaceId = "aetheria.catalog.operator";
+        private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId;
 
         [SerializeField]
         private string stateFilePathOverride = "";
@@ -23,7 +22,26 @@ namespace GameCult.Aetheria.EveRuntime
         [SerializeField]
         private bool mountOnEnable = true;
 
+        [SerializeField]
+        private bool refreshInUpdate = true;
+
+        [SerializeField]
+        private float refreshIntervalSeconds = 0.1f;
+
         private UIDocument? _document;
+        private float _nextRefreshTime;
+        private string _mountedStatePath = "";
+        private string _mountedSurfaceId = "";
+        private long _mountedSurfaceVersion = -1;
+        private string _mountedSurfaceUpdatedAtUtc = "";
+        private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome = new AetheriaEveUnitySurfaceChrome
+        {
+            UseShell = false,
+            RootPaddingTop = 0f,
+            RootAlignItems = Align.Stretch,
+            RootJustifyContent = Justify.FlexStart,
+            RootPickingMode = PickingMode.Position
+        };
 
         public string SurfaceId
         {
@@ -35,6 +53,12 @@ namespace GameCult.Aetheria.EveRuntime
         {
             get => stateFilePathOverride;
             set => stateFilePathOverride = value ?? "";
+        }
+
+        public bool RefreshInUpdate
+        {
+            get => refreshInUpdate;
+            set => refreshInUpdate = value;
         }
 
         public void Mount()
@@ -64,14 +88,35 @@ namespace GameCult.Aetheria.EveRuntime
                 return;
             }
 
-            var lowerer = new EveUiToolkitSurfaceLowerer();
-            root.Add(lowerer.Lower(surface, request => EmitCommand(statePath, request)));
+            MountSurface(statePath, surface);
         }
 
         private void OnEnable()
         {
             if (mountOnEnable)
                 Mount();
+        }
+
+        private void Update()
+        {
+            if (!refreshInUpdate || Time.unscaledTime < _nextRefreshTime)
+                return;
+
+            _nextRefreshTime = Time.unscaledTime + Mathf.Max(0.01f, refreshIntervalSeconds);
+            RefreshIfChanged();
+        }
+
+        private void RefreshIfChanged()
+        {
+            var stateBoot = ResolveStateBoot();
+            if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+                return;
+
+            var surface = AetheriaRuntimeStateReader.ReadEveSurface(stateBoot.StateFilePath, surfaceId);
+            if (surface == null || !ShouldMountSurface(stateBoot.StateFilePath, surface))
+                return;
+
+            MountSurface(stateBoot.StateFilePath, surface);
         }
 
         private UIDocument ResolveDocument()
@@ -97,11 +142,52 @@ namespace GameCult.Aetheria.EveRuntime
             return container;
         }
 
+        private bool ShouldMountSurface(string statePath, EveSurfaceDocument surface)
+        {
+            return !string.Equals(_mountedStatePath, statePath, StringComparison.Ordinal) ||
+                   !string.Equals(_mountedSurfaceId, surface.Surface.Id, StringComparison.Ordinal) ||
+                   _mountedSurfaceVersion != surface.Version ||
+                   !string.Equals(_mountedSurfaceUpdatedAtUtc, surface.UpdatedAtUtc, StringComparison.Ordinal);
+        }
+
+        private void MountSurface(string statePath, EveSurfaceDocument surface)
+        {
+            AetheriaEveUnitySurfaceHost.Render(
+                transform,
+                ResolveDocument(),
+                "Aetheria Eve Surface",
+                surface,
+                request => EmitCommand(statePath, request),
+                RootOnlyChrome);
+            _mountedStatePath = statePath;
+            _mountedSurfaceId = surface.Surface.Id;
+            _mountedSurfaceVersion = surface.Version;
+            _mountedSurfaceUpdatedAtUtc = surface.UpdatedAtUtc ?? "";
+        }
+
         private static void EmitCommand(string statePath, EveSurfaceCommandRequest request)
         {
-            var envelope = AetheriaRuntimeEveCommandLog.QueueCommand(statePath, request);
+            if (AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope))
+            {
+                Debug.Log(
+                    $"Submitted Aetheria daemon operation from Eve surface: {daemonEnvelope!.Kind} {daemonEnvelope.CommandId}");
+                return;
+            }
+
+            if (!AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(
+                    statePath,
+                    request,
+                    string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId,
+                    out var envelope,
+                    out var error))
+            {
+                Debug.LogWarning(
+                    $"Ignored or failed Aetheria Eve command: {request.ProviderId}/{request.SurfaceId}/{request.Command}: {error}");
+                return;
+            }
+
             Debug.Log(
-                $"Queued Eve command for CultMesh bridge: {envelope.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
+                $"Submitted Eve command for CultMesh bridge: {envelope!.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
         }
     }
 }

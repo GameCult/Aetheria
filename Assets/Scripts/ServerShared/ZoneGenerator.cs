@@ -9,9 +9,9 @@ using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
+using float3 = Unity.Mathematics.float3;
+using float4 = Unity.Mathematics.float4;
 using Random = Unity.Mathematics.Random;
 
 public static class ZoneGenerator
@@ -21,7 +21,7 @@ public static class ZoneGenerator
 		public float2 Center;
 		public float Radius;
 
-		public float Area => PI * Radius * Radius;
+		public float Area => MathF.PI * Radius * Radius;
 
 		public Circle(float2 center, float radius)
 		{
@@ -29,8 +29,8 @@ public static class ZoneGenerator
 			Radius = radius;
 		}
 
-		public float DistanceTo(float2 point) => length(point - Center) - Radius;
-		public float DistanceTo(Circle other) => length(other.Center - Center) - Radius - other.Radius;
+		public float DistanceTo(float2 point) => ZoneGenerator.Length(point - Center) - Radius;
+		public float DistanceTo(Circle other) => ZoneGenerator.Length(other.Center - Center) - Radius - other.Radius;
 	}
 
 	private const int MaximumPlacementSamples = 32;
@@ -45,9 +45,9 @@ public static class ZoneGenerator
 	{
 		var blueprint = new ZoneConstructionBlueprint();
 
-		var random = new Random(unchecked((uint) galaxyZone.Name.GetHashCode()) ^ hash(galaxyZone.Position));
+		var random = new Random(unchecked((uint) galaxyZone.Name.GetHashCode()) ^ ZoneGenerator.Hash(galaxyZone.Position));
 
-		var density = saturate(galaxy.Background.CloudDensity(galaxyZone.Position)/2);
+		var density = ZoneGenerator.Saturate(galaxy.Background.CloudDensity(galaxyZone.Position)/2);
 		blueprint.Radius = zoneSettings.ZoneRadius.Evaluate(density);
 		blueprint.Mass = zoneSettings.ZoneMass.Evaluate(density);
 		var targetSubzoneCount = zoneSettings.SubZoneCount.Evaluate(density);
@@ -57,11 +57,11 @@ public static class ZoneGenerator
 		var planets = new List<GeneratorPlanet>();
 		if (targetSubzoneCount > 1)
 		{
-			var zoneBoundary = new Circle(float2.zero, blueprint.Radius * zoneSettings.ZoneBoundaryRadius);
+			var zoneBoundary = new Circle(new float2(0, 0), blueprint.Radius * zoneSettings.ZoneBoundaryRadius);
 			float boundaryTangentRadius(float2 point) => -zoneBoundary.DistanceTo(point);
 
 			var occupiedAreas = new List<Circle>();
-			float tangentRadius(float2 point) => min(boundaryTangentRadius(point), occupiedAreas.Min(circle => circle.DistanceTo(point)));
+			float tangentRadius(float2 point) => MathF.Min(boundaryTangentRadius(point), occupiedAreas.Min(circle => circle.DistanceTo(point)));
 
 			var startPosition = random.NextFloat(blueprint.Radius * .25f, blueprint.Radius * .5f) * random.NextFloat2Direction();
 			occupiedAreas.Add(new Circle(startPosition, boundaryTangentRadius(startPosition)));
@@ -91,7 +91,7 @@ public static class ZoneGenerator
 			}
 		}
 		else
-			planets.AddRange(GenerateEntities(zoneSettings, ref random, blueprint.Mass, blueprint.Radius, float2.zero));
+			planets.AddRange(GenerateEntities(zoneSettings, ref random, blueprint.Mass, blueprint.Radius, new float2(0, 0)));
 
         // Create collections to map between zone generator output and database entries
         var orbitMap = new Dictionary<GeneratorPlanet, OrbitConstructionData>();
@@ -186,24 +186,24 @@ public static class ZoneGenerator
             else if (planetData is GasGiantConstructionData gas)
             {
 	            if (gas is SunConstructionData sun)
-	            {
+		            {
 		            float primary = random.NextFloat();
-		            float secondary = frac(primary + 1 + zoneSettings.SunSecondaryColorDistance * (random.NextFloat() > .5 ? 1 : -1));
+		            float secondary = ZoneGenerator.Fraction(primary + 1 + zoneSettings.SunSecondaryColorDistance * (random.NextFloat() > .5 ? 1 : -1));
 		            gas.Colors = new []
 		            {
-			            float4(ColorMath.HsvToRgb(float3(primary, zoneSettings.SunColorSaturation, .5f)), 0),
-			            float4(ColorMath.HsvToRgb(float3(secondary, zoneSettings.SunColorSaturation, 1)), 1)
+			            new float4(AetheriaMath.ToUnity(ColorMath.HsvToRgb(new CultMath.float3(primary, zoneSettings.SunColorSaturation, .5f))), 0),
+			            new float4(AetheriaMath.ToUnity(ColorMath.HsvToRgb(new CultMath.float3(secondary, zoneSettings.SunColorSaturation, 1))), 1)
 		            };
-		            sun.FogTintColor = ColorMath.HsvToRgb(float3(primary, zoneSettings.SunFogTintSaturation, 1));
-			        sun.LightColor = ColorMath.HsvToRgb(float3(primary, zoneSettings.SunLightSaturation, 1));
+		            sun.FogTintColor = ColorMath.HsvToRgb(new CultMath.float3(primary, zoneSettings.SunFogTintSaturation, 1));
+			        sun.LightColor = ColorMath.HsvToRgb(new CultMath.float3(primary, zoneSettings.SunLightSaturation, 1));
 		            gas.FirstOffsetDomainRotationSpeed = 5;
 	            }
 	            else
 	            {
 		            // Define primary color and two adjacent colors
 		            float primary = random.NextFloat();
-		            float right = frac(primary + zoneSettings.GasGiantBandColorSeparation);
-		            float left = frac(primary + 1 - zoneSettings.GasGiantBandColorSeparation);
+		            float right = ZoneGenerator.Fraction(primary + zoneSettings.GasGiantBandColorSeparation);
+		            float left = ZoneGenerator.Fraction(primary + 1 - zoneSettings.GasGiantBandColorSeparation);
 
 		            // Create n time keys from 0 to 1
 		            var bandCount = (int) (zoneSettings.GasGiantBandCount.Evaluate(random.NextFloat()) + .5f);
@@ -213,10 +213,10 @@ public static class ZoneGenerator
 		            // Each band has a chance of being either the primary or one of the adjacent hues
 		            // Saturation and Value are random with curves applied
 		            gas.Colors = times
-			            .Select(time => float4(ColorMath.HsvToRgb(float3(
+			            .Select(time => new float4(AetheriaMath.ToUnity(ColorMath.HsvToRgb(new CultMath.float3(
 				            random.NextFloat() > zoneSettings.GasGiantBandAltColorChance ? primary : (random.NextFloat() > .5f ? right : left),
 				            zoneSettings.GasGiantBandSaturation.Evaluate(random.NextFloat()),
-				            zoneSettings.GasGiantBandSaturation.Evaluate(random.NextFloat()))),time))
+				            zoneSettings.GasGiantBandSaturation.Evaluate(random.NextFloat())))),time))
 			            .ToArray();
 
 		            gas.FirstOffsetDomainRotationSpeed = 0;
@@ -237,7 +237,7 @@ public static class ZoneGenerator
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
         var potentialLagrangePoints = planets
 	        .Where(p => p.Parent != null && p.Parent.Children
-		        .TrueForAll(c => !(c != p && abs(c.Distance - p.Distance) < .1f))) // Filter Rosettes
+		        .TrueForAll(c => !(c != p && MathF.Abs(c.Distance - p.Distance) < .1f))) // Filter Rosettes
 	        .OrderBy(p => p.Distance)
 	        .ToArray();
         // Pick a selection from the middle of the distribution
@@ -252,7 +252,10 @@ public static class ZoneGenerator
         LoadoutGenerator GetLoadoutGenerator(Faction faction)
         {
 	        if (!loadoutGenerators.ContainsKey(faction))
-		        loadoutGenerators[faction] = new LoadoutGenerator(ref random, itemManager, runtimeCatalog, galaxy, galaxyZone, faction, .5f);
+	        {
+		        var loadoutRandom = new CultMath.Random((uint)random.NextInt(1, int.MaxValue));
+		        loadoutGenerators[faction] = new LoadoutGenerator(ref loadoutRandom, itemManager, runtimeCatalog, galaxy, galaxyZone, faction, .5f);
+	        }
 	        return loadoutGenerators[faction];
         }
 
@@ -263,7 +266,7 @@ public static class ZoneGenerator
 		        OrbitKey = Zone.OrbitKey(Guid.NewGuid()),
 		        ParentOrbitKey = baseOrbit.ParentOrbitKey,
 		        Distance = baseOrbit.Distance,
-		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f)
+		        Phase = baseOrbit.Phase + MathF.PI / 3 * ZoneGenerator.Sign(random.NextFloat() - .5f)
 	        };
 	        blueprint.Orbits.Add(lagrangeOrbit);
 	        return lagrangeOrbit;
@@ -315,7 +318,7 @@ public static class ZoneGenerator
         for (var i = storyStations.Length; i < selectedStationOrbits.Length; i++)
         {
 	        var orbit = selectedStationOrbits[i];
-	        var security = (SecurityLevel) ((int) ((1f - pow(random.NextFloat(), factionPresence / 2f)) * 3f));
+	        var security = (SecurityLevel) ((int) ((1f - MathF.Pow(random.NextFloat(), factionPresence / 2f)) * 3f));
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout();
@@ -463,6 +466,31 @@ public static class ZoneGenerator
 
 		return root.AllPlanets().ToArray();
 	}
+
+	private static uint Hash(float2 value)
+	{
+		return unchecked((uint)HashCode.Combine(value.x, value.y));
+	}
+
+	private static float Fraction(float value)
+	{
+		return value - MathF.Floor(value);
+	}
+
+	private static float Length(float2 value)
+	{
+		return MathF.Sqrt(value.x * value.x + value.y * value.y);
+	}
+
+	private static float Saturate(float value)
+	{
+		return value < 0 ? 0 : value > 1 ? 1 : value;
+	}
+
+	private static float Sign(float value)
+	{
+		return value < 0 ? -1 : value > 0 ? 1 : 0;
+	}
 }
 
 // All orbiting bodies are referred to here as "Planets"
@@ -514,8 +542,9 @@ public class GeneratorPlanet
 		var p1 = Orbit.Evaluate(1.0f / vertices) * dist;
 
 		// Maximum child distance is half the distance to the neighbor minus the neighbor's radius
-		var p0ChildDist = (distance(p0, p1) * proportion - Settings.PlanetSafetyRadius.Evaluate(sharedMass * (1 - proportion))) * .75f;
-		var p1ChildDist = (distance(p0, p1) * (1 - proportion) - Settings.PlanetSafetyRadius.Evaluate(sharedMass * proportion)) * .75f;
+		var neighborDistance = Length(p0 - p1);
+		var p0ChildDist = (neighborDistance * proportion - Settings.PlanetSafetyRadius.Evaluate(sharedMass * (1 - proportion))) * .75f;
+		var p1ChildDist = (neighborDistance * (1 - proportion) - Settings.PlanetSafetyRadius.Evaluate(sharedMass * proportion)) * .75f;
 
 		for (int i = 0; i < vertices; i++)
 		{
@@ -573,7 +602,7 @@ public class GeneratorPlanet
 		{
 			var oldDistances = (float[]) distances.Clone();
 			for (var i = 0; i < count; i++)
-				distances[i] = lerp(ChildDistanceMinimum, ChildDistanceMaximum,
+				distances[i] = Lerp(ChildDistanceMinimum, ChildDistanceMaximum,
 					(oldDistances[i] - oldDistances[0]) / (oldDistances[count - 1] - oldDistances[0])) + Settings.PlanetSafetyRadius.Evaluate(masses[i]);
 		}
 
@@ -593,7 +622,7 @@ public class GeneratorPlanet
 				//child.Period = Context.GlobalData.OrbitalPeriod(child.Distance);
 				child.ChildDistanceMinimum = Settings.PlanetSafetyRadius.Evaluate(child.Mass) * 2;
 				// Maximum child distance of child is the smallest distance to either of its neighbors
-				child.ChildDistanceMaximum = min(i == 0 ? child.Distance - ChildDistanceMinimum : child.Distance - distances[i - 1],
+				child.ChildDistanceMaximum = MathF.Min(i == 0 ? child.Distance - ChildDistanceMinimum : child.Distance - distances[i - 1],
 										 i < count - 1 ? distances[i + 1] - child.Distance : float.PositiveInfinity);
 				if (float.IsNaN(child.Distance))
 					throw new NotFiniteNumberException($"Planet created with NaN distance, something went very wrong!");
@@ -601,5 +630,35 @@ public class GeneratorPlanet
 					Children.Add(child);
 			}
 		}
+	}
+
+	private static uint Hash(float2 value)
+	{
+		return unchecked((uint)HashCode.Combine(value.x, value.y));
+	}
+
+	private static float Fraction(float value)
+	{
+		return value - MathF.Floor(value);
+	}
+
+	private static float Length(float2 value)
+	{
+		return MathF.Sqrt(value.x * value.x + value.y * value.y);
+	}
+
+	private static float Lerp(float from, float to, float t)
+	{
+		return from + (to - from) * t;
+	}
+
+	private static float Saturate(float value)
+	{
+		return value < 0 ? 0 : value > 1 ? 1 : value;
+	}
+
+	private static float Sign(float value)
+	{
+		return value < 0 ? -1 : value > 0 ? 1 : 0;
 	}
 }

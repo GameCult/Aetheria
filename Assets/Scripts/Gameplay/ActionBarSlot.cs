@@ -73,7 +73,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Activate()
     {
-        Entity.TryActivateConsumable(Target);
+        ActionGameManager.Instance.TryRequestDaemonActionBarConsumable(TargetItemKey);
     }
 
     public override void Deactivate()
@@ -162,13 +162,13 @@ public class ActionBarGearBinding : ActionBarBinding
     public override void Activate()
     {
         Active = true;
-        Behavior.Activate();
+        ActionGameManager.Instance.TryRequestDaemonActionBarBehavior(EquipmentIndex, BehaviorIndex, true);
     }
 
     public override void Deactivate()
     {
         Active = false;
-        Behavior.Deactivate();
+        ActionGameManager.Instance.TryRequestDaemonActionBarBehavior(EquipmentIndex, BehaviorIndex, false);
     }
 
     public override void Update()
@@ -191,18 +191,12 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
 
     public override void Activate()
     {
-        foreach (var weapon in Entity.WeaponGroups[Group].weapons)
-        {
-            weapon.Activate();
-        }
+        ActionGameManager.Instance.TryRequestDaemonActionBarWeaponGroup(Group, true);
     }
 
     public override void Deactivate()
     {
-        foreach (var weapon in Entity.WeaponGroups[Group].weapons)
-        {
-            weapon.Deactivate();
-        }
+        ActionGameManager.Instance.TryRequestDaemonActionBarWeaponGroup(Group, false);
     }
 
     public override void Update()

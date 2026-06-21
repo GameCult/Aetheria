@@ -3,7 +3,6 @@ using Aetheria.State.Documents;
 using Aetheria.State.Migration;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Unity;
-using GameCult.Eve.Surface;
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var stateDirectory = Path.Combine(Path.GetTempPath(), "aetheria-state-smoke", Guid.NewGuid().ToString("N"));
@@ -93,27 +92,73 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutCatalogSurfaceAsync(
         AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), now));
 
-    var drainStatus = new AetheriaRuntimeCommitDrainStatus
-    {
-        RuntimeId = "smoke-runtime",
-        StatePath = statePath,
-        LastPollAtUtc = now,
-        LastAppliedAtUtc = now,
-        PendingBeforeApply = 1,
-        CommandsApplied = 1,
-        AppliedPlayerSettings = 1,
-        Status = "ok"
-    };
-    await node.PutRuntimeCommitDrainStatusAsync(drainStatus);
     var verseHostSettings = AetheriaVerseHostSettingsNormalizer.Normalize(new AetheriaVerseHostSettings
     {
         LastUpdatedAtUtc = now
     });
     await node.PutVerseHostSettingsAsync(verseHostSettings);
     await node.PutOperationsSurfaceAsync(
-        AetheriaOperationsSurfaceProjector.Build(drainStatus, verseHostSettings: verseHostSettings));
+        AetheriaOperationsSurfaceProjector.Build(verseHostSettings: verseHostSettings));
     await node.PutProviderAdvertisementAsync(
         AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now));
+    var daemonProvider = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
+        statePath,
+        "smoke-daemon",
+        "aetheria.local",
+        "cultmesh://aetheria.local/eve/providers/aetheria.daemon");
+    var daemonHealth = new AetheriaRuntimeDaemonHealthDocument
+    {
+        DaemonId = "smoke-daemon",
+        VerseId = "aetheria.local",
+        PublishedAtUtc = now,
+        StatePath = statePath,
+        FrameId = 7,
+        ObservedCommandCount = 1,
+        AppliedCommandCount = 2,
+        RejectedCommandCount = 0,
+        Status = "healthy",
+        CommandBoundaryPath = AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)
+    };
+    var daemonCommandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create("smoke-daemon");
+    var daemonFrame = AetheriaRuntimeDaemonFrameDocument.Create(
+        new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "smoke-run",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = entityKey.ToString()
+        },
+        "smoke-daemon",
+        "smoke-session",
+        7,
+        0.14,
+        0.02);
+    var daemonGameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+        daemonFrame,
+        daemonHealth,
+        daemonCommandBoundary);
+    await node.PutDaemonProviderAdvertisementAsync(daemonProvider);
+    await node.PutDaemonHealthAsync(daemonHealth);
+    await node.PutDaemonCommandBoundaryAsync(daemonCommandBoundary);
+    using var daemonCommandPort = await AetheriaCommandPort.OpenAsync(
+        statePath,
+        "aetheria-state-smoke-command-client");
+    var daemonSubmitEnvelope = await daemonCommandPort.SubmitDaemonCommandAsync(
+        AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SensorPing,
+            "aetheria-state-smoke",
+            "smoke-session",
+            daemonFrame.FrameId,
+            entityKey.ToString()));
+
+    await using (var commandVerifyNode = await AetheriaStateNode.OpenAsync(
+                     statePath,
+                     "aetheria-state-smoke-command-check"))
+    {
+        if (commandVerifyNode.ReadObservedDaemonCommands().All(command => command.CommandId != daemonSubmitEnvelope!.CommandId))
+            throw new InvalidOperationException("Runtime command port daemon submission did not appear as a typed state record.");
+    }
+    await node.PutDaemonFrameAsync(daemonFrame);
+    await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface));
     await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
     {
         RuntimeId = "smoke-runtime",
@@ -123,7 +168,6 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Status = "running"
     });
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
-        drainStatus,
         verseHostSettings: verseHostSettings,
         runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
 
@@ -488,62 +532,64 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             await node.GetPlayerSettingsAsync(),
             now));
 
-    AetheriaRuntimeEveCommandLog.QueueCommand(
+    using var eveCommandPort = await AetheriaCommandPort.OpenAsync(
         statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaCatalogSurfaceProjector.SurfaceId,
-            "aetheria.catalog.refresh",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    AetheriaRuntimeEveCommandLog.QueueCommand(
-        statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
-            "aetheria.player_settings.gameplay.significant_digits.increment",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    AetheriaRuntimeEveCommandLog.QueueCommand(
-        statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
-            "aetheria.player_settings.graphics.show_asteroids.toggle",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    AetheriaRuntimeEveCommandLog.QueueCommand(
-        statePath,
-        new EveSurfaceCommandRequest(
-            AetheriaProviderAdvertisementProjector.ProviderId,
-            AetheriaCatalogSurfaceProjector.SurfaceId,
+        "aetheria-state-smoke-eve-command-client");
+    var eveSubmitEnvelope = await eveCommandPort.SubmitEveCommandAsync(
+        AetheriaRuntimeEveCommandClient.ToDocument(
+            AetheriaRuntimeEveCommands.SubmitCatalogCommand(
+                statePath,
+                AetheriaRuntimeCatalogCommands.Refresh,
+                "aetheria-state-smoke")));
+    await using (var commandVerifyNode = await AetheriaStateNode.OpenAsync(
+                     statePath,
+                     "aetheria-state-smoke-eve-command-check"))
+    {
+        if (commandVerifyNode.ReadObservedEveCommands().All(command => command.CommandId != eveSubmitEnvelope!.CommandId))
+            throw new InvalidOperationException("Runtime command port Eve submission did not appear as a typed state record.");
+    }
+    await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
+        AetheriaRuntimeEveCommands.SubmitCatalogCommand(
+            statePath,
+            AetheriaRuntimeCatalogCommands.Refresh,
+            "aetheria-state-smoke")));
+    await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
+        AetheriaRuntimeEveCommands.SubmitPlayerSettingsCommand(
+            statePath,
+            AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
+            new AetheriaRuntimePlayerSettingsCommandBody(),
+            "aetheria-state-smoke")));
+    await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
+        AetheriaRuntimeEveCommands.SubmitPlayerSettingsCommand(
+            statePath,
+            AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
+            new AetheriaRuntimePlayerSettingsCommandBody(),
+            "aetheria-state-smoke")));
+    await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
+        AetheriaRuntimeEveCommands.SubmitCatalogCommand(
+            statePath,
             "aetheria.catalog.unknown",
-            new Dictionary<string, string> { ["source"] = "state-smoke" },
-            DateTimeOffset.UtcNow,
-            "aetheria-state-smoke"));
-    var eveCommandReport = await AetheriaEveCommandBridge.ApplyPendingAsync(node);
-    var eveCommandStatus = new AetheriaEveCommandDrainStatus
+            "aetheria-state-smoke")));
+    var eveCommandReport = await AetheriaEveCommandBridge.AcceptObservedAsync(node);
+    var eveCommandStatus = new AetheriaEveCommandAcceptanceStatus
     {
         RuntimeId = "smoke-runtime",
         StatePath = statePath,
         LastPollAtUtc = now,
         LastAcceptedAtUtc = now,
-        PendingBeforeApply = 4,
-        CommandsAccepted = eveCommandReport.AcceptedPaths.Length,
+        ObservedBeforeAccept = 4,
+        CommandsAccepted = eveCommandReport.AcceptedCommandIds.Length,
         CommandsRejected = eveCommandReport.RejectedCommands,
-        AppliedCatalogRefreshes = eveCommandReport.AppliedCatalogRefreshes,
-        AppliedOperationsRefreshes = eveCommandReport.AppliedOperationsRefreshes,
-        AppliedPlayerSettingsCommands = eveCommandReport.AppliedPlayerSettingsCommands,
+        AppliedCatalogRefreshes = eveCommandReport.AcceptedCatalogRefreshes,
+        AppliedOperationsRefreshes = eveCommandReport.AcceptedOperationsRefreshes,
+        AppliedPlayerSettingsCommands = eveCommandReport.AcceptedPlayerSettingsCommands,
+        AccountedCommandIds = eveCommandReport.AccountedCommandIds,
         LastRejectedCommand = eveCommandReport.LastRejectedCommand,
         LastRejectedReason = eveCommandReport.LastRejectedReason,
         Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
     };
-    await node.PutEveCommandDrainStatusAsync(eveCommandStatus);
+    await node.PutEveCommandAcceptanceStatusAsync(eveCommandStatus);
     await node.PutOperationsSurfaceAsync(AetheriaOperationsSurfaceProjector.Build(
-        drainStatus,
         eveCommandStatus,
         verseHostSettings: await node.GetVerseHostSettingsAsync(),
         runtimeSession: await node.GetRuntimeSessionAsync("smoke-runtime")));
@@ -559,11 +605,15 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var nameFile = await reopened.GetNameFileByLegacyIdAsync(nameFileLegacyId);
     var quarantine = await reopened.GetLegacyCatalogQuarantineAsync();
     var catalogSurface = await reopened.GetCatalogSurfaceAsync();
-    var drainStatus = await reopened.GetRuntimeCommitDrainStatusAsync();
-    var eveCommandStatus = await reopened.GetEveCommandDrainStatusAsync();
+    var eveCommandStatus = await reopened.GetEveCommandAcceptanceStatusAsync();
     var operationsSurface = await reopened.GetOperationsSurfaceAsync();
     var playerSettingsSurface = await reopened.GetPlayerSettingsSurfaceAsync();
     var advertisement = await reopened.GetProviderAdvertisementAsync();
+    var daemonProvider = await reopened.GetDaemonProviderAdvertisementAsync();
+    var daemonHealth = await reopened.GetDaemonHealthAsync();
+    var daemonCommandBoundary = await reopened.GetDaemonCommandBoundaryAsync();
+    var daemonFrame = await reopened.GetDaemonFrameAsync();
+    var daemonGameSurface = await reopened.GetDaemonGameSurfaceAsync();
     var runtimeSession = await reopened.GetRuntimeSessionAsync("smoke-runtime");
     var playerSettings = await reopened.GetPlayerSettingsAsync();
     var loadout = await reopened.GetLoadoutTemplateAsync(loadoutKey);
@@ -602,30 +652,69 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Eve catalog surface did not survive flush/reopen.");
     }
 
-    if (drainStatus?.RuntimeId != "smoke-runtime" ||
-        drainStatus.CommandsApplied != 1 ||
-        eveCommandStatus?.CommandsAccepted != 3 ||
+    if (eveCommandStatus?.CommandsAccepted != 3 ||
         eveCommandStatus.CommandsRejected != 1 ||
         eveCommandStatus.AppliedCatalogRefreshes != 1 ||
         eveCommandStatus.AppliedPlayerSettingsCommands != 2 ||
         !eveCommandStatus.LastRejectedReason.Contains("not advertised", StringComparison.Ordinal) ||
         operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId ||
         !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandDrain") ||
+        operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.commitDrain") ||
         !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.runtimeSession"))
     {
-        throw new InvalidOperationException("Runtime commit/Eve command drain status or operations surface did not survive flush/reopen.");
+        throw new InvalidOperationException("Eve request acceptance status or operations surface did not survive flush/reopen.");
     }
 
     if (advertisement?.ProviderId != AetheriaProviderAdvertisementProjector.ProviderId ||
-        advertisement.Surfaces.Length < 3 ||
+        advertisement.Surfaces.Length < 7 ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaPlayerSettingsSurfaceProjector.SurfaceId) ||
+        !advertisement.Surfaces.Any(surface =>
+            surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId &&
+            surface.Key == AetheriaProviderAdvertisementProjector.DaemonGameSurfaceKey) ||
+        !advertisement.Surfaces.Any(surface =>
+            surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId &&
+            surface.Key == AetheriaProviderAdvertisementProjector.DaemonGameTuiSurfaceKey) ||
+        !advertisement.Surfaces.Any(surface =>
+            surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId &&
+            surface.Key == AetheriaProviderAdvertisementProjector.DaemonEditorSurfaceKey) ||
+        !advertisement.Surfaces.Any(surface =>
+            surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId &&
+            surface.Key == AetheriaProviderAdvertisementProjector.DaemonEditorTuiSurfaceKey) ||
         !advertisement.Schemas.Contains("aetheria.runtime_session.v1") ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.Frame) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.SoaView) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.Health) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.CommandBoundary) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.GameSurface) ||
+        !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.EditorSurface) ||
+        !advertisement.Witnesses.Any(witness =>
+            witness.Kind == "cultcache-witness" &&
+            witness.Ref == AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath)) ||
+        !advertisement.Witnesses.Any(witness =>
+            witness.Kind == "cultcache-witness" &&
+            witness.Ref == AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)) ||
+        !advertisement.Commands.Any(command =>
+            command.Command == "aetheria.daemon.commands" &&
+            command.Transport == "cultcache-witness") ||
         !advertisement.Commands.Any(command => command.Command == "aetheria.player_settings.graphics.show_asteroids.toggle") ||
         !advertisement.Schemas.Contains(AetheriaEveCommandBridge.CommandSchema))
     {
         throw new InvalidOperationException("Aetheria Eve provider advertisement did not survive flush/reopen.");
+    }
+
+    if (daemonProvider?.DaemonId != "smoke-daemon" ||
+        daemonHealth?.FrameId != 7 ||
+        daemonCommandBoundary?.BoundaryId != "aetheria.daemon.commands" ||
+        !daemonCommandBoundary.Commands.Any(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup) ||
+        daemonFrame?.FrameId != 7 ||
+        daemonFrame.SessionId != "smoke-session" ||
+        daemonGameSurface?.Surface.Id != AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId ||
+        daemonGameSurface.Surface.Root.Id != "aetheria.daemon.game.root")
+    {
+        throw new InvalidOperationException("Daemon Verse API documents did not survive flush/reopen as typed CultCache records.");
     }
 
     if (runtimeSession?.RuntimeId != "smoke-runtime" ||

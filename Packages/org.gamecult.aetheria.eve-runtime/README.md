@@ -9,13 +9,15 @@ CultCache state into Unity UI Toolkit.
 - it reads `gamecult.eve.surface.v1` from the selected typed state source, which
   is currently still a local `.cc` file transport;
 - it lowers the retained tree through `org.gamecult.eve.unity-uitoolkit`;
-- it queues renderer-emitted commands as typed `.cc.eve.pending` command
-  envelopes for Aetheria's provider-owned command bridge.
+- it submits renderer-emitted commands as typed `gamecult.eve.command.v1` state
+  records for Aetheria's provider-owned command bridge.
 
 `AetheriaEveRuntimeBootstrap` mounts the first runtime surface after scene load.
-By default it creates a `UIDocument` host for `aetheria.operations`, so the
-provider-owned operations surface is present at runtime without a hand-wired
-scene object. Set `AETHERIA_EVE_SURFACE_ID` to mount a different surface, set
+By default it creates a `UIDocument` host for `aetheria.game`, the daemon-owned
+game surface, so Unity starts as a lowering surface for the daemon Verse member
+without a hand-wired scene object. Set `AETHERIA_EVE_SURFACE_ID` to mount a
+different daemon or provider surface such as `aetheria.game.tui`,
+`aetheria.daemon.editor`, or `aetheria.daemon.editor.tui`; set
 `AETHERIA_STATE_PATH` to override the selected local `.cc` state file (`AETHERIA_EVE_STATE_PATH`
 still works as a legacy fallback), or disable the automatic mount with
 `AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or

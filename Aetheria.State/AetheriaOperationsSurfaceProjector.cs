@@ -1,22 +1,21 @@
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State;
 
 public static class AetheriaOperationsSurfaceProjector
 {
     public const string SurfaceKey = "eve:surface:aetheria.operations";
-    public const string SurfaceId = "aetheria.operations";
+    public const string SurfaceId = AetheriaRuntimeOperationsCommands.SurfaceId;
 
     public static EveSurfaceState Build(
-        AetheriaRuntimeCommitDrainStatus drainStatus,
-        AetheriaEveCommandDrainStatus? eveCommandStatus = null,
+        AetheriaEveCommandAcceptanceStatus? eveCommandStatus = null,
         AetheriaVerseHostSettings? verseHostSettings = null,
         AetheriaRuntimeSession? runtimeSession = null,
         long version = 1)
     {
         var normalizedVerseHost = AetheriaVerseHostSettingsNormalizer.Normalize(verseHostSettings);
         var updatedAtUtc = LatestTimestamp(
-            drainStatus.LastPollAtUtc,
             eveCommandStatus?.LastPollAtUtc,
             normalizedVerseHost.LastUpdatedAtUtc,
             runtimeSession?.LastSeenAtUtc);
@@ -35,37 +34,22 @@ public static class AetheriaOperationsSurfaceProjector
                     "surface",
                     [],
                     Node(
-                        "aetheria.operations.commitDrain",
+                        "aetheria.operations.eveCommandAcceptance",
                         "card",
-                        [("title", "Runtime Commit Drain")],
-                        Metric("commitDrain.status", "Status", drainStatus.Status),
-                        Metric("commitDrain.pending", "Pending Before Apply", drainStatus.PendingBeforeApply.ToString()),
-                        Metric("commitDrain.applied", "Commands Applied", drainStatus.CommandsApplied.ToString()),
-                        Metric("commitDrain.settings", "Settings", drainStatus.AppliedPlayerSettings.ToString()),
-                        Metric("commitDrain.loadouts", "Loadouts", drainStatus.AppliedLoadoutTemplates.ToString()),
-                        Metric("commitDrain.runs", "Run Checkpoints", drainStatus.AppliedRunCheckpoints.ToString()),
-                        Metric("commitDrain.failures", "Consecutive Failures", drainStatus.ConsecutiveFailures.ToString()),
+                        [("title", "Eve Request Acceptance")],
+                        Metric("eveCommandAcceptance.status", "Status", eveCommandStatus?.Status ?? "missing"),
+                        Metric("eveCommandAcceptance.observed", "Observed Before Accept", (eveCommandStatus?.ObservedBeforeAccept ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.accepted", "Commands Accepted", (eveCommandStatus?.CommandsAccepted ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.rejected", "Commands Rejected", (eveCommandStatus?.CommandsRejected ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.catalogRefreshes", "Catalog Refreshes", (eveCommandStatus?.AppliedCatalogRefreshes ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.operationsRefreshes", "Operations Refreshes", (eveCommandStatus?.AppliedOperationsRefreshes ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.playerSettings", "Player Settings Commands", (eveCommandStatus?.AppliedPlayerSettingsCommands ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.inputSettings", "Input Settings Commands", (eveCommandStatus?.AppliedInputSettingsCommands ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.loadoutTemplates", "Loadout Template Commands", (eveCommandStatus?.AppliedLoadoutTemplateCommands ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.verseHost", "Verse Host Commands", (eveCommandStatus?.AppliedVerseHostCommands ?? 0).ToString()),
+                        Metric("eveCommandAcceptance.failures", "Consecutive Failures", (eveCommandStatus?.ConsecutiveFailures ?? 0).ToString()),
                         Row(
-                            "commitDrain.last",
-                            ("runtime", drainStatus.RuntimeId),
-                            ("lastPoll", drainStatus.LastPollAtUtc),
-                            ("lastApplied", drainStatus.LastAppliedAtUtc),
-                            ("error", drainStatus.LastError))),
-                    Node(
-                        "aetheria.operations.eveCommandDrain",
-                        "card",
-                        [("title", "Eve Command Drain")],
-                        Metric("eveCommandDrain.status", "Status", eveCommandStatus?.Status ?? "missing"),
-                        Metric("eveCommandDrain.pending", "Pending Before Apply", (eveCommandStatus?.PendingBeforeApply ?? 0).ToString()),
-                        Metric("eveCommandDrain.accepted", "Commands Accepted", (eveCommandStatus?.CommandsAccepted ?? 0).ToString()),
-                        Metric("eveCommandDrain.rejected", "Commands Rejected", (eveCommandStatus?.CommandsRejected ?? 0).ToString()),
-                        Metric("eveCommandDrain.catalogRefreshes", "Catalog Refreshes", (eveCommandStatus?.AppliedCatalogRefreshes ?? 0).ToString()),
-                        Metric("eveCommandDrain.operationsRefreshes", "Operations Refreshes", (eveCommandStatus?.AppliedOperationsRefreshes ?? 0).ToString()),
-                        Metric("eveCommandDrain.playerSettings", "Player Settings Commands", (eveCommandStatus?.AppliedPlayerSettingsCommands ?? 0).ToString()),
-                        Metric("eveCommandDrain.verseHost", "Verse Host Commands", (eveCommandStatus?.AppliedVerseHostCommands ?? 0).ToString()),
-                        Metric("eveCommandDrain.failures", "Consecutive Failures", (eveCommandStatus?.ConsecutiveFailures ?? 0).ToString()),
-                        Row(
-                            "eveCommandDrain.last",
+                            "eveCommandAcceptance.last",
                             ("runtime", eveCommandStatus?.RuntimeId ?? ""),
                             ("lastPoll", eveCommandStatus?.LastPollAtUtc ?? ""),
                             ("lastAccepted", eveCommandStatus?.LastAcceptedAtUtc ?? ""),
@@ -101,7 +85,7 @@ public static class AetheriaOperationsSurfaceProjector
             [
                 new EveCommandTemplate
                 {
-                    Command = "aetheria.operations.refresh",
+                    Command = AetheriaRuntimeOperationsCommands.Refresh,
                     Label = "Refresh",
                     Transport = "cultmesh"
                 }

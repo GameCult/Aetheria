@@ -1,8 +1,8 @@
 using System;
 using TMPro;
-using Unity.Mathematics;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
+using cfloat3 = CultMath.float3;
 
 public class ItemPickup : MonoBehaviour
 {
@@ -15,23 +15,24 @@ public class ItemPickup : MonoBehaviour
     
     public ItemInstance Item { get; set; }
     public ZoneRenderer ZoneRenderer { get; set; }
-    public float3 ViewOrigin { get; set; }
-    public float3 ViewDirection { get; set; }
+    public cfloat3 ViewOrigin { get; set; }
+    public cfloat3 ViewDirection { get; set; }
 
     private float _displayTime;
 
     private void Update()
     {
-        var diff = (float3) transform.position - ViewOrigin;
+        var position = transform.position;
+        var diff = new cfloat3(position.x, position.y, position.z) - ViewOrigin;
         var toThis = normalize(diff);
-        var viewAngle = acos(Vector3.Dot(toThis, ViewDirection)) * Mathf.Rad2Deg;
+        var viewAngle = acos(dot(toThis, ViewDirection)) * AetheriaMath.Rad2Deg;
         if (length(diff) < LabelDisplayMaxDistance && viewAngle < LabelDisplayAngle)
             _displayTime = Time.time;
         var targetAlpha = Time.time - _displayTime < LabelPersistDuration ? 1 : 0;
         var c = ScanLabel.color;
         c.a = c.a + sign(targetAlpha - c.a) * (Time.deltaTime / LabelFadeDuration);
         ScanLabel.color = c;
-        ScanLabelContainer.rotation = Quaternion.LookRotation(-toThis);
+        ScanLabelContainer.rotation = Quaternion.LookRotation((Vector3)AetheriaMath.ToUnity(-toThis));
     }
 
     private void OnDestroy()

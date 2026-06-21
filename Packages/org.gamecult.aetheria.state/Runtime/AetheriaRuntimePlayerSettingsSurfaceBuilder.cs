@@ -192,7 +192,7 @@ namespace GameCult.Aetheria.State.Unity
                                 ("activeRun", settings.ActiveRunKey)),
                             Text(
                                 "playerSettings.summary.note",
-                                "Input remapping lowers through the runtime Eve input screen and queues typed player-settings commits.")),
+                                "Input remapping lowers through the runtime Eve input screen and sends typed input-setting requests.")),
                         Node(
                             "aetheria.playerSettings.gameplay",
                             "card",

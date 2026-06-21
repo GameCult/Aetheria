@@ -1,8 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 using Random = UnityEngine.Random;
 
 public class ProjectileManager : InstantWeaponEffectManager
@@ -17,6 +15,7 @@ public class ProjectileManager : InstantWeaponEffectManager
         var barrel = source.GetBarrel(hp);
         var angle = weapon.Spread / 2;
         p.SourceEntity = source.Entity;
+        p.TargetInstance = target;
         p.Velocity = Quaternion.Euler(
                          Random.Range(-angle, angle), 
                          Random.Range(-angle, angle), 
@@ -25,14 +24,16 @@ public class ProjectileManager : InstantWeaponEffectManager
                      weapon.Velocity;
         p.StartPosition = p.transform.position = barrel.position + p.Velocity * (Random.value * Time.deltaTime);
         if(InheritVelocity)
-            p.Velocity += new Vector3(source.Entity.Velocity.x, 0, source.Entity.Velocity.y);
+            p.Velocity += (Vector3)AetheriaMath.ToUnityXZ(source.Entity.CultVelocity);
         p.Damage = weapon.Damage;
         p.Range = weapon.Range;
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
         p.DamageType = weapon.DamageType;
         p.Zone = source.Entity.Zone;
-        p.AirburstDistance = target != null ? length(source.Entity.Position - target.Entity.Position) : (weapon.Range * .75f);
+        p.AirburstDistance = target != null
+            ? CultMath.math.length(source.Entity.CultPosition - target.Entity.CultPosition)
+            : (weapon.Range * .75f);
         p.Trail.Clear();
     }
 }

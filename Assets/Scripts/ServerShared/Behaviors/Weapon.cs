@@ -4,8 +4,8 @@
 
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
+using float4 = CultMath.float4;
 
 public abstract class Weapon : Behavior, IActivatedBehavior
 {
@@ -154,6 +154,25 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         Visibility = Evaluate(_visibility);
         Spread = Evaluate(_spread);
         Velocity = Evaluate(_velocity);
+    }
+
+    protected float EvaluateRangeDamage(float range)
+    {
+        var normalizedRange = saturate(unlerp(MinRange, Range, range));
+        return Evaluate(_damage, StatConditionMask.Range, normalizedRange) *
+               DamageCurve.Evaluate(normalizedRange);
+    }
+
+    protected float EvaluateRangeDamage(float range, StatConditionMask condition, float value)
+    {
+        var normalizedRange = saturate(unlerp(MinRange, Range, range));
+        return Evaluate(_damage, StatConditionMask.Range, normalizedRange, condition, value) *
+               DamageCurve.Evaluate(normalizedRange);
+    }
+
+    protected float EvaluateDamage(StatConditionMask condition, float value)
+    {
+        return Evaluate(_damage, condition, value);
     }
 
     public override bool Execute(float dt)

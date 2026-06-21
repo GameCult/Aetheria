@@ -5,10 +5,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using cfloat2 = CultMath.float2;
+using cfloat3 = CultMath.float3;
 using int2 = Unity.Mathematics.int2;
+using unityfloat2 = Unity.Mathematics.float2;
 
 public class Shape
 {
@@ -58,10 +58,10 @@ public class Shape
     {
         return rotation switch
         {
-            ItemRotation.Clockwise => int2(position.y, Width - 1 - position.x),
-            ItemRotation.Reversed => int2(Width - 1 - position.x, Height - 1 - position.y),
-            ItemRotation.CounterClockwise => int2(Height - 1 - position.y, position.x),
-            _ => int2(position.x, position.y)
+            ItemRotation.Clockwise => new int2(position.y, Width - 1 - position.x),
+            ItemRotation.Reversed => new int2(Width - 1 - position.x, Height - 1 - position.y),
+            ItemRotation.CounterClockwise => new int2(Height - 1 - position.y, position.x),
+            _ => new int2(position.x, position.y)
         };
     }
 
@@ -88,7 +88,7 @@ public class Shape
             for (var x = 0; x < Width; x++)
             {
                 if (Cells[x, y])
-                    yield return int2(x, y);
+                    yield return new int2(x, y);
             }
         }
     }
@@ -103,27 +103,35 @@ public class Shape
         {
             for (var x = 0; x < Width; x++)
             {
-                yield return int2(x, y);
+                yield return new int2(x, y);
             }
         }
     }
 
-    private float2? _centerOfMass;
+    private cfloat2? _centerOfMass;
 
-    public float2 CenterOfMass => _centerOfMass ??= Coordinates
-        .Aggregate(float2.zero, (total, coord) => total + coord) / Coordinates.Length;
+    public cfloat2 CenterOfMass => _centerOfMass ??= Coordinates
+        .Aggregate(new cfloat2(0, 0), (total, coord) => total + new cfloat2(coord.x, coord.y)) / Coordinates.Length;
+
+    public bool GetCell(int x, int y)
+    {
+        return x >= 0 && y >= 0 && x < Width && y < Height && Cells[x, y];
+    }
+
+    public void SetCell(int x, int y, bool value)
+    {
+        if (x < 0 || y < 0 || x >= Width || y >= Height)
+            return;
+
+        _dirty = true;
+        _centerOfMass = null;
+        Cells[x, y] = value;
+    }
 
     public bool this[int2 pos]
     {
-        get { return pos.x >= 0 && pos.y >= 0 && pos.x < Width && pos.y < Height && Cells[pos.x, pos.y]; }
-        set
-        {
-            if (pos.x < 0 || pos.y < 0 || pos.x >= Width || pos.y >= Height)
-                return;
-
-            _dirty = true;
-            Cells[pos.x, pos.y] = value;
-        }
+        get { return GetCell(pos.x, pos.y); }
+        set { SetCell(pos.x, pos.y, value); }
     }
 
     public Shape Shrink()
@@ -132,9 +140,9 @@ public class Shape
         foreach (var shapeCoord in Coordinates)
         {
             shape[shapeCoord] = (
-                this[shapeCoord + int2(-1, -1)] && this[shapeCoord + int2(0, -1)] && this[shapeCoord + int2(1, -1)] &&
-                this[shapeCoord + int2(-1, 0)] && this[shapeCoord + int2(1, 0)] &&
-                this[shapeCoord + int2(-1, 1)] && this[shapeCoord + int2(0, 1)] && this[shapeCoord + int2(1, 1)]
+                this[shapeCoord + new int2(-1, -1)] && this[shapeCoord + new int2(0, -1)] && this[shapeCoord + new int2(1, -1)] &&
+                this[shapeCoord + new int2(-1, 0)] && this[shapeCoord + new int2(1, 0)] &&
+                this[shapeCoord + new int2(-1, 1)] && this[shapeCoord + new int2(0, 1)] && this[shapeCoord + new int2(1, 1)]
             );
         }
 
@@ -143,7 +151,7 @@ public class Shape
 
     public Shape Inset(Shape inset, int2 insetPosition, ItemRotation rotation = ItemRotation.None)
     {
-        var shape = new Shape(max(Width, insetPosition.x + inset.Width - 1), max(Height, insetPosition.y + inset.Height - 1));
+        var shape = new Shape(Math.Max(Width, insetPosition.x + inset.Width - 1), Math.Max(Height, insetPosition.y + inset.Height - 1));
         foreach (var v in inset.Coordinates)
         {
             var insetCoord = inset.Rotate(v, rotation) + insetPosition;
@@ -159,9 +167,9 @@ public class Shape
         foreach (var shapeCoord in AllCoordinates)
         {
             shape[shapeCoord] = (
-                this[shapeCoord + int2(-1, -1)] || this[shapeCoord + int2(0, -1)] || this[shapeCoord + int2(1, -1)] ||
-                this[shapeCoord + int2(-1, 0)] || this[shapeCoord] || this[shapeCoord + int2(1, 0)] ||
-                this[shapeCoord + int2(-1, 1)] || this[shapeCoord + int2(0, 1)] || this[shapeCoord + int2(1, 1)]
+                this[shapeCoord + new int2(-1, -1)] || this[shapeCoord + new int2(0, -1)] || this[shapeCoord + new int2(1, -1)] ||
+                this[shapeCoord + new int2(-1, 0)] || this[shapeCoord] || this[shapeCoord + new int2(1, 0)] ||
+                this[shapeCoord + new int2(-1, 1)] || this[shapeCoord + new int2(0, 1)] || this[shapeCoord + new int2(1, 1)]
             );
         }
 
@@ -194,7 +202,7 @@ public class Shape
         {
             for (var y = 0; y < other.Height - height + 1; y++)
             {
-                position = int2(x, y);
+                position = new int2(x, y);
                 var fits = true;
                 foreach (var v in Coordinates)
                 {
@@ -212,7 +220,10 @@ public class Shape
         return false;
     }
 
-    public void SetLine(float2 a, float2 b)
+    public void SetLine(unityfloat2 a, unityfloat2 b) =>
+        SetLine(AetheriaMath.ToCult(a), AetheriaMath.ToCult(b));
+
+    public void SetLine(cfloat2 a, cfloat2 b)
     {
         if (a.Equals(b))
             return;
@@ -220,8 +231,8 @@ public class Shape
         var steep = Math.Abs(b.y - a.y) > Math.Abs(b.x - a.x);
         if (steep)
         {
-            a = new float2(a.y, a.x);
-            b = new float2(b.y, b.x);
+            a = new cfloat2(a.y, a.x);
+            b = new cfloat2(b.y, b.x);
         }
 
         if (a.x > b.x)
@@ -270,57 +281,28 @@ public class HardpointData : ITintInspector
         return $"{Enum.GetName(typeof(HardpointType), Type)} Hardpoint {Rotation.Arrow()}";
     }
 
-    public float3 TintColor
+    public cfloat3 TintColor
     {
         get { return GetColor(Type); }
     }
 
-    public static float3 GetColor(HardpointType type)
+    public static cfloat3 GetColor(HardpointType type)
     {
         if (_tintColors == null)
         {
             var hardpointTypes = (HardpointType[])Enum.GetValues(typeof(HardpointType));
             _tintColors = hardpointTypes.ToDictionary(
                 x => x,
-                x => ColorMath.HsvToRgb(float3(frac((float)(int)x / hardpointTypes.Length + .25f), 1, 1)));
+                x => ColorMath.HsvToRgb(new cfloat3(Fraction((float)(int)x / hardpointTypes.Length + .25f), 1, 1)));
         }
 
         return _tintColors.TryGetValue(type, out var color) ? color : _tintColors[HardpointType.Hull];
     }
 
-    private static Dictionary<HardpointType, float3> _tintColors;
-}
-
-public class PerformanceStat
-{
-    public float Min;
-    public float Max;
-    public float HeatExponentMultiplier;
-    public float DurabilityExponentMultiplier;
-    public float QualityExponent;
-
-    private Dictionary<Entity, Dictionary<Behavior, float>> _scaleModifiers;
-    private Dictionary<Entity, Dictionary<Behavior, float>> _constantModifiers;
-
-    private Dictionary<Entity, Dictionary<Behavior, float>> ScaleModifiers =>
-        _scaleModifiers ??= new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    private Dictionary<Entity, Dictionary<Behavior, float>> ConstantModifiers =>
-        _constantModifiers ??= new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
+    private static float Fraction(float value)
     {
-        if (!ScaleModifiers.ContainsKey(entity))
-            ScaleModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ScaleModifiers[entity];
+        return value - MathF.Floor(value);
     }
 
-    public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
-    {
-        if (!ConstantModifiers.ContainsKey(entity))
-            ConstantModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ConstantModifiers[entity];
-    }
+    private static Dictionary<HardpointType, cfloat3> _tintColors;
 }

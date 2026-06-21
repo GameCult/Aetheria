@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using GameCult.Aetheria.State.Unity;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -9,7 +10,7 @@ namespace GameCult.Aetheria.EveRuntime
 {
     public static class AetheriaEveRuntimeBootstrap
     {
-        public const string DefaultSurfaceId = "aetheria.operations";
+        public const string DefaultSurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId;
         public const string DisableEnvironmentVariable = "AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP";
         public const string SurfaceEnvironmentVariable = "AETHERIA_EVE_SURFACE_ID";
         public const string DisableCommandLineSwitch = "--aetheria-disable-eve-runtime-bootstrap";

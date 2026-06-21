@@ -1,8 +1,5 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class LockWeapon : InstantWeapon
 {
@@ -82,10 +79,11 @@ public class LockWeapon : InstantWeapon
             DirectionImpact = Evaluate(_directionImpact);
             Decay = Evaluate(_decay);
 
-            var degrees = acos(dot(normalize(Entity.Target.Value.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
-            if (degrees < LockAngle)
+            var targetDirection = Entity.Target.Value.CultPosition - Entity.CultPosition;
+            var angleDegrees = AetheriaMath.AngleDegrees(targetDirection, Entity.CultLookDirection);
+            if (angleDegrees < LockAngle)
             {
-                var lerp = 1 - unlerp(0, 90, degrees);
+                var lerp = 1 - unlerp(0, 90, angleDegrees);
                 _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[Entity.Target.Value], SensorImpact));
             }
             else _lock = saturate(_lock - dt * Decay);

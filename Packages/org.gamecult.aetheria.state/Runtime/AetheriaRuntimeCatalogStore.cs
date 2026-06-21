@@ -69,7 +69,193 @@ namespace GameCult.Aetheria.State.Unity
                 surfaces.Add(ReadEveSurface(record.Payload));
             }
 
+            surfaces.Add(ProjectStatRecipeSurface(stateFilePath));
             return surfaces;
+        }
+
+        private static EveSurfaceDocument ProjectStatRecipeSurface(string stateFilePath)
+        {
+            var state = ProjectStatRecipeSurfaceState(stateFilePath);
+            var document = AetheriaRuntimeStatRecipeSurfaceBuilder.Build(
+                state);
+            return AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(document);
+        }
+
+        private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(string stateFilePath)
+        {
+            var catalog = OpenReadOnly(stateFilePath);
+            var recipes = catalog.Items
+                .SelectMany(ProjectStatRecipeRows)
+                .OrderBy(recipe => recipe.StatName, StringComparer.Ordinal)
+                .ToArray();
+
+            var state = new AetheriaRuntimeStatRecipeSurfaceState(
+                recipes,
+                recipes.FirstOrDefault()?.StatName ?? "",
+                AetheriaRuntimeStatRecipePreviewState.Default,
+                DateTime.UtcNow.ToString("O"));
+
+            return state;
+        }
+
+        private static IEnumerable<AetheriaRuntimeStatRecipeState> ProjectStatRecipeRows(AetheriaRuntimeCatalogItem item)
+        {
+            foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
+            {
+                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
+                foreach (var field in behavior.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                {
+                    var fieldMetadata = metadata?.DisplayFields.FirstOrDefault(candidate => candidate.Key == field.Key);
+                    if (fieldMetadata?.ValueKind != AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
+                        continue;
+
+                    yield return ProjectStatRecipeRow(item, behavior, field, fieldMetadata.Name);
+                }
+            }
+        }
+
+        private static AetheriaRuntimeStatRecipeState ProjectStatRecipeRow(
+            AetheriaRuntimeCatalogItem item,
+            AetheriaRuntimeBehaviorPayload behavior,
+            AetheriaRuntimeBehaviorField field,
+            string fieldName)
+        {
+            var value = field.Value;
+            var recipe = ReadBehaviorStatRecipe(value);
+            var statName = string.Join(
+                " / ",
+                new[] { item.Name, behavior.Kind, fieldName }
+                    .Where(part => !string.IsNullOrWhiteSpace(part)));
+            var recipeKey = $"{item.ItemKey}|{behavior.Kind}|{behavior.Group}|{field.Key}";
+            var baseValue = recipe?.BaseValue ?? ReadBehaviorStatBaseValue(value);
+            return new AetheriaRuntimeStatRecipeState(
+                recipeKey,
+                statName,
+                baseValue,
+                (recipe?.Modifiers ?? Array.Empty<AetheriaRuntimeStatRecipeModifier>())
+                    .Select(ProjectStatInfluence)
+                    .ToArray());
+        }
+
+        private static double ReadBehaviorStatBaseValue(AetheriaRuntimeBehaviorValue value)
+        {
+            if (value?.Children == null || value.Children.Count < 2)
+                return 0;
+
+            return value.Children[1].NumberValue;
+        }
+
+        private static AetheriaRuntimeStatRecipe? ReadBehaviorStatRecipe(AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null || value.Children.Count <= 5)
+                return null;
+
+            var recipeValue = value.Children[5];
+            if (recipeValue?.Children == null || recipeValue.Children.Count == 0)
+                return null;
+
+            var baseValue = recipeValue.Children[0].NumberValue;
+            var modifierValues = recipeValue.Children.Count > 1
+                ? recipeValue.Children[1].Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>()
+                : Array.Empty<AetheriaRuntimeBehaviorValue>();
+            var modifiers = modifierValues
+                .Select(ReadBehaviorStatRecipeModifier)
+                .OfType<AetheriaRuntimeStatRecipeModifier>()
+                .ToArray();
+            return new AetheriaRuntimeStatRecipe(baseValue, modifiers);
+        }
+
+        private static AetheriaRuntimeStatRecipeModifier? ReadBehaviorStatRecipeModifier(AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null)
+                return null;
+
+            return new AetheriaRuntimeStatRecipeModifier(
+                ReadChildString(value, 0),
+                ReadChildString(value, 1),
+                ReadChildNumber(value, 2),
+                ReadBehaviorCurveKeys(ReadChildValue(value, 3)),
+                value.Children.Count <= 4 || ReadChildValue(value, 4)?.BoolValue != false);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey> ReadBehaviorCurveKeys(AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null || value.Children.Count == 0)
+                return Array.Empty<AetheriaRuntimeCurveKey>();
+
+            return value.Children
+                .Where(key => key.Children != null && key.Children.Count >= 4)
+                .Select(key => new AetheriaRuntimeCurveKey(
+                    ReadChildNumber(key, 0),
+                    ReadChildNumber(key, 1),
+                    ReadChildNumber(key, 2),
+                    ReadChildNumber(key, 3)))
+                .ToArray();
+        }
+
+        private static AetheriaRuntimeStatInfluenceState ProjectStatInfluence(AetheriaRuntimeStatRecipeModifier modifier)
+        {
+            return new AetheriaRuntimeStatInfluenceState(
+                modifier.Condition,
+                string.IsNullOrWhiteSpace(modifier.Operation) ? AetheriaRuntimeStatRecipeOperations.Add : modifier.Operation,
+                modifier.Amount,
+                CurveLabel(modifier.CurveKeys),
+                SampleCurve(modifier.CurveKeys, AetheriaRuntimeStatRecipePreviewState.Default.GetConditionValue(modifier.Condition)),
+                modifier.Enabled);
+        }
+
+        private static string CurveLabel(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+        {
+            if (keys == null || keys.Count == 0)
+                return "linear";
+
+            var preset = CurvePresetLabel(keys);
+            return string.IsNullOrWhiteSpace(preset) ? $"{keys.Count} keys" : preset;
+        }
+
+        private static double SampleCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys, double value)
+        {
+            if (keys == null || keys.Count == 0)
+                return Clamp01(value);
+
+            var ordered = keys.OrderBy(key => key.Time).ToArray();
+            if (value <= ordered[0].Time)
+                return Clamp01(ordered[0].Value);
+            for (var index = 1; index < ordered.Length; index++)
+            {
+                var next = ordered[index];
+                var previous = ordered[index - 1];
+                if (value > next.Time)
+                    continue;
+
+                var span = next.Time - previous.Time;
+                var t = span <= double.Epsilon ? 1 : Clamp01((value - previous.Time) / span);
+                return Clamp01(previous.Value + ((next.Value - previous.Value) * t));
+            }
+
+            return Clamp01(ordered[ordered.Length - 1].Value);
+        }
+
+        private static double Clamp01(double value)
+        {
+            if (value < 0)
+                return 0;
+            return value > 1 ? 1 : value;
+        }
+
+        private static string ReadChildString(AetheriaRuntimeBehaviorValue? value, int index)
+        {
+            return ReadChildValue(value, index)?.StringValue ?? "";
+        }
+
+        private static double ReadChildNumber(AetheriaRuntimeBehaviorValue? value, int index)
+        {
+            return ReadChildValue(value, index)?.NumberValue ?? 0;
+        }
+
+        private static AetheriaRuntimeBehaviorValue? ReadChildValue(AetheriaRuntimeBehaviorValue? value, int index)
+        {
+            return value?.Children != null && value.Children.Count > index ? value.Children[index] : null;
         }
 
         public static AetheriaRuntimePlayerSettingsSnapshot? ReadPlayerSettings(string stateFilePath)
@@ -261,6 +447,422 @@ namespace GameCult.Aetheria.State.Unity
             for (var field = 4; field < fieldCount; field++)
                 reader.Skip();
             return new PersistedRecord(key, schemaId, payload);
+        }
+
+        private static int PatchEmbeddedItemRecords(
+            string stateFilePath,
+            IReadOnlyDictionary<string, string> schemaCatalog,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            var snapshotFields = ReadArrayFields(File.ReadAllBytes(stateFilePath));
+            if (snapshotFields.Count <= 2)
+                return 0;
+
+            var recordReader = new MessagePackReader(snapshotFields[2]);
+            var recordCount = recordReader.ReadArrayHeader();
+            var changed = 0;
+            var patchedRecords = new byte[recordCount][];
+            for (var index = 0; index < recordCount; index++)
+            {
+                var recordRaw = recordReader.ReadRaw().ToArray();
+                var patched = PatchPersistedItemRecord(recordRaw, schemaCatalog, recipes);
+                if (!ReferenceEquals(patched, recordRaw))
+                    changed++;
+                patchedRecords[index] = patched;
+            }
+
+            if (changed == 0)
+                return 0;
+
+            snapshotFields[2] = WriteRawArray(patchedRecords);
+            WriteFileAtomically(stateFilePath, WriteRawArray(snapshotFields));
+            return changed;
+        }
+
+        private static int PatchSplitItemRecords(
+            string stateFilePath,
+            IReadOnlyDictionary<string, string> schemaCatalog,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            var recordDirectory = stateFilePath + ".records";
+            if (!Directory.Exists(recordDirectory))
+                return 0;
+
+            var changed = 0;
+            foreach (var recordFile in Directory.EnumerateFiles(recordDirectory, "*.msgpack").OrderBy(path => path, StringComparer.Ordinal))
+            {
+                var original = File.ReadAllBytes(recordFile);
+                var patched = PatchPersistedItemRecord(original, schemaCatalog, recipes);
+                if (ReferenceEquals(patched, original))
+                    continue;
+
+                WriteFileAtomically(recordFile, patched);
+                changed++;
+            }
+
+            return changed;
+        }
+
+        private static byte[] PatchPersistedItemRecord(
+            byte[] recordRaw,
+            IReadOnlyDictionary<string, string> schemaCatalog,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            var record = ReadPersistedRecord(recordRaw);
+            if (!schemaCatalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                !string.Equals(schemaName, ItemDefinitionSchema, StringComparison.Ordinal))
+            {
+                return recordRaw;
+            }
+
+            var patchedPayload = PatchItemDefinitionPayload(record.Payload, recipes);
+            if (ReferenceEquals(patchedPayload, record.Payload))
+                return recordRaw;
+
+            var fields = ReadArrayFields(recordRaw);
+            if (fields.Count <= 3)
+                return recordRaw;
+
+            fields[3] = WriteBinary(patchedPayload);
+            return WriteRawArray(fields);
+        }
+
+        private static PersistedRecord ReadPersistedRecord(byte[] recordRaw)
+        {
+            var reader = new MessagePackReader(recordRaw);
+            return ReadPersistedRecord(ref reader);
+        }
+
+        private static byte[] PatchItemDefinitionPayload(
+            byte[] payload,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            var item = ReadItem(payload);
+            if (item?.BehaviorPayloads == null ||
+                item.BehaviorPayloads.Count == 0 ||
+                string.IsNullOrWhiteSpace(item.ItemKey) ||
+                !recipes.Keys.Any(key => key.StartsWith(item.ItemKey + "|", StringComparison.Ordinal)))
+            {
+                return payload;
+            }
+
+            var itemFields = ReadArrayFields(payload);
+            if (itemFields.Count <= 31)
+                return payload;
+
+            var patchedBehaviorPayloads = WriteBehaviorPayloads(item, recipes);
+            if (RawEquals(itemFields[31], patchedBehaviorPayloads))
+                return payload;
+
+            itemFields[31] = patchedBehaviorPayloads;
+            return WriteRawArray(itemFields);
+        }
+
+        private static byte[] WriteBehaviorPayloads(
+            AetheriaRuntimeCatalogItem item,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            var buffer = new ArrayBufferWriter<byte>();
+            var writer = new MessagePackWriter(buffer);
+            var payloads = item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
+            writer.WriteArrayHeader(payloads.Count);
+            foreach (var payload in payloads)
+                WriteBehaviorPayload(ref writer, item.ItemKey, payload, recipes);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static void WriteBehaviorPayload(
+            ref MessagePackWriter writer,
+            string itemKey,
+            AetheriaRuntimeBehaviorPayload payload,
+            IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
+        {
+            writer.WriteArrayHeader(4);
+            writer.Write(payload.UnionKey);
+            writer.Write(payload.Kind ?? "");
+            writer.Write(payload.Group);
+            var fields = payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>();
+            writer.WriteArrayHeader(fields.Count);
+            foreach (var field in fields)
+            {
+                writer.WriteArrayHeader(2);
+                writer.Write(field.Key);
+                var recipeKey = $"{itemKey}|{payload.Kind}|{payload.Group}|{field.Key}";
+                WriteBehaviorValue(
+                    ref writer,
+                    recipes.TryGetValue(recipeKey, out var recipe) ? WithStatRecipe(field.Value, recipe) : field.Value);
+            }
+        }
+
+        private static AetheriaRuntimeBehaviorValue WithStatRecipe(
+            AetheriaRuntimeBehaviorValue value,
+            AetheriaRuntimeStatRecipeState recipe)
+        {
+            var children = (value?.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>()).ToList();
+            while (children.Count <= 5)
+                children.Add(EmptyBehaviorValue());
+
+            children[5] = ToBehaviorValue(recipe, ReadBehaviorStatRecipe(value));
+            return new AetheriaRuntimeBehaviorValue(
+                value?.Kind ?? "",
+                value?.StringValue ?? "",
+                value?.NumberValue ?? 0,
+                value?.BoolValue ?? false,
+                value?.LegacyIdValue ?? "",
+                value?.ItemKeyValue ?? "",
+                children,
+                value?.MapEntries ?? Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static AetheriaRuntimeBehaviorValue ToBehaviorValue(
+            AetheriaRuntimeStatRecipeState recipe,
+            AetheriaRuntimeStatRecipe? originalRecipe)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "statRecipe",
+                "",
+                0,
+                false,
+                "",
+                "",
+                new[]
+                {
+                    NumberBehaviorValue(recipe.BaseValue),
+                    new AetheriaRuntimeBehaviorValue(
+                        "array",
+                        "",
+                        0,
+                        false,
+                        "",
+                        "",
+                        (recipe.Influences ?? Array.Empty<AetheriaRuntimeStatInfluenceState>())
+                            .Select(influence => ToBehaviorValue(influence, originalRecipe))
+                            .ToArray(),
+                        Array.Empty<AetheriaRuntimeBehaviorMapEntry>())
+                },
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static AetheriaRuntimeBehaviorValue ToBehaviorValue(
+            AetheriaRuntimeStatInfluenceState influence,
+            AetheriaRuntimeStatRecipe? originalRecipe)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "statRecipeModifier",
+                "",
+                0,
+                false,
+                "",
+                "",
+                new[]
+                {
+                    StringBehaviorValue(influence.Condition),
+                    StringBehaviorValue(influence.Operation),
+                    NumberBehaviorValue(influence.Amount),
+                    ToCurveBehaviorValue(ResolveCurveKeys(influence, originalRecipe)),
+                    BoolBehaviorValue(influence.Enabled)
+                },
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey>? ResolveCurveKeys(
+            AetheriaRuntimeStatInfluenceState influence,
+            AetheriaRuntimeStatRecipe? originalRecipe)
+        {
+            var originalKeys = originalRecipe?.Modifiers?.FirstOrDefault(modifier =>
+                string.Equals(modifier.Condition, influence.Condition, StringComparison.Ordinal))?.CurveKeys;
+            return TryCreateCurvePreset(influence.CurveLabel, out var presetKeys)
+                ? presetKeys
+                : originalKeys;
+        }
+
+        private static bool TryCreateCurvePreset(string label, out IReadOnlyList<AetheriaRuntimeCurveKey>? keys)
+        {
+            switch (NormalizeCurveLabel(label))
+            {
+                case "linear":
+                    keys = Array.Empty<AetheriaRuntimeCurveKey>();
+                    return true;
+                case "inverse":
+                    keys = new[]
+                    {
+                        new AetheriaRuntimeCurveKey(0, 1, 0, -1),
+                        new AetheriaRuntimeCurveKey(1, 0, -1, 0)
+                    };
+                    return true;
+                case "easein":
+                    keys = new[]
+                    {
+                        new AetheriaRuntimeCurveKey(0, 0, 0, 0),
+                        new AetheriaRuntimeCurveKey(1, 1, 2, 0)
+                    };
+                    return true;
+                case "easeout":
+                    keys = new[]
+                    {
+                        new AetheriaRuntimeCurveKey(0, 0, 0, 2),
+                        new AetheriaRuntimeCurveKey(1, 1, 0, 0)
+                    };
+                    return true;
+                case "easeinout":
+                    keys = new[]
+                    {
+                        new AetheriaRuntimeCurveKey(0, 0, 0, 0),
+                        new AetheriaRuntimeCurveKey(1, 1, 0, 0)
+                    };
+                    return true;
+                case "constant":
+                    keys = new[]
+                    {
+                        new AetheriaRuntimeCurveKey(0, 1, 0, 0),
+                        new AetheriaRuntimeCurveKey(1, 1, 0, 0)
+                    };
+                    return true;
+                default:
+                    keys = null;
+                    return false;
+            }
+        }
+
+        private static string CurvePresetLabel(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+        {
+            if (keys == null || keys.Count == 0)
+                return "linear";
+
+            return MatchesCurvePreset(keys, "inverse") ? "inverse" :
+                MatchesCurvePreset(keys, "easein") ? "easeIn" :
+                MatchesCurvePreset(keys, "easeout") ? "easeOut" :
+                MatchesCurvePreset(keys, "easeinout") ? "easeInOut" :
+                MatchesCurvePreset(keys, "constant") ? "constant" :
+                "";
+        }
+
+        private static bool MatchesCurvePreset(IReadOnlyList<AetheriaRuntimeCurveKey> keys, string preset)
+        {
+            if (!TryCreateCurvePreset(preset, out var presetKeys) || presetKeys == null || keys.Count != presetKeys.Count)
+                return false;
+
+            for (var index = 0; index < keys.Count; index++)
+            {
+                if (!AlmostEqual(keys[index].Time, presetKeys[index].Time) ||
+                    !AlmostEqual(keys[index].Value, presetKeys[index].Value) ||
+                    !AlmostEqual(keys[index].InTangent, presetKeys[index].InTangent) ||
+                    !AlmostEqual(keys[index].OutTangent, presetKeys[index].OutTangent))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string NormalizeCurveLabel(string label)
+        {
+            return new string((label ?? "")
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
+        }
+
+        private static bool AlmostEqual(double left, double right)
+        {
+            return Math.Abs(left - right) <= 0.00001;
+        }
+
+        private static AetheriaRuntimeBehaviorValue ToCurveBehaviorValue(IReadOnlyList<AetheriaRuntimeCurveKey>? keys)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "curve",
+                "",
+                0,
+                false,
+                "",
+                "",
+                (keys ?? Array.Empty<AetheriaRuntimeCurveKey>())
+                    .Select(ToCurveKeyBehaviorValue)
+                    .ToArray(),
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static AetheriaRuntimeBehaviorValue ToCurveKeyBehaviorValue(AetheriaRuntimeCurveKey key)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "curveKey",
+                "",
+                0,
+                false,
+                "",
+                "",
+                new[]
+                {
+                    NumberBehaviorValue(key.Time),
+                    NumberBehaviorValue(key.Value),
+                    NumberBehaviorValue(key.InTangent),
+                    NumberBehaviorValue(key.OutTangent)
+                },
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static void WriteBehaviorValue(ref MessagePackWriter writer, AetheriaRuntimeBehaviorValue value)
+        {
+            value ??= EmptyBehaviorValue();
+            writer.WriteArrayHeader(8);
+            writer.Write(value.Kind ?? "");
+            writer.Write(value.StringValue ?? "");
+            writer.Write(value.NumberValue);
+            writer.Write(value.BoolValue);
+            writer.Write(value.LegacyIdValue ?? "");
+            writer.WriteArrayHeader((value.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>()).Count);
+            foreach (var child in value.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>())
+                WriteBehaviorValue(ref writer, child);
+            writer.WriteArrayHeader((value.MapEntries ?? Array.Empty<AetheriaRuntimeBehaviorMapEntry>()).Count);
+            foreach (var entry in value.MapEntries ?? Array.Empty<AetheriaRuntimeBehaviorMapEntry>())
+            {
+                writer.WriteArrayHeader(2);
+                writer.Write(entry.Key ?? "");
+                WriteBehaviorValue(ref writer, entry.Value);
+            }
+            writer.Write(value.ItemKeyValue ?? "");
+        }
+
+        private static AetheriaRuntimeBehaviorValue StringBehaviorValue(string value)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "string",
+                value ?? "",
+                0,
+                false,
+                "",
+                "",
+                Array.Empty<AetheriaRuntimeBehaviorValue>(),
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static AetheriaRuntimeBehaviorValue NumberBehaviorValue(double value)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "number",
+                "",
+                value,
+                false,
+                "",
+                "",
+                Array.Empty<AetheriaRuntimeBehaviorValue>(),
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        }
+
+        private static AetheriaRuntimeBehaviorValue BoolBehaviorValue(bool value)
+        {
+            return new AetheriaRuntimeBehaviorValue(
+                "bool",
+                "",
+                0,
+                value,
+                "",
+                "",
+                Array.Empty<AetheriaRuntimeBehaviorValue>(),
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
         }
 
         private static AetheriaRuntimeCatalogItem ReadItem(byte[] payload)
@@ -623,7 +1225,8 @@ namespace GameCult.Aetheria.State.Unity
             var visibility = ReadFieldDouble(ref reader, fields, 27);
             var visibilitySourceCount = ReadFieldInt32(ref reader, fields, 28);
             var contacts = ReadFieldEntityContacts(ref reader, fields, 29);
-            SkipRemaining(ref reader, fields, 30);
+            var shutdownPerformance = ReadFieldDouble(ref reader, fields, 30);
+            SkipRemaining(ref reader, fields, 31);
             return new AetheriaRuntimeEntitySnapshot(
                 recordKey,
                 name,
@@ -659,7 +1262,8 @@ namespace GameCult.Aetheria.State.Unity
                 dockingBayAssignments,
                 visibility,
                 visibilitySourceCount,
-                contacts);
+                contacts,
+                shutdownPerformance);
         }
 
         private static IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> ReadFieldEntityContacts(ref MessagePackReader reader, int fields, int index)
@@ -1660,18 +2264,65 @@ namespace GameCult.Aetheria.State.Unity
             var heatExponentMultiplier = ReadFieldDouble(ref reader, statFields, 2);
             var durabilityExponentMultiplier = ReadFieldDouble(ref reader, statFields, 3);
             var qualityExponent = ReadFieldDouble(ref reader, statFields, 4);
-            SkipRemaining(ref reader, statFields, 5);
+            var recipe = ReadFieldStatRecipe(ref reader, statFields, 5);
+            SkipRemaining(ref reader, statFields, 6);
             return new AetheriaRuntimePerformanceStat(
                 min,
                 max,
                 heatExponentMultiplier,
                 durabilityExponentMultiplier,
-                qualityExponent);
+                qualityExponent,
+                recipe);
         }
 
         private static AetheriaRuntimePerformanceStat EmptyPerformanceStat()
         {
-            return new AetheriaRuntimePerformanceStat(0, 0, 0, 0, 0);
+            return new AetheriaRuntimePerformanceStat(0, 0, 0, 0, 0, null);
+        }
+
+        private static AetheriaRuntimeStatRecipe? ReadFieldStatRecipe(ref MessagePackReader reader, int fields, int index)
+        {
+            if (index >= fields)
+                return null;
+
+            var recipeFields = reader.ReadArrayHeader();
+            if (recipeFields == 0)
+                return null;
+
+            var baseValue = ReadFieldDouble(ref reader, recipeFields, 0);
+            var modifiers = ReadFieldStatRecipeModifiers(ref reader, recipeFields, 1);
+            SkipRemaining(ref reader, recipeFields, 2);
+            return new AetheriaRuntimeStatRecipe(baseValue, modifiers);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeStatRecipeModifier> ReadFieldStatRecipeModifiers(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields)
+                return Array.Empty<AetheriaRuntimeStatRecipeModifier>();
+
+            var count = reader.ReadArrayHeader();
+            var modifiers = new AetheriaRuntimeStatRecipeModifier[count];
+            for (var modifier = 0; modifier < count; modifier++)
+            {
+                var modifierFields = reader.ReadArrayHeader();
+                var condition = ReadFieldString(ref reader, modifierFields, 0);
+                var operation = ReadFieldString(ref reader, modifierFields, 1);
+                var amount = ReadFieldDouble(ref reader, modifierFields, 2);
+                var curveKeys = ReadFieldCurveKeys(ref reader, modifierFields, 3);
+                var enabled = modifierFields <= 4 || ReadFieldBool(ref reader, modifierFields, 4, true);
+                SkipRemaining(ref reader, modifierFields, 5);
+                modifiers[modifier] = new AetheriaRuntimeStatRecipeModifier(
+                    condition,
+                    operation,
+                    amount,
+                    curveKeys,
+                    enabled);
+            }
+
+            return modifiers;
         }
 
         private static IReadOnlyList<AetheriaRuntimeBehaviorField> ReadFieldBehaviorFields(ref MessagePackReader reader, int fields, int index)
@@ -1812,6 +2463,65 @@ namespace GameCult.Aetheria.State.Unity
         {
             for (var field = firstUnhandledIndex; field < fields; field++)
                 reader.Skip();
+        }
+
+        private static List<byte[]> ReadArrayFields(byte[] rawArray)
+        {
+            var reader = new MessagePackReader(rawArray);
+            var count = reader.ReadArrayHeader();
+            var fields = new List<byte[]>(count);
+            for (var index = 0; index < count; index++)
+                fields.Add(reader.ReadRaw().ToArray());
+            return fields;
+        }
+
+        private static byte[] WriteRawArray(IReadOnlyList<byte[]> fields)
+        {
+            var buffer = new ArrayBufferWriter<byte>();
+            var writer = new MessagePackWriter(buffer);
+            writer.WriteArrayHeader(fields?.Count ?? 0);
+            foreach (var field in fields ?? Array.Empty<byte[]>())
+                writer.WriteRaw(field);
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static byte[] WriteBinary(byte[] payload)
+        {
+            var buffer = new ArrayBufferWriter<byte>();
+            var writer = new MessagePackWriter(buffer);
+            writer.Write(payload ?? Array.Empty<byte>());
+            writer.Flush();
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static bool RawEquals(byte[] left, byte[] right)
+        {
+            if (ReferenceEquals(left, right))
+                return true;
+            if (left == null || right == null || left.Length != right.Length)
+                return false;
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index] != right[index])
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static void WriteFileAtomically(string path, byte[] payload)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            var tempPath = path + ".tmp";
+            File.WriteAllBytes(tempPath, payload);
+            if (File.Exists(path))
+                File.Delete(path);
+            File.Move(tempPath, path);
         }
 
         private readonly struct PersistedRecord

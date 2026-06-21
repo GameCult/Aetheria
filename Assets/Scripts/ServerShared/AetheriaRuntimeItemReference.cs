@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
+using cfloat3 = CultMath.float3;
 
 public interface INamedEntry
 {
@@ -26,5 +26,5 @@ public class AetheriaRuntimeItemReference
 
 public interface ITintInspector
 {
-    float3 TintColor { get; }
+    cfloat3 TintColor { get; }
 }

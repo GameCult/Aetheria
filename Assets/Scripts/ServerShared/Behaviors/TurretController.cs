@@ -5,9 +5,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float3 = Unity.Mathematics.float3;
+using static CultMath.math;
+using cfloat3 = CultMath.float3;
+
 public class TurretController : Behavior, IInitializableBehavior
 {
     private List<Weapon> _weapons = new List<Weapon>();
@@ -44,27 +44,29 @@ public class TurretController : Behavior, IInitializableBehavior
     {
         if (Entity.Target.Value != null)
         {
-            var diff = Entity.Target.Value.Position - Entity.Position;
+            var entityPosition = Entity.CultPosition;
+            var targetPosition = Entity.Target.Value.CultPosition;
+            var diff = targetPosition - entityPosition;
             if (_predictShots)
             {
                 var targetHull = Entity.ItemManager.GetRuntimeItem(Entity.Target.Value.Hull);
-                var targetVelocity = float3(Entity.Target.Value.Velocity.x, 0, Entity.Target.Value.Velocity.y);
+                var targetVelocity = new cfloat3(Entity.Target.Value.CultVelocity.x, 0, Entity.Target.Value.CultVelocity.y);
                 var predictedPosition = AetheriaMath.FirstOrderIntercept(
-                    Entity.Position, float3.zero, _shotSpeed,
-                    Entity.Target.Value.Position, targetVelocity
+                    entityPosition, cfloat3.zero, _shotSpeed,
+                    targetPosition, targetVelocity
                 );
                 predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + (float)(targetHull?.HullGridOffset ?? 0);
-                Entity.LookDirection = normalize(predictedPosition - Entity.Position);
+                Entity.CultLookDirection = normalize(predictedPosition - entityPosition);
             }
             else
-                Entity.LookDirection = normalize(diff);
+                Entity.CultLookDirection = normalize(diff);
             var dist = length(diff);
 
             foreach (var x in _weapons)
             {
                 var fire = dot(
                     x.Direction,
-                    Entity.LookDirection) > .99f;
+                    Entity.CultLookDirection) > .99f;
                 if (x.EvaluateRange() > dist && fire)
                 {
                     x.Activate();

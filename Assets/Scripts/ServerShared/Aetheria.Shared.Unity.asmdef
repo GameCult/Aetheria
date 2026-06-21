@@ -2,6 +2,7 @@
     "name": "Aetheria.Shared.Unity",
     "rootNamespace": "",
     "references": [
+        "CultMath",
         "Unity.Mathematics",
         "UniRx",
         "Ink",

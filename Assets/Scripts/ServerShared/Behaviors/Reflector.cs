@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-
 public class Reflector : Behavior
 {
     private readonly PerformanceStat _crossSection;
@@ -23,7 +20,7 @@ public class Reflector : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.VisibilitySources[this] = Evaluate(_crossSection) * Entity.Zone.GetLight(Entity.Position.xz);
+        Entity.VisibilitySources[this] = Evaluate(_crossSection) * Entity.Zone.GetLight(Entity.CultPositionXZ);
 
         return true;
     }

@@ -1,6 +1,4 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ParticleChargeEffect : WeaponChargeEffect
@@ -21,7 +19,7 @@ public class ParticleChargeEffect : WeaponChargeEffect
         OverchargeEffect.Clear(true);
         FailureEffect.Clear(true);
         ChargeEffect.Play(true);
-        ChargeEffect.enableEmission = true;
+        SetEmission(ChargeEffect, true);
         
         _overloaded = false;
         _charge = 0;
@@ -30,23 +28,23 @@ public class ParticleChargeEffect : WeaponChargeEffect
     public override void StopCharging()
     {
         if (_overloaded)
-            OverchargeEffect.enableEmission = false;
+            SetEmission(OverchargeEffect, false);
         else
-            ChargeEffect.enableEmission = false;
+            SetEmission(ChargeEffect, false);
         StartCoroutine(Kill());
     }
 
     public override void Charged()
     {
-        ChargeEffect.enableEmission = false;
+        SetEmission(ChargeEffect, false);
         OverchargeEffect.Play(true);
-        OverchargeEffect.enableEmission = true;
+        SetEmission(OverchargeEffect, true);
         _overloaded = true;
     }
 
     public override void Failed()
     {
-        OverchargeEffect.enableEmission = false;
+        SetEmission(OverchargeEffect, false);
         FailureEffect.Play(true);
     }
 
@@ -57,11 +55,18 @@ public class ParticleChargeEffect : WeaponChargeEffect
 
         if (!_overloaded)
         {
-            ChargeEffect.playbackSpeed = _charge;
+            var main = ChargeEffect.main;
+            main.simulationSpeed = _charge;
         }
     }
 
-    IEnumerator Kill()
+    private static void SetEmission(ParticleSystem particleSystem, bool enabled)
+    {
+        var emission = particleSystem.emission;
+        emission.enabled = enabled;
+    }
+
+    private IEnumerator Kill()
     {
         while (ChargeEffect.particleCount > 0 || OverchargeEffect.particleCount > 0 || FailureEffect.particleCount > 0)
         {

@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 
 public class NameTools : EditorWindow
 {

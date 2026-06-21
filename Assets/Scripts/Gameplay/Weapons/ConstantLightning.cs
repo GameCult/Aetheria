@@ -1,7 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using static Unity.Mathematics.math;
 
 public class ConstantLightning : MonoBehaviour
 {
@@ -51,28 +48,34 @@ public class ConstantLightning : MonoBehaviour
         }
         
         Lightning.FixedEndpoint = false;
-        var hits = Physics.SphereCastAll(Barrel.position, HitRadius, Barrel.forward, Range, 1 | (1 << 17));
-        foreach (var hit in hits)
+        if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
+                Source?.ZoneRenderer,
+                Source?.Entity,
+                Barrel.position,
+                Barrel.forward,
+                Range,
+                HitRadius,
+                out var hits))
         {
-            var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield && (shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage)))
+            foreach (var hit in hits)
             {
-                if (shield.Entity == Source.Entity) continue;
-                shield.Entity.Shield.TakeHit(DamageType, Damage * Time.deltaTime);
-                shield.ShowHit(hit.point, sqrt(Damage));
-            }
-            var hull = hit.collider.GetComponent<HullCollider>();
-            if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                if (hull.Entity == Source.Entity) continue;
-                hull.SendHit(Damage * Time.deltaTime, Penetration, Spread, DamageType, Source.Entity, hit.textureCoord, Barrel.forward);
-            }
+                var hull = hit.Hull;
+                var entity = hull.Entity;
+                if (entity.Shield != null && entity.Shield.Item.Active.Value)
+                {
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                }
+                else
+                {
+                }
 
-            Lightning.FixedEndpoint = true;
-            Lightning.EndPosition = hit.point;
+                Lightning.FixedEndpoint = true;
+                Lightning.EndPosition = hit.Point;
             
-            break;
+                break;
+            }
         }
+
         if(!Lightning.FixedEndpoint)
             Lightning.EndPosition = Barrel.position + Barrel.forward * Range;
 

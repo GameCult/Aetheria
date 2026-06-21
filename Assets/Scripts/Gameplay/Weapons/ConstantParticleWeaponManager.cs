@@ -21,6 +21,7 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
         t.position = barrel.position;
         p.Damage = weapon.Damage;
         p.DamageType = weapon.DamageType;
+        p.Range = weapon.Range;
         _weapons.Add(item, p);
         p.Initialize();
     }

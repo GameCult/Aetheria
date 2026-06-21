@@ -1,65 +1,65 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 using UnityEngine;
-using float2 = Unity.Mathematics.float2;
 
 public class HullCollider : MonoBehaviour
 {
-    public Subject<HullHitEventArgs> Hit = new Subject<HullHitEventArgs>();
-    public Subject<HullSplashEventArgs> Splash = new Subject<HullSplashEventArgs>();
-    
+    private Renderer[] _renderers;
+
     public Entity Entity { get; set; }
-    
-    public void SendHit(float damage, float penetration, float spread, DamageType damageType, Entity source, Vector2 texCoord, Vector3 direction)
+
+    public Bounds YmirBounds => CalculateBounds(transform.position);
+
+    public float YmirPlanarRadius => Mathf.Max(YmirBounds.extents.x, YmirBounds.extents.z, 0.001f);
+
+    public void RefreshYmirBoundsSource()
     {
-        Hit.OnNext(new HullHitEventArgs
-        {
-            Damage = damage,
-            Penetration = penetration,
-            Spread = spread,
-            DamageType = damageType,
-            Source = source,
-            TexCoord = texCoord,
-            Direction = direction
-        });
-    }
-    
-    public void SendSplash(float damage, DamageType damageType, Entity source, Vector3 direction)
-    {
-        Splash.OnNext(new HullSplashEventArgs
-        {
-            Damage = damage,
-            DamageType = damageType,
-            Source = source,
-            Direction = direction
-        });
+        _renderers = GetComponentsInChildren<Renderer>();
     }
 
-    private void OnCollisionEnter(Collision other)
+    private void Awake()
     {
-        Entity.Velocity += ((float3) other.impulse).xz / Time.deltaTime;
+        RefreshYmirBoundsSource();
     }
 
-    public class HullHitEventArgs
+    private void OnEnable()
     {
-        public float Damage;
-        public float Penetration;
-        public float Spread;
-        public DamageType DamageType;
-        public Entity Source;
-        public float2 TexCoord;
-        public float3 Direction;
+        if (_renderers == null || _renderers.Length == 0)
+            RefreshYmirBoundsSource();
     }
-    
-    public class HullSplashEventArgs
+
+    private Bounds CalculateBounds(Vector3 fallbackCenter)
     {
-        public float Damage;
-        public DamageType DamageType;
-        public Entity Source;
-        public float3 Direction;
+        if (_renderers == null)
+            RefreshYmirBoundsSource();
+
+        if (_renderers == null || _renderers.Length == 0)
+            return new Bounds(fallbackCenter, Vector3.one);
+
+        var firstRenderer = FirstLiveRenderer();
+        if (firstRenderer == null)
+            return new Bounds(fallbackCenter, Vector3.one);
+
+        var bounds = firstRenderer.bounds;
+        for (var i = 0; i < _renderers.Length; i++)
+        {
+            var renderer = _renderers[i];
+            if (renderer == null || renderer == firstRenderer)
+                continue;
+
+            bounds.Encapsulate(renderer.bounds);
+        }
+
+        return bounds;
     }
+
+    private Renderer FirstLiveRenderer()
+    {
+        for (var i = 0; i < _renderers.Length; i++)
+        {
+            if (_renderers[i] != null)
+                return _renderers[i];
+        }
+
+        return null;
+    }
+
 }

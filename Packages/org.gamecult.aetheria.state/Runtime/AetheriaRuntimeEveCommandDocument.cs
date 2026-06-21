@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using GameCult.Caching;
 using MessagePack;
 
 #nullable enable
@@ -16,8 +16,10 @@ namespace GameCult.Aetheria.State.Unity
             string command,
             string issuedAtUtc,
             string clientId,
-            IReadOnlyDictionary<string, string> payload,
-            string path)
+            AetheriaRuntimePlayerSettingsCommandBody playerSettings,
+            AetheriaRuntimeInputSettingsCommandBody inputSettings,
+            string path,
+            AetheriaRuntimeLoadoutTemplateCommit? loadoutTemplate = null)
         {
             Schema = schema;
             CommandId = commandId;
@@ -26,8 +28,10 @@ namespace GameCult.Aetheria.State.Unity
             Command = command;
             IssuedAtUtc = issuedAtUtc;
             ClientId = clientId;
-            Payload = payload;
+            PlayerSettings = playerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody();
+            InputSettings = inputSettings ?? new AetheriaRuntimeInputSettingsCommandBody();
             Path = path;
+            LoadoutTemplate = loadoutTemplate;
         }
 
         public string Schema { get; }
@@ -37,10 +41,13 @@ namespace GameCult.Aetheria.State.Unity
         public string Command { get; }
         public string IssuedAtUtc { get; }
         public string ClientId { get; }
-        public IReadOnlyDictionary<string, string> Payload { get; }
+        public AetheriaRuntimePlayerSettingsCommandBody PlayerSettings { get; }
+        public AetheriaRuntimeInputSettingsCommandBody InputSettings { get; }
+        public AetheriaRuntimeLoadoutTemplateCommit? LoadoutTemplate { get; }
         public string Path { get; }
     }
 
+    [CultDocument("gamecult.eve.command", "gamecult.eve.command.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeEveCommandDocument
     {
@@ -68,6 +75,35 @@ namespace GameCult.Aetheria.State.Unity
         public string ClientId { get; set; } = "";
 
         [Key(7)]
-        public Dictionary<string, string> Payload { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+        public AetheriaRuntimePlayerSettingsCommandBody PlayerSettings { get; set; } = new AetheriaRuntimePlayerSettingsCommandBody();
+
+        [Key(8)]
+        public AetheriaRuntimeLoadoutTemplateCommit? LoadoutTemplate { get; set; }
+
+        [Key(9)]
+        public AetheriaRuntimeInputSettingsCommandBody InputSettings { get; set; } = new AetheriaRuntimeInputSettingsCommandBody();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimePlayerSettingsCommandBody
+    {
+        [Key(0)]
+        public string PlayerName { get; set; } = "";
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeInputSettingsCommandBody
+    {
+        [Key(0)]
+        public string ActionName { get; set; } = "";
+
+        [Key(1)]
+        public int BindingIndex { get; set; } = -1;
+
+        [Key(2)]
+        public string InputSystemPath { get; set; } = "";
+
+        [Key(3)]
+        public bool Enabled { get; set; }
     }
 }

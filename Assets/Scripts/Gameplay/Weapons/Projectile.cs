@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -28,7 +26,9 @@ public class Projectile : MonoBehaviour
     public float Spread { get; set; }
     public DamageType DamageType { get; set; }
     public Entity SourceEntity { get; set; }
+    public EntityInstance TargetInstance { get; set; }
     public float Range { get; set; }
+    public float YmirWorldTime { get; private set; }
 
     // Start is called before the first frame update
     void Start()
@@ -51,66 +51,71 @@ public class Projectile : MonoBehaviour
             var t = transform;
             var position = t.position;
             Velocity -= Vector3.up * (Gravity * Time.deltaTime);
-            Velocity *= max(0, 1 - Drag * Time.deltaTime);
+            Velocity *= Mathf.Max(0, 1 - Drag * Time.deltaTime);
             var forward = Velocity.normalized;
             t.forward = forward;
-            var ray = new Ray(position, Velocity);
-            foreach (var hit in Physics.RaycastAll(ray, Velocity.magnitude * Time.deltaTime, 1 | (1 << 17)))
+            if (!AetheriaYmirPhysicsBridge.Instance.TryStepProjectile(this, Time.deltaTime, out var ymirStep))
             {
-                var shield = hit.collider.GetComponent<ShieldManager>();
-                var hull = hit.collider.GetComponent<HullCollider>();
-                if (shield)
-                {
-                    if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
-                    if (shield.Entity != SourceEntity)
-                    {
-                        shield.Entity.Shield.TakeHit(DamageType, Damage*DirectHitDamageMultiplier);
-                        shield.ShowHit(hit.point, sqrt(Damage * DirectHitDamageMultiplier));
-                    }
-                }
-                else if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-                {
-                    if (hull.Entity != SourceEntity)
-                    {
-                        hull.SendHit(Damage*DirectHitDamageMultiplier, Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, forward);
-                        transform.position = hit.point;
-                        StartCoroutine(Kill());
-                    }
-                }
-                else
-                {
-                    StartCoroutine(Kill());
-                    return;
-                }
-                
-                if (HitEffect != null)
-                {
-                    var ht = HitEffect.Instantiate<Transform>();
-                    ht.SetParent(hit.collider.transform);
-                    ht.position = hit.point;
-                    return;
-                }
+                Debug.LogWarning("Ymir projectile step unavailable; projectile killed instead of falling back to Unity physics.");
+                StartCoroutine(Kill());
+                return;
             }
-            
-            transform.position += Velocity * Time.deltaTime;
+
+            YmirWorldTime += Time.deltaTime;
+            Velocity = ymirStep.Velocity;
+            t.position = ymirStep.Position;
+            if (ymirStep.HasHit)
+            {
+                ApplyYmirHit(ymirStep, forward);
+                return;
+            }
+
             var distanceTraveled = (transform.position - StartPosition).magnitude;
             if(distanceTraveled > Range)
                 StartCoroutine(Kill());
             if (AirburstRange > 1 && distanceTraveled > AirburstDistance)
             {
                 StartCoroutine(Kill());
-                var ht = HitEffect.Instantiate<Transform>();
-                ht.position = t.position;
-                foreach (var collider in Physics.OverlapSphere(t.position, AirburstRange, 1))
+                if (HitEffect != null)
                 {
-                    var hull = collider.GetComponent<HullCollider>();
-                    if (hull)
+                    var ht = HitEffect.Instantiate<Transform>();
+                    ht.position = t.position;
+                }
+
+                if (AetheriaYmirPhysicsBridge.Instance.TryOverlapTargetHulls(TargetInstance, t.position, AirburstRange, out var hits))
+                {
+                    foreach (var hit in hits)
                     {
-                        hull.SendSplash(Damage, DamageType, SourceEntity, (collider.transform.position - t.position).normalized);
+                        var direction = (hit.Hull.transform.position - t.position).normalized;
                     }
                 }
             }
         }
+    }
+
+    private void ApplyYmirHit(AetheriaYmirProjectileStep step, Vector3 forward)
+    {
+        var hull = step.Hit.Hull;
+        if (hull == null || hull.Entity == SourceEntity)
+            return;
+
+        if (hull.Entity.Shield != null &&
+            hull.Entity.Shield.Item.Active.Value)
+        {
+        }
+        else
+        {
+        }
+
+        transform.position = step.Hit.Point;
+        if (HitEffect != null)
+        {
+            var ht = HitEffect.Instantiate<Transform>();
+            ht.SetParent(hull.transform);
+            ht.position = step.Hit.Point;
+        }
+
+        StartCoroutine(Kill());
     }
 
     IEnumerator Kill()

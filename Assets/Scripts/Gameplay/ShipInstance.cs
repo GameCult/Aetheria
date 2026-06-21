@@ -1,10 +1,7 @@
 using System;
-using System.Collections;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 
 public class ShipInstance : EntityInstance
 {
@@ -108,11 +105,11 @@ public class ShipInstance : EntityInstance
         base.Update();
 
         TractorBeam.Power = Entity.TractorPower;
-        TractorBeam.Direction = Entity.LookDirection;
+        TractorBeam.Direction = (Vector3)AetheriaMath.ToUnity(Entity.CultLookDirection);
 
         if (_aetherDrive != null)
         {
-            var thrust = length(_aetherDrive.Drive.ThrustDirection);
+            var thrust = CultMath.math.length(_aetherDrive.Drive.ThrustDirection);
             var forceOverLifetime = _aetherDrive.Particles.forceOverLifetime;
             forceOverLifetime.xMultiplier = _aetherDrive.Drive.ThrustDirection.x * _aetherDrive.BaseForce;
             forceOverLifetime.zMultiplier = _aetherDrive.Drive.ThrustDirection.y * _aetherDrive.BaseForce;
@@ -128,7 +125,8 @@ public class ShipInstance : EntityInstance
             emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / GetMaxDurability(item));
         }
 
-        transform.rotation = Ship.Rotation;
+        var rotation = Ship.Rotation;
+        transform.rotation = new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
     }
 
     private float GetMaxDurability(ItemInstance item)

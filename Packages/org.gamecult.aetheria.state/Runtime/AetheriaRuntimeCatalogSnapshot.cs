@@ -260,13 +260,15 @@ namespace GameCult.Aetheria.State.Unity
             double max,
             double heatExponentMultiplier,
             double durabilityExponentMultiplier,
-            double qualityExponent)
+            double qualityExponent,
+            AetheriaRuntimeStatRecipe? recipe)
         {
             Min = min;
             Max = max;
             HeatExponentMultiplier = heatExponentMultiplier;
             DurabilityExponentMultiplier = durabilityExponentMultiplier;
             QualityExponent = qualityExponent;
+            Recipe = recipe;
         }
 
         public double Min { get; }
@@ -274,6 +276,42 @@ namespace GameCult.Aetheria.State.Unity
         public double HeatExponentMultiplier { get; }
         public double DurabilityExponentMultiplier { get; }
         public double QualityExponent { get; }
+        public AetheriaRuntimeStatRecipe? Recipe { get; }
+    }
+
+    public sealed class AetheriaRuntimeStatRecipe
+    {
+        public AetheriaRuntimeStatRecipe(double baseValue, IReadOnlyList<AetheriaRuntimeStatRecipeModifier> modifiers)
+        {
+            BaseValue = baseValue;
+            Modifiers = modifiers ?? Array.Empty<AetheriaRuntimeStatRecipeModifier>();
+        }
+
+        public double BaseValue { get; }
+        public IReadOnlyList<AetheriaRuntimeStatRecipeModifier> Modifiers { get; }
+    }
+
+    public sealed class AetheriaRuntimeStatRecipeModifier
+    {
+        public AetheriaRuntimeStatRecipeModifier(
+            string condition,
+            string operation,
+            double amount,
+            IReadOnlyList<AetheriaRuntimeCurveKey> curveKeys,
+            bool enabled)
+        {
+            Condition = condition ?? "";
+            Operation = operation ?? "";
+            Amount = amount;
+            CurveKeys = curveKeys ?? Array.Empty<AetheriaRuntimeCurveKey>();
+            Enabled = enabled;
+        }
+
+        public string Condition { get; }
+        public string Operation { get; }
+        public double Amount { get; }
+        public IReadOnlyList<AetheriaRuntimeCurveKey> CurveKeys { get; }
+        public bool Enabled { get; }
     }
 
     public sealed class AetheriaRuntimeCurveKey
@@ -871,7 +909,8 @@ namespace GameCult.Aetheria.State.Unity
             IReadOnlyList<int> dockingBayAssignments,
             double visibility,
             int visibilitySourceCount,
-            IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> contacts)
+            IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> contacts,
+            double shutdownPerformance)
         {
             RecordKey = recordKey;
             Name = name;
@@ -908,6 +947,7 @@ namespace GameCult.Aetheria.State.Unity
             Visibility = visibility;
             VisibilitySourceCount = visibilitySourceCount;
             Contacts = contacts;
+            ShutdownPerformance = shutdownPerformance;
         }
 
         public string RecordKey { get; }
@@ -945,6 +985,7 @@ namespace GameCult.Aetheria.State.Unity
         public double Visibility { get; }
         public int VisibilitySourceCount { get; }
         public IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> Contacts { get; }
+        public double ShutdownPerformance { get; }
     }
 
     public sealed class AetheriaRuntimeEntityContactSnapshot

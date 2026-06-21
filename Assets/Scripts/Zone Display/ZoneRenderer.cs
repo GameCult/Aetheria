@@ -75,7 +75,6 @@ public class ZoneRenderer : MonoBehaviour
     //private float _maxDepth;
     private float _minimapDistance;
 
-    private int _tourIndex = -1;
     private float _tourTimer;
     private List<(Transform, Transform)> _tourPlanets = new List<(Transform, Transform)>();
     private CinemachineTransposer _transposer;
@@ -229,7 +228,7 @@ public class ZoneRenderer : MonoBehaviour
                 AddWormhole(new Wormhole
                 {
                     Target = adjacentZone,
-                    Position = dir * zone.Radius * Settings.WormholeDistanceRatio
+                    Position = AetheriaMath.ToCult(dir * zone.Radius * Settings.WormholeDistanceRatio)
                 });
             }
         }
@@ -360,11 +359,9 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         var beltObject = Instantiate(AsteroidBeltUI, ZoneRoot);
-        var collider = beltObject.GetComponent<MeshCollider>();
         var belt = new AsteroidBeltUI(Zone,
             runtimeBelt,
             beltObject,
-            collider,
             AsteroidSpritesheetWidth,
             AsteroidSpritesheetHeight,
             Settings.MinimapAsteroidSize);
@@ -455,8 +452,8 @@ public class ZoneRenderer : MonoBehaviour
         var maxDepth = 0f;
         foreach (var loot in _loot)
         {
-            loot.ViewOrigin = PerspectiveEntity.Position;
-            loot.ViewDirection = PerspectiveEntity.LookDirection;
+            loot.ViewOrigin = PerspectiveEntity.CultPosition;
+            loot.ViewDirection = PerspectiveEntity.CultLookDirection;
         }
         
         // if (SlimeRenderer.SpawnPositions.Length != _suns.Length)
@@ -528,8 +525,8 @@ public class ZoneRenderer : MonoBehaviour
         {
             if(entityInstance.CompassIcon)
             {
-                var difference = entityInstance.Entity.Position.xz - PerspectiveEntity.Position.xz;
-                var distance = length(difference);
+                var difference = entityInstance.Entity.CultPositionXZ - PerspectiveEntity.CultPositionXZ;
+                var distance = CultMath.math.length(difference);
                 
                 entityInstance.CompassIcon.gameObject.SetActive(
                     PerspectiveEntity.EntityInfoGathered.ContainsKey(entityInstance.Entity) && 
@@ -541,7 +538,7 @@ public class ZoneRenderer : MonoBehaviour
 
         foreach (var wormhole in WormholeInstances.Values)
         {
-            var difference = wormhole.gravity.transform.position.Flatland() - (Vector2)PerspectiveEntity.Position.xz;
+            var difference = wormhole.gravity.transform.position.Flatland() - (Vector2)AetheriaMath.ToUnity(PerspectiveEntity.CultPositionXZ);
             var distance = difference.magnitude;
             wormhole.icon.gameObject.SetActive(distance > _minimapDistance);
             wormhole.icon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
@@ -597,7 +594,6 @@ public class ZoneRenderer : MonoBehaviour
             itemPickup.ScanLabel.color = c;
         }
         else itemPickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
-        gridObject.gameObject.AddComponent<TimedDestroy>().Duration = Settings.PickupLifetime;
         _loot.Add(itemPickup);
     }
 
@@ -623,7 +619,6 @@ public class InstancedMesh
 public class AsteroidBeltUI
 {
     public MeshFilter Filter;
-    private MeshCollider _collider;
     private Vector3[] _vertices;
     private Vector3[] _normals;
     private Vector2[] _uvs;
@@ -637,7 +632,6 @@ public class AsteroidBeltUI
     public AsteroidBeltUI(Zone zone,
         AsteroidBelt belt,
         MeshFilter meshFilter,
-        MeshCollider collider,
         int spritesheetWidth,
         int spritesheetHeight,
         float scale)
@@ -645,7 +639,6 @@ public class AsteroidBeltUI
         _belt = belt;
         _zone = zone;
         Filter = meshFilter;
-        _collider = collider;
         _vertices = new Vector3[_belt.AsteroidCount * 4];
         _normals = new Vector3[_belt.AsteroidCount * 4];
         _uvs = new Vector2[_belt.AsteroidCount * 4];

@@ -1,8 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class ChargedWeapon : InstantWeapon
 {
@@ -30,9 +29,9 @@ public class ChargedWeapon : InstantWeapon
     public override float DamagePerSecond => Damage * _chargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage *
-               _chargeFiringDamageMultiplier *
-               DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) /
+        return EvaluateRangeDamage(range, StatConditionMask.Charge, saturate(_charge)) *
+               lerp(1, _chargeFiringDamageMultiplier, saturate(_charge)) *
+               _chargeFiringDamageMultiplier /
                (Cooldown + ChargeTime);
     }
 
@@ -106,7 +105,8 @@ public class ChargedWeapon : InstantWeapon
         ChargeTime = Evaluate(_chargeTime);
         ChargeEnergy = Evaluate(_chargeEnergy);
         ChargeHeat = Evaluate(_chargeHeat);
-        Damage *= lerp(1, _chargeFiringDamageMultiplier, saturate(_charge));
+        Damage = EvaluateDamage(StatConditionMask.Charge, saturate(_charge)) *
+                 lerp(1, _chargeFiringDamageMultiplier, saturate(_charge));
         Heat *= lerp(1, _chargeFiringHeatMultiplier, saturate(_charge));
         Spread *= lerp(1, _chargeFiringSpreadMultiplier, saturate(_charge));
         BurstCount *= lerp(1, _chargeFiringBurstCountMultiplier, saturate(_charge));

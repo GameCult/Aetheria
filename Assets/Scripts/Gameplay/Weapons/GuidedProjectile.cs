@@ -1,13 +1,8 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
 using Random = UnityEngine.Random;
 using static Noise1D;
-using float3 = Unity.Mathematics.float3;
 
 public class GuidedProjectile : MonoBehaviour
 {
@@ -36,7 +31,7 @@ public class GuidedProjectile : MonoBehaviour
     private Vector3 _previousTargetPosition;
     
     public Transform Target { get; set; }
-    public float3 StartPosition { get; set; }
+    public Vector3 StartPosition { get; set; }
     public float Range { get; set; }
     public Vector3 Velocity { get; set; }
     public float Damage { get; set; }
@@ -52,9 +47,7 @@ public class GuidedProjectile : MonoBehaviour
         _active = _alive = true;
         _phase = Random.value * 100;
         _prevDist = Single.MaxValue;
-        Particles.startColor = Color.white;
-        //var main = Particles.main;
-        //main.startColor = new ParticleSystem.MinMaxGradient { mode = ParticleSystemGradientMode.Color, color = Color.white };
+        SetParticleColor(Color.white);
         Particles.Clear(true);
         Particles.Play(true);
     }
@@ -72,18 +65,18 @@ public class GuidedProjectile : MonoBehaviour
                 StartCoroutine(FadeOut());
                 return;
             }
-            var position = (float3) t.position;
+            var position = t.position;
 
             var targetPosition = TargetPosition?.Invoke() ?? Target.position;
-            _targetVelocity = lerp(_targetVelocity, targetPosition - _previousTargetPosition, saturate(Time.deltaTime * 5));
+            _targetVelocity = Vector3.Lerp(_targetVelocity, targetPosition - _previousTargetPosition, Mathf.Clamp01(Time.deltaTime * 5));
             _previousTargetPosition = targetPosition;
-            targetPosition = AetheriaMath.FirstOrderIntercept(position,float3.zero, TopSpeed, targetPosition, _targetVelocity);
+            targetPosition = AetheriaMath.FirstOrderIntercept(position, Vector3.zero, TopSpeed, targetPosition, _targetVelocity);
 
             var diff = targetPosition - transform.position;
             var targetDist = diff.magnitude;
-            var sourceDist = length(StartPosition.xz - position.xz);
+            var sourceDist = Vector2.Distance(new Vector2(StartPosition.x, StartPosition.z), new Vector2(position.x, position.z));
             
-            if (sourceDist > Range || dot(diff,Velocity) < 0)
+            if (sourceDist > Range || Vector3.Dot(diff, Velocity) < 0)
             {
                 StartCoroutine(FadeOut());
                 if (HitEffect != null)
@@ -98,8 +91,8 @@ public class GuidedProjectile : MonoBehaviour
             var targetDistFlat = diff.Flatland().magnitude;
             var curveLerp = 1 - targetDistFlat / (sourceDist + targetDistFlat);
             var dir = diff.normalized;
-            var right = cross(dir, float3(0, 1, 0));
-            var up = cross(dir, right);
+            var right = Vector3.Cross(dir, Vector3.up);
+            var up = Vector3.Cross(dir, right);
 
             if (Children > 0 && SplitTime < curveLerp)
             {
@@ -108,9 +101,9 @@ public class GuidedProjectile : MonoBehaviour
                     var child = ChildProjectile.Instantiate<GuidedProjectile>();
                     child.transform.position = t.position;
                     child.StartPosition = StartPosition;
-                    var randomDirection = normalize(Random.insideUnitCircle);
+                    var randomDirection = Random.insideUnitCircle.normalized;
                     var perpendicularRandom = randomDirection.x * right + randomDirection.y * up;
-                    child.Velocity = normalize(lerp(perpendicularRandom, dir, SplitSeparationForwardness)) * length(Velocity) * SplitSeparationVelocity;
+                    child.Velocity = Vector3.Lerp(perpendicularRandom, dir, SplitSeparationForwardness).normalized * Velocity.magnitude * SplitSeparationVelocity;
                     child.Range = Range;
                     child.Damage = Damage / Children;
                     child.Penetration = Penetration;
@@ -135,56 +128,53 @@ public class GuidedProjectile : MonoBehaviour
                 }
             }
             
-            var dodge = normalize(lerp(
-                normalize(right * noise(Time.time * Frequency + _phase) + up * noise(Time.time * Frequency + (100 + _phase))),
-                Vector3.up, LiftCurve.Evaluate(curveLerp)));
+            var dodge = Vector3.Lerp(
+                (right * noise(Time.time * Frequency + _phase) + up * noise(Time.time * Frequency + (100 + _phase))).normalized,
+                Vector3.up,
+                LiftCurve.Evaluate(curveLerp)).normalized;
             var desired = Vector3.Slerp(dodge, dir, GuidanceCurve.Evaluate(curveLerp)).normalized * TopSpeed;
             var thrustCurve = ThrustCurve.Evaluate(curveLerp);
             var thrust = Thrust * thrustCurve;
             var c = Color.white * thrustCurve;
             c.a = 1;
-            Particles.startColor = c;
+            SetParticleColor(c);
             Velocity += (desired-Velocity).normalized * (thrust * Time.deltaTime);
         }
 
         if(_alive)
         {
-            var ray = new Ray(t.position, Velocity);
-            foreach (var hit in Physics.RaycastAll(ray, Velocity.magnitude * Time.deltaTime, 1 | (1 << 17)))
+            if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
+                    ActionGameManager.Instance?.ZoneRenderer,
+                    SourceEntity,
+                    t.position,
+                    Velocity,
+                    Velocity.magnitude * Time.deltaTime,
+                    0,
+                    out var hits) &&
+                hits.Count > 0)
             {
-                var shield = hit.collider.GetComponent<ShieldManager>();
-                if (shield)
+                var hit = hits[0];
+                var hull = hit.Hull;
+                var entity = hull.Entity;
+                if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
-                    if (shield.Entity != SourceEntity)
-                    {
-                        shield.Entity.Shield.TakeHit(DamageType, Damage);
-                        shield.ShowHit(hit.point, sqrt(Damage));
-                    }
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
                 }
-                var hull = hit.collider.GetComponent<HullCollider>();
-                if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
+                else
                 {
-                    if (hull.Entity != SourceEntity)
-                    {
-                        hull.SendHit(Damage, Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, transform.forward);
-                        transform.position = hit.point;
-                        StartCoroutine(Kill());
-                    }
                 }
-                else// if (hit.transform.gameObject.layer == 1)
-                {
-                    StartCoroutine(Kill());
-                    return;
-                }
+
+                transform.position = hit.Point;
+                StartCoroutine(Kill());
                 
                 if (HitEffect != null)
                 {
                     var ht = HitEffect.Instantiate<Transform>();
-                    ht.SetParent(hit.collider.transform);
-                    ht.position = hit.point;
-                    return;
+                    ht.SetParent(hull.transform);
+                    ht.position = hit.Point;
                 }
+
+                return;
             }
 
             t.position += Velocity * Time.deltaTime;
@@ -200,13 +190,17 @@ public class GuidedProjectile : MonoBehaviour
             var lerp = 1 - (Time.time - startTime) / FadeOutTime;
             var c = Color.white * lerp;
             c.a = 1;
-            Particles.startColor = c;
-            //var main = Particles.main;
-            //main.startColor = new ParticleSystem.MinMaxGradient { mode = ParticleSystemGradientMode.Color, color = Color.white * lerp };
+            SetParticleColor(c);
             yield return null;
         }
 
         StartCoroutine(Kill());
+    }
+
+    private void SetParticleColor(Color color)
+    {
+        var main = Particles.main;
+        main.startColor = color;
     }
 
     IEnumerator Kill()

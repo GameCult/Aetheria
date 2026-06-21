@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 
 public class LoadoutGenerator
 {
@@ -170,8 +168,8 @@ public class LoadoutGenerator
                             ? allegiance / ManufacturerDistancePenalty(manufacturerKey)
                             : 0;
                 return allegianceWeight *
-                       pow(item.OccupiedCells, sizeExponent) / // Prioritize larger items
-                       pow(item.Price, PriceExponent); // Penalize item price to a controllable degree
+                       MathF.Pow(item.OccupiedCells, sizeExponent) / // Prioritize larger items
+                       MathF.Pow(item.Price, PriceExponent); // Penalize item price to a controllable degree
             },
                 count
             );
@@ -289,7 +287,7 @@ public class LoadoutGenerator
         var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
         foreach (var cell in cells)
         {
-            shape[int2(cell.X, cell.Y)] = true;
+            shape.SetCell(cell.X, cell.Y, true);
         }
 
         return shape;

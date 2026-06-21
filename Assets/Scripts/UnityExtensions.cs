@@ -36,7 +36,7 @@ public static class UnitySceneExtensions
 	}
 	
 	public static void BroadcastAll(string fun, System.Object msg) {
-		GameObject[] gos = (GameObject[])GameObject.FindObjectsOfType(typeof(GameObject));
+		var gos = GameObject.FindObjectsByType<GameObject>();
 		foreach (GameObject go in gos) {
 			if (go && go.transform.parent == null) {
 				go.gameObject.BroadcastMessageExt<MonoBehaviour>(fun, msg, SendMessageOptions.DontRequireReceiver);

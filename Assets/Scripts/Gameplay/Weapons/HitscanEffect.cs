@@ -1,7 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using static Unity.Mathematics.math;
 
 public class HitscanEffect : MonoBehaviour
 {
@@ -27,45 +24,47 @@ public class HitscanEffect : MonoBehaviour
     {
         _startTime = Time.time;
         var hitFound = false;
-        var ray = new Ray(transform.position, transform.forward);
-        foreach (var hit in Physics.RaycastAll(ray, Range, 1 | (1 << 17)))
+        if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
+                ActionGameManager.Instance?.ZoneRenderer,
+                SourceEntity,
+                transform.position,
+                transform.forward,
+                Range,
+                0,
+                out var hits))
         {
-            var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield)
+            foreach (var hit in hits)
             {
-                if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
-                if (shield.Entity != SourceEntity)
+                var hull = hit.Hull;
+                var entity = hull.Entity;
+                if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    shield.Entity.Shield.TakeHit(DamageType, Damage);
-                    shield.ShowHit(hit.point, sqrt(Damage));
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
                     hitFound = true;
                 }
-            }
-            var hull = hit.collider.GetComponent<HullCollider>();
-            if (hull)
-            {
-                if (hull.Entity != SourceEntity)
+                else
                 {
-                    hull.SendHit(Damage, Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, transform.forward);
                     hitFound = true;
                 }
-            }
                 
-            if (hitFound && HitEffect != null)
-            {
-                var ht = HitEffect.Instantiate<Transform>();
-                ht.SetParent(hit.collider.transform);
-                ht.position = hit.point;
+                if (hitFound && HitEffect != null)
+                {
+                    var ht = HitEffect.Instantiate<Transform>();
+                    ht.SetParent(hull.transform);
+                    ht.position = hit.Point;
+                }
+
+                var length = (hit.Point - transform.position).magnitude;
+                Line.SetPosition(1, Vector3.forward * length);
+                var emission = LineEffect.emission;
+                emission.rateOverTimeMultiplier = length;
+                var shape = LineEffect.shape;
+                shape.position = Vector3.forward * (length / 2);
+                shape.scale = Vector3.one * (length / 2);
+                break;
             }
-            
-            var length = (hit.point - transform.position).magnitude;
-            Line.SetPosition(1, Vector3.forward * length);
-            var emission = LineEffect.emission;
-            emission.rateOverTimeMultiplier = length;
-            var shape = LineEffect.shape;
-            shape.position = Vector3.forward * (length / 2);
-            shape.scale = Vector3.one * (length / 2);
         }
+
         if(!hitFound)
         {
             Line.SetPosition(1, Vector3.forward * Range);

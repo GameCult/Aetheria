@@ -2,9 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
-using Unity.Mathematics;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using cfloat3 = CultMath.float3;
 
 public class GuidedProjectileManager : InstantWeaponEffectManager
 {
@@ -64,7 +63,13 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Velocity = barrel.forward * weapon.Velocity;
             p.Thrust = weapon.EvaluateGuidedProjectileThrust();
             p.TopSpeed = weapon.EvaluateGuidedProjectileVelocity();
-            p.TargetPosition = () => source.Entity.Position + length( (float3)source.LookAtPoint.position - source.Entity.Position) * source.Entity.LookDirection;
+            p.TargetPosition = () =>
+            {
+                var lookPosition = source.LookAtPoint.position;
+                var lookPoint = new cfloat3(lookPosition.x, lookPosition.y, lookPosition.z);
+                var lookDistance = CultMath.math.length(lookPoint - source.Entity.CultPosition);
+                return (Vector3)AetheriaMath.ToUnity(source.Entity.CultPosition + lookDistance * source.Entity.CultLookDirection);
+            };
         }
     }
 }

@@ -5,7 +5,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
+using float3 = CultMath.float3;
 
 public class Faction : INamedEntry
 {

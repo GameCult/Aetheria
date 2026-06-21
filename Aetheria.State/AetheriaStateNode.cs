@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
@@ -207,6 +208,164 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             new CultRecordKey(AetheriaProviderAdvertisementProjector.AdvertisementKey));
     }
 
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument>> PutDaemonProviderAdvertisementAsync(
+        AetheriaRuntimeDaemonProviderAdvertisementDocument advertisement)
+    {
+        return Database.PutAsync(new CultRecordKey("daemon:aetheria.provider_advertisement.v1"), advertisement);
+    }
+
+    public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetDaemonProviderAdvertisementAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
+            new CultRecordKey("daemon:aetheria.provider_advertisement.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonHealthDocument>> PutDaemonHealthAsync(
+        AetheriaRuntimeDaemonHealthDocument health)
+    {
+        return Database.PutAsync(new CultRecordKey("daemon:aetheria.health.v1"), health);
+    }
+
+    public Task<AetheriaRuntimeDaemonHealthDocument?> GetDaemonHealthAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeDaemonHealthDocument>(
+            new CultRecordKey("daemon:aetheria.health.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonCommandBoundaryDocument>> PutDaemonCommandBoundaryAsync(
+        AetheriaRuntimeDaemonCommandBoundaryDocument boundary)
+    {
+        return Database.PutAsync(new CultRecordKey("daemon:aetheria.command_boundary.v1"), boundary);
+    }
+
+    public Task<AetheriaRuntimeDaemonCommandBoundaryDocument?> GetDaemonCommandBoundaryAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>(
+            new CultRecordKey("daemon:aetheria.command_boundary.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonCommandDocument>> SubmitDaemonCommandAsync(
+        AetheriaRuntimeDaemonCommandDocument command)
+    {
+        if (command == null) throw new ArgumentNullException(nameof(command));
+        command.Schema = AetheriaRuntimeDaemonSchemas.Command;
+        if (string.IsNullOrWhiteSpace(command.CommandId))
+            command.CommandId = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(command.IssuedAtUtc))
+            command.IssuedAtUtc = DateTime.UtcNow.ToString("O");
+
+        return Database.PutAsync(DaemonCommandKey(command.CommandId), command);
+    }
+
+    public IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> ReadObservedDaemonCommands()
+    {
+        return Cache
+            .GetAll<AetheriaRuntimeDaemonCommandDocument>()
+            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static CultRecordKey DaemonCommandKey(string commandId)
+    {
+        return new CultRecordKey($"daemon:commands:{StableToken(commandId)}:gamecult.aetheria.daemon_command.v1");
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeEveCommandDocument>> SubmitEveCommandAsync(
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        if (command == null) throw new ArgumentNullException(nameof(command));
+        command.Schema = AetheriaRuntimeEveCommandDocument.SchemaId;
+        if (string.IsNullOrWhiteSpace(command.CommandId))
+            command.CommandId = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(command.IssuedAtUtc))
+            command.IssuedAtUtc = DateTime.UtcNow.ToString("O");
+
+        return Database.PutAsync(EveCommandKey(command.CommandId), command);
+    }
+
+    public IReadOnlyList<AetheriaRuntimeEveCommandDocument> ReadObservedEveCommands()
+    {
+        return Cache
+            .GetAll<AetheriaRuntimeEveCommandDocument>()
+            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static CultRecordKey EveCommandKey(string commandId)
+    {
+        return new CultRecordKey($"eve:commands:{StableToken(commandId)}:gamecult.eve.command.v1");
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonFrameDocument>> PutDaemonFrameAsync(
+        AetheriaRuntimeDaemonFrameDocument frame)
+    {
+        return Database.PutAsync(new CultRecordKey("daemon:aetheria.frame.latest.v1"), frame);
+    }
+
+    public Task<AetheriaRuntimeDaemonFrameDocument?> GetDaemonFrameAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeDaemonFrameDocument>(
+            new CultRecordKey("daemon:aetheria.frame.latest.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeDaemonSoaViewDocument>> PutDaemonSoaViewAsync(
+        AetheriaRuntimeDaemonSoaViewDocument view)
+    {
+        return Database.PutAsync(new CultRecordKey("daemon:aetheria.soa_view.latest.v1"), view);
+    }
+
+    public Task<AetheriaRuntimeDaemonSoaViewDocument?> GetDaemonSoaViewAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeDaemonSoaViewDocument>(
+            new CultRecordKey("daemon:aetheria.soa_view.latest.v1"));
+    }
+
+    public Task<CultRecordHandle<EveSurfaceState>> PutDaemonGameSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonGameSurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(
+            new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonGameSurfaceKey));
+    }
+
+    public Task<CultRecordHandle<EveSurfaceState>> PutDaemonGameTuiSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonGameTuiSurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetDaemonGameTuiSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(
+            new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonGameTuiSurfaceKey));
+    }
+
+    public Task<CultRecordHandle<EveSurfaceState>> PutDaemonEditorSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonEditorSurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetDaemonEditorSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(
+            new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonEditorSurfaceKey));
+    }
+
+    public Task<CultRecordHandle<EveSurfaceState>> PutDaemonEditorTuiSurfaceAsync(EveSurfaceState surface)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonEditorTuiSurfaceKey), surface);
+    }
+
+    public Task<EveSurfaceState?> GetDaemonEditorTuiSurfaceAsync()
+    {
+        return Database.GetAsync<EveSurfaceState>(
+            new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonEditorTuiSurfaceKey));
+    }
+
     public Task<CultRecordHandle<AetheriaRuntimeSession>> PutRuntimeSessionAsync(AetheriaRuntimeSession session)
     {
         return Database.PutAsync(new CultRecordKey($"runtime:{session.RuntimeId}:aetheria.runtime_session.v1"), session);
@@ -284,33 +443,35 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             new CultRecordKey("global:aetheria.verse_host_settings.v1"));
     }
 
-    public Task<CultRecordHandle<AetheriaRuntimeCommitDrainStatus>> PutRuntimeCommitDrainStatusAsync(
-        AetheriaRuntimeCommitDrainStatus status)
+    public Task<CultRecordHandle<AetheriaEveCommandAcceptanceStatus>> PutEveCommandAcceptanceStatusAsync(
+        AetheriaEveCommandAcceptanceStatus status)
     {
-        return Database.PutAsync(new CultRecordKey("global:aetheria.runtime_commit_drain_status.v1"), status);
+        return Database.PutAsync(new CultRecordKey("global:aetheria.eve_command_acceptance_status.v1"), status);
     }
 
-    public Task<AetheriaRuntimeCommitDrainStatus?> GetRuntimeCommitDrainStatusAsync()
+    public Task<AetheriaEveCommandAcceptanceStatus?> GetEveCommandAcceptanceStatusAsync()
     {
-        return Database.GetAsync<AetheriaRuntimeCommitDrainStatus>(
-            new CultRecordKey("global:aetheria.runtime_commit_drain_status.v1"));
-    }
-
-    public Task<CultRecordHandle<AetheriaEveCommandDrainStatus>> PutEveCommandDrainStatusAsync(
-        AetheriaEveCommandDrainStatus status)
-    {
-        return Database.PutAsync(new CultRecordKey("global:aetheria.eve_command_drain_status.v1"), status);
-    }
-
-    public Task<AetheriaEveCommandDrainStatus?> GetEveCommandDrainStatusAsync()
-    {
-        return Database.GetAsync<AetheriaEveCommandDrainStatus>(
-            new CultRecordKey("global:aetheria.eve_command_drain_status.v1"));
+        return Database.GetAsync<AetheriaEveCommandAcceptanceStatus>(
+            new CultRecordKey("global:aetheria.eve_command_acceptance_status.v1"));
     }
 
     public Task FlushAsync(bool soft = false)
     {
         return _node.FlushAsync(soft);
+    }
+
+    private static string StableToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "empty";
+
+        var chars = value
+            .Select(character => char.IsLetterOrDigit(character) ? character : '-')
+            .ToArray();
+        var token = new string(chars).Trim('-').ToLowerInvariant();
+        while (token.Contains("--", StringComparison.Ordinal))
+            token = token.Replace("--", "-", StringComparison.Ordinal);
+        return string.IsNullOrWhiteSpace(token) ? "empty" : token;
     }
 
     public void Dispose()

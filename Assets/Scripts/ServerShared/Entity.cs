@@ -7,9 +7,35 @@ using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Unity;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using bool2 = CultMath.bool2;
+using cfloat2 = CultMath.float2;
+using cfloat3 = CultMath.float3;
+using float2 = Unity.Mathematics.float2;
+using float3 = Unity.Mathematics.float3;
 using int2 = Unity.Mathematics.int2;
+
+internal static class AetheriaScalar
+{
+    public static float Clamp(float value, float min, float max)
+    {
+        return value < min ? min : value > max ? max : value;
+    }
+
+    public static float Lerp(float from, float to, float t)
+    {
+        return from + (to - from) * t;
+    }
+
+    public static float Unlerp(float from, float to, float value)
+    {
+        return Math.Abs(to - from) <= 0.000001f ? 0 : (value - from) / (to - from);
+    }
+
+    public static float Saturate(float value)
+    {
+        return Clamp(value, 0, 1);
+    }
+}
 
 public abstract class Entity
 {
@@ -19,8 +45,38 @@ public abstract class Entity
     public EquippedItem EquippedHull;
     
     public float3 Position;
-    public float2 Direction = float2(0,1);
+    public float2 Direction = new float2(0,1);
     public float2 Velocity;
+
+    public cfloat3 CultPosition
+    {
+        get => AetheriaMath.ToCult(Position);
+        set => Position = AetheriaMath.ToUnity(value);
+    }
+
+    public cfloat2 CultPositionXZ
+    {
+        get => AetheriaMath.ToCultXZ(Position);
+        set => Position.xz = AetheriaMath.ToUnity(value);
+    }
+
+    public float CultPositionY
+    {
+        get => Position.y;
+        set => Position.y = value;
+    }
+
+    public cfloat2 CultDirection
+    {
+        get => AetheriaMath.ToCult(Direction);
+        set => Direction = AetheriaMath.ToUnity(value);
+    }
+
+    public cfloat2 CultVelocity
+    {
+        get => AetheriaMath.ToCult(Velocity);
+        set => Velocity = AetheriaMath.ToUnity(value);
+    }
     
     public float[,] Temperature;
     public float[,] NewTemperature;
@@ -40,6 +96,18 @@ public abstract class Entity
     public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
 
     public float3 LookDirection;
+
+    public cfloat3 CultLookDirection
+    {
+        get => AetheriaMath.ToCult(LookDirection);
+        set => LookDirection = AetheriaMath.ToUnity(value);
+    }
+
+    public cfloat2 CultLookDirectionXZ
+    {
+        get => AetheriaMath.ToCultXZ(LookDirection);
+        set => LookDirection = AetheriaMath.ToUnityXZ(value);
+    }
     
     public string Name;
     
@@ -47,9 +115,9 @@ public abstract class Entity
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
-    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>(); 
-    public readonly Dictionary<HardpointData, (float3 position, float3 direction)> HardpointTransforms = 
-        new Dictionary<HardpointData, (float3 position, float3 direction)>();
+    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
+    public readonly Dictionary<HardpointData, (cfloat3 position, cfloat3 direction)> HardpointTransforms =
+        new Dictionary<HardpointData, (cfloat3 position, cfloat3 direction)>();
     
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
 
@@ -94,6 +162,11 @@ public abstract class Entity
     public bool Active
     {
         get => _active;
+    }
+
+    public void RestoreActiveState(bool active)
+    {
+        _active = active;
     }
     
     public IEnumerable<Weapon> Weapons
@@ -317,8 +390,8 @@ public abstract class Entity
 
     public void RestoreThermalExposure(float heatstroke, float hypothermia)
     {
-        Heatstroke = saturate(heatstroke);
-        Hypothermia = saturate(hypothermia);
+        Heatstroke = AetheriaScalar.Saturate(heatstroke);
+        Hypothermia = AetheriaScalar.Saturate(hypothermia);
     }
 
     public void RestoreActiveConsumable(ConsumableItem item, float remainingDuration, float duration)
@@ -436,7 +509,7 @@ public abstract class Entity
             throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.ItemKey}");
 
         var hullShape = GetHullShape(typedHull);
-        EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
+        EquippedHull = new EquippedItem(ItemManager, Hull, new int2(0, 0), this);
         Equipment.Add(EquippedHull);
         Mass = ItemManager.GetMass(Hull);
         Temperature = new float[hullShape.Width, hullShape.Height];
@@ -546,7 +619,7 @@ public abstract class Entity
 
             if (itemInstance is SimpleCommodity simpleCommodity)
             {
-                var targetQuantity = min(simpleCommodity.Quantity, quantity - quantityTransferred);
+                var targetQuantity = Math.Min(simpleCommodity.Quantity, quantity - quantityTransferred);
                 if (!target.CargoBays.Any(c => originInventory.TryTransferItem(c, simpleCommodity, targetQuantity)))
                 {
                     quantityTransferred += targetQuantity - simpleCommodity.Quantity;
@@ -714,7 +787,7 @@ public abstract class Entity
         if (cells == null) return shape;
 
         foreach (var cell in cells)
-            shape[new int2(cell.X, cell.Y)] = true;
+            shape.SetCell(cell.X, cell.Y, true);
 
         return shape;
     }
@@ -801,14 +874,14 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active)
         {
-            hullCoord = int2.zero;
+            hullCoord = new int2(0, 0);
             return false;
         }
         var typedItem = ItemManager.GetRuntimeItem(item);
         var typedHull = ItemManager.GetRuntimeItem(Hull);
         if (typedItem == null || typedHull == null)
         {
-            hullCoord = int2.zero;
+            hullCoord = new int2(0, 0);
             return false;
         }
 
@@ -850,7 +923,7 @@ public abstract class Entity
             }
         }
         
-        hullCoord = int2.zero;
+        hullCoord = new int2(0, 0);
         return false;
     }
 
@@ -989,7 +1062,7 @@ public abstract class Entity
             {
                 if(cap.Charge > 0.01f)
                 {
-                    var chargeRemoved = min(chargeToRemove / chargedCapacitors, cap.Charge);
+                    var chargeRemoved = Math.Min(chargeToRemove / chargedCapacitors, cap.Charge);
                     cap.AddCharge(-chargeRemoved);
                     energy -= chargeRemoved;
                 }
@@ -1058,9 +1131,9 @@ public abstract class Entity
 
     public virtual void Update(float delta)
     {
-        TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
+        TargetRange = Target.Value == null ? -1 : CultMath.math.length(CultPosition - Target.Value.CultPosition);
 
-        var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
+        var localSecurityLevel = Zone.GetSecurityLevel(CultPositionXZ);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;
 
         foreach (var v in VisibilitySources.Keys.ToArray())
@@ -1090,9 +1163,9 @@ public abstract class Entity
                 if (cockpitTemp > ItemManager.GameplaySettings.HeatstrokeTemperature)
                 {
                     var previous = Heatstroke;
-                    Heatstroke = saturate(
+                    Heatstroke = AetheriaScalar.Saturate(
                         Heatstroke +
-                        pow(cockpitTemp - ItemManager.GameplaySettings.HeatstrokeTemperature, ItemManager.GameplaySettings.HeatstrokeExponent) *
+                        MathF.Pow(cockpitTemp - ItemManager.GameplaySettings.HeatstrokeTemperature, ItemManager.GameplaySettings.HeatstrokeExponent) *
                         ItemManager.GameplaySettings.HeatstrokeMultiplier * delta);
                     if(previous < ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold && Heatstroke > ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold)
                         HeatstrokeRisk.OnNext(Unit.Default);
@@ -1104,15 +1177,15 @@ public abstract class Entity
                 }
                 else
                 {
-                    Heatstroke = saturate(Heatstroke - ItemManager.GameplaySettings.HeatstrokeRecoverySpeed * delta);
+                    Heatstroke = AetheriaScalar.Saturate(Heatstroke - ItemManager.GameplaySettings.HeatstrokeRecoverySpeed * delta);
                 }
 
                 if (cockpitTemp < ItemManager.GameplaySettings.HypothermiaTemperature)
                 {
                     var previous = Hypothermia;
-                    Hypothermia = saturate(
+                    Hypothermia = AetheriaScalar.Saturate(
                         Hypothermia +
-                        pow(ItemManager.GameplaySettings.HypothermiaTemperature - cockpitTemp, ItemManager.GameplaySettings.HypothermiaExponent) *
+                        MathF.Pow(ItemManager.GameplaySettings.HypothermiaTemperature - cockpitTemp, ItemManager.GameplaySettings.HypothermiaExponent) *
                         ItemManager.GameplaySettings.HypothermiaMultiplier * delta);
                     if(previous < ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold && Heatstroke > ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold)
                         HypothermiaRisk.OnNext(Unit.Default);
@@ -1124,7 +1197,7 @@ public abstract class Entity
                 }
                 else
                 {
-                    Hypothermia = saturate(Hypothermia - ItemManager.GameplaySettings.HypothermiaRecoverySpeed * delta);
+                    Hypothermia = AetheriaScalar.Saturate(Hypothermia - ItemManager.GameplaySettings.HypothermiaRecoverySpeed * delta);
                 }
             }
 
@@ -1151,10 +1224,10 @@ public abstract class Entity
 
         if (Parent != null)
         {
-            Position = Parent.Position;
-            Velocity = Parent.Velocity;
+            CultPosition = Parent.CultPosition;
+            CultVelocity = Parent.CultVelocity;
         }
-        else Position.y = Zone.GetHeight(Position.xz) + (float)(ItemManager.GetRuntimeItem(Hull)?.HullGridOffset ?? 0);
+        else CultPositionY = Zone.GetHeight(CultPositionXZ) + (float)(ItemManager.GetRuntimeItem(Hull)?.HullGridOffset ?? 0);
     }
 
     private void UpdateTemperature(float delta)
@@ -1175,7 +1248,7 @@ public abstract class Entity
             var totalTemp = temp / ItemManager.GameplaySettings.HeatConductionMultiplier;
             var totalConductivity = 1f / ItemManager.GameplaySettings.HeatConductionMultiplier;
             
-            if (hullShape[int2(v.x - 1, v.y)])
+            if (hullShape.GetCell(v.x - 1, v.y))
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x - 1, v.y]?.Conductivity ?? 1) *
@@ -1185,7 +1258,7 @@ public abstract class Entity
                 totalTemp += Temperature[v.x - 1, v.y] * conductivity;
             }
 
-            if (hullShape[int2(v.x + 1, v.y)])
+            if (hullShape.GetCell(v.x + 1, v.y))
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x + 1, v.y]?.Conductivity ?? 1) *
@@ -1196,7 +1269,7 @@ public abstract class Entity
             }
 
 
-            if (hullShape[int2(v.x, v.y - 1)])
+            if (hullShape.GetCell(v.x, v.y - 1))
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y - 1]?.Conductivity ?? 1) * 
@@ -1207,7 +1280,7 @@ public abstract class Entity
             }
 
 
-            if (hullShape[int2(v.x, v.y + 1)])
+            if (hullShape.GetCell(v.x, v.y + 1))
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y + 1]?.Conductivity ?? 1) * 
@@ -1223,7 +1296,7 @@ public abstract class Entity
             // For all cells on the border of the entity, radiate some heat into space, increasing the visibility of the ship
             if (Parent==null && !hullInterior[v])
             {
-                var rad = pow(NewTemperature[v.x, v.y], ItemManager.GameplaySettings.HeatRadiationExponent) *
+                var rad = MathF.Pow(NewTemperature[v.x, v.y], ItemManager.GameplaySettings.HeatRadiationExponent) *
                           ItemManager.GameplaySettings.HeatRadiationMultiplier;
                 NewTemperature[v.x, v.y] -= rad * delta;
                 r += rad;
@@ -1278,7 +1351,7 @@ public class ConsumableItemEffect
         _duration = duration.GetValueOrDefault(RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0);
         _effectiveness = CreateEffectivenessCurve(RuntimeItem);
         RemainingDuration = remainingDuration.HasValue
-            ? clamp(remainingDuration.Value, 0, Duration)
+            ? AetheriaScalar.Clamp(remainingDuration.Value, 0, Duration)
             : _duration;
 
         Behaviors = entity.ItemManager.CreateRuntimeBehaviors(this);
@@ -1300,37 +1373,101 @@ public class ConsumableItemEffect
 
     public float Evaluate(PerformanceStat stat)
     {
+        if (stat == null)
+            return 0;
+
         var duration = Math.Max(_duration, float.Epsilon);
         var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
-        var quality = pow(Item.Quality, stat.QualityExponent);
-
-        var result = lerp(stat.Min, stat.Max, effectiveness * quality);
+        var result = stat.EvaluateConsumableBaseline(new StatEvaluationContext(
+            quality: Item.Quality,
+            durability: effectiveness,
+            heat: 1));
         
         if (float.IsNaN(result))
             return stat.Min;
         return result;
     }
 
+    public float Evaluate(PerformanceStat stat, StatConditionMask condition, float value)
+    {
+        if (stat == null)
+            return 0;
+
+        if ((GetDependencyMask(stat) & condition) == 0)
+            return Evaluate(stat);
+
+        var duration = Math.Max(_duration, float.Epsilon);
+        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
+        var context = new StatEvaluationContext(
+            quality: Item.Quality,
+            durability: effectiveness,
+            heat: 1).WithCondition(condition, value);
+
+        var result = stat.EvaluateRecipeOrLegacy(
+            context,
+            durabilityExponent: 1,
+            thermalExponent: 0,
+            includeHeat: false);
+
+        if (float.IsNaN(result))
+            return stat.Min;
+        return result;
+    }
+
+    public float Evaluate(
+        PerformanceStat stat,
+        StatConditionMask firstCondition,
+        float firstValue,
+        StatConditionMask secondCondition,
+        float secondValue)
+    {
+        if (stat == null)
+            return 0;
+
+        var dependencyMask = GetDependencyMask(stat);
+        if ((dependencyMask & (firstCondition | secondCondition)) == 0)
+            return Evaluate(stat);
+
+        var duration = Math.Max(_duration, float.Epsilon);
+        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
+        var context = new StatEvaluationContext(
+                quality: Item.Quality,
+                durability: effectiveness,
+                heat: 1)
+            .WithCondition(firstCondition, firstValue)
+            .WithCondition(secondCondition, secondValue);
+
+        var result = stat.EvaluateRecipeOrLegacy(
+            context,
+            durabilityExponent: 1,
+            thermalExponent: 0,
+            includeHeat: false);
+
+        if (float.IsNaN(result))
+            return stat.Min;
+        return result;
+    }
+
+    private static StatConditionMask GetDependencyMask(PerformanceStat stat)
+    {
+        return stat?.GetDependencyMask(includeHeat: false) ?? StatConditionMask.None;
+    }
+
     private static BezierCurve CreateEffectivenessCurve(AetheriaRuntimeCatalogItem item)
     {
         if (item?.EffectivenessCurveKeys != null && item.EffectivenessCurveKeys.Count > 0)
         {
-            return new BezierCurve
-            {
-                Keys = item.EffectivenessCurveKeys
-                    .Select(key => new float4(
+            return BezierCurve.FromKeys(
+                item.EffectivenessCurveKeys
+                    .Select(key => (
                         (float)key.Time,
                         (float)key.Value,
                         (float)key.InTangent,
                         (float)key.OutTangent))
-                    .ToArray()
-            };
+            );
         }
 
-        return new BezierCurve
-        {
-            Keys = new[] { new float4(0, 1, 0, 0), new float4(1, 1, 0, 0) }
-        };
+        return BezierCurve.FromKeys(new[] { (0f, 1f, 0f, 0f), (1f, 1f, 0f, 0f) });
     }
 }
 
@@ -1371,6 +1508,26 @@ public class EquippedItem
 
     private readonly BezierCurve _thermalPerformanceCurve;
     private readonly EquippedItemAudioStatBinding[] _audioStats;
+    private readonly Dictionary<PerformanceStat, EquippedItemBaseStatCacheEntry> _baseStatCache =
+        new Dictionary<PerformanceStat, EquippedItemBaseStatCacheEntry>();
+    private readonly Dictionary<PerformanceStat, EquippedItemStatCacheEntry> _statCache =
+        new Dictionary<PerformanceStat, EquippedItemStatCacheEntry>();
+    private int _qualityVersion;
+    private int _durabilityVersion;
+    private int _thermalVersion;
+    private int _chargeVersion;
+    private int _ammoVersion;
+    private int _rangeVersion;
+    private int _integrityVersion;
+    private int _pilotSkillVersion;
+    private int _environmentVersion;
+    private float _lastQuality;
+    private float _statCharge;
+    private float _statAmmo;
+    private float _statRange;
+    private float _statIntegrity;
+    private float _statPilotSkill;
+    private float _statEnvironment;
     private float oldTemperature;
     public float Temperature
     {
@@ -1465,14 +1622,15 @@ public class EquippedItem
         ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : 1;
         _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
         _audioStats = CreateAudioStatBindings(RuntimeItem);
-        ThermalExponent = lerp(
+        ThermalExponent = AetheriaScalar.Lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
-        DurabilityExponent = lerp(
+            MathF.Pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
+        DurabilityExponent = AetheriaScalar.Lerp(
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+            MathF.Pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+        _lastQuality = item.Quality;
         var hullShape = ItemManager.GetRuntimeShape(entity.Hull);
         var itemShape = ItemManager.GetRuntimeShape(item);
         InsetShape = hullShape.Inset(itemShape, position, item.Rotation);
@@ -1503,23 +1661,181 @@ public class EquippedItem
         }
     }
 
+    internal void RegisterPerformanceStat(string behaviorKind, string statName, PerformanceStat stat)
+    {
+        if (stat == null || string.IsNullOrWhiteSpace(statName))
+            return;
+
+        if (!_statCache.TryGetValue(stat, out var entry))
+        {
+            _statCache[stat] = new EquippedItemStatCacheEntry(stat, GetDependencyMask(stat));
+        }
+        else
+        {
+            entry.Stat = stat;
+            entry.DependencyMask = GetDependencyMask(stat);
+            entry.Dirty = true;
+        }
+    }
+
+    public float Evaluate(string behaviorKind, string statName, PerformanceStat stat)
+    {
+        RegisterPerformanceStat(behaviorKind, statName, stat);
+        return Evaluate(stat);
+    }
+
     public float Evaluate(PerformanceStat stat)
     {
-        var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
-        var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(EquippableItem.Quality, stat.QualityExponent);
+        if (stat == null)
+        {
+            return 0;
+        }
 
-        var scaleModifier = 1.0f;
-        var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
-        foreach (var value in scaleModifiers) scaleModifier *= value;
+        if (_statCache.TryGetValue(stat, out var entry))
+        {
+            return EvaluateCachedStat(entry);
+        }
 
-        float constantModifier = 0;
-        foreach (var value in stat.GetConstantModifiers(Entity).Values) constantModifier += value;
+        return EvaluateUncached(stat);
+    }
 
-        var result = lerp(stat.Min, stat.Max, durability * quality * heat) * scaleModifier + constantModifier;
+    public float Evaluate(PerformanceStat stat, StatConditionMask condition, float value)
+    {
+        if (stat == null)
+            return 0;
+
+        var dependencyMask = GetDependencyMask(stat);
+        if ((dependencyMask & condition) == 0)
+            return Evaluate(stat);
+
+        return EvaluateWithContext(stat, CreateStatEvaluationContext().WithCondition(condition, value));
+    }
+
+    public float Evaluate(
+        PerformanceStat stat,
+        StatConditionMask firstCondition,
+        float firstValue,
+        StatConditionMask secondCondition,
+        float secondValue)
+    {
+        if (stat == null)
+            return 0;
+
+        var dependencyMask = GetDependencyMask(stat);
+        if ((dependencyMask & (firstCondition | secondCondition)) == 0)
+            return Evaluate(stat);
+
+        var context = CreateStatEvaluationContext()
+            .WithCondition(firstCondition, firstValue)
+            .WithCondition(secondCondition, secondValue);
+        return EvaluateWithContext(stat, context);
+    }
+
+    private float EvaluateCachedStat(EquippedItemStatCacheEntry entry)
+    {
+        var stamp = BuildCacheStamp(entry.DependencyMask);
+        if (!entry.Dirty && entry.InputStamp == stamp)
+        {
+            return entry.Value;
+        }
+
+        var value = EvaluateUncached(entry.Stat);
+        entry.Value = value;
+        entry.InputStamp = stamp;
+        entry.Dirty = false;
+        return value;
+    }
+
+    private float EvaluateUncached(PerformanceStat stat)
+    {
+        var dependencyMask = GetDependencyMask(stat);
+        var stamp = BuildCacheStamp(dependencyMask);
+        if (!_baseStatCache.TryGetValue(stat, out var baseEntry) || baseEntry.InputStamp != stamp)
+        {
+            float baseValue;
+            baseValue = stat.EvaluateRecipeOrLegacy(
+                CreateStatEvaluationContext(),
+                DurabilityExponent,
+                ThermalExponent,
+                includeHeat: true);
+            _baseStatCache[stat] = new EquippedItemBaseStatCacheEntry(baseValue, stamp);
+        }
+        var cachedBaseValue = _baseStatCache[stat].Value;
+
+        var result = stat.ApplyEntityModifiers(Entity, cachedBaseValue);
         if (float.IsNaN(result))
             return stat.Min;
         return result;
+    }
+
+    private float EvaluateWithContext(PerformanceStat stat, in StatEvaluationContext context)
+    {
+        var baseValue = stat.EvaluateRecipeOrLegacy(
+            context,
+            DurabilityExponent,
+            ThermalExponent,
+            includeHeat: true);
+
+        var result = stat.ApplyEntityModifiers(Entity, baseValue);
+        return float.IsNaN(result) ? stat.Min : result;
+    }
+
+    internal void SetStatModifier(
+        PerformanceStat stat,
+        Behavior source,
+        StatModifierType type,
+        float value)
+    {
+        if (stat == null || source == null)
+            return;
+
+        var modifiers = type == StatModifierType.Constant
+            ? stat.GetConstantModifiers(Entity)
+            : stat.GetScaleModifiers(Entity);
+
+        if (modifiers.TryGetValue(source, out var current) && MathF.Abs(current - value) < 0.00001f)
+            return;
+
+        modifiers[source] = value;
+        InvalidateStat(stat);
+    }
+
+    internal void RemoveStatModifier(PerformanceStat stat, Behavior source, StatModifierType type)
+    {
+        if (stat == null || source == null)
+            return;
+
+        var hasModifiers = type == StatModifierType.Constant
+            ? stat.TryGetConstantModifiers(Entity, out var modifiers)
+            : stat.TryGetScaleModifiers(Entity, out modifiers);
+
+        if (hasModifiers && modifiers.Remove(source))
+            InvalidateStat(stat);
+    }
+
+    public void SetStatConditionValue(StatConditionMask condition, float value)
+    {
+        switch (condition)
+        {
+            case StatConditionMask.Charge:
+                SetTrackedStatCondition(ref _statCharge, ref _chargeVersion, value);
+                break;
+            case StatConditionMask.Ammo:
+                SetTrackedStatCondition(ref _statAmmo, ref _ammoVersion, value);
+                break;
+            case StatConditionMask.Range:
+                SetTrackedStatCondition(ref _statRange, ref _rangeVersion, value);
+                break;
+            case StatConditionMask.Integrity:
+                SetTrackedStatCondition(ref _statIntegrity, ref _integrityVersion, value);
+                break;
+            case StatConditionMask.PilotSkill:
+                SetTrackedStatCondition(ref _statPilotSkill, ref _pilotSkillVersion, value);
+                break;
+            case StatConditionMask.Environment:
+                SetTrackedStatCondition(ref _statEnvironment, ref _environmentVersion, value);
+                break;
+        }
     }
 
     public void AddHeat(float heat, bool ignoreThermalMass = false)
@@ -1531,18 +1847,95 @@ public class EquippedItem
     public void UpdatePerformance()
     {        
         var temp = Temperature;
-        ThermalPerformance = EvaluateThermalPerformance(temp);
-        var deltaTemp = math.abs(temp - oldTemperature);
-        DurabilityPerformance = EquippableItem.Durability / MaxDurability;
+        var nextThermalPerformance = EvaluateThermalPerformance(temp);
+        var deltaTemp = MathF.Abs(temp - oldTemperature);
+        var nextDurabilityPerformance = EquippableItem.Durability / MaxDurability;
+        var nextQuality = EquippableItem.Quality;
+        if (MathF.Abs(nextThermalPerformance - ThermalPerformance) > 0.00001f)
+        {
+            _thermalVersion++;
+        }
+        if (MathF.Abs(nextDurabilityPerformance - DurabilityPerformance) > 0.00001f)
+        {
+            _durabilityVersion++;
+        }
+        if (MathF.Abs(nextQuality - _lastQuality) > 0.00001f)
+        {
+            _qualityVersion++;
+        }
+        ThermalPerformance = nextThermalPerformance;
+        DurabilityPerformance = nextDurabilityPerformance;
+        _lastQuality = nextQuality;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
-        Wear = (1 - pow(ThermalPerformance,
-                (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
+        Wear = (1 - MathF.Pow(ThermalPerformance,
+                (1 - MathF.Pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
             ) * MaxDurability / ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;
         oldTemperature = temp;
+    }
+
+    private void InvalidateStat(PerformanceStat stat)
+    {
+        if (stat != null && _statCache.TryGetValue(stat, out var entry))
+            entry.Dirty = true;
+    }
+
+    private StatConditionMask GetDependencyMask(PerformanceStat stat)
+    {
+        return stat?.GetDependencyMask(includeHeat: true) ?? StatConditionMask.None;
+    }
+
+    private int BuildCacheStamp(StatConditionMask dependencyMask)
+    {
+        unchecked
+        {
+            var stamp = 17;
+            if ((dependencyMask & StatConditionMask.Quality) != 0)
+                stamp = stamp * 31 + _qualityVersion;
+            if ((dependencyMask & StatConditionMask.Durability) != 0)
+                stamp = stamp * 31 + _durabilityVersion;
+            if ((dependencyMask & StatConditionMask.Heat) != 0)
+                stamp = stamp * 31 + _thermalVersion;
+            if ((dependencyMask & StatConditionMask.Charge) != 0)
+                stamp = stamp * 31 + _chargeVersion;
+            if ((dependencyMask & StatConditionMask.Ammo) != 0)
+                stamp = stamp * 31 + _ammoVersion;
+            if ((dependencyMask & StatConditionMask.Range) != 0)
+                stamp = stamp * 31 + _rangeVersion;
+            if ((dependencyMask & StatConditionMask.Integrity) != 0)
+                stamp = stamp * 31 + _integrityVersion;
+            if ((dependencyMask & StatConditionMask.PilotSkill) != 0)
+                stamp = stamp * 31 + _pilotSkillVersion;
+            if ((dependencyMask & StatConditionMask.Environment) != 0)
+                stamp = stamp * 31 + _environmentVersion;
+            return stamp;
+        }
+    }
+
+    private StatEvaluationContext CreateStatEvaluationContext()
+    {
+        return new StatEvaluationContext(
+            quality: EquippableItem.Quality,
+            durability: DurabilityPerformance,
+            heat: ThermalPerformance,
+            charge: _statCharge,
+            ammo: _statAmmo,
+            range: _statRange,
+            integrity: _statIntegrity,
+            pilotSkill: _statPilotSkill,
+            environment: _statEnvironment);
+    }
+
+    private static void SetTrackedStatCondition(ref float current, ref int version, float next)
+    {
+        if (MathF.Abs(current - next) <= 0.00001f)
+            return;
+
+        current = next;
+        version++;
     }
 
     private float EvaluateThermalPerformance(float temperature)
@@ -1554,8 +1947,8 @@ public class EquippedItem
             return 1;
         }
 
-        var t = unlerp((float)RuntimeItem.MinimumTemperature, (float)RuntimeItem.MaximumTemperature, temperature);
-        return saturate(_thermalPerformanceCurve.Evaluate(t));
+        var t = AetheriaScalar.Unlerp((float)RuntimeItem.MinimumTemperature, (float)RuntimeItem.MaximumTemperature, temperature);
+        return AetheriaScalar.Saturate(_thermalPerformanceCurve.Evaluate(t));
     }
 
     private static BezierCurve CreateThermalPerformanceCurve(AetheriaRuntimeCatalogItem item)
@@ -1565,12 +1958,9 @@ public class EquippedItem
             return null;
         }
 
-        return new BezierCurve
-        {
-            Keys = item.ThermalPerformanceCurveKeys
-                .Select(key => new float4((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent))
-                .ToArray()
-        };
+        return BezierCurve.FromKeys(
+            item.ThermalPerformanceCurveKeys
+                .Select(key => ((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent)));
     }
 
     public void Update(float delta)
@@ -1626,8 +2016,48 @@ public class EquippedItem
             Max = (float)stat.Max,
             HeatExponentMultiplier = (float)stat.HeatExponentMultiplier,
             DurabilityExponentMultiplier = (float)stat.DurabilityExponentMultiplier,
-            QualityExponent = (float)stat.QualityExponent
+            QualityExponent = (float)stat.QualityExponent,
+            Recipe = CreateStatRecipe(stat.Recipe)
         };
+    }
+
+    private static StatRecipe CreateStatRecipe(AetheriaRuntimeStatRecipe recipe)
+    {
+        if (recipe == null)
+            return null;
+
+        return new StatRecipe
+        {
+            BaseValue = (float)recipe.BaseValue,
+            Modifiers = recipe.Modifiers
+                .Select(CreateStatRecipeModifier)
+                .Where(modifier => modifier != null)
+                .ToArray()
+        };
+    }
+
+    private static StatRecipeModifier CreateStatRecipeModifier(AetheriaRuntimeStatRecipeModifier modifier)
+    {
+        if (modifier == null)
+            return null;
+
+        return new StatRecipeModifier
+        {
+            Condition = StatRecipeTokens.ToConditionMask(modifier.Condition),
+            Operation = StatRecipeTokens.ToModifierOperation(modifier.Operation),
+            Amount = (float)modifier.Amount,
+            Curve = CreateCurve(modifier.CurveKeys),
+            Enabled = modifier.Enabled
+        };
+    }
+
+    private static BezierCurve CreateCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+    {
+        if (keys == null || keys.Count == 0)
+            return null;
+
+        return BezierCurve.FromKeys(
+            keys.Select(key => ((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent)));
     }
 
     private readonly struct EquippedItemAudioStatBinding
@@ -1640,6 +2070,34 @@ public class EquippedItem
 
         public uint Parameter { get; }
         public PerformanceStat Stat { get; }
+    }
+
+    private sealed class EquippedItemStatCacheEntry
+    {
+        public EquippedItemStatCacheEntry(PerformanceStat stat, StatConditionMask dependencyMask)
+        {
+            Stat = stat;
+            DependencyMask = dependencyMask;
+            Dirty = true;
+        }
+
+        public PerformanceStat Stat { get; set; }
+        public StatConditionMask DependencyMask { get; set; }
+        public float Value { get; set; }
+        public int InputStamp { get; set; }
+        public bool Dirty { get; set; }
+    }
+
+    private readonly struct EquippedItemBaseStatCacheEntry
+    {
+        public EquippedItemBaseStatCacheEntry(float value, int inputStamp)
+        {
+            Value = value;
+            InputStamp = inputStamp;
+        }
+
+        public float Value { get; }
+        public int InputStamp { get; }
     }
 }
 
@@ -1735,7 +2193,7 @@ public class EquippedCargoBay : EquippedItem
             if (cargoCommodity.Quantity >= maxStack) continue;
             
             // Subtract remaining space in existing stack from remaining quantity
-            remainingQuantity -= min(maxStack - cargoCommodity.Quantity, remainingQuantity);
+            remainingQuantity -= Math.Min(maxStack - cargoCommodity.Quantity, remainingQuantity);
             positions.Add(Cargo[cargoItem]);
             
             // If we've moved all of the items into existing stacks, no need to search for empty space!
@@ -1769,7 +2227,7 @@ public class EquippedCargoBay : EquippedItem
             }
         }
 
-        position = int2.zero;
+        position = new int2(0, 0);
         return false;
     }
     
@@ -1978,7 +2436,7 @@ public class EquippedCargoBay : EquippedItem
         if (cells == null) return shape;
 
         foreach (var cell in cells)
-            shape[new int2(cell.X, cell.Y)] = true;
+            shape.SetCell(cell.X, cell.Y, true);
 
         return shape;
     }
@@ -2025,7 +2483,7 @@ public class EquippedDockingBay : EquippedCargoBay
         var typedDockingBay = ItemManager.GetRuntimeItem(EquippableItem);
         MaxSize = typedDockingBay != null
             ? new int2(typedDockingBay.DockingMaxSizeX, typedDockingBay.DockingMaxSizeY)
-            : int2.zero;
+            : new int2(0, 0);
     }
 }
 

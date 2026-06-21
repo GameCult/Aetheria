@@ -2,10 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using System;
-using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class MiningTool : Behavior
 {
@@ -45,10 +42,11 @@ public class MiningTool : Behavior
     public override bool Execute(float dt)
     {
         Range = Evaluate(_range);
-        if (Entity.Zone.TryGetAsteroidBelt(AsteroidBeltBodyKey, out var belt) &&
-            !string.IsNullOrWhiteSpace(AsteroidBeltBodyKey) &&
+        if (!string.IsNullOrWhiteSpace(AsteroidBeltBodyKey) &&
+            Entity.Zone.TryGetAsteroidBelt(AsteroidBeltBodyKey, out var belt) &&
             Entity.Zone.AsteroidExists(AsteroidBeltBodyKey, Asteroid) &&
-            length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
+            Entity.Zone.TryGetCultAsteroidTransform(AsteroidBeltBodyKey, Asteroid, out var asteroidPosition, out var asteroidRadius) &&
+            length(Entity.CultPositionXZ - asteroidPosition) - asteroidRadius < Range)
         {
             Entity.Zone.MineAsteroid(
                 Entity,

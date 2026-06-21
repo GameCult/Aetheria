@@ -3,15 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using DataStructures.ViliWonka.Heap;
 using DataStructures.ViliWonka.KDTree;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 using Random = Unity.Mathematics.Random;
 
 public static class WeightedSampleElimination
 {
-	private static float2 boundsMin = float2.zero;			// The minimum bounds of the sampling domain
-	private static float2 boundsMax = float2(1);			// The maximum bounds of the sampling domain
+	private static float2 boundsMin = new float2(0, 0);			// The minimum bounds of the sampling domain
+	private static float2 boundsMax = new float2(1, 1);			// The maximum bounds of the sampling domain
 
 	// Returns the minimum bounds of the sampling domain.
 	// The sampling domain boundaries are used for tiling and computing the maximum possible
@@ -82,8 +80,8 @@ public static class WeightedSampleElimination
 		if ( d_max < .001f ) d_max = 2 * GetMaxPoissonDiskRadius( outputPoints.Length );
 		Eliminate( inputPoints, outputPoints, (p0, p1, d2, dmax, density) => 
 		{
-			float d = sqrt(d2);
-			return pow( 1 - d / dmax, 5 + 6 * density );
+			float d = MathF.Sqrt(d2);
+			return MathF.Pow( 1 - d / dmax, 5 + 6 * density );
 		}, densityFunc, d_max);
 	}
 
@@ -97,7 +95,7 @@ public static class WeightedSampleElimination
 		while (sample < inputSamples.Length)
 		{
 			var v = random.NextFloat2();
-			accumulator += pow(saturate(density(v)), 2f) * saturate(envelope(v));
+			accumulator += MathF.Pow(Saturate(density(v)), 2f) * Saturate(envelope(v));
 			if (accumulator > .5f)
 			{
 				accumulator = 0;
@@ -120,7 +118,7 @@ public static class WeightedSampleElimination
 		var domainSize = boundsMax[0] - boundsMin[0];
 		domainSize *= domainSize;
 		float sampleArea = domainSize / sampleCount;
-		return sqrt( sampleArea / ( 2 * sqrt(3) ) );
+		return MathF.Sqrt( sampleArea / ( 2 * MathF.Sqrt(3) ) );
 	}
 
 	// This is the method that performs weighted sample elimination.
@@ -184,6 +182,11 @@ public static class WeightedSampleElimination
 	static float GetWeightLimitFraction( int inputSize, int outputSize, float beta, float gamma )
 	{
 		float ratio = (float) outputSize / inputSize;
-		return ( 1 - pow( ratio, gamma ) ) * beta;
+		return ( 1 - MathF.Pow( ratio, gamma ) ) * beta;
+	}
+
+	private static float Saturate(float value)
+	{
+		return value < 0 ? 0 : value > 1 ? 1 : value;
 	}
 }

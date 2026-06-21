@@ -17,6 +17,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Mechanism
 
+- `Aetheria.State.Daemon` is the first-class local Verse daemon host. It opens
+  `AetheriaStateNode` with the CultMesh server enabled, serves
+  `AetheriaVerseDiscoveryHost`, accepts typed Eve command documents, advances
+  authoritative daemon frames through `AetheriaRuntimeDaemonTickRunner`, and
+  publishes provider advertisements, daemon health, command boundaries, and
+  Eve GUI/TUI witness surfaces. This is the Odin/VoidBot-shaped daemon
+  contract: the daemon owns the provider state and surfaces; Unity, Codex MCP
+  tools, and future clients lower or command that provider through CultMesh
+  rather than becoming state owners.
 - Unity client/runtime lives under `Assets/`. Gameplay now opens the typed
   runtime catalog from `GameData/aetheria-world.cc` and projects current
   `ItemData` DTOs through `ItemManager` over the typed runtime catalog snapshot. `ActionGameManager` no
@@ -30,11 +39,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   boot. When the typed state file exists,
   `ActionGameManager` opens a package-owned read-only runtime catalog snapshot
   from the `.cc` directory store before constructing the temporary legacy
-  `ItemManager`. Player settings saves, loadout saves, shutdown checkpoints,
-  and wormhole transition checkpoints now queue typed `.cc.pending` Verse
-  commit documents through the embedded runtime state package. Run checkpoint
-  documents include the current zone plus its runtime entity snapshots.
-  `Aetheria.State` owns applying those command documents into canonical
+  `ItemManager`. Player settings, loadout edits, shutdown checkpoints, and
+  wormhole transitions now flow as typed Eve or daemon command records observed
+  by the Aetheria Verse daemon. Run checkpoint documents include the current
+  zone plus its runtime entity snapshots. `Aetheria.State` owns publishing
+  canonical
   `AetheriaPlayerSettings`, `AetheriaLoadoutTemplate`, `AetheriaRunState`,
   `AetheriaZoneState`, and `AetheriaEntitySnapshot` documents through
   `AetheriaStateNode`. The embedded Unity state package can also read typed
@@ -46,12 +55,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   files, and generated keyboard layout caches no longer write bespoke durable files. The
   legacy
   `RuntimePlayerSettings` runtime object is no longer named or decorated as a
-  MessagePack persistence shape. `Economy.Server` now drains `aetheria-world.cc.pending`
-  CultCache-record queue files into canonical typed state and drains typed
-  `aetheria-world.cc.eve.pending` CultCache-record command documents through
-  the provider-owned Eve command bridge on startup and on a daemon polling loop
-  while hosting the CultMesh state node. `Aetheria.State.ApplyPending` remains a
-  bounded local operator applicator for both pending lanes.
+  MessagePack persistence shape. `Aetheria.State.Daemon` now observes typed
+  daemon and Eve command records from the Aetheria state graph, accepts them
+  through the provider-owned command bridge, and publishes canonical typed state
+  while hosting the CultMesh state node. The standalone `Aetheria.State.DrainCommands`
+  applicator is deleted so command acceptance remains daemon behavior.
 - Shared item domain state is now built around typed item-key references,
   typed runtime catalog rows, direct `RuntimeBehaviorDefinition` behavior
   construction, and runtime geometry/stat primitives. The old `ItemData` DTO hierarchy is deleted
@@ -63,9 +71,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `StrategyGameManager.csbak` backup file and unused Unity asset MessagePack
   formatter classes have also been deleted, so the remaining direct
   `MessagePackSerializer` calls are no longer present in live gameplay source;
-  the package-owned pending lanes now write CultCache-shaped `.cc` queue records.
-  Their current typed record payload codec still uses MessagePack until Unity
-  imports/generated real CultCache serializers from CultLib.
+  renderer/client code now observes typed `.cc` state records and sends typed
+  command records through CultNet/CultMesh boundaries.
 - Local legacy catalog data remains in `GameData/AetherDB.msgpack` and
   `GameData/NameFile/*.msgpack` as migration inputs only. Unity gameplay no
   longer opens those MessagePack files at runtime. The old
@@ -86,9 +93,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   pointer into the typed Verse replacement for `PlayerSettings.msgpack`: player
   name, tutorial flag, story-file hash cursors, gameplay formatting, graphics
   preferences, input binding overrides, and action-bar inputs. Unity's menu and
-  input screens route edits through named player-settings commit primitives that
-  mutate the session `RuntimePlayerSettings` projection and queue typed Verse
-  commits. The in-memory projection is not portable state authority. Aetheria has its own
+  input screens route edits through named typed Eve commands accepted by the
+  daemon, which updates the session `RuntimePlayerSettings` projection as a
+  read model. The in-memory projection is not portable state authority.
+  Aetheria has its own
   remapping UI that calls Unity's InputSystem at the binding/action layer;
   Unity's generated
   `AetheriaInput` class is the edge consumer of typed binding overrides, not
@@ -99,8 +107,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   non-consumable inventory drops and creates consumable bindings around typed
   catalog rows. Missing typed rows are rejected for consumable binding instead
   of falling through to legacy DTO classification. Slot-binding drag/drop now
-  routes through `ActionGameManager.CommitActionBarBinding`, queues a typed run
-  checkpoint immediately, and rebuilt current-entity binds come from typed
+  routes through typed daemon operations, and rebuilt current-entity binds come from typed
   action-bar descriptor rows instead of stale slot-local `Entity` references.
   Consumable activation, active-duration fill, runtime duration, and effectiveness curves now use typed
   item rows with neutral defaults for missing optional facets. Gear action-bar bindings read custom icon resource
@@ -441,9 +448,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   from `aetheria-world.cc`. Runtime item references no longer carry hydrated DTO
   projection caches or global link-resolution authority. MessagePack catalog construction no longer grabs global link-resolution
   authority, and the old generic `RuntimeCatalogLink<T>` abstraction is gone.
-- `Economy.Server` now starts the modern `Aetheria.State` CultMesh node, drains
-  pending Unity runtime commits through the typed state applicator, and no
-  longer owns RethinkDB/LiteNetLib state.
+- `Aetheria.State.Daemon` starts the modern `Aetheria.State` CultMesh node as
+  the first-class Verse daemon and no longer shares authority with the old
+  RethinkDB/LiteNetLib server.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
   ledger for the legacy catalog files. It also raw-decodes stable old
   MessagePack union fields into typed item/faction/name-file documents without
@@ -492,30 +499,23 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Aetheria.Shared.Unity` references this package directly so `Galaxy` can
   consume typed corporation and name-file keys without loading legacy `Faction`
   or `NameFile` documents. The
-  package also owns Unity's typed runtime commit log writer for settings,
-  loadout-template, and run-checkpoint command documents under
-  `aetheria-world.cc.pending`. This log is command-only: it cannot decide
-  canonical state, and the `Aetheria.State` node applicator deletes applied
-  commands after writing typed documents. Run checkpoint documents now carry
-  current-zone and entity snapshots so the old `.zone` file path has a live
-  typed runtime projection path.
-- `Aetheria.State.ApplyPending` opens the typed state node and applies queued
-  Unity runtime command documents from `aetheria-world.cc.pending`, deleting
-  successfully applied command files by default. It is an operational bridge,
-  not a second state owner; the applicator delegates all writes to
-  `AetheriaStateNode`.
-- `AetheriaRuntimeEveCommandLog` emits typed
-  `AetheriaRuntimeEveCommandDocument` files under
-  `aetheria-world.cc.eve.pending`; `AetheriaEveCommandBridge` consumes the
-  same shared document type, validates provider/surface/command authority, and
-  deletes accounted command files. The Eve pending lane is command transport,
-  not renderer-owned state.
-- `Economy.Server` hosts the CultMesh state node and now owns the long-running
-  pending runtime commit drain loop. `--apply-pending-once` runs the same drain
-  path once for smoke/operator use without keeping the process alive.
-- `AetheriaRuntimeCommitDrainStatus` and the `aetheria.operations` Eve surface
-  publish pending-drain health, pending depth, applied counts, failures, and
-  timestamps as typed state. Console logs are notification-only.
+  package also owns Unity's typed daemon/Eve command helpers for settings,
+  loadout-template, and runtime requests. These helpers are transport-only:
+  they cannot decide canonical state, and the Verse daemon accounts accepted
+  command records after publishing typed documents. Run checkpoint documents now
+  carry current-zone and entity snapshots so the old `.zone` file path has a
+  live typed runtime projection path.
+- `AetheriaRuntimeEveCommands` is the renderer-facing typed command port. The
+  internal Eve command path persists typed `AetheriaRuntimeEveCommandDocument`
+  records; `AetheriaEveCommandBridge` consumes the same shared document type,
+  validates provider/surface/command authority, and deletes accounted command
+  records. The Eve command lane is transport, not renderer-owned state.
+- `Aetheria.State.Daemon` hosts the CultMesh Verse member and owns long-running
+  Eve command acceptance for provider-owned surfaces. `--once` runs one daemon
+  tick for smoke/operator use without keeping the process alive.
+- `AetheriaEveCommandAcceptanceStatus` and the `aetheria.operations` Eve surface
+  publish Eve request acceptance health, observed depth, applied counts,
+  failures, and timestamps as typed state. Console logs are notification-only.
 - Daemon Verse/service identity now lives in typed
   `aetheria.verse_host_settings.v1`, owned by the Aetheria daemon. Provider
   advertisement and operations telemetry project from that document, so public
@@ -600,7 +600,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   consumables. The older `ItemDefinitionLegacyId` and
   `HullItemDefinitionLegacyId` fields have been deleted from the pending commit
   contract; the applier no longer reconstructs item keys from legacy item GUIDs.
-  Corporation legacy ID fallback fields are also deleted from pending runtime
+  Corporation legacy ID fallback fields are also deleted from runtime
   commit DTOs; current commands must publish typed faction keys directly.
 - Entity restore and loadout manufacturer-distance weighting no longer read
   legacy `Faction` entries through `ItemManager`; they use `Galaxy.ResolveFaction`
@@ -678,13 +678,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `org.gamecult.aetheria.eve-runtime` now adds the Aetheria-specific
   `UIDocument` presenter that reads provider-owned Eve surfaces from
   `GameData/aetheria-world.cc` and mounts them through the lowerer. Its command
-  path queues `gamecult.eve.command.v1` envelopes under
-  `aetheria-world.cc.eve.pending` for the provider-owned command bridge instead
-  of accepting renderer-local command effects. `AetheriaEveCommandBridge`
+  path sends typed `gamecult.eve.command.v1` records to the provider-owned
+  command bridge instead of accepting renderer-local command effects.
+  `AetheriaEveCommandBridge`
   currently accepts the advertised catalog/operations refresh commands plus the
   first provider-owned player-settings mutation commands, republishes
   provider-owned surfaces, rejects unknown/unadvertised commands, and records
-  `AetheriaEveCommandDrainStatus` as typed state.
+  `AetheriaEveCommandAcceptanceStatus` as typed state.
 
 ## Invariants
 
@@ -924,11 +924,10 @@ First Aetheria surfaces to publish:
    - Done: add the Unity runtime read projection for typed loadout templates,
      so the restore menu can rehydrate saved loadouts from CultCache instead
      of relying on the in-memory session list after restart.
-   - Done: route runtime loadout restore through
-     `ActionGameManager.CommitRuntimeLoadoutRestore`. `InventoryPanel` may list
-     typed loadout templates and display the restored entity, but gameplay owns
-     blueprint instantiation, credit spend, docked-ship assignment, current
-     entity update, and typed run checkpoint.
+   - Done: route runtime loadout restore through typed daemon operations.
+     `InventoryPanel` may list typed loadout templates and display the restored
+     entity, but the daemon owns blueprint instantiation, credit spend,
+     docked-ship assignment, current entity update, and typed run checkpoint.
    - Done: add typed node ports and smoke coverage for run -> zone -> entity
      snapshots so `.zone` no longer lacks a durable Verse replacement graph.
    - Done: extend run checkpoint commits and smoke coverage to carry typed
@@ -1117,12 +1116,12 @@ First Aetheria surfaces to publish:
      dynamic column metadata.
    - Done: move trade menu buy price, ship-hull classification, and simple
      commodity stack-size decisions onto typed catalog rows; inventory transfer
-     and ship construction remain the runtime mutation owners.
-   - Done: route trade purchase mutation through gameplay-owned checkpoint
-     commits. `TradeMenu` still presents typed trade rows and calculates display
-     prices, but no longer subtracts credits, transfers purchased cargo, or
-     constructs purchased ships directly. `ActionGameManager.CommitTradePurchase`
-     owns the purchase mutation and queues a typed run checkpoint.
+     and ship construction are daemon-owned runtime mutations.
+   - Done: route trade purchase mutation through typed daemon operations.
+     `TradeMenu` still presents typed trade rows and calculates display prices,
+     but no longer subtracts credits, transfers purchased cargo, or constructs
+     purchased ships directly. The daemon owns the purchase mutation and typed
+     run checkpoint.
    - Done: move TradeMenu dynamic behavior columns onto typed behavior payload
      fields; the menu no longer hydrates `ItemData` or `BehaviorData` for row
      display, filtering, sorting, or buy decisions.
@@ -1452,14 +1451,14 @@ First Aetheria surfaces to publish:
      typed item-key strings; runtime body resource commit projection no longer
      calls `FromLegacyId`.
    - Done: move resource scanner targets and mining tool asteroid belts to
-     typed body-key runtime commit fields; raw body ID pending-command fields
+     typed body-key runtime commit fields; raw body ID command-document fields
      are deleted.
    - Done: delete the old `ItemData`/`EquippableItemData`/`HullData`/
      `WeaponItemData` DTO hierarchy from live Unity source; shared runtime
      geometry/stat primitives now live in `RuntimeGeometry.cs`.
 
 5. Mesh host
-   - Replace `Economy.Server` RethinkDB and LiteNetLib database authority with a
+   - Replace the old RethinkDB/LiteNetLib database authority with a
      CultMesh node.
    - Keep any transport bridge only if it delegates to CultMesh and protects a
      named external compatibility contract.
@@ -1476,23 +1475,21 @@ First Aetheria surfaces to publish:
    - Done: add `org.gamecult.aetheria.eve-runtime` with a `UIDocument`
      presenter that mounts typed Eve surfaces from `GameData/aetheria-world.cc`
      through UI Toolkit without giving the renderer state authority.
-   - Done: queue renderer-emitted Eve commands as typed
-     `gamecult.eve.command.v1` documents under `.eve.pending`, separate from
-     runtime state commits so the existing state applicator cannot accidentally
-     accept commands it does not own.
-   - Done: add the provider-owned Eve command bridge that drains `.eve.pending`,
+   - Done: publish renderer-emitted Eve commands as typed
+     `gamecult.eve.command.v1` records, separate from runtime state commits so
+     only the daemon-owned provider bridge accepts commands it owns.
+   - Done: add the provider-owned Eve command bridge that accepts observed Eve commands,
      validates provider/surface/command templates, invokes the current refresh
      handlers, republishes accepted surfaces, rejects unknown commands, and
-     records typed command-drain status.
+     records typed command acceptance status.
    - Done: delete provider-side Eve command emission from
-     `AetheriaEveCommandBridge`; renderer/runtime command files are queued
-     through `AetheriaRuntimeEveCommandLog`, while the provider bridge only
-     validates, applies, reports, and deletes accounted commands.
-   - Done: replace the pending lane private raw MessagePack payload files with
-     CultCache-shaped `.cc` queue records for both runtime state commits and Eve
-     commands. `AetheriaRuntimePendingCultCacheStore` owns the temporary
-     envelope writer/reader until the Unity package can use generated CultCache
-     serializers directly.
+     `AetheriaEveCommandBridge`; renderer/runtime requests submit through
+     `AetheriaRuntimeEveCommands`, while the provider bridge only validates,
+     applies, reports, and deletes accounted commands.
+   - Done: replace the old pending-lane private raw MessagePack payload files
+     with CultCache-shaped command documents. `AetheriaRuntimeCultCacheDocumentStore`
+     owns the temporary envelope writer/reader until the Unity package can use
+     generated CultCache serializers directly.
    - Done: extend the command bridge beyond refresh commands for the first
      mutating settings surface; player-settings Eve commands now mutate
      canonical `AetheriaPlayerSettings` and republish the provider-owned
@@ -1513,64 +1510,59 @@ First Aetheria surfaces to publish:
      inspector can still project object fields for display, but `readWrite`
      mode and `FieldInfo.SetValue` mutation are gone; renderer-local object
      edits must become provider-owned typed commands or local simulation code.
-   - Done: route runtime simulation tuning controls through gameplay-owned
-     checkpoint commits. UI fields for entity override shutdown, per-item
-     override shutdown, thermotoggle target temperature, and entity shutdown
-     performance now call `ActionGameManager` commit methods instead of writing
-     simulation objects directly. The item override-shutdown bit is part of the
-     typed loadout/entity item-slot state so the checkpoint spine can see what
-     the simulation sees.
-   - Done: route hull conductivity toggles through the same gameplay-owned
-     checkpoint spine. `InventoryPanel` requests conductivity edge toggles from
-     `ActionGameManager.CommitHullConductivityToggle`; the gameplay owner mutates
-     `Entity.HullConductivity` and queues the typed run checkpoint that already
+   - Done: route runtime simulation tuning controls through typed daemon
+     operations. UI fields for entity override shutdown, per-item override
+     shutdown, thermotoggle target temperature, and entity shutdown performance
+     now send daemon requests instead of writing simulation objects directly.
+     The item override-shutdown bit is part of the typed loadout/entity
+     item-slot state so the daemon checkpoint spine can see what the simulation
+     sees.
+   - Done: route hull conductivity toggles through typed daemon operations.
+     `InventoryPanel` requests conductivity edge toggles; the daemon mutates
+     `Entity.HullConductivity` and publishes the typed run checkpoint that
      projects `hull_conductivity_x` and `hull_conductivity_y` grids.
-   - Done: route inventory entity renames through
-     `ActionGameManager.CommitEntityName`. `InventoryPanel` may collect the name
-     in a dialog, but gameplay owns the entity `Name` mutation and queues the
-     typed entity snapshot checkpoint.
-   - Done: route weapon group membership changes through
-     `ActionGameManager.CommitWeaponGroupMembership`. The old
-     `WeaponGroupAssignment` uGUI shell and its prefab chain have been deleted;
-     gameplay owns the membership mutation and typed checkpoint outright.
-   - Done: route action-bar drag/drop bindings through
-     `ActionGameManager.CommitActionBarBinding`, and restore them from typed
-     run-state descriptors when the current entity changes or a typed continue
-     run rehydrates the session. Runtime UI may still lower the action bar, but
-     gameplay owns both the binding mutation and the rebind path back onto the
-     live current entity.
-   - Done: route inventory double-click transfer and drag/drop placement through
-     gameplay-owned checkpoint commits. `InventoryMenu` and `InventoryPanel` no
+   - Done: route inventory entity renames through typed daemon operations.
+     `InventoryPanel` may collect the name in a dialog, but the daemon owns the
+     entity `Name` mutation and typed entity snapshot checkpoint.
+   - Done: route weapon group membership changes through typed daemon
+     operations. The old `WeaponGroupAssignment` uGUI shell and its prefab
+     chain have been deleted; the daemon owns the membership mutation and typed
+     checkpoint outright.
+   - Done: route action-bar drag/drop bindings through typed daemon operations,
+     and restore them from typed run-state descriptors when the current entity
+     changes or a typed continue run rehydrates the session. Runtime UI may
+     still lower the action bar, but the daemon owns both the binding mutation
+     and the rebind path back onto the live current entity.
+   - Done: route inventory double-click transfer and drag/drop placement
+     through typed daemon operations. `InventoryMenu` and `InventoryPanel` no
      longer drop items, remove cargo, unequip gear, equip gear, or store cargo
-     directly for those UI paths; they ask `ActionGameManager` to commit
-     cargo-to-cargo, cargo-to-equipment, equipment-to-cargo, or
-     equipment-to-equipment movement and then refresh display. uGUI still owns
-     the presentation shell for now, not the inventory mutation.
-   - Done: route docked current-ship selection through
-     `ActionGameManager.CommitDockedCurrentShip`. `InventoryPanel` may request
-     a selected docked player ship and update the button color, but gameplay
-     owns `CurrentEntity`, `DockingBay.DockedShip`, and the typed checkpoint.
-   - Done: route loot pickup through `ActionGameManager.CommitLootPickup`.
-     `ShieldManager` may detect the collision and destroy the world pickup
-     after a successful commit, but it no longer stores items into cargo bays
-     directly; gameplay owns the cargo mutation and queues the typed run
-     checkpoint.
-   - Done: route entity destruction through
-     `ActionGameManager.CommitEntityDestroyed`. `EntityInstance` observes hull
-     death and may spawn the local destruction effect, but gameplay owns
-     equipment/cargo drop decisions, zone entity removal, and the typed run
-     checkpoint. Dropped world pickups are now projected into typed zone
-     snapshot state and lowered back into live scene pickups by exact typed zone
-     record key during zone load.
+     directly for those UI paths; they ask the daemon to commit cargo-to-cargo,
+     cargo-to-equipment, equipment-to-cargo, or equipment-to-equipment movement
+     and then refresh display. uGUI still owns the presentation shell for now,
+     not the inventory mutation.
+   - Done: route docked current-ship selection through typed daemon operations.
+     `InventoryPanel` may request a selected docked player ship and update the
+     button color, but the daemon owns `CurrentEntity`, `DockingBay.DockedShip`,
+     and the typed checkpoint.
+   - Done: route loot pickup through typed daemon operations. `ShieldManager`
+     may detect the collision and destroy the world pickup after a successful
+     commit, but it no longer stores items into cargo bays directly; the daemon
+     owns the cargo mutation and typed run checkpoint.
+   - Done: route entity destruction through typed daemon operations.
+     `EntityInstance` observes hull death and may spawn the local destruction
+     effect, but the daemon owns equipment/cargo drop decisions, zone entity
+     removal, and the typed run checkpoint. Dropped world pickups are now
+     projected into typed zone snapshot state and lowered back into live scene
+     pickups by exact typed zone record key during zone load.
    - Done: replace the main-menu gameplay/graphics settings screen with a
      locally lowered UI Toolkit projection of the shared
      `aetheria.player_settings` Eve surface contract. The menu shell still owns
-     entry/exit flow, but gameplay now owns surface command semantics through
-     `ActionGameManager.CommitRuntimePlayerSettingsCommand`.
+     entry/exit flow, but the daemon now owns surface command semantics through
+     typed Eve player-settings commands.
    - Done: move the main-menu player-name field into the shared
      `aetheria.player_settings` Eve surface contract. `MainMenu` no longer owns
      a special-case text field; UI Toolkit lowers the shared Eve text control
-     and gameplay still owns the typed player-settings commit.
+     and the daemon owns the typed player-settings command.
    - Done: replace the whole main-menu shell with Eve-owned UI Toolkit
      surfaces. Root navigation and settings/input pages now lower through a
      single Eve host instead of the old `PropertiesPanel`/fade shell. The menu
@@ -1581,7 +1573,7 @@ First Aetheria surfaces to publish:
      until audio has a typed state owner.
    - Done: replace the live runtime input remap screen with an Eve-owned UI
      Toolkit surface that still calls into Aetheria's low-level InputSystem
-     remapping layer through typed player-settings commit methods.
+     remapping layer through typed player-settings commands.
    - Done: replace the sector-map zone details panel with an Eve-owned UI
      Toolkit surface. `SectorRenderer` still owns reveal/camera behavior, but
      zone inspection no longer rebuilds `PropertiesPanel` rows when the player
@@ -1590,8 +1582,8 @@ First Aetheria surfaces to publish:
     Toolkit surface. `MenuPanel` now owns tab-content activation and tab
     metadata directly; the old `MenuTabButton` component shell is gone.
    - Done: replace inventory background ship tuning with an Eve-owned UI
-     Toolkit surface. `InventoryMenu` still owns click routing and the
-     gameplay commit primitive still owns mutation, but the old
+     Toolkit surface. `InventoryMenu` still owns click routing and the typed
+     daemon operation owns mutation, but the old
      `PropertiesPanel.AddField("Shutdown Threshold", ...)` path no longer owns
      that settings shell.
    - Done: replace the trade target-cargo selector popup with an Eve-owned UI
@@ -1600,13 +1592,13 @@ First Aetheria surfaces to publish:
      that selector shell.
    - Done: replace the inventory entity/bay/loadout dropdown popup with an
      Eve-owned UI Toolkit surface. `InventoryPanel` still owns local display
-     projection and gameplay still owns entity/cargo selection plus loadout
+     projection while daemon operations own entity/cargo selection plus loadout
      restore/save effects, but the old `ContextMenu` dropdown tree no longer
      owns that shell.
    - Done: replace the remaining `TradeMenu` filter-selector and row-action
      popups with Eve-owned UI Toolkit surfaces. `TradeMenu` still owns local
-     filter state and the quantity dialog still delegates to gameplay-owned
-     purchase commits, but the old `ContextMenu` dropdown/option tree no longer
+     filter state and the quantity dialog delegates to typed daemon purchase
+     operations, but the old `ContextMenu` dropdown/option tree no longer
      owns any live trade-menu shell.
    - Done: replace `TradeMenu` typed-item inspection with an Eve-owned UI
      Toolkit surface. The surface still projects typed catalog facts from local
@@ -1652,21 +1644,21 @@ First Aetheria surfaces to publish:
    - Done: remove the stale Unity `SaveState`/`SaveZone` command names after
      their bespoke serializers were deleted.
    - Done: replace warning-only player settings, loadout, shutdown, and
-     wormhole save paths with typed `.cc.pending` Verse commit commands and a
-     state-node applicator that writes canonical typed documents.
-   - Done: replace the `.cc.pending` runtime commit lane's private raw
-     MessagePack array protocol with `AetheriaRuntimeStateCommitDocument`,
-     shared by the Unity runtime package and the provider applicator.
+     wormhole save paths with typed Eve/daemon command records accepted by the
+     Verse daemon.
+   - Done: delete the `.cc.pending` runtime commit lane and its private raw
+     MessagePack array protocol; canonical writes now happen behind daemon
+     command acceptance.
    - Done: extend run checkpoint commands to carry current-zone and entity
      snapshots into canonical `AetheriaZoneState` and `AetheriaEntitySnapshot`
      documents.
-   - Done: add `Aetheria.State.ApplyPending` as a bounded local applicator for
-     queued runtime commits until the drain loop is hosted as a daemon.
-   - Done: move the pending runtime commit drain into `Economy.Server` startup
-     and daemon polling, with `--apply-pending-once` for bounded operation.
-   - Done: publish pending-drain health as typed CultCache state and an Eve
-     operations surface.
-   - Done: publish Eve command-drain health as typed CultCache state and include
+   - Done: delete `Aetheria.State.DrainCommands`; bounded acceptance now uses
+     `Aetheria.State.Daemon --once` so the Verse daemon remains the only command owner.
+   - Done: move Eve request acceptance into `Aetheria.State.Daemon` startup and
+     daemon ticking.
+   - Done: publish Eve request acceptance health as typed CultCache state and an
+     Eve operations surface.
+   - Done: publish Eve command acceptance health as typed CultCache state and include
      it in the operations surface.
    - Done: move daemon Verse/service identity into typed
      `aetheria.verse_host_settings.v1`, with provider advertisement and
@@ -1817,22 +1809,21 @@ First Aetheria surfaces to publish:
    - Done: demote Unity's live `PlayerSettings` runtime object to
      `RuntimePlayerSettings`; `AetheriaPlayerSettings` remains the typed Verse
      state document owner, while Unity only keeps a session projection and
-     queues typed player-settings commits.
+     sends typed player-settings commands.
    - Done: route input-screen binding/action-bar edits through named typed
-     player-settings commit methods on the Unity runtime boundary, so the UI is
+     player-settings commands on the Unity runtime boundary, so the UI is
      no longer a direct writer of input binding or action-bar collections.
    - Done: route main-menu graphics settings returns through the same typed
-     player-settings commit primitive as gameplay settings, so graphics edits
+     player-settings command path as gameplay settings, so graphics edits
      no longer survive only as session-local `RuntimePlayerSettings`.
    - Done: route main-menu player name, gameplay formatting, and graphics
-     preference edits through named `ActionGameManager` commit methods. MainMenu
+     preference edits through typed Eve player-settings commands. MainMenu
      reads the `RuntimePlayerSettings` projection for display, but no longer
      assigns its player/gameplay/graphics fields directly.
    - Done: lower the shared `aetheria.player_settings` Eve surface contract
      directly inside `MainMenu` through UI Toolkit. The menu no longer owns a
      second bespoke gameplay/graphics widget tree for those settings; it lowers
-     the shared document and dispatches command ids back to gameplay-owned
-     commit primitives.
+     the shared document and dispatches command ids through typed Eve commands.
    - Done: delete `ItemManager`'s unused zone dictionary, commented corporation
      controller/galaxy-zone GUID caches, force-load GUID sketch, and dead time
      property sketch. ItemManager no longer pretends to own a zone/time cache
@@ -1887,14 +1878,12 @@ First Aetheria surfaces to publish:
   corporation/name-file links, typed behavior payloads, and dropped world
   pickup rows in zone snapshots. It also proves the
   embedded package can read provider-owned Eve surface documents from the same
-  CultCache store. The smoke proves the Unity runtime state commit log can
-  queue player-settings and run snapshot commands, the `Aetheria.State` node
-  can apply them into canonical typed settings/run/zone/entity state, and
-  commands are cleared after application. It also proves renderer-emitted Eve
-  commands are queued as typed command envelopes separately from state commits.
-  The smoke now inspects pending queue bytes directly and verifies each pending
-  file is a CultCache store snapshot with a schema catalog and exactly one
-  typed record.
+  CultCache store. The smoke proves legacy runtime snapshots can be
+  imported into canonical typed settings/run/zone/entity state and cleared
+  afterward, while renderer-emitted Eve commands stay typed command documents
+  outside that legacy import lane. The smoke now inspects pending mailbox bytes
+  directly and verifies each pending file is a CultCache store snapshot with a
+  schema catalog and exactly one typed record.
 - Unity batchmode compile with Editor `6000.4.2f1` is currently available and
   should be rerun after package/runtime C# edits; Unity may leave generated
   package metadata and project files that must be cleaned before commit.
@@ -1924,10 +1913,8 @@ First Aetheria surfaces to publish:
   Package/import MessagePack usage remains explicitly bounded to CultCache
   transport and migration.
 - `Aetheria.State.Verify` also fences the Unity package serializer boundary:
-  MessagePack symbols may appear only in `AetheriaRuntimeCatalogStore`,
-  `AetheriaRuntimePendingCultCacheStore`, `AetheriaRuntimeStateCommitDocument`,
-  and `AetheriaRuntimeEveCommandDocument` until CultLib generated serializers
-  become the Unity runtime owner.
+  MessagePack symbols may appear only in typed CultCache transport and document
+  shapes until CultLib generated serializers become the Unity runtime owner.
 - `Aetheria.State.Verify` also guards runtime faction identity ownership:
   construction blueprints cannot carry a legacy faction GUID, and runtime
   entity/faction commits cannot rebuild `FactionKey` from `Faction.ID`.
@@ -1974,9 +1961,9 @@ First Aetheria surfaces to publish:
   summon a missing debug dependency during Unity compilation.
 - Unity runtime settings projection is now `RuntimePlayerSettings`; live Unity
   source has no standalone `PlayerSettings` class/property/method symbols.
-- Input binding and action-bar edits now queue the same typed player-settings
-  commit path as menu settings changes through named runtime input commit
-  methods; the old `SaveLayout` runtime-only warning is gone. The generated `AetheriaInput` class still calls Unity's
+- Input binding and action-bar edits now send the same typed player-settings
+  command path as menu settings changes; the old `SaveLayout` runtime-only
+  warning is gone. The generated `AetheriaInput` class still calls Unity's
   `InputActionAsset.FromJson`, but that JSON belongs to Unity's generated input
   action lowering under Aetheria's remapping system. It is not durable Aetheria
   state and does not own remapping authority.
@@ -2027,10 +2014,10 @@ First Aetheria surfaces to publish:
   geometry helper instead of a JSON text asset. The dead commented Ink `ToJson`
   write path and checked-in `ansi104.json` display file have been removed from
   live source.
-- `Aetheria.State.Smoke` proves the provider-owned Eve command bridge drains
+- `Aetheria.State.Smoke` proves the provider-owned Eve command bridge accepts
   `gamecult.eve.command.v1` envelopes, accepts advertised refresh commands plus
   player-settings mutation commands, rejects unknown commands, persists
-  `AetheriaEveCommandDrainStatus`, and exposes the Eve command drain through the
+  `AetheriaEveCommandAcceptanceStatus`, and exposes Eve command acceptance through the
   operations surface while preserving the `aetheria.player_settings` surface.
 - Unity play smoke proves runtime UI reads from Eve surfaces and sends commands
   through the shared state service.
@@ -2047,26 +2034,27 @@ legacy DTO vocabulary, keep package-level MessagePack/JSON at explicit
 boundaries, and replace runtime/operator UI truth with Eve surfaces. The old
 Do not restore the deleted generic `PropertiesPanel` reflection inspector as a
 shortcut around typed command/state ownership. Runtime simulation
-tuning controls may remain temporarily on uGUI only when they delegate to
-gameplay-owned commit methods that queue typed checkpoint state; direct UI
-mutation of entity/item/behavior settings is obsolete authority. Hull
-conductivity changes follow the same rule: UI requests the toggle, gameplay owns
-the grid mutation and checkpoint. Entity renames follow the same rule: UI
-collects text, gameplay owns the name mutation and checkpoint. Weapon group
-assignment follows the same rule: UI requests membership, gameplay owns the
-group mutation and checkpoint. Inventory double-click transfer follows the same
+tuning controls may remain temporarily on uGUI only when they delegate to typed
+daemon operations; direct UI mutation of entity/item/behavior settings is
+obsolete authority. Hull conductivity changes follow the same rule: UI requests
+the toggle, and the daemon owns the grid mutation and checkpoint. Entity renames
+follow the same rule: UI collects text, and the daemon owns the name mutation
+and checkpoint. Weapon group assignment follows the same rule: UI requests
+membership, and the daemon owns the group mutation and checkpoint. Inventory
+double-click transfer follows the same
 rule, and drag/drop placement now shares that commit family: UI requests
-cargo/equipment movement, gameplay owns the move and queues the checkpoint.
-Trade purchases follow the same rule: UI requests the purchase, gameplay owns
+cargo/equipment movement, and the daemon owns the move and checkpoint. Trade
+purchases follow the same rule: UI requests the purchase, and the daemon owns
 credit changes, cargo transfer, ship creation, and checkpoint. Runtime loadout
-restore follows the same rule: UI requests restoration, gameplay owns
+restore follows the same rule: UI requests restoration, and the daemon owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
-current-ship selection follows the same rule: UI requests selection, gameplay
-owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Loot pickup
-follows the same rule: collision code reports the pickup opportunity, gameplay
-owns cargo storage and checkpoint. Entity destruction follows the same rule:
-instance code observes death, gameplay owns drop decisions, zone removal, and
-checkpoint. Dropped world pickups are typed zone-snapshot state, not only
+current-ship selection follows the same rule: UI requests selection, and the
+daemon owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Loot
+pickup follows the same rule: collision code reports the pickup opportunity,
+and the daemon owns cargo storage and checkpoint. Entity destruction follows
+the same rule: instance code observes death, and the daemon owns drop
+decisions, zone removal, and checkpoint. Dropped world pickups are typed
+zone-snapshot state, not only
 renderer-local objects; live lowering consumes the exact typed zone record key
 instead of rehydrating a parallel presentation list. Any
 predicate that still needs legacy DTO objects must earn that dependency by

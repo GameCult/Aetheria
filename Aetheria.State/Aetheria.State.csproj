@@ -8,15 +8,49 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateCommitDocument.cs" Link="AetheriaRuntimeStateCommitDocument.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoundary.cs" Link="AetheriaRuntimeStateBoundary.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeSnapshotDocuments.cs" Link="AetheriaRuntimeSnapshotDocuments.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeObservedDaemonState.cs" Link="AetheriaRuntimeObservedDaemonState.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonDocuments.cs" Link="AetheriaRuntimeDaemonDocuments.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonSoaDocuments.cs" Link="AetheriaRuntimeDaemonSoaDocuments.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonSoaViewIndex.cs" Link="AetheriaRuntimeDaemonSoaViewIndex.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonSoaViewStore.cs" Link="AetheriaRuntimeDaemonSoaViewStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonOperationClient.cs" Link="AetheriaRuntimeDaemonOperationClient.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCommandPort.cs" Link="AetheriaRuntimeCommandPort.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonOperations.cs" Link="AetheriaRuntimeDaemonOperations.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeClientTargetCommands.cs" Link="AetheriaRuntimeClientTargetCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonIntentState.cs" Link="AetheriaRuntimeDaemonIntentState.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonFrameStore.cs" Link="AetheriaRuntimeDaemonFrameStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonPublicationStore.cs" Link="AetheriaRuntimeDaemonPublicationStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonTickRunner.cs" Link="AetheriaRuntimeDaemonTickRunner.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeLoadoutSnapshotProjector.cs" Link="AetheriaRuntimeLoadoutSnapshotProjector.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveCommandDocument.cs" Link="AetheriaRuntimeEveCommandDocument.cs" />
-    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePendingCultCacheStore.cs" Link="AetheriaRuntimePendingCultCacheStore.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveCommandClient.cs" Link="AetheriaRuntimeEveCommandClient.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveSurfaceAdapter.cs" Link="AetheriaRuntimeEveSurfaceAdapter.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCultCacheDocumentStore.cs" Link="AetheriaRuntimeCultCacheDocumentStore.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseHostCommands.cs" Link="AetheriaRuntimeVerseHostCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCatalogCommands.cs" Link="AetheriaRuntimeCatalogCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeOperationsCommands.cs" Link="AetheriaRuntimeOperationsCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs" Link="AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs" Link="AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeShipSettingsSurfaceBuilder.cs" Link="AetheriaRuntimeShipSettingsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeZoneDetailsSurfaceBuilder.cs" Link="AetheriaRuntimeZoneDetailsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeTradeItemDetailsSurfaceBuilder.cs" Link="AetheriaRuntimeTradeItemDetailsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInventoryDropdownSurfaceBuilder.cs" Link="AetheriaRuntimeInventoryDropdownSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeTradeInteractionSurfaceBuilder.cs" Link="AetheriaRuntimeTradeInteractionSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.cs" Link="AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeMainMenuSurfaceBuilder.cs" Link="AetheriaRuntimeMainMenuSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeMenuTabsSurfaceBuilder.cs" Link="AetheriaRuntimeMenuTabsSurfaceBuilder.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePlayerSettingsSurfaceBuilder.cs" Link="AetheriaRuntimePlayerSettingsSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonGameSurfaceBuilder.cs" Link="AetheriaRuntimeDaemonGameSurfaceBuilder.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonEditorSurfaceBuilder.cs" Link="AetheriaRuntimeDaemonEditorSurfaceBuilder.cs" />
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePlayerSettingsCommands.cs" Link="AetheriaRuntimePlayerSettingsCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInputSettingsCommands.cs" Link="AetheriaRuntimeInputSettingsCommands.cs" />
+    <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeLoadoutTemplateCommands.cs" Link="AetheriaRuntimeLoadoutTemplateCommands.cs" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Caching\GameCult.Caching.csproj" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Mesh\GameCult.Mesh.csproj" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Networking\GameCult.Networking.csproj" />
+    <ProjectReference Include="..\GameCult.Eve.Surface.csproj" />
   </ItemGroup>
 </Project>

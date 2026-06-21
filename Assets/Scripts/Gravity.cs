@@ -24,7 +24,7 @@ public class Gravity : MonoBehaviour
             if (_instance != null)
                 return _instance;
 
-            _instance = (Gravity)FindObjectOfType(typeof(Gravity));
+            _instance = FindAnyObjectByType<Gravity>();
             return _instance;
         }
     }
@@ -47,7 +47,6 @@ public class Gravity : MonoBehaviour
         if (Instance.ForceMode == GravityForceMode.Sign)
         {
             var hits = Instance.GravityObjects.Where(go => (go.transform.position.Flatland() - position).sqrMagnitude < go.transform.lossyScale.x)
-//            var hits = Physics.RaycastAll(new Ray(new Vector3(position.x, 10, position.y), Vector3.down), 20, LayerMask.GetMask("Displacement"))
                 .Where(h => !h.CompareTag("IgnoreGravity"));
         
             Vector2 force = Vector2.zero;

@@ -1,8 +1,7 @@
 using System;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
 using float2 = Unity.Mathematics.float2;
+using float3 = Unity.Mathematics.float3;
+using unitynoise = Unity.Mathematics.noise;
 
 [Serializable]
 public class ZoneEnvironment
@@ -78,8 +77,8 @@ public abstract class Brush
 
     float powerPulse( float x, float power )
     {
-        x = saturate(abs(x))-.001f;
-        return pow((x + 1.0f) * (1.0f - x), power);
+        x = Saturate(MathF.Abs(x))-.001f;
+        return MathF.Pow((x + 1.0f) * (1.0f - x), power);
     }
 
     protected abstract float Evaluate(float2 world, float2 uv);
@@ -87,9 +86,25 @@ public abstract class Brush
     public float Evaluate(float2 world, float2 pos, float2 radius)
     {
         var uv = (world - pos) / radius;
-        float dist = length(uv)*2;
-        float envelope = min(Cutoff, powerPulse(dist,EnvelopeExponent)) * smoothstep(1, .95f, dist);
+        float dist = Length(uv)*2;
+        float envelope = MathF.Min(Cutoff, powerPulse(dist,EnvelopeExponent)) * SmoothStep(1, .95f, dist);
         return Depth * Evaluate(world, uv) * envelope;
+    }
+
+    private static float Length(float2 value)
+    {
+        return MathF.Sqrt(value.x * value.x + value.y * value.y);
+    }
+
+    private static float Saturate(float value)
+    {
+        return value < 0 ? 0 : value > 1 ? 1 : value;
+    }
+
+    private static float SmoothStep(float edge0, float edge1, float x)
+    {
+        var t = Saturate((x - edge0) / (edge1 - edge0));
+        return t * t * (3.0f - 2.0f * t);
     }
 }
 
@@ -124,8 +139,8 @@ public class SimplexBrush : TextureBrush
 
     protected override float Evaluate(float2 world, float2 uv)
     {
-        var noise = snoise(world * Frequency + Phase);
-        return AbsoluteValue ? abs(noise) : noise;
+        var noise = unitynoise.snoise(world * Frequency + Phase);
+        return AbsoluteValue ? MathF.Abs(noise) : noise;
     }
 }
 
@@ -136,8 +151,8 @@ public class AnimatedSimplexBrush : AnimatedBrush
 
     protected override float Evaluate(float2 world, float2 uv)
     {
-        var noise = snoise(float3(float2(world * Frequency + Phase), AnimationSpeed * Time));
-        return AbsoluteValue ? abs(noise) : noise;
+        var noise = unitynoise.snoise(new float3(world * Frequency + Phase, AnimationSpeed * Time));
+        return AbsoluteValue ? MathF.Abs(noise) : noise;
     }
 }
 
@@ -148,8 +163,8 @@ public class RadialWaveBrush : TextureBrush
 
     protected override float Evaluate(float2 world, float2 uv)
     {
-        float dist = length(uv);
-        float ang = atan2(uv.y,uv.x);
-        return cos((ang + Phase.x) * Frequency.x * PI + (pow(dist, WaveExponent) + Phase.y) * Frequency.y);
+        float dist = MathF.Sqrt(uv.x * uv.x + uv.y * uv.y);
+        float ang = MathF.Atan2(uv.y,uv.x);
+        return MathF.Cos((ang + Phase.x) * Frequency.x * MathF.PI + (MathF.Pow(dist, WaveExponent) + Phase.y) * Frequency.y);
     }
 }

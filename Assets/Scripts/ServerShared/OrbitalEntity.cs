@@ -4,9 +4,6 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
 
 public class OrbitalEntity : Entity
 {
@@ -25,8 +22,8 @@ public class OrbitalEntity : Entity
     {
         if (!string.IsNullOrWhiteSpace(OrbitKey))
         {
-            Position.xz = Zone.GetOrbitPosition(OrbitKey);
-            Velocity = Zone.GetOrbitVelocity(OrbitKey);
+            CultPositionXZ = AetheriaMath.ToCult(Zone.GetOrbitPosition(OrbitKey));
+            CultVelocity = AetheriaMath.ToCult(Zone.GetOrbitVelocity(OrbitKey));
         }
         
         base.Update(delta);

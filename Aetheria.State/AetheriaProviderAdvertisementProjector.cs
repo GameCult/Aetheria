@@ -1,11 +1,18 @@
 using Aetheria.State.Documents;
+using GameCult.Aetheria.State.Unity;
 
 namespace Aetheria.State;
 
 public static class AetheriaProviderAdvertisementProjector
 {
     public const string AdvertisementKey = "eve:provider:aetheria";
+    public const string DaemonGameSurfaceKey = "eve:surface:aetheria.daemon.game";
+    public const string DaemonGameTuiSurfaceKey = "eve:surface:aetheria.daemon.game.tui";
+    public const string DaemonEditorSurfaceKey = "eve:surface:aetheria.daemon.editor";
+    public const string DaemonEditorTuiSurfaceKey = "eve:surface:aetheria.daemon.editor.tui";
     public const string ProviderId = "aetheria";
+    private const string DaemonCommandBoundaryId = "aetheria.daemon.commands";
+    private const string DaemonWitnessTransport = "cultcache-witness";
 
     public static EveProviderAdvertisementState Build(
         AetheriaVerseHostSettings settings,
@@ -44,10 +51,17 @@ public static class AetheriaProviderAdvertisementProjector
                 "aetheria.entity_snapshot.v1",
                 "aetheria.verse_host_settings.v1",
                 "aetheria.runtime_session.v1",
-                "aetheria.runtime_commit_drain_status.v1",
-                "aetheria.eve_command_drain_status.v1",
+                "aetheria.eve_command_acceptance_status.v1",
                 "gamecult.eve.surface.v1",
-                "gamecult.eve.command.v1"
+                "gamecult.eve.command.v1",
+                AetheriaRuntimeDaemonSchemas.ProviderAdvertisement,
+                AetheriaRuntimeDaemonSchemas.Frame,
+                AetheriaRuntimeDaemonSchemas.SoaView,
+                AetheriaRuntimeDaemonSchemas.Health,
+                AetheriaRuntimeDaemonSchemas.CommandBoundary,
+                AetheriaRuntimeDaemonSchemas.GameSurface,
+                AetheriaRuntimeDaemonSchemas.EditorSurface,
+                AetheriaRuntimeDaemonSchemas.Command
             ],
             Witnesses =
             [
@@ -56,6 +70,60 @@ public static class AetheriaProviderAdvertisementProjector
                     Kind = "cultcache",
                     Ref = statePath,
                     Summary = "Aetheria typed CultCache state file"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath),
+                    Summary = "Aetheria daemon-owned provider advertisement"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath),
+                    Summary = "Aetheria daemon simulation frame"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath),
+                    Summary = "Aetheria daemon SoA view for thin clients"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonHealthPath(statePath),
+                    Summary = "Aetheria daemon health publication"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath),
+                    Summary = "Aetheria daemon typed command boundary"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(statePath),
+                    Summary = "Aetheria daemon game Eve GUI surface"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(statePath),
+                    Summary = "Aetheria daemon game Eve TUI surface"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(statePath),
+                    Summary = "Aetheria daemon editor Eve GUI surface"
+                },
+                new EveProviderWitness
+                {
+                    Kind = DaemonWitnessTransport,
+                    Ref = AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(statePath),
+                    Summary = "Aetheria daemon editor Eve TUI surface"
                 }
             ],
             Surfaces =
@@ -74,48 +142,74 @@ public static class AetheriaProviderAdvertisementProjector
                 {
                     SurfaceId = AetheriaPlayerSettingsSurfaceProjector.SurfaceId,
                     Key = AetheriaPlayerSettingsSurfaceProjector.SurfaceKey
+                },
+                new EveProviderSurfaceRef
+                {
+                    SurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                    Key = DaemonGameSurfaceKey
+                },
+                new EveProviderSurfaceRef
+                {
+                    SurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId,
+                    Key = DaemonGameTuiSurfaceKey
+                },
+                new EveProviderSurfaceRef
+                {
+                    SurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId,
+                    Key = DaemonEditorSurfaceKey
+                },
+                new EveProviderSurfaceRef
+                {
+                    SurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId,
+                    Key = DaemonEditorTuiSurfaceKey
                 }
             ],
             Commands =
             [
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.catalog.refresh",
+                    Command = DaemonCommandBoundaryId,
+                    Transport = DaemonWitnessTransport,
+                    Summary = "Aetheria daemon typed command boundary"
+                },
+                new EveProviderCommandRef
+                {
+                    Command = AetheriaRuntimeCatalogCommands.Refresh,
                     Summary = "Refresh catalog projection"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = "aetheria.operations.refresh",
+                    Command = AetheriaRuntimeOperationsCommands.Refresh,
                     Summary = "Refresh operations projection"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.Refresh,
+                    Command = AetheriaRuntimePlayerSettingsCommands.Refresh,
                     Summary = "Refresh player settings projection"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
+                    Command = AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
                     Summary = "Cycle the typed player temperature unit"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
+                    Command = AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
                     Summary = "Decrease typed player significant digits"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
+                    Command = AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
                     Summary = "Increase typed player significant digits"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
+                    Command = AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
                     Summary = "Cycle typed player nebula quality"
                 },
                 new EveProviderCommandRef
                 {
-                    Command = GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
+                    Command = AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
                     Summary = "Toggle typed player minimap asteroid visibility"
                 }
             ]

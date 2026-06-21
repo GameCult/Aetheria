@@ -1,51 +1,43 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Unity;
 using GameCult.Eve.Surface;
-using GameCult.Eve.UnityUIToolkit;
 using TMPro;
 using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour
 {
-    private const string MenuSurfaceType = "surface-state";
-    private const string MenuSurfaceSchema = "gamecult.eve.surface.v1";
-    private const string MenuSurfaceProviderId = "aetheria";
-    private const string MenuSurfaceProviderKind = "game.menu";
-    private const string MainSurfaceId = "aetheria.main_menu.root";
-    private const string SettingsSurfaceId = "aetheria.main_menu.settings";
-    private const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
-    private const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
-    private const string VerseSettingsShellSurfaceId = "aetheria.main_menu.verse_settings";
-    private const string ContinueRunCommand = "aetheria.main_menu.root.continue";
-    private const string NewGameCommand = "aetheria.main_menu.root.new_game";
-    private const string ShowSettingsCommand = "aetheria.main_menu.root.show_settings";
-    private const string QuitCommand = "aetheria.main_menu.root.quit";
-    private const string OpenRuntimeInputScreenCommand = "aetheria.main_menu.input_settings.open_runtime_screen";
-    private const string ShowPlayerSettingsCommand = "aetheria.main_menu.settings.show_player_settings";
-    private const string ShowVerseSettingsCommand = "aetheria.main_menu.settings.show_verse_settings";
-    private const string ShowInputSettingsCommand = "aetheria.main_menu.settings.show_input_settings";
-    private const string BackToMainCommand = "aetheria.main_menu.settings.back_to_main";
-    private const string BackToSettingsCommand = "aetheria.main_menu.settings.back_to_settings";
-
     public VolumeCloudRenderer CloudRenderer;
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
     public bool InGame;
 
     private UIDocument _menuSurfaceDocument;
+    private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
+    {
+        RootAlignItems = Align.Center,
+        RootJustifyContent = Justify.Center,
+        RootPaddingLeft = 24f,
+        RootPaddingRight = 24f,
+        RootPaddingTop = 24f,
+        RootPaddingBottom = 24f,
+        RootBackgroundColor = new Color(0f, 0f, 0f, 0.6f),
+        Width = 560f,
+        MinWidth = 0f,
+        MaxWidth = 560f,
+        PaddingLeft = 20f,
+        PaddingRight = 20f,
+        PaddingTop = 20f,
+        PaddingBottom = 20f,
+        BorderRadius = 0f,
+        BorderWidth = 0f,
+        BackgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f)
+    };
     
     void Start()
     {
@@ -55,114 +47,96 @@ public class MainMenu : MonoBehaviour
     private void ShowMain()
     {
         var stateBoot = CurrentStateBoot();
+        var frame = LatestDaemonFrame(stateBoot);
+        var verseHost = LatestVerseHostSettings(stateBoot);
         RenderMenuSurface(
-            BuildMainSurfaceDefinition(
-                stateBoot,
-                LatestContinueRun(stateBoot),
-                LatestVerseHostSettings(stateBoot),
-                InGame),
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
+                ProjectMainMenuSurfaceState(
+                    stateBoot,
+                    frame,
+                    verseHost,
+                    CanOpenRuntimeInputScreen(),
+                    InGame)),
             HandleMainSurfaceCommand);
     }
 
     private void HandleMainSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        switch (request.Command)
+        if (!AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command))
         {
-            case ContinueRunCommand:
-                var continueRun = LatestContinueRun(CurrentStateBoot());
-                if (continueRun == null)
+            Debug.LogWarning("Unknown main menu command.");
+            return;
+        }
+
+        switch (command.Kind)
+        {
+            case AetheriaRuntimeMainMenuCommandKind.ContinueRun:
+                if (LatestDaemonFrame(CurrentStateBoot()) == null)
                 {
-                    Debug.LogWarning("Main-menu Continue requested without a typed run state.");
+                    Debug.LogWarning("Main-menu Continue requested without an authoritative daemon frame.");
                     ShowMain();
                     return;
                 }
 
-                ContinueGame(continueRun);
+                ContinueGame();
                 return;
-            case NewGameCommand:
+            case AetheriaRuntimeMainMenuCommandKind.NewGame:
                 StartNewGame();
                 return;
-            case ShowSettingsCommand:
+            case AetheriaRuntimeMainMenuCommandKind.ShowSettings:
                 ShowSettings();
                 return;
-            case QuitCommand:
+            case AetheriaRuntimeMainMenuCommandKind.Quit:
                 Application.Quit();
                 return;
             default:
-                Debug.LogWarning($"Unknown main menu command: {request.Command}");
+                Debug.LogWarning($"Unhandled main menu command kind: {command.Kind}");
                 return;
         }
     }
 
     private void StartNewGame()
     {
-        var generatorState = "Loading typed catalog";
+        if (!TryStartDaemonObservedGame("Starting Daemon Run"))
+        {
+            ShowMain();
+        }
+    }
+
+    private bool TryStartDaemonObservedGame(string title)
+    {
+        var stateBoot = CurrentStateBoot();
+        if (!AetheriaRuntimeStateReader.TryReadDaemonFrame(stateBoot.StateFilePath, out var frame) ||
+            frame == null ||
+            !frame.IsAuthoritative ||
+            frame.Run == null ||
+            frame.Run.Zones == null ||
+            frame.Run.Zones.Count == 0)
+        {
+            Debug.LogWarning($"Cannot start Aetheria observer scene without an authoritative daemon frame at {AetheriaRuntimeDaemonFrameStore.GetFramePath(stateBoot.StateFilePath)}.");
+            return false;
+        }
+
+        var generatorState = "Loading runtime catalog";
         Action<string> setState = s => generatorState = s;
 
         HideMenuSurface();
         Dialog.Clear();
-        Dialog.Title.text = "Generating Galaxy";
+        Dialog.Title.text = title;
         Dialog.AddProperty(() => generatorState);
         Dialog.Show();
 
-        if (ActionGameManager.RuntimePlayerSettings.TutorialPassed)
-        {
-            Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
-            ActionGameManager.IsTutorial = false;
-            var generationSeed = NextGenerationSeed();
-            Task.Run(() =>
-            {
-                var sector = new Galaxy(
-                    Settings.SectorGenerationSettings,
-                    Settings.SectorBackgroundSettings,
-                    Settings.NameGeneratorSettings,
-                    ActionGameManager.RuntimeCatalog,
-                    Debug.Log,
-                    setState,
-                    generationSeed);
-                Observable.NextFrame().Subscribe(_ =>
-                {
-                    ActionGameManager.CurrentGalaxy = sector;
-                    SceneManager.LoadScene("ARPG");
-                });
-            }).WrapErrors();
-        }
-        else
-        {
-            int iteration = 1;
-            do
-            {
-                Settings.TutorialBackgroundSettings.NoisePosition = Random.value * 1000;
-                setState($"Finding Galaxy Position: iteration {iteration++}");
-            } while (Settings.TutorialBackgroundSettings.CloudDensity(float2(0.5f)) < .5f);
-
-            ActionGameManager.IsTutorial = true;
-            var generationSeed = NextGenerationSeed();
-            Task.Run(() =>
-            {
-                var sector = new Galaxy(
-                    Settings.TutorialGenerationSettings,
-                    Settings.TutorialBackgroundSettings,
-                    Settings.NameGeneratorSettings,
-                    ActionGameManager.RuntimeCatalog,
-                    ActionGameManager.RuntimePlayerSettings,
-                    ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
-                    Debug.Log,
-                    setState,
-                    generationSeed);
-                Observable.NextFrame().Subscribe(_ =>
-                {
-                    ActionGameManager.CurrentGalaxy = sector;
-                    SceneManager.LoadScene("ARPG");
-                });
-            }).WrapErrors();
-        }
-    }
-
-    private static uint NextGenerationSeed()
-    {
-        var seed = (uint)Random.Range(1, int.MaxValue);
-        return seed == 0 ? 1u : seed;
+        setState($"Observing daemon frame {frame.FrameId}");
+        ActionGameManager.IsTutorial = frame.Run.IsTutorial;
+        var backgroundSettings = frame.Run.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
+        backgroundSettings.NoisePosition = frame.Run.GenerationSeed == 0 ? 1 : frame.Run.GenerationSeed;
+        ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(
+            frame.Run,
+            backgroundSettings,
+            ActionGameManager.RuntimeCatalog,
+            Debug.Log);
+        SceneManager.LoadScene("ARPG");
+        return true;
     }
 
     private static AetheriaRuntimeStateBootReport CurrentStateBoot()
@@ -170,25 +144,19 @@ public class MainMenu : MonoBehaviour
         return AetheriaRuntimeStateBoot.Inspect(ActionGameManager.GameDataDirectory);
     }
 
-    private static AetheriaRuntimeRunStateSnapshot LatestContinueRun(AetheriaRuntimeStateBootReport stateBoot)
+    private static AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)
     {
-        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+        if (!AetheriaRuntimeStateReader.TryReadDaemonFrame(stateBoot.StateFilePath, out var frame) ||
+            frame == null ||
+            !frame.IsAuthoritative ||
+            frame.Run == null ||
+            frame.Run.Zones == null ||
+            frame.Run.Zones.Count == 0)
+        {
             return null;
+        }
 
-        try
-        {
-            return AetheriaRuntimeStateReader
-                .ReadRunStates(stateBoot.StateFilePath)
-                .Where(run => !string.IsNullOrWhiteSpace(run.RunId))
-                .OrderByDescending(run => run.UpdatedAtUtc, StringComparer.Ordinal)
-                .ThenByDescending(run => run.RunId, StringComparer.Ordinal)
-                .FirstOrDefault();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to read typed Aetheria run state for Continue: {ex}");
-            return null;
-        }
+        return frame;
     }
 
     private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
@@ -207,72 +175,41 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private void ContinueGame(AetheriaRuntimeRunStateSnapshot run)
+    private void ContinueGame()
     {
-        if (run == null)
-            return;
-
-        var generatorState = "Loading typed run";
-        Action<string> setState = s => generatorState = s;
-
-        HideMenuSurface();
-        Dialog.Clear();
-        Dialog.Title.text = "Continuing Run";
-        Dialog.AddProperty(() => generatorState);
-        Dialog.Show();
-
-        ActionGameManager.IsTutorial = run.IsTutorial;
-        ActionGameManager.ContinueRunState = run;
-        var generationSeed = run.GenerationSeed == 0 ? NextGenerationSeed() : run.GenerationSeed;
-        var backgroundSettings = run.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
-        backgroundSettings.NoisePosition = generationSeed;
-
-        Task.Run(() =>
+        if (!TryStartDaemonObservedGame("Continuing Daemon Run"))
         {
-            var sector = run.IsTutorial
-                ? new Galaxy(
-                    Settings.TutorialGenerationSettings,
-                    Settings.TutorialBackgroundSettings,
-                    Settings.NameGeneratorSettings,
-                    ActionGameManager.RuntimeCatalog,
-                    ActionGameManager.RuntimePlayerSettings,
-                    ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
-                    Debug.Log,
-                    setState,
-                    generationSeed)
-                : new Galaxy(
-                    Settings.SectorGenerationSettings,
-                    backgroundSettings,
-                    Settings.NameGeneratorSettings,
-                    ActionGameManager.RuntimeCatalog,
-                    Debug.Log,
-                    setState,
-                    generationSeed);
-            Observable.NextFrame().Subscribe(_ =>
-            {
-                ActionGameManager.CurrentGalaxy = sector;
-                SceneManager.LoadScene("ARPG");
-            });
-        }).WrapErrors();
+            ShowMain();
+        }
     }
 
     private void ShowSettings()
     {
-        RenderMenuSurface(BuildSettingsSurfaceDefinition(), HandleSettingsSurfaceCommand);
+        RenderMenuSurface(
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(DateTime.UtcNow.ToString("O")),
+            HandleSettingsSurfaceCommand);
     }
 
     private void ShowInputSettings()
     {
-        RenderMenuSurface(BuildInputSettingsSurfaceDefinition(CanOpenRuntimeInputScreen(), InGame), HandleInputSettingsSurfaceCommand);
+        RenderMenuSurface(
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
+                ProjectMainMenuSurfaceState(
+                    CurrentStateBoot(),
+                    null,
+                    null,
+                    CanOpenRuntimeInputScreen(),
+                    InGame)),
+            HandleInputSettingsSurfaceCommand);
     }
 
     private void ShowPlayerSettingsSurface()
     {
         RenderMenuSurface(
-            WithBackAction(
-                ToEveSurfaceDocument(BuildPlayerSettingsSurfaceDefinition()),
-                PlayerSettingsShellSurfaceId,
-                BackToSettingsCommand,
+            AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(
+                BuildPlayerSettingsSurfaceDefinition(),
+                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.BackToSettings,
                 "Back"),
             HandlePlayerSettingsSurfaceCommand);
     }
@@ -280,129 +217,140 @@ public class MainMenu : MonoBehaviour
     private void ShowVerseSettingsSurface()
     {
         RenderMenuSurface(
-            WithBackAction(
-                ToEveSurfaceDocument(BuildVerseSettingsSurfaceDefinition()),
-                VerseSettingsShellSurfaceId,
-                BackToSettingsCommand,
+            AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(
+                BuildVerseSettingsSurfaceDefinition(),
+                AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.BackToSettings,
                 "Back"),
             HandleVerseSettingsSurfaceCommand);
     }
 
     private void RenderMenuSurface(
-        EveSurfaceDocument document,
+        AetheriaRuntimeSurfaceDocument document,
         Action<EveSurfaceCommandRequest> commandHandler)
     {
-        var surfaceDocument = ResolveMenuSurfaceDocument();
-        surfaceDocument.gameObject.SetActive(true);
-
-        var root = surfaceDocument.rootVisualElement;
-        root.Clear();
-        root.style.flexGrow = 1;
-        root.style.justifyContent = Justify.Center;
-        root.style.alignItems = Align.Center;
-        root.style.paddingLeft = 24;
-        root.style.paddingRight = 24;
-        root.style.paddingTop = 24;
-        root.style.paddingBottom = 24;
-        root.style.backgroundColor = new Color(0f, 0f, 0f, 0.6f);
-
-        var shell = new VisualElement();
-        shell.style.flexDirection = FlexDirection.Column;
-        shell.style.width = 560;
-        shell.style.maxWidth = 560;
-        shell.style.paddingLeft = 20;
-        shell.style.paddingRight = 20;
-        shell.style.paddingTop = 20;
-        shell.style.paddingBottom = 20;
-        shell.style.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.96f);
-        root.Add(shell);
-
-        var lowerer = new EveUiToolkitSurfaceLowerer();
-        shell.Add(lowerer.Lower(document, commandHandler));
+        _menuSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
+            transform,
+            _menuSurfaceDocument,
+            "Aetheria Menu Surface",
+            document,
+            commandHandler,
+            _menuSurfaceChrome);
     }
 
     private void HandleSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        switch (request.Command)
+        if (!AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command))
         {
-            case ShowPlayerSettingsCommand:
+            Debug.LogWarning("Unknown settings menu command.");
+            return;
+        }
+
+        switch (command.Kind)
+        {
+            case AetheriaRuntimeMainMenuCommandKind.ShowPlayerSettings:
                 ShowPlayerSettingsSurface();
                 return;
-            case ShowVerseSettingsCommand:
+            case AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings:
                 ShowVerseSettingsSurface();
                 return;
-            case ShowInputSettingsCommand:
+            case AetheriaRuntimeMainMenuCommandKind.ShowInputSettings:
                 ShowInputSettings();
                 return;
-            case BackToMainCommand:
+            case AetheriaRuntimeMainMenuCommandKind.BackToMain:
                 ShowMain();
                 return;
             default:
-                Debug.LogWarning($"Unknown settings menu command: {request.Command}");
+                Debug.LogWarning($"Unhandled settings menu command kind: {command.Kind}");
                 return;
         }
     }
 
     private void HandleInputSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        if (!AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command))
         {
-            ShowSettings();
+            Debug.LogWarning("Unknown input settings command.");
             return;
         }
 
-        if (string.Equals(request.Command, OpenRuntimeInputScreenCommand, StringComparison.Ordinal))
+        switch (command.Kind)
         {
-            if (!TryOpenRuntimeInputScreen())
-            {
-                ShowInputSettings();
-            }
+            case AetheriaRuntimeMainMenuCommandKind.BackToSettings:
+                ShowSettings();
+                return;
+            case AetheriaRuntimeMainMenuCommandKind.OpenRuntimeInputScreen:
+                if (!TryOpenRuntimeInputScreen())
+                {
+                    ShowInputSettings();
+                }
 
-            return;
+                return;
+            default:
+                Debug.LogWarning($"Unhandled input settings command kind: {command.Kind}");
+                return;
         }
-
-        Debug.LogWarning($"Unknown input settings command: {request.Command}");
     }
 
     private void HandlePlayerSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        if (!AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command))
         {
-            ShowSettings();
+            Debug.LogWarning("Unknown player-settings command.");
             return;
         }
 
-        if (!ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload))
+        switch (command.Kind)
         {
-            Debug.LogWarning($"Unknown player-settings command: {request.Command}");
-            return;
-        }
+            case AetheriaRuntimeMainMenuCommandKind.BackToSettings:
+                ShowSettings();
+                return;
+            case AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand:
+                if (!TrySendPlayerSettingsCommand(request, command.Command))
+                {
+                    Debug.LogWarning($"Unhandled player-settings command kind: {command.Kind}");
+                    return;
+                }
 
-        CloudRenderer.quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
-        ShowPlayerSettingsSurface();
+                ShowPlayerSettingsSurface();
+                return;
+            default:
+                Debug.LogWarning($"Unhandled player-settings command kind: {command.Kind}");
+                return;
+        }
     }
 
     private void HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (string.Equals(request.Command, BackToSettingsCommand, StringComparison.Ordinal))
+        if (!AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command))
         {
-            ShowSettings();
+            Debug.LogWarning("Unknown verse-settings command.");
             return;
         }
 
-        if (TryCommitClientTargetCommand(request.Command, request.Payload))
+        switch (command.Kind)
         {
-            ShowVerseSettingsSurface();
-            return;
-        }
+            case AetheriaRuntimeMainMenuCommandKind.BackToSettings:
+                ShowSettings();
+                return;
+            case AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand:
+                if (TryRequestClientTargetCommand(request))
+                {
+                    ShowVerseSettingsSurface();
+                }
 
-        if (TryQueueVerseHostCommand(request.Command, request.Payload))
-        {
-            ShowVerseSettingsSurface();
-            return;
-        }
+                return;
+            case AetheriaRuntimeMainMenuCommandKind.VerseHostCommand:
+                if (TrySendVerseHostCommand(command.Command))
+                {
+                    ShowVerseSettingsSurface();
+                }
 
-        Debug.LogWarning($"Unknown verse-settings command: {request.Command}");
+                return;
+            default:
+                Debug.LogWarning($"Unhandled verse-settings command kind: {command.Kind}");
+                return;
+        }
     }
 
     private void HideMenuSurface()
@@ -410,22 +358,7 @@ public class MainMenu : MonoBehaviour
         if (_menuSurfaceDocument == null)
             return;
 
-        _menuSurfaceDocument.rootVisualElement.Clear();
-        _menuSurfaceDocument.gameObject.SetActive(false);
-    }
-
-    private UIDocument ResolveMenuSurfaceDocument()
-    {
-        if (_menuSurfaceDocument != null)
-            return _menuSurfaceDocument;
-
-        var host = new GameObject("Aetheria Menu Surface");
-        host.transform.SetParent(transform, false);
-        var document = host.AddComponent<UIDocument>();
-        document.sortingOrder = 1000;
-        host.SetActive(false);
-        _menuSurfaceDocument = document;
-        return document;
+        AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument);
     }
 
     private static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsSurfaceDefinition()
@@ -434,9 +367,9 @@ public class MainMenu : MonoBehaviour
             new AetheriaRuntimePlayerSettingsSurfaceState(
                 ActionGameManager.RuntimePlayerSettings.Name,
                 ActionGameManager.RuntimePlayerSettings.TutorialPassed,
-                ActionGameManager.ContinueRunState?.RunId ?? "",
+                "",
                 ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString(),
-                max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
+                Math.Max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
                 ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
                 DateTime.UtcNow.ToString("O")));
@@ -470,124 +403,29 @@ public class MainMenu : MonoBehaviour
                 DateTime.UtcNow.ToString("O")));
     }
 
-    private static EveSurfaceDocument BuildMainSurfaceDefinition(
+    private static AetheriaRuntimeMainMenuSurfaceState ProjectMainMenuSurfaceState(
         AetheriaRuntimeStateBootReport stateBoot,
-        AetheriaRuntimeRunStateSnapshot continueRun,
+        AetheriaRuntimeDaemonFrameDocument daemonFrame,
         AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
+        bool canOpenRuntimeInputScreen,
         bool inGame)
     {
-        var commands = new List<EveCommandTemplate>();
-        var actionButtons = new List<EveSurfaceComponent>();
-        var cardChildren = new List<EveSurfaceComponent>();
-        var targetLabel = stateBoot.TargetLabel;
-        var targetKind = string.IsNullOrWhiteSpace(stateBoot.TargetKind) ? "unknown" : stateBoot.TargetKind;
-        var targetSource = string.IsNullOrWhiteSpace(stateBoot.TargetSource) ? "unknown" : stateBoot.TargetSource;
-        var verseTitle = string.IsNullOrWhiteSpace(verseHost?.Title) ? "Unknown Verse" : verseHost.Title;
-        var verseId = string.IsNullOrWhiteSpace(verseHost?.VerseId) ? "unknown" : verseHost.VerseId;
-        var verseVisibility = string.IsNullOrWhiteSpace(verseHost?.Visibility) ? "unknown" : verseHost.Visibility;
-        var verseMeshAddress = string.IsNullOrWhiteSpace(verseHost?.CultMeshAddress) ? "unpublished" : verseHost.CultMeshAddress;
-        var verseLabel = string.Equals(verseTitle, verseId, StringComparison.Ordinal)
-            ? verseTitle
-            : $"{verseTitle} ({verseId})";
-
-        if (!inGame)
-        {
-            if (!stateBoot.SupportsLocalStateFileRead)
-            {
-                cardChildren.Add(Text(
-                    $"{MainSurfaceId}.continue.note",
-                    stateBoot.FailureMessage));
-            }
-            else if (continueRun == null)
-            {
-                cardChildren.Add(Text(
-                    $"{MainSurfaceId}.continue.note",
-                    $"No typed run state is available in {verseLabel} yet. Start a new galaxy or connect to a Verse that already has one."));
-            }
-            else
-            {
-                commands.Add(new EveCommandTemplate(ContinueRunCommand, "Continue", "unity-uitoolkit"));
-                actionButtons.Add(Button($"{MainSurfaceId}.continue", "Continue", ContinueRunCommand));
-                cardChildren.Add(Metric(
-                    $"{MainSurfaceId}.continue.run",
-                    "Latest Run",
-                    continueRun.RunId));
-            }
-        }
-
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.target.title",
-            "Client Target",
-            targetLabel));
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.target.transport",
-            "Transport",
-            targetKind));
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.target.source",
-            "Target Source",
-            targetSource));
-
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.verse.title",
-            "Verse",
-            verseLabel));
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.verse.visibility",
-            "Visibility",
-            verseVisibility));
-        cardChildren.Add(Metric(
-            $"{MainSurfaceId}.verse.mesh",
-            "CultMesh",
-            verseMeshAddress));
-
-        commands.Add(new EveCommandTemplate(NewGameCommand, "New Game", "unity-uitoolkit"));
-        commands.Add(new EveCommandTemplate(ShowSettingsCommand, "Settings", "unity-uitoolkit"));
-        commands.Add(new EveCommandTemplate(QuitCommand, "Quit", "unity-uitoolkit"));
-
-        actionButtons.Add(Button($"{MainSurfaceId}.newGame", "New Game", NewGameCommand));
-        actionButtons.Add(Button($"{MainSurfaceId}.settings", "Settings", ShowSettingsCommand));
-        actionButtons.Add(Button($"{MainSurfaceId}.quit", "Quit", QuitCommand));
-
-        cardChildren.Add(Text(
-            $"{MainSurfaceId}.note",
-            $"The client lowers this shell through Eve. The client target chooses which Verse it follows; game truth belongs to the daemon serving {verseLabel}."));
-        cardChildren.Add(ButtonColumn($"{MainSurfaceId}.actions", actionButtons.ToArray()));
-
-        return BuildMenuSurfaceDocument(
-            MainSurfaceId,
-            "Aetheria Terminus",
-            commands,
-            Card(
-                $"{MainSurfaceId}.card",
-                "Aetheria Terminus",
-                cardChildren.ToArray()));
-    }
-
-    private static EveSurfaceDocument BuildSettingsSurfaceDefinition()
-    {
-        return BuildMenuSurfaceDocument(
-            SettingsSurfaceId,
-            "Aetheria Settings",
-            new[]
-            {
-                new EveCommandTemplate(ShowPlayerSettingsCommand, "Player Settings", "unity-uitoolkit"),
-                new EveCommandTemplate(ShowVerseSettingsCommand, "Verse", "unity-uitoolkit"),
-                new EveCommandTemplate(ShowInputSettingsCommand, "Input", "unity-uitoolkit"),
-                new EveCommandTemplate(BackToMainCommand, "Back", "unity-uitoolkit")
-            },
-            Card(
-                "aetheria.mainMenu.settings.card",
-                "Settings",
-                Text(
-                    "aetheria.mainMenu.settings.note",
-                    "Player settings, client target selection, and input rebinding all lower through typed Eve surfaces. Audio still has no typed owner."),
-                ButtonRow(
-                    "aetheria.mainMenu.settings.actions",
-                    Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", ShowPlayerSettingsCommand),
-                    Button("aetheria.mainMenu.settings.verse", "Verse", ShowVerseSettingsCommand),
-                    Button("aetheria.mainMenu.settings.input", "Input", ShowInputSettingsCommand),
-                    Button("aetheria.mainMenu.settings.back", "Back", BackToMainCommand))));
+        return new AetheriaRuntimeMainMenuSurfaceState(
+            stateBoot.TargetLabel,
+            stateBoot.TargetKind,
+            stateBoot.TargetSource,
+            verseHost?.Title ?? stateBoot.Title,
+            verseHost?.VerseId ?? stateBoot.VerseId,
+            verseHost?.Visibility ?? "unknown",
+            verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+            inGame,
+            daemonFrame != null,
+            daemonFrame?.Run?.RunId ?? "",
+            daemonFrame?.FrameId ?? -1,
+            ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count,
+            ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count,
+            canOpenRuntimeInputScreen,
+            DateTime.UtcNow.ToString("O"));
     }
 
     private bool CanOpenRuntimeInputScreen()
@@ -609,110 +447,18 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
-    private static bool TryCommitClientTargetCommand(string command, IReadOnlyDictionary<string, string> payload)
+    private static bool TryRequestClientTargetCommand(EveSurfaceCommandRequest request)
     {
-        if (!AetheriaRuntimeClientTargetCommands.IsKnown(command))
-            return false;
-
-        if (string.Equals(command, AetheriaRuntimeClientTargetCommands.Refresh, StringComparison.Ordinal))
-            return true;
-
         try
         {
-            var gameDataDirectory = ActionGameManager.GameDataDirectory;
-            var clientTargetPath = AetheriaRuntimeStateBoundary.GetClientTargetPath(gameDataDirectory);
-            var defaultStateFilePath = AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory);
-            if (string.Equals(command, AetheriaRuntimeClientTargetCommands.DiscoverVerses, StringComparison.Ordinal))
+            if (!AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(
+                    AetheriaState.At(ActionGameManager.GameDataDirectory).ClientTarget,
+                    request,
+                    out _))
             {
-                AetheriaRuntimeVerseDiscovery.RefreshClientTarget(clientTargetPath, defaultStateFilePath);
-                return true;
+                return false;
             }
 
-            if (string.Equals(command, AetheriaRuntimeClientTargetCommands.SyncReplica, StringComparison.Ordinal))
-            {
-                var target = AetheriaRuntimeClientTargetStore.ReadOrInitialize(clientTargetPath, defaultStateFilePath);
-                var syncedAtUtc = DateTime.UtcNow.ToString("O");
-                try
-                {
-                    var result = AetheriaRuntimeVerseReplicaBridge.Sync(gameDataDirectory, target);
-                    AetheriaRuntimeClientTargetStore.Update(
-                        clientTargetPath,
-                        defaultStateFilePath,
-                        document =>
-                        {
-                            document.ReplicaStateFilePath = result.ReplicaStateFilePath;
-                            document.LastReplicaSyncAtUtc = syncedAtUtc;
-                            document.LastReplicaSyncError = "";
-                            document.UpdatedAtUtc = syncedAtUtc;
-                        });
-                }
-                catch (Exception ex)
-                {
-                    AetheriaRuntimeClientTargetStore.Update(
-                        clientTargetPath,
-                        defaultStateFilePath,
-                        document =>
-                        {
-                            document.LastReplicaSyncAtUtc = syncedAtUtc;
-                            document.LastReplicaSyncError = ex.Message ?? ex.GetType().Name;
-                            document.UpdatedAtUtc = syncedAtUtc;
-                        });
-                    throw;
-                }
-
-                return true;
-            }
-
-            AetheriaRuntimeClientTargetStore.Update(
-                clientTargetPath,
-                defaultStateFilePath,
-                document =>
-                {
-                    switch (command)
-                    {
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.CycleTargetKind, StringComparison.Ordinal):
-                            document.TargetKind = string.Equals(document.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
-                                ? AetheriaRuntimeClientTargetKinds.StateFile
-                                : AetheriaRuntimeClientTargetKinds.CultMeshVerse;
-                            document.LastReplicaSyncError = "";
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetTitle, StringComparison.Ordinal):
-                            document.Title = ReadPayloadValue(payload, "value");
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetVerseId, StringComparison.Ordinal):
-                            document.VerseId = ReadPayloadValue(payload, "value");
-                            document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
-                            document.LastReplicaSyncError = "";
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetCultMeshAddress, StringComparison.Ordinal):
-                            document.CultMeshAddress = ReadPayloadValue(payload, "value");
-                            document.LastReplicaSyncError = "";
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetStateFilePath, StringComparison.Ordinal):
-                            document.StateFilePath = ReadPayloadValue(payload, "value");
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints, StringComparison.Ordinal):
-                            document.DiscoveryEndpoints = ParseDiscoveryEndpoints(ReadPayloadValue(payload, "value"));
-                            document.LastDiscoveryError = "";
-                            break;
-                        case var _ when string.Equals(command, AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse, StringComparison.Ordinal):
-                            document.TargetKind = AetheriaRuntimeClientTargetKinds.CultMeshVerse;
-                            document.Title = ReadPayloadValue(payload, "title");
-                            document.VerseId = ReadPayloadValue(payload, "verseId");
-                            document.CultMeshAddress = ReadPayloadValue(payload, "cultMeshAddress");
-                            document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
-                            document.DiscoveryEndpoints = ParseDiscoveryEndpoints(ReadPayloadValue(payload, "discoveryEndpoints"));
-                            document.LastDiscoveryError = "";
-                            document.LastReplicaSyncError = "";
-                            break;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(document.TargetKind))
-                        document.TargetKind = AetheriaRuntimeClientTargetKinds.StateFile;
-                    if (string.IsNullOrWhiteSpace(document.StateFilePath))
-                        document.StateFilePath = defaultStateFilePath;
-                    document.UpdatedAtUtc = DateTime.UtcNow.ToString("O");
-                });
             return true;
         }
         catch (Exception ex)
@@ -722,247 +468,82 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static bool TryQueueVerseHostCommand(string command, IReadOnlyDictionary<string, string> payload)
+    private static bool TrySendVerseHostCommand(string command)
     {
-        if (!AetheriaRuntimeVerseHostCommands.IsKnown(command))
-            return false;
-
         var stateBoot = CurrentStateBoot();
-        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
-        {
-            Debug.LogWarning(
-                $"Cannot queue Verse-host command '{command}' because the active target is not a readable local Verse state file.");
+        if (!CanSendLocalEveCommand(stateBoot, "Verse-host", command))
             return true;
-        }
 
         try
         {
-            var request = new EveSurfaceCommandRequest(
-                "aetheria",
-                AetheriaRuntimeVerseHostCommands.SurfaceId,
-                command,
-                payload?.ToDictionary(entry => entry.Key, entry => entry.Value ?? "", StringComparer.Ordinal)
-                    ?? new Dictionary<string, string>(StringComparer.Ordinal),
-                DateTimeOffset.UtcNow,
-                "unity-main-menu");
-            var envelope = AetheriaRuntimeEveCommandLog.QueueCommand(stateBoot.StateFilePath, request);
-            Debug.Log($"Queued Aetheria Verse-host Eve command: {envelope.Path}");
+            if (!AetheriaRuntimeEveCommands.TrySendVerseHostCommand(
+                    stateBoot.StateFilePath,
+                    command,
+                    "unity-main-menu",
+                    out var submitted,
+                    out var error))
+            {
+                Debug.LogError($"Failed to submit Aetheria Verse-host Eve command '{command}': {error}");
+                return true;
+            }
+
+            Debug.Log($"Submitted Aetheria Verse-host Eve command: {submitted!.CommandId}");
             return true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to queue typed Aetheria Verse-host Eve command: {ex}");
+            Debug.LogError($"Failed to send Aetheria Verse-host Eve command '{command}': {ex}");
             return true;
         }
     }
 
-    private static string ReadPayloadValue(IReadOnlyDictionary<string, string> payload, string key)
+    private static bool TrySendPlayerSettingsCommand(
+        EveSurfaceCommandRequest request,
+        string command)
     {
-        return payload != null && payload.TryGetValue(key, out var value)
-            ? value ?? ""
-            : "";
+        if (request == null)
+            return false;
+
+        var stateBoot = CurrentStateBoot();
+        if (!CanSendLocalEveCommand(stateBoot, "player-settings", command))
+            return true;
+
+        try
+        {
+            if (!AetheriaRuntimeEveCommands.TrySendPlayerSettingsCommand(
+                    stateBoot.StateFilePath,
+                    request,
+                    "unity-main-menu",
+                    out var submitted,
+                    out var error))
+            {
+                Debug.LogError($"Failed to submit Aetheria player-settings Eve command '{command}': {error}");
+                return true;
+            }
+
+            Debug.Log($"Submitted Aetheria player-settings Eve command: {submitted!.CommandId}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to send Aetheria player-settings Eve command '{command}': {ex}");
+            return true;
+        }
     }
 
-    private static string[] ParseDiscoveryEndpoints(string value)
+    private static bool CanSendLocalEveCommand(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string label,
+        string command)
     {
-        return (value ?? "")
-            .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(endpoint => endpoint.Trim())
-            .Where(endpoint => !string.IsNullOrWhiteSpace(endpoint))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    private static EveSurfaceDocument BuildInputSettingsSurfaceDefinition(bool canOpenRuntimeInputScreen, bool inGame)
-    {
-        var commands = new List<EveCommandTemplate>
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
-            new EveCommandTemplate(BackToSettingsCommand, "Back", "unity-uitoolkit")
-        };
-
-        var cardChildren = new List<EveSurfaceComponent>
-        {
-            Metric(
-                "aetheria.mainMenu.input.bindingOverrides",
-                "Binding Overrides",
-                ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count.ToString()),
-            Metric(
-                "aetheria.mainMenu.input.actionBarInputs",
-                "Action-Bar Inputs",
-                ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count.ToString())
-        };
-
-        if (canOpenRuntimeInputScreen)
-        {
-            commands.Insert(0, new EveCommandTemplate(OpenRuntimeInputScreenCommand, "Open Remap Screen", "unity-uitoolkit"));
-            cardChildren.Add(Text(
-                "aetheria.mainMenu.input.note",
-                "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner."));
-        }
-        else if (inGame)
-        {
-            cardChildren.Add(Text(
-                "aetheria.mainMenu.input.note",
-                "The runtime Eve input screen should own rebinding here, but this scene has no active input surface to hand off to."));
-        }
-        else
-        {
-            cardChildren.Add(Text(
-                "aetheria.mainMenu.input.note",
-                "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding."));
+            Debug.LogWarning(
+                $"Cannot send {label} command '{command}' because the active target is not a readable local Verse state file.");
+            return false;
         }
 
-        var buttons = new List<EveSurfaceComponent>();
-        if (canOpenRuntimeInputScreen)
-        {
-            buttons.Add(Button("aetheria.mainMenu.input.openRuntimeScreen", "Open Remap Screen", OpenRuntimeInputScreenCommand));
-        }
-
-        buttons.Add(Button("aetheria.mainMenu.input.back", "Back", BackToSettingsCommand));
-        cardChildren.Add(ButtonRow("aetheria.mainMenu.input.actions", buttons.ToArray()));
-
-        return BuildMenuSurfaceDocument(
-            InputSettingsSurfaceId,
-            "Aetheria Input Settings",
-            commands,
-            Card(
-                "aetheria.mainMenu.input.card",
-                "Input Settings",
-                cardChildren.ToArray()));
-    }
-
-    private static EveSurfaceDocument WithBackAction(
-        EveSurfaceDocument document,
-        string surfaceId,
-        string backCommand,
-        string backLabel)
-    {
-        return new EveSurfaceDocument(
-            document.Type,
-            document.Schema,
-            document.ProviderId,
-            document.ProviderKind,
-            document.Title,
-            document.Version,
-            document.UpdatedAtUtc,
-            new EveSurfaceTree(
-                surfaceId,
-                Node(
-                    $"{surfaceId}.root",
-                    "surface",
-                    Array.Empty<(string Key, string Value)>(),
-                    document.Surface.Root,
-                    ButtonRow(
-                        $"{surfaceId}.actions",
-                        Button($"{surfaceId}.back", backLabel, backCommand))),
-                document.Surface.Styles),
-            document.Commands
-                .Concat(new[]
-                {
-                    new EveCommandTemplate(backCommand, backLabel, "unity-uitoolkit")
-                })
-                .ToArray());
-    }
-
-    private static EveSurfaceDocument BuildMenuSurfaceDocument(
-        string surfaceId,
-        string title,
-        IReadOnlyList<EveCommandTemplate> commands,
-        params EveSurfaceComponent[] children)
-    {
-        return new EveSurfaceDocument(
-            MenuSurfaceType,
-            MenuSurfaceSchema,
-            MenuSurfaceProviderId,
-            MenuSurfaceProviderKind,
-            title,
-            version: 1,
-            DateTime.UtcNow.ToString("O"),
-            new EveSurfaceTree(
-                surfaceId,
-                Node($"{surfaceId}.root", "surface", Array.Empty<(string Key, string Value)>(), children),
-                Array.Empty<EveStyleToken>()),
-            commands);
-    }
-
-    private static EveSurfaceComponent Card(
-        string id,
-        string title,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "card", new[] { ("title", title) }, children);
-    }
-
-    private static EveSurfaceComponent Metric(string id, string label, string value)
-    {
-        return Node(id, "metric", new[] { ("label", label), ("value", value) });
-    }
-
-    private static EveSurfaceComponent Text(string id, string value)
-    {
-        return Node(id, "text", new[] { ("value", value) });
-    }
-
-    private static EveSurfaceComponent Button(string id, string label, string command)
-    {
-        return Node(id, "control.button", new[] { ("label", label), ("command", command) });
-    }
-
-    private static EveSurfaceComponent ButtonRow(
-        string id,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
-    }
-
-    private static EveSurfaceComponent ButtonColumn(
-        string id,
-        params EveSurfaceComponent[] children)
-    {
-        return Node(id, "column", Array.Empty<(string Key, string Value)>(), children);
-    }
-
-    private static EveSurfaceComponent Node(
-        string id,
-        string kind,
-        IEnumerable<(string Key, string Value)> props,
-        params EveSurfaceComponent[] children)
-    {
-        return new EveSurfaceComponent(
-            id,
-            kind,
-            props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
-            children ?? Array.Empty<EveSurfaceComponent>());
-    }
-
-    private static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
-    {
-        return new EveSurfaceDocument(
-            "surface-state",
-            "gamecult.eve.surface.v1",
-            document.ProviderId,
-            document.ProviderKind,
-            document.Title,
-            document.Version,
-            document.UpdatedAtUtc,
-            new EveSurfaceTree(
-                document.Surface.Id,
-                ToEveSurfaceComponent(document.Surface.Root),
-                document.Surface.Styles
-                    .Select(style => new EveStyleToken(style.Name, style.Value))
-                    .ToArray()),
-            document.Commands
-                .Select(command => new EveCommandTemplate(command.Command, command.Label, command.Transport))
-                .ToArray());
-    }
-
-    private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
-    {
-        return new EveSurfaceComponent(
-            component.Id,
-            component.Kind,
-            new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-            component.Children.Select(ToEveSurfaceComponent).ToArray());
+        return true;
     }
 
     private void OnDestroy()
