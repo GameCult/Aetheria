@@ -1502,7 +1502,7 @@ static void RequireTypedOrbitConsumerKeys(string root)
         {
             "foreach (var pose in _daemonBodyPoses)",
             "foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())",
-            "zone.AsteroidBelts.TryGetValue(body.BodyKey ?? \"\", out var belt)",
+            "beltPosesByBodyKey.TryGetValue(body.BodyKey ?? \"\", out var beltPose)",
             "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
             "var p = new float2((float)pose.CenterX, (float)pose.CenterZ);",
             "var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);"
@@ -1757,8 +1757,8 @@ static void RequireTypedZoneRuntimeCollections(string root)
         "private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);",
         "private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);",
         "private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);",
-        "_beltMeshes[runtimeBelt.BodyKey] = meshes.ToArray();",
-        "_beltObjects[runtimeBelt.BodyKey] = belt;",
+        "_beltMeshes[bodyKey] = meshes.ToArray();",
+        "_beltObjects[bodyKey] = belt;",
         "Planets[bodyKey] = planet;"
     };
     var missingRendererSymbols = requiredRendererSymbols
@@ -1925,7 +1925,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     if (zoneRenderer.Contains("Zone.PlanetInstances[planet.Key]", StringComparison.Ordinal) ||
         zoneRenderer.Contains("zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("LoadPlanet(planet)", StringComparison.Ordinal))
+        zoneRenderer.Contains("LoadPlanet(planet)", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("zone.AsteroidBelts.TryGetValue(body.BodyKey", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("LoadAsteroidBelt(belt)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "ZoneRenderer frame updates must read body render state from daemon body poses instead of indexed mirrored Unity planets.");
@@ -1996,7 +1998,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())",
         "LoadPlanet(body)",
         "void LoadPlanet(AetheriaRuntimeBodySnapshotCommit body)",
-        "zone.AsteroidBelts.TryGetValue(body.BodyKey ?? \"\", out var belt)",
+        "beltPosesByBodyKey.TryGetValue(body.BodyKey ?? \"\", out var beltPose)",
+        "LoadAsteroidBelt(beltPose)",
+        "void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)",
         "foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())",
         "entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
         "foreach (var entity in EntityInstances.Keys.ToArray())",

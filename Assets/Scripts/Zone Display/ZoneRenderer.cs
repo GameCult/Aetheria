@@ -192,6 +192,10 @@ public class ZoneRenderer : MonoBehaviour
         SlimeGravityCamera.orthographicSize = zone.Radius;
         SlimeRenderer.ZoneRadius = zone.Radius;
         RefreshDaemonBodyPoses();
+        RefreshDaemonAsteroidBeltPoses();
+        var beltPosesByBodyKey = _daemonAsteroidBeltPoses
+            .Where(pose => !string.IsNullOrWhiteSpace(pose.BodyKey))
+            .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
         foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
         {
             if (body == null)
@@ -199,8 +203,8 @@ public class ZoneRenderer : MonoBehaviour
 
             if (string.Equals(body.Kind ?? "", "asteroid_belt", StringComparison.OrdinalIgnoreCase))
             {
-                if (zone.AsteroidBelts.TryGetValue(body.BodyKey ?? "", out var belt))
-                    LoadAsteroidBelt(belt);
+                if (beltPosesByBodyKey.TryGetValue(body.BodyKey ?? "", out var beltPose))
+                    LoadAsteroidBelt(beltPose);
             }
             else
             {
@@ -353,28 +357,34 @@ public class ZoneRenderer : MonoBehaviour
         EntityInstances.Remove(entity);
     }
 
-    void LoadAsteroidBelt(AsteroidBelt runtimeBelt)
+    void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)
     {
+        var bodyKey = beltPose.BodyKey;
+        if (bodyKey.Length == 0)
+            return;
+
         var meshes = AsteroidMeshes.ToList();
         while (meshes.Count > Settings.AsteroidMeshCount)
             meshes.RemoveAt(Random.Range(0, meshes.Count));
-        _beltMeshes[runtimeBelt.BodyKey] = meshes.ToArray();
-        _beltMatrices[runtimeBelt.BodyKey] = new Matrix4x4[meshes.Count][];
-        var count = runtimeBelt.AsteroidCount / meshes.Count;
-        var remainder = runtimeBelt.AsteroidCount - count * meshes.Count;
+        _beltMeshes[bodyKey] = meshes.ToArray();
+        _beltMatrices[bodyKey] = new Matrix4x4[meshes.Count][];
+        var asteroidCount = beltPose.AsteroidCount;
+        var count = meshes.Count == 0 ? 0 : asteroidCount / meshes.Count;
+        var remainder = asteroidCount - count * meshes.Count;
         for (int i = 0; i < meshes.Count; i++)
         {
-            _beltMatrices[runtimeBelt.BodyKey][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
+            _beltMatrices[bodyKey][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
         }
 
         var beltObject = Instantiate(AsteroidBeltUI, ZoneRoot);
-        var belt = new AsteroidBeltUI(Zone,
-            runtimeBelt,
+        var belt = new AsteroidBeltUI(
+            asteroidCount,
+            (float)beltPose.Radius,
             beltObject,
             AsteroidSpritesheetWidth,
             AsteroidSpritesheetHeight,
             Settings.MinimapAsteroidSize);
-        _beltObjects[runtimeBelt.BodyKey] = belt;
+        _beltObjects[bodyKey] = belt;
 
         LODHandler.FindPlanets();
     }
@@ -764,34 +774,29 @@ public class AsteroidBeltUI
     private int[] _indices;
     private Mesh _mesh;
     private float _size;
-    private Zone _zone;
-    private AsteroidBelt _belt;
     private float _scale;
 
-    public AsteroidBeltUI(Zone zone,
-        AsteroidBelt belt,
+    public AsteroidBeltUI(
+        int asteroidCount,
+        float radius,
         MeshFilter meshFilter,
         int spritesheetWidth,
         int spritesheetHeight,
         float scale)
     {
-        _belt = belt;
-        _zone = zone;
         Filter = meshFilter;
-        _vertices = new Vector3[_belt.AsteroidCount * 4];
-        _normals = new Vector3[_belt.AsteroidCount * 4];
-        _uvs = new Vector2[_belt.AsteroidCount * 4];
-        _indices = new int[_belt.AsteroidCount * 6];
+        asteroidCount = Math.Max(0, asteroidCount);
+        _vertices = new Vector3[asteroidCount * 4];
+        _normals = new Vector3[asteroidCount * 4];
+        _uvs = new Vector2[asteroidCount * 4];
+        _indices = new int[asteroidCount * 6];
         _scale = scale;
 
-        var maxDist = 0f;
+        var maxDist = Math.Max(0, radius);
         var spriteSize = float2(1f / spritesheetWidth, 1f / spritesheetHeight);
         // vertex order: bottom left, top left, top right, bottom right
-        for (var i = 0; i < belt.AsteroidCount; i++)
+        for (var i = 0; i < asteroidCount; i++)
         {
-            var asteroid = belt.GetAsteroid(i);
-            if (asteroid.Distance > maxDist)
-                maxDist = asteroid.Distance;
             var spriteX = Random.Range(0, spritesheetWidth);
             var spriteY = Random.Range(0, spritesheetHeight);
 
