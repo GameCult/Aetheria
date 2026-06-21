@@ -132,5 +132,5 @@ GameData/*.cc.records.*/
 GameData/*.cc.eve.pending/
 GameData/*.cc.before-*
 GameData/*.cc.daemon.*.cc
-UserSettings/Search.index
+/UserSettings/
 Vault/Aetheria/.obsidian/plugins/copilot/data.json
