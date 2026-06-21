@@ -7875,6 +7875,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "Zone.Entities.Add(CurrentEntity)",
         "CurrentEntity.CultPositionXZ = TowingStation.CultPositionXZ",
         "PopulateLevel(TowingStation.Zone.GalaxyZone)",
+        "RestoreDaemonAsteroidRuntimeState",
+        "belt.Damage.Clear()",
+        "belt.RespawnTimers.Clear()",
         "AetheriaRuntimeStateCommitLog.QueueRunCheckpoint",
         "AetheriaRuntimeStateCommitLog.QueuePlayerSettings",
         "AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate"

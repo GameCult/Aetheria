@@ -2063,7 +2063,6 @@ public class ActionGameManager : MonoBehaviour
         {
             var constructionBlueprint = CreateDaemonZoneConstructionBlueprint(daemonZone);
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, ObservedGalaxy);
-            RestoreDaemonAsteroidRuntimeState(galaxyZone.Contents, daemonZone);
         }
         Zone = galaxyZone.Contents;
         PlayMusic(MusicType.Overworld);
@@ -2382,37 +2381,6 @@ public class ActionGameManager : MonoBehaviour
         data.Resources = (body.Resources ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>())
             .Where(resource => resource != null && !string.IsNullOrWhiteSpace(resource.ItemKey))
             .ToDictionary(resource => resource.ItemKey, resource => (float)resource.Amount, StringComparer.Ordinal);
-    }
-
-    private static void RestoreDaemonAsteroidRuntimeState(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone)
-    {
-        if (zone == null || daemonZone == null)
-            return;
-
-        foreach (var body in daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
-        {
-            if (body == null ||
-                !string.Equals(body.Kind ?? "", "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
-                !zone.AsteroidBelts.TryGetValue(body.BodyKey ?? "", out var belt))
-            {
-                continue;
-            }
-
-            belt.Damage.Clear();
-            belt.RespawnTimers.Clear();
-            var asteroids = body.Asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
-            for (var index = 0; index < asteroids.Count; index++)
-            {
-                var asteroid = asteroids[index];
-                if (asteroid == null)
-                    continue;
-
-                if (asteroid.Damage > 0)
-                    belt.Damage[index] = (float)asteroid.Damage;
-                if (asteroid.RespawnTimer > 0)
-                    belt.RespawnTimers[index] = (float)asteroid.RespawnTimer;
-            }
-        }
     }
 
     private void ClearRenderedLoot()
