@@ -1504,8 +1504,10 @@ static void RequireTypedOrbitConsumerKeys(string root)
     {
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
+            "private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews",
+            "AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(_daemonZoneSnapshot, _daemonBodyViews);",
+            "foreach (var bodyView in _daemonBodyViews)",
             "foreach (var pose in _daemonBodyPoses)",
-            "foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())",
             "beltPosesByBodyKey.TryGetValue(body.BodyKey ?? \"\", out var beltPose)",
             "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
             "var p = new float2((float)pose.CenterX, (float)pose.CenterZ);",
@@ -1835,6 +1837,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(",
         "public static int QueryBodyPoses(",
         "new AetheriaRuntimeDaemonBodyPose(",
+        "AetheriaRuntimeDaemonBodyView",
+        "public static AetheriaRuntimeDaemonBodyView[] QueryBodyViews(",
+        "public static int QueryBodyViews(",
         "AetheriaRuntimeDaemonAsteroidBeltPose",
         "public static AetheriaRuntimeDaemonAsteroidBeltPose[] QueryAsteroidBeltPoses(",
         "public static int QueryAsteroidBeltPoses(",
@@ -1948,6 +1953,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must query daemon gravity terrain bands instead of calling mirrored Unity Zone gravity math.");
     }
 
+    if (zoneRenderer.Contains("Settings.PlanetSettings.GravityRadius.Evaluate(", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("Settings.PlanetSettings.GravityDepth.Evaluate(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must lower daemon-authored gravity influence radius/depth instead of reconstructing gravity brushes from Unity settings.");
+    }
+
     if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2036,6 +2048,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; }",
         "private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;",
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
+        "private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly Dictionary<string, PlanetObject> _bodyViewsByBodyKey",
@@ -2061,8 +2074,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "            2000);",
         "AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(",
         "private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses",
+        "foreach (var bodyView in _daemonBodyViews)",
+        "if (bodyView.IsAsteroidBelt)",
+        "AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(_daemonZoneSnapshot, _daemonBodyViews);",
         "foreach (var pose in _daemonBodyPoses)",
-        "foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())",
         "LoadPlanet(body)",
         "void LoadPlanet(AetheriaRuntimeBodySnapshotCommit body)",
         "beltPosesByBodyKey.TryGetValue(body.BodyKey ?? \"\", out var beltPose)",

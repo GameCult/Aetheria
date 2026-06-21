@@ -986,6 +986,58 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishBodyViewsFromZoneSnapshot()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Orbits = new[]
+            {
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:planet",
+                    FixedPositionX = 12,
+                    FixedPositionY = -8
+                },
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:belt",
+                    Distance = 30
+                }
+            },
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:planet",
+                    OrbitKey = "orbit:planet",
+                    Kind = "planet",
+                    GravityInfluenceRadius = 40,
+                    GravityWellDepth = 7
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:belt",
+                    OrbitKey = "orbit:belt",
+                    Kind = "asteroid_belt"
+                }
+            }
+        };
+
+        var views = new List<AetheriaRuntimeDaemonBodyView>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(zone, views);
+
+        Assert.AreEqual(2, count);
+        Assert.AreEqual("body:planet", views[0].Body.BodyKey);
+        Assert.IsFalse(views[0].IsAsteroidBelt);
+        Assert.AreEqual(12, views[0].Pose.CenterX, 0.0001);
+        Assert.AreEqual(-8, views[0].Pose.CenterZ, 0.0001);
+        Assert.AreEqual(40, views[0].Body.GravityInfluenceRadius, 0.0001);
+        Assert.AreEqual(7, views[0].Body.GravityWellDepth, 0.0001);
+        Assert.AreEqual("body:belt", views[1].Body.BodyKey);
+        Assert.IsTrue(views[1].IsAsteroidBelt);
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishAsteroidBeltPosesFromZoneSnapshot()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit

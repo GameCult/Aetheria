@@ -85,6 +85,7 @@ public class ZoneRenderer : MonoBehaviour
     private bool _showAsteroidUI;
     private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
+    private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews = new List<AetheriaRuntimeDaemonBodyView>();
     private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses = new List<AetheriaRuntimeDaemonBodyPose>();
     private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey =
         new Dictionary<string, AetheriaRuntimeDaemonBodyPose>(StringComparer.Ordinal);
@@ -220,17 +221,17 @@ public class ZoneRenderer : MonoBehaviour
     {
         ClearZone();
         ApplyDaemonFrame(daemonZone, daemonRun);
+        RefreshDaemonBodyViews();
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
         var beltPosesByBodyKey = _daemonAsteroidBeltPoses
             .Where(pose => !string.IsNullOrWhiteSpace(pose.BodyKey))
             .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
-        foreach (var body in daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+        foreach (var bodyView in _daemonBodyViews)
         {
-            if (body == null)
-                continue;
+            var body = bodyView.Body;
 
-            if (string.Equals(body.Kind ?? "", "asteroid_belt", StringComparison.OrdinalIgnoreCase))
+            if (bodyView.IsAsteroidBelt)
             {
                 if (beltPosesByBodyKey.TryGetValue(body.BodyKey ?? "", out var beltPose))
                     LoadAsteroidBelt(beltPose);
@@ -467,12 +468,8 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         var bodyRadius = Settings.PlanetSettings.BodyRadius.Evaluate(mass) * (float)body.BodyRadiusMultiplier;
-        var gravityWellRadius = body.GravityInfluenceRadius > 0
-            ? (float)body.GravityInfluenceRadius
-            : Settings.PlanetSettings.GravityRadius.Evaluate(mass) * (float)body.GravityRadiusMultiplier;
-        var gravityWellDepth = body.GravityWellDepth != 0
-            ? (float)body.GravityWellDepth
-            : Settings.PlanetSettings.GravityDepth.Evaluate(mass) * (float)body.GravityDepthMultiplier;
+        var gravityWellRadius = Mathf.Max(0f, (float)body.GravityInfluenceRadius);
+        var gravityWellDepth = (float)body.GravityWellDepth;
         planet.Body.transform.localScale = bodyRadius * Vector3.one;
         planet.GravityWell.transform.localScale = gravityWellRadius * Vector3.one;
         // var depth = planetInstance.GravityWellDepth;
@@ -673,6 +670,11 @@ public class ZoneRenderer : MonoBehaviour
         // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
+    }
+
+    private void RefreshDaemonBodyViews()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(_daemonZoneSnapshot, _daemonBodyViews);
     }
 
     private void RefreshDaemonBodyPoses()

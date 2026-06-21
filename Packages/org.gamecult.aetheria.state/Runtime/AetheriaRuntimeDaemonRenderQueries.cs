@@ -137,6 +137,23 @@ namespace GameCult.Aetheria.State.Verse
         public double GravityWaveSpeed { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonBodyView
+    {
+        public AetheriaRuntimeDaemonBodyView(
+            AetheriaRuntimeBodySnapshotCommit body,
+            AetheriaRuntimeDaemonBodyPose pose,
+            bool isAsteroidBelt)
+        {
+            Body = body ?? throw new ArgumentNullException(nameof(body));
+            Pose = pose;
+            IsAsteroidBelt = isAsteroidBelt;
+        }
+
+        public AetheriaRuntimeBodySnapshotCommit Body { get; }
+        public AetheriaRuntimeDaemonBodyPose Pose { get; }
+        public bool IsAsteroidBelt { get; }
+    }
+
     public readonly struct AetheriaRuntimeDaemonAsteroidBeltPose
     {
         public AetheriaRuntimeDaemonAsteroidBeltPose(
@@ -425,6 +442,54 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return poses.Count;
+        }
+
+        public static AetheriaRuntimeDaemonBodyView[] QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone)
+        {
+            var views = new List<AetheriaRuntimeDaemonBodyView>();
+            QueryBodyViews(zone, views);
+            return views.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonBodyView>() : views.ToArray();
+        }
+
+        public static int QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            List<AetheriaRuntimeDaemonBodyView> views)
+        {
+            if (views == null) throw new ArgumentNullException(nameof(views));
+            views.Clear();
+            if (zone == null)
+                return 0;
+
+            var orbitPositions = BuildOrbitPositions(zone);
+            var orbits = BuildOrbitMap(zone);
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (body == null || !TryResolveBodyCenter(body, orbitPositions, out var center))
+                    continue;
+
+                var orbitKey = body.OrbitKey ?? "";
+                var parentOrbitKey = orbits.TryGetValue(orbitKey, out var orbit) ? orbit.ParentOrbitKey ?? "" : "";
+                var parentCenter = orbitPositions.TryGetValue(parentOrbitKey, out var parent)
+                    ? parent
+                    : new AetheriaRuntimeXzPoint(0, 0);
+                var pose = new AetheriaRuntimeDaemonBodyPose(
+                    body.BodyKey,
+                    orbitKey,
+                    parentOrbitKey,
+                    body.Kind,
+                    center.x,
+                    center.z,
+                    parentCenter.x,
+                    parentCenter.z,
+                    ResolveWaveSpeed(body));
+                views.Add(new AetheriaRuntimeDaemonBodyView(
+                    body,
+                    pose,
+                    string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return views.Count;
         }
 
         public static AetheriaRuntimeDaemonAsteroidBeltPose[] QueryAsteroidBeltPoses(
