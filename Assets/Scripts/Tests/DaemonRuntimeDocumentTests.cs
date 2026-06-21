@@ -1145,6 +1145,63 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsTargetsReticleFromAuthoritativeContacts()
+    {
+        var run = RunWithTwoEntities();
+        var zone = run.Zones[0];
+        zone.Entities[0].PositionX = 0;
+        zone.Entities[0].PositionY = 0;
+        zone.Entities[0].PositionZ = 0;
+        zone.Entities[1].PositionX = 0;
+        zone.Entities[1].PositionY = 0;
+        zone.Entities[1].PositionZ = 5;
+        zone.Entities = zone.Entities
+            .Concat(new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 2,
+                    Name = "Off Reticle",
+                    PositionX = 5,
+                    PositionY = 0,
+                    PositionZ = 0
+                }
+            })
+            .ToArray();
+        zone.Entities[0].Contacts = new[]
+        {
+            new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 1,
+                Visible = true,
+                Hostile = true
+            },
+            new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 2,
+                Visible = true,
+                Hostile = true
+            }
+        };
+
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TargetReticle,
+            "codex",
+            "session-reticle",
+            18,
+            "zone.0.entity.0");
+        command.PositionZ = 1;
+
+        var targetResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        Assert.AreEqual(1, targetResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, zone.Entities[0].TargetEntityIndex);
+
+        var toggleResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        Assert.AreEqual(1, toggleResult.AppliedCommandIds.Count);
+        Assert.AreEqual(-1, zone.Entities[0].TargetEntityIndex);
+    }
+
+    [Test]
     public void DaemonOperationsMutatesHotEntityControlsInDaemonState()
     {
         var run = RunWithTwoEntities();

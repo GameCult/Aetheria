@@ -7689,6 +7689,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ApplyTargetCycle(run, command, TargetCycleMode.Nearest)",
         "ApplyTargetCycle(run, command, TargetCycleMode.Next)",
         "ApplyTargetCycle(run, command, TargetCycleMode.Previous)",
+        "ApplyTargetReticle(run, command)",
         "VisibleHostileTargets(zone, actor, actorIndex)",
         "actor.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>()",
         "contact.TargetEntityIndex == targetIndex && contact.Visible"
@@ -7708,9 +7709,11 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "RequestTargetNearest()",
         "RequestTargetNext()",
         "RequestTargetPrevious()",
+        "RequestTargetReticle()",
         "observer.Operations.TargetNearest()",
         "observer.Operations.TargetNext()",
-        "observer.Operations.TargetPrevious()"
+        "observer.Operations.TargetPrevious()",
+        "observer.Operations.TargetReticle("
     };
     var unityTargetRequestSources = actionGameManager + "\n" + daemonOperations;
     var missingUnityTargetRequestSymbols = requiredUnityTargetRequestSymbols
@@ -7727,6 +7730,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         ".MaxBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))",
         ".OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))",
+        ".MaxBy(x => CultMath.math.dot(",
         "Array.IndexOf(targets"
     };
     var unityTargetCycleHits = forbiddenUnityTargetCycleSymbols

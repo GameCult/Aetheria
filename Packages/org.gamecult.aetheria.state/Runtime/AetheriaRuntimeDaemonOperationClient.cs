@@ -132,6 +132,20 @@ namespace GameCult.Aetheria.State.Verse
             return Send(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed);
         }
 
+        public AetheriaRuntimeDaemonCommandEnvelope TargetReticle(
+            AetheriaRuntimeObservedDaemonState? observed,
+            double directionX,
+            double directionY,
+            double directionZ)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.TargetReticle, observed, command =>
+            {
+                command.DirectionX = directionX;
+                command.DirectionY = directionY;
+                command.PositionZ = directionZ;
+            });
+        }
+
         public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
             AetheriaRuntimeObservedDaemonState? observed,
             double directionX,

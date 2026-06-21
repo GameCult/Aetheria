@@ -2057,12 +2057,7 @@ public class ActionGameManager : MonoBehaviour
 
         Input.Player.TargetReticle.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var underReticle = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                .MaxBy(x => CultMath.math.dot(
-                    CultMath.math.normalize(x.CultPosition - CurrentEntity.CultPosition),
-                    CurrentEntity.CultLookDirection));
-            RequestTargetSelection(CurrentEntity.Target.Value == underReticle ? null : underReticle);
+            RequestTargetReticle();
         };
 
         Input.Player.TargetNearest.performed += context =>
@@ -3744,6 +3739,11 @@ public class ActionGameManager : MonoBehaviour
         TryRequestDaemonTargetCycle(AetheriaRuntimeDaemonCommandKinds.TargetPrevious);
     }
 
+    private void RequestTargetReticle()
+    {
+        TryRequestDaemonTargetReticle(_viewDirection);
+    }
+
     private bool TryRequestDaemonTargetSelection(Entity target)
     {
         var observer = ResolveDaemonObserver();
@@ -3772,6 +3772,26 @@ public class ActionGameManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to send Aetheria daemon target operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonTargetReticle(Vector3 lookDirection)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.TargetReticle(lookDirection.x, lookDirection.y, lookDirection.z);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon reticle target operation; operation not submitted: {ex.Message}");
             return false;
         }
     }

@@ -35,6 +35,11 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.TargetPrevious(observed));
     }
 
+    public AetheriaRuntimeDaemonCommandEnvelope TargetReticle(double directionX, double directionY, double directionZ)
+    {
+        return Send((client, observed) => client.TargetReticle(observed, directionX, directionY, directionZ));
+    }
+
     public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
         double directionX,
         double directionY,

@@ -85,6 +85,8 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyTargetCycle(run, command, TargetCycleMode.Next);
                 case AetheriaRuntimeDaemonCommandKinds.TargetPrevious:
                     return ApplyTargetCycle(run, command, TargetCycleMode.Previous);
+                case AetheriaRuntimeDaemonCommandKinds.TargetReticle:
+                    return ApplyTargetReticle(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetLookDirection:
                     return ApplySetLookDirection(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetTractorPower:
@@ -247,7 +249,57 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
-        private static IEnumerable<(int EntityIndex, double DistanceSq)> VisibleHostileTargets(
+        private static bool ApplyTargetReticle(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command)
+        {
+            var actorKey = string.IsNullOrWhiteSpace(command.ActorEntityKey)
+                ? run.CurrentEntityKey
+                : command.ActorEntityKey;
+            if (!TryResolveEntity(run, actorKey, out var actorZone, out var actorIndex, out var actor))
+                return false;
+
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == actorZone);
+            if (zone == null)
+                return false;
+
+            var lookLength = Math.Sqrt(
+                (command.DirectionX * command.DirectionX) +
+                (command.DirectionY * command.DirectionY) +
+                (command.PositionZ * command.PositionZ));
+            if (lookLength <= double.Epsilon)
+                return false;
+
+            var lookX = command.DirectionX / lookLength;
+            var lookY = command.DirectionY / lookLength;
+            var lookZ = command.PositionZ / lookLength;
+            var scoredTargets = VisibleHostileTargets(zone, actor, actorIndex)
+                .Select(candidate =>
+                {
+                    var distance = Math.Sqrt(candidate.DistanceSq);
+                    var dot = distance <= double.Epsilon
+                        ? double.NegativeInfinity
+                        : ((candidate.DeltaX / distance) * lookX) +
+                          ((candidate.DeltaY / distance) * lookY) +
+                          ((candidate.DeltaZ / distance) * lookZ);
+                    return (candidate.EntityIndex, Dot: dot);
+                })
+                .Where(candidate => candidate.Dot > double.NegativeInfinity)
+                .OrderByDescending(candidate => candidate.Dot)
+                .ThenBy(candidate => candidate.EntityIndex)
+                .ToArray();
+            if (scoredTargets.Length == 0)
+                return false;
+
+            var target = scoredTargets[0];
+            actor.TargetEntityIndex = actor.TargetEntityIndex == target.EntityIndex
+                ? -1
+                : target.EntityIndex;
+            return true;
+        }
+
+        private static IEnumerable<(int EntityIndex, double DistanceSq, double DeltaX, double DeltaY, double DeltaZ)> VisibleHostileTargets(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit actor,
             int actorIndex)
@@ -271,7 +323,13 @@ namespace GameCult.Aetheria.State.Verse
 
                 var deltaX = target.PositionX - actor.PositionX;
                 var deltaY = target.PositionY - actor.PositionY;
-                yield return (contact.TargetEntityIndex, (deltaX * deltaX) + (deltaY * deltaY));
+                var deltaZ = target.PositionZ - actor.PositionZ;
+                yield return (
+                    contact.TargetEntityIndex,
+                    (deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ),
+                    deltaX,
+                    deltaY,
+                    deltaZ);
             }
         }
 

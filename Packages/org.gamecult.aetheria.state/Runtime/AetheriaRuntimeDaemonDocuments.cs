@@ -64,6 +64,7 @@ namespace GameCult.Aetheria.State.Verse
         TargetNearest,
         TargetNext,
         TargetPrevious,
+        TargetReticle,
         SetMoveVector,
         SetLookDirection,
         SetTractorPower,
