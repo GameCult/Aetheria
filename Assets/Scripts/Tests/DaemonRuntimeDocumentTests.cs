@@ -733,6 +733,16 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesResolveZoneRenderRadiusFromDaemonTerrain()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { GravityTerrainRadius = 128 };
+
+        Assert.AreEqual(128, AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(zone, 2000));
+        Assert.AreEqual(2000, AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(null, 2000));
+        Assert.AreEqual(0, AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(null, -5));
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishGravityTerrainMaterialBand()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit

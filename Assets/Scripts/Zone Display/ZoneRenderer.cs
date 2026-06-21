@@ -188,9 +188,12 @@ public class ZoneRenderer : MonoBehaviour
         Zone = zone;
         _daemonRunSnapshot = daemonRun;
         _daemonZoneSnapshot = daemonZone;
-        SectorBrushes.localScale = zone.Radius * 2 * Vector3.one;
-        SlimeGravityCamera.orthographicSize = zone.Radius;
-        SlimeRenderer.ZoneRadius = zone.Radius;
+        var zoneRenderRadius = (float)AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+            _daemonZoneSnapshot,
+            zone.Radius);
+        SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
+        SlimeGravityCamera.orthographicSize = zoneRenderRadius;
+        SlimeRenderer.ZoneRadius = zoneRenderRadius;
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
         var beltPosesByBodyKey = _daemonAsteroidBeltPoses
@@ -233,7 +236,7 @@ public class ZoneRenderer : MonoBehaviour
         AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
             _daemonRunSnapshot,
             _daemonZoneSnapshot,
-            zone.Radius,
+            zoneRenderRadius,
             Settings.WormholeDistanceRatio,
             _daemonWormholeExits);
         foreach (var exit in _daemonWormholeExits)

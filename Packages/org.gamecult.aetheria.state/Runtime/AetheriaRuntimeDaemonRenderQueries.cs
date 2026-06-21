@@ -225,6 +225,16 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeDaemonRenderQueries
     {
+        public static double ResolveZoneRenderRadius(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            double fallbackRadius)
+        {
+            if (zone != null && zone.GravityTerrainRadius > 0)
+                return zone.GravityTerrainRadius;
+
+            return Math.Max(0, fallbackRadius);
+        }
+
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
             AetheriaRuntimeZoneSnapshotCommit? zone,
             AetheriaRuntimeXzRect viewport)
