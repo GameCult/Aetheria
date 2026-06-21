@@ -84,11 +84,24 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         // });
     }
 
-    private bool HasHullType(Entity entity, HullType hullType)
+    private static bool IsBodyKind(AetheriaRuntimeBodySnapshotCommit body, string kind)
     {
-        var typedItem = entity?.ItemManager.GetRuntimeItem(entity.Hull);
-        return typedItem != null &&
-               string.Equals(typedItem.HullType, hullType.ToString(), StringComparison.Ordinal);
+        return body != null && string.Equals(body.Kind ?? "", kind, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPlanetBody(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        return body != null &&
+               !IsBodyKind(body, "asteroid_belt") &&
+               !IsBodyKind(body, "gas_giant") &&
+               !IsBodyKind(body, "sun");
+    }
+
+    private static bool HasHullType(AetheriaRuntimeEntitySnapshotCommit entity, HullType hullType)
+    {
+        var typedHull = ActionGameManager.RuntimeCatalog?.FindItem(entity?.HullItemKey ?? "");
+        return typedHull != null &&
+               string.Equals(typedHull.HullType, hullType.ToString(), StringComparison.Ordinal);
     }
 
     private void RenderZoneDetailsSurface(GalaxyZone zone)
@@ -138,7 +151,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToArray();
 
-        if (zone.Contents == null)
+        var daemonZone = GameManager?.FindDaemonZoneSnapshot(zone);
+        if (daemonZone == null)
         {
             return new AetheriaRuntimeZoneDetailsSurfaceState(
                 zone.Name,
@@ -157,7 +171,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
                 updatedAtUtc: DateTime.UtcNow.ToString("O"));
         }
 
-        var runtimeZone = zone.Contents;
+        var bodies = daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
+        var entities = daemonZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
         return new AetheriaRuntimeZoneDetailsSurfaceState(
             zone.Name,
             zone.Owner?.Name ?? "None",
@@ -165,13 +180,13 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             ActionGameManager.RuntimePlayerSettings.Format(radius),
             otherFactions,
             hasContents: true,
-            planets: runtimeZone.PlanetInstances.Values.Count(body => !(body is GasGiant)).ToString(),
-            asteroidBelts: runtimeZone.AsteroidBelts.Count.ToString(),
-            gasGiants: runtimeZone.PlanetInstances.Values.Count(body => body is GasGiant && !(body is Sun)).ToString(),
-            stars: runtimeZone.PlanetInstances.Values.Count(body => body is Sun).ToString(),
-            stations: runtimeZone.Entities.Count(entity => HasHullType(entity, HullType.Station)).ToString(),
-            turrets: runtimeZone.Entities.Count(entity => HasHullType(entity, HullType.Turret)).ToString(),
-            ships: runtimeZone.Entities.Count(entity => HasHullType(entity, HullType.Ship)).ToString(),
+            planets: bodies.Count(IsPlanetBody).ToString(),
+            asteroidBelts: bodies.Count(body => IsBodyKind(body, "asteroid_belt")).ToString(),
+            gasGiants: bodies.Count(body => IsBodyKind(body, "gas_giant")).ToString(),
+            stars: bodies.Count(body => IsBodyKind(body, "sun")).ToString(),
+            stations: entities.Count(entity => HasHullType(entity, HullType.Station)).ToString(),
+            turrets: entities.Count(entity => HasHullType(entity, HullType.Turret)).ToString(),
+            ships: entities.Count(entity => HasHullType(entity, HullType.Ship)).ToString(),
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 

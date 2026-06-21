@@ -3638,6 +3638,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
         "ProjectZoneDetailsSurfaceState(",
+        "GameManager?.FindDaemonZoneSnapshot(zone)",
+        "daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()",
+        "daemonZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()",
+        "typedHull.HullType",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -3673,6 +3677,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "Properties.AddProperty(\"Stations\"",
         "Properties.AddProperty(\"Turrets\"",
         "Properties.AddProperty(\"Ships\"",
+        "runtimeZone.PlanetInstances",
+        "runtimeZone.AsteroidBelts",
+        "runtimeZone.Entities",
         "string.Equals(request.Command, AetheriaRuntimeZoneDetailsSurfaceBuilder.Close"
     };
 
@@ -7906,6 +7913,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "ApplyLatestAuthoritativeDaemonFrame()",
         "ResolveDaemonObserver()",
+        "public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(GalaxyZone zone)",
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
