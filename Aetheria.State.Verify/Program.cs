@@ -7747,6 +7747,7 @@ static void RequireMainMenuContinueRunState(string root)
         "var currentEntityKey = $\"{zoneEntityKeyPrefix}{run.CurrentZoneEntityIndex}.v1\"",
         "TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold) / (1 - threshold));",
         "VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);",
+        "indicator.Key.EntityInfoGathered[CurrentEntity]",
         "CurrentEntity.Target.Value.IsHostileTo(CurrentEntity)"
     };
 

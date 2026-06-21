@@ -3436,10 +3436,11 @@ public class ActionGameManager : MonoBehaviour
                         indicator.Value.Fill.enabled = false;
                     else
                     {
+                        var infoGatheredByHostile = GetObservedInfoGathered(indicator.Key, CurrentEntity);
                         indicator.Value.Fill.fillAmount =
-                            Saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            Saturate(infoGatheredByHostile / Settings.GameplaySettings.TargetDetectionInfoThreshold);
                         indicator.Value.Fill.enabled =
-                            !(indicator.Key.EntityInfoGathered[CurrentEntity] > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
+                            !(infoGatheredByHostile > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
                             Mathf.Sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
                     }
                 }
@@ -3452,8 +3453,9 @@ public class ActionGameManager : MonoBehaviour
                     else
                     {
                         indicator.Value.Fill.enabled = true;
+                        var infoGatheredByFriendly = GetObservedInfoGathered(indicator.Key, CurrentEntity);
                         indicator.Value.Fill.fillAmount =
-                            Saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            Saturate(infoGatheredByFriendly / Settings.GameplaySettings.TargetDetectionInfoThreshold);
                     }
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
