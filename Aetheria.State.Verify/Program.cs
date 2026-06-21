@@ -2494,7 +2494,7 @@ static void RequireMainMenuSettingsCommands(string root)
 
     var requiredMainMenuAuthoritySymbols = new[]
     {
-        "TrySendKnownAetheriaEveCommand(request, \"player-settings\")",
+        "SendKnownAetheriaEveCommand(request, \"player-settings\")",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
         "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
         "stateBoot.StateFilePath",
@@ -2510,6 +2510,21 @@ static void RequireMainMenuSettingsCommands(string root)
         throw new InvalidOperationException(
             "MainMenu no longer routes settings changes through the Aetheria Eve command boundary: " +
             string.Join(", ", missingUiCalls));
+    }
+
+    var forbiddenSubmitAcceptanceSymbols = new[]
+    {
+        "private static bool TrySendKnownAetheriaEveCommand(",
+        "if (!TrySendKnownAetheriaEveCommand(request, \"player-settings\"))"
+    };
+    var submitAcceptanceHits = forbiddenSubmitAcceptanceSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (submitAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu player-settings command lowering still treats Eve submission as local acceptance state: " +
+            string.Join(", ", submitAcceptanceHits));
     }
 
     if (source.Contains("TrySendPlayerSettingsCommand(", StringComparison.Ordinal) ||
@@ -2569,7 +2584,7 @@ static void RequireMainMenuSettingsCommands(string root)
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
-        "TrySendKnownAetheriaEveCommand(request, \"player-settings\")"
+        "SendKnownAetheriaEveCommand(request, \"player-settings\")"
     };
 
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -5169,7 +5184,7 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.LastReplicaSyncError",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
-        "TryRequestClientTargetCommand(request)",
+        "RequestClientTargetCommand(request)",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ProjectMainMenuSurfaceState(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
@@ -5627,8 +5642,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
-        "TryRequestClientTargetCommand(request)",
-        "TrySendKnownAetheriaEveCommand(request, \"Verse-host\")",
+        "RequestClientTargetCommand(request)",
+        "SendKnownAetheriaEveCommand(request, \"Verse-host\")",
         "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
@@ -5642,6 +5657,23 @@ static void RequireVerseSettingsShellAndBridge(string root)
         throw new InvalidOperationException(
             "MainMenu no longer owns the typed Verse settings shell handoff: " +
             string.Join(", ", missingMainMenuSymbols));
+    }
+
+    var forbiddenSubmitAcceptanceSymbols = new[]
+    {
+        "private static bool TryRequestClientTargetCommand(",
+        "private static bool TrySendKnownAetheriaEveCommand(",
+        "if (TryRequestClientTargetCommand(request))",
+        "if (TrySendKnownAetheriaEveCommand(request, \"Verse-host\"))"
+    };
+    var submitAcceptanceHits = forbiddenSubmitAcceptanceSymbols
+        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (submitAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu Verse settings command lowering still treats submission as local acceptance state: " +
+            string.Join(", ", submitAcceptanceHits));
     }
 
     var forbiddenMainMenuMutationSymbols = new[]

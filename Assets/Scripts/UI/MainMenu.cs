@@ -306,12 +306,7 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 return;
             case AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand:
-                if (!TrySendKnownAetheriaEveCommand(request, "player-settings"))
-                {
-                    Debug.LogWarning($"Unhandled player-settings command kind: {command.Kind}");
-                    return;
-                }
-
+                SendKnownAetheriaEveCommand(request, "player-settings");
                 ShowPlayerSettingsSurface();
                 return;
             default:
@@ -334,18 +329,12 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 return;
             case AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand:
-                if (TryRequestClientTargetCommand(request))
-                {
-                    ShowVerseSettingsSurface();
-                }
-
+                RequestClientTargetCommand(request);
+                ShowVerseSettingsSurface();
                 return;
             case AetheriaRuntimeMainMenuCommandKind.VerseHostCommand:
-                if (TrySendKnownAetheriaEveCommand(request, "Verse-host"))
-                {
-                    ShowVerseSettingsSurface();
-                }
-
+                SendKnownAetheriaEveCommand(request, "Verse-host");
+                ShowVerseSettingsSurface();
                 return;
             default:
                 Debug.LogWarning($"Unhandled verse-settings command kind: {command.Kind}");
@@ -447,7 +436,7 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
-    private static bool TryRequestClientTargetCommand(EveSurfaceCommandRequest request)
+    private static void RequestClientTargetCommand(EveSurfaceCommandRequest request)
     {
         try
         {
@@ -456,28 +445,25 @@ public class MainMenu : MonoBehaviour
                     request,
                     out _))
             {
-                return false;
+                return;
             }
-
-            return true;
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to update typed Aetheria client target: {ex}");
-            return true;
         }
     }
 
-    private static bool TrySendKnownAetheriaEveCommand(
+    private static void SendKnownAetheriaEveCommand(
         EveSurfaceCommandRequest request,
         string label)
     {
         if (request == null)
-            return false;
+            return;
 
         var stateBoot = CurrentStateBoot();
         if (!CanSendLocalEveCommand(stateBoot, label))
-            return true;
+            return;
 
         try
         {
@@ -489,16 +475,14 @@ public class MainMenu : MonoBehaviour
                     out var error))
             {
                 Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return true;
+                return;
             }
 
             Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
-            return true;
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
-            return true;
         }
     }
 
