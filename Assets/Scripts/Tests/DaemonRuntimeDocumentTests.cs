@@ -930,6 +930,50 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void ZoneDetailsProjectionReadsMassRadiusAndContentsFromDaemonZone()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Name = "Tir Na Nog",
+            GravityTerrainRadius = 420,
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit { Kind = "planet", Mass = 10 },
+                new AetheriaRuntimeBodySnapshotCommit { Kind = "gas_giant", Mass = 30 },
+                new AetheriaRuntimeBodySnapshotCommit { Kind = "asteroid_belt" }
+            },
+            Entities = new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit { HullItemKey = "station-hull" },
+                new AetheriaRuntimeEntitySnapshotCommit { HullItemKey = "ship-hull" }
+            }
+        };
+
+        var projection = AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(
+            zone,
+            key => key == "station-hull" ? "Station" : "Ship");
+        var state = AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(
+            zone.Name,
+            "GameCult",
+            projection.Mass.ToString("0"),
+            projection.Radius.ToString("0"),
+            new[] { "A", "B" },
+            projection.Bodies,
+            projection.Entities,
+            projection.HasContents,
+            "");
+
+        Assert.AreEqual(40, projection.Mass, 0.0001);
+        Assert.AreEqual(420, projection.Radius, 0.0001);
+        Assert.IsTrue(projection.HasContents);
+        Assert.AreEqual("1", state.Planets);
+        Assert.AreEqual("1", state.GasGiants);
+        Assert.AreEqual("1", state.AsteroidBelts);
+        Assert.AreEqual("1", state.Stations);
+        Assert.AreEqual("1", state.Ships);
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishBodyPosesFromZoneSnapshot()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit

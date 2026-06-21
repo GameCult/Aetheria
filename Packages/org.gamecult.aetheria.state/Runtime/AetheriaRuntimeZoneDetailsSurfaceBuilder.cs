@@ -75,10 +75,57 @@ namespace GameCult.Aetheria.State.Verse
         public string HullType { get; }
     }
 
+    public sealed class AetheriaRuntimeZoneDetailsDaemonProjection
+    {
+        public AetheriaRuntimeZoneDetailsDaemonProjection(
+            double mass,
+            double radius,
+            IReadOnlyList<AetheriaRuntimeZoneDetailsBodyProjection> bodies,
+            IReadOnlyList<AetheriaRuntimeZoneDetailsEntityProjection> entities,
+            bool hasContents)
+        {
+            Mass = mass;
+            Radius = radius;
+            Bodies = bodies ?? Array.Empty<AetheriaRuntimeZoneDetailsBodyProjection>();
+            Entities = entities ?? Array.Empty<AetheriaRuntimeZoneDetailsEntityProjection>();
+            HasContents = hasContents;
+        }
+
+        public double Mass { get; }
+        public double Radius { get; }
+        public IReadOnlyList<AetheriaRuntimeZoneDetailsBodyProjection> Bodies { get; }
+        public IReadOnlyList<AetheriaRuntimeZoneDetailsEntityProjection> Entities { get; }
+        public bool HasContents { get; }
+    }
+
     public static class AetheriaRuntimeZoneDetailsSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.sector_map.zone_details";
         public const string Close = "aetheria.sector_map.zone_details.close";
+
+        public static AetheriaRuntimeZoneDetailsDaemonProjection ProjectDaemonZone(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            Func<string, string> resolveHullType)
+        {
+            if (zone == null)
+            {
+                return new AetheriaRuntimeZoneDetailsDaemonProjection(
+                    0,
+                    0,
+                    Array.Empty<AetheriaRuntimeZoneDetailsBodyProjection>(),
+                    Array.Empty<AetheriaRuntimeZoneDetailsEntityProjection>(),
+                    false);
+            }
+
+            return new AetheriaRuntimeZoneDetailsDaemonProjection(
+                (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                    .Where(body => body != null)
+                    .Sum(body => body.Mass),
+                Math.Max(0, zone.GravityTerrainRadius),
+                ProjectBodies(zone),
+                ProjectEntities(zone, resolveHullType),
+                true);
+        }
 
         public static AetheriaRuntimeZoneDetailsSurfaceState Project(
             string zoneName,
@@ -116,6 +163,26 @@ namespace GameCult.Aetheria.State.Verse
                 entityList.Count(entity => HasHullType(entity, "Turret")).ToString(),
                 entityList.Count(entity => HasHullType(entity, "Ship")).ToString(),
                 updatedAtUtc);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeZoneDetailsBodyProjection> ProjectBodies(
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            return (zone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                .Where(body => body != null)
+                .Select(body => new AetheriaRuntimeZoneDetailsBodyProjection(body.Kind))
+                .ToArray();
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeZoneDetailsEntityProjection> ProjectEntities(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            Func<string, string> resolveHullType)
+        {
+            resolveHullType ??= _ => "";
+            return (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null)
+                .Select(entity => new AetheriaRuntimeZoneDetailsEntityProjection(resolveHullType(entity.HullItemKey)))
+                .ToArray();
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(

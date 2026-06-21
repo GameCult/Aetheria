@@ -3797,13 +3797,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
         "ProjectZoneDetailsSurfaceState(",
         "GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone)",
-        "ProjectZoneBodies(",
-        "ProjectZoneEntities(",
-        "new AetheriaRuntimeZoneDetailsBodyProjection(",
-        "new AetheriaRuntimeZoneDetailsEntityProjection(",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -3839,6 +3836,12 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "Properties.AddProperty(\"Stations\"",
         "Properties.AddProperty(\"Turrets\"",
         "Properties.AddProperty(\"Ships\"",
+        "GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(",
+        "GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(",
+        "ProjectZoneBodies(",
+        "ProjectZoneEntities(",
+        "new AetheriaRuntimeZoneDetailsBodyProjection(",
+        "new AetheriaRuntimeZoneDetailsEntityProjection(",
         "runtimeZone.PlanetInstances",
         "runtimeZone.AsteroidBelts",
         "runtimeZone.Entities",
@@ -3863,8 +3866,12 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
     var requiredBuilderSymbols = new[]
     {
         "public static class AetheriaRuntimeZoneDetailsSurfaceBuilder",
+        "public sealed class AetheriaRuntimeZoneDetailsDaemonProjection",
         "public sealed class AetheriaRuntimeZoneDetailsBodyProjection",
         "public sealed class AetheriaRuntimeZoneDetailsEntityProjection",
+        "public static AetheriaRuntimeZoneDetailsDaemonProjection ProjectDaemonZone(",
+        "Math.Max(0, zone.GravityTerrainRadius)",
+        ".Sum(body => body.Mass)",
         "public static AetheriaRuntimeZoneDetailsSurfaceState Project(",
         "private static bool IsBodyKind(",
         "private static bool IsPlanetBody(",
@@ -8699,10 +8706,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
         !sectorMap.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal))
+        !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Map and sector UI must request projected galaxy data through an explicit observed-galaxy boundary.");
+            "Map and sector UI must request projected galaxy/zone data through explicit observed daemon boundaries.");
     }
 
     if (sectorMap.Contains("ActionGameManager.ObservedGalaxy", StringComparison.Ordinal) ||

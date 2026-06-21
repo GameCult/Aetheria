@@ -122,11 +122,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private AetheriaRuntimeZoneDetailsSurfaceState ProjectZoneDetailsSurfaceState(GalaxyZone zone)
     {
-        var density = ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)
-            ? saturate(observedGalaxy.Background.CloudDensity(zone.Position) / 2)
-            : 0f;
-        var radius = GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(density);
-        var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
         var otherFactions = zone.Factions
             .Where(faction => !faction.HasSameKey(zone.Owner))
             .Select(faction => faction.Name)
@@ -135,37 +130,24 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         var hasContents = GameManager != null &&
                           GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone);
+        var daemonProjection = AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(
+            hasContents ? daemonZone : null,
+            ResolveHullType);
         return AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(
-            zone.Name,
+            string.IsNullOrWhiteSpace(daemonZone?.Name) ? zone.Name : daemonZone.Name,
             zone.Owner?.Name ?? "None",
-            ActionGameManager.RuntimePlayerSettings.Format(mass),
-            ActionGameManager.RuntimePlayerSettings.Format(radius),
+            ActionGameManager.RuntimePlayerSettings.Format(daemonProjection.Mass),
+            ActionGameManager.RuntimePlayerSettings.Format(daemonProjection.Radius),
             otherFactions,
-            ProjectZoneBodies(hasContents ? daemonZone : null),
-            ProjectZoneEntities(hasContents ? daemonZone : null),
-            hasContents,
+            daemonProjection.Bodies,
+            daemonProjection.Entities,
+            daemonProjection.HasContents,
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 
-    private static IReadOnlyList<AetheriaRuntimeZoneDetailsBodyProjection> ProjectZoneBodies(
-        AetheriaRuntimeZoneSnapshotCommit daemonZone)
+    private static string ResolveHullType(string hullItemKey)
     {
-        return (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
-            .Select(body => new AetheriaRuntimeZoneDetailsBodyProjection(body?.Kind ?? ""))
-            .ToArray();
-    }
-
-    private static IReadOnlyList<AetheriaRuntimeZoneDetailsEntityProjection> ProjectZoneEntities(
-        AetheriaRuntimeZoneSnapshotCommit daemonZone)
-    {
-        return (daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-            .Select(entity => new AetheriaRuntimeZoneDetailsEntityProjection(ResolveHullType(entity)))
-            .ToArray();
-    }
-
-    private static string ResolveHullType(AetheriaRuntimeEntitySnapshotCommit entity)
-    {
-        var typedHull = ActionGameManager.RuntimeCatalog?.FindItem(entity?.HullItemKey ?? "");
+        var typedHull = ActionGameManager.RuntimeCatalog?.FindItem(hullItemKey ?? "");
         return typedHull?.HullType ?? "";
     }
 
