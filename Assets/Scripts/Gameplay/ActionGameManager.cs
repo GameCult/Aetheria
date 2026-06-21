@@ -3152,6 +3152,46 @@ public class ActionGameManager : MonoBehaviour
         return FindDaemonZoneSnapshot(CurrentDaemonGalaxyZone);
     }
 
+    private bool TryGetDaemonEntitySnapshot(Entity entity, out AetheriaRuntimeEntitySnapshotCommit snapshot)
+    {
+        snapshot = null;
+        if (entity == null || entity.DaemonEntityIndex < 0)
+            return false;
+
+        snapshot = (FindCurrentDaemonZoneSnapshot()?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            .FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == entity.DaemonEntityIndex);
+        return snapshot != null;
+    }
+
+    private bool TryGetDaemonParentSnapshot(
+        Entity child,
+        out AetheriaRuntimeEntitySnapshotCommit parentSnapshot,
+        out Entity parent)
+    {
+        parentSnapshot = null;
+        parent = null;
+        if (child == null || child.DaemonEntityIndex < 0)
+            return false;
+
+        foreach (var candidate in FindCurrentDaemonZoneSnapshot()?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+        {
+            if (candidate == null)
+                continue;
+
+            if (!(candidate.ChildEntityIndices ?? Array.Empty<int>()).Contains(child.DaemonEntityIndex) &&
+                !(candidate.DockingBayAssignments ?? Array.Empty<int>()).Contains(child.DaemonEntityIndex))
+            {
+                continue;
+            }
+
+            parentSnapshot = candidate;
+            TryGetObservedEntityFacade(candidate.EntityIndex, out parent);
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryQueryDaemonEntityContact(
         Entity observer,
         Entity target,
@@ -3469,24 +3509,39 @@ public class ActionGameManager : MonoBehaviour
 
     public IEnumerable<EquippedCargoBay> AvailableCargoBays()
     {
-        if (CurrentEntity.Parent != null)
+        if (!TryGetDaemonParentSnapshot(CurrentEntity, out var parentSnapshot, out var parent))
+            yield break;
+
+        var assignments = parentSnapshot.DockingBayAssignments ?? Array.Empty<int>();
+        for (var bayIndex = 0; bayIndex < assignments.Count; bayIndex++)
         {
-            foreach (var bay in CurrentEntity.Parent.DockingBays)
-            {
-                if (bay.DockedShip.IsPlayerShip) yield return bay;
-            }
+            var dockedEntityIndex = assignments[bayIndex];
+            if (dockedEntityIndex < 0 ||
+                parent == null ||
+                bayIndex >= parent.DockingBays.Count ||
+                !TryGetObservedEntityFacade(dockedEntityIndex, out var dockedEntity) ||
+                !(dockedEntity is Ship { IsPlayerShip: true }))
+                continue;
+
+            yield return parent.DockingBays[bayIndex];
         }
     }
 
     public IEnumerable<Entity> AvailableEntities()
     {
-        if(DockedEntity != null)
-            foreach (var entity in DockedEntity.Children)
+        if (DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out var dockedEntitySnapshot))
+        {
+            foreach (var childEntityIndex in dockedEntitySnapshot.ChildEntityIndices ?? Array.Empty<int>())
             {
-                if (entity is Ship { IsPlayerShip: true }) yield return entity;
+                if (TryGetObservedEntityFacade(childEntityIndex, out var entity) &&
+                    entity is Ship { IsPlayerShip: true })
+                    yield return entity;
             }
+        }
         else if (CurrentEntity != null)
+        {
             yield return CurrentEntity;
+        }
     }
 
     public void PlayMusic(MusicType type)

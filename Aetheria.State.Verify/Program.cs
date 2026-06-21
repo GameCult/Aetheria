@@ -7777,7 +7777,12 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
-        "RestoreDroppedPickupsFromDaemonZoneState"
+        "RestoreDroppedPickupsFromDaemonZoneState",
+        "TryGetDaemonEntitySnapshot(",
+        "TryGetDaemonParentSnapshot(",
+        "parentSnapshot.DockingBayAssignments",
+        "dockedEntitySnapshot.ChildEntityIndices",
+        "TryGetObservedEntityFacade(childEntityIndex, out var entity)"
     };
 
     if (actionGameManager.Contains("_authoritativeDaemonEntities", StringComparison.Ordinal))
@@ -7814,7 +7819,9 @@ static void RequireMainMenuContinueRunState(string root)
         "UpdateTargetPanel(CurrentEntity.Target.Value)",
         "var target = CurrentEntity.Target.Value;",
         "TargetIndicator.Target = CurrentEntity.Target.Value.Position",
-        "indicator.Target = CurrentEntity.Target.Value.Position"
+        "indicator.Target = CurrentEntity.Target.Value.Position",
+        "foreach (var bay in CurrentEntity.Parent.DockingBays)",
+        "foreach (var entity in DockedEntity.Children)"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols
