@@ -3479,20 +3479,23 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public IEnumerable<Entity> AvailableEntities()
+    public IEnumerable<Entity> ObservedAvailableEntities()
     {
-        if (DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out var dockedEntitySnapshot))
+        if (!TryGetObservedCurrentEntity(out var currentEntity))
+            yield break;
+
+        if (TryGetDaemonParentSnapshot(currentEntity, out var parentSnapshot, out _))
         {
-            foreach (var childEntityIndex in dockedEntitySnapshot.ChildEntityIndices ?? Array.Empty<int>())
+            foreach (var childEntityIndex in parentSnapshot.ChildEntityIndices ?? Array.Empty<int>())
             {
                 if (TryGetObservedEntityFacade(childEntityIndex, out var entity) &&
                     entity is Ship { IsPlayerShip: true })
                     yield return entity;
             }
         }
-        else if (CurrentEntity != null)
+        else
         {
-            yield return CurrentEntity;
+            yield return currentEntity;
         }
     }
 

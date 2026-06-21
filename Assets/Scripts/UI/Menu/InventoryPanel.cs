@@ -209,7 +209,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         _dropdownCommands.Clear();
 
-        foreach (var entityEntry in GameManager.AvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
+        foreach (var entityEntry in GameManager.ObservedAvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
         {
             if (entityEntry.entity.CargoBays.Any())
             {
@@ -300,7 +300,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         var groups = new List<AetheriaRuntimeInventoryDropdownGroup>();
 
-        foreach (var entityEntry in GameManager.AvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
+        foreach (var entityEntry in GameManager.ObservedAvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
         {
             var options = new List<AetheriaRuntimeInventoryDropdownOption>();
             var equipmentCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(entityEntry.entityIndex);

@@ -1048,7 +1048,7 @@ public class TradeMenu : MonoBehaviour
                 (dockingBay, "Docking Bay");
         }
 
-        foreach (var ship in GameManager.AvailableEntities()
+        foreach (var ship in GameManager.ObservedAvailableEntities()
                      .OfType<Ship>()
                      .Where(ship => ship.IsPlayerShip)
                      .Select((ship, shipIndex) => (ship, shipIndex)))
@@ -1186,7 +1186,7 @@ public class TradeMenu : MonoBehaviour
 
     private int CountAvailablePlayerShips(string itemKey)
     {
-        return GameManager.AvailableEntities()
+        return GameManager.ObservedAvailableEntities()
             .OfType<Ship>()
             .Count(ship => ship.IsPlayerShip && ship.Hull?.ItemKey == itemKey);
     }

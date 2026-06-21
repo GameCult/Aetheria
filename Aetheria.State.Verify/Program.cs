@@ -4414,7 +4414,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "CountAvailablePlayerShips(",
         "GameManager.TryGetObservedDockingBay(out var dockingBay)",
-        "GameManager.AvailableEntities()"
+        "GameManager.ObservedAvailableEntities()"
     };
 
     var missingSymbols = requiredSymbols
@@ -4444,7 +4444,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "GameManager.DockedEntity.Children",
         "GameManager.CurrentEntity.Parent.Children",
         "GameManager.DockedEntity == null",
-        "GameManager.DockingBay"
+        "GameManager.DockingBay",
+        "GameManager.AvailableEntities()"
     };
 
     var hits = forbiddenSymbols
@@ -4745,7 +4746,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "AetheriaRuntimeInventoryDropdownCommandKind.Select",
         "AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(",
         "AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(",
-        "GameManager.TryGetObservedDockingBay(out var dockingBay)"
+        "GameManager.TryGetObservedDockingBay(out var dockingBay)",
+        "GameManager.ObservedAvailableEntities()"
     };
 
     var missingSymbols = requiredSymbols
@@ -4776,7 +4778,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "ContextMenu.Show();",
         "string.Equals(request.Command, AetheriaRuntimeInventoryDropdownSurfaceBuilder.Close",
         "_dropdownCommands.TryGetValue(request.Command",
-        "GameManager.DockingBay"
+        "GameManager.DockingBay",
+        "GameManager.AvailableEntities()"
     };
 
     var hits = forbiddenSymbols
@@ -7850,7 +7853,9 @@ static void RequireMainMenuContinueRunState(string root)
         "TryResolveDaemonDockingBay(",
         "IsCurrentEntityObservedUndocked(",
         "parentSnapshot.DockingBayAssignments",
-        "dockedEntitySnapshot.ChildEntityIndices",
+        "ObservedAvailableEntities(",
+        "TryGetObservedCurrentEntity(out var currentEntity)",
+        "parentSnapshot.ChildEntityIndices",
         "TryGetObservedEntityFacade(childEntityIndex, out var entity)"
     };
 
@@ -7885,6 +7890,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CurrentEntity.VisibleFriendlies.ObserveRemove()",
         "foreach (var hostile in CurrentEntity.VisibleEnemies)",
         "foreach (var friendly in CurrentEntity.VisibleFriendlies)",
+        "dockedEntitySnapshot.ChildEntityIndices",
         "UpdateTargetPanel(CurrentEntity.Target.Value)",
         "var target = CurrentEntity.Target.Value;",
         "TargetIndicator.Target = CurrentEntity.Target.Value.Position",
