@@ -1840,6 +1840,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static int QueryVisibleEntityIndices(",
         "AetheriaRuntimeDaemonEntityContact",
         "public static bool TryQueryEntityContact(",
+        "public static AetheriaRuntimeDaemonEntityContact[] QueryEntityContacts(",
+        "public static int QueryEntityContacts(",
         "AetheriaRuntimeDaemonWormholeExit",
         "public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(",
         "public static int QueryWormholeExits(",
@@ -7715,6 +7717,8 @@ static void RequireMainMenuContinueRunState(string root)
         "drive.RestoreRuntimeState(",
         "resourceScanner.RestoreRuntimeState(",
         "AetheriaRuntimeDaemonRenderQueries.TryQueryEntityContact(",
+        "AetheriaRuntimeDaemonRenderQueries.QueryEntityContacts(",
+        "ReconcileVisibleTargetIndicators();",
         "GetObservedInfoGathered(CurrentEntity, target)",
         "IsObservedHostileContact(CurrentEntity, CurrentEntity.Target.Value)",
         "_observedEntityFacadesByRecordKey",
@@ -7748,7 +7752,13 @@ static void RequireMainMenuContinueRunState(string root)
         "TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold) / (1 - threshold));",
         "VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);",
         "indicator.Key.EntityInfoGathered[CurrentEntity]",
-        "CurrentEntity.Target.Value.IsHostileTo(CurrentEntity)"
+        "CurrentEntity.Target.Value.IsHostileTo(CurrentEntity)",
+        "CurrentEntity.VisibleEnemies.ObserveAdd()",
+        "CurrentEntity.VisibleEnemies.ObserveRemove()",
+        "CurrentEntity.VisibleFriendlies.ObserveAdd()",
+        "CurrentEntity.VisibleFriendlies.ObserveRemove()",
+        "foreach (var hostile in CurrentEntity.VisibleEnemies)",
+        "foreach (var friendly in CurrentEntity.VisibleFriendlies)"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols

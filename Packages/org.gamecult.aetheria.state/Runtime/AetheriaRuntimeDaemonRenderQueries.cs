@@ -581,24 +581,54 @@ namespace GameCult.Aetheria.State.Verse
                 if (contact == null || contact.TargetEntityIndex != targetEntityIndex)
                     continue;
 
-                var deltaX = target.PositionX - observer.PositionX;
-                var deltaZ = target.PositionZ - observer.PositionZ;
-                var distance = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
-                entityContact = new AetheriaRuntimeDaemonEntityContact(
-                    observer.EntityIndex,
-                    target.EntityIndex,
-                    target.PositionX,
-                    target.PositionZ,
-                    deltaX,
-                    deltaZ,
-                    distance,
-                    contact.InfoGathered,
-                    contact.Hostile,
-                    contact.Visible);
+                entityContact = BuildEntityContact(observer, target, contact);
                 return true;
             }
 
             return false;
+        }
+
+        public static AetheriaRuntimeDaemonEntityContact[] QueryEntityContacts(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            bool visibleOnly)
+        {
+            var contacts = new List<AetheriaRuntimeDaemonEntityContact>();
+            QueryEntityContacts(zone, observerEntityIndex, minimumInfoGathered, visibleOnly, contacts);
+            return contacts.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonEntityContact>() : contacts.ToArray();
+        }
+
+        public static int QueryEntityContacts(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            bool visibleOnly,
+            List<AetheriaRuntimeDaemonEntityContact> contacts)
+        {
+            if (contacts == null) throw new ArgumentNullException(nameof(contacts));
+            contacts.Clear();
+            if (zone == null || observerEntityIndex < 0)
+                return 0;
+
+            var entities = BuildEntityMap(zone);
+            if (!entities.TryGetValue(observerEntityIndex, out var observer))
+                return 0;
+
+            foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact == null ||
+                    contact.InfoGathered <= minimumInfoGathered ||
+                    visibleOnly && !contact.Visible ||
+                    !entities.TryGetValue(contact.TargetEntityIndex, out var target))
+                {
+                    continue;
+                }
+
+                contacts.Add(BuildEntityContact(observer, target, contact));
+            }
+
+            return contacts.Count;
         }
 
         public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(
@@ -766,6 +796,27 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return entities;
+        }
+
+        private static AetheriaRuntimeDaemonEntityContact BuildEntityContact(
+            AetheriaRuntimeEntitySnapshotCommit observer,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            AetheriaRuntimeEntityContactCommit contact)
+        {
+            var deltaX = target.PositionX - observer.PositionX;
+            var deltaZ = target.PositionZ - observer.PositionZ;
+            var distance = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+            return new AetheriaRuntimeDaemonEntityContact(
+                observer.EntityIndex,
+                target.EntityIndex,
+                target.PositionX,
+                target.PositionZ,
+                deltaX,
+                deltaZ,
+                distance,
+                contact.InfoGathered,
+                contact.Hostile,
+                contact.Visible);
         }
 
         private static Dictionary<int, AetheriaRuntimeZoneSnapshotCommit> BuildZoneMap(AetheriaRuntimeRunCheckpointCommit run)

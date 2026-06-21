@@ -459,6 +459,10 @@ public class ActionGameManager : MonoBehaviour
     private (LockWeapon targetLock, PlaceUIElementWorldspace indicator, Rotate spin)[] _lockingIndicators;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
+    private readonly List<AetheriaRuntimeDaemonEntityContact> _observedVisibleContacts = new List<AetheriaRuntimeDaemonEntityContact>();
+    private readonly HashSet<Entity> _observedHostileIndicatorTargets = new HashSet<Entity>();
+    private readonly HashSet<Entity> _observedFriendlyIndicatorTargets = new HashSet<Entity>();
+    private readonly List<Entity> _staleIndicatorTargets = new List<Entity>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
     private List<IDisposable> _targetSubscriptions = new List<IDisposable>();
     private float _severeHeatstrokePhase;
@@ -3171,6 +3175,85 @@ public class ActionGameManager : MonoBehaviour
         return target != null && target.IsHostileTo(observer);
     }
 
+    private void ReconcileVisibleTargetIndicators()
+    {
+        _observedHostileIndicatorTargets.Clear();
+        _observedFriendlyIndicatorTargets.Clear();
+
+        if (CurrentEntity != null)
+        {
+            AetheriaRuntimeDaemonRenderQueries.QueryEntityContacts(
+                FindCurrentDaemonZoneSnapshot(),
+                CurrentEntity.DaemonEntityIndex,
+                Settings.GameplaySettings.TargetDetectionInfoThreshold,
+                true,
+                _observedVisibleContacts);
+
+            foreach (var contact in _observedVisibleContacts)
+            {
+                if (!TryGetObservedEntityFacade(contact.TargetEntityIndex, out var target) ||
+                    ReferenceEquals(target, CurrentEntity))
+                {
+                    continue;
+                }
+
+                if (contact.Hostile)
+                    _observedHostileIndicatorTargets.Add(target);
+                else
+                    _observedFriendlyIndicatorTargets.Add(target);
+            }
+        }
+
+        ReconcileVisibleTargetIndicators(
+            _visibleHostileIndicators,
+            _observedHostileIndicatorTargets,
+            HostileTargetIndicator);
+        ReconcileVisibleTargetIndicators(
+            _visibleFriendlyIndicators,
+            _observedFriendlyIndicatorTargets,
+            FriendlyTargetIndicator);
+    }
+
+    private void ReconcileVisibleTargetIndicators(
+        Dictionary<Entity, VisibleTargetIndicator> indicators,
+        HashSet<Entity> desiredTargets,
+        VisibleTargetIndicator prototype)
+    {
+        _staleIndicatorTargets.Clear();
+        foreach (var indicator in indicators)
+        {
+            if (!desiredTargets.Contains(indicator.Key))
+                _staleIndicatorTargets.Add(indicator.Key);
+        }
+
+        foreach (var staleTarget in _staleIndicatorTargets)
+        {
+            indicators[staleTarget].GetComponent<Prototype>().ReturnToPool();
+            indicators.Remove(staleTarget);
+        }
+
+        foreach (var target in desiredTargets)
+        {
+            if (!indicators.ContainsKey(target))
+                indicators.Add(target, prototype.Instantiate<VisibleTargetIndicator>());
+        }
+    }
+
+    private bool TryGetObservedEntityFacade(int daemonEntityIndex, out Entity entity)
+    {
+        foreach (var observedEntity in _observedEntityFacadesByRecordKey.Values)
+        {
+            if (observedEntity != null && observedEntity.DaemonEntityIndex == daemonEntityIndex)
+            {
+                entity = observedEntity;
+                return true;
+            }
+        }
+
+        entity = null;
+        return false;
+    }
+
     public void RequestTowToStation()
     {
         TryRequestDaemonTowToStation();
@@ -3314,41 +3397,7 @@ public class ActionGameManager : MonoBehaviour
             }
         }));
 
-        foreach (var hostile in CurrentEntity.VisibleEnemies)
-        {
-            var indicator = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
-            _visibleHostileIndicators.Add(hostile, indicator);
-        }
-
-        _shipSubscriptions.Add(CurrentEntity.VisibleEnemies.ObserveAdd().Subscribe(addEvent =>
-        {
-            var indicator = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
-            _visibleHostileIndicators.Add(addEvent.Value, indicator);
-        }));
-
-        _shipSubscriptions.Add(CurrentEntity.VisibleEnemies.ObserveRemove().Subscribe(removeEvent =>
-        {
-            _visibleHostileIndicators[removeEvent.Value].GetComponent<Prototype>().ReturnToPool();
-            _visibleHostileIndicators.Remove(removeEvent.Value);
-        }));
-
-        foreach (var friendly in CurrentEntity.VisibleFriendlies)
-        {
-            var indicator = FriendlyTargetIndicator.Instantiate<VisibleTargetIndicator>();
-            _visibleFriendlyIndicators.Add(friendly, indicator);
-        }
-
-        _shipSubscriptions.Add(CurrentEntity.VisibleFriendlies.ObserveAdd().Subscribe(addEvent =>
-        {
-            var indicator = FriendlyTargetIndicator.Instantiate<VisibleTargetIndicator>();
-            _visibleFriendlyIndicators.Add(addEvent.Value, indicator);
-        }));
-
-        _shipSubscriptions.Add(CurrentEntity.VisibleFriendlies.ObserveRemove().Subscribe(removeEvent =>
-        {
-            _visibleFriendlyIndicators[removeEvent.Value].GetComponent<Prototype>().ReturnToPool();
-            _visibleFriendlyIndicators.Remove(removeEvent.Value);
-        }));
+        ReconcileVisibleTargetIndicators();
 
         _lockingIndicators = CurrentEntity.GetBehaviors<LockWeapon>()
             .Select(x =>
@@ -3428,6 +3477,7 @@ public class ActionGameManager : MonoBehaviour
             // ItemManager.Time = _time;
             if(CurrentEntity !=null && CurrentEntity.Parent==null)
             {
+                ReconcileVisibleTargetIndicators();
                 foreach (var indicator in _visibleHostileIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
