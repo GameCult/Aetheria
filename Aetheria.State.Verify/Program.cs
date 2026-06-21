@@ -8781,8 +8781,10 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
 
     var ymirBridgePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "AetheriaYmirPhysicsBridge.cs");
     var projectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Projectile.cs");
+    var projectileManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ProjectileManager.cs");
     var guidedProjectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectile.cs");
     var hitscanPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanEffect.cs");
+    var hitscanManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanManager.cs");
     var clickRaycasterPath = Path.Combine(root, "Assets", "Scripts", "UI", "ClickRaycaster.cs");
 
     var requiredSymbols = new Dictionary<string, string[]>
@@ -8833,6 +8835,31 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         throw new InvalidOperationException(
             "Ymir gameplay query bridge is incomplete: " +
             string.Join("; ", missingSymbols));
+    }
+
+    var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>
+    {
+        [projectilePath] = new[] { "public Zone Zone", "Zone { get; set; }" },
+        [projectileManagerPath] = new[] { "p.Zone =", "source.Entity.Zone" },
+        [hitscanPath] = new[] { "public Zone Zone", "Zone { get; set; }" },
+        [hitscanManagerPath] = new[] { "p.Zone =", "source.Entity.Zone" }
+    };
+    var weaponZoneHandleHits = forbiddenWeaponZoneHandles
+        .Where(pair => File.Exists(pair.Key))
+        .SelectMany(pair =>
+        {
+            var text = File.ReadAllText(pair.Key);
+            return pair.Value
+                .Where(symbol => text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: {symbol}");
+        })
+        .ToArray();
+
+    if (weaponZoneHandleHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity weapon effects must query Ymir/renderer state directly instead of carrying renderer-local Zone handles: " +
+            string.Join("; ", weaponZoneHandleHits));
     }
 }
 

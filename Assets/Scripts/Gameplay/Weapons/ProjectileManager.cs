@@ -30,7 +30,6 @@ public class ProjectileManager : InstantWeaponEffectManager
         p.Penetration = weapon.Penetration;
         p.Spread = weapon.DamageSpread;
         p.DamageType = weapon.DamageType;
-        p.Zone = source.Entity.Zone;
         p.AirburstDistance = target != null
             ? CultMath.math.length(source.Entity.CultPosition - target.Entity.CultPosition)
             : (weapon.Range * .75f);

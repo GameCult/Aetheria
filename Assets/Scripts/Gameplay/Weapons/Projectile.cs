@@ -17,8 +17,6 @@ public class Projectile : MonoBehaviour
     
     private bool _alive;
     
-    public Zone Zone { get; set; }
-    
     public Vector3 StartPosition { get; set; }
     public Vector3 Velocity { get; set; }
     public float Damage { get; set; }

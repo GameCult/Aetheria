@@ -8,8 +8,6 @@ public class HitscanEffect : MonoBehaviour
     public ParticleSystem LineEffect;
     public Prototype HitEffect;
     
-    public Zone Zone { get; set; }
-    
     public float Damage { get; set; }
     public float Penetration { get; set; }
     public float Spread { get; set; }
