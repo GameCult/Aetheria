@@ -81,6 +81,34 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeSurfaceComponent> Children { get; }
     }
 
+    public static class AetheriaRuntimeSurfaceStateRefs
+    {
+        public const string Source = "stateRef";
+        public const string Value = "valueRef";
+        public const string Label = "labelRef";
+        public const string Format = "stateFormat";
+
+        public static (string Key, string Value) SourceRef(string reference)
+        {
+            return (Source, reference ?? "");
+        }
+
+        public static (string Key, string Value) ValueRef(string reference)
+        {
+            return (Value, reference ?? "");
+        }
+
+        public static (string Key, string Value) LabelRef(string reference)
+        {
+            return (Label, reference ?? "");
+        }
+
+        public static (string Key, string Value) FormatRef(string format)
+        {
+            return (Format, format ?? "");
+        }
+    }
+
     public sealed class AetheriaRuntimeSurfaceStyleToken
     {
         public AetheriaRuntimeSurfaceStyleToken(string name, string value)

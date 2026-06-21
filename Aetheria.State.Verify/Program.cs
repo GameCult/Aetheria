@@ -4076,22 +4076,48 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
 static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
 {
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var surfaceDocumentPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.cs");
+    var daemonItemStatQueriesPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonItemStatQueries.cs");
     var cargoItemSurfaceBuilderPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs");
-    if (!File.Exists(inventoryMenuPath))
+    var requiredFiles = new[]
     {
-        throw new InvalidOperationException("Cannot verify inventory cargo-item shell; InventoryMenu.cs is missing.");
-    }
-    if (!File.Exists(cargoItemSurfaceBuilderPath))
+        inventoryMenuPath,
+        actionGameManagerPath,
+        surfaceDocumentPath,
+        daemonItemStatQueriesPath,
+        cargoItemSurfaceBuilderPath
+    };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
     {
-        throw new InvalidOperationException("Cannot verify inventory cargo-item shell; AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs is missing.");
+        throw new InvalidOperationException(
+            "Cannot verify inventory cargo-item shell; required files are missing: " +
+            string.Join(", ", missingFiles));
     }
 
     var source = File.ReadAllText(inventoryMenuPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var surfaceDocument = File.ReadAllText(surfaceDocumentPath);
+    var daemonItemStatQueries = File.ReadAllText(daemonItemStatQueriesPath);
     var cargoItemSurfaceBuilder = File.ReadAllText(cargoItemSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
@@ -4121,6 +4147,26 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     if (!source.Contains("RenderCargoItemDetailsSurface(item);", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
+    }
+
+    if (!source.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+        source.Contains("GameManager.ItemManager.GetTier", StringComparison.Ordinal) ||
+        source.Contains("GameManager.ItemManager.Evaluate", StringComparison.Ordinal) ||
+        actionGameManager.Contains("ObservedItemStat(", StringComparison.Ordinal) ||
+        actionGameManager.Contains("ItemManager.Evaluate(stat", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu must project current item stats through shared daemon item-stat queries instead of direct Unity ItemManager stat authority.");
+    }
+
+    if (!surfaceDocument.Contains("public static class AetheriaRuntimeSurfaceStateRefs", StringComparison.Ordinal) ||
+        !surfaceDocument.Contains("public const string Value = \"valueRef\"", StringComparison.Ordinal) ||
+        !daemonItemStatQueries.Contains("public const string StateRefPrefix = \"aetheria.state/items\"", StringComparison.Ordinal) ||
+        !daemonItemStatQueries.Contains("public static string ItemStatRef(", StringComparison.Ordinal) ||
+        !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve/CultUI item stat surfaces must expose typed daemon state refs that the UI runtime can resolve.");
     }
 
     var forbiddenSymbols = new[]

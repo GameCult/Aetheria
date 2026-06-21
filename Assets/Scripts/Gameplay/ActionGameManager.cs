@@ -542,6 +542,11 @@ public class ActionGameManager : MonoBehaviour
         return _observedLoadoutTemplates;
     }
 
+    public (RarityTier tier, int upgrades) ObservedItemTier(CraftedItemInstance item)
+    {
+        return ItemManager.GetTier(item);
+    }
+
     private readonly (float2 direction, string name)[] _directions = {
         (new float2(0, 1), "Front"),
         (new float2(1, 0), "Right"),
