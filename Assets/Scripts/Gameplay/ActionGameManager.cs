@@ -2757,8 +2757,6 @@ public class ActionGameManager : MonoBehaviour
             restoredEntities[entitySnapshot.RecordKey] = entity;
         }
 
-        RestoreChildAndDockingRelationships(entitySnapshots, restoredEntities);
-
         foreach (var entitySnapshot in entitySnapshots)
         {
             if (!restoredEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
@@ -2787,54 +2785,6 @@ public class ActionGameManager : MonoBehaviour
         {
             if (entity != null && entity.DaemonEntityIndex >= 0)
                 _observedEntityFacadesByDaemonIndex[entity.DaemonEntityIndex] = entity;
-        }
-    }
-
-    private void RestoreChildAndDockingRelationships(
-        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
-        IReadOnlyDictionary<string, Entity> restoredEntities)
-    {
-        foreach (var entitySnapshot in entitySnapshots)
-        {
-            if (!restoredEntities.TryGetValue(entitySnapshot.RecordKey, out var parent))
-                continue;
-
-            foreach (var childKey in entitySnapshot.ChildEntityKeys)
-            {
-                if (!restoredEntities.TryGetValue(childKey, out var child) ||
-                    child == parent ||
-                    child.Parent == parent)
-                {
-                    continue;
-                }
-
-                child.RemoveParent();
-                child.SetParent(parent);
-            }
-
-            for (var bayIndex = 0; bayIndex < entitySnapshot.DockingBayAssignments.Count; bayIndex++)
-            {
-                var childIndex = entitySnapshot.DockingBayAssignments[bayIndex];
-                if (childIndex < 0 ||
-                    childIndex >= entitySnapshot.ChildEntityKeys.Count ||
-                    bayIndex >= parent.DockingBays.Count ||
-                    !restoredEntities.TryGetValue(entitySnapshot.ChildEntityKeys[childIndex], out var child) ||
-                    !(child is Ship ship))
-                {
-                    continue;
-                }
-
-                var dockingBay = parent.DockingBays[bayIndex];
-                dockingBay.DockedShip = ship;
-                if (ship.Parent != parent)
-                {
-                    ship.RemoveParent();
-                    ship.SetParent(parent);
-                }
-                if (Zone.Entities.Contains(ship))
-                    Zone.Entities.Remove(ship);
-                ship.RestoreActiveState(false);
-            }
         }
     }
 

@@ -7756,7 +7756,6 @@ static void RequireMainMenuContinueRunState(string root)
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "ApplyDaemonEntitySnapshotsInPlace",
         "ReplaceZoneEntitiesFromTypedSnapshots",
-        "RestoreChildAndDockingRelationships",
         "RestoreCurrentEntityBinding",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
@@ -7841,7 +7840,12 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.VisibleFriendlies.Add(target)",
         "currentEntity.Parent.DockingBays",
         "currentEntity.Parent is OrbitalEntity",
-        "DoDock(currentEntity.Parent, dockingBay)"
+        "DoDock(currentEntity.Parent, dockingBay)",
+        "RestoreChildAndDockingRelationships",
+        "child.SetParent(parent)",
+        "ship.SetParent(parent)",
+        "dockingBay.DockedShip = ship",
+        "Zone.Entities.Contains(ship)"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols
@@ -8131,8 +8135,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var permittedEntityProjectionMethods = new[]
     {
-        "ReplaceZoneEntitiesFromTypedSnapshots",
-        "RestoreChildAndDockingRelationships"
+        "ReplaceZoneEntitiesFromTypedSnapshots"
     };
     var unauthorizedEntityProjectionHits = FindMethodScopedLineHits(
             actionGameManager,
