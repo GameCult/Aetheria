@@ -951,10 +951,7 @@ public class ActionGameManager : MonoBehaviour
 
     public bool RequestDockedCurrentShip(Ship ship)
     {
-        if (ship == null ||
-            !ship.IsPlayerShip ||
-            DockedEntity == null ||
-            DockingBay == null)
+        if (ship == null)
         {
             return false;
         }

@@ -8512,8 +8512,9 @@ static void RequireRuntimeSimulationTuningRequests(string root)
         "entity?.Settings == null",
         "entity.Settings == null"
     };
-    var unityAcceptanceHits = forbiddenUnityAcceptanceSymbols
-        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+    var unityAcceptanceHits = FindMethodScopedLineHits(actionGameManager, forbiddenUnityAcceptanceSymbols)
+        .Where(hit => hit.MethodName == "RequestEntityShutdownPerformance")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
         .ToArray();
     if (unityAcceptanceHits.Length > 0)
     {
@@ -9336,6 +9337,23 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     {
         throw new InvalidOperationException(
             "Unity docked current-ship selection still rejects through renderer-local child membership instead of daemon acceptance.");
+    }
+
+    var forbiddenUnityAcceptanceSymbols = new[]
+    {
+        "!ship.IsPlayerShip",
+        "DockedEntity == null",
+        "DockingBay == null"
+    };
+    var unityAcceptanceHits = FindMethodScopedLineHits(actionGameManager, forbiddenUnityAcceptanceSymbols)
+        .Where(hit => hit.MethodName == "RequestDockedCurrentShip")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (unityAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity docked current-ship selection still rejects through renderer-local player/docking state instead of daemon acceptance: " +
+            string.Join(", ", unityAcceptanceHits));
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
