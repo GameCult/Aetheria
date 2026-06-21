@@ -99,12 +99,8 @@ public class InventoryMenu : MonoBehaviour
                             HideEquippedItemDetailsSurface();
                             ClearSelectedItemSelection();
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            if (RequestCargoItemTransfer(cargoEvent.CargoBay, otherPanel, item))
-                            {
-                                // TODO: SFX: Equip
-                                panel.RefreshCells();
-                                otherPanel.RefreshCells();
-                            }
+                            RequestCargoItemTransfer(cargoEvent.CargoBay, otherPanel, item);
+                            // TODO: SFX: Equip
                             // else
                             // TODO: SFX: Fail
                         }
@@ -135,14 +131,10 @@ public class InventoryMenu : MonoBehaviour
                             HideEquippedItemDetailsSurface();
                             ClearSelectedItemSelection();
                             var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            if (RequestEquippedItemTransfer(entityEvent.Entity, item, otherPanel))
-                            {
-                                // TODO: SFX: Unequip
-                                panel.RefreshCells();
-                                otherPanel.RefreshCells();
-                                // else
-                                // TODO: SFX: Fail
-                            }
+                            RequestEquippedItemTransfer(entityEvent.Entity, item, otherPanel);
+                            // TODO: SFX: Unequip
+                            // else
+                            // TODO: SFX: Fail
                         }
                         else
                         {

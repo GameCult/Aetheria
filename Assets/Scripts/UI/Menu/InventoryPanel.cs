@@ -637,12 +637,11 @@ private void Update()
                                 {
                                     //Debug.Log("Entity Drag Callback");
                                     FakeOccupancy = null;
-                                    var success = RequestDraggedItemToEntity(drag, entity, placementPosition);
-                                    if (!success)
-                                        ShowUnableToMoveItemDialog();
-                                    RefreshCells();
+                                    var submitted = RequestDraggedItemToEntity(drag, entity, placementPosition);
+                                    if (!submitted)
+                                        ShowUnableToSubmitItemMoveRequestDialog();
                                     // TODO: SFX: Equip
-                                    return success;
+                                    return submitted;
                                 });
                             });
                         cell.PointerExitTrigger.OnPointerExitAsObservable()
@@ -837,11 +836,11 @@ private void Update()
                         {
                             //Debug.Log("Inventory Drag Callback");
                             FakeOccupancy = null;
-                            var success = RequestDraggedItemToCargo(drag, cargo, placementPosition);
-                            if (!success)
-                                ShowUnableToMoveItemDialog();
+                            var submitted = RequestDraggedItemToCargo(drag, cargo, placementPosition);
+                            if (!submitted)
+                                ShowUnableToSubmitItemMoveRequestDialog();
                             // TODO: SFX: Drop
-                            return success;
+                            return submitted;
                         });
                     });
                 cell.PointerExitTrigger.OnPointerExitAsObservable()
@@ -1142,11 +1141,10 @@ private void Update()
         }
     }
 
-    private void ShowUnableToMoveItemDialog()
+    private void ShowUnableToSubmitItemMoveRequestDialog()
     {
         Dialog.Clear();
-        Dialog.Title.text = "Unable to move item!";
-        Dialog.AddProperty("Verify that cargo bays are empty before un-equipping them.");
+        Dialog.Title.text = "Unable to submit item move request!";
         Dialog.Show();
         Dialog.MoveToCursor();
     }

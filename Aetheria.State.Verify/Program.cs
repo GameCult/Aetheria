@@ -9058,6 +9058,27 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
             string.Join("; ", inventoryUiAcceptanceHits));
     }
 
+    var forbiddenInventorySubmissionAcceptanceSymbols = new[]
+    {
+        "Unable to move item!",
+        "Verify that cargo bays are empty before un-equipping them.",
+        "var success = RequestDraggedItemTo",
+        "if (RequestCargoItemTransfer(",
+        "if (RequestEquippedItemTransfer("
+    };
+    var inventorySubmissionAcceptanceHits = new[] { inventoryMenuPath, inventoryPanelPath }
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenInventorySubmissionAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+    if (inventorySubmissionAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Inventory UI still treats daemon transfer submission as accepted inventory movement: " +
+            string.Join("; ", inventorySubmissionAcceptanceHits));
+    }
+
     var requiredUiCalls = new[]
     {
         "GameManager.RequestCargoItemTransfer",
