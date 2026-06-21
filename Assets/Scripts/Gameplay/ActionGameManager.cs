@@ -597,7 +597,8 @@ public class ActionGameManager : MonoBehaviour
             new AetheriaRuntimeExponentialCurve(
                 bodyIconSizeCurve.Exponent,
                 bodyIconSizeCurve.Multiplier,
-                bodyIconSizeCurve.Constant));
+                bodyIconSizeCurve.Constant),
+            Settings.MinimapZoneGravityRange);
     }
 
     private readonly (float2 direction, string name)[] _directions = {

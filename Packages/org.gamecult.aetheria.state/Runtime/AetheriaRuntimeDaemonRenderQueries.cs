@@ -69,7 +69,8 @@ namespace GameCult.Aetheria.State.Verse
             double defaultViewDistance = 0.0,
             double minimapIconScale = 0.0,
             double minimapAsteroidSize = 0.0,
-            AetheriaRuntimeExponentialCurve bodyIconSizeCurve = default)
+            AetheriaRuntimeExponentialCurve bodyIconSizeCurve = default,
+            double minimapZoneGravityRange = 0.0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -91,6 +92,7 @@ namespace GameCult.Aetheria.State.Verse
             MinimapIconScale = Math.Max(0.0, minimapIconScale);
             MinimapAsteroidSize = Math.Max(0.0, minimapAsteroidSize);
             BodyIconSizeCurve = bodyIconSizeCurve;
+            MinimapZoneGravityRange = Math.Max(0.0, minimapZoneGravityRange);
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -113,6 +115,7 @@ namespace GameCult.Aetheria.State.Verse
         public double MinimapIconScale { get; }
         public double MinimapAsteroidSize { get; }
         public AetheriaRuntimeExponentialCurve BodyIconSizeCurve { get; }
+        public double MinimapZoneGravityRange { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {

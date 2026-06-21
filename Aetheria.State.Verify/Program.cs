@@ -1834,6 +1834,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double MinimapIconScale { get; }",
         "public double MinimapAsteroidSize { get; }",
         "public AetheriaRuntimeExponentialCurve BodyIconSizeCurve { get; }",
+        "public double MinimapZoneGravityRange { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
@@ -2007,7 +2008,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ContainsUnitySettingsMember(zoneRenderer, "MinimapIconSize") ||
         ContainsUnitySettingsMember(zoneRenderer, "DefaultViewDistance") ||
         ContainsUnitySettingsMember(zoneRenderer, "MinimapAsteroidSize") ||
-        ContainsUnitySettingsMember(zoneRenderer, "IconSize"))
+        ContainsUnitySettingsMember(zoneRenderer, "IconSize") ||
+        ContainsUnitySettingsMember(zoneRenderer, "MinimapZoneGravityRange"))
     {
         throw new InvalidOperationException(
             "ZoneRenderer must initialize view/minimap presentation through shared daemon render settings instead of Unity GameSettings.");
@@ -2167,6 +2169,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "RenderSettings.ResolveBodyIconSize(mass)",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "RenderSettings.WormholeDistanceRatio",
+        "RenderSettings.MinimapZoneGravityRange",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
@@ -2266,7 +2269,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.DefaultViewDistance",
         "Settings.MinimapIconSize",
         "Settings.MinimapAsteroidSize",
-        "Settings.IconSize"
+        "Settings.IconSize",
+        "Settings.MinimapZoneGravityRange"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols

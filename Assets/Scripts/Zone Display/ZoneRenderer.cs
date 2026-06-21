@@ -658,7 +658,7 @@ public class ZoneRenderer : MonoBehaviour
         SectorBoundaryBrush.material.SetFloat("_Depth", Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
         var gravityBand = AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(
             _daemonZoneSnapshot,
-            Settings.MinimapZoneGravityRange,
+            RenderSettings.MinimapZoneGravityRange,
             maxDepth);
         foreach (var mat in MapGravityMaterials)
         {
