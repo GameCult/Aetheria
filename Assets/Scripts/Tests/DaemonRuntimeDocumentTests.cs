@@ -407,6 +407,82 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void RuntimeStateReaderResolvesItemStatRefsFromDaemonFrame()
+    {
+        var frame = new AetheriaRuntimeDaemonFrameDocument
+        {
+            Run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                Zones = new[]
+                {
+                    new AetheriaRuntimeZoneSnapshotCommit
+                    {
+                        Entities = new[]
+                        {
+                            new AetheriaRuntimeEntitySnapshotCommit
+                            {
+                                Equipment = new[]
+                                {
+                                    new AetheriaRuntimeLoadoutItemSlotCommit
+                                    {
+                                        Item = new AetheriaRuntimeLoadoutItemCommit
+                                        {
+                                            ItemKey = "test-laser",
+                                            Quality = 0.5,
+                                            Durability = 1.0,
+                                            Enabled = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        var statValue = new AetheriaRuntimeBehaviorValue(
+            "performance-stat",
+            "",
+            0,
+            false,
+            "",
+            "",
+            new[]
+            {
+                NumberValue(10),
+                NumberValue(20),
+                NumberValue(0),
+                NumberValue(0),
+                NumberValue(1),
+                EmptyBehaviorValue("stat-recipe")
+            },
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem(
+                    "test-laser",
+                    new[]
+                    {
+                        new AetheriaRuntimeBehaviorPayload(
+                            0,
+                            "Weapon",
+                            2,
+                            new[] { new AetheriaRuntimeBehaviorField(7, statValue) })
+                    })
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        Assert.IsTrue(AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(
+            frame,
+            catalog,
+            AetheriaRuntimeDaemonItemStatQueries.ItemStatRef("test-laser", "Weapon", 2, 7),
+            out var value));
+        Assert.AreEqual("15", value);
+    }
+
+    [Test]
     public void TickRunnerSkipsPreviouslyAccountedObservedCommands()
     {
         var statePath = Path.Combine(
@@ -3499,6 +3575,87 @@ public class DaemonRuntimeDocumentTests
             soaView,
             "state.cc.daemon.frame.cc",
             "state.cc.daemon.soa.cc");
+    }
+
+    private static AetheriaRuntimeCatalogItem CatalogItem(
+        string itemKey,
+        IReadOnlyList<AetheriaRuntimeBehaviorPayload> behaviorPayloads)
+    {
+        return new AetheriaRuntimeCatalogItem(
+            itemKey,
+            itemKey,
+            "",
+            "",
+            "",
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Array.Empty<AetheriaRuntimeShapeCell>(),
+            0,
+            0,
+            0,
+            Array.Empty<AetheriaRuntimeShapeCell>(),
+            Array.Empty<AetheriaRuntimeHardpoint>(),
+            behaviorPayloads,
+            "",
+            "",
+            behaviorPayloads.Select(payload => payload.Kind).ToArray(),
+            1,
+            false,
+            0,
+            1,
+            "",
+            "",
+            "",
+            "",
+            "",
+            0,
+            0,
+            Array.Empty<AetheriaRuntimeCurveKey>(),
+            "",
+            1,
+            0,
+            0,
+            0,
+            false,
+            0,
+            0,
+            "",
+            Array.Empty<AetheriaRuntimeAudioStat>(),
+            Array.Empty<AetheriaRuntimeCurveKey>(),
+            "",
+            "");
+    }
+
+    private static AetheriaRuntimeBehaviorValue NumberValue(double value)
+    {
+        return new AetheriaRuntimeBehaviorValue(
+            "",
+            "",
+            value,
+            false,
+            "",
+            "",
+            Array.Empty<AetheriaRuntimeBehaviorValue>(),
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+    }
+
+    private static AetheriaRuntimeBehaviorValue EmptyBehaviorValue(string kind)
+    {
+        return new AetheriaRuntimeBehaviorValue(
+            kind,
+            "",
+            0,
+            false,
+            "",
+            "",
+            Array.Empty<AetheriaRuntimeBehaviorValue>(),
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
     }
 
     private static bool ContainsSurfaceMetric(

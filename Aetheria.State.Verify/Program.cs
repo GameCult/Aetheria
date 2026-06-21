@@ -4287,10 +4287,23 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
     }
 
-    if (!source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
-        !source.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
-        !source.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+    var runtimeStateReaderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeStateReader.cs");
+    var runtimeStateReader = File.Exists(runtimeStateReaderPath)
+        ? File.ReadAllText(runtimeStateReaderPath)
+        : throw new InvalidOperationException("Cannot verify item stat state-ref authority; AetheriaRuntimeStateReader.cs is missing.");
+
+    if (!runtimeStateReader.Contains("TryResolveDaemonItemStatRef(", StringComparison.Ordinal) ||
+        !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
+        !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+        !runtimeStateReader.Contains("FindDaemonItem(", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
+        source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
+        source.Contains("TryResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
         source.Contains("private static bool TryReadItemStatRef(", StringComparison.Ordinal) ||
         source.Contains("DecodeRefToken", StringComparison.Ordinal) ||
         source.Contains("GameManager.ItemManager.GetTier", StringComparison.Ordinal) ||
@@ -9708,7 +9721,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ResolveEveSurfaceStateRef",
         "TryResolveEveSurfaceStateRef",
         "TryResolveDaemonStateRef",
+        "TryResolveDaemonItemStatRef",
         "AetheriaRuntimeDaemonStateRefs.Prefix",
+        "AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix",
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface",
         "AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface",
@@ -9722,6 +9737,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ResolveSurfaceStateRefs(stateFilePath, surface)",
         "public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)",
         "CreateStateRefResolver(string stateFilePath)",
+        "FindDaemonItem(",
         "AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(",
         "AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId)"
     };

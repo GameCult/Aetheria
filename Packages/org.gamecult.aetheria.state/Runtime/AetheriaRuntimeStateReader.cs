@@ -121,13 +121,24 @@ namespace GameCult.Aetheria.State.Verse
             if (string.IsNullOrWhiteSpace(stateRef))
                 return false;
 
-            if (!stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal))
-                return false;
-
             TryReadDaemonFrame(stateFilePath, out var frame);
-            AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
-            AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
-            return TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out value);
+            if (stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal))
+            {
+                AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
+                AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
+                return TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out value);
+            }
+
+            if (stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
+            {
+                return TryResolveDaemonItemStatRef(
+                    frame,
+                    OpenRuntimeCatalog(stateFilePath),
+                    stateRef,
+                    out value);
+            }
+
+            return false;
         }
 
         public static bool TryResolveDaemonStateRef(
@@ -209,6 +220,42 @@ namespace GameCult.Aetheria.State.Verse
                 default:
                     return false;
             }
+        }
+
+        public static bool TryResolveDaemonItemStatRef(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            string stateRef,
+            out string value)
+        {
+            value = "";
+            if (!AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(
+                    stateRef,
+                    out var itemKey,
+                    out var behaviorKind,
+                    out var behaviorGroup,
+                    out var fieldKey))
+            {
+                return false;
+            }
+
+            var item = FindDaemonItem(frame?.Run, itemKey);
+            var typedItem = catalog?.FindItem(itemKey);
+            var field = typedItem?.BehaviorPayloads?
+                .FirstOrDefault(candidate =>
+                    string.Equals(candidate.Kind, behaviorKind, StringComparison.Ordinal) &&
+                    candidate.Group == behaviorGroup)
+                ?.Fields?
+                .FirstOrDefault(candidate => candidate.Key == fieldKey);
+            if (item == null || field == null)
+                return false;
+
+            value = AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
+                    field.Value,
+                    item,
+                    heat: 0)
+                .ToString("0.###", CultureInfo.InvariantCulture);
+            return true;
         }
 
         public static bool TryReadDaemonGameSurface(
@@ -303,9 +350,71 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
             AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
 
-            return stateRef => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
-                ? value
-                : "";
+            return stateRef =>
+            {
+                if (TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value))
+                    return value;
+
+                return stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal) &&
+                       TryResolveDaemonItemStatRef(frame, OpenRuntimeCatalog(stateFilePath), stateRef, out value)
+                    ? value
+                    : "";
+            };
+        }
+
+        private static AetheriaRuntimeLoadoutItemCommit? FindDaemonItem(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            string itemKey)
+        {
+            if (run == null || string.IsNullOrWhiteSpace(itemKey))
+                return null;
+
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                var item = FindDaemonItem(entity.Equipment, itemKey)
+                    ?? FindDaemonItem(entity.CargoBays, itemKey)
+                    ?? FindDaemonItem(entity.DockingBays, itemKey)
+                    ?? FindDaemonItem(entity.CargoContents, itemKey)
+                    ?? FindDaemonItem(entity.DockingBayContents, itemKey);
+                if (item != null)
+                    return item;
+            }
+
+            return null;
+        }
+
+        private static AetheriaRuntimeLoadoutItemCommit? FindDaemonItem(
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit>? slots,
+            string itemKey)
+        {
+            foreach (var slot in slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            {
+                if (IsItemMatch(slot?.Item, itemKey))
+                    return slot?.Item;
+            }
+
+            return null;
+        }
+
+        private static AetheriaRuntimeLoadoutItemCommit? FindDaemonItem(
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit>? cargoBays,
+            string itemKey)
+        {
+            foreach (var cargoBay in cargoBays ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+            {
+                var item = FindDaemonItem(cargoBay?.Items, itemKey);
+                if (item != null)
+                    return item;
+            }
+
+            return null;
+        }
+
+        private static bool IsItemMatch(AetheriaRuntimeLoadoutItemCommit? item, string itemKey)
+        {
+            return item != null &&
+                   string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal);
         }
 
         private static AetheriaRuntimeZoneSnapshotCommit FindCurrentZone(AetheriaRuntimeRunCheckpointCommit run)

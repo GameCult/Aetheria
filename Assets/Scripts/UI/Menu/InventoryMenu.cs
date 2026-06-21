@@ -261,7 +261,6 @@ public class InventoryMenu : MonoBehaviour
             AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurface(item, typedItem)),
             HandleCargoItemDetailsSurfaceCommand,
             _cargoItemDetailsSurfaceChrome,
-            ResolveInventorySurfaceStateRef,
             sortingOrder: 1001);
     }
 
@@ -304,7 +303,6 @@ public class InventoryMenu : MonoBehaviour
             AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurface(item, typedItem)),
             HandleEquippedItemDetailsSurfaceCommand,
             _equippedItemDetailsSurfaceChrome,
-            ResolveInventorySurfaceStateRef,
             sortingOrder: 1002);
     }
 
@@ -539,15 +537,6 @@ public class InventoryMenu : MonoBehaviour
             : "";
     }
 
-    private static string FormatCurrentItemStat(AetheriaRuntimeBehaviorValue stat, EquippableItem item)
-    {
-        return ActionGameManager.RuntimePlayerSettings.Format(
-            AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
-                stat,
-                ToRuntimeLoadoutItem(item),
-                item?.Temperature ?? 0));
-    }
-
     private static AetheriaRuntimeLoadoutItemCommit ToRuntimeLoadoutItem(EquippableItem item)
     {
         return AetheriaRuntimeDaemonItemStatQueries.ItemCommit(
@@ -556,51 +545,6 @@ public class InventoryMenu : MonoBehaviour
             item?.Durability ?? 1,
             enabled: true,
             overrideShutdown: item != null && item.OverrideShutdown);
-    }
-
-    private string ResolveInventorySurfaceStateRef(string stateRef)
-    {
-        return TryResolveInventorySurfaceStateRef(stateRef, out var value) ? value : "";
-    }
-
-    private bool TryResolveInventorySurfaceStateRef(string stateRef, out string value)
-    {
-        value = "";
-        if (!AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(
-                stateRef,
-                out var itemKey,
-                out var behaviorKind,
-                out var behaviorGroup,
-                out var fieldKey))
-            return false;
-
-        var item = ResolveSelectedEquippableItem(itemKey);
-        var typedItem = FindTypedInventoryItem(item);
-        var behavior = typedItem?.BehaviorPayloads?.FirstOrDefault(candidate =>
-            string.Equals(candidate.Kind, behaviorKind, StringComparison.Ordinal) &&
-            candidate.Group == behaviorGroup);
-        var field = behavior?.Fields?.FirstOrDefault(candidate => candidate.Key == fieldKey);
-        if (item == null || field == null)
-            return false;
-
-        value = FormatCurrentItemStat(field.Value, item);
-        return true;
-    }
-
-    private EquippableItem ResolveSelectedEquippableItem(string itemKey)
-    {
-        var equipped = _selectedEquippedItem?.EquippableItem;
-        if (ItemKeyMatches(equipped, itemKey))
-            return equipped;
-
-        var cargo = _selectedItem as EquippableItem;
-        return ItemKeyMatches(cargo, itemKey) ? cargo : null;
-    }
-
-    private static bool ItemKeyMatches(EquippableItem item, string itemKey)
-    {
-        return item != null &&
-               string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal);
     }
 
     private static bool IsWeaponGroupAssigned(EquippedItem item, int groupIndex)
