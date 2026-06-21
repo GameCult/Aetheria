@@ -448,6 +448,46 @@ namespace GameCult.Aetheria.State.Verse
             return markers.Count;
         }
 
+        public static int[] QueryVisibleEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered)
+        {
+            var entityIndices = new List<int>();
+            QueryVisibleEntityIndices(zone, observerEntityIndex, minimumInfoGathered, entityIndices);
+            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+        }
+
+        public static int QueryVisibleEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            List<int> entityIndices)
+        {
+            if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
+            entityIndices.Clear();
+            if (zone == null || observerEntityIndex < 0)
+                return 0;
+
+            var entities = BuildEntityMap(zone);
+            if (!entities.TryGetValue(observerEntityIndex, out var observer))
+                return 0;
+
+            entityIndices.Add(observer.EntityIndex);
+            foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact != null &&
+                    contact.Visible &&
+                    contact.InfoGathered > minimumInfoGathered &&
+                    entities.ContainsKey(contact.TargetEntityIndex))
+                {
+                    entityIndices.Add(contact.TargetEntityIndex);
+                }
+            }
+
+            return entityIndices.Count;
+        }
+
         public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(
             AetheriaRuntimeDaemonSoaViewIndex? index,
             double minX,

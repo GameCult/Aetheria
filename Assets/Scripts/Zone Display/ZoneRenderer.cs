@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
-using UniRx;
 using UnityEngine;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
@@ -81,7 +80,6 @@ public class ZoneRenderer : MonoBehaviour
     private PlanetObject _root;
     private bool _rootFound;
     private Entity _perspectiveEntity;
-    private IDisposable[] _perspectiveSubscriptions = new IDisposable[2];
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
@@ -98,6 +96,9 @@ public class ZoneRenderer : MonoBehaviour
         new List<AetheriaRuntimeDaemonCompassMarker>();
     private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex =
         new Dictionary<int, AetheriaRuntimeDaemonCompassMarker>();
+    private readonly List<int> _daemonVisibleEntityIndices = new List<int>();
+    private readonly HashSet<int> _daemonVisibleEntityIndicesSet = new HashSet<int>();
+    private readonly HashSet<int> _visibleDaemonEntityIndices = new HashSet<int>();
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -111,28 +112,11 @@ public class ZoneRenderer : MonoBehaviour
         get => _perspectiveEntity;
         set
         {
-            //if (_perspectiveEntity == value) return;
             _perspectiveEntity = value;
-            _perspectiveSubscriptions[0]?.Dispose();
-            _perspectiveSubscriptions[1]?.Dispose();
-            if (value == null)
-            {
-                foreach (var e in EntityInstances.Values)
-                    e.FadeOut(EntityFadeTime);
-            }
-            else
-            {
-                foreach (var entity in EntityInstances.Values)
-                    entity.FadeOut(EntityFadeTime);
-                foreach (var entity in value.VisibleEntities)
-                    EntityInstances[entity].FadeIn(EntityFadeTime);
-                EntityInstances[value].FadeIn(EntityFadeTime);
-                _perspectiveSubscriptions[0] = value.VisibleEntities.ObserveAdd()
-                    .Subscribe(add => EntityInstances[add.Value].FadeIn(EntityFadeTime));
-                _perspectiveSubscriptions[1] = value.VisibleEntities.ObserveRemove()
-                    .Where(removeEvent => EntityInstances.ContainsKey(removeEvent.Value))
-                    .Subscribe(removeEvent => EntityInstances[removeEvent.Value].FadeOut(EntityFadeTime));
-            }
+            _visibleDaemonEntityIndices.Clear();
+            foreach (var entity in EntityInstances.Values)
+                entity.FadeOut(EntityFadeTime);
+            RefreshDaemonVisibleEntityInstances();
         }
     }
 
@@ -475,6 +459,7 @@ public class ZoneRenderer : MonoBehaviour
         Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
+        RefreshDaemonVisibleEntityInstances();
         RefreshDaemonCompassMarkers();
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
@@ -634,6 +619,33 @@ public class ZoneRenderer : MonoBehaviour
         _daemonCompassMarkersByEntityIndex.Clear();
         foreach (var marker in _daemonCompassMarkers)
             _daemonCompassMarkersByEntityIndex[marker.TargetEntityIndex] = marker;
+    }
+
+    private void RefreshDaemonVisibleEntityInstances()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(
+            _daemonZoneSnapshot,
+            PerspectiveEntity?.DaemonEntityIndex ?? -1,
+            Settings.GameplaySettings.TargetDetectionInfoThreshold,
+            _daemonVisibleEntityIndices);
+        _daemonVisibleEntityIndicesSet.Clear();
+        foreach (var entityIndex in _daemonVisibleEntityIndices)
+            _daemonVisibleEntityIndicesSet.Add(entityIndex);
+
+        foreach (var entityInstance in EntityInstances.Values)
+        {
+            var entityIndex = entityInstance.Entity?.DaemonEntityIndex ?? -1;
+            var shouldBeVisible = entityIndex >= 0 && _daemonVisibleEntityIndicesSet.Contains(entityIndex);
+            var isVisible = entityIndex >= 0 && _visibleDaemonEntityIndices.Contains(entityIndex);
+            if (shouldBeVisible && !isVisible)
+                entityInstance.FadeIn(EntityFadeTime);
+            else if (!shouldBeVisible && isVisible)
+                entityInstance.FadeOut(EntityFadeTime);
+        }
+
+        _visibleDaemonEntityIndices.Clear();
+        foreach (var entityIndex in _daemonVisibleEntityIndicesSet)
+            _visibleDaemonEntityIndices.Add(entityIndex);
     }
 
     private float GetTerrainHeight(float2 position)

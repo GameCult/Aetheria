@@ -1028,6 +1028,62 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishVisibleEntityIndicesFromObserverContacts()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Entities = new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 10,
+                    Contacts = new[]
+                    {
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 11,
+                            InfoGathered = 0.7,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 12,
+                            InfoGathered = 0.3,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 13,
+                            InfoGathered = 0.9,
+                            Visible = false
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 99,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        }
+                    }
+                },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 11 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 12 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 13 }
+            }
+        };
+
+        var visible = new List<int>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(
+            zone,
+            10,
+            0.5,
+            visible);
+
+        Assert.AreEqual(2, count);
+        Assert.AreEqual(10, visible[0]);
+        Assert.AreEqual(11, visible[1]);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
