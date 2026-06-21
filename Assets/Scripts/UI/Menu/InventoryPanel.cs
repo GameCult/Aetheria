@@ -162,7 +162,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 Dialog.Show(() =>
                 {
                     GameManager.RequestEntityName(_displayedEntity, entityName);
-                    Title.text = _displayedEntity.Name;
                 });
                 Dialog.MoveToCursor();
             });

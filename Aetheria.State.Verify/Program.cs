@@ -8859,6 +8859,14 @@ static void RequireInventoryEntityRenameRequestAuthority(string root)
     {
         throw new InvalidOperationException("InventoryPanel no longer routes entity rename through ActionGameManager.");
     }
+
+    var renameRequest = inventoryPanel.IndexOf("GameManager.RequestEntityName", StringComparison.Ordinal);
+    var titleRefreshAfterRename = inventoryPanel.IndexOf("Title.text = _displayedEntity.Name", renameRequest, StringComparison.Ordinal);
+    if (renameRequest >= 0 && titleRefreshAfterRename >= 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still refreshes entity title immediately after submitting a daemon rename request.");
+    }
 }
 
 static void RequireWeaponGroupRequestAuthority(string root)
