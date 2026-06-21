@@ -193,7 +193,9 @@ public class SchematicDisplay : MonoBehaviour
 
                     HeatstrokeMeterFill.anchorMax = new Vector2(_entity.Heatstroke, 1);
                     HypothermiaMeterFill.anchorMax = new Vector2(_entity.Hypothermia, 1);
-                    HeatstrokeLimitFill.anchorMax = new Vector2(unlerp(Settings.GameplaySettings.HypothermiaTemperature, Settings.GameplaySettings.HeatstrokeTemperature, _cockpit.Item.Temperature), 1);
+                    HeatstrokeLimitFill.anchorMax = new Vector2(
+                        (float)ActionGameManager.Instance.ZoneRenderer.RenderSettings.NormalizeThermalRisk(_cockpit.Item.Temperature),
+                        1);
                 }
 
                 SensorCooldownFill.anchorMax = new Vector2(_entity.Sensor?.Cooldown ?? 0, 1);

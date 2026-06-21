@@ -1818,6 +1818,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public readonly struct AetheriaRuntimeDaemonRenderSettings",
         "public readonly struct AetheriaRuntimeExponentialCurve",
         "public double ConvergenceMinimumDistance { get; }",
+        "public double HypothermiaTemperature { get; }",
+        "public double HeatstrokeTemperature { get; }",
+        "public double NormalizeThermalRisk(double temperature)",
         "public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }",
         "public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(",
         "AetheriaRuntimeZoneSnapshotCommit? zone",
@@ -2148,6 +2151,25 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "EntityInstance no longer resolves convergence from daemon target projection: " +
             string.Join(", ", missingEntityInstanceSymbols));
+    }
+
+    var schematicDisplayPath = Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs");
+    var schematicDisplay = File.Exists(schematicDisplayPath)
+        ? File.ReadAllText(schematicDisplayPath)
+        : throw new InvalidOperationException("Cannot verify HUD thermal presentation authority; SchematicDisplay.cs is missing.");
+    if (schematicDisplay.Contains("Settings.GameplaySettings.HypothermiaTemperature", StringComparison.Ordinal) ||
+        schematicDisplay.Contains("Settings.GameplaySettings.HeatstrokeTemperature", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "SchematicDisplay must normalize cockpit thermal risk through shared daemon render settings instead of Unity GameSettings.");
+    }
+
+    if (!schematicDisplay.Contains("ZoneRenderer.RenderSettings.NormalizeThermalRisk(", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("Settings.GameplaySettings.HypothermiaTemperature", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("Settings.GameplaySettings.HeatstrokeTemperature", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "HUD thermal presentation no longer flows through the shared daemon render settings bridge.");
     }
 }
 

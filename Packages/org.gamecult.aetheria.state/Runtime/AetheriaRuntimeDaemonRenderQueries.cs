@@ -51,14 +51,29 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeDaemonRenderSettings(
             AetheriaRuntimeExponentialCurve temperatureEmissionCurve,
-            double convergenceMinimumDistance)
+            double convergenceMinimumDistance,
+            double hypothermiaTemperature,
+            double heatstrokeTemperature)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             ConvergenceMinimumDistance = convergenceMinimumDistance;
+            HypothermiaTemperature = hypothermiaTemperature;
+            HeatstrokeTemperature = heatstrokeTemperature;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
         public double ConvergenceMinimumDistance { get; }
+        public double HypothermiaTemperature { get; }
+        public double HeatstrokeTemperature { get; }
+
+        public double NormalizeThermalRisk(double temperature)
+        {
+            var range = HeatstrokeTemperature - HypothermiaTemperature;
+            if (range <= 0)
+                return temperature >= HeatstrokeTemperature ? 1.0 : 0.0;
+
+            return Math.Max(0.0, Math.Min(1.0, (temperature - HypothermiaTemperature) / range));
+        }
     }
 
     public readonly struct AetheriaRuntimeGravityInfluenceBrush

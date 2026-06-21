@@ -569,7 +569,9 @@ public class ActionGameManager : MonoBehaviour
                 emissionCurve.Exponent,
                 emissionCurve.Multiplier,
                 emissionCurve.Constant),
-            Settings.GameplaySettings.ConvergenceMinimumDistance);
+            Settings.GameplaySettings.ConvergenceMinimumDistance,
+            Settings.GameplaySettings.HypothermiaTemperature,
+            Settings.GameplaySettings.HeatstrokeTemperature);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
