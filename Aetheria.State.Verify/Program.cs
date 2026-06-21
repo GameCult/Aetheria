@@ -1814,6 +1814,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "IntersectsBounds(group, minX, minY, minZ, maxX, maxY, maxZ)",
         "TryResolveBodyCenter(body, orbitPositions, out var center)",
         "public static double EvaluateGravityTerrainHeight(",
+        "public static AetheriaRuntimeGravityTerrainBand QueryGravityTerrainBand(",
         "zone.GravityTerrainRadius",
         "zone.GravityTerrainWaveFrequency",
         "public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(",
@@ -1892,6 +1893,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must evaluate gravity terrain from daemon render queries instead of the mirrored Unity Zone height evaluator.");
     }
 
+    if (zoneRenderer.Contains("Zone.PowerPulse(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon gravity terrain bands instead of calling mirrored Unity Zone gravity math.");
+    }
+
     if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -1937,6 +1944,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
+        "AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(",
         "private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses",
         "foreach (var pose in _daemonBodyPoses)",
         "zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)",

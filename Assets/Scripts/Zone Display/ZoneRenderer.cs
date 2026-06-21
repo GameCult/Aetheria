@@ -578,13 +578,14 @@ public class ZoneRenderer : MonoBehaviour
         //var fogPos = FogCameraParent.position;
         SectorBoundaryBrush.material.SetFloat("_Power", Settings.PlanetSettings.ZoneDepthExponent);
         SectorBoundaryBrush.material.SetFloat("_Depth", Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
-        var startDepth = Zone.PowerPulse(Settings.MinimapZoneGravityRange, Settings.PlanetSettings.ZoneDepthExponent) *
-                          Settings.PlanetSettings.ZoneDepth;
-        var depthRange = Settings.PlanetSettings.ZoneDepth - startDepth + maxDepth;
+        var gravityBand = AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(
+            _daemonZoneSnapshot,
+            Settings.MinimapZoneGravityRange,
+            maxDepth);
         foreach (var mat in MapGravityMaterials)
         {
-            mat.SetFloat("_StartDepth", startDepth);
-            mat.SetFloat("_DepthRange", depthRange);
+            mat.SetFloat("_StartDepth", (float)gravityBand.StartDepth);
+            mat.SetFloat("_DepthRange", (float)gravityBand.DepthRange);
         }
         //Shader.SetGlobalFloat("_GridOffset", Settings.PlanetSettings.ZoneBoundaryFog);
         // var gravPos = MinimapGravityQuad.transform.position;

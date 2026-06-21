@@ -731,6 +731,21 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishGravityTerrainMaterialBand()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            GravityTerrainDepth = 20,
+            GravityTerrainDepthExponent = 2
+        };
+
+        var band = AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(zone, 0.25, 3);
+
+        Assert.AreEqual(11.25, band.StartDepth, 0.0001);
+        Assert.AreEqual(11.75, band.DepthRange, 0.0001);
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishBodyPosesFromZoneSnapshot()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit

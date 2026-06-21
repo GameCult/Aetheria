@@ -156,6 +156,18 @@ namespace GameCult.Aetheria.State.Verse
         public double Size { get; }
     }
 
+    public readonly struct AetheriaRuntimeGravityTerrainBand
+    {
+        public AetheriaRuntimeGravityTerrainBand(double startDepth, double depthRange)
+        {
+            StartDepth = startDepth;
+            DepthRange = depthRange;
+        }
+
+        public double StartDepth { get; }
+        public double DepthRange { get; }
+    }
+
     public static class AetheriaRuntimeDaemonRenderQueries
     {
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
@@ -434,6 +446,22 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return height;
+        }
+
+        public static AetheriaRuntimeGravityTerrainBand QueryGravityTerrainBand(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            double minimapGravityRange,
+            double maxDepth)
+        {
+            if (zone == null)
+                return new AetheriaRuntimeGravityTerrainBand(0, Math.Max(0, maxDepth));
+
+            var startDepth = PowerPulse(
+                minimapGravityRange,
+                Math.Max(0.0001, zone.GravityTerrainDepthExponent)) * zone.GravityTerrainDepth;
+            return new AetheriaRuntimeGravityTerrainBand(
+                startDepth,
+                zone.GravityTerrainDepth - startDepth + maxDepth);
         }
 
         private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)
