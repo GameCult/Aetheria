@@ -3717,8 +3717,10 @@ public class ActionGameManager : MonoBehaviour
                     var targetMaxDurability = targetHull?.Durability > 0
                         ? (float)targetHull.Durability
                         : Math.Max(target.Hull.Durability, 1f);
-                    TargetHitpointsFill.fillAmount = Mathf.Lerp(.25f, .75f, target.Hull.Durability / targetMaxDurability);
-                    TargetShieldsFill.fillAmount = target.Shield == null ? 0 : Mathf.Lerp(.25f, .75f, target.Shield.Progress);
+                    TargetHitpointsFill.fillAmount = (float)renderSettings.NormalizeTargetStatusFill(target.Hull.Durability / targetMaxDurability);
+                    TargetShieldsFill.fillAmount = target.Shield == null
+                        ? 0
+                        : (float)renderSettings.NormalizeTargetStatusFill(target.Shield.Progress);
                 }
 
                 var tractorPower = Input.Player.TractorBeam.ReadValue<float>();

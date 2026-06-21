@@ -128,6 +128,11 @@ namespace GameCult.Aetheria.State.Verse
             return Lerp(0.25, 0.75, NormalizeDetectionProgress(infoGathered));
         }
 
+        public double NormalizeTargetStatusFill(double normalizedValue)
+        {
+            return Lerp(0.25, 0.75, normalizedValue);
+        }
+
         public double ResolveLockIndicatorNoiseAmplitude(double lockProgress)
         {
             return LockIndicatorNoiseAmplitude * (1.0 - Saturate(lockProgress));

@@ -1829,6 +1829,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double NormalizeDetectionProgress(double infoGathered)",
         "public double NormalizeTargetVisibilityFill(double infoGathered)",
         "public double NormalizeVisibilityToTargetFill(double infoGathered)",
+        "public double NormalizeTargetStatusFill(double normalizedValue)",
         "public double ResolveLockIndicatorNoiseAmplitude(double lockProgress)",
         "public double ResolveLockIndicatorNoiseFrequency(double lockProgress)",
         "public double ResolveLockSpinSpeed(double lockProgress)",
@@ -2192,6 +2193,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "renderSettings.NormalizeSevereHeatstrokePost(",
         "renderSettings.NormalizeTargetVisibilityFill(",
         "renderSettings.NormalizeVisibilityToTargetFill(",
+        "renderSettings.NormalizeTargetStatusFill(",
         "renderSettings.ResolveLockIndicatorNoiseAmplitude(",
         "renderSettings.ResolveLockIndicatorNoiseFrequency(",
         "renderSettings.ResolveLockSpinSpeed(",
@@ -2217,7 +2219,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
         "Settings.GameplaySettings.LockIndicatorNoiseAmplitude",
         "Settings.GameplaySettings.LockIndicatorFrequency",
-        "Settings.GameplaySettings.LockSpinSpeed"
+        "Settings.GameplaySettings.LockSpinSpeed",
+        "Mathf.Lerp(.25f, .75f,"
     };
     var renderLoopHits = FindMethodScopedLineHits(actionGameManager, forbiddenRenderLoopSymbols)
         .Where(hit => hit.MethodName is "Update" or "UpdateTargetIndicators")
