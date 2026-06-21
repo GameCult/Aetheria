@@ -7756,6 +7756,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "ApplyDaemonEntitySnapshotsInPlace",
         "PrepareObservedDaemonZoneContext(targetZone, daemonZone)",
+        "_observedZoneContextsByDaemonIndex",
         "ReplaceObservedEntityFacadesFromTypedSnapshots",
         "RestoreCurrentEntityBinding",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
@@ -8065,6 +8066,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
         "PrepareObservedDaemonZoneContext(targetZone, daemonZone)",
+        "_observedZoneContextsByDaemonIndex",
         "ZoneRenderer?.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, run)",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
@@ -8134,6 +8136,12 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "Unity frame application must project observed daemon state, not instantiate authoritative gameplay entities.");
+    }
+
+    if (actionGameManager.Contains("galaxyZone.Contents", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay must not cache observed runtime zone context on the projected GalaxyZone model.");
     }
 
     var contextPrepRendererLoads = FindMethodScopedLineHits(

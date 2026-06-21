@@ -68,6 +68,7 @@ public class ActionGameManager : MonoBehaviour
     private int _lastAppliedAuthoritativeDaemonZoneIndex = -1;
     private readonly Dictionary<string, Entity> _observedEntityFacadesByRecordKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
     private readonly Dictionary<int, Entity> _observedEntityFacadesByDaemonIndex = new Dictionary<int, Entity>();
+    private readonly Dictionary<int, Zone> _observedZoneContextsByDaemonIndex = new Dictionary<int, Zone>();
     private static DirectoryInfo _gameDataDirectory;
     public static DirectoryInfo GameDataDirectory
     {
@@ -2087,12 +2088,15 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        if (galaxyZone.Contents == null)
+        var zoneIndex = daemonZone.ZoneIndex;
+        if (!_observedZoneContextsByDaemonIndex.TryGetValue(zoneIndex, out var observedZoneContext))
         {
             var constructionBlueprint = CreateDaemonZoneConstructionBlueprint(daemonZone);
-            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, ObservedGalaxy);
+            observedZoneContext = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, ObservedGalaxy);
+            _observedZoneContextsByDaemonIndex[zoneIndex] = observedZoneContext;
         }
-        Zone = galaxyZone.Contents;
+
+        Zone = observedZoneContext;
         PlayMusic(MusicType.Overworld);
 
         Zone.Log = s => Debug.Log($"Zone: {s}");
