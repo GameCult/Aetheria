@@ -8899,6 +8899,25 @@ static void RequireWeaponGroupRequestAuthority(string root)
             string.Join(", ", localAcceptanceHits));
     }
 
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var inventoryMenu = File.Exists(inventoryMenuPath)
+        ? File.ReadAllText(inventoryMenuPath)
+        : throw new InvalidOperationException("Cannot verify weapon group authority; InventoryMenu.cs is missing.");
+    var forbiddenUiSubmissionAcceptanceSymbols = new[]
+    {
+        "if (GameManager.RequestWeaponGroupMembership(",
+        "Unable to toggle equipped-item weapon group membership."
+    };
+    var uiSubmissionAcceptanceHits = forbiddenUiSubmissionAcceptanceSymbols
+        .Where(symbol => inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (uiSubmissionAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still treats weapon-group membership submission as accepted equipment state: " +
+            string.Join(", ", uiSubmissionAcceptanceHits));
+    }
+
     var assignmentPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupAssignment.cs");
     var elementPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupElement.cs");
     var weaponGroupsPrefabPath = Path.Combine(root, "Assets", "Prefabs", "UI", "Properties Panel", "Fancy", "Weapon Groups.prefab");

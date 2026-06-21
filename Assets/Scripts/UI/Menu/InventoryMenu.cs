@@ -348,14 +348,11 @@ public class InventoryMenu : MonoBehaviour
                 if (command.GroupIndex >= 0)
                 {
                     var assigned = !IsWeaponGroupAssigned(item, command.GroupIndex);
-                    if (GameManager.RequestWeaponGroupMembership(item, command.GroupIndex, assigned))
-                    {
-                        RenderEquippedItemDetailsSurface(item);
-                        return;
-                    }
+                    GameManager.RequestWeaponGroupMembership(item, command.GroupIndex, assigned);
+                    return;
                 }
 
-                Debug.LogWarning("Unable to toggle equipped-item weapon group membership.");
+                Debug.LogWarning("Unable to submit equipped-item weapon group membership request.");
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.BindWeaponGroup:
                 if (command.GroupIndex >= 0 &&
