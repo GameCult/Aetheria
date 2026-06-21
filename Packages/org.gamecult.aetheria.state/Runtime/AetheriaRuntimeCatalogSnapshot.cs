@@ -1070,7 +1070,14 @@ namespace GameCult.Aetheria.State.Verse
             int asteroidCount,
             int damagedAsteroidCount,
             int respawningAsteroidCount,
-            int asteroidMiningAccumulatorCount)
+            int asteroidMiningAccumulatorCount,
+            double gravityInfluenceCenterX,
+            double gravityInfluenceCenterZ,
+            double gravityInfluenceRadius,
+            double gravityWellDepth,
+            double gravityWaveRadius,
+            double gravityWaveDepth,
+            double gravityWaveSpeed)
         {
             BodyKey = bodyKey;
             Kind = kind;
@@ -1082,6 +1089,13 @@ namespace GameCult.Aetheria.State.Verse
             DamagedAsteroidCount = damagedAsteroidCount;
             RespawningAsteroidCount = respawningAsteroidCount;
             AsteroidMiningAccumulatorCount = asteroidMiningAccumulatorCount;
+            GravityInfluenceCenterX = gravityInfluenceCenterX;
+            GravityInfluenceCenterZ = gravityInfluenceCenterZ;
+            GravityInfluenceRadius = gravityInfluenceRadius;
+            GravityWellDepth = gravityWellDepth;
+            GravityWaveRadius = gravityWaveRadius;
+            GravityWaveDepth = gravityWaveDepth;
+            GravityWaveSpeed = gravityWaveSpeed;
         }
 
         public string BodyKey { get; }
@@ -1094,6 +1108,13 @@ namespace GameCult.Aetheria.State.Verse
         public int DamagedAsteroidCount { get; }
         public int RespawningAsteroidCount { get; }
         public int AsteroidMiningAccumulatorCount { get; }
+        public double GravityInfluenceCenterX { get; }
+        public double GravityInfluenceCenterZ { get; }
+        public double GravityInfluenceRadius { get; }
+        public double GravityWellDepth { get; }
+        public double GravityWaveRadius { get; }
+        public double GravityWaveDepth { get; }
+        public double GravityWaveSpeed { get; }
     }
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot

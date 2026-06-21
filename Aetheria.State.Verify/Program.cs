@@ -2013,7 +2013,14 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "BodyKey = bodyKey;",
             "OrbitKey = orbitKey;",
             "public string BodyKey { get; }",
-            "public string OrbitKey { get; }"
+            "public string OrbitKey { get; }",
+            "GravityInfluenceCenterX = gravityInfluenceCenterX;",
+            "GravityInfluenceCenterZ = gravityInfluenceCenterZ;",
+            "GravityInfluenceRadius = gravityInfluenceRadius;",
+            "GravityWellDepth = gravityWellDepth;",
+            "GravityWaveRadius = gravityWaveRadius;",
+            "GravityWaveDepth = gravityWaveDepth;",
+            "GravityWaveSpeed = gravityWaveSpeed;"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
         {
@@ -2021,6 +2028,13 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "var parentOrbitKey = ReadFieldString(ref reader, orbitFields, 1);",
             "var bodyKey = ReadFieldString(ref reader, bodyFields, 0);",
             "var orbitKey = ReadFieldString(ref reader, bodyFields, 3);",
+            "var gravityInfluenceCenterX = ReadFieldDouble(ref reader, bodyFields, 13, double.NaN);",
+            "var gravityInfluenceCenterZ = ReadFieldDouble(ref reader, bodyFields, 14, double.NaN);",
+            "var gravityInfluenceRadius = ReadFieldDouble(ref reader, bodyFields, 15);",
+            "var gravityWellDepth = ReadFieldDouble(ref reader, bodyFields, 16);",
+            "var gravityWaveRadius = ReadFieldDouble(ref reader, bodyFields, 17);",
+            "var gravityWaveDepth = ReadFieldDouble(ref reader, bodyFields, 18);",
+            "var gravityWaveSpeed = ReadFieldDouble(ref reader, bodyFields, 19);",
             "new AetheriaRuntimeOrbitSnapshot(",
             "new AetheriaRuntimeBodySnapshot("
         }

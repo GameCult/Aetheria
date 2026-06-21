@@ -1392,7 +1392,15 @@ namespace GameCult.Aetheria.State.Verse
                 var resourceCount = CountAndSkipFieldArray(ref reader, bodyFields, 5);
                 SkipFields(ref reader, bodyFields, 6, 10);
                 var asteroidSummary = ReadFieldAsteroidSummary(ref reader, bodyFields, 10);
-                SkipRemaining(ref reader, bodyFields, 11);
+                SkipFields(ref reader, bodyFields, 11, 13);
+                var gravityInfluenceCenterX = ReadFieldDouble(ref reader, bodyFields, 13, double.NaN);
+                var gravityInfluenceCenterZ = ReadFieldDouble(ref reader, bodyFields, 14, double.NaN);
+                var gravityInfluenceRadius = ReadFieldDouble(ref reader, bodyFields, 15);
+                var gravityWellDepth = ReadFieldDouble(ref reader, bodyFields, 16);
+                var gravityWaveRadius = ReadFieldDouble(ref reader, bodyFields, 17);
+                var gravityWaveDepth = ReadFieldDouble(ref reader, bodyFields, 18);
+                var gravityWaveSpeed = ReadFieldDouble(ref reader, bodyFields, 19);
+                SkipRemaining(ref reader, bodyFields, 20);
                 bodies[body] = new AetheriaRuntimeBodySnapshot(
                     bodyKey,
                     kind,
@@ -1403,7 +1411,14 @@ namespace GameCult.Aetheria.State.Verse
                     asteroidSummary.Count,
                     asteroidSummary.DamagedCount,
                     asteroidSummary.RespawningCount,
-                    asteroidSummary.MiningAccumulatorCount);
+                    asteroidSummary.MiningAccumulatorCount,
+                    gravityInfluenceCenterX,
+                    gravityInfluenceCenterZ,
+                    gravityInfluenceRadius,
+                    gravityWellDepth,
+                    gravityWaveRadius,
+                    gravityWaveDepth,
+                    gravityWaveSpeed);
             }
 
             return bodies;
