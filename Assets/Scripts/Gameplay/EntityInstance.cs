@@ -56,6 +56,7 @@ public class EntityInstance : MonoBehaviour
     public Dictionary<HardpointData, int> BarrelIndices { get; private set; }
     public Dictionary<Radiator, MeshRenderer> RadiatorMeshes { get; private set; }
     public Transform LookAtPoint { get; private set; }
+    public int DaemonEntityIndex { get; private set; } = -1;
     public Entity Entity { get; private set; }
     public ZoneRenderer ZoneRenderer { get; private set; }
     public Transform LocalSpace { get; private set; }
@@ -153,6 +154,7 @@ public class EntityInstance : MonoBehaviour
         LocalSpace.gameObject.name = $"{entity.Name} Sim Space";
         LocalSpace.SetParent(transform.parent);
         Entity = entity;
+        DaemonEntityIndex = entity.DaemonEntityIndex;
         ZoneRenderer = zoneRenderer;
         var typedHull = FindTypedHull(entity.Hull);
         if (typedHull == null || typedHull.ShapeWidth <= 0 || typedHull.ShapeHeight <= 0 || typedHull.ShapeCells.Count == 0)

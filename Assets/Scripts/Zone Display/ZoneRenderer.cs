@@ -67,6 +67,7 @@ public class ZoneRenderer : MonoBehaviour
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
     [HideInInspector] public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
 
+    private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex = new Dictionary<int, EntityInstance>();
     private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);
     private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);
     private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);
@@ -105,6 +106,7 @@ public class ZoneRenderer : MonoBehaviour
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
     public Zone Zone { get; private set; }
+    public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
     public ItemManager ItemManager { get; set; }
 
@@ -115,7 +117,7 @@ public class ZoneRenderer : MonoBehaviour
         {
             _perspectiveEntity = value;
             _visibleDaemonEntityIndices.Clear();
-            foreach (var entity in EntityInstances.Values)
+            foreach (var entity in _entityInstancesByDaemonIndex.Values)
                 entity.FadeOut(EntityFadeTime);
             RefreshDaemonVisibleEntityInstances();
         }
@@ -164,8 +166,21 @@ public class ZoneRenderer : MonoBehaviour
 
     public void SetIconSize(float size)
     {
-        foreach(var entityInstance in EntityInstances.Values) entityInstance.MapIcon.transform.localScale = Vector3.one * size;
+        foreach(var entityInstance in _entityInstancesByDaemonIndex.Values) entityInstance.MapIcon.transform.localScale = Vector3.one * size;
         foreach(var planet in Planets.Values) planet.Icon.transform.localScale = Vector3.one * size;
+    }
+
+    public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)
+    {
+        return _entityInstancesByDaemonIndex.TryGetValue(daemonEntityIndex, out instance);
+    }
+
+    public bool TryGetEntityInstance(Entity entity, out EntityInstance instance)
+    {
+        instance = null;
+        return entity != null &&
+               entity.DaemonEntityIndex >= 0 &&
+               _entityInstancesByDaemonIndex.TryGetValue(entity.DaemonEntityIndex, out instance);
     }
 
     void Start()
@@ -271,6 +286,7 @@ public class ZoneRenderer : MonoBehaviour
             Debug.Log($"Unloading entity {entity.Name} from rendered entity instances during clear.");
             UnloadEntity(entity);
         }
+        _entityInstancesByDaemonIndex.Clear();
 
         if (Planets.Count > 0)
         {
@@ -329,6 +345,8 @@ public class ZoneRenderer : MonoBehaviour
         instance.SetEntity(this, entity);
         
         EntityInstances.Add(entity, instance);
+        if (entity.DaemonEntityIndex >= 0)
+            _entityInstancesByDaemonIndex[entity.DaemonEntityIndex] = instance;
     }
 
     public void UnloadEntity(Entity entity)
@@ -347,6 +365,8 @@ public class ZoneRenderer : MonoBehaviour
 
         Destroy(instance.gameObject);
         EntityInstances.Remove(entity);
+        if (entity.DaemonEntityIndex >= 0)
+            _entityInstancesByDaemonIndex.Remove(entity.DaemonEntityIndex);
     }
 
     void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)
@@ -592,12 +612,12 @@ public class ZoneRenderer : MonoBehaviour
             else planet.Value.Body.transform.rotation *= Quaternion.AngleAxis(Settings.PlanetRotationSpeed, Vector3.up);
         }
 
-        foreach (var entityInstance in EntityInstances.Values)
+        foreach (var entityInstance in _entityInstancesByDaemonIndex.Values)
         {
             if(entityInstance.CompassIcon)
             {
-                var active = entityInstance.Entity != null &&
-                    _daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker);
+                var active = entityInstance.DaemonEntityIndex >= 0 &&
+                    _daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.DaemonEntityIndex, out var marker);
                 entityInstance.CompassIcon.gameObject.SetActive(active);
                 if (active)
                 {
@@ -676,9 +696,9 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var entityIndex in _daemonVisibleEntityIndices)
             _daemonVisibleEntityIndicesSet.Add(entityIndex);
 
-        foreach (var entityInstance in EntityInstances.Values)
+        foreach (var entityInstance in _entityInstancesByDaemonIndex.Values)
         {
-            var entityIndex = entityInstance.Entity?.DaemonEntityIndex ?? -1;
+            var entityIndex = entityInstance.DaemonEntityIndex;
             var shouldBeVisible = entityIndex >= 0 && _daemonVisibleEntityIndicesSet.Contains(entityIndex);
             var isVisible = entityIndex >= 0 && _visibleDaemonEntityIndices.Contains(entityIndex);
             if (shouldBeVisible && !isVisible)

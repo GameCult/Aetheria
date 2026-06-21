@@ -3093,7 +3093,13 @@ public class ActionGameManager : MonoBehaviour
         DockCamera.enabled = true;
         FollowCamera.enabled = false;
         var orbital = (OrbitalEntity) entity;
-        DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
+        if (!ZoneRenderer.TryGetEntityInstance(orbital, out var orbitalInstance))
+        {
+            Debug.LogError($"Attempted to dock at entity {entity.Name}, but ZoneRenderer has no daemon-indexed instance.");
+            return;
+        }
+
+        DockCamera.Follow = orbitalInstance.transform;
         var parentOrbitKey = Zone.TryGetOrbit(orbital.OrbitKey, out var orbit) ? orbit.ParentOrbitKey : "";
         var daemonZone = FindCurrentDaemonZoneSnapshot();
         var parentOrbitPlanetBodyKey = (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
@@ -3178,9 +3184,9 @@ public class ActionGameManager : MonoBehaviour
         Entity entity,
         IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> actionBarBindings = null)
     {
-        if (!ZoneRenderer.EntityInstances.ContainsKey(entity))
+        if (!ZoneRenderer.TryGetEntityInstance(entity, out var entityInstance))
         {
-            Debug.LogError($"Attempted to bind to entity {entity.Name}, but SectorRenderer has no such instance!");
+            Debug.LogError($"Attempted to bind to entity {entity.Name}, but ZoneRenderer has no daemon-indexed instance.");
             return;
         }
 
@@ -3204,17 +3210,17 @@ public class ActionGameManager : MonoBehaviour
         ShipPanel.Display(CurrentEntity, true);
         SchematicDisplay.ShowShip(CurrentEntity);
 
-        FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
-        FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
+        FollowCamera.LookAt = entityInstance.LookAtPoint;
+        FollowCamera.Follow = entityInstance.transform;
         _articulationGroups = CurrentEntity.Equipment
             .Where(HasArticulatedWeaponBehavior)
-            .GroupBy(item => ZoneRenderer.EntityInstances[CurrentEntity]
+            .GroupBy(item => entityInstance
                 .GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])
                 .GetComponentInParent<ArticulationPoint>()?.Group ?? -1)
             .Select((group, index) => {
                 return (
                     group.Select(item => CurrentEntity.Hardpoints[item.Position.x, item.Position.y]).ToArray(),
-                    group.Select(item => ZoneRenderer.EntityInstances[CurrentEntity].GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])).ToArray(),
+                    group.Select(item => entityInstance.GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])).ToArray(),
                     Crosshairs[index]
                 );
             }).ToArray();
@@ -3974,7 +3980,10 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentEntity == null || CurrentEntity.Parent != null) return;
 
-        ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
+        if (!ZoneRenderer.TryGetEntityInstance(CurrentEntity, out var entityInstance))
+            return;
+
+        ViewDot.Target = entityInstance.LookAtPoint.position;
         if (CurrentEntity.Target.Value != null)
             TargetIndicator.Target = CurrentEntity.Target.Value.Position;
         var distance = CultMath.math.length(AetheriaMath.ToCult((float3)ViewDot.Target) - CurrentEntity.CultPosition);

@@ -494,7 +494,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
     {
         _zoneBodies.Clear();
         var entityIndex = 0;
-        foreach (var entityInstance in zoneRenderer.EntityInstances.Values)
+        foreach (var entityInstance in zoneRenderer.DaemonEntityInstances.Values)
         {
             if (entityInstance == null || entityInstance.Entity == sourceEntity)
                 continue;

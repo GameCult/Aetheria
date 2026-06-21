@@ -2009,6 +2009,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)",
         "foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())",
         "entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
+        "private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex",
+        "public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;",
+        "public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)",
+        "public bool TryGetEntityInstance(Entity entity, out EntityInstance instance)",
         "foreach (var entity in EntityInstances.Keys.ToArray())",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
@@ -2020,7 +2024,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
-        "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
+        "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "pose.GravityWaveSpeed"
     };
