@@ -4873,10 +4873,8 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "HandleTradeItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument)",
-        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurfaceState(",
-        "ProjectTradeItemDetailsSurfaceState(",
-        "ProjectTradeItemBehaviorSections(",
-        "ProjectTradeItemBehaviorMetric(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurface(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(",
         "AetheriaRuntimeTradeItemDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeItemDetailsCommandKind.Close"
     };
@@ -4906,7 +4904,11 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "OnClick = () => Properties.Inspect(i.TypedItem)",
         "private static EveSurfaceComponent",
         "new EveSurfaceComponent(",
-        "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close"
+        "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close",
+        "new AetheriaRuntimeTradeItemDetailsSurfaceState(",
+        "ProjectTradeItemDetailsSurfaceState(",
+        "ProjectTradeItemBehaviorSections(",
+        "ProjectTradeItemBehaviorMetric("
     };
 
     var hits = forbiddenSymbols
@@ -4932,6 +4934,9 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeTradeItemDetailsSurfaceState",
         "AetheriaRuntimeTradeItemSection",
         "AetheriaRuntimeTradeItemMetric",
+        "public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(",
+        "ProjectBehaviorSections(",
+        "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
         "The observing client supplies the selected market row; the shared runtime surface owns trade item inspection layout."

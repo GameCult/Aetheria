@@ -492,7 +492,7 @@ public class TradeMenu : MonoBehaviour
             transform,
             _tradeItemSurfaceDocument,
             "Aetheria Trade Item Details Surface",
-            AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurfaceState(item)),
+            AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurface(item)),
             HandleTradeItemDetailsSurfaceCommand,
             _tradeItemSurfaceChrome,
             sortingOrder: 1003);
@@ -523,123 +523,13 @@ public class TradeMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument);
     }
 
-    private AetheriaRuntimeTradeItemDetailsSurfaceState ProjectTradeItemDetailsSurfaceState(AetheriaRuntimeCatalogItem item)
+    private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
     {
-        var durability = "";
-        var thermalRange = "";
-        var behaviorSections = Array.Empty<AetheriaRuntimeTradeItemSection>();
-        if (!string.IsNullOrWhiteSpace(item.HardpointType))
-        {
-            durability = ActionGameManager.RuntimePlayerSettings.Format((float)item.Durability);
-            thermalRange = FormatTemperatureRange(item);
-            behaviorSections = ProjectTradeItemBehaviorSections(item).ToArray();
-        }
-
-        return new AetheriaRuntimeTradeItemDetailsSurfaceState(
-            item.Name,
-            item.Description ?? "",
+        return AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(
+            item,
             ActionGameManager.RuntimeCatalog?.GetManufacturer(item)?.Name ?? "GameCult",
-            ActionGameManager.RuntimePlayerSettings.Format((float)item.Mass),
-            item.Price,
-            durability,
-            thermalRange,
-            behaviorSections,
-            DateTime.UtcNow.ToString("O"));
-    }
-
-    private IEnumerable<AetheriaRuntimeTradeItemSection> ProjectTradeItemBehaviorSections(AetheriaRuntimeCatalogItem item)
-    {
-        foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
-        {
-            if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
-            {
-                var statReference = AetheriaRuntimeBehaviorValueReader.ReadStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
-                var modifier = AetheriaRuntimeBehaviorValueReader.ReadPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
-                var modifierType = AetheriaRuntimeBehaviorValueReader.ReadEnum(
-                    FindTypedBehaviorField(behavior, 3)?.Value,
-                    StatModifierType.Constant);
-                yield return new AetheriaRuntimeTradeItemSection(
-                    $"{AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.stat_modifier",
-                    "Stat Modifier",
-                    new[]
-                    {
-                        new AetheriaRuntimeTradeItemMetric(
-                            $"{AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.target",
-                            $"{statReference.Target.SplitCamelCase()}:{statReference.Stat.SplitCamelCase()}",
-                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{ActionGameManager.RuntimePlayerSettings.Format(modifier.Min)}")
-                    });
-                continue;
-            }
-
-            var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
-            if (metadata == null)
-                continue;
-
-            var fields = metadata.DisplayFields
-                .Select(field => ProjectTradeItemBehaviorMetric(behavior, field))
-                .Where(metric => metric != null)
-                .ToArray();
-
-            if (fields.Length == 0)
-                continue;
-
-            yield return new AetheriaRuntimeTradeItemSection(
-                $"{AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}",
-                behavior.Kind.FormatTypeName(),
-                fields);
-        }
-    }
-
-    private AetheriaRuntimeTradeItemMetric ProjectTradeItemBehaviorMetric(
-        AetheriaRuntimeBehaviorPayload behavior,
-        AetheriaRuntimeBehaviorFieldMetadata field)
-    {
-        var payloadField = FindTypedBehaviorField(behavior, field.Key);
-        if (payloadField == null)
-            return null;
-
-        string value;
-        switch (field.ValueKind)
-        {
-            case AetheriaRuntimeBehaviorFieldValueKind.Number:
-                value = ActionGameManager.RuntimePlayerSettings.Format((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Temperature:
-                value = ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Integer:
-                value = ((int)payloadField.Value.NumberValue).ToString();
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat:
-                value = ActionGameManager.RuntimePlayerSettings.Format(AetheriaRuntimeBehaviorValueReader.ReadPerformanceStat(payloadField.Value).Min);
-                break;
-            default:
-                return null;
-        }
-
-        return new AetheriaRuntimeTradeItemMetric(
-            $"{AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
-            field.Name.SplitCamelCase(),
-            value);
-    }
-
-    private static string FormatTemperatureRange(AetheriaRuntimeCatalogItem item)
-    {
-        if (item.MaximumTemperature > item.MinimumTemperature)
-        {
-            return
-                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MinimumTemperature)} to " +
-                $"{ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)item.MaximumTemperature)}";
-        }
-
-        return "No typed thermal range";
-    }
-
-    private static AetheriaRuntimeBehaviorField FindTypedBehaviorField(AetheriaRuntimeBehaviorPayload behavior, int? key)
-    {
-        return key == null
-            ? null
-            : behavior.Fields.FirstOrDefault(field => field.Key == key.Value);
+            ActionGameManager.RuntimePlayerSettings.Format,
+            ActionGameManager.RuntimePlayerSettings.FormatTemperature);
     }
 
     void Start()

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
 
@@ -78,6 +79,52 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string SurfaceId = "aetheria.trade.item_details";
         public const string Close = "aetheria.trade.item_details.close";
+
+        public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(
+            AetheriaRuntimeCatalogItem item,
+            string manufacturer,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature,
+            DateTime updatedAtUtc = default(DateTime))
+        {
+            if (updatedAtUtc == default(DateTime))
+                updatedAtUtc = DateTime.UtcNow;
+
+            if (item == null)
+            {
+                return new AetheriaRuntimeTradeItemDetailsSurfaceState(
+                    "",
+                    "",
+                    manufacturer ?? "",
+                    "",
+                    0,
+                    "",
+                    "",
+                    Array.Empty<AetheriaRuntimeTradeItemSection>(),
+                    updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
+            }
+
+            var durability = "";
+            var thermalRange = "";
+            var behaviorSections = Array.Empty<AetheriaRuntimeTradeItemSection>();
+            if (!string.IsNullOrWhiteSpace(item.HardpointType))
+            {
+                durability = FormatValue(item.Durability, formatValue);
+                thermalRange = FormatTemperatureRange(item, formatTemperature);
+                behaviorSections = ProjectBehaviorSections(item, formatValue, formatTemperature).ToArray();
+            }
+
+            return new AetheriaRuntimeTradeItemDetailsSurfaceState(
+                item.Name,
+                item.Description ?? "",
+                manufacturer ?? "",
+                FormatValue(item.Mass, formatValue),
+                item.Price,
+                durability,
+                thermalRange,
+                behaviorSections,
+                updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
+        }
 
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeTradeItemDetailsSurfaceState state,
@@ -160,6 +207,233 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
+        private static IEnumerable<AetheriaRuntimeTradeItemSection> ProjectBehaviorSections(
+            AetheriaRuntimeCatalogItem item,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature)
+        {
+            foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
+            {
+                if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
+                {
+                    var statReference = ReadStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
+                    var modifier = ReadPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
+                    var modifierType = ReadEnum(
+                        FindTypedBehaviorField(behavior, 3)?.Value,
+                        AetheriaRuntimeTradeItemStatModifierType.Constant);
+                    yield return new AetheriaRuntimeTradeItemSection(
+                        $"{SurfaceId}.behavior.{behavior.Kind}.stat_modifier",
+                        "Stat Modifier",
+                        new[]
+                        {
+                            new AetheriaRuntimeTradeItemMetric(
+                                $"{SurfaceId}.behavior.{behavior.Kind}.target",
+                                $"{SplitCamelCase(statReference.Target)}:{SplitCamelCase(statReference.Stat)}",
+                                $"{(modifierType == AetheriaRuntimeTradeItemStatModifierType.Constant ? "+" : "x")}{FormatValue(modifier.Min, formatValue)}")
+                        });
+                    continue;
+                }
+
+                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
+                if (metadata == null)
+                    continue;
+
+                var fields = metadata.DisplayFields
+                    .Select(field => ProjectBehaviorMetric(behavior, field, formatValue, formatTemperature))
+                    .Where(metric => metric != null)
+                    .ToArray();
+
+                if (fields.Length == 0)
+                    continue;
+
+                yield return new AetheriaRuntimeTradeItemSection(
+                    $"{SurfaceId}.behavior.{behavior.Kind}",
+                    FormatTypeName(behavior.Kind),
+                    fields);
+            }
+        }
+
+        private static AetheriaRuntimeTradeItemMetric ProjectBehaviorMetric(
+            AetheriaRuntimeBehaviorPayload behavior,
+            AetheriaRuntimeBehaviorFieldMetadata field,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature)
+        {
+            var payloadField = FindTypedBehaviorField(behavior, field.Key);
+            if (payloadField == null)
+                return null;
+
+            string value;
+            switch (field.ValueKind)
+            {
+                case AetheriaRuntimeBehaviorFieldValueKind.Number:
+                    value = FormatValue(payloadField.Value.NumberValue, formatValue);
+                    break;
+                case AetheriaRuntimeBehaviorFieldValueKind.Temperature:
+                    value = FormatTemperature(payloadField.Value.NumberValue, formatTemperature);
+                    break;
+                case AetheriaRuntimeBehaviorFieldValueKind.Integer:
+                    value = ((int)payloadField.Value.NumberValue).ToString(CultureInfo.InvariantCulture);
+                    break;
+                case AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat:
+                    value = FormatValue(
+                        ReadPerformanceStat(payloadField.Value).Min,
+                        formatValue);
+                    break;
+                default:
+                    return null;
+            }
+
+            return new AetheriaRuntimeTradeItemMetric(
+                $"{SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
+                SplitCamelCase(field.Name),
+                value);
+        }
+
+        private static string FormatTemperatureRange(
+            AetheriaRuntimeCatalogItem item,
+            Func<float, string> formatTemperature)
+        {
+            if (item.MaximumTemperature > item.MinimumTemperature)
+            {
+                return
+                    $"{FormatTemperature(item.MinimumTemperature, formatTemperature)} to " +
+                    $"{FormatTemperature(item.MaximumTemperature, formatTemperature)}";
+            }
+
+            return "No typed thermal range";
+        }
+
+        private static AetheriaRuntimeBehaviorField FindTypedBehaviorField(
+            AetheriaRuntimeBehaviorPayload behavior,
+            int? key)
+        {
+            return key == null
+                ? null
+                : behavior?.Fields?.FirstOrDefault(field => field.Key == key.Value);
+        }
+
+        private static AetheriaRuntimePerformanceStat ReadPerformanceStat(AetheriaRuntimeBehaviorValue value)
+        {
+            return new AetheriaRuntimePerformanceStat(
+                ChildNumber(value, 0),
+                ChildNumber(value, 1),
+                ChildNumber(value, 2),
+                ChildNumber(value, 3),
+                ChildNumber(value, 4),
+                ReadStatRecipe(ChildValue(value, 5)));
+        }
+
+        private static AetheriaRuntimeStatRecipe ReadStatRecipe(AetheriaRuntimeBehaviorValue value)
+        {
+            if (value == null || value.Children.Count == 0)
+                return null;
+
+            var modifiers = ChildValue(value, 1)?.Children
+                .Select(ReadStatRecipeModifier)
+                .Where(modifier => modifier != null)
+                .ToArray() ?? Array.Empty<AetheriaRuntimeStatRecipeModifier>();
+
+            return new AetheriaRuntimeStatRecipe(ChildNumber(value, 0), modifiers);
+        }
+
+        private static AetheriaRuntimeStatRecipeModifier ReadStatRecipeModifier(AetheriaRuntimeBehaviorValue value)
+        {
+            if (value == null)
+                return null;
+
+            return new AetheriaRuntimeStatRecipeModifier(
+                ChildString(value, 0),
+                ChildString(value, 1),
+                ChildNumber(value, 2),
+                ReadCurveKeys(ChildValue(value, 3)),
+                value.Children.Count <= 4 || ChildValue(value, 4)?.BoolValue == true);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey> ReadCurveKeys(AetheriaRuntimeBehaviorValue value)
+        {
+            if (value?.Children == null || value.Children.Count == 0)
+                return Array.Empty<AetheriaRuntimeCurveKey>();
+
+            return value.Children
+                .Where(key => key.Children.Count >= 4)
+                .Select(key => new AetheriaRuntimeCurveKey(
+                    ChildNumber(key, 0),
+                    ChildNumber(key, 1),
+                    ChildNumber(key, 2),
+                    ChildNumber(key, 3)))
+                .ToArray();
+        }
+
+        private static AetheriaRuntimeTradeItemStatReference ReadStatReference(AetheriaRuntimeBehaviorValue value)
+        {
+            return new AetheriaRuntimeTradeItemStatReference(
+                ChildString(value, 1),
+                ChildString(value, 2));
+        }
+
+        private static T ReadEnum<T>(AetheriaRuntimeBehaviorValue value, T fallback) where T : struct
+        {
+            if (!string.IsNullOrWhiteSpace(value?.StringValue) && Enum.TryParse(value.StringValue, true, out T parsed))
+                return parsed;
+
+            return value != null && Enum.IsDefined(typeof(T), (int)value.NumberValue)
+                ? (T)Enum.ToObject(typeof(T), (int)value.NumberValue)
+                : fallback;
+        }
+
+        private static double ChildNumber(AetheriaRuntimeBehaviorValue value, int index)
+        {
+            return value != null && value.Children.Count > index ? value.Children[index].NumberValue : 0;
+        }
+
+        private static string ChildString(AetheriaRuntimeBehaviorValue value, int index)
+        {
+            return value != null && value.Children.Count > index ? value.Children[index].StringValue ?? "" : "";
+        }
+
+        private static AetheriaRuntimeBehaviorValue ChildValue(AetheriaRuntimeBehaviorValue value, int index)
+        {
+            return value != null && value.Children.Count > index ? value.Children[index] : null;
+        }
+
+        private static string FormatValue(
+            double value,
+            Func<float, string> formatValue)
+        {
+            return formatValue == null
+                ? value.ToString("0.###", CultureInfo.InvariantCulture)
+                : formatValue((float)value);
+        }
+
+        private static string FormatTemperature(
+            double value,
+            Func<float, string> formatTemperature)
+        {
+            return formatTemperature == null
+                ? value.ToString("0.###", CultureInfo.InvariantCulture)
+                : formatTemperature((float)value);
+        }
+
+        private static string FormatTypeName(string typeName)
+        {
+            if (string.IsNullOrEmpty(typeName))
+                return "";
+
+            return SplitCamelCase(typeName.StartsWith("I", StringComparison.Ordinal) && typeName.Length > 1
+                ? typeName.Substring(1)
+                : typeName);
+        }
+
+        private static string SplitCamelCase(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return "";
+
+            return string.Concat(value.Select((character, index) =>
+                index > 0 && char.IsUpper(character) ? " " + character : character.ToString()));
+        }
+
         private static string SafeId(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -219,6 +493,24 @@ namespace GameCult.Aetheria.State.Verse
     {
         Unknown = 0,
         Close = 1
+    }
+
+    internal enum AetheriaRuntimeTradeItemStatModifierType
+    {
+        Constant = 0,
+        Multiplier = 1
+    }
+
+    internal readonly struct AetheriaRuntimeTradeItemStatReference
+    {
+        public AetheriaRuntimeTradeItemStatReference(string target, string stat)
+        {
+            Target = target ?? "";
+            Stat = stat ?? "";
+        }
+
+        public string Target { get; }
+        public string Stat { get; }
     }
 
     public readonly struct AetheriaRuntimeTradeItemDetailsCommand
