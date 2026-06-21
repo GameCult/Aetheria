@@ -68,6 +68,8 @@ public class ZoneRenderer : MonoBehaviour
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
     [HideInInspector] public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
 
+    private readonly Dictionary<string, EntityInstance> _entityInstancesByDaemonKey =
+        new Dictionary<string, EntityInstance>(StringComparer.Ordinal);
     private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);
     private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);
     private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);
@@ -82,7 +84,6 @@ public class ZoneRenderer : MonoBehaviour
     private bool _rootFound;
     private Entity _perspectiveEntity;
     private IDisposable[] _perspectiveSubscriptions = new IDisposable[2];
-    private List<IDisposable> _zoneSubscriptions = new List<IDisposable>();
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
@@ -212,22 +213,21 @@ public class ZoneRenderer : MonoBehaviour
 
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
 
+        var entitiesByDaemonIndex = new Dictionary<int, Entity>();
         foreach (var entity in zone.Entities)
         {
-            Debug.Log($"Loading entity {entity.Name} from existing zone entity collection");
-            LoadEntity(entity);
+            if (entity != null && entity.DaemonEntityIndex >= 0)
+                entitiesByDaemonIndex[entity.DaemonEntityIndex] = entity;
         }
-
-        _zoneSubscriptions.Add(zone.Entities.ObserveAdd().Subscribe(e =>
+        foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
         {
-            //Debug.Log($"Loading entity {e.Value.Name} from zone add event");
-            LoadEntity(e.Value);
-        }));
-        _zoneSubscriptions.Add(zone.Entities.ObserveRemove().Subscribe(e =>
-        {
-            //Debug.Log($"Unloading entity {e.Value.Name} from zone remove event");
-            UnloadEntity(e.Value);
-        }));
+            if (entitySnapshot != null &&
+                entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity))
+            {
+                Debug.Log($"Loading entity {entity.Name} from daemon entity snapshot {entitySnapshot.EntityIndex}");
+                LoadEntity(entity);
+            }
+        }
 
         if (zone.GalaxyZone != null)
         {
@@ -262,17 +262,13 @@ public class ZoneRenderer : MonoBehaviour
         }
         WormholeInstances.Clear();
 
-        foreach (var subscription in _zoneSubscriptions)
-            subscription.Dispose();
-        _zoneSubscriptions.Clear();
-        
         foreach(var gridObject in _loot) 
             if(gridObject) Destroy(gridObject.gameObject);
         _loot.Clear();
 
-        foreach (var entity in Zone.Entities)
+        foreach (var entity in EntityInstances.Keys.ToArray())
         {
-            Debug.Log($"Unloading entity {entity.Name} from entities remaining during clear!");
+            Debug.Log($"Unloading entity {entity.Name} from rendered entity instances during clear.");
             UnloadEntity(entity);
         }
 
@@ -333,6 +329,8 @@ public class ZoneRenderer : MonoBehaviour
         instance.SetEntity(this, entity);
         
         EntityInstances.Add(entity, instance);
+        if (!string.IsNullOrWhiteSpace(entity.DaemonRecordKey))
+            _entityInstancesByDaemonKey[entity.DaemonRecordKey] = instance;
     }
 
     public void UnloadEntity(Entity entity)
@@ -351,6 +349,8 @@ public class ZoneRenderer : MonoBehaviour
 
         Destroy(instance.gameObject);
         EntityInstances.Remove(entity);
+        if (!string.IsNullOrWhiteSpace(entity.DaemonRecordKey))
+            _entityInstancesByDaemonKey.Remove(entity.DaemonRecordKey);
     }
 
     void LoadAsteroidBelt(AsteroidBelt runtimeBelt)

@@ -1914,9 +1914,18 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer frame updates must read asteroid belt pose and radius from daemon belt poses instead of mirrored Unity asteroid belts.");
     }
 
+    if (zoneRenderer.Contains("_zoneSubscriptions", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("zone.Entities.ObserveAdd()", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("zone.Entities.ObserveRemove()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must reconcile rendered entities from daemon frame snapshots instead of subscribing to mirrored Unity entity collection mutations.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
+        "private readonly Dictionary<string, EntityInstance> _entityInstancesByDaemonKey",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
@@ -1927,6 +1936,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var pose in _daemonBodyPoses)",
         "zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)",
         "zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt)",
+        "foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())",
+        "entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
+        "foreach (var entity in EntityInstances.Keys.ToArray())",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",

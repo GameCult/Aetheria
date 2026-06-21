@@ -2693,6 +2693,8 @@ public class ActionGameManager : MonoBehaviour
             if (!_authoritativeDaemonEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
                 continue;
 
+            entity.DaemonRecordKey = entitySnapshot.RecordKey ?? "";
+            entity.DaemonEntityIndex = EntityIndexFromRecordKey(entitySnapshot.RecordKey);
             entity.Name = entitySnapshot.Name ?? "";
             entity.CultPosition = new CultMath.float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
             entity.CultDirection = new CultMath.float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
@@ -2766,6 +2768,8 @@ public class ActionGameManager : MonoBehaviour
             entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
             entity.TractorPower = (float)entitySnapshot.TractorPower;
             entity.RestoreActiveState(entitySnapshot.IsActive);
+            entity.DaemonRecordKey = entitySnapshot.RecordKey ?? "";
+            entity.DaemonEntityIndex = EntityIndexFromRecordKey(entitySnapshot.RecordKey);
             entity.Zone = Zone;
             Zone.Entities.Add(entity);
             restoredEntities[entitySnapshot.RecordKey] = entity;
