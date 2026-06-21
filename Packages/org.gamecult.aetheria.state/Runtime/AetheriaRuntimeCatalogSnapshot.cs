@@ -817,7 +817,8 @@ namespace GameCult.Aetheria.State.Verse
             double gravityTerrainDepth,
             double gravityTerrainDepthExponent,
             double gravityTerrainBoundaryFog,
-            double gravityTerrainWaveFrequency)
+            double gravityTerrainWaveFrequency,
+            double simulationTimeSeconds)
         {
             RecordKey = recordKey;
             Name = name;
@@ -835,6 +836,7 @@ namespace GameCult.Aetheria.State.Verse
             GravityTerrainDepthExponent = gravityTerrainDepthExponent;
             GravityTerrainBoundaryFog = gravityTerrainBoundaryFog;
             GravityTerrainWaveFrequency = gravityTerrainWaveFrequency;
+            SimulationTimeSeconds = simulationTimeSeconds;
         }
 
         public string RecordKey { get; }
@@ -853,6 +855,7 @@ namespace GameCult.Aetheria.State.Verse
         public double GravityTerrainDepthExponent { get; }
         public double GravityTerrainBoundaryFog { get; }
         public double GravityTerrainWaveFrequency { get; }
+        public double SimulationTimeSeconds { get; }
     }
 
     public sealed class AetheriaRuntimeDroppedPickupSnapshot

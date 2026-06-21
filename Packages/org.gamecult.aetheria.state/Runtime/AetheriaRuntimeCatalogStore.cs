@@ -1153,7 +1153,8 @@ namespace GameCult.Aetheria.State.Verse
             var gravityTerrainDepthExponent = ReadFieldDouble(ref reader, fields, 11, 1.0);
             var gravityTerrainBoundaryFog = ReadFieldDouble(ref reader, fields, 12);
             var gravityTerrainWaveFrequency = ReadFieldDouble(ref reader, fields, 13, 1.0);
-            SkipRemaining(ref reader, fields, 14);
+            var simulationTimeSeconds = ReadFieldDouble(ref reader, fields, 14);
+            SkipRemaining(ref reader, fields, 15);
             return new AetheriaRuntimeZoneStateSnapshot(
                 recordKey,
                 name,
@@ -1170,7 +1171,8 @@ namespace GameCult.Aetheria.State.Verse
                 gravityTerrainDepth,
                 gravityTerrainDepthExponent,
                 gravityTerrainBoundaryFog,
-                gravityTerrainWaveFrequency);
+                gravityTerrainWaveFrequency,
+                simulationTimeSeconds);
         }
 
         private static IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> ReadFieldDroppedPickups(ref MessagePackReader reader, int fields, int index)

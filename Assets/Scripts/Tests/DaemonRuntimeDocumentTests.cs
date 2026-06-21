@@ -182,6 +182,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1, run.Zones[0].Entities[0].TargetEntityIndex);
         Assert.AreEqual("zone.0.entity.0", result.Intents.Movement.ActorEntityKey);
         Assert.AreEqual(1.0, result.Intents.Movement.DirectionX, 0.0001);
+        Assert.AreEqual(12.5, result.Run.Zones[0].SimulationTimeSeconds, 0.0001);
         Assert.IsTrue(AetheriaRuntimeDaemonFrameStore.TryReadFrame(statePath, out var frame));
         Assert.AreEqual(result.FramePath, AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath));
         Assert.AreEqual("test-daemon", frame.DaemonId);
@@ -199,6 +200,7 @@ public class DaemonRuntimeDocumentTests
         CollectionAssert.Contains(frame.AccountedCommandIds, targetCommand.CommandId);
         CollectionAssert.Contains(frame.AccountedCommandIds, movementCommand.CommandId);
         Assert.AreEqual(1, frame.Run.Zones[0].Entities[0].TargetEntityIndex);
+        Assert.AreEqual(12.5, frame.Run.Zones[0].SimulationTimeSeconds, 0.0001);
         Assert.AreEqual(
             AetheriaRuntimeDaemonPublicationStore.GetProviderAdvertisementPath(statePath),
             result.ProviderAdvertisementPath);

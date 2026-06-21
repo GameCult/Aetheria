@@ -284,6 +284,9 @@ public sealed class AetheriaZoneState
 
     [Key(13)]
     public double GravityTerrainWaveFrequency { get; set; } = 1.0;
+
+    [Key(14)]
+    public double SimulationTimeSeconds { get; set; }
 }
 
 [MessagePackObject]

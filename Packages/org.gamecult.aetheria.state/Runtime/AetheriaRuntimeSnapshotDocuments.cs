@@ -279,6 +279,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(15)]
         public double GravityTerrainWaveFrequency { get; set; } = 1.0;
+
+        [Key(16)]
+        public double SimulationTimeSeconds { get; set; }
     }
 
     [MessagePackObject]

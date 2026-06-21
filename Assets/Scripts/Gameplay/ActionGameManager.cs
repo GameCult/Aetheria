@@ -2266,7 +2266,8 @@ public class ActionGameManager : MonoBehaviour
         var blueprint = new ZoneConstructionBlueprint
         {
             Radius = 2000,
-            Mass = 10000
+            Mass = 10000,
+            Time = (float)zone.SimulationTimeSeconds
         };
 
         foreach (var orbit in zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
@@ -3462,10 +3463,22 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
+        StampDaemonZoneSimulationTime(observed.Run, observed.Frame.SimulationTimeSeconds);
         if (TryRestoreEntityGraphFromDaemonRun(observed.Run))
         {
             _lastAppliedAuthoritativeDaemonFrameId = observed.Frame.FrameId;
             _lastAppliedAuthoritativeDaemonFramePath = observed.FramePath ?? "";
+        }
+    }
+
+    private static void StampDaemonZoneSimulationTime(
+        AetheriaRuntimeRunCheckpointCommit run,
+        double simulationTimeSeconds)
+    {
+        foreach (var zone in run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+        {
+            if (zone != null)
+                zone.SimulationTimeSeconds = simulationTimeSeconds;
         }
     }
 

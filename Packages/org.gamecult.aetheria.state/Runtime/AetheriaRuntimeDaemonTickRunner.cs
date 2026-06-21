@@ -96,6 +96,7 @@ namespace GameCult.Aetheria.State.Verse
                 run,
                 commands,
                 options.OperationContext);
+            StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
                 operationResult.Run,
@@ -192,6 +193,17 @@ namespace GameCult.Aetheria.State.Verse
                 gameTuiSurfacePath,
                 editorSurfacePath,
                 editorTuiSurfacePath);
+        }
+
+        private static void StampZoneSimulationTime(
+            AetheriaRuntimeRunCheckpointCommit run,
+            double simulationTimeSeconds)
+        {
+            foreach (var zone in run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            {
+                if (zone != null)
+                    zone.SimulationTimeSeconds = simulationTimeSeconds;
+            }
         }
 
     }

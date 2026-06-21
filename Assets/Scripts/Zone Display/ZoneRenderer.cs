@@ -495,7 +495,7 @@ public class ZoneRenderer : MonoBehaviour
                 AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(
                     _daemonZoneSnapshot,
                     key,
-                    Zone?.Time ?? 0,
+                    DaemonSimulationTimeSeconds,
                     _visibleAsteroidInstancePoses);
             }
 
@@ -544,7 +544,7 @@ public class ZoneRenderer : MonoBehaviour
             if (planet.Value is GasGiantObject gasGiantObject)
             {
                 gasGiantObject.GravityWaves.material.SetFloat("_Phase",
-                    Zone.Time * (float)pose.GravityWaveSpeed);
+                    (float)(DaemonSimulationTimeSeconds * pose.GravityWaveSpeed));
                 if (!string.Equals(pose.Kind, "sun", StringComparison.OrdinalIgnoreCase))
                 {
                     var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);
@@ -661,8 +661,10 @@ public class ZoneRenderer : MonoBehaviour
             _daemonZoneSnapshot,
             position.x,
             position.y,
-            Zone?.Time ?? 0);
+            DaemonSimulationTimeSeconds);
     }
+
+    private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;
 
     public void DestroyLoot(ItemPickup loot)
     {

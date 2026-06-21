@@ -1863,7 +1863,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double GravityTerrainDepth",
         "public double GravityTerrainDepthExponent",
         "public double GravityTerrainBoundaryFog",
-        "public double GravityTerrainWaveFrequency"
+        "public double GravityTerrainWaveFrequency",
+        "public double SimulationTimeSeconds"
     };
 
     var missingPackageSnapshotSymbols = requiredSnapshotSymbols
@@ -1913,6 +1914,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         throw new InvalidOperationException(
             "ZoneRenderer must position bodies from daemon render body poses instead of the mirrored Unity Zone orbit evaluator.");
+    }
+
+    if (zoneRenderer.Contains("Zone.Time", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("Zone?.Time", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must sample animation and terrain from daemon simulation time instead of mirrored Unity Zone time.");
     }
 
     if (zoneRenderer.Contains("Zone.PlanetInstances[planet.Key]", StringComparison.Ordinal))
@@ -1995,6 +2003,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
+        "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "pose.GravityWaveSpeed"
