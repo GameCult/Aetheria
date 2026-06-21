@@ -2842,16 +2842,12 @@ public class ActionGameManager : MonoBehaviour
         Entity currentEntity,
         IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings)
     {
-        if (currentEntity.Parent != null)
+        if (TryResolveDaemonDockingBay(currentEntity, out var dockParent, out var dockingBay))
         {
-            var dockingBay = currentEntity.Parent.DockingBays.FirstOrDefault(bay => bay.DockedShip == currentEntity);
-            if (dockingBay != null && currentEntity.Parent is OrbitalEntity)
-            {
-                CurrentEntity = currentEntity;
-                RestoreActionBarBindingsFromTypedRun(actionBarBindings);
-                DoDock(currentEntity.Parent, dockingBay);
-                return;
-            }
+            CurrentEntity = currentEntity;
+            RestoreActionBarBindingsFromTypedRun(actionBarBindings);
+            DoDock(dockParent, dockingBay);
+            return;
         }
 
         BindToEntity(
@@ -3152,6 +3148,34 @@ public class ActionGameManager : MonoBehaviour
     {
         return TryGetDaemonEntitySnapshot(CurrentEntity, out _) &&
                !TryGetDaemonParentSnapshot(CurrentEntity, out _, out _);
+    }
+
+    private bool TryResolveDaemonDockingBay(
+        Entity child,
+        out Entity dockParent,
+        out EquippedDockingBay dockingBay)
+    {
+        dockParent = null;
+        dockingBay = null;
+        if (!TryGetDaemonParentSnapshot(child, out var parentSnapshot, out var parent) ||
+            !(parent is OrbitalEntity) ||
+            parent.DockingBays == null)
+        {
+            return false;
+        }
+
+        var assignments = parentSnapshot.DockingBayAssignments ?? Array.Empty<int>();
+        for (var bayIndex = 0; bayIndex < assignments.Count && bayIndex < parent.DockingBays.Count; bayIndex++)
+        {
+            if (assignments[bayIndex] != child.DaemonEntityIndex)
+                continue;
+
+            dockParent = parent;
+            dockingBay = parent.DockingBays[bayIndex];
+            return dockingBay != null;
+        }
+
+        return false;
     }
 
     private bool TryQueryDaemonEntityContact(
