@@ -82,8 +82,8 @@ public class TradeMenu : MonoBehaviour
         var columns = new List<(string name, int size, Func<TradeRow, Func<string>> output, Func<TradeRow, IComparable> sortKey)>();
         
         columns.Add(("Name", 3,
-            x => () => x.Item is CraftedItemInstance craftedItemInstance ?
-                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.Name}" :
+            x => () => x.Item is CraftedItemInstance && !string.IsNullOrWhiteSpace(x.TierColorHex) ?
+                $"<color=#{x.TierColorHex}>{x.Name}" :
                 x.Name,
             x => x.Name));
         if(_hardpointFilter.filter==null)
@@ -120,7 +120,7 @@ public class TradeMenu : MonoBehaviour
         
         var items = Inventory.Cargo.Keys
             .Where(PassesTypedTradeFilters)
-            .Select(item => new TradeRow(item, FindTypedTradeItem(item), GameManager.ItemManager));
+            .Select(item => new TradeRow(item, FindTypedTradeItem(item), ProjectTradeItem(item)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
@@ -279,6 +279,46 @@ public class TradeMenu : MonoBehaviour
         return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
+    private static AetheriaRuntimeTradeItemProjection ProjectTradeItem(ItemInstance item)
+    {
+        var typedItem = FindTypedTradeItem(item);
+        return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+            typedItem,
+            ProjectTradeItemCommit(item),
+            ProjectTradeValueSettings());
+    }
+
+    private static AetheriaRuntimeLoadoutItemCommit? ProjectTradeItemCommit(ItemInstance item)
+    {
+        if (item is not CraftedItemInstance crafted)
+            return null;
+
+        var durability = item is EquippableItem equippable ? equippable.Durability : 1f;
+        return AetheriaRuntimeDaemonTradeItemQueries.CraftedItemCommit(
+            item.ItemKey,
+            crafted.Quality,
+            durability);
+    }
+
+    private static AetheriaRuntimeTradeValueSettings ProjectTradeValueSettings()
+    {
+        var source = ActionGameManager.Settings.GameplaySettings;
+        var priceModifier = source.QualityPriceModifier;
+        return new AetheriaRuntimeTradeValueSettings(
+            new AetheriaRuntimeExponentialLerp(
+                priceModifier.Exponent,
+                priceModifier.Minimum,
+                priceModifier.Maximum),
+            (source.Tiers ?? Array.Empty<RarityTier>())
+                .Select(tier => new AetheriaRuntimeItemRarityTier(
+                    tier.Name,
+                    tier.Quality,
+                    tier.Color.x,
+                    tier.Color.y,
+                    tier.Color.z))
+                .ToArray());
+    }
+
     private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
     {
         var payload = FindTypedBehaviorPayload(row.TypedItem, behaviorFilter);
@@ -333,18 +373,21 @@ public class TradeMenu : MonoBehaviour
 
     private sealed class TradeRow
     {
-        private readonly ItemManager _itemManager;
-
-        public TradeRow(ItemInstance item, AetheriaRuntimeCatalogItem typedItem, ItemManager itemManager)
+        public TradeRow(
+            ItemInstance item,
+            AetheriaRuntimeCatalogItem typedItem,
+            AetheriaRuntimeTradeItemProjection tradeProjection)
         {
             Item = item;
             TypedItem = typedItem;
-            _itemManager = itemManager;
+            TradeProjection = tradeProjection;
         }
 
         public ItemInstance Item { get; }
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
+
+        public AetheriaRuntimeTradeItemProjection TradeProjection { get; }
 
         public string ItemKey => Item?.ItemKey ?? "";
 
@@ -352,18 +395,9 @@ public class TradeMenu : MonoBehaviour
 
         public float Mass => TypedItem != null ? (float)TypedItem.Mass : 0f;
 
-        public int Price
-        {
-            get
-            {
-                if (Item is CraftedItemInstance craftedItemInstance)
-                    return TypedItem != null
-                        ? (int)(_itemManager.GameplaySettings.QualityPriceModifier.Evaluate(craftedItemInstance.Quality) * TypedItem.Price)
-                        : 0;
+        public int Price => TradeProjection.Price;
 
-                return TypedItem != null ? TypedItem.Price : 0;
-            }
-        }
+        public string TierColorHex => TradeProjection.TierColorHex;
 
         public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : 0;
 
@@ -439,7 +473,10 @@ public class TradeMenu : MonoBehaviour
 
     private int GetTypedTradePrice(CraftedItemInstance item, AetheriaRuntimeCatalogItem typedItem)
     {
-        return (int)(GameManager.ItemManager.GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * typedItem.Price);
+        return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+            typedItem,
+            ProjectTradeItemCommit(item),
+            ProjectTradeValueSettings()).Price;
     }
 
     private void ShowUnableToBuy(string reason)

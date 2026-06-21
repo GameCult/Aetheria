@@ -49,6 +49,7 @@ RequireInventoryEquippedItemDetailsUseEveSurface(root);
 RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireTradeItemDetailsUseEveSurface(root);
+RequireTradeItemValuesUseRuntimeQueries(root);
 RequireInventoryDropdownUseEveSurface(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
@@ -4774,6 +4775,87 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime trade item details surface builder no longer owns the trade item-details shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+}
+
+static void RequireTradeItemValuesUseRuntimeQueries(string root)
+{
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeQueriesPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonTradeItemQueries.cs");
+    if (!File.Exists(tradeMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade item value projection; TradeMenu.cs is missing.");
+    }
+    if (!File.Exists(tradeQueriesPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade item value projection; shared runtime trade item queries are missing.");
+    }
+
+    var tradeMenu = File.ReadAllText(tradeMenuPath);
+    var tradeQueries = File.ReadAllText(tradeQueriesPath);
+    var requiredTradeMenuSymbols = new[]
+    {
+        "ProjectTradeItem(item)",
+        "ProjectTradeItemCommit(",
+        "ProjectTradeValueSettings(",
+        "AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(",
+        "AetheriaRuntimeTradeItemProjection TradeProjection",
+        "public int Price => TradeProjection.Price",
+        "public string TierColorHex => TradeProjection.TierColorHex"
+    };
+    var missingTradeMenuSymbols = requiredTradeMenuSymbols
+        .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTradeMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu no longer projects trade item price/tier values through shared daemon runtime queries: " +
+            string.Join(", ", missingTradeMenuSymbols));
+    }
+
+    var forbiddenTradeMenuSymbols = new[]
+    {
+        "GameManager.ItemManager.GetTier",
+        "GameManager.ItemManager.GameplaySettings.QualityPriceModifier",
+        "_itemManager.GameplaySettings.QualityPriceModifier",
+        "private readonly ItemManager _itemManager",
+        "new TradeRow(item, FindTypedTradeItem(item), GameManager.ItemManager)"
+    };
+    var tradeMenuHits = forbiddenTradeMenuSymbols
+        .Where(symbol => tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (tradeMenuHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still asks Unity ItemManager for trade item value projection: " +
+            string.Join(", ", tradeMenuHits));
+    }
+
+    var requiredQuerySymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonTradeItemQueries",
+        "public readonly struct AetheriaRuntimeTradeItemProjection",
+        "public sealed class AetheriaRuntimeTradeValueSettings",
+        "public readonly struct AetheriaRuntimeItemRarityTier",
+        "public readonly struct AetheriaRuntimeExponentialLerp",
+        "public static AetheriaRuntimeTradeItemProjection ProjectTradeItem(",
+        "settings.QualityPriceModifier.Evaluate(quality.Value) * typedItem.Price",
+        "SelectTier(settings.Tiers, quality.Value)",
+        "AetheriaRuntimeDaemonItemStatQueries.ItemCommit("
+    };
+    var missingQuerySymbols = requiredQuerySymbols
+        .Where(symbol => !tradeQueries.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingQuerySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade item queries no longer own price/tier projection: " +
+            string.Join(", ", missingQuerySymbols));
     }
 }
 
