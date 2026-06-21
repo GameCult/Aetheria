@@ -7755,7 +7755,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CanApplyDaemonEntitySnapshotsInPlace",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "ApplyDaemonEntitySnapshotsInPlace",
-        "ReplaceZoneEntitiesFromTypedSnapshots",
+        "ReplaceObservedEntityFacadesFromTypedSnapshots",
         "RestoreCurrentEntityBinding",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
@@ -8070,7 +8070,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "daemonZone?.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()",
         "ZoneRenderer.TryGetBodyView(parentOrbitPlanetBodyKey, out var parentBodyView)",
         "ResolveDaemonObserver()?.LastObservedState?.Run",
-        "ReplaceZoneEntitiesFromTypedSnapshots",
+        "ReplaceObservedEntityFacadesFromTypedSnapshots",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",
         "public static Galaxy ObservedGalaxy",
         "TryRequestDaemonMoveVector",
@@ -8134,20 +8134,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity frame application must project observed daemon state, not instantiate authoritative gameplay entities.");
     }
 
-    var permittedEntityProjectionMethods = new[]
-    {
-        "ReplaceZoneEntitiesFromTypedSnapshots"
-    };
     var unauthorizedEntityProjectionHits = FindMethodScopedLineHits(
             actionGameManager,
-            new[] { "Zone.Entities.Add(", "Zone.Entities.Remove(" })
-        .Where(hit => !permittedEntityProjectionMethods.Contains(hit.MethodName, StringComparer.Ordinal))
+            new[] { "Zone.Entities.Add(", "Zone.Entities.Remove(", "Zone.Agents.Clear()" })
         .Select(hit => $"{hit.MethodName}:{hit.LineNumber}: {hit.Line.Trim()}")
         .ToArray();
     if (unauthorizedEntityProjectionHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity gameplay may only add/remove zone entities while lowering observed daemon snapshots: " +
+            "Unity gameplay must not rebuild renderer-local Zone entity membership while lowering daemon snapshots: " +
             string.Join("; ", unauthorizedEntityProjectionHits));
     }
 

@@ -2261,7 +2261,7 @@ public class ActionGameManager : MonoBehaviour
             .Select(ToActionBarBindingSnapshot)
             .Where(binding => binding != null)
             .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
-        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey, actionBarBindings);
+        ReplaceObservedEntityFacadesFromTypedSnapshots(entitySnapshots, currentEntityKey, actionBarBindings);
         ZoneRenderer?.ApplyDaemonFrame(daemonZone, run);
         RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
         _lastAppliedAuthoritativeDaemonRunId = runId;
@@ -2718,17 +2718,11 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private void ReplaceZoneEntitiesFromTypedSnapshots(
+    private void ReplaceObservedEntityFacadesFromTypedSnapshots(
         IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
         string currentEntityKey,
         IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings)
     {
-        foreach (var existingEntity in Zone.Entities.ToArray())
-        {
-            Zone.Entities.Remove(existingEntity);
-        }
-        Zone.Agents.Clear();
-
         var restoredEntities = new Dictionary<string, Entity>();
         foreach (var entitySnapshot in entitySnapshots)
         {
@@ -2752,8 +2746,6 @@ public class ActionGameManager : MonoBehaviour
             entity.TractorPower = (float)entitySnapshot.TractorPower;
             entity.RestoreActiveState(entitySnapshot.IsActive);
             entity.DaemonEntityIndex = EntityIndexFromRecordKey(entitySnapshot.RecordKey);
-            entity.Zone = Zone;
-            Zone.Entities.Add(entity);
             restoredEntities[entitySnapshot.RecordKey] = entity;
         }
 
