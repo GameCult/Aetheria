@@ -698,7 +698,7 @@ public class ZoneRenderer : MonoBehaviour
         AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(
             _daemonZoneSnapshot,
             PerspectiveEntity?.DaemonEntityIndex ?? -1,
-            Settings.GameplaySettings.TargetDetectionInfoThreshold,
+            RenderSettings.TargetDetectionInfoThreshold,
             _minimapDistance,
             _daemonCompassMarkers);
         _daemonCompassMarkersByEntityIndex.Clear();
@@ -711,7 +711,7 @@ public class ZoneRenderer : MonoBehaviour
         AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(
             _daemonZoneSnapshot,
             PerspectiveEntity?.DaemonEntityIndex ?? -1,
-            Settings.GameplaySettings.TargetDetectionInfoThreshold,
+            RenderSettings.TargetDetectionInfoThreshold,
             _daemonVisibleEntityIndices);
         _daemonVisibleEntityIndicesSet.Clear();
         foreach (var entityIndex in _daemonVisibleEntityIndices)

@@ -1977,6 +1977,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must lower daemon-authored gravity influence radius/depth instead of reconstructing gravity brushes from Unity settings.");
     }
 
+    if (zoneRenderer.Contains("Settings.GameplaySettings.TargetDetectionInfoThreshold", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon visibility through shared render settings instead of Unity GameplaySettings.");
+    }
+
     if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2115,6 +2121,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(",
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
+        "RenderSettings.TargetDetectionInfoThreshold",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
