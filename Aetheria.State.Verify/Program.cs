@@ -1984,6 +1984,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must use the daemon-indexed observed facade projection supplied by gameplay instead of enumerating Unity Zone.Entities.");
     }
 
+    if (zoneRenderer.Contains("_legacyEntityFacadeZone", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("_legacyEntityFacadeZone?.Radius", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must not keep a broad Unity Zone facade; only explicitly scoped compatibility handles may remain.");
+    }
+
     if (zoneRenderer.Contains("PerspectiveEntity.EntityInfoGathered", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2018,9 +2025,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
         "private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits",
         "public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances",
-        "private Zone _legacyEntityFacadeZone;",
+        "private Zone _legacyLootFacadeZone;",
         "public void LoadDaemonZoneView(",
-        "Zone legacyEntityFacadeZone,",
+        "Zone legacyLootFacadeZone,",
         "IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "public void ApplyDaemonFrame(",
@@ -2030,6 +2037,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "_daemonRunSnapshot = daemonRun;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
         "AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(",
+        "            2000);",
         "AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(",
         "private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses",
         "foreach (var pose in _daemonBodyPoses)",
@@ -2058,6 +2066,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
+        "gridObject.Zone = _legacyLootFacadeZone;",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "pose.GravityWaveSpeed"

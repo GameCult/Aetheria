@@ -105,7 +105,7 @@ public class ZoneRenderer : MonoBehaviour
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
-    private Zone _legacyEntityFacadeZone;
+    private Zone _legacyLootFacadeZone;
     public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
     public ItemManager ItemManager { get; set; }
@@ -215,13 +215,13 @@ public class ZoneRenderer : MonoBehaviour
     }
 
     public void LoadDaemonZoneView(
-        Zone legacyEntityFacadeZone,
+        Zone legacyLootFacadeZone,
         IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,
         AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
         AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         ClearZone();
-        _legacyEntityFacadeZone = legacyEntityFacadeZone;
+        _legacyLootFacadeZone = legacyLootFacadeZone;
         ApplyDaemonFrame(daemonZone, daemonRun);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
@@ -269,7 +269,7 @@ public class ZoneRenderer : MonoBehaviour
         _daemonZoneSnapshot = daemonZone;
         var zoneRenderRadius = (float)AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
             _daemonZoneSnapshot,
-            _legacyEntityFacadeZone?.Radius ?? 2000);
+            2000);
         SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zoneRenderRadius;
         SlimeRenderer.ZoneRadius = zoneRenderRadius;
@@ -292,7 +292,6 @@ public class ZoneRenderer : MonoBehaviour
 
     public void ClearZone()
     {
-        if (_legacyEntityFacadeZone == null) return;
         foreach (var wormhole in WormholeInstances.Values)
         {
             Destroy(wormhole.gravity);
@@ -764,7 +763,7 @@ public class ZoneRenderer : MonoBehaviour
         };
         var t = gridObject.transform;
         t.parent = ZoneRoot;
-        gridObject.Zone = _legacyEntityFacadeZone;
+        gridObject.Zone = _legacyLootFacadeZone;
         t.position = position;
         gridObject.Velocity = velocity;
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
