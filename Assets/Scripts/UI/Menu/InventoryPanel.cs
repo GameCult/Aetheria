@@ -134,7 +134,10 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             Current.onClick.AddListener(() =>
             {
                 HideDropdownSurface();
-                if (_displayedEntity != GameManager.CurrentEntity)
+                var isDisplayedCurrentEntity =
+                    GameManager.TryGetObservedCurrentEntity(out var currentEntity) &&
+                    _displayedEntity == currentEntity;
+                if (!isDisplayedCurrentEntity)
                 {
                     if(_displayedEntity is Ship ship)
                     {
@@ -533,7 +536,10 @@ private void Update()
         if (Current)
         {
             Current.gameObject.SetActive(true);
-            Current.targetGraphic.color = entity == GameManager.CurrentEntity ? ToggleEnabledColor : ToggleDisabledColor;
+            Current.targetGraphic.color =
+                GameManager.TryGetObservedCurrentEntity(out var currentEntity) && entity == currentEntity
+                    ? ToggleEnabledColor
+                    : ToggleDisabledColor;
         }
         if (Thermal)
         {

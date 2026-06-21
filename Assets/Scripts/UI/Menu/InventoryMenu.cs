@@ -65,14 +65,15 @@ public class InventoryMenu : MonoBehaviour
         // {
         //     _destroyItem = false;
         // });
+        var hasObservedCurrentEntity = GameManager.TryGetObservedCurrentEntity(out var currentEntity);
         var cargo = GameManager.TryGetObservedDockingBay(out var dockingBay)
             ? dockingBay
-            : GameManager.CurrentEntity?.CargoBays.FirstOrDefault();
+            : currentEntity?.CargoBays.FirstOrDefault();
         if (cargo!=null)
             InventoryPanels[0].Display(cargo);
         else InventoryPanels[0].Clear();
-        if(GameManager.CurrentEntity != null)
-            InventoryPanels[1].Display(GameManager.CurrentEntity);
+        if(hasObservedCurrentEntity)
+            InventoryPanels[1].Display(currentEntity);
         else InventoryPanels[1].Clear();
     }
 
@@ -158,9 +159,9 @@ public class InventoryMenu : MonoBehaviour
 
             panel.OnBackgroundClick.Subscribe(data =>
             {
-                if (GameManager.CurrentEntity == null) return; // Only show ship settings if there's a ship, duh!
+                if (!GameManager.TryGetObservedCurrentEntity(out var currentEntity)) return;
 
-                RenderCurrentShipSettingsSurface(GameManager.CurrentEntity);
+                RenderCurrentShipSettingsSurface(currentEntity);
             });
         }
     }
@@ -185,7 +186,12 @@ public class InventoryMenu : MonoBehaviour
 
     private void HandleCurrentShipSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        var entity = GameManager.CurrentEntity;
+        if (!GameManager.TryGetObservedCurrentEntity(out var entity))
+        {
+            HideCurrentShipSettingsSurface();
+            return;
+        }
+
         if (entity?.Settings == null)
         {
             HideCurrentShipSettingsSurface();

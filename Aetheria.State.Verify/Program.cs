@@ -3999,7 +3999,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold",
-        "AetheriaRuntimeShipSettingsCommandKind.Close"
+        "AetheriaRuntimeShipSettingsCommandKind.Close",
+        "GameManager.TryGetObservedCurrentEntity(out var currentEntity)",
+        "GameManager.TryGetObservedCurrentEntity(out var entity)"
     };
 
     var missingSymbols = requiredSymbols
@@ -4028,7 +4030,10 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "PropertiesPanel.AddField(\"Shutdown Threshold\"",
         "() => GameManager.CurrentEntity.Settings.ShutdownPerformance",
         "f => GameManager.RequestEntityShutdownPerformance(GameManager.CurrentEntity, f)",
-        "switch (request.Command)"
+        "switch (request.Command)",
+        "var entity = GameManager.CurrentEntity",
+        "GameManager.CurrentEntity == null",
+        "RenderCurrentShipSettingsSurface(GameManager.CurrentEntity)"
     };
 
     var hits = forbiddenSymbols
@@ -10521,6 +10526,13 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.RequestDockedCurrentShip", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes current-ship selection through ActionGameManager.");
+    }
+
+    if (!inventoryPanel.Contains("GameManager.TryGetObservedCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("GameManager.CurrentEntity", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel must compare current-ship UI state through daemon-observed current entity state instead of peeking GameManager.CurrentEntity directly.");
     }
 
     if (inventoryPanel.Contains("Current.targetGraphic.color = ToggleEnabledColor;", StringComparison.Ordinal))

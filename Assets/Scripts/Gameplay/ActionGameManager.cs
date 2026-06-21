@@ -496,6 +496,12 @@ public class ActionGameManager : MonoBehaviour
 
     public bool IsObservedDocked => TryGetObservedDockingBay(out _);
 
+    public bool TryGetObservedCurrentEntity(out Entity entity)
+    {
+        entity = CurrentEntity;
+        return TryGetDaemonEntitySnapshot(entity, out _);
+    }
+
     public bool TryGetObservedDockingBay(out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
