@@ -7829,7 +7829,10 @@ static void RequireMainMenuContinueRunState(string root)
         "foreach (var entity in DockedEntity.Children)",
         "CurrentEntity != null && CurrentEntity.Parent == null",
         "CurrentEntity !=null && CurrentEntity.Parent==null",
-        "CurrentEntity == null || CurrentEntity.Parent != null"
+        "CurrentEntity == null || CurrentEntity.Parent != null",
+        "return observer?.Target.Value;",
+        "observer.EntityInfoGathered.TryGetValue(target, out var infoGathered)",
+        "return target != null && target.IsHostileTo(observer);"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols

@@ -3236,7 +3236,7 @@ public class ActionGameManager : MonoBehaviour
             return targetEntity;
         }
 
-        return observer?.Target.Value;
+        return null;
     }
 
     private float GetObservedInfoGathered(Entity observer, Entity target)
@@ -3244,11 +3244,7 @@ public class ActionGameManager : MonoBehaviour
         if (TryQueryDaemonEntityContact(observer, target, out var contact))
             return (float)contact.InfoGathered;
 
-        return observer != null &&
-               target != null &&
-               observer.EntityInfoGathered.TryGetValue(target, out var infoGathered)
-            ? infoGathered
-            : 0f;
+        return 0f;
     }
 
     private bool IsObservedHostileContact(Entity observer, Entity target)
@@ -3256,7 +3252,7 @@ public class ActionGameManager : MonoBehaviour
         if (TryQueryDaemonEntityContact(observer, target, out var contact))
             return contact.Hostile;
 
-        return target != null && target.IsHostileTo(observer);
+        return false;
     }
 
     private void ReconcileVisibleTargetIndicators()
