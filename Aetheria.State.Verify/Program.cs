@@ -1804,7 +1804,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeXzRect",
         "IntersectsCircle(viewport, center.x, center.z, radius)",
         "IntersectsBounds(group, minX, minY, minZ, maxX, maxY, maxZ)",
-        "TryResolveBodyCenter(body, orbitPositions, out var center)"
+        "TryResolveBodyCenter(body, orbitPositions, out var center)",
+        "public static double EvaluateGravityTerrainHeight(",
+        "zone.GravityTerrainRadius",
+        "zone.GravityTerrainWaveFrequency"
     };
 
     var missingQuerySymbols = requiredQuerySymbols
@@ -1825,7 +1828,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double GravityWellDepth",
         "public double GravityWaveRadius",
         "public double GravityWaveDepth",
-        "public double GravityWaveSpeed"
+        "public double GravityWaveSpeed",
+        "public double GravityTerrainRadius",
+        "public double GravityTerrainDepth",
+        "public double GravityTerrainDepthExponent",
+        "public double GravityTerrainBoundaryFog",
+        "public double GravityTerrainWaveFrequency"
     };
 
     var missingPackageSnapshotSymbols = requiredSnapshotSymbols
@@ -2020,7 +2028,12 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "GravityWellDepth = gravityWellDepth;",
             "GravityWaveRadius = gravityWaveRadius;",
             "GravityWaveDepth = gravityWaveDepth;",
-            "GravityWaveSpeed = gravityWaveSpeed;"
+            "GravityWaveSpeed = gravityWaveSpeed;",
+            "GravityTerrainRadius = gravityTerrainRadius;",
+            "GravityTerrainDepth = gravityTerrainDepth;",
+            "GravityTerrainDepthExponent = gravityTerrainDepthExponent;",
+            "GravityTerrainBoundaryFog = gravityTerrainBoundaryFog;",
+            "GravityTerrainWaveFrequency = gravityTerrainWaveFrequency;"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
         {
@@ -2035,6 +2048,11 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "var gravityWaveRadius = ReadFieldDouble(ref reader, bodyFields, 17);",
             "var gravityWaveDepth = ReadFieldDouble(ref reader, bodyFields, 18);",
             "var gravityWaveSpeed = ReadFieldDouble(ref reader, bodyFields, 19);",
+            "var gravityTerrainRadius = ReadFieldDouble(ref reader, fields, 9);",
+            "var gravityTerrainDepth = ReadFieldDouble(ref reader, fields, 10);",
+            "var gravityTerrainDepthExponent = ReadFieldDouble(ref reader, fields, 11, 1.0);",
+            "var gravityTerrainBoundaryFog = ReadFieldDouble(ref reader, fields, 12);",
+            "var gravityTerrainWaveFrequency = ReadFieldDouble(ref reader, fields, 13, 1.0);",
             "new AetheriaRuntimeOrbitSnapshot(",
             "new AetheriaRuntimeBodySnapshot("
         }

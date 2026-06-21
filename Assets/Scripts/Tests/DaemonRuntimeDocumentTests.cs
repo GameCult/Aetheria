@@ -669,6 +669,10 @@ public class DaemonRuntimeDocumentTests
         var zone = new AetheriaRuntimeZoneSnapshotCommit
         {
             ZoneIndex = 0,
+            GravityTerrainRadius = 100,
+            GravityTerrainDepth = 2,
+            GravityTerrainDepthExponent = 1,
+            GravityTerrainWaveFrequency = 1,
             Bodies = new[]
             {
                 new AetheriaRuntimeBodySnapshotCommit
@@ -721,6 +725,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(9, brushes[0].WaveRadius);
         Assert.AreEqual(3, brushes[0].WaveDepth);
         Assert.AreEqual(2, brushes[0].WaveSpeed);
+
+        var height = AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(zone, 4, 0, 0);
+        Assert.AreEqual(-24.9968, height, 0.0001);
     }
 
     [Test]

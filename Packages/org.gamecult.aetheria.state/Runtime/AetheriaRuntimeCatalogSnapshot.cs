@@ -812,7 +812,12 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<string> entityKeys,
             IReadOnlyList<AetheriaRuntimeOrbitSnapshot> orbits,
             IReadOnlyList<AetheriaRuntimeBodySnapshot> bodies,
-            IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> droppedPickups)
+            IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> droppedPickups,
+            double gravityTerrainRadius,
+            double gravityTerrainDepth,
+            double gravityTerrainDepthExponent,
+            double gravityTerrainBoundaryFog,
+            double gravityTerrainWaveFrequency)
         {
             RecordKey = recordKey;
             Name = name;
@@ -825,6 +830,11 @@ namespace GameCult.Aetheria.State.Verse
             Orbits = orbits;
             Bodies = bodies;
             DroppedPickups = droppedPickups;
+            GravityTerrainRadius = gravityTerrainRadius;
+            GravityTerrainDepth = gravityTerrainDepth;
+            GravityTerrainDepthExponent = gravityTerrainDepthExponent;
+            GravityTerrainBoundaryFog = gravityTerrainBoundaryFog;
+            GravityTerrainWaveFrequency = gravityTerrainWaveFrequency;
         }
 
         public string RecordKey { get; }
@@ -838,6 +848,11 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeOrbitSnapshot> Orbits { get; }
         public IReadOnlyList<AetheriaRuntimeBodySnapshot> Bodies { get; }
         public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups { get; }
+        public double GravityTerrainRadius { get; }
+        public double GravityTerrainDepth { get; }
+        public double GravityTerrainDepthExponent { get; }
+        public double GravityTerrainBoundaryFog { get; }
+        public double GravityTerrainWaveFrequency { get; }
     }
 
     public sealed class AetheriaRuntimeDroppedPickupSnapshot

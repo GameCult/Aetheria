@@ -264,6 +264,21 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(10)]
         public IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> DroppedPickups { get; set; } = Array.Empty<AetheriaRuntimeDroppedPickupCommit>();
+
+        [Key(11)]
+        public double GravityTerrainRadius { get; set; }
+
+        [Key(12)]
+        public double GravityTerrainDepth { get; set; }
+
+        [Key(13)]
+        public double GravityTerrainDepthExponent { get; set; } = 1.0;
+
+        [Key(14)]
+        public double GravityTerrainBoundaryFog { get; set; }
+
+        [Key(15)]
+        public double GravityTerrainWaveFrequency { get; set; } = 1.0;
     }
 
     [MessagePackObject]

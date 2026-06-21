@@ -163,6 +163,52 @@ namespace GameCult.Aetheria.State.Verse
             return groups.Count;
         }
 
+        public static double EvaluateGravityTerrainHeight(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            double positionX,
+            double positionZ,
+            double simulationTimeSeconds)
+        {
+            if (zone == null)
+                return 0;
+
+            var height = 0.0;
+            if (zone.GravityTerrainRadius > 0 && zone.GravityTerrainDepth != 0)
+            {
+                var distance = Math.Sqrt(positionX * positionX + positionZ * positionZ);
+                height -= PowerPulse(
+                    distance / (zone.GravityTerrainRadius * 2.0),
+                    Math.Max(0.0001, zone.GravityTerrainDepthExponent)) * zone.GravityTerrainDepth;
+            }
+
+            foreach (var brush in QueryGravityInfluences(
+                         zone,
+                         new AetheriaRuntimeXzRect(positionX, positionZ, positionX, positionZ)))
+            {
+                var dx = positionX - brush.CenterX;
+                var dz = positionZ - brush.CenterZ;
+                var distance = Math.Sqrt(dx * dx + dz * dz);
+                if (brush.Radius > 0 && distance < brush.Radius && brush.GravityDepth != 0)
+                {
+                    height -= PowerPulse(
+                        distance / brush.Radius,
+                        Math.Max(0.0001, brush.GravityDepthExponent)) * brush.GravityDepth;
+                }
+
+                if (brush.WaveRadius > 0 && distance < brush.WaveRadius && brush.WaveDepth != 0)
+                {
+                    height -= RadialWaves(
+                        distance / brush.WaveRadius,
+                        8.0,
+                        1.25,
+                        zone.GravityTerrainWaveFrequency,
+                        simulationTimeSeconds * brush.WaveSpeed) * brush.WaveDepth;
+                }
+            }
+
+            return height;
+        }
+
         private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)
         {
             var source = new Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit>(StringComparer.Ordinal);
@@ -289,6 +335,24 @@ namespace GameCult.Aetheria.State.Verse
         private static double Clamp(double value, double min, double max)
         {
             return value < min ? min : value > max ? max : value;
+        }
+
+        private static double PowerPulse(double x, double exponent)
+        {
+            x *= 2.0;
+            x = Clamp(x, -1.0, 1.0);
+            return Math.Pow((x + 1.0) * (1.0 - x), exponent);
+        }
+
+        private static double RadialWaves(
+            double x,
+            double maskExponent,
+            double sineExponent,
+            double frequency,
+            double phase)
+        {
+            return PowerPulse(x, maskExponent) *
+                   Math.Cos(Math.Pow(x * 2.0, sineExponent) * frequency + phase);
         }
 
         private static bool IsFinite(double value)

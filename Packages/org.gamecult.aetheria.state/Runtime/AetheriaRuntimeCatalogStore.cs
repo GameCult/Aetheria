@@ -1148,7 +1148,12 @@ namespace GameCult.Aetheria.State.Verse
             var orbits = ReadFieldOrbitSnapshots(ref reader, fields, 6);
             var bodies = ReadFieldBodySnapshots(ref reader, fields, 7);
             var droppedPickups = ReadFieldDroppedPickups(ref reader, fields, 8);
-            SkipRemaining(ref reader, fields, 9);
+            var gravityTerrainRadius = ReadFieldDouble(ref reader, fields, 9);
+            var gravityTerrainDepth = ReadFieldDouble(ref reader, fields, 10);
+            var gravityTerrainDepthExponent = ReadFieldDouble(ref reader, fields, 11, 1.0);
+            var gravityTerrainBoundaryFog = ReadFieldDouble(ref reader, fields, 12);
+            var gravityTerrainWaveFrequency = ReadFieldDouble(ref reader, fields, 13, 1.0);
+            SkipRemaining(ref reader, fields, 14);
             return new AetheriaRuntimeZoneStateSnapshot(
                 recordKey,
                 name,
@@ -1160,7 +1165,12 @@ namespace GameCult.Aetheria.State.Verse
                 entityKeys,
                 orbits,
                 bodies,
-                droppedPickups);
+                droppedPickups,
+                gravityTerrainRadius,
+                gravityTerrainDepth,
+                gravityTerrainDepthExponent,
+                gravityTerrainBoundaryFog,
+                gravityTerrainWaveFrequency);
         }
 
         private static IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> ReadFieldDroppedPickups(ref MessagePackReader reader, int fields, int index)

@@ -269,6 +269,21 @@ public sealed class AetheriaZoneState
 
     [Key(8)]
     public AetheriaDroppedPickupSnapshot[] DroppedPickups { get; set; } = [];
+
+    [Key(9)]
+    public double GravityTerrainRadius { get; set; }
+
+    [Key(10)]
+    public double GravityTerrainDepth { get; set; }
+
+    [Key(11)]
+    public double GravityTerrainDepthExponent { get; set; } = 1.0;
+
+    [Key(12)]
+    public double GravityTerrainBoundaryFog { get; set; }
+
+    [Key(13)]
+    public double GravityTerrainWaveFrequency { get; set; } = 1.0;
 }
 
 [MessagePackObject]
