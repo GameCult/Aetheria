@@ -3084,13 +3084,26 @@ public class ActionGameManager : MonoBehaviour
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
         var parentOrbitKey = Zone.TryGetOrbit(orbital.OrbitKey, out var orbit) ? orbit.ParentOrbitKey : "";
-        var parentOrbitPlanetBodyKey = Zone.PlanetInstances.Values.FirstOrDefault(planet => planet.OrbitKey == parentOrbitKey)?.BodyKey ?? "";
+        var daemonZone = FindCurrentDaemonZoneSnapshot();
+        var parentOrbitPlanetBodyKey = (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            .FirstOrDefault(body => body != null && string.Equals(body.OrbitKey ?? "", parentOrbitKey, StringComparison.Ordinal))
+            ?.BodyKey ?? "";
         if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanetBodyKey))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanetBodyKey].Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;
         if (entity is OrbitalEntity {CanTow: true})
             TowingStation = entity;
         Menu.ShowTab(MenuTab.Inventory);
+    }
+
+    private AetheriaRuntimeZoneSnapshotCommit FindCurrentDaemonZoneSnapshot()
+    {
+        var run = ResolveDaemonObserver()?.LastObservedState?.Run;
+        if (run == null)
+            return null;
+
+        return (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            .FirstOrDefault(zone => zone != null && zone.ZoneIndex == run.CurrentZoneIndex);
     }
 
     public void RequestTowToStation()

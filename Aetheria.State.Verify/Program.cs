@@ -1433,7 +1433,8 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
             "Zone.TryGetOrbit(orbital.OrbitKey, out var orbit)",
-            "planet => planet.OrbitKey == parentOrbitKey"
+            "FindCurrentDaemonZoneSnapshot()",
+            "string.Equals(body.OrbitKey ?? \"\", parentOrbitKey, StringComparison.Ordinal)"
         },
         [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs")] = new[]
         {
@@ -7875,6 +7876,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "Zone.Entities.Add(CurrentEntity)",
         "CurrentEntity.CultPositionXZ = TowingStation.CultPositionXZ",
         "PopulateLevel(TowingStation.Zone.GalaxyZone)",
+        "Zone.PlanetInstances.Values.FirstOrDefault",
         "RestoreDaemonAsteroidRuntimeState",
         "belt.Damage.Clear()",
         "belt.RespawnTimers.Clear()",
@@ -7908,6 +7910,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
+        "FindCurrentDaemonZoneSnapshot()",
+        "ResolveDaemonObserver()?.LastObservedState?.Run",
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",
         "public static Galaxy ObservedGalaxy",
