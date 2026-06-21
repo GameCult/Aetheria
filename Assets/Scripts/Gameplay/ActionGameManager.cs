@@ -564,6 +564,7 @@ public class ActionGameManager : MonoBehaviour
     public AetheriaRuntimeDaemonRenderSettings ObservedDaemonRenderSettings()
     {
         var emissionCurve = Settings.GameplaySettings.TemperatureEmissionCurve;
+        var bodyIconSizeCurve = Settings.IconSize;
         return new AetheriaRuntimeDaemonRenderSettings(
             new AetheriaRuntimeExponentialCurve(
                 emissionCurve.Exponent,
@@ -592,7 +593,11 @@ public class ActionGameManager : MonoBehaviour
             Settings.WormholeDistanceRatio,
             Settings.DefaultViewDistance,
             Settings.MinimapIconSize,
-            Settings.MinimapAsteroidSize);
+            Settings.MinimapAsteroidSize,
+            new AetheriaRuntimeExponentialCurve(
+                bodyIconSizeCurve.Exponent,
+                bodyIconSizeCurve.Multiplier,
+                bodyIconSizeCurve.Constant));
     }
 
     private readonly (float2 direction, string name)[] _directions = {

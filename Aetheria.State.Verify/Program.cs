@@ -1833,11 +1833,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double DefaultViewDistance { get; }",
         "public double MinimapIconScale { get; }",
         "public double MinimapAsteroidSize { get; }",
+        "public AetheriaRuntimeExponentialCurve BodyIconSizeCurve { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
         "public double ResolveDefaultMinimapDistance()",
         "public double ResolveMinimapIconSize(double minimapDistance)",
+        "public double ResolveBodyIconSize(double mass)",
         "public double NormalizeThermalRisk(double temperature)",
         "public double NormalizeHeatstrokePost(double heatstroke)",
         "public double NormalizeSevereHeatstrokePost(double heatstroke)",
@@ -2004,7 +2006,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ContainsUnitySettingsMember(zoneRenderer, "DefaultMinimapZoom") ||
         ContainsUnitySettingsMember(zoneRenderer, "MinimapIconSize") ||
         ContainsUnitySettingsMember(zoneRenderer, "DefaultViewDistance") ||
-        ContainsUnitySettingsMember(zoneRenderer, "MinimapAsteroidSize"))
+        ContainsUnitySettingsMember(zoneRenderer, "MinimapAsteroidSize") ||
+        ContainsUnitySettingsMember(zoneRenderer, "IconSize"))
     {
         throw new InvalidOperationException(
             "ZoneRenderer must initialize view/minimap presentation through shared daemon render settings instead of Unity GameSettings.");
@@ -2161,6 +2164,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "RenderSettings.MinimapAsteroidSize",
         "RenderSettings.ResolveDefaultMinimapDistance()",
         "RenderSettings.ResolveMinimapIconSize(value)",
+        "RenderSettings.ResolveBodyIconSize(mass)",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "RenderSettings.WormholeDistanceRatio",
         "AddWormhole(exit)",
@@ -2261,7 +2265,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.WormholeDistanceRatio",
         "Settings.DefaultViewDistance",
         "Settings.MinimapIconSize",
-        "Settings.MinimapAsteroidSize"
+        "Settings.MinimapAsteroidSize",
+        "Settings.IconSize"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols

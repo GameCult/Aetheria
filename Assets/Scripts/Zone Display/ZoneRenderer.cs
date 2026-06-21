@@ -476,7 +476,7 @@ public class ZoneRenderer : MonoBehaviour
         // if (depth > _maxDepth) _maxDepth = depth;
         planet.GravityWell.material.SetFloat("_Depth", gravityWellDepth);
         planet.Icon.transform.position = new Vector3(0, -gravityWellDepth, 0);
-        planet.Icon.transform.localScale = Settings.IconSize.Evaluate(mass) * Vector3.one;
+        planet.Icon.transform.localScale = (float)RenderSettings.ResolveBodyIconSize(mass) * Vector3.one;
 
 
         _bodyViewsByBodyKey[bodyKey] = planet;
