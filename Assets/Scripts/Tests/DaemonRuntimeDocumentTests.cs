@@ -291,8 +291,10 @@ public class DaemonRuntimeDocumentTests
             "surfaceId",
             AetheriaRuntimeStatRecipeCommands.SurfaceId));
         Assert.IsTrue(editorSurface.Commands.Any(command =>
-            command.Command == "aetheria.daemon.commands.TransferCargoItem" &&
+            command.Command == "aetheria.daemon.commands.SensorPing" &&
             command.Transport == "cultmesh"));
+        Assert.IsFalse(editorSurface.Commands.Any(command =>
+            command.Command == "aetheria.daemon.commands.TransferCargoItem"));
         Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface(statePath, out var editorTuiSurface));
         Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
@@ -317,8 +319,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, unityEditorSurface.Surface.Id);
         Assert.AreEqual("editor.daemon", unityEditorSurface.ProviderKind);
         Assert.IsTrue(unityEditorSurface.Commands.Any(command =>
-            command.Command == "aetheria.daemon.commands.TransferCargoItem" &&
+            command.Command == "aetheria.daemon.commands.SensorPing" &&
             command.Transport == "cultmesh"));
+        Assert.IsFalse(unityEditorSurface.Commands.Any(command =>
+            command.Command == "aetheria.daemon.commands.TransferCargoItem"));
         Assert.IsTrue(AetheriaRuntimeStateReader.TryReadDaemonEditorTuiSurface(
             statePath,
             out var unityEditorTuiSurface));

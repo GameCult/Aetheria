@@ -109,9 +109,10 @@ namespace GameCult.Aetheria.State.Verse
                                     .ToArray()))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
+                    .Where(entry => AetheriaRuntimeDaemonSurfaceCommandCatalog.IsArgumentlessCommand(entry.Kind))
                     .Select(entry => new AetheriaRuntimeSurfaceCommandTemplate(
-                        CommandName(entry.Kind),
-                        entry.Kind.ToString(),
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind),
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
                         "cultmesh"))
                     .ToArray());
         }
@@ -151,7 +152,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string CommandName(AetheriaRuntimeDaemonCommandKinds kind)
         {
-            return "aetheria.daemon.commands." + kind;
+            return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
         }
 
         private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)

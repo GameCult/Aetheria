@@ -2207,13 +2207,12 @@ static void RequireEveRuntimeBootstrap(string root)
     var requiredDaemonSurfaceCommandSymbols = new[]
     {
         "public static class AetheriaRuntimeDaemonSurfaceCommands",
-        "private const string CommandPrefix = \"aetheria.daemon.commands.\"",
         "EveSurfaceCommandRequest request",
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed)",
         "new AetheriaRuntimeDaemonOperationClient(",
-        "TrySubmitKnownCommand(client, observed, kind, out envelope)",
-        "AetheriaRuntimeDaemonCommandKinds.SensorPing => client.SensorPing(observed)"
+        "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
+        "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
     };
     var missingDaemonSurfaceCommandSymbols = requiredDaemonSurfaceCommandSymbols
         .Where(symbol => !daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
@@ -6111,6 +6110,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
+    var daemonSurfaceCommandCatalogPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommandCatalog.cs");
     var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
@@ -6131,6 +6131,7 @@ static void RequireDaemonVersePublication(string root)
         daemonSoaDocumentsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
+        daemonSurfaceCommandCatalogPath,
         daemonHostProjectPath,
         daemonHostProgramPath,
         documentRegistryPath,
@@ -6160,6 +6161,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
+    var daemonSurfaceCommandCatalog = File.ReadAllText(daemonSurfaceCommandCatalogPath);
     var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
     var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
@@ -6532,6 +6534,43 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon game Eve surface builder is incomplete: " +
             string.Join(", ", missingGameSurfaceSymbols));
+    }
+
+    var requiredSurfaceCommandCatalogSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonSurfaceCommandCatalog",
+        "public const string CommandPrefix = \"aetheria.daemon.commands.\"",
+        "public static IReadOnlyList<AetheriaRuntimeDaemonCommandKinds> ArgumentlessCommands",
+        "public static bool IsArgumentlessCommand(",
+        "public static bool TrySubmitArgumentless(",
+        "AetheriaRuntimeDaemonCommandKinds.SensorPing => client.SensorPing(observed)"
+    };
+    var missingSurfaceCommandCatalogSymbols = requiredSurfaceCommandCatalogSymbols
+        .Where(symbol => !daemonSurfaceCommandCatalog.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSurfaceCommandCatalogSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon surface command catalog no longer owns the argumentless CultMesh command set: " +
+            string.Join(", ", missingSurfaceCommandCatalogSymbols));
+    }
+
+    var surfaceCommandTemplateSources = new Dictionary<string, string>
+    {
+        ["daemon game surface"] = daemonGameSurfaceBuilder,
+        ["daemon editor surface"] = daemonEditorSurfaceBuilder
+    };
+    var overBroadSurfaceCommandTemplates = surfaceCommandTemplateSources
+        .Where(source =>
+            !source.Value.Contains("AetheriaRuntimeDaemonSurfaceCommandCatalog.IsArgumentlessCommand(entry.Kind)", StringComparison.Ordinal) ||
+            !source.Value.Contains("AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind)", StringComparison.Ordinal))
+        .Select(source => source.Key)
+        .ToArray();
+    if (overBroadSurfaceCommandTemplates.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surfaces still advertise command-boundary entries that are not directly submittable surface commands: " +
+            string.Join(", ", overBroadSurfaceCommandTemplates));
     }
 
     var requiredEditorSurfaceSymbols = new[]

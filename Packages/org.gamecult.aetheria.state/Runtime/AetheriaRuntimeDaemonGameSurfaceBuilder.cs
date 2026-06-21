@@ -84,9 +84,10 @@ namespace GameCult.Aetheria.State.Verse
                                 CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
+                    .Where(entry => AetheriaRuntimeDaemonSurfaceCommandCatalog.IsArgumentlessCommand(entry.Kind))
                     .Select(entry => new AetheriaRuntimeSurfaceCommandTemplate(
-                        CommandName(entry.Kind),
-                        Label(entry.Kind),
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind),
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
                         "cultmesh"))
                     .ToArray());
         }
@@ -159,12 +160,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string CommandName(AetheriaRuntimeDaemonCommandKinds kind)
         {
-            return "aetheria.daemon.commands." + kind;
-        }
-
-        private static string Label(AetheriaRuntimeDaemonCommandKinds kind)
-        {
-            return kind.ToString();
+            return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
         }
 
         private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)
