@@ -9008,6 +9008,9 @@ static void RequireActionBarBindingRequestAuthority(string root)
         "RequestActionBarBinding(",
         "TryRequestDaemonActionBarBinding(",
         "TryRequestDaemonActionBarBindingClear(",
+        "RequestActionBarConsumable(",
+        "RequestActionBarBehavior(",
+        "RequestActionBarWeaponGroup(",
         "RestoreActionBarBindingsFromTypedRun(",
         "ApplyActionBarBindings(",
         "RequestActionBarBinding(slot, dragAction)"
@@ -9050,7 +9053,10 @@ static void RequireActionBarBindingRequestAuthority(string root)
     var forbiddenPublicAcceptanceApis = new[]
     {
         "public bool RequestWeaponGroupActionBarBinding(",
-        "public bool RequestClearActionBarBinding("
+        "public bool RequestClearActionBarBinding(",
+        "public bool TryRequestDaemonActionBarConsumable(",
+        "public bool TryRequestDaemonActionBarBehavior(",
+        "public bool TryRequestDaemonActionBarWeaponGroup("
     };
     var publicAcceptanceApiHits = forbiddenPublicAcceptanceApis
         .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -9081,6 +9087,26 @@ static void RequireActionBarBindingRequestAuthority(string root)
         throw new InvalidOperationException(
             "InventoryMenu still treats equipped-item action-bar command submission as accepted binding state: " +
             string.Join(", ", uiAcceptanceHits));
+    }
+
+    var actionBarSlotPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionBarSlot.cs");
+    var actionBarSlot = File.Exists(actionBarSlotPath)
+        ? File.ReadAllText(actionBarSlotPath)
+        : throw new InvalidOperationException("Cannot verify action-bar activation authority; ActionBarSlot.cs is missing.");
+    var forbiddenSlotSymbols = new[]
+    {
+        "TryRequestDaemonActionBarConsumable(",
+        "TryRequestDaemonActionBarBehavior(",
+        "TryRequestDaemonActionBarWeaponGroup("
+    };
+    var slotHits = forbiddenSlotSymbols
+        .Where(symbol => actionBarSlot.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (slotHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionBarSlot still calls daemon transport helpers directly instead of submit-only request APIs: " +
+            string.Join(", ", slotHits));
     }
 }
 

@@ -3874,7 +3874,22 @@ public class ActionGameManager : MonoBehaviour
         return "";
     }
 
-    public bool TryRequestDaemonActionBarConsumable(string itemKey)
+    public void RequestActionBarConsumable(string itemKey)
+    {
+        TryRequestDaemonActionBarConsumable(itemKey);
+    }
+
+    public void RequestActionBarBehavior(int equipmentIndex, int behaviorIndex, bool active)
+    {
+        TryRequestDaemonActionBarBehavior(equipmentIndex, behaviorIndex, active);
+    }
+
+    public void RequestActionBarWeaponGroup(int weaponGroup, bool active)
+    {
+        TryRequestDaemonActionBarWeaponGroup(weaponGroup, active);
+    }
+
+    private bool TryRequestDaemonActionBarConsumable(string itemKey)
     {
         var observer = ResolveDaemonObserver();
         if (observer == null || !observer.HasAuthoritativeState || string.IsNullOrWhiteSpace(itemKey))
@@ -3894,7 +3909,7 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool TryRequestDaemonActionBarBehavior(int equipmentIndex, int behaviorIndex, bool active)
+    private bool TryRequestDaemonActionBarBehavior(int equipmentIndex, int behaviorIndex, bool active)
     {
         var observer = ResolveDaemonObserver();
         if (observer == null || !observer.HasAuthoritativeState)
@@ -3914,7 +3929,7 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool TryRequestDaemonActionBarWeaponGroup(int weaponGroup, bool active)
+    private bool TryRequestDaemonActionBarWeaponGroup(int weaponGroup, bool active)
     {
         var observer = ResolveDaemonObserver();
         if (observer == null || !observer.HasAuthoritativeState)
