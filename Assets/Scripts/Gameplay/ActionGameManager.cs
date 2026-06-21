@@ -18,12 +18,13 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
-using Unity.Mathematics;
 using UnityEngine.EventSystems;
 using static Unity.Mathematics.math;
+using bool2 = CultMath.bool2;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
-using quaternion = Unity.Mathematics.quaternion;
+using float4 = Unity.Mathematics.float4;
+using int2 = Unity.Mathematics.int2;
 using Regex = System.Text.RegularExpressions.Regex;
 using Random = UnityEngine.Random;
 
@@ -38,8 +39,34 @@ public class ActionGameManager : MonoBehaviour
         "AutoWeapon"
     };
 
+    private static float Saturate(float value) => Mathf.Clamp01(value);
+
+    private static float Unlerp(float from, float to, float value) => (value - from) / (to - from);
+
+    private const float DaemonMoveCommandIntervalSeconds = 0.05f;
+    private const float DaemonMoveCommandChangeThreshold = 0.001f;
+    private const float DaemonLookCommandIntervalSeconds = 0.02f;
+    private const float DaemonLookCommandChangeThreshold = 0.0001f;
+    private const float DaemonTractorCommandIntervalSeconds = 0.05f;
+    private const float DaemonTractorCommandChangeThreshold = 0.001f;
+
     // Always check for null if accessing from anywhere that might not be in-game (e.g. menu UI)
     public static ActionGameManager Instance { get; private set; }
+    private AetheriaDaemonObserver _daemonObserver;
+    private Vector2 _lastSentDaemonMoveVector;
+    private Vector3 _lastSentDaemonLookDirection;
+    private float _lastSentDaemonTractorPower;
+    private float _nextDaemonMoveCommandTime;
+    private float _nextDaemonLookCommandTime;
+    private float _nextDaemonTractorCommandTime;
+    private bool _hasSentDaemonMoveVector;
+    private bool _hasSentDaemonLookDirection;
+    private bool _hasSentDaemonTractorPower;
+    private long _lastAppliedAuthoritativeDaemonFrameId = -1;
+    private string _lastAppliedAuthoritativeDaemonFramePath = "";
+    private string _lastAppliedAuthoritativeDaemonRunId = "";
+    private int _lastAppliedAuthoritativeDaemonZoneIndex = -1;
+    private readonly Dictionary<string, Entity> _authoritativeDaemonEntities = new Dictionary<string, Entity>(StringComparer.Ordinal);
     private static DirectoryInfo _gameDataDirectory;
     public static DirectoryInfo GameDataDirectory
     {
@@ -59,109 +86,60 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public static void QueueRuntimePlayerSettingsCommit()
+    public static void RequestRuntimeInputBindingOverride(string actionName, int bindingIndex, string inputSystemPath)
+    {
+        TrySendRuntimeInputSettingsCommand(
+            AetheriaRuntimeInputSettingsCommands.SetBindingOverride,
+            new AetheriaRuntimeInputSettingsCommandBody
+            {
+                ActionName = actionName ?? "",
+                BindingIndex = bindingIndex,
+                InputSystemPath = inputSystemPath ?? ""
+            },
+            "unity-input-screen",
+            "input binding override");
+    }
+
+    public static void RequestRuntimeActionBarInput(string inputSystemPath, bool enabled)
+    {
+        TrySendRuntimeInputSettingsCommand(
+            AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled,
+            new AetheriaRuntimeInputSettingsCommandBody
+            {
+                InputSystemPath = inputSystemPath ?? "",
+                Enabled = enabled
+            },
+            "unity-input-screen",
+            "action-bar input");
+    }
+
+    private static bool TrySendRuntimeInputSettingsCommand(
+        string command,
+        AetheriaRuntimeInputSettingsCommandBody body,
+        string clientId,
+        string label)
     {
         try
         {
-            var commit = AetheriaRuntimeStateCommitLog.QueuePlayerSettings(
-                RuntimeStateFilePath,
-                ProjectRuntimePlayerSettings(RuntimePlayerSettings));
-            Debug.Log($"Queued Aetheria Verse player settings commit: {commit.Path}");
+            if (!AetheriaRuntimeEveCommands.TrySendInputSettingsCommand(
+                    RuntimeStateFilePath,
+                    command,
+                    body,
+                    clientId,
+                    out var submitted,
+                    out var error))
+            {
+                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
+                return false;
+            }
+
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
+            return true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to queue Aetheria Verse player settings commit: {ex}");
-        }
-    }
-
-    public static void CommitRuntimeInputBindingOverride(string actionName, int bindingIndex, string inputSystemPath)
-    {
-        RuntimePlayerSettings.InputSettings.SetBindingOverride(actionName, bindingIndex, inputSystemPath);
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimeActionBarInput(string inputSystemPath, bool enabled)
-    {
-        RuntimePlayerSettings.InputSettings.SetActionBarInputEnabled(inputSystemPath, enabled);
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimePlayerName(string name)
-    {
-        RuntimePlayerSettings.Name = name ?? "";
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimeTemperatureUnit(TemperatureUnit unit)
-    {
-        RuntimePlayerSettings.GameplaySettings.TemperatureUnit = unit;
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimeSignificantDigits(int significantDigits)
-    {
-        RuntimePlayerSettings.GameplaySettings.SignificantDigits = significantDigits;
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimeNebulaQuality(Quality quality)
-    {
-        RuntimePlayerSettings.GraphicsSettings.NebulaQuality = quality;
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static void CommitRuntimeShowAsteroidsInMinimap(bool show)
-    {
-        RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = show;
-        QueueRuntimePlayerSettingsCommit();
-    }
-
-    public static bool CommitRuntimePlayerSettingsCommand(
-        string command,
-        IReadOnlyDictionary<string, string> payload = null)
-    {
-        switch (command)
-        {
-            case AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
-                if (payload != null && payload.TryGetValue("value", out var playerName))
-                {
-                    CommitRuntimePlayerName(playerName);
-                }
-                else
-                {
-                    CommitRuntimePlayerName("");
-                }
-                return true;
-            case AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
-                CommitRuntimeTemperatureUnit(
-                    RuntimePlayerSettings.GameplaySettings.TemperatureUnit switch
-                    {
-                        TemperatureUnit.Kelvin => TemperatureUnit.Celsius,
-                        TemperatureUnit.Celsius => TemperatureUnit.Fahrenheit,
-                        _ => TemperatureUnit.Kelvin
-                    });
-                return true;
-            case AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
-                CommitRuntimeSignificantDigits(max(0, RuntimePlayerSettings.GameplaySettings.SignificantDigits - 1));
-                return true;
-            case AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
-                CommitRuntimeSignificantDigits(RuntimePlayerSettings.GameplaySettings.SignificantDigits + 1);
-                return true;
-            case AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
-                CommitRuntimeNebulaQuality(
-                    RuntimePlayerSettings.GraphicsSettings.NebulaQuality switch
-                    {
-                        Quality.Low => Quality.Normal,
-                        Quality.Normal => Quality.High,
-                        Quality.High => Quality.Ultra,
-                        _ => Quality.Low
-                    });
-                return true;
-            case AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
-                CommitRuntimeShowAsteroidsInMinimap(!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap);
-                return true;
-            default:
-                return false;
+            Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
+            return false;
         }
     }
 
@@ -398,9 +376,8 @@ public class ActionGameManager : MonoBehaviour
         return instance;
     }
 
-    public static Galaxy CurrentGalaxy;
+    public static Galaxy ObservedGalaxy;
     public static bool IsTutorial;
-    public static AetheriaRuntimeRunStateSnapshot ContinueRunState { get; set; }
     public static AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; private set; }
 
     public GameSettings Settings;
@@ -409,7 +386,7 @@ public class ActionGameManager : MonoBehaviour
     public int Credits = 15000000;
     public float TargetSpottedBlinkFrequency = 20;
     public float TargetSpottedBlinkOffset = -.25f;
-    
+
     [Header("Postprocessing")]
     public float DeathPostTransitionTime;
     public PostProcessVolume DeathPost;
@@ -424,14 +401,13 @@ public class ActionGameManager : MonoBehaviour
     public InputDisplayLayout InputDisplayLayout;
     public Transform ActionBar;
     public ActionBarSlot ActionBarSlot;
-    public Transform EffectManagerParent;
     public ZoneRenderer ZoneRenderer;
     public CinemachineVirtualCamera DockCamera;
     public CinemachineVirtualCamera FollowCamera;
     public CinemachineVirtualCamera WormholeCamera;
     //public SectorRenderer SectorRenderer;
     public SectorMap SectorMap;
-    
+
     [Header("Menu UI")]
     public MainMenu MainMenu;
     public MenuPanel Menu;
@@ -441,7 +417,7 @@ public class ActionGameManager : MonoBehaviour
     public InventoryPanel ShipPanel;
     public InventoryPanel TargetShipPanel;
     public ConfirmationDialog Dialog;
-    
+
     [Header("Gameplay UI")]
     public CanvasGroup GameplayUI;
     public EventLog EventLog;
@@ -454,7 +430,7 @@ public class ActionGameManager : MonoBehaviour
     public float HitMarkerDuration;
     public SchematicDisplay SchematicDisplay;
     public SchematicDisplay TargetSchematicDisplay;
-    
+
     [Header("Target Indicator")]
     public PlaceUIElementWorldspace TargetIndicator;
     public Image TargetHitpointsFill;
@@ -468,13 +444,11 @@ public class ActionGameManager : MonoBehaviour
     public Sprite ShieldIcon;
     public Sprite NoShieldIcon;
 
-    public float IntroDuration;
-    
     //public PlayerInput Input;
-    
+
     // private CinemachineFramingTransposer _transposer;
     // private CinemachineComposer _composer;
-    
+
     private bool _paused;
     private float _time;
     private int _zoomLevelIndex;
@@ -495,7 +469,7 @@ public class ActionGameManager : MonoBehaviour
     private List<ActionBarSlot> _actionBarSlots = new List<ActionBarSlot>();
     private List<InputAction> _actionBarActions = new List<InputAction>();
     private float _hitMarkerTime;
-    
+
     public AetheriaInput Input { get; private set; }
     public EquippedDockingBay DockingBay { get; private set; }
     public Entity DockedEntity { get; private set; }
@@ -515,16 +489,16 @@ public class ActionGameManager : MonoBehaviour
         get => _currentEntity;
         set => _currentEntity = value;
     }
-    
+
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
     public List<AetheriaRuntimeLoadoutTemplateSnapshot> LoadoutTemplates { get; } = new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
 
     private readonly (float2 direction, string name)[] _directions = {
-        (float2(0, 1), "Front"),
-        (float2(1, 0), "Right"),
-        (float2(-1, 0), "Left"),
-        (float2(0, -1), "Rear")
+        (new float2(0, 1), "Front"),
+        (new float2(1, 0), "Right"),
+        (new float2(-1, 0), "Left"),
+        (new float2(0, -1), "Rear")
     };
 
     public DragObject DragObject { get; private set; }
@@ -535,40 +509,6 @@ public class ActionGameManager : MonoBehaviour
     public EntitySettings NewEntitySettings
     {
         get => Settings.GameplaySettings.DefaultEntitySettings.Copy();
-    }
-
-    private static AetheriaRuntimePlayerSettingsCommit ProjectRuntimePlayerSettings(RuntimePlayerSettings settings)
-    {
-        return new AetheriaRuntimePlayerSettingsCommit
-        {
-            PlayerName = settings.Name,
-            TutorialPassed = settings.TutorialPassed,
-            StoryFileHashes = settings.HashedStoryFiles
-                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => new AetheriaRuntimeStoryFileHashCommit
-                {
-                    StoryPath = pair.Key,
-                    Hash = pair.Value
-                })
-                .ToArray(),
-            TemperatureUnit = Enum.GetName(typeof(TemperatureUnit), settings.GameplaySettings.TemperatureUnit),
-            SignificantDigits = settings.GameplaySettings.SignificantDigits,
-            NebulaQuality = Enum.GetName(typeof(Quality), settings.GraphicsSettings.NebulaQuality),
-            ShowAsteroidsInMinimap = settings.GraphicsSettings.ShowAsteroidsInMinimap,
-            BindingOverrides = settings.InputSettings.InputActionMap
-                .OrderBy(pair => pair.Key.action, StringComparer.Ordinal)
-                .ThenBy(pair => pair.Key.binding)
-                .Select(pair => new AetheriaRuntimeInputBindingCommit
-                {
-                    ActionName = pair.Key.action,
-                    BindingIndex = pair.Key.binding,
-                    BindingPath = pair.Value
-                })
-                .ToArray(),
-            ActionBarInputs = settings.InputSettings.ActionBarInputs
-                .OrderBy(input => input, StringComparer.Ordinal)
-                .ToArray()
-        };
     }
 
     private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(EntityConstructionBlueprint blueprint)
@@ -645,31 +585,6 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeRunCheckpointCommit ProjectRunCheckpoint()
-    {
-        var entityGraph = FlattenEntityGraph(Zone);
-        var runId = IsTutorial ? "tutorial" : "local";
-        var currentZoneIndex = ZoneIndex(Zone?.GalaxyZone);
-        return new AetheriaRuntimeRunCheckpointCommit
-        {
-            RunId = runId,
-            IsTutorial = IsTutorial,
-            EntranceZoneIndex = ZoneIndex(CurrentGalaxy?.Entrance),
-            ExitZoneIndex = ZoneIndex(CurrentGalaxy?.Exit),
-            CurrentZoneIndex = currentZoneIndex,
-            CurrentEntityKey = CurrentEntityRecordKey(runId, currentZoneIndex, entityGraph, CurrentEntity),
-            GenerationSeed = CurrentGalaxy?.GenerationSeed ?? 0,
-            DiscoveredZoneIndices = CurrentGalaxy?.DiscoveredZones
-                .Select(ZoneIndex)
-                .Where(index => index >= 0)
-                .OrderBy(index => index)
-                .ToArray() ?? Array.Empty<int>(),
-            ActionBarBindings = ProjectActionBarBindings(),
-            FactionRelationships = ProjectFactionRelationships(),
-            Zones = Zone == null ? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>() : new[] { ProjectZoneSnapshot(Zone) }
-        };
-    }
-
     private AetheriaRuntimeActionBarBindingCommit[] ProjectActionBarBindings()
     {
         return _actionBarSlots?
@@ -680,7 +595,14 @@ public class ActionGameManager : MonoBehaviour
 
     private static AetheriaRuntimeActionBarBindingCommit ProjectActionBarBinding(ActionBarSlot slot)
     {
-        switch (slot?.Binding)
+        return ProjectActionBarBinding(slot, slot?.Binding);
+    }
+
+    private static AetheriaRuntimeActionBarBindingCommit ProjectActionBarBinding(
+        ActionBarSlot slot,
+        ActionBarBinding binding)
+    {
+        switch (binding)
         {
             case ActionBarConsumableBinding consumable:
                 return new AetheriaRuntimeActionBarBindingCommit
@@ -726,18 +648,32 @@ public class ActionGameManager : MonoBehaviour
             };
     }
 
-    private bool CommitActionBarBinding(ActionBarSlot slot, DragObject dragAction)
+    private static AetheriaRuntimeActionBarBindingSnapshot ToActionBarBindingSnapshot(
+        AetheriaRuntimeActionBarBindingCommit binding)
+    {
+        return binding == null
+            ? null
+            : new AetheriaRuntimeActionBarBindingSnapshot(
+                binding.ControlPath ?? "",
+                binding.Kind ?? "",
+                binding.ItemKey ?? "",
+                binding.EquipmentIndex,
+                binding.BehaviorIndex,
+                binding.WeaponGroup);
+    }
+
+    private bool RequestActionBarBinding(ActionBarSlot slot, DragObject dragAction)
     {
         if (slot == null || dragAction == null || CurrentEntity == null)
             return false;
 
-        var binding = CreateActionBarBinding(slot, CurrentEntity, dragAction);
-        if (binding == null)
+        var bindingCommit = CreateActionBarBindingCommit(slot, CurrentEntity, dragAction);
+        if (bindingCommit == null)
             return false;
 
-        slot.Binding = binding;
-        QueueRunCheckpoint("action-bar-binding");
-        return true;
+        if (TryRequestDaemonActionBarBinding(bindingCommit))
+            return true;
+        return false;
     }
 
     public int GetActionBarSlotCount()
@@ -763,31 +699,34 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    public bool CommitWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
+    public bool RequestWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
     {
         var slot = ResolveActionBarSlot(slotIndex);
-        if (slot == null ||
-            CurrentEntity?.WeaponGroups == null ||
-            groupIndex < 0 ||
-            groupIndex >= CurrentEntity.WeaponGroups.Length)
+        if (slot == null || groupIndex < 0)
         {
             return false;
         }
 
-        slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, slot, groupIndex);
-        QueueRunCheckpoint("action-bar-binding");
-        return true;
+        var binding = new AetheriaRuntimeActionBarBindingCommit
+        {
+            ControlPath = slot.ControlPath ?? "",
+            Kind = "weapon_group",
+            WeaponGroup = groupIndex
+        };
+        if (TryRequestDaemonActionBarBinding(binding))
+            return true;
+        return false;
     }
 
-    public bool CommitClearActionBarBinding(int slotIndex)
+    public bool RequestClearActionBarBinding(int slotIndex)
     {
         var slot = ResolveActionBarSlot(slotIndex);
         if (slot == null)
             return false;
 
-        slot.Binding = null;
-        QueueRunCheckpoint("action-bar-binding");
-        return true;
+        if (TryRequestDaemonActionBarBindingClear(slot))
+            return true;
+        return false;
     }
 
     private void RestoreActionBarBindingsFromTypedRun(
@@ -851,18 +790,45 @@ public class ActionGameManager : MonoBehaviour
 
     private ActionBarBinding CreateActionBarBinding(ActionBarSlot slot, Entity entity, DragObject dragAction)
     {
+        var binding = CreateActionBarBindingCommit(slot, entity, dragAction);
+        return binding == null ? null : CreateActionBarBinding(slot, entity, binding);
+    }
+
+    private AetheriaRuntimeActionBarBindingCommit CreateActionBarBindingCommit(
+        ActionBarSlot slot,
+        Entity entity,
+        DragObject dragAction)
+    {
+        if (slot == null || entity == null || dragAction == null)
+            return null;
+
         switch (dragAction)
         {
             case EquippedItemDragObject equippedItemDragAction:
-                var trigger = equippedItemDragAction.EquippedItem.GetBehavior<IActivatedBehavior>();
-                return trigger == null
+                var equippedItem = equippedItemDragAction.EquippedItem;
+                var trigger = equippedItem?.GetBehavior<IActivatedBehavior>();
+                var equipmentIndex = equippedItem == null ? -1 : entity.Equipment.IndexOf(equippedItem);
+                var behaviorIndex = equippedItem?.Behaviors == null ? -1 : Array.IndexOf(equippedItem.Behaviors, trigger);
+                return trigger == null || equipmentIndex < 0 || behaviorIndex < 0
                     ? null
-                    : new ActionBarGearBinding(entity, slot, equippedItemDragAction.EquippedItem, trigger);
+                    : new AetheriaRuntimeActionBarBindingCommit
+                    {
+                        ControlPath = slot.ControlPath ?? "",
+                        Kind = "gear",
+                        ItemKey = equippedItem.EquippableItem?.ItemKey ?? "",
+                        EquipmentIndex = equipmentIndex,
+                        BehaviorIndex = behaviorIndex
+                    };
             case ItemInstanceDragObject itemInstanceDragAction:
                 var consumable = FindTypedActionBarConsumable(itemInstanceDragAction.Item);
                 return consumable == null
                     ? null
-                    : new ActionBarConsumableBinding(entity, slot, consumable);
+                    : new AetheriaRuntimeActionBarBindingCommit
+                    {
+                        ControlPath = slot.ControlPath ?? "",
+                        Kind = "consumable",
+                        ItemKey = consumable.ItemKey ?? ""
+                    };
             default:
                 return null;
         }
@@ -949,767 +915,51 @@ public class ActionGameManager : MonoBehaviour
         return RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
-    private AetheriaRuntimeFactionRelationshipCommit[] ProjectFactionRelationships()
-    {
-        return CurrentGalaxy?.FactionRelationships?
-            .Where(pair => pair.Key != null)
-            .OrderBy(pair => pair.Key.FactionKey ?? "", StringComparer.OrdinalIgnoreCase)
-            .Select(pair => new AetheriaRuntimeFactionRelationshipCommit
-            {
-                FactionKey = pair.Key.FactionKey ?? "",
-                Relationship = pair.Value.ToString(),
-                Standing = (int)pair.Value
-            })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
-    }
-
-    private AetheriaRuntimeZoneSnapshotCommit ProjectZoneSnapshot(Zone zone)
-    {
-        var galaxyZone = zone.GalaxyZone;
-        var entityGraph = FlattenEntityGraph(zone);
-        return new AetheriaRuntimeZoneSnapshotCommit
-        {
-            ZoneIndex = ZoneIndex(galaxyZone),
-            Name = galaxyZone?.Name ?? "",
-            PositionX = galaxyZone?.Position.x ?? 0,
-            PositionY = galaxyZone?.Position.y ?? 0,
-            AdjacentZoneIndices = galaxyZone?.AdjacentZones
-                .Select(ZoneIndex)
-                .Where(index => index >= 0)
-                .OrderBy(index => index)
-                .ToArray() ?? Array.Empty<int>(),
-            FactionIndices = galaxyZone?.Factions?
-                .Select(FactionIndex)
-                .Where(index => index >= 0)
-                .OrderBy(index => index)
-                .ToArray() ?? Array.Empty<int>(),
-            OwnerFactionIndex = FactionIndex(galaxyZone?.Owner),
-            Orbits = ProjectZoneOrbits(zone),
-            Bodies = ProjectZoneBodies(zone),
-            Entities = entityGraph
-                .Select((entity, index) => ProjectEntitySnapshot(entityGraph, entity, index))
-                .ToArray(),
-            DroppedPickups = ProjectDroppedPickups(zone)
-        };
-    }
-
-    private AetheriaRuntimeDroppedPickupCommit[] ProjectDroppedPickups(Zone zone)
-    {
-        if (Zone != zone || ZoneRenderer?.ActiveLoot == null)
-            return Array.Empty<AetheriaRuntimeDroppedPickupCommit>();
-
-        return ZoneRenderer.ActiveLoot
-            .Where(pickup => pickup != null && pickup.Item != null)
-            .Select((pickup, index) =>
-            {
-                var gridObject = pickup.GetComponent<GridObject>();
-                var position = pickup.transform.position;
-                var velocity = gridObject == null ? Vector3.zero : gridObject.Velocity;
-                return new AetheriaRuntimeDroppedPickupCommit
-                {
-                    PickupIndex = index,
-                    PositionX = position.x,
-                    PositionY = position.y,
-                    PositionZ = position.z,
-                    VelocityX = velocity.x,
-                    VelocityY = velocity.y,
-                    VelocityZ = velocity.z,
-                    Item = ProjectLoadoutItem(pickup.Item)
-                };
-            })
-            .ToArray();
-    }
-
-    private static AetheriaRuntimeOrbitSnapshotCommit[] ProjectZoneOrbits(Zone zone)
-    {
-        return zone?.Orbits?.Values
-            .OrderBy(orbit => orbit.OrbitKey, StringComparer.Ordinal)
-            .Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
-            {
-                OrbitKey = orbit.OrbitKey,
-                ParentOrbitKey = orbit.ParentOrbitKey,
-                Distance = orbit.Distance,
-                Phase = orbit.Phase,
-                FixedPositionX = orbit.FixedPosition.x,
-                FixedPositionY = orbit.FixedPosition.y
-            })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>();
-    }
-
-    private static AetheriaRuntimeBodySnapshotCommit[] ProjectZoneBodies(Zone zone)
-    {
-        if (zone == null)
-            return Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-
-        return zone.PlanetInstances.Values
-            .Select(planet => ProjectZoneBody(planet))
-            .Concat(zone.AsteroidBelts.Values.Select(belt => ProjectZoneBody(zone, belt)))
-            .OrderBy(body => body.BodyKey)
-            .ToArray();
-    }
-
-    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Planet planet)
-    {
-        return new AetheriaRuntimeBodySnapshotCommit
-        {
-            BodyKey = planet.BodyKey,
-            Kind = BodyKind(planet),
-            Name = planet.Name,
-            OrbitKey = planet.OrbitKey,
-            Mass = planet.Mass,
-            Resources = planet.Resources?
-                .OrderBy(pair => pair.Key)
-                .Select(pair => new AetheriaRuntimeBodyResourceCommit
-                {
-                    ItemKey = pair.Key ?? "",
-                    Amount = pair.Value
-                })
-                .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
-            BodyRadiusMultiplier = planet.BodyRadiusMultiplier,
-            GravityRadiusMultiplier = planet.GravityRadiusMultiplier,
-            GravityDepthMultiplier = planet.GravityDepthMultiplier,
-            GravityDepthExponent = planet.GravityDepthExponent,
-            Asteroids = Array.Empty<AetheriaRuntimeAsteroidCommit>(),
-            GasGiantVisual = planet is GasGiant gas
-                ? ProjectGasGiantVisual(gas)
-                : new AetheriaRuntimeGasGiantVisualCommit(),
-            SunVisual = planet is Sun sun
-                ? ProjectSunVisual(sun)
-                : new AetheriaRuntimeSunVisualCommit()
-        };
-    }
-
-    private static AetheriaRuntimeBodySnapshotCommit ProjectZoneBody(Zone zone, AsteroidBelt belt)
-    {
-        return new AetheriaRuntimeBodySnapshotCommit
-        {
-            BodyKey = belt.BodyKey,
-            Kind = "asteroid_belt",
-            Name = belt.Name,
-            OrbitKey = belt.OrbitKey,
-            Mass = belt.Mass,
-            Resources = belt.Resources?
-                .OrderBy(pair => pair.Key)
-                .Select(pair => new AetheriaRuntimeBodyResourceCommit
-                {
-                    ItemKey = pair.Key ?? "",
-                    Amount = pair.Value
-                })
-                .ToArray() ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>(),
-            BodyRadiusMultiplier = belt.BodyRadiusMultiplier,
-            GravityRadiusMultiplier = belt.GravityRadiusMultiplier,
-            GravityDepthMultiplier = belt.GravityDepthMultiplier,
-            GravityDepthExponent = belt.GravityDepthExponent,
-            Asteroids = ProjectAsteroids(zone, belt),
-            GasGiantVisual = new AetheriaRuntimeGasGiantVisualCommit(),
-            SunVisual = new AetheriaRuntimeSunVisualCommit()
-        };
-    }
-
-    private static AetheriaRuntimeAsteroidCommit[] ProjectAsteroids(Zone zone, AsteroidBelt asteroidBelt)
-    {
-        return Enumerable.Range(0, asteroidBelt.AsteroidCount)
-            .Select(asteroidIndex =>
-            {
-                var asteroid = asteroidBelt.GetAsteroid(asteroidIndex);
-                return new AetheriaRuntimeAsteroidCommit
-                {
-                    Distance = asteroid.Distance,
-                    Phase = asteroid.Phase,
-                    Size = asteroid.Size,
-                    RotationSpeed = asteroid.RotationSpeed,
-                    Damage = asteroidBelt.Damage.TryGetValue(asteroidIndex, out var damage) ? damage : 0,
-                    RespawnTimer = asteroidBelt.RespawnTimers.TryGetValue(asteroidIndex, out var respawnTimer) ? respawnTimer : 0,
-                    MiningAccumulators = asteroidBelt.MiningAccumulator
-                        .Where(pair => pair.Key.Item2 == asteroidIndex)
-                        .Select(pair => new AetheriaRuntimeAsteroidMiningAccumulatorCommit
-                        {
-                            MinerEntityIndex = zone.Entities.IndexOf(pair.Key.Item1),
-                            Amount = pair.Value
-                        })
-                        .Where(accumulator => accumulator.MinerEntityIndex >= 0)
-                        .ToArray()
-                };
-            })
-            .ToArray();
-    }
-
-    private static AetheriaRuntimeGasGiantVisualCommit ProjectGasGiantVisual(GasGiant gas)
-    {
-        return new AetheriaRuntimeGasGiantVisualCommit
-        {
-            FirstOffsetDomainRotationSpeed = gas.FirstOffsetDomainRotationSpeed,
-            FirstOffsetRotationSpeed = gas.FirstOffsetRotationSpeed,
-            SecondOffsetDomainRotationSpeed = gas.SecondOffsetDomainRotationSpeed,
-            SecondOffsetRotationSpeed = gas.SecondOffsetRotationSpeed,
-            AlbedoRotationSpeed = gas.AlbedoRotationSpeed,
-            WaveRadiusMultiplier = gas.WaveRadiusMultiplier,
-            WaveDepthMultiplier = gas.WaveDepthMultiplier,
-            WaveDepthExponent = gas.WaveDepthExponent,
-            WaveSpeedMultiplier = gas.WaveSpeedMultiplier,
-            MaterialOverrides = gas.MaterialOverrides?.ToArray() ?? Array.Empty<string>(),
-            Colors = gas.Colors?
-                .Select(color => new AetheriaRuntimeColorCommit
-                {
-                    X = color.x,
-                    Y = color.y,
-                    Z = color.z,
-                    W = color.w
-                })
-                .ToArray() ?? Array.Empty<AetheriaRuntimeColorCommit>()
-        };
-    }
-
-    private static AetheriaRuntimeSunVisualCommit ProjectSunVisual(Sun sun)
-    {
-        return new AetheriaRuntimeSunVisualCommit
-        {
-            LightColorX = sun.LightColor.x,
-            LightColorY = sun.LightColor.y,
-            LightColorZ = sun.LightColor.z,
-            FogTintColorX = sun.FogTintColor.x,
-            FogTintColorY = sun.FogTintColor.y,
-            FogTintColorZ = sun.FogTintColor.z,
-            LightRadiusMultiplier = sun.LightRadiusMultiplier
-        };
-    }
-
-    private static string BodyKind(Planet body)
-    {
-        return body switch
-        {
-            Sun => "sun",
-            GasGiant => "gas_giant",
-            _ => "planet"
-        };
-    }
-
-    private static List<Entity> FlattenEntityGraph(Zone zone)
-    {
-        var entities = new List<Entity>();
-        if (zone == null)
-            return entities;
-
-        var visited = new HashSet<Entity>();
-        foreach (var entity in zone.Entities)
-            AddEntityAndChildren(entity);
-        return entities;
-
-        void AddEntityAndChildren(Entity entity)
-        {
-            if (entity == null || !visited.Add(entity))
-                return;
-
-            entities.Add(entity);
-            foreach (var child in entity.Children)
-                AddEntityAndChildren(child);
-        }
-    }
-
-    private AetheriaRuntimeEntitySnapshotCommit ProjectEntitySnapshot(IReadOnlyList<Entity> entityGraph, Entity entity, int entityIndex)
-    {
-        return new AetheriaRuntimeEntitySnapshotCommit
-        {
-            EntityIndex = entityIndex,
-            Name = entity.Name ?? "",
-            Kind = entity is Ship ? "ship" : entity is OrbitalEntity ? "orbital" : "entity",
-            PositionX = entity.Position.x,
-            PositionY = entity.Position.y,
-            PositionZ = entity.Position.z,
-            DirectionX = entity.Direction.x,
-            DirectionY = entity.Direction.y,
-            VelocityX = entity.Velocity.x,
-            VelocityY = entity.Velocity.y,
-            TargetEntityIndex = entity.Target?.Value == null ? -1 : IndexOfEntity(entityGraph, entity.Target.Value),
-            IsActive = entity.Active,
-            HeatsinksEnabled = entity.HeatsinksEnabled,
-            OverrideShutdown = entity.OverrideShutdown,
-            TractorPower = entity.TractorPower,
-            Heatstroke = entity.Heatstroke,
-            Hypothermia = entity.Hypothermia,
-            FactionKey = entity.Faction?.FactionKey ?? "",
-            HullItemKey = entity.Hull?.ItemKey ?? "",
-            Equipment = ProjectEquippedSlots(entity.Equipment),
-            CargoBays = ProjectEquippedSlots(entity.CargoBays),
-            DockingBays = ProjectEquippedSlots(entity.DockingBays),
-            CargoContents = ProjectRuntimeCargoBays(entity.CargoBays),
-            DockingBayContents = ProjectRuntimeCargoBays(entity.DockingBays),
-            DockingBayAssignments = entity.DockingBays?
-                .Select(bay => entity.Children.IndexOf(bay.DockedShip))
-                .ToArray() ?? Array.Empty<int>(),
-            Visibility = entity.Visibility,
-            VisibilitySourceCount = entity.VisibilitySources.Count,
-            Contacts = ProjectEntityContacts(entityGraph, entity),
-            ChildEntityIndices = entity.Children?
-                .Select(child => IndexOfEntity(entityGraph, child))
-                .Where(index => index >= 0)
-                .ToArray() ?? Array.Empty<int>(),
-            WeaponGroups = entity.WeaponGroups?
-                .Select(group => (IReadOnlyList<int>)group.items.Select(item => entity.Equipment.IndexOf(item)).Where(index => index >= 0).ToArray())
-                .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
-            StatGrids = ProjectEntityStatGrids(entity),
-            ActiveConsumables = ProjectActiveConsumables(entity),
-            BehaviorProgress = ProjectBehaviorProgress(entity),
-            WeaponStates = ProjectWeaponStates(entityGraph, entity),
-            BehaviorStates = ProjectBehaviorStates(entity)
-        };
-    }
-
-    private static AetheriaRuntimeEntityContactCommit[] ProjectEntityContacts(IReadOnlyList<Entity> entityGraph, Entity entity)
-    {
-        return entity.EntityInfoGathered
-            .Select(contact =>
-            {
-                var targetIndex = IndexOfEntity(entityGraph, contact.Key);
-                entity.EntityHostility.TryGetValue(contact.Key, out var hostile);
-                return new AetheriaRuntimeEntityContactCommit
-                {
-                    TargetEntityIndex = targetIndex,
-                    InfoGathered = contact.Value,
-                    Hostile = hostile,
-                    Visible = entity.VisibleEntities.Contains(contact.Key)
-                };
-            })
-            .Where(contact => contact.TargetEntityIndex >= 0)
-            .ToArray();
-    }
-
-    private static int IndexOfEntity(IReadOnlyList<Entity> entityGraph, Entity entity)
-    {
-        if (entityGraph == null || entity == null)
-            return -1;
-
-        for (var index = 0; index < entityGraph.Count; index++)
-        {
-            if (ReferenceEquals(entityGraph[index], entity))
-                return index;
-        }
-
-        return -1;
-    }
-
-    private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectRuntimeCargoBays<TBay>(IEnumerable<TBay> bays)
-        where TBay : EquippedCargoBay
-    {
-        return bays?
-            .Select(bay => new AetheriaRuntimeCargoBayLoadoutCommit
-            {
-                Items = bay.Cargo?
-                    .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
-                    {
-                        X = slot.Value.x,
-                        Y = slot.Value.y,
-                        Item = ProjectLoadoutItem(slot.Key)
-                    })
-                    .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
-            })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
-    }
-
-    private static AetheriaRuntimeBehaviorStateCommit[] ProjectBehaviorStates(Entity entity)
-    {
-        var states = new List<AetheriaRuntimeBehaviorStateCommit>();
-        var zone = entity.Zone;
-
-        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            states.AddRange(ProjectBehaviorStates(zone, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
-
-        var activeConsumables = entity.ActiveConsumables;
-        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            states.AddRange(ProjectBehaviorStates(zone, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
-
-        return states.ToArray();
-    }
-
-    private static IEnumerable<AetheriaRuntimeBehaviorStateCommit> ProjectBehaviorStates(
-        Zone zone,
-        string ownerKind,
-        int ownerIndex,
-        IReadOnlyList<Behavior> behaviors)
-    {
-        if (behaviors == null)
-            yield break;
-
-        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
-        {
-            var behavior = behaviors[behaviorIndex];
-            AetheriaRuntimeBehaviorStateCommit state = null;
-
-            if (behavior is Sensor sensor)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    Pinging = sensor.Pinging,
-                    PingCooldown = sensor.Cooldown,
-                    PingLerp = sensor.PingLerp,
-                    PingRadius = sensor.PingRadius,
-                    PingedEntityCount = sensor.PingedEntityCount
-                };
-            }
-            else if (behavior is Radiator radiator)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    RadiatorTemperature = radiator.RadiatorTemperature,
-                    Emissivity = radiator.Emissivity,
-                    PumpedHeat = radiator.PumpedHeat,
-                    WasteHeat = radiator.WasteHeat,
-                    EnergyUsage = radiator.EnergyUsage
-                };
-            }
-            else if (behavior is Reactor reactor)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    ReactorDraw = reactor.Draw,
-                    ReactorLoadRatio = reactor.CurrentLoadRatio
-                };
-            }
-            else if (behavior is Capacitor capacitor)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    CapacitorCharge = capacitor.Charge,
-                    CapacitorCapacity = capacitor.Capacity,
-                    CapacitorEfficiency = capacitor.Efficiency
-                };
-            }
-            else if (behavior is AetherDrive drive)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    AetherDriveAxisX = drive.Axis.x,
-                    AetherDriveAxisY = drive.Axis.y,
-                    AetherDriveAxisZ = drive.Axis.z,
-                    AetherDriveThrustX = drive.Thrust.x,
-                    AetherDriveThrustY = drive.Thrust.y,
-                    AetherDriveThrustZ = drive.Thrust.z,
-                    AetherDriveRpmX = drive.Rpm.x,
-                    AetherDriveRpmY = drive.Rpm.y,
-                    AetherDriveRpmZ = drive.Rpm.z,
-                    AetherDriveMaximumRpm = drive.MaximumRpm,
-                    AetherDriveThrustDirectionX = drive.ThrustDirection.x,
-                    AetherDriveThrustDirectionY = drive.ThrustDirection.y
-                };
-            }
-            else if (behavior is ResourceScanner resourceScanner)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    ResourceScannerTargetBodyKey = resourceScanner.ScanTargetBodyKey ?? "",
-                    ResourceScannerAsteroidIndex = resourceScanner.Asteroid,
-                    ResourceScannerScanTime = resourceScanner.ScanTime,
-                    ResourceScannerRange = resourceScanner.Range,
-                    ResourceScannerMinimumDensity = resourceScanner.MinimumDensity,
-                    ResourceScannerScanDuration = resourceScanner.ScanDuration
-                };
-            }
-            else if (behavior is MiningTool miningTool)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    MiningToolAsteroidBeltKey = miningTool.AsteroidBeltBodyKey ?? "",
-                    MiningToolAsteroidIndex = miningTool.Asteroid,
-                    MiningToolRange = miningTool.Range
-                };
-            }
-            else if (behavior is Thruster thruster)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    ThrusterAxis = thruster.Axis,
-                    ThrusterThrust = thruster.Thrust,
-                    ThrusterTorque = thruster.Torque
-                };
-            }
-            else if (behavior is Shield shield)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    ShieldEfficiency = shield.Efficiency,
-                    ShieldEnergyUsage = shield.EnergyUsage
-                };
-            }
-            else if (behavior is VelocityLimit velocityLimit)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    VelocityLimit = velocityLimit.Limit
-                };
-            }
-            else if (behavior is Thermotoggle thermotoggle)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    ThermotoggleTargetTemperature = thermotoggle.TargetTemperature
-                };
-            }
-            else if (behavior is Switch switchBehavior)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    SwitchActivated = switchBehavior.Activated
-                };
-            }
-            else if (behavior is Trigger trigger)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    TriggerPulled = trigger.Pulled
-                };
-            }
-            else if (behavior is StatModifier statModifier)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    StatModifierApplied = statModifier.Applied,
-                    StatModifierExecuted = statModifier.Executed,
-                    StatModifierTargetStatCount = statModifier.TargetStatCount
-                };
-            }
-            else if (behavior is TurretController turretController)
-            {
-                state = new AetheriaRuntimeBehaviorStateCommit
-                {
-                    TurretControllerWeaponCount = turretController.WeaponCount,
-                    TurretControllerShotSpeed = turretController.ShotSpeed,
-                    TurretControllerPredictShots = turretController.PredictShots
-                };
-            }
-
-            if (state == null)
-                continue;
-
-            state.OwnerKind = ownerKind;
-            state.OwnerIndex = ownerIndex;
-            state.BehaviorIndex = behaviorIndex;
-            state.BehaviorKind = behavior.Kind;
-            yield return state;
-        }
-    }
-
-    private static AetheriaRuntimeWeaponStateCommit[] ProjectWeaponStates(IReadOnlyList<Entity> entityGraph, Entity entity)
-    {
-        var states = new List<AetheriaRuntimeWeaponStateCommit>();
-
-        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates(entityGraph, "equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
-
-        var activeConsumables = entity.ActiveConsumables;
-        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            states.AddRange(ProjectWeaponStates(entityGraph, "active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
-
-        return states.ToArray();
-    }
-
-    private static IEnumerable<AetheriaRuntimeWeaponStateCommit> ProjectWeaponStates(
-        IReadOnlyList<Entity> entityGraph,
-        string ownerKind,
-        int ownerIndex,
-        IReadOnlyList<Behavior> behaviors)
-    {
-        if (behaviors == null)
-            yield break;
-
-        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
-        {
-            if (!(behaviors[behaviorIndex] is Weapon weapon))
-                continue;
-
-            var state = new AetheriaRuntimeWeaponStateCommit
-            {
-                OwnerKind = ownerKind,
-                OwnerIndex = ownerIndex,
-                BehaviorIndex = behaviorIndex,
-                BehaviorKind = weapon.Kind,
-                Firing = weapon.Firing,
-                Ammo = weapon.Ammo
-            };
-
-            if (weapon is InstantWeapon instant)
-            {
-                state.BurstRemaining = instant.BurstRemaining;
-                state.BurstTimer = instant.BurstTimer;
-                state.BurstInterval = instant.BurstInterval;
-                state.CooldownProgress = instant.CooldownProgress;
-                state.CoolingDown = instant.CoolingDown;
-            }
-
-            if (weapon is ChargedWeapon charged)
-            {
-                state.Charging = charged.Charging;
-                state.Charged = charged.Charged;
-                state.Charge = charged.Charge;
-            }
-
-            if (weapon is ConstantWeapon constant)
-            {
-                state.Reloading = constant.Reloading;
-                state.ReloadProgress = constant.ReloadProgress;
-                state.AmmoIntervalProgress = constant.AmmoIntervalProgress;
-            }
-
-            if (weapon is LockWeapon lockWeapon)
-            {
-                state.LockProgress = lockWeapon.LockProgress;
-                state.LockTargetEntityIndex = lockWeapon.LockTarget == null ? -1 : IndexOfEntity(entityGraph, lockWeapon.LockTarget);
-            }
-
-            yield return state;
-        }
-    }
-
-    private static AetheriaRuntimeBehaviorProgressCommit[] ProjectBehaviorProgress(Entity entity)
-    {
-        var progress = new List<AetheriaRuntimeBehaviorProgressCommit>();
-
-        for (var ownerIndex = 0; ownerIndex < entity.Equipment.Count; ownerIndex++)
-            progress.AddRange(ProjectBehaviorProgress("equipment", ownerIndex, entity.Equipment[ownerIndex].Behaviors));
-
-        var activeConsumables = entity.ActiveConsumables;
-        for (var ownerIndex = 0; ownerIndex < activeConsumables.Count; ownerIndex++)
-            progress.AddRange(ProjectBehaviorProgress("active_consumable", ownerIndex, activeConsumables[ownerIndex].Behaviors));
-
-        return progress.ToArray();
-    }
-
-    private static IEnumerable<AetheriaRuntimeBehaviorProgressCommit> ProjectBehaviorProgress(
-        string ownerKind,
-        int ownerIndex,
-        IReadOnlyList<Behavior> behaviors)
-    {
-        if (behaviors == null)
-            yield break;
-
-        for (var behaviorIndex = 0; behaviorIndex < behaviors.Count; behaviorIndex++)
-        {
-            if (!(behaviors[behaviorIndex] is IProgressBehavior progressBehavior))
-                continue;
-
-            yield return new AetheriaRuntimeBehaviorProgressCommit
-            {
-                OwnerKind = ownerKind,
-                OwnerIndex = ownerIndex,
-                BehaviorIndex = behaviorIndex,
-                BehaviorKind = behaviors[behaviorIndex].Kind,
-                Progress = progressBehavior.Progress
-            };
-        }
-    }
-
-    private static AetheriaRuntimeActiveConsumableCommit[] ProjectActiveConsumables(Entity entity)
-    {
-        return entity.ActiveConsumables?
-            .Select(effect => new AetheriaRuntimeActiveConsumableCommit
-            {
-                ItemKey = effect.Item?.ItemKey ?? "",
-                Quality = effect.Item?.Quality ?? 1.0,
-                RemainingDuration = effect.RemainingDuration,
-                Duration = effect.Duration
-            })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>();
-    }
-
-    private static AetheriaRuntimeEntityStatGridCommit[] ProjectEntityStatGrids(Entity entity)
-    {
-        return new[]
-            {
-                ProjectFloatGrid("temperature", entity.Temperature),
-                ProjectFloatGrid("thermal_mass", entity.ThermalMass),
-                ProjectFloatGrid("armor", entity.Armor),
-                ProjectFloatGrid("max_armor", entity.MaxArmor),
-                ProjectBool2Grid("hull_conductivity_x", entity.HullConductivity, axis: 0),
-                ProjectBool2Grid("hull_conductivity_y", entity.HullConductivity, axis: 1)
-            }
-            .Where(grid => grid != null)
-            .ToArray();
-    }
-
-    private static AetheriaRuntimeEntityStatGridCommit ProjectFloatGrid(string name, float[,] values)
-    {
-        if (values == null)
-            return null;
-
-        var width = values.GetLength(0);
-        var height = values.GetLength(1);
-        var flattened = new double[width * height];
-        var index = 0;
-        for (var y = 0; y < height; y++)
-        for (var x = 0; x < width; x++)
-            flattened[index++] = values[x, y];
-
-        return new AetheriaRuntimeEntityStatGridCommit
-        {
-            Name = name,
-            Width = width,
-            Height = height,
-            Values = flattened
-        };
-    }
-
-    private static AetheriaRuntimeEntityStatGridCommit ProjectBool2Grid(string name, bool2[,] values, int axis)
-    {
-        if (values == null)
-            return null;
-
-        var width = values.GetLength(0);
-        var height = values.GetLength(1);
-        var flattened = new double[width * height];
-        var index = 0;
-        for (var y = 0; y < height; y++)
-        for (var x = 0; x < width; x++)
-            flattened[index++] = (axis == 0 ? values[x, y].x : values[x, y].y) ? 1.0 : 0.0;
-
-        return new AetheriaRuntimeEntityStatGridCommit
-        {
-            Name = name,
-            Width = width,
-            Height = height,
-            Values = flattened
-        };
-    }
-
-    private static AetheriaRuntimeLoadoutItemSlotCommit[] ProjectEquippedSlots(IEnumerable<EquippedItem> slots)
-    {
-        return slots?
-            .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
-            {
-                X = slot.Position.x,
-                Y = slot.Position.y,
-                Item = ProjectLoadoutItem(slot.EquippableItem)
-            })
-            .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
-    }
-
     private static int ZoneIndex(GalaxyZone zone)
     {
-        return CurrentGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(CurrentGalaxy.Zones, zone);
+        return ObservedGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(ObservedGalaxy.Zones, zone);
     }
 
     private static int FactionIndex(Faction faction)
     {
-        return CurrentGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(CurrentGalaxy.Factions, faction);
+        return ObservedGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(ObservedGalaxy.Factions, faction);
     }
 
-    public void QueueRuntimeLoadoutTemplateCommit(EntityConstructionBlueprint blueprint)
+    public void RequestLoadoutTemplateSave(EntityConstructionBlueprint blueprint)
     {
         var loadout = ProjectLoadoutTemplate(blueprint);
-        LoadoutTemplates.RemoveAll(template => template.Name == loadout.Name);
-        LoadoutTemplates.Add(CreateRuntimeLoadoutTemplateSnapshot(loadout));
+        TrySendRuntimeLoadoutTemplateCommand(loadout, "unity-inventory", "loadout template save");
+    }
+
+    private static bool TrySendRuntimeLoadoutTemplateCommand(
+        AetheriaRuntimeLoadoutTemplateCommit loadout,
+        string clientId,
+        string label)
+    {
         try
         {
-            var commit = AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate(
-                RuntimeStateFilePath,
-                loadout);
-            Debug.Log($"Queued Aetheria Verse loadout commit: {commit.Path}");
+            if (!AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand(
+                    RuntimeStateFilePath,
+                    loadout,
+                    clientId,
+                    out var submitted,
+                    out var error))
+            {
+                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
+                return false;
+            }
+
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
+            return true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to queue Aetheria Verse loadout commit: {ex}");
+            Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
+            return false;
         }
     }
 
-    public bool CommitRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity entity)
+    public bool RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity entity)
     {
         entity = null;
         var blueprint = CreateEntityConstructionBlueprint(template);
@@ -1721,51 +971,61 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var price = blueprint.Price(ItemManager);
-        if (price > Credits)
-            return false;
-
-        entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
-        entity.SetParent(DockedEntity);
-        Credits -= price;
-        CurrentEntity = entity;
-        if (entity is Ship ship)
+        var observer = ResolveDaemonObserver();
+        if (observer != null && observer.HasAuthoritativeState)
         {
-            ship.IsPlayerShip = true;
-            if (DockingBay != null)
-                DockingBay.DockedShip = ship;
+            return TryRequestDaemonLoadoutRestore(observer, template, price);
         }
-
-        QueueRunCheckpoint("loadout-restore");
-        return true;
+        return false;
     }
 
-    public bool CommitDockedCurrentShip(Ship ship)
+    private bool TryRequestDaemonLoadoutRestore(
+        AetheriaDaemonObserver observer,
+        AetheriaRuntimeLoadoutTemplateSnapshot template,
+        int price)
+    {
+        if (observer == null ||
+            !observer.HasAuthoritativeState ||
+            template == null ||
+            string.IsNullOrWhiteSpace(template.Name) ||
+            price < 0)
+        {
+            return false;
+        }
+
+        var dockedEntityKey = ResolveEntityRecordKey(DockedEntity);
+        if (string.IsNullOrWhiteSpace(dockedEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.RestoreLoadout(dockedEntityKey, template.Name, price);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon loadout restore operation: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool RequestDockedCurrentShip(Ship ship)
     {
         if (ship == null ||
             !ship.IsPlayerShip ||
             DockedEntity == null ||
-            DockingBay == null ||
-            !DockedEntity.Children.Contains(ship))
+            DockingBay == null)
         {
             return false;
         }
 
-        CurrentEntity = ship;
-        DockingBay.DockedShip = ship;
-        QueueRunCheckpoint("docked-current-ship");
-        return true;
-    }
-
-    private static AetheriaRuntimeLoadoutTemplateSnapshot CreateRuntimeLoadoutTemplateSnapshot(
-        AetheriaRuntimeLoadoutTemplateCommit template)
-    {
-        var timestamp = DateTime.UtcNow.ToString("O");
-        return new AetheriaRuntimeLoadoutTemplateSnapshot(
-            template.Name ?? "",
-            template.OwnerPlayerKey ?? "",
-            CreateRuntimeEntityLoadoutSnapshot(template.RootEntity),
-            timestamp,
-            timestamp);
+        if (TryRequestDaemonDockedCurrentShip(ship))
+        {
+            return true;
+        }
+        return false;
     }
 
     private static AetheriaRuntimeEntityLoadoutSnapshot CreateRuntimeEntityLoadoutSnapshot(
@@ -1824,168 +1084,54 @@ public class ActionGameManager : MonoBehaviour
             .ToArray();
     }
 
-    private void OnApplicationQuit() => QueueRunCheckpoint("application-quit");
-
-    private void QueueRunCheckpoint(string reason)
-    {
-        if (CurrentGalaxy == null)
-            return;
-
-        try
-        {
-            var commit = AetheriaRuntimeStateCommitLog.QueueRunCheckpoint(
-                RuntimeStateFilePath,
-                ProjectRunCheckpoint());
-            Debug.Log($"Queued Aetheria Verse run checkpoint ({reason}): {commit.Path}");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to queue Aetheria Verse run checkpoint ({reason}): {ex}");
-        }
-    }
-
-    public void CommitEntityOverrideShutdown(Entity entity, bool enabled)
+    public void RequestEntityOverrideShutdown(Entity entity, bool enabled)
     {
         if (entity == null)
             return;
 
-        entity.OverrideShutdown = enabled;
-        QueueRunCheckpoint("entity-override-shutdown");
+        if (TryRequestDaemonEntityOverrideShutdown(entity, enabled))
+            return;
     }
 
-    public void CommitEntityName(Entity entity, string name)
+    public void RequestEntityName(Entity entity, string name)
     {
         if (entity == null)
             return;
 
-        entity.Name = name ?? "";
-        QueueRunCheckpoint("entity-name");
+        if (TryRequestDaemonEntityName(entity, name))
+            return;
     }
 
-    public bool CommitWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
+    public bool RequestWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
     {
-        if (item?.Entity?.WeaponGroups == null ||
-            groupIndex < 0 ||
-            groupIndex >= item.Entity.WeaponGroups.Length)
+        if (item == null ||
+            groupIndex < 0)
         {
             return false;
         }
 
-        var weapon = item.GetBehavior<Weapon>();
-        if (weapon == null)
-            return false;
-
-        var group = item.Entity.WeaponGroups[groupIndex];
-        if (assigned)
-        {
-            if (!group.items.Contains(item))
-                group.items.Add(item);
-            if (!group.weapons.Contains(weapon))
-                group.weapons.Add(weapon);
-        }
-        else
-        {
-            group.items.Remove(item);
-            group.weapons.Remove(weapon);
-        }
-
-        QueueRunCheckpoint("weapon-group-membership");
-        return true;
-    }
-
-    public bool CommitCargoItemTransfer(EquippedCargoBay origin, EquippedCargoBay destination, ItemInstance item)
-    {
-        if (origin == null ||
-            destination == null ||
-            item == null ||
-            origin == destination ||
-            !origin.Cargo.ContainsKey(item) ||
-            !destination.TryFindSpace(item))
-        {
-            return false;
-        }
-
-        if (item is SimpleCommodity commodity)
-        {
-            var quantity = commodity.Quantity;
-            var transferItem = new SimpleCommodity
-            {
-                Reference = commodity.Reference,
-                Quantity = quantity,
-                Rotation = commodity.Rotation
-            };
-
-            if (!destination.TryStore(transferItem))
-                return false;
-
-            origin.Remove(commodity, quantity);
-            QueueRunCheckpoint("cargo-item-transfer");
+        if (TryRequestDaemonWeaponGroupMembership(item, groupIndex, assigned))
             return true;
-        }
-
-        if (!destination.TryStore(item))
-            return false;
-
-        origin.Remove(item);
-        QueueRunCheckpoint("cargo-item-transfer");
-        return true;
-    }
-
-    public bool CommitLootPickup(Entity entity, ItemInstance item)
-    {
-        if (entity == null || item == null)
-            return false;
-
-        foreach (var cargoBay in entity.CargoBays)
-        {
-            if (!cargoBay.TryStore(item))
-                continue;
-
-            QueueRunCheckpoint("loot-pickup");
-            return true;
-        }
-
         return false;
     }
 
-    public bool CommitEntityDestroyed(Entity entity, ZoneRenderer zoneRenderer)
+    public bool RequestCargoItemTransfer(EquippedCargoBay origin, EquippedCargoBay destination, ItemInstance item)
     {
-        if (entity?.Zone == null)
-            return false;
-
-        if (zoneRenderer != null)
+        if (origin == null ||
+            destination == null ||
+            item == null)
         {
-            foreach (var gear in entity.Equipment)
-            {
-                if (gear == entity.EquippedHull || Random.value >= zoneRenderer.Settings.LootDropProbability)
-                    continue;
-
-                zoneRenderer.DropItem(
-                    entity.Position,
-                    Random.onUnitSphere * zoneRenderer.Settings.LootDropVelocity,
-                    gear.EquippableItem);
-            }
-
-            foreach (var cargo in entity.CargoBays)
-            {
-                foreach (var item in cargo.Cargo.Keys.ToArray())
-                {
-                    zoneRenderer.DropItem(
-                        entity.Position,
-                        Random.onUnitSphere * zoneRenderer.Settings.LootDropVelocity,
-                        item);
-                }
-            }
+            return false;
         }
 
-        if (!entity.Zone.Entities.Remove(entity))
-            return false;
-
-        QueueRunCheckpoint("entity-destroyed");
-        return true;
+        if (TryRequestDaemonCargoItemTransfer(origin, destination, item, default, false))
+        {
+            return true;
+        }
+        return false;
     }
 
-    public bool CommitCargoItemTransfer(
+    public bool RequestCargoItemTransfer(
         EquippedCargoBay origin,
         EquippedCargoBay destination,
         ItemInstance item,
@@ -1993,73 +1139,86 @@ public class ActionGameManager : MonoBehaviour
     {
         if (origin == null ||
             destination == null ||
-            item == null ||
-            !origin.Cargo.ContainsKey(item) ||
-            !destination.ItemFits(item, destinationPosition))
+            item == null)
         {
             return false;
         }
 
-        if (origin == destination)
+        if (TryRequestDaemonCargoItemTransfer(origin, destination, item, destinationPosition, true))
         {
-            var originalPosition = origin.Cargo[item];
-            origin.Remove(item);
-            if (!destination.TryStore(item, destinationPosition))
-            {
-                origin.TryStore(item, originalPosition);
-                return false;
-            }
-
-            QueueRunCheckpoint("cargo-item-transfer");
             return true;
         }
-
-        if (item is SimpleCommodity commodity)
-        {
-            var quantity = commodity.Quantity;
-            var transferItem = new SimpleCommodity
-            {
-                Reference = commodity.Reference,
-                Quantity = quantity,
-                Rotation = commodity.Rotation
-            };
-
-            if (!destination.TryStore(transferItem, destinationPosition))
-                return false;
-
-            origin.Remove(commodity, quantity);
-            QueueRunCheckpoint("cargo-item-transfer");
-            return true;
-        }
-
-        if (!destination.TryStore(item, destinationPosition))
-            return false;
-
-        origin.Remove(item);
-        QueueRunCheckpoint("cargo-item-transfer");
-        return true;
+        return false;
     }
 
-    public bool CommitCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
+    private bool TryRequestDaemonCargoItemTransfer(
+        EquippedCargoBay origin,
+        EquippedCargoBay destination,
+        ItemInstance item,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveCargoBayCommandTarget(origin, out var originEntityKey, out var originCargoIndex) ||
+            !TryResolveCargoBayCommandTarget(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var sourcePosition))
+        {
+            return false;
+        }
+
+        var quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1;
+        if (quantity <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.TransferCargoItem(
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                item.ItemKey,
+                quantity,
+                sourcePosition.x,
+                sourcePosition.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon cargo transfer operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool RequestCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
     {
         if (origin == null ||
             destination == null ||
-            item == null ||
-            !origin.Cargo.ContainsKey(item) ||
-            !destination.TryFindSpace(item, out _))
+            item == null)
         {
             return false;
         }
 
-        if (!destination.TryEquip(item))
-            return false;
-
-        origin.Remove(item);
-        QueueRunCheckpoint("cargo-item-equip");
-        return true;
+        if (TryRequestDaemonCargoItemEquip(origin, destination, item, default, false))
+        {
+            return true;
+        }
+        return false;
     }
 
-    public bool CommitCargoItemEquip(
+    public bool RequestCargoItemEquip(
         EquippedCargoBay origin,
         Entity destination,
         EquippableItem item,
@@ -2067,47 +1226,35 @@ public class ActionGameManager : MonoBehaviour
     {
         if (origin == null ||
             destination == null ||
-            item == null ||
-            !origin.Cargo.ContainsKey(item) ||
-            !destination.ItemFits(item, destinationPosition))
+            item == null)
         {
             return false;
         }
 
-        if (!destination.TryEquip(item, destinationPosition))
-            return false;
-
-        origin.Remove(item);
-        QueueRunCheckpoint("cargo-item-equip");
-        return true;
+        if (TryRequestDaemonCargoItemEquip(origin, destination, item, destinationPosition, true))
+        {
+            return true;
+        }
+        return false;
     }
 
-    public bool CommitEquippedItemStore(Entity origin, EquippedItem equippedItem, EquippedCargoBay destination)
+    public bool RequestEquippedItemStore(Entity origin, EquippedItem equippedItem, EquippedCargoBay destination)
     {
         if (origin == null ||
             equippedItem?.EquippableItem == null ||
-            destination == null ||
-            !origin.Equipment.Contains(equippedItem) ||
-            !destination.TryFindSpace(equippedItem.EquippableItem))
+            destination == null)
         {
             return false;
         }
 
-        var item = origin.TryUnequip(equippedItem);
-        if (item == null)
-            return false;
-
-        if (!destination.TryStore(item))
+        if (TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, default, false))
         {
-            origin.TryEquip(item, equippedItem.Position);
-            return false;
+            return true;
         }
-
-        QueueRunCheckpoint("equipped-item-store");
-        return true;
+        return false;
     }
 
-    public bool CommitEquippedItemStore(
+    public bool RequestEquippedItemStore(
         Entity origin,
         EquippedItem equippedItem,
         EquippedCargoBay destination,
@@ -2115,29 +1262,19 @@ public class ActionGameManager : MonoBehaviour
     {
         if (origin == null ||
             equippedItem?.EquippableItem == null ||
-            destination == null ||
-            !origin.Equipment.Contains(equippedItem) ||
-            !destination.ItemFits(equippedItem.EquippableItem, destinationPosition))
+            destination == null)
         {
             return false;
         }
 
-        var originalPosition = equippedItem.Position;
-        var item = origin.TryUnequip(equippedItem);
-        if (item == null)
-            return false;
-
-        if (!destination.TryStore(item, destinationPosition))
+        if (TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, destinationPosition, true))
         {
-            origin.TryEquip(item, originalPosition);
-            return false;
+            return true;
         }
-
-        QueueRunCheckpoint("equipped-item-store");
-        return true;
+        return false;
     }
 
-    public bool CommitEquippedItemEquip(
+    public bool RequestEquippedItemEquip(
         Entity origin,
         EquippedItem equippedItem,
         Entity destination,
@@ -2145,29 +1282,158 @@ public class ActionGameManager : MonoBehaviour
     {
         if (origin == null ||
             equippedItem?.EquippableItem == null ||
-            destination == null ||
-            !origin.Equipment.Contains(equippedItem) ||
-            !destination.ItemFits(equippedItem.EquippableItem, destinationPosition))
+            destination == null)
         {
             return false;
         }
 
-        var originalPosition = equippedItem.Position;
-        var item = origin.TryUnequip(equippedItem);
-        if (item == null)
-            return false;
-
-        if (!destination.TryEquip(item, destinationPosition))
+        if (TryRequestDaemonEquippedItemEquip(origin, equippedItem, destination, destinationPosition))
         {
-            origin.TryEquip(item, originalPosition);
-            return false;
+            return true;
         }
-
-        QueueRunCheckpoint("equipped-item-equip");
-        return true;
+        return false;
     }
 
-    public bool CommitTradePurchase(
+    private bool TryRequestDaemonCargoItemEquip(
+        EquippedCargoBay origin,
+        Entity destination,
+        EquippableItem item,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveCargoBayCommandTarget(origin, out var originEntityKey, out var originCargoIndex) ||
+            destination == null ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var sourcePosition))
+        {
+            return false;
+        }
+
+        var destinationEntityKey = ResolveEntityRecordKey(destination);
+        if (string.IsNullOrWhiteSpace(destinationEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.EquipItem(
+                "cargo",
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                item.ItemKey,
+                sourcePosition.x,
+                sourcePosition.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon item equip operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEquippedItemStore(
+        Entity origin,
+        EquippedItem equippedItem,
+        EquippedCargoBay destination,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveEquippedItemCommandTarget(equippedItem, out var originEntityKey, out var sourceEquipmentIndex) ||
+            !TryResolveCargoBayCommandTarget(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            origin == null ||
+            equippedItem?.EquippableItem == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.StoreItem(
+                originEntityKey,
+                sourceEquipmentIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                equippedItem.EquippableItem.ItemKey,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon item store operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEquippedItemEquip(
+        Entity origin,
+        EquippedItem equippedItem,
+        Entity destination,
+        int2 destinationPosition)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveEquippedItemCommandTarget(equippedItem, out var originEntityKey, out var sourceEquipmentIndex) ||
+            origin == null ||
+            destination == null ||
+            equippedItem?.EquippableItem == null)
+        {
+            return false;
+        }
+
+        var destinationEntityKey = ResolveEntityRecordKey(destination);
+        if (string.IsNullOrWhiteSpace(destinationEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.EquipItem(
+                "equipment",
+                originEntityKey,
+                sourceEquipmentIndex,
+                destinationEntityKey,
+                equippedItem.EquippableItem.ItemKey,
+                equippedItem.Position.x,
+                equippedItem.Position.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon equipped-item equip operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool RequestTradePurchase(
         EquippedCargoBay stationInventory,
         EquippedCargoBay targetCargo,
         CraftedItemInstance item,
@@ -2175,41 +1441,41 @@ public class ActionGameManager : MonoBehaviour
         bool createsDockedShip)
     {
         if (item == null ||
-            price < 0 ||
-            price > Credits)
+            price < 0)
         {
             return false;
         }
 
         if (createsDockedShip)
         {
-            if (!(item is EquippableItem hull) ||
+            if (!(item is EquippableItem) ||
                 Zone == null ||
                 DockedEntity == null)
             {
                 return false;
             }
 
-            var ship = new Ship(ItemManager, Zone, hull, NewEntitySettings) { IsPlayerShip = true };
-            ship.SetParent(DockedEntity);
-            Credits -= price;
-            QueueRunCheckpoint("trade-purchase");
-            return true;
+            if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, true))
+            {
+                return true;
+            }
+            return false;
         }
 
         if (stationInventory == null ||
-            targetCargo == null ||
-            !stationInventory.TryTransferItem(targetCargo, item))
+            targetCargo == null)
         {
             return false;
         }
 
-        Credits -= price;
-        QueueRunCheckpoint("trade-purchase");
-        return true;
+        if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, false))
+        {
+            return true;
+        }
+        return false;
     }
 
-    public bool CommitTradePurchase(
+    public bool RequestTradePurchase(
         EquippedCargoBay stationInventory,
         EquippedCargoBay targetCargo,
         SimpleCommodity item,
@@ -2226,45 +1492,132 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var totalPrice = (long)quantity * unitPrice;
-        if (totalPrice > Credits || totalPrice > int.MaxValue)
+        if (totalPrice > int.MaxValue)
             return false;
 
-        if (!stationInventory.TryTransferItem(targetCargo, item, quantity))
-            return false;
-
-        Credits -= (int)totalPrice;
-        QueueRunCheckpoint("trade-purchase");
-        return true;
+        if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, quantity, unitPrice, (int)totalPrice, false))
+        {
+            return true;
+        }
+        return false;
     }
 
-    public void CommitEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
+    private bool TryRequestDaemonTradePurchase(
+        EquippedCargoBay stationInventory,
+        EquippedCargoBay targetCargo,
+        ItemInstance item,
+        int quantity,
+        int unitPrice,
+        int totalPrice,
+        bool createsDockedShip)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            quantity <= 0 ||
+            unitPrice < 0 ||
+            totalPrice < 0)
+        {
+            return false;
+        }
+
+        var stationEntityKey = "";
+        var stationCargoIndex = -1;
+        var sourcePosition = new int2(-1, -1);
+        if (stationInventory != null)
+        {
+            TryResolveCargoBayCommandTarget(stationInventory, out stationEntityKey, out stationCargoIndex);
+            stationInventory.Cargo.TryGetValue(item, out sourcePosition);
+        }
+
+        var targetEntityKey = "";
+        var targetCargoIndex = -1;
+        if (targetCargo != null)
+        {
+            TryResolveCargoBayCommandTarget(targetCargo, out targetEntityKey, out targetCargoIndex);
+        }
+
+        if (createsDockedShip)
+        {
+            targetEntityKey = ResolveEntityRecordKey(DockedEntity);
+            targetCargoIndex = -1;
+        }
+        else if (string.IsNullOrWhiteSpace(stationEntityKey) ||
+                 stationCargoIndex < 0 ||
+                 string.IsNullOrWhiteSpace(targetEntityKey) ||
+                 targetCargoIndex < 0)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        var purchaseKind = createsDockedShip
+            ? "docked_ship"
+            : item is SimpleCommodity
+                ? "commodity"
+                : "crafted";
+
+        try
+        {
+            observer.Operations.TradePurchase(
+                purchaseKind,
+                item.ItemKey,
+                quantity,
+                unitPrice,
+                totalPrice,
+                stationEntityKey,
+                stationCargoIndex,
+                targetEntityKey,
+                targetCargoIndex,
+                sourcePosition.x,
+                sourcePosition.y,
+                createsDockedShip);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon trade purchase operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public void RequestEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
     {
         if (item?.EquippableItem == null)
             return;
 
-        item.EquippableItem.OverrideShutdown = enabled;
-        QueueRunCheckpoint("item-override-shutdown");
+        if (TryRequestDaemonEquippedItemOverrideShutdown(item, enabled))
+            return;
     }
 
-    public void CommitThermotoggleTargetTemperature(Thermotoggle thermotoggle, float targetTemperature)
+    public void RequestThermotoggleTargetTemperature(Thermotoggle thermotoggle, float targetTemperature)
     {
         if (thermotoggle == null)
             return;
 
-        thermotoggle.TargetTemperature = targetTemperature;
-        QueueRunCheckpoint("thermotoggle-target-temperature");
+        if (TryRequestDaemonThermotoggleTargetTemperature(thermotoggle, targetTemperature))
+            return;
     }
 
-    public void CommitEntityShutdownPerformance(Entity entity, float shutdownPerformance)
+    public void RequestEntityShutdownPerformance(Entity entity, float shutdownPerformance)
     {
         if (entity?.Settings == null)
             return;
 
-        entity.Settings.ShutdownPerformance = shutdownPerformance;
-        QueueRunCheckpoint("entity-shutdown-performance");
+        if (TryRequestDaemonEntityShutdownPerformance(entity, shutdownPerformance))
+            return;
     }
 
-    public bool CommitHullConductivityToggle(Entity entity, int2 position, int axis)
+    public bool RequestHullConductivityToggle(Entity entity, int2 position, int axis)
     {
         if (entity?.HullConductivity == null ||
             position.x < 0 ||
@@ -2277,48 +1630,320 @@ public class ActionGameManager : MonoBehaviour
             return false;
         }
 
-        var conductivity = entity.HullConductivity[position.x, position.y];
-        if (axis == 0)
-            conductivity.x = !conductivity.x;
-        else
-            conductivity.y = !conductivity.y;
+        if (TryRequestDaemonHullConductivityToggle(entity, position, axis))
+        {
+            return true;
+        }
+        return false;
+    }
 
-        entity.HullConductivity[position.x, position.y] = conductivity;
-        QueueRunCheckpoint("hull-conductivity-toggle");
-        return true;
+    private bool TryRequestDaemonHullConductivityToggle(Entity entity, int2 position, int axis)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var targetEntityKey = ResolveEntityRecordKey(entity);
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.ToggleHullConductivity(targetEntityKey, position.x, position.y, axis);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon hull-conductivity operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEntityName(Entity entity, string name)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var targetEntityKey = ResolveEntityRecordKey(entity);
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetEntityName(targetEntityKey, name ?? "");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon entity-name operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveEquippedItemCommandTarget(item, out var targetEntityKey, out var equipmentIndex))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetItemOverrideShutdown(targetEntityKey, equipmentIndex, enabled);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon item override-shutdown operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        if (!TryResolveEquippedItemCommandTarget(item, out var targetEntityKey, out var equipmentIndex))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetWeaponGroupMembership(targetEntityKey, equipmentIndex, groupIndex, assigned);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon weapon-group membership operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonThermotoggleTargetTemperature(Thermotoggle thermotoggle, float targetTemperature)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var item = thermotoggle.Item;
+        if (!TryResolveEquippedItemCommandTarget(item, out var targetEntityKey, out var equipmentIndex))
+        {
+            return false;
+        }
+
+        var behaviorIndex = Array.IndexOf(item.Behaviors, thermotoggle);
+        if (behaviorIndex < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetThermotoggleTargetTemperature(
+                targetEntityKey,
+                equipmentIndex,
+                behaviorIndex,
+                targetTemperature);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon thermotoggle operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEntityShutdownPerformance(Entity entity, float shutdownPerformance)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var targetEntityKey = ResolveEntityRecordKey(entity);
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetShutdownPerformance(targetEntityKey, shutdownPerformance);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon shutdown-performance operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonEntityOverrideShutdown(Entity entity, bool enabled)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var targetEntityKey = ResolveEntityRecordKey(entity);
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetEntityOverrideShutdown(targetEntityKey, enabled);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon entity override-shutdown operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonActionBarBinding(AetheriaRuntimeActionBarBindingCommit binding)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || binding == null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(binding.ControlPath) ||
+            string.IsNullOrWhiteSpace(binding.Kind))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetActionBarBinding(
+                binding.ControlPath,
+                binding.Kind,
+                binding.ItemKey ?? "",
+                binding.EquipmentIndex,
+                binding.BehaviorIndex,
+                binding.WeaponGroup);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon action-bar binding operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonActionBarBindingClear(ActionBarSlot slot)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || slot == null)
+        {
+            return false;
+        }
+
+        var controlPath = slot.ControlPath ?? "";
+        if (string.IsNullOrWhiteSpace(controlPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.ClearActionBarBinding(controlPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon action-bar clear operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryResolveEquippedItemCommandTarget(
+        EquippedItem item,
+        out string targetEntityKey,
+        out int equipmentIndex)
+    {
+        targetEntityKey = "";
+        equipmentIndex = -1;
+
+        var entity = item?.Entity;
+        if (entity?.Equipment == null)
+        {
+            return false;
+        }
+
+        equipmentIndex = entity.Equipment.IndexOf(item);
+        if (equipmentIndex < 0)
+        {
+            return false;
+        }
+
+        targetEntityKey = ResolveEntityRecordKey(entity);
+        return !string.IsNullOrWhiteSpace(targetEntityKey);
+    }
+
+    private bool TryResolveCargoBayCommandTarget(
+        EquippedCargoBay cargoBay,
+        out string targetEntityKey,
+        out int equipmentIndex)
+    {
+        return TryResolveEquippedItemCommandTarget(cargoBay, out targetEntityKey, out equipmentIndex);
     }
 
     private void OnDisable()
     {
         Input.Dispose();
-        EntityInstance.ClearWeaponManagers();
     }
 
     void Start()
     {
         Instance = this;
-        EntityInstance.EffectManagerParent = EffectManagerParent;
-
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(GameDataDirectory);
         _runtimeStateFilePath = stateBoot.StateFilePath;
         Debug.Log(
             $"Aetheria runtime target: {stateBoot.TargetLabel} via {stateBoot.TargetKind} ({stateBoot.TargetSource})");
-        Debug.Log($"Aetheria typed state file: {stateBoot.StateFilePath}");
+        Debug.Log($"Aetheria runtime state file: {stateBoot.StateFilePath}");
         if (!stateBoot.SupportsLocalStateFileRead)
         {
             throw new InvalidOperationException(
-                $"Aetheria runtime target cannot boot gameplay from local typed state: {stateBoot.FailureMessage}");
+                $"Aetheria runtime target cannot read the daemon mirror state required for gameplay boot: {stateBoot.FailureMessage}");
         }
 
         if (!stateBoot.StateFileExists)
         {
-            Debug.LogWarning("Aetheria typed state file is missing. Run the Aetheria.State importer before treating legacy catalog data as runtime state.");
+            throw new InvalidOperationException(
+                $"Aetheria runtime state file is missing at {stateBoot.StateFilePath}; gameplay requires an authoritative daemon mirror.");
         }
-        else
-        {
-            RuntimeCatalog = AetheriaRuntimeStateReader.OpenRuntimeCatalog(stateBoot.StateFilePath);
-            Debug.Log($"Aetheria typed runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
-        }
+
+        RuntimeCatalog = AetheriaRuntimeStateReader.OpenRuntimeCatalog(stateBoot.StateFilePath);
+        Debug.Log($"Aetheria runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
 
         if (RuntimeCatalog == null)
         {
@@ -2331,11 +1956,11 @@ public class ActionGameManager : MonoBehaviour
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
         ZoneRenderer.ItemManager = ItemManager;
-        
+
         // If hiding minimap asteroids, turn them off to start with
         if (!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
             ZoneRenderer.ShowAsteroidUI = false;
-        
+
         // TODO: Process Stories
 
         #region Input Handling
@@ -2356,7 +1981,7 @@ public class ActionGameManager : MonoBehaviour
         Input.Global.ZoneMap.performed += context =>
         {
             ToggleMenuTab(MenuTab.Map);
-                MenuMap.Position = CurrentEntity.Position.xz;
+                MenuMap.Position = AetheriaMath.ToUnity(CurrentEntity.CultPositionXZ);
         };
 
         Input.Global.Inventory.performed += context => ToggleMenuTab(MenuTab.Inventory);
@@ -2379,12 +2004,13 @@ public class ActionGameManager : MonoBehaviour
             {
                 foreach (var wormhole in ZoneRenderer.WormholeInstances.Keys)
                 {
-                    if (!(length(wormhole.Position - CurrentEntity.Position.xz) < Settings.GameplaySettings.WormholeExitRadius)) continue;
-                    EnterWormhole(wormhole);
+                    if (!(CultMath.math.length(wormhole.Position - CurrentEntity.CultPositionXZ) < Settings.GameplaySettings.WormholeExitRadius)) continue;
+                    RequestEnterWormhole(wormhole);
+                    return;
                 }
-                Dock();
+                RequestDock();
             }
-            else Undock();
+            else RequestUndock();
         };
 
         Input.Global.MainMenu.performed += context =>
@@ -2394,7 +2020,7 @@ public class ActionGameManager : MonoBehaviour
             else
                 ToggleFullscreenMenu(MainMenu.gameObject);
         };
-        
+
         Input.Global.InputScreen.performed += context => ToggleFullscreenMenu(HelpScreen);
 
         Input.Player.HideUI.performed += context =>
@@ -2407,27 +2033,24 @@ public class ActionGameManager : MonoBehaviour
         Input.Player.OverrideShutdown.performed += context =>
         {
             if (CurrentEntity != null)
-                CommitEntityOverrideShutdown(CurrentEntity, !CurrentEntity.OverrideShutdown);
+                RequestOverrideShutdown(!CurrentEntity.OverrideShutdown);
         };
 
         Input.Player.Ping.performed += context =>
         {
-            CurrentEntity.Sensor?.Ping();
+            RequestSensorPing();
         };
 
         Input.Player.ToggleHeatsinks.performed += context =>
         {
-            CurrentEntity.HeatsinksEnabled = !CurrentEntity.HeatsinksEnabled;
+            RequestHeatsinksEnabled(!CurrentEntity.HeatsinksEnabled);
             // TODO: SFX: Success/Fail
         };
 
         Input.Player.ToggleShield.performed += context =>
         {
-            if (CurrentEntity.Shield != null)
-            {
-                CurrentEntity.Shield.Item.Enabled.Value = !CurrentEntity.Shield.Item.Enabled.Value;
-                // TODO: SFX: Success/Fail
-            }
+            RequestShieldToggle();
+            // TODO: SFX: Success/Fail
         };
 
         #region Targeting
@@ -2436,35 +2059,41 @@ public class ActionGameManager : MonoBehaviour
         {
             if (!CurrentEntity.VisibleEnemies.Any()) return;
             var underReticle = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                .MaxBy(x => dot(normalize(x.Position - CurrentEntity.Position), CurrentEntity.LookDirection));
-            CurrentEntity.Target.Value = CurrentEntity.Target.Value == underReticle ? null : underReticle;
+                .MaxBy(x => CultMath.math.dot(
+                    CultMath.math.normalize(x.CultPosition - CurrentEntity.CultPosition),
+                    CurrentEntity.CultLookDirection));
+            RequestTargetSelection(CurrentEntity.Target.Value == underReticle ? null : underReticle);
         };
 
         Input.Player.TargetNearest.performed += context =>
         {
             if(CurrentEntity.VisibleEnemies.Any())
             {
-                CurrentEntity.Target.Value = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MaxBy(x => length(x.Position - CurrentEntity.Position));
+                RequestTargetSelection(CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+                    .MaxBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition)));
             }
         };
 
         Input.Player.TargetNext.performed += context =>
         {
             if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+                .OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))
+                .ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.Target.Value = targets[(currentTargetIndex + 1) % targets.Length];
+            RequestTargetSelection(targets[(currentTargetIndex + 1) % targets.Length]);
         };
 
         Input.Player.TargetPrevious.performed += context =>
         {
             if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+                .OrderBy(x => CultMath.math.length(x.CultPosition - CurrentEntity.CultPosition))
+                .ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
+            RequestTargetSelection(targets[(currentTargetIndex + targets.Length - 1) % targets.Length]);
         };
-        
+
         #endregion
 
 
@@ -2497,7 +2126,7 @@ public class ActionGameManager : MonoBehaviour
             slot.PointerEnterTrigger.OnPointerEnterAsObservable().Subscribe(_ =>
             {
                 //Debug.Log($"Pointer entered action bar slot {controlPath}");
-                RegisterDragTarget(dragAction => CommitActionBarBinding(slot, dragAction));
+                RegisterDragTarget(dragAction => RequestActionBarBinding(slot, dragAction));
             });
             slot.PointerExitTrigger.OnPointerExitAsObservable().Subscribe(_ =>
             {
@@ -2555,110 +2184,66 @@ public class ActionGameManager : MonoBehaviour
         foreach (var a in _actionBarActions) a.Disable();
     }
 
-    private void EnterWormhole(Wormhole wormhole)
+    private void RequestEnterWormhole(Wormhole wormhole)
     {
-        if (!(CurrentEntity is Ship ship) || ship.WormholeAnimationInProgress) return;
-        // var wormholeCameraFollow = new GameObject("Wormhole Camera Follow").transform;
-        // wormholeCameraFollow.position = new Vector3(wormhole.Position.x, -50, wormhole.Position.y);
-        // wormholeCameraFollow.rotation = Quaternion.LookRotation(Vector3.down, ship.LookDirection);
-        // WormholeCamera.enabled = true;
-        // WormholeCamera.Follow = wormholeCameraFollow;
-        // FollowCamera.enabled = false;
-        ship.EnterWormhole(wormhole.Position);
-        ship.OnEnteredWormhole += () =>
-        {
-            var oldZone = Zone;
-            PopulateLevel(wormhole.Target);
-            foreach (var zone in wormhole.Target.AdjacentZones)
-                CurrentGalaxy.DiscoveredZones.Add(zone);
-            SectorMap.QueueZoneReveal(wormhole.Target.AdjacentZones);
-            ship.ExitWormhole(ZoneRenderer.WormholeInstances.Keys.First(w => w.Target == oldZone.GalaxyZone).Position,
-                Settings.GameplaySettings.WormholeExitVelocity * ItemManager.Random.NextFloat2Direction());
-            CurrentEntity.Zone = Zone;
-            QueueRunCheckpoint("wormhole-transition");
-        };
+        TryRequestDaemonEnterWormhole(wormhole);
     }
 
-    public void PopulateLevel(GalaxyZone galaxyZone)
+    private bool TryRequestDaemonEnterWormhole(Wormhole wormhole)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null ||
+            !observer.HasAuthoritativeState ||
+            wormhole == null)
+        {
+            return false;
+        }
+
+        var targetZoneIndex = ZoneIndex(wormhole.Target);
+        if (targetZoneIndex < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.EnterWormhole(targetZoneIndex, wormhole.Position.x, wormhole.Position.y);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon wormhole operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public void PopulateLevel(GalaxyZone galaxyZone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)
     {
         if (galaxyZone == null) throw new ArgumentNullException(nameof(galaxyZone));
-        
+
+        if (daemonZone == null)
+        {
+            Debug.LogWarning($"Daemon-authoritative zone population suppressed for {galaxyZone.Name}; no daemon zone snapshot was provided.");
+            return;
+        }
+
         if (galaxyZone.Contents == null)
         {
-            var constructionBlueprint = ZoneGenerator.GenerateZone(
-                ItemManager,
-                RuntimeCatalog,
-                Settings.ZoneSettings,
-                CurrentGalaxy,
-                galaxyZone,
-                IsTutorial
-            );
-            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, CurrentGalaxy);
+            var constructionBlueprint = CreateDaemonZoneConstructionBlueprint(daemonZone);
+            galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, constructionBlueprint, galaxyZone, ObservedGalaxy);
+            RestoreDaemonAsteroidRuntimeState(galaxyZone.Contents, daemonZone);
         }
         Zone = galaxyZone.Contents;
         PlayMusic(MusicType.Overworld);
-        
+
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
-        if (CurrentEntity != null)
-        {
-            CurrentEntity.Deactivate();
-            CurrentEntity.Zone.Entities.Remove(CurrentEntity);
-            CurrentEntity.Zone = Zone;
-            Zone.Entities.Add(CurrentEntity);
-            CurrentEntity.Activate();
-        }
-        
         ZoneRenderer.LoadZone(Zone);
-        RestoreDroppedPickupsFromTypedZoneState(galaxyZone);
-        
+
         if (CurrentEntity != null)
         {
             UnbindEntity();
             BindToEntity(CurrentEntity);
-        }
-    }
-
-    private void RestoreDroppedPickupsFromTypedZoneState(GalaxyZone galaxyZone)
-    {
-        if (RuntimeCatalog == null ||
-            ZoneRenderer == null ||
-            galaxyZone == null)
-        {
-            return;
-        }
-
-        var zoneIndex = ZoneIndex(galaxyZone);
-        if (zoneIndex < 0)
-            return;
-
-        var runId = IsTutorial ? "tutorial" : "local";
-        var zoneKey = $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.v1";
-        AetheriaRuntimeZoneStateSnapshot zoneState;
-        try
-        {
-            zoneState = AetheriaRuntimeStateReader.ReadZoneStates(RuntimeStateFilePath)
-                .FirstOrDefault(zone => string.Equals(zone.RecordKey, zoneKey, StringComparison.Ordinal));
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to read typed dropped pickup state for zone {zoneKey}: {ex}");
-            return;
-        }
-
-        if (zoneState?.DroppedPickups == null || zoneState.DroppedPickups.Count == 0)
-            return;
-
-        foreach (var pickup in zoneState.DroppedPickups.OrderBy(pickup => pickup.PickupIndex))
-        {
-            var item = CreateLoadoutItem(pickup.Item);
-            if (item == null)
-                continue;
-
-            ZoneRenderer.DropItem(
-                new Vector3((float)pickup.PositionX, (float)pickup.PositionY, (float)pickup.PositionZ),
-                new Vector3((float)pickup.VelocityX, (float)pickup.VelocityY, (float)pickup.VelocityZ),
-                item);
         }
     }
 
@@ -2742,95 +2327,581 @@ public class ActionGameManager : MonoBehaviour
 
     private void StartGame()
     {
-        if (CurrentGalaxy != null)
+        if (ObservedGalaxy == null)
         {
-            var continuingRun = ContinueRunState;
-            var startZone = ResolveStartZone(continuingRun);
-            SectorMap.QueueZoneReveal(startZone.AdjacentZones.Prepend(startZone));
-            PopulateLevel(startZone);
-
-            if (continuingRun != null)
-            {
-                RestoreEntityGraphFromTypedRun(continuingRun);
-                ContinueRunState = null;
-                return;
-            }
-
-            var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, RuntimeCatalog, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-            var ship = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(
-                ItemManager,
-                Zone,
-                loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ),
-                true);
-            ((Ship) ship).IsPlayerShip = true;
-            ship.Position = float3.zero;
-            ship.Zone = Zone;
-            Zone.Entities.Add(ship);
-            ship.Activate();
-            BindToEntity(ship);
+            return;
         }
+
+        ApplyLatestAuthoritativeDaemonFrame();
     }
 
-    private void RestoreEntityGraphFromTypedRun(AetheriaRuntimeRunStateSnapshot run)
+    private bool TryRestoreEntityGraphFromDaemonRun(AetheriaRuntimeRunCheckpointCommit run)
     {
-        if (run == null || run.CurrentZoneIndex < 0)
+        if (run == null || run.CurrentZoneIndex < 0 || ObservedGalaxy?.Zones == null)
         {
-            return;
+            return false;
         }
 
-        var zoneEntityKeyPrefix = $"global:aetheria.run_state.{run.RunId}.zone.{run.CurrentZoneIndex}.entity.";
-        var currentEntityKey = ResolveCurrentEntityRecordKey(run);
+        if (string.IsNullOrWhiteSpace(run.RunId))
+        {
+            Debug.LogWarning("Authoritative daemon frame does not identify a run id.");
+            return false;
+        }
+
+        var runId = run.RunId;
+        var zoneEntityKeyPrefix = $"global:aetheria.run_state.{runId}.zone.{run.CurrentZoneIndex}.entity.";
+        var currentEntityKey = string.IsNullOrWhiteSpace(run.CurrentEntityKey) ? "" : run.CurrentEntityKey;
         if (string.IsNullOrWhiteSpace(currentEntityKey))
         {
-            Debug.LogWarning($"Typed run {run.RunId} does not identify a current entity for restored zone {zoneEntityKeyPrefix}.");
-            return;
+            Debug.LogWarning($"Authoritative daemon frame for run {runId} does not identify a current entity.");
+            return false;
+        }
+        Credits = run.Credits;
+
+        var daemonZone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            .FirstOrDefault(zone => zone != null && zone.ZoneIndex == run.CurrentZoneIndex);
+        if (daemonZone == null)
+        {
+            Debug.LogWarning($"Authoritative daemon frame has no zone snapshot for zone {run.CurrentZoneIndex}.");
+            return false;
         }
 
-        AetheriaRuntimeEntitySnapshot[] entitySnapshots;
-        try
-        {
-            entitySnapshots = AetheriaRuntimeStateReader.ReadEntitySnapshots(RuntimeStateFilePath)
-                .Where(entity => entity.RecordKey.StartsWith(zoneEntityKeyPrefix, StringComparison.Ordinal))
-                .OrderBy(entity => EntityIndexFromRecordKey(entity.RecordKey))
-                .ToArray();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to read typed entity snapshots for zone {zoneEntityKeyPrefix}: {ex}");
-            return;
-        }
+        var entitySnapshots = CreateDaemonEntitySnapshots(runId, daemonZone)
+            .OrderBy(entity => EntityIndexFromRecordKey(entity.RecordKey))
+            .ToArray();
 
         if (entitySnapshots.Length == 0)
         {
-            Debug.LogWarning($"No typed entity snapshots found for restored zone {zoneEntityKeyPrefix}.");
-            return;
+            Debug.LogWarning($"Authoritative daemon frame has no entity snapshots for zone {zoneEntityKeyPrefix}.");
+            return false;
         }
 
-        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey, run.ActionBarBindings);
-    }
-
-    private static string CurrentEntityRecordKey(
-        string runId,
-        int currentZoneIndex,
-        IReadOnlyList<Entity> entityGraph,
-        Entity currentEntity)
-    {
-        if (string.IsNullOrWhiteSpace(runId) || currentZoneIndex < 0 || currentEntity == null)
+        var targetZone = run.CurrentZoneIndex < ObservedGalaxy.Zones.Length
+            ? ObservedGalaxy.Zones[run.CurrentZoneIndex]
+            : null;
+        if (targetZone == null)
         {
-            return "";
+            Debug.LogWarning($"Authoritative daemon frame references missing zone index {run.CurrentZoneIndex}.");
+            return false;
         }
 
-        var currentZoneEntityIndex = IndexOfEntity(entityGraph, currentEntity);
-        return currentZoneEntityIndex < 0
-            ? ""
-            : $"global:aetheria.run_state.{runId}.zone.{currentZoneIndex}.entity.{currentZoneEntityIndex}.v1";
+        if (CanApplyDaemonEntitySnapshotsInPlace(runId, run.CurrentZoneIndex, entitySnapshots, currentEntityKey))
+        {
+            RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
+            return true;
+        }
+
+        if (Zone?.GalaxyZone != targetZone)
+        {
+            PopulateLevel(targetZone, daemonZone);
+        }
+
+        var actionBarBindings = run.ActionBarBindings?
+            .Select(ToActionBarBindingSnapshot)
+            .Where(binding => binding != null)
+            .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
+        ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey, actionBarBindings);
+        RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
+        _lastAppliedAuthoritativeDaemonRunId = runId;
+        _lastAppliedAuthoritativeDaemonZoneIndex = run.CurrentZoneIndex;
+        return true;
     }
 
-    private static string ResolveCurrentEntityRecordKey(AetheriaRuntimeRunStateSnapshot run)
+    private void RestoreDroppedPickupsFromDaemonZoneState(AetheriaRuntimeZoneSnapshotCommit zone)
     {
-        return string.IsNullOrWhiteSpace(run.CurrentEntityKey)
+        if (ZoneRenderer == null || zone == null)
+            return;
+
+        ClearRenderedLoot();
+
+        foreach (var pickup in (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                     .Where(pickup => pickup != null)
+                     .OrderBy(pickup => pickup.PickupIndex))
+        {
+            var item = CreateLoadoutItem(CreateRuntimeLoadoutItemSnapshot(pickup.Item));
+            if (item == null)
+                continue;
+
+            ZoneRenderer.DropItem(
+                new Vector3((float)pickup.PositionX, (float)pickup.PositionY, (float)pickup.PositionZ),
+                new Vector3((float)pickup.VelocityX, (float)pickup.VelocityY, (float)pickup.VelocityZ),
+                item);
+        }
+    }
+
+    private static ZoneConstructionBlueprint CreateDaemonZoneConstructionBlueprint(AetheriaRuntimeZoneSnapshotCommit zone)
+    {
+        var blueprint = new ZoneConstructionBlueprint
+        {
+            Radius = 2000,
+            Mass = 10000
+        };
+
+        foreach (var orbit in zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
+        {
+            if (orbit == null)
+                continue;
+
+            blueprint.Orbits.Add(new OrbitConstructionData
+            {
+                OrbitKey = orbit.OrbitKey ?? "",
+                ParentOrbitKey = orbit.ParentOrbitKey ?? "",
+                Distance = (float)orbit.Distance,
+                Phase = (float)orbit.Phase,
+                FixedPosition = new float2((float)orbit.FixedPositionX, (float)orbit.FixedPositionY)
+            });
+        }
+
+        foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+        {
+            if (body == null)
+                continue;
+
+            blueprint.Bodies.Add(CreateDaemonBodyConstructionData(body));
+        }
+
+        return blueprint;
+    }
+
+    private static BodyConstructionData CreateDaemonBodyConstructionData(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        BodyConstructionData data = (body.Kind ?? "").ToLowerInvariant() switch
+        {
+            "asteroid_belt" => new AsteroidBeltConstructionData
+            {
+                Asteroids = (body.Asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>())
+                    .Where(asteroid => asteroid != null)
+                    .Select(asteroid => new Asteroid
+                    {
+                        Distance = (float)asteroid.Distance,
+                        Phase = (float)asteroid.Phase,
+                        Size = (float)asteroid.Size,
+                        RotationSpeed = (float)asteroid.RotationSpeed
+                    })
+                    .ToArray()
+            },
+            "sun" => CreateDaemonSunConstructionData(body),
+            "gas_giant" => CreateDaemonGasGiantConstructionData(body),
+            _ => new PlanetConstructionData()
+        };
+
+        PopulateDaemonBodyConstructionData(data, body);
+        return data;
+    }
+
+    private static GasGiantConstructionData CreateDaemonGasGiantConstructionData(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        var visual = body.GasGiantVisual ?? new AetheriaRuntimeGasGiantVisualCommit();
+        return new GasGiantConstructionData
+        {
+            FirstOffsetDomainRotationSpeed = (float)visual.FirstOffsetDomainRotationSpeed,
+            FirstOffsetRotationSpeed = (float)visual.FirstOffsetRotationSpeed,
+            SecondOffsetDomainRotationSpeed = (float)visual.SecondOffsetDomainRotationSpeed,
+            SecondOffsetRotationSpeed = (float)visual.SecondOffsetRotationSpeed,
+            AlbedoRotationSpeed = (float)visual.AlbedoRotationSpeed,
+            WaveRadiusMultiplier = (float)visual.WaveRadiusMultiplier,
+            WaveDepthMultiplier = (float)visual.WaveDepthMultiplier,
+            WaveDepthExponent = (float)visual.WaveDepthExponent,
+            WaveSpeedMultiplier = (float)visual.WaveSpeedMultiplier,
+            MaterialOverrides = (visual.MaterialOverrides ?? Array.Empty<string>()).ToList(),
+            Colors = (visual.Colors ?? Array.Empty<AetheriaRuntimeColorCommit>())
+                .Where(color => color != null)
+                .Select(color => new float4((float)color.X, (float)color.Y, (float)color.Z, (float)color.W))
+                .ToArray()
+        };
+    }
+
+    private static SunConstructionData CreateDaemonSunConstructionData(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        var gas = CreateDaemonGasGiantConstructionData(body);
+        var visual = body.SunVisual ?? new AetheriaRuntimeSunVisualCommit();
+        return new SunConstructionData
+        {
+            FirstOffsetDomainRotationSpeed = gas.FirstOffsetDomainRotationSpeed,
+            FirstOffsetRotationSpeed = gas.FirstOffsetRotationSpeed,
+            SecondOffsetDomainRotationSpeed = gas.SecondOffsetDomainRotationSpeed,
+            SecondOffsetRotationSpeed = gas.SecondOffsetRotationSpeed,
+            AlbedoRotationSpeed = gas.AlbedoRotationSpeed,
+            WaveRadiusMultiplier = gas.WaveRadiusMultiplier,
+            WaveDepthMultiplier = gas.WaveDepthMultiplier,
+            WaveDepthExponent = gas.WaveDepthExponent,
+            WaveSpeedMultiplier = gas.WaveSpeedMultiplier,
+            MaterialOverrides = gas.MaterialOverrides,
+            Colors = gas.Colors,
+            LightColor = new CultMath.float3((float)visual.LightColorX, (float)visual.LightColorY, (float)visual.LightColorZ),
+            FogTintColor = new CultMath.float3((float)visual.FogTintColorX, (float)visual.FogTintColorY, (float)visual.FogTintColorZ),
+            LightRadiusMultiplier = (float)visual.LightRadiusMultiplier
+        };
+    }
+
+    private static void PopulateDaemonBodyConstructionData(
+        BodyConstructionData data,
+        AetheriaRuntimeBodySnapshotCommit body)
+    {
+        data.BodyKey = body.BodyKey ?? "";
+        data.Name = body.Name ?? "";
+        data.OrbitKey = body.OrbitKey ?? "";
+        data.Mass = (float)body.Mass;
+        data.BodyRadiusMultiplier = (float)body.BodyRadiusMultiplier;
+        data.GravityRadiusMultiplier = (float)body.GravityRadiusMultiplier;
+        data.GravityDepthMultiplier = (float)body.GravityDepthMultiplier;
+        data.GravityDepthExponent = (float)body.GravityDepthExponent;
+        data.Resources = (body.Resources ?? Array.Empty<AetheriaRuntimeBodyResourceCommit>())
+            .Where(resource => resource != null && !string.IsNullOrWhiteSpace(resource.ItemKey))
+            .ToDictionary(resource => resource.ItemKey, resource => (float)resource.Amount, StringComparer.Ordinal);
+    }
+
+    private static void RestoreDaemonAsteroidRuntimeState(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone)
+    {
+        if (zone == null || daemonZone == null)
+            return;
+
+        foreach (var body in daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+        {
+            if (body == null ||
+                !string.Equals(body.Kind ?? "", "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
+                !zone.AsteroidBelts.TryGetValue(body.BodyKey ?? "", out var belt))
+            {
+                continue;
+            }
+
+            belt.Damage.Clear();
+            belt.RespawnTimers.Clear();
+            var asteroids = body.Asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
+            for (var index = 0; index < asteroids.Count; index++)
+            {
+                var asteroid = asteroids[index];
+                if (asteroid == null)
+                    continue;
+
+                if (asteroid.Damage > 0)
+                    belt.Damage[index] = (float)asteroid.Damage;
+                if (asteroid.RespawnTimer > 0)
+                    belt.RespawnTimers[index] = (float)asteroid.RespawnTimer;
+            }
+        }
+    }
+
+    private void ClearRenderedLoot()
+    {
+        if (ZoneRenderer?.ActiveLoot == null)
+            return;
+
+        foreach (var loot in ZoneRenderer.ActiveLoot.ToArray())
+        {
+            if (loot == null)
+                continue;
+
+            ZoneRenderer.DestroyLoot(loot);
+            Destroy(loot.gameObject);
+        }
+    }
+
+    private static AetheriaRuntimeEntitySnapshot[] CreateDaemonEntitySnapshots(
+        string runId,
+        AetheriaRuntimeZoneSnapshotCommit zone)
+    {
+        if (zone == null)
+            return Array.Empty<AetheriaRuntimeEntitySnapshot>();
+
+        return (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            .Where(entity => entity != null)
+            .Select(entity => CreateDaemonEntitySnapshot(runId, zone.ZoneIndex, entity))
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeEntitySnapshot CreateDaemonEntitySnapshot(
+        string runId,
+        int zoneIndex,
+        AetheriaRuntimeEntitySnapshotCommit entity)
+    {
+        return new AetheriaRuntimeEntitySnapshot(
+            DaemonEntityRecordKey(runId, zoneIndex, entity.EntityIndex),
+            entity.Name ?? "",
+            entity.Kind ?? "",
+            entity.PositionX,
+            entity.PositionY,
+            entity.PositionZ,
+            entity.DirectionX,
+            entity.DirectionY,
+            entity.FactionKey ?? "",
+            entity.HullItemKey ?? "",
+            CreateDaemonItemSlots(entity.Equipment),
+            CreateDaemonItemSlots(entity.CargoBays),
+            CreateDaemonItemSlots(entity.DockingBays),
+            (entity.ChildEntityIndices ?? Array.Empty<int>())
+                .Where(index => index >= 0)
+                .Select(index => DaemonEntityRecordKey(runId, zoneIndex, index))
+                .ToArray(),
+            (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>())
+                .Select(group => (IReadOnlyList<int>)(group ?? Array.Empty<int>()).ToArray())
+                .ToArray(),
+            (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
+                .Select(grid => new AetheriaRuntimeEntityStatGridSnapshot(
+                    grid.Name ?? "",
+                    grid.Width,
+                    grid.Height,
+                    (grid.Values ?? Array.Empty<double>()).ToArray()))
+                .ToArray(),
+            entity.VelocityX,
+            entity.VelocityY,
+            entity.TargetEntityIndex < 0 ? "" : DaemonEntityRecordKey(runId, zoneIndex, entity.TargetEntityIndex),
+            entity.IsActive,
+            entity.HeatsinksEnabled,
+            entity.OverrideShutdown,
+            entity.TractorPower,
+            entity.Heatstroke,
+            entity.Hypothermia,
+            (entity.ActiveConsumables ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>())
+                .Select(consumable => new AetheriaRuntimeActiveConsumableSnapshot(
+                    consumable.ItemKey ?? "",
+                    consumable.Quality,
+                    consumable.RemainingDuration,
+                    consumable.Duration))
+                .ToArray(),
+            (entity.BehaviorProgress ?? Array.Empty<AetheriaRuntimeBehaviorProgressCommit>())
+                .Select(progress => new AetheriaRuntimeBehaviorProgressSnapshot(
+                    progress.OwnerKind ?? "",
+                    progress.OwnerIndex,
+                    progress.BehaviorIndex,
+                    progress.BehaviorKind ?? "",
+                    progress.Progress))
+                .ToArray(),
+            CreateDaemonWeaponStates(runId, zoneIndex, entity.WeaponStates),
+            CreateDaemonBehaviorStates(entity.BehaviorStates),
+            CreateDaemonCargoBays(entity.CargoContents),
+            CreateDaemonCargoBays(entity.DockingBayContents),
+            (entity.DockingBayAssignments ?? Array.Empty<int>()).ToArray(),
+            entity.Visibility,
+            entity.VisibilitySourceCount,
+            (entity.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Where(contact => contact != null && contact.TargetEntityIndex >= 0)
+                .Select(contact => new AetheriaRuntimeEntityContactSnapshot(
+                    DaemonEntityRecordKey(runId, zoneIndex, contact.TargetEntityIndex),
+                    contact.InfoGathered,
+                    contact.Hostile,
+                    contact.Visible))
+                .ToArray(),
+            entity.ShutdownPerformance);
+    }
+
+    private static AetheriaRuntimeEntityItemSlotSnapshot[] CreateDaemonItemSlots(
+        IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> slots)
+    {
+        return (slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            .Where(slot => slot?.Item != null)
+            .Select(slot => new AetheriaRuntimeEntityItemSlotSnapshot(
+                slot.X,
+                slot.Y,
+                slot.Item.ItemKey ?? "",
+                slot.Item.Quality,
+                slot.Item.Durability,
+                slot.Item.Quantity,
+                slot.Item.Enabled,
+                slot.Item.OverrideShutdown))
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeCargoBayLoadoutSnapshot[] CreateDaemonCargoBays(
+        IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit> cargoBays)
+    {
+        return (cargoBays ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+            .Select(bay => new AetheriaRuntimeCargoBayLoadoutSnapshot(
+                CreateDaemonLoadoutSlots(bay?.Items)))
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeLoadoutItemSlotSnapshot[] CreateDaemonLoadoutSlots(
+        IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> slots)
+    {
+        return (slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            .Where(slot => slot?.Item != null)
+            .Select(slot => new AetheriaRuntimeLoadoutItemSlotSnapshot(
+                slot.X,
+                slot.Y,
+                new AetheriaRuntimeLoadoutItemSnapshot(
+                    slot.Item.ItemKey ?? "",
+                    slot.Item.Quality,
+                    slot.Item.Durability,
+                    slot.Item.Quantity,
+                    slot.Item.Enabled,
+                    slot.Item.OverrideShutdown)))
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeWeaponStateSnapshot[] CreateDaemonWeaponStates(
+        string runId,
+        int zoneIndex,
+        IReadOnlyList<AetheriaRuntimeWeaponStateCommit> weaponStates)
+    {
+        return (weaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            .Where(state => state != null)
+            .Select(state => new AetheriaRuntimeWeaponStateSnapshot(
+                state.OwnerKind ?? "",
+                state.OwnerIndex,
+                state.BehaviorIndex,
+                state.BehaviorKind ?? "",
+                state.Firing,
+                state.Ammo,
+                state.BurstRemaining,
+                state.BurstTimer,
+                state.BurstInterval,
+                state.CooldownProgress,
+                state.CoolingDown,
+                state.Charging,
+                state.Charged,
+                state.Charge,
+                state.Reloading,
+                state.ReloadProgress,
+                state.AmmoIntervalProgress,
+                state.LockProgress,
+                state.LockTargetEntityIndex < 0 ? "" : DaemonEntityRecordKey(runId, zoneIndex, state.LockTargetEntityIndex)))
+            .ToArray();
+    }
+
+    private static AetheriaRuntimeBehaviorStateSnapshot[] CreateDaemonBehaviorStates(
+        IReadOnlyList<AetheriaRuntimeBehaviorStateCommit> behaviorStates)
+    {
+        return (behaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+            .Where(state => state != null)
+            .Select(state => new AetheriaRuntimeBehaviorStateSnapshot(
+                state.OwnerKind ?? "",
+                state.OwnerIndex,
+                state.BehaviorIndex,
+                state.BehaviorKind ?? "",
+                state.Pinging,
+                state.PingCooldown,
+                state.PingLerp,
+                state.PingRadius,
+                state.PingedEntityCount,
+                state.RadiatorTemperature,
+                state.Emissivity,
+                state.PumpedHeat,
+                state.WasteHeat,
+                state.EnergyUsage,
+                state.ReactorDraw,
+                state.ReactorLoadRatio,
+                state.CapacitorCharge,
+                state.CapacitorCapacity,
+                state.CapacitorEfficiency,
+                state.AetherDriveAxisX,
+                state.AetherDriveAxisY,
+                state.AetherDriveAxisZ,
+                state.AetherDriveThrustX,
+                state.AetherDriveThrustY,
+                state.AetherDriveThrustZ,
+                state.AetherDriveRpmX,
+                state.AetherDriveRpmY,
+                state.AetherDriveRpmZ,
+                state.AetherDriveMaximumRpm,
+                state.AetherDriveThrustDirectionX,
+                state.AetherDriveThrustDirectionY,
+                state.ResourceScannerTargetBodyKey ?? "",
+                state.ResourceScannerAsteroidIndex,
+                state.ResourceScannerScanTime,
+                state.ResourceScannerRange,
+                state.ResourceScannerMinimumDensity,
+                state.ResourceScannerScanDuration,
+                state.MiningToolAsteroidBeltKey ?? "",
+                state.MiningToolAsteroidIndex,
+                state.MiningToolRange,
+                state.ThrusterAxis,
+                state.ThrusterThrust,
+                state.ThrusterTorque,
+                state.ShieldEfficiency,
+                state.ShieldEnergyUsage,
+                state.VelocityLimit,
+                state.ThermotoggleTargetTemperature,
+                state.SwitchActivated,
+                state.TriggerPulled,
+                state.StatModifierApplied,
+                state.StatModifierExecuted,
+                state.StatModifierTargetStatCount,
+                state.TurretControllerWeaponCount,
+                state.TurretControllerShotSpeed,
+                state.TurretControllerPredictShots))
+            .ToArray();
+    }
+
+    private static string DaemonEntityRecordKey(string runId, int zoneIndex, int entityIndex)
+    {
+        return string.IsNullOrWhiteSpace(runId)
             ? ""
-            : run.CurrentEntityKey;
+            : $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
+    }
+
+    private bool CanApplyDaemonEntitySnapshotsInPlace(
+        string runId,
+        int zoneIndex,
+        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
+        string currentEntityKey)
+    {
+        if (!string.Equals(_lastAppliedAuthoritativeDaemonRunId, runId, StringComparison.Ordinal) ||
+            _lastAppliedAuthoritativeDaemonZoneIndex != zoneIndex ||
+            _authoritativeDaemonEntities.Count != entitySnapshots.Count)
+        {
+            return false;
+        }
+
+        foreach (var snapshot in entitySnapshots)
+        {
+            if (!_authoritativeDaemonEntities.ContainsKey(snapshot.RecordKey))
+            {
+                return false;
+            }
+        }
+
+        ApplyDaemonEntitySnapshotsInPlace(entitySnapshots, currentEntityKey);
+        return true;
+    }
+
+    private void ApplyDaemonEntitySnapshotsInPlace(
+        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
+        string currentEntityKey)
+    {
+        foreach (var entitySnapshot in entitySnapshots)
+        {
+            if (!_authoritativeDaemonEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
+                continue;
+
+            entity.Name = entitySnapshot.Name ?? "";
+            entity.CultPosition = new CultMath.float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
+            entity.CultDirection = new CultMath.float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
+            entity.CultVelocity = new CultMath.float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
+            entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
+            entity.TractorPower = (float)entitySnapshot.TractorPower;
+            entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled;
+            if (entity.Settings != null)
+                entity.Settings.ShutdownPerformance = (float)entitySnapshot.ShutdownPerformance;
+            entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
+            RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, _authoritativeDaemonEntities);
+        }
+
+        foreach (var entity in _authoritativeDaemonEntities.Values)
+        {
+            entity.EntityInfoGathered.Clear();
+            entity.EntityHostility.Clear();
+            entity.VisibleEntities.Clear();
+            entity.VisibleEnemies.Clear();
+            entity.VisibleFriendlies.Clear();
+            entity.Target.Value = null;
+        }
+
+        foreach (var entitySnapshot in entitySnapshots)
+        {
+            if (!_authoritativeDaemonEntities.TryGetValue(entitySnapshot.RecordKey, out var entity))
+                continue;
+
+            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, _authoritativeDaemonEntities);
+            if (_authoritativeDaemonEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
+                entity.Target.Value = target;
+        }
+
+        if (_authoritativeDaemonEntities.TryGetValue(currentEntityKey, out var currentEntity) &&
+            CurrentEntity != currentEntity)
+        {
+            RestoreCurrentEntityBinding(currentEntity, Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>());
+        }
     }
 
     private void ReplaceZoneEntitiesFromTypedSnapshots(
@@ -2840,7 +2911,6 @@ public class ActionGameManager : MonoBehaviour
     {
         foreach (var existingEntity in Zone.Entities.ToArray())
         {
-            existingEntity.Deactivate();
             Zone.Entities.Remove(existingEntity);
         }
         Zone.Agents.Clear();
@@ -2857,22 +2927,20 @@ public class ActionGameManager : MonoBehaviour
                 continue;
             }
 
-            var entity = EntityConstructionBlueprintProjector.InstantiateFromBlueprint(ItemManager, Zone, blueprint, true);
+            var entity = EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(ItemManager, Zone, blueprint);
             if (entity == null)
                 continue;
 
-            entity.Position = new float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
-            entity.Direction = new float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
-            entity.Velocity = new float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
+            entity.CultPosition = new CultMath.float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
+            entity.CultDirection = new CultMath.float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
+            entity.CultVelocity = new CultMath.float2((float)entitySnapshot.VelocityX, (float)entitySnapshot.VelocityY);
             entity.OverrideShutdown = entitySnapshot.OverrideShutdown;
             entity.TractorPower = (float)entitySnapshot.TractorPower;
+            entity.RestoreActiveState(entitySnapshot.IsActive);
             entity.Zone = Zone;
             Zone.Entities.Add(entity);
             restoredEntities[entitySnapshot.RecordKey] = entity;
         }
-
-        foreach (var entity in restoredEntities.Values)
-            entity.Activate();
 
         RestoreChildAndDockingRelationships(entitySnapshots, restoredEntities);
 
@@ -2890,6 +2958,10 @@ public class ActionGameManager : MonoBehaviour
             if (restoredEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
                 entity.Target.Value = target;
         }
+
+        _authoritativeDaemonEntities.Clear();
+        foreach (var restoredEntity in restoredEntities)
+            _authoritativeDaemonEntities[restoredEntity.Key] = restoredEntity.Value;
 
         if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
             RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
@@ -2938,7 +3010,7 @@ public class ActionGameManager : MonoBehaviour
                 }
                 if (Zone.Entities.Contains(ship))
                     Zone.Entities.Remove(ship);
-                ship.Deactivate();
+                ship.RestoreActiveState(false);
             }
         }
     }
@@ -3117,11 +3189,11 @@ public class ActionGameManager : MonoBehaviour
                     break;
                 case AetherDrive drive:
                     drive.RestoreRuntimeState(
-                        new float3((float)behaviorState.AetherDriveAxisX, (float)behaviorState.AetherDriveAxisY, (float)behaviorState.AetherDriveAxisZ),
-                        new float3((float)behaviorState.AetherDriveThrustX, (float)behaviorState.AetherDriveThrustY, (float)behaviorState.AetherDriveThrustZ),
-                        new float3((float)behaviorState.AetherDriveRpmX, (float)behaviorState.AetherDriveRpmY, (float)behaviorState.AetherDriveRpmZ),
+                        new CultMath.float3((float)behaviorState.AetherDriveAxisX, (float)behaviorState.AetherDriveAxisY, (float)behaviorState.AetherDriveAxisZ),
+                        new CultMath.float3((float)behaviorState.AetherDriveThrustX, (float)behaviorState.AetherDriveThrustY, (float)behaviorState.AetherDriveThrustZ),
+                        new CultMath.float3((float)behaviorState.AetherDriveRpmX, (float)behaviorState.AetherDriveRpmY, (float)behaviorState.AetherDriveRpmZ),
                         (float)behaviorState.AetherDriveMaximumRpm,
-                        new float2((float)behaviorState.AetherDriveThrustDirectionX, (float)behaviorState.AetherDriveThrustDirectionY));
+                        new CultMath.float2((float)behaviorState.AetherDriveThrustDirectionX, (float)behaviorState.AetherDriveThrustDirectionY));
                     break;
                 case ResourceScanner resourceScanner:
                     resourceScanner.RestoreRuntimeState(
@@ -3198,77 +3270,6 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private static GalaxyZone ResolveStartZone(AetheriaRuntimeRunStateSnapshot run)
-    {
-        if (CurrentGalaxy?.Zones == null || CurrentGalaxy.Zones.Length == 0)
-            return CurrentGalaxy?.Entrance;
-
-        if (run != null &&
-            run.CurrentZoneIndex >= 0 &&
-            run.CurrentZoneIndex < CurrentGalaxy.Zones.Length)
-        {
-            return CurrentGalaxy.Zones[run.CurrentZoneIndex];
-        }
-
-        return CurrentGalaxy.Entrance;
-    }
-
-    private IEnumerator IntroCutscene(Ship ship)
-    {
-        ZoneRenderer.PerspectiveEntity = ship;
-        var entityPosition = ship.Position.xz;
-        var followOrbit = Zone.Orbits.Values.MinBy(orbit => lengthsq(Zone.GetOrbitPosition(orbit.OrbitKey) - entityPosition));
-        var followPlanetBodyKey = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == followOrbit.OrbitKey).BodyKey;
-        var followPlanet = ZoneRenderer.Planets[followPlanetBodyKey];
-        DockCamera.Follow = followPlanet.Body.transform;
-        var rootOrbit = followOrbit;
-        while (!string.IsNullOrWhiteSpace(rootOrbit.ParentOrbitKey) &&
-               Zone.TryGetOrbit(rootOrbit.ParentOrbitKey, out var parentOrbit))
-            rootOrbit = parentOrbit;
-        var rootPlanetBodyKey = Zone.PlanetInstances.Values.First(planet => planet.OrbitKey == rootOrbit.OrbitKey).BodyKey;
-        var rootPlanet = ZoneRenderer.Planets[rootPlanetBodyKey];
-        DockCamera.LookAt = rootPlanet.Body.transform;
-
-        var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
-        var followOrbitPosition = Zone.GetOrbitPosition(followOrbit.OrbitKey);
-        var shipDirection = normalize(Zone.GetOrbitPosition(rootOrbit.OrbitKey) - followOrbitPosition);
-        ship.Position.xz = followOrbitPosition - shipDirection * shipVelocity * IntroDuration;
-
-        var startTime = Time.time;
-        while (Time.time - startTime < IntroDuration)
-        {
-            ship.Direction = shipDirection;
-            ship.Velocity = shipDirection * shipVelocity;
-            yield return null;
-        }
-        
-        BindToEntity(ship);
-    }
-
-    public void Dock()
-    {
-        if (CurrentEntity.Parent != null) return;
-        if (CurrentEntity is Ship ship)
-        {
-            foreach (var entity in Zone.Entities.ToArray())
-            {
-                if (entity != CurrentEntity && lengthsq(entity.Position.xz - CurrentEntity.Position.xz) <
-                    Settings.GameplaySettings.DockingDistance * Settings.GameplaySettings.DockingDistance)
-                {
-                    var bay = entity.TryDock(ship);
-                    if (bay != null)
-                    {
-                        UnbindEntity();
-                        DoDock(entity, bay);
-                        // TODO: SFX: Docking
-                        //AkSoundEngine.PostEvent("Dock", gameObject);
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
     private void DoDock(Entity entity, EquippedDockingBay dockingBay)
     {
         TradeMenu.Inventory = entity.CargoBays.First();
@@ -3289,73 +3290,41 @@ public class ActionGameManager : MonoBehaviour
         Menu.ShowTab(MenuTab.Inventory);
     }
 
-    public void Undock()
+    public void RequestTowToStation()
     {
-        if (CurrentEntity.Parent == null) return;
-        if (CurrentEntity is Ship ship)
-        {
-            if (CurrentEntity.GetBehavior<Cockpit>() == null)
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Can't undock. Missing cockpit component!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                // TODO: SFX: Fail
-            }
-            else if (CurrentEntity.GetBehavior<Thruster>() == null && CurrentEntity.GetBehavior<AetherDrive>() == null)
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Can't undock. Missing thruster component!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                // TODO: SFX: Fail
-            }
-            else if (CurrentEntity.GetBehavior<Reactor>() == null)
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Can't undock. Missing reactor component!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                // TODO: SFX: Fail
-            }
-            else if (CurrentEntity.Parent.TryUndock(ship))
-            {
-                BindToEntity(ship);
-                // TODO: SFX: Undock
-            }
-            else
-            {
-                Dialog.Title.text = "Can't undock. Must empty docking bay!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                // TODO: SFX: Fail
-            }
-        }
+        TryRequestDaemonTowToStation();
     }
 
-    public void TowShip()
+    private bool TryRequestDaemonTowToStation()
     {
-        if (CurrentEntity.Parent != null) return;
-        if (CurrentEntity is Ship ship)
+        var observer = ResolveDaemonObserver();
+        if (observer == null ||
+            !observer.HasAuthoritativeState ||
+            TowingStation == null)
         {
-            if (Zone.Equals(TowingStation.Zone))
-            {
-                var distance = (int)length(TowingStation.Position.xz - CurrentEntity.Position.xz);
-                CurrentEntity.Position.xz = TowingStation.Position.xz;
-                Dock();
-                //Debug.Log($"${distance}");
-                //payment = distance * TowingZoneRate;
-            }
-            else
-            {
-                var distance = Zone.GalaxyZone.Distance[TowingStation.Zone.GalaxyZone];
-                PopulateLevel(TowingStation.Zone.GalaxyZone);
-                CurrentEntity.Zone = Zone;
-                CurrentEntity.Position.xz = TowingStation.Position.xz;
-                Dock();
-                //Debug.Log($"${distance * 1000}");
-                //payment = distance * TowingGalaxyRate;
-            }
+            return false;
+        }
+
+        var stationEntityKey = ResolveEntityRecordKey(TowingStation);
+        var targetZoneIndex = ZoneIndex(TowingStation.Zone?.GalaxyZone);
+        if (string.IsNullOrWhiteSpace(stationEntityKey) || targetZoneIndex < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.TowToStation(
+                stationEntityKey,
+                targetZoneIndex,
+                TowingStation.CultPositionXZ.x,
+                TowingStation.CultPositionXZ.y);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon towing operation; operation not submitted: {ex.Message}");
+            return false;
         }
     }
 
@@ -3363,16 +3332,16 @@ public class ActionGameManager : MonoBehaviour
     {
         foreach (var indicator in _visibleHostileIndicators) Destroy(indicator.Value.gameObject);
         _visibleHostileIndicators.Clear();
-        
+
         foreach (var indicator in _visibleFriendlyIndicators) Destroy(indicator.Value.gameObject);
         _visibleFriendlyIndicators.Clear();
-        
+
         if(_lockingIndicators!=null) foreach(var (_, indicator, _) in _lockingIndicators)
             indicator.GetComponent<Prototype>().ReturnToPool();
         DisablePlayerInput();
         Cursor.lockState = CursorLockMode.None;
         GameplayUI.gameObject.SetActive(false);
-        
+
         foreach(var subscription in _shipSubscriptions) subscription.Dispose();
         _shipSubscriptions.Clear();
     }
@@ -3391,22 +3360,22 @@ public class ActionGameManager : MonoBehaviour
         CurrentEntity = entity;
         DeathPost.weight = 0;
         ZoneRenderer.PerspectiveEntity = CurrentEntity;
-        
+
         Menu.gameObject.SetActive(false);
         DockedEntity = null;
         DockingBay = null;
         DockCamera.enabled = false;
         FollowCamera.enabled = true;
 
-        if (length(CurrentEntity.Direction) > .1f)
-            _viewDirection = float3(CurrentEntity.Direction.x,0,CurrentEntity.Direction.y);
-        
+        if (CultMath.math.length(CurrentEntity.CultDirection) > .1f)
+            _viewDirection = (float3)AetheriaMath.ToUnityXZ(CurrentEntity.CultDirection);
+
         Cursor.lockState = CursorLockMode.Locked;
         EnablePlayerInput();
         GameplayUI.gameObject.SetActive(true);
         ShipPanel.Display(CurrentEntity, true);
         SchematicDisplay.ShowShip(CurrentEntity);
-        
+
         FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
         FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
         _articulationGroups = CurrentEntity.Equipment
@@ -3421,17 +3390,17 @@ public class ActionGameManager : MonoBehaviour
                     Crosshairs[index]
                 );
             }).ToArray();
-        
+
         foreach (var crosshair in Crosshairs)
             crosshair.gameObject.SetActive(false);
         foreach (var group in _articulationGroups)
             group.crosshair.gameObject.SetActive(true);
-        
+
         _shipSubscriptions.Add(CurrentEntity.TargetedByCount.Subscribe(count =>
         {
             PlayMusic(count > 0 ? MusicType.Combat : MusicType.Overworld);
         }));
-        
+
         _shipSubscriptions.Add(CurrentEntity.Target.Subscribe(target =>
         {
             // Clear previous subscriptions related to currently targeted enemy
@@ -3454,7 +3423,7 @@ public class ActionGameManager : MonoBehaviour
                     TargetShieldsIcon.color = NoShieldColor;
                     TargetShieldsIcon.sprite = NoShieldIcon;
                 }
-                
+
                 // Subscribe to incoming hits from the player ship to display the hit marker
                 _targetSubscriptions.Add(target.IncomingHit.Where(e => e == CurrentEntity).Subscribe(_ =>
                 {
@@ -3469,13 +3438,13 @@ public class ActionGameManager : MonoBehaviour
             var indicator = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
             _visibleHostileIndicators.Add(hostile, indicator);
         }
-        
+
         _shipSubscriptions.Add(CurrentEntity.VisibleEnemies.ObserveAdd().Subscribe(addEvent =>
         {
             var indicator = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
             _visibleHostileIndicators.Add(addEvent.Value, indicator);
         }));
-        
+
         _shipSubscriptions.Add(CurrentEntity.VisibleEnemies.ObserveRemove().Subscribe(removeEvent =>
         {
             _visibleHostileIndicators[removeEvent.Value].GetComponent<Prototype>().ReturnToPool();
@@ -3487,21 +3456,19 @@ public class ActionGameManager : MonoBehaviour
             var indicator = FriendlyTargetIndicator.Instantiate<VisibleTargetIndicator>();
             _visibleFriendlyIndicators.Add(friendly, indicator);
         }
-        
+
         _shipSubscriptions.Add(CurrentEntity.VisibleFriendlies.ObserveAdd().Subscribe(addEvent =>
         {
             var indicator = FriendlyTargetIndicator.Instantiate<VisibleTargetIndicator>();
             _visibleFriendlyIndicators.Add(addEvent.Value, indicator);
         }));
-        
+
         _shipSubscriptions.Add(CurrentEntity.VisibleFriendlies.ObserveRemove().Subscribe(removeEvent =>
         {
             _visibleFriendlyIndicators[removeEvent.Value].GetComponent<Prototype>().ReturnToPool();
             _visibleFriendlyIndicators.Remove(removeEvent.Value);
         }));
-        
-        _shipSubscriptions.Add(CurrentEntity.Death.Subscribe(Die));
-        
+
         _lockingIndicators = CurrentEntity.GetBehaviors<LockWeapon>()
             .Select(x =>
             {
@@ -3535,49 +3502,13 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private void Die(CauseOfDeath cause)
-    {
-        var deathTime = Time.time;
-        UnbindEntity();
-        CurrentEntity = null;
-        MainMenu.gameObject.SetActive(true);
-        Menu.gameObject.SetActive(false);
-        CurrentGalaxy = null;
-        QueueRuntimePlayerSettingsCommit();
-        Observable.EveryUpdate()
-            .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
-            .Subscribe(_ =>
-                {
-                    var t = (Time.time - deathTime) / DeathPostTransitionTime;
-                    if(cause==CauseOfDeath.Heatstroke)
-                    {
-                        HeatstrokePost.weight = 1 - t;
-                        SevereHeatstrokePost.weight = 1 - t;
-                    }
-                    else if (cause == CauseOfDeath.Hypothermia)
-                    {
-                        HypothermiaPost.weight = 1 - t;
-                        SevereHypothermiaPost.weight = 1 - t;
-                    }
-                    DeathPost.weight = t;
-                },
-                () =>
-                {
-                    HeatstrokePost.weight = 0;
-                    SevereHeatstrokePost.weight = 0;
-                    HypothermiaPost.weight = 0;
-                    SevereHypothermiaPost.weight = 0;
-                    DeathPost.weight = 1;
-                });
-    }
-
     // public void ToggleEditMode()
     // {
     //     _editMode = !_editMode;
     //     FollowCamera.gameObject.SetActive(!_editMode);
     //     TopDownCamera.gameObject.SetActive(_editMode);
     // }
-    
+
     public IEnumerable<EquippedCargoBay> AvailableCargoBays()
     {
         if (CurrentEntity.Parent != null)
@@ -3609,6 +3540,7 @@ public class ActionGameManager : MonoBehaviour
     {
         if(!_paused)
         {
+            ApplyLatestAuthoritativeDaemonFrame();
             _time += Time.deltaTime;
             _hitMarkerTime -= Time.deltaTime;
             if(HitMarker.activeSelf && _hitMarkerTime < 0) HitMarker.SetActive(false);
@@ -3624,10 +3556,10 @@ public class ActionGameManager : MonoBehaviour
                     else
                     {
                         indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            Saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
                         indicator.Value.Fill.enabled =
                             !(indicator.Key.EntityInfoGathered[CurrentEntity] > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
-                            sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
+                            Mathf.Sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
                     }
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
@@ -3640,44 +3572,507 @@ public class ActionGameManager : MonoBehaviour
                     {
                         indicator.Value.Fill.enabled = true;
                         indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            Saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
                     }
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
-                _entityYawPitch = float2(_entityYawPitch.x + look.x * Sensitivity.x, clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * PI, .45f * PI));
-                _viewDirection = mul(float3(0, 0, 1), Unity.Mathematics.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
-                CurrentEntity.LookDirection = _viewDirection;
-                HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
-                var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
+                _entityYawPitch = new float2(
+                    _entityYawPitch.x + look.x * Sensitivity.x,
+                    Mathf.Clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * Mathf.PI, .45f * Mathf.PI));
+                _viewDirection = Quaternion.Euler(_entityYawPitch.y * Mathf.Rad2Deg, _entityYawPitch.x * Mathf.Rad2Deg, 0) * Vector3.forward;
+                RequestLookDirection(_viewDirection);
+                HeatstrokePost.weight = Saturate(Unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
+                var severeHeatstrokeLerp = Saturate(Unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
                 SevereHeatstrokePost.weight =
                     severeHeatstrokeLerp + severeHeatstrokeLerp * (1 - severeHeatstrokeLerp) *
-                    max(Settings.HeatstrokePhasingFloor, sin(Time.time * Settings.HeatstrokePhasingFrequency));
-                
-                if(CurrentEntity is Ship ship)
+                    Mathf.Max(Settings.HeatstrokePhasingFloor, Mathf.Sin(Time.time * Settings.HeatstrokePhasingFrequency));
+
+                if(CurrentEntity is Ship)
                 {
-                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>();
+                    var movement = Input.Player.Move.ReadValue<Vector2>();
+                    TryRequestDaemonMoveVector(movement);
                 }
 
                 var target = CurrentEntity.Target.Value;
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
-                    TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold)/(1-threshold));
-                    VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
+                    TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold) / (1 - threshold));
+                    VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
                     var targetHull = ItemManager.GetRuntimeItem(target.Hull);
                     var targetMaxDurability = targetHull?.Durability > 0
                         ? (float)targetHull.Durability
                         : Math.Max(target.Hull.Durability, 1f);
-                    TargetHitpointsFill.fillAmount = lerp(.25f, .75f, target.Hull.Durability / targetMaxDurability);
-                    TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
+                    TargetHitpointsFill.fillAmount = Mathf.Lerp(.25f, .75f, target.Hull.Durability / targetMaxDurability);
+                    TargetShieldsFill.fillAmount = target.Shield == null ? 0 : Mathf.Lerp(.25f, .75f, target.Shield.Progress);
                 }
 
                 var tractorPower = Input.Player.TractorBeam.ReadValue<float>();
-                CurrentEntity.TractorPower =
-                    saturate(CurrentEntity.TractorPower + sign(tractorPower - CurrentEntity.TractorPower) * Time.deltaTime * 2);
+                RequestTractorPower(Saturate(CurrentEntity.TractorPower + Mathf.Sign(tractorPower - CurrentEntity.TractorPower) * Time.deltaTime * 2));
             }
-            Zone.Update(Time.deltaTime);
         }
+    }
+
+    private void ApplyLatestAuthoritativeDaemonFrame()
+    {
+        var observer = ResolveDaemonObserver();
+        var observed = observer?.LastObservedState;
+        if (observed == null || !observed.IsAuthoritative)
+        {
+            return;
+        }
+
+        if (observed.Frame.FrameId == _lastAppliedAuthoritativeDaemonFrameId &&
+            string.Equals(observed.FramePath, _lastAppliedAuthoritativeDaemonFramePath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (TryRestoreEntityGraphFromDaemonRun(observed.Run))
+        {
+            _lastAppliedAuthoritativeDaemonFrameId = observed.Frame.FrameId;
+            _lastAppliedAuthoritativeDaemonFramePath = observed.FramePath ?? "";
+        }
+    }
+
+    private bool TryRequestDaemonMoveVector(Vector2 movement)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var changed = !_hasSentDaemonMoveVector ||
+                      (movement - _lastSentDaemonMoveVector).sqrMagnitude >
+                      DaemonMoveCommandChangeThreshold * DaemonMoveCommandChangeThreshold;
+        if (!changed && Time.unscaledTime < _nextDaemonMoveCommandTime)
+        {
+            return true;
+        }
+
+        try
+        {
+            observer.Operations.SetMoveVector(movement.x, movement.y, movement.magnitude);
+            _lastSentDaemonMoveVector = movement;
+            _hasSentDaemonMoveVector = true;
+            _nextDaemonMoveCommandTime = Time.unscaledTime + DaemonMoveCommandIntervalSeconds;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon movement operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestLookDirection(Vector3 lookDirection)
+    {
+        TryRequestDaemonLookDirection(lookDirection);
+    }
+
+    private bool TryRequestDaemonLookDirection(Vector3 lookDirection)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var changed = !_hasSentDaemonLookDirection ||
+                      (lookDirection - _lastSentDaemonLookDirection).sqrMagnitude >
+                      DaemonLookCommandChangeThreshold * DaemonLookCommandChangeThreshold;
+        if (!changed && Time.unscaledTime < _nextDaemonLookCommandTime)
+        {
+            return true;
+        }
+
+        try
+        {
+            observer.Operations.SetLookDirection(lookDirection.x, lookDirection.y, lookDirection.z);
+            _lastSentDaemonLookDirection = lookDirection;
+            _hasSentDaemonLookDirection = true;
+            _nextDaemonLookCommandTime = Time.unscaledTime + DaemonLookCommandIntervalSeconds;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon look operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestTractorPower(float power)
+    {
+        TryRequestDaemonTractorPower(power);
+    }
+
+    private bool TryRequestDaemonTractorPower(float power)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        var changed = !_hasSentDaemonTractorPower ||
+                      Mathf.Abs(power - _lastSentDaemonTractorPower) >
+                      DaemonTractorCommandChangeThreshold;
+        if (!changed && Time.unscaledTime < _nextDaemonTractorCommandTime)
+        {
+            return true;
+        }
+
+        try
+        {
+            observer.Operations.SetTractorPower(power);
+            _lastSentDaemonTractorPower = power;
+            _hasSentDaemonTractorPower = true;
+            _nextDaemonTractorCommandTime = Time.unscaledTime + DaemonTractorCommandIntervalSeconds;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon tractor-power operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestTargetSelection(Entity target)
+    {
+        TryRequestDaemonTargetSelection(target);
+    }
+
+    private bool TryRequestDaemonTargetSelection(Entity target)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (target == null)
+            {
+                observer.Operations.ClearTarget();
+                return true;
+            }
+
+            var targetEntityKey = ResolveEntityRecordKey(target);
+            if (string.IsNullOrWhiteSpace(targetEntityKey))
+            {
+                return false;
+            }
+
+            observer.Operations.SetTarget(targetEntityKey);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon target operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestOverrideShutdown(bool enabled)
+    {
+        TryRequestDaemonOverrideShutdown(enabled);
+    }
+
+    private bool TryRequestDaemonOverrideShutdown(bool enabled)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetOverrideShutdown(enabled);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon override-shutdown operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestSensorPing()
+    {
+        TryRequestDaemonSensorPing();
+    }
+
+    private bool TryRequestDaemonSensorPing()
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SensorPing();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon sensor-ping operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestHeatsinksEnabled(bool enabled)
+    {
+        TryRequestDaemonHeatsinksEnabled(enabled);
+    }
+
+    private bool TryRequestDaemonHeatsinksEnabled(bool enabled)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetHeatsinksEnabled(enabled);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon heatsinks operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void RequestShieldToggle()
+    {
+        TryRequestDaemonShieldToggle();
+    }
+
+    private bool TryRequestDaemonShieldToggle()
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.ToggleShieldEnabled();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon shield enablement operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public void RequestDock()
+    {
+        TryRequestDaemonDock();
+    }
+
+    private bool TryRequestDaemonDock()
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || CurrentEntity == null)
+        {
+            return false;
+        }
+
+        var target = FindDaemonDockTarget();
+        var targetKey = ResolveEntityRecordKey(target);
+        if (string.IsNullOrWhiteSpace(targetKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.Dock(targetKey);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon dock operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private Entity FindDaemonDockTarget()
+    {
+        if (CurrentEntity == null || Zone == null)
+        {
+            return null;
+        }
+
+        var dockingDistanceSq = Settings.GameplaySettings.DockingDistance * Settings.GameplaySettings.DockingDistance;
+        Entity closest = null;
+        var closestDistanceSq = float.MaxValue;
+        foreach (var entity in Zone.Entities)
+        {
+            if (entity == null || entity == CurrentEntity)
+            {
+                continue;
+            }
+
+            var distanceSq = CultMath.math.lengthsq(entity.CultPositionXZ - CurrentEntity.CultPositionXZ);
+            if (distanceSq >= dockingDistanceSq || distanceSq >= closestDistanceSq)
+            {
+                continue;
+            }
+
+            closest = entity;
+            closestDistanceSq = distanceSq;
+        }
+
+        return closest;
+    }
+
+    public void RequestUndock()
+    {
+        TryRequestDaemonUndock();
+    }
+
+    private bool TryRequestDaemonUndock()
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || CurrentEntity == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.Undock();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon undock operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryRequestDaemonDockedCurrentShip(Ship ship)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || ship == null)
+        {
+            return false;
+        }
+
+        var targetEntityKey = ResolveEntityRecordKey(ship);
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetDockedCurrentShip(targetEntityKey);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon docked current ship operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private string ResolveEntityRecordKey(Entity entity)
+    {
+        if (entity == null || Zone == null)
+        {
+            return "";
+        }
+
+        foreach (var pair in _authoritativeDaemonEntities)
+        {
+            if (ReferenceEquals(pair.Value, entity))
+                return pair.Key;
+        }
+
+        return "";
+    }
+
+    public bool TryRequestDaemonActionBarConsumable(string itemKey)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || string.IsNullOrWhiteSpace(itemKey))
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.ActivateConsumable(itemKey);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon consumable operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool TryRequestDaemonActionBarBehavior(int equipmentIndex, int behaviorIndex, bool active)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || equipmentIndex < 0 || behaviorIndex < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetBehaviorActive(equipmentIndex, behaviorIndex, active);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon behavior activation operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool TryRequestDaemonActionBarWeaponGroup(int weaponGroup, bool active)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasAuthoritativeState || weaponGroup < 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            observer.Operations.SetWeaponGroupActive(weaponGroup, active);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon weapon-group operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private AetheriaDaemonObserver ResolveDaemonObserver()
+    {
+        if (_daemonObserver != null)
+        {
+            return _daemonObserver;
+        }
+
+        _daemonObserver = FindAnyObjectByType<AetheriaDaemonObserver>();
+        return _daemonObserver;
     }
 
     private void LateUpdate()
@@ -3692,7 +4087,7 @@ public class ActionGameManager : MonoBehaviour
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         if (CurrentEntity.Target.Value != null)
             TargetIndicator.Target = CurrentEntity.Target.Value.Position;
-        var distance = length((float3)ViewDot.Target - CurrentEntity.Position);
+        var distance = CultMath.math.length(AetheriaMath.ToCult((float3)ViewDot.Target) - CurrentEntity.CultPosition);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
@@ -3701,7 +4096,7 @@ public class ActionGameManager : MonoBehaviour
             averagePosition /= barrels.Length;
             crosshair.Target = averagePosition;
         }
-        
+
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
             var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.Target.Value.IsHostileTo(CurrentEntity);

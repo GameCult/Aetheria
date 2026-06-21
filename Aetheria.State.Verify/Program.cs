@@ -31,7 +31,7 @@ RequireTypedRuntimeBehaviorCoverage(root);
 RequireEveRuntimeBootstrap(root);
 RequireNoRendererLocalConsole(root);
 RequireNoRendererLocalDebugPanels(root);
-RequireMainMenuSettingsCommit(root);
+RequireMainMenuSettingsCommands(root);
 RequireMainMenuRootUsesEveSurface(root);
 RequireMainMenuSettingsShellUsesEveSurface(root);
 RequireConfirmationDialogOwnsMinimalPromptShell(root);
@@ -53,26 +53,36 @@ RequireVerseHostSettingsAuthority(root);
 RequireClientTargetBootAuthority(root);
 RequireVerseReplicaTool(root);
 RequireVerseSettingsShellAndBridge(root);
+RequireTypedStatRecipeOperations(root);
+RequireTypedDaemonCommandPayloads(root);
+RequireUnityPublicRequestVocabulary(root);
+RequireDaemonVersePublication(root);
+RequireTypedEveCommandBodies(root);
 RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
+RequireUnityObserverDoesNotTickLocalSimulation(root);
+RequireUnityDoesNotCallSharedSimulationTicks(root);
+RequireUnityPhysicsIsNotGameplayAuthority(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
 RequireNameToolsUsesUiToolkit(root);
 RequireRuntimeStateReaderOwnsUnityStateAcquisition(root);
 RequireNoDeadRuntimeProjectionCaches(root);
 RequireNoDeadInspectorMetadata(root);
-RequireRuntimeSimulationTuningCommits(root);
-RequireHullConductivityCommitAuthority(root);
-RequireInventoryEntityRenameCommitAuthority(root);
-RequireWeaponGroupCommitAuthority(root);
-RequireActionBarBindingCommitAuthority(root);
-RequireInventoryDoubleClickTransferCommitAuthority(root);
-RequireLootPickupCommitAuthority(root);
-RequireEntityDestroyedCommitAuthority(root);
+RequireDaemonHostDoesNotDrainRuntimeCommits(root);
+RequireRuntimeSimulationTuningRequests(root);
+RequireHullConductivityRequestAuthority(root);
+RequireInventoryEntityRenameRequestAuthority(root);
+RequireWeaponGroupRequestAuthority(root);
+RequireActionBarBindingRequestAuthority(root);
+RequireInventoryDoubleClickTransferRequestAuthority(root);
+RequireLootPickupRequestAuthority(root);
+RequireEntityDestroyedRequestAuthority(root);
 RequireDroppedPickupCheckpointState(root);
-RequireTradePurchaseCommitAuthority(root);
-RequireInventoryLoadoutRestoreCommitAuthority(root);
-RequireDockedCurrentShipCommitAuthority(root);
+RequireTradePurchaseRequestAuthority(root);
+RequireInventoryLoadoutSaveRequestAuthority(root);
+RequireInventoryLoadoutRestoreRequestAuthority(root);
+RequireDockedCurrentShipRequestAuthority(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-verify");
 
@@ -514,25 +524,25 @@ Console.WriteLine("Package serializer boundary: MessagePack symbols remain in na
 Console.WriteLine("Shared Eve package ownership: generic Unity Eve packages import from the neighboring Eve repo instead of local staged copies");
 Console.WriteLine("Typed runtime behavior coverage: live behavior kinds have typed factory plus progress/state restore coverage");
 Console.WriteLine("Zone construction/runtime key authority: body/orbit wrappers and task shells retain typed keys instead of GUID sidecars");
-Console.WriteLine("Eve runtime bootstrap: operations surface mounts through UI Toolkit presenter");
+Console.WriteLine("Eve runtime bootstrap: daemon-published game surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
 Console.WriteLine("Renderer-local debug panels: obsolete uGUI field tester authority is deleted");
-Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings return through typed player-settings commits");
+Console.WriteLine("Main-menu settings authority: player name, gameplay, and graphics settings send typed Eve commands");
 Console.WriteLine("Main-menu root shell: root navigation lowers through an Eve UI Toolkit surface instead of the legacy PropertiesPanel/fade shell");
 Console.WriteLine("Main-menu settings shell: settings/input subpages lower through Eve UI Toolkit surfaces, and the fake audio page is deleted until a typed audio owner exists");
 Console.WriteLine("Confirmation dialog shell: runtime prompts no longer inherit the generic PropertiesPanel machinery");
 Console.WriteLine("Main-menu input shell: the Eve input page delegates to the live runtime remap screen when that owner exists");
 Console.WriteLine("Runtime input screen shell: input rebinding lowers through an Eve UI Toolkit surface instead of the old drag/drop uGUI screen");
 Console.WriteLine("Runtime input-screen authority: hotkey and menu handoff share the same fullscreen-menu primitive");
-Console.WriteLine("Sector-map zone details shell: zone inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel rows");
-Console.WriteLine("Runtime menu tab shell: MenuPanel owns tab metadata and lowers navigation through an Eve UI Toolkit surface");
-Console.WriteLine("Inventory ship-settings shell: background ship tuning lowers through an Eve UI Toolkit surface instead of PropertiesPanel.AddField");
-Console.WriteLine("Inventory cargo-item shell: cargo item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
-Console.WriteLine("Inventory equipped-item shell: equipped item inspection and weapon-group controls lower through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
-Console.WriteLine("Trade cargo-selector shell: target cargo selection lowers through an Eve UI Toolkit surface instead of ContextMenu.AddOption");
-Console.WriteLine("Trade filter and row-action shells: filter selection and buy-quantity entry lower through Eve UI Toolkit surfaces instead of ContextMenu dropdowns");
-Console.WriteLine("Trade item-details shell: typed item inspection lowers through an Eve UI Toolkit surface instead of PropertiesPanel.Inspect");
-Console.WriteLine("Inventory dropdown shell: entity and loadout navigation lowers through an Eve UI Toolkit surface instead of ContextMenu.AddDropdown");
+Console.WriteLine("Sector-map zone details shell: shared zone detail surface lowers selected zone state through Eve UI Toolkit");
+Console.WriteLine("Runtime menu tab shell: shared runtime tab surface lowers MenuPanel tab metadata through Eve UI Toolkit");
+Console.WriteLine("Inventory ship-settings shell: shared ship settings surface lowers selected ship state through Eve UI Toolkit");
+Console.WriteLine("Inventory cargo-item shell: shared cargo detail surface lowers selected item state through Eve UI Toolkit");
+Console.WriteLine("Inventory equipped-item shell: shared equipped item surface lowers selected equipment state and controls through Eve UI Toolkit");
+Console.WriteLine("Trade cargo-selector shell: shared cargo selector surface lowers target cargo options through Eve UI Toolkit");
+Console.WriteLine("Trade filter and row-action shells: shared trade interaction surfaces lower filter and row actions through Eve UI Toolkit");
+Console.WriteLine("Trade item-details shell: shared trade item surface lowers selected market item state through Eve UI Toolkit");
+Console.WriteLine("Inventory dropdown shell: shared inventory dropdown surface lowers entity and loadout navigation through Eve UI Toolkit");
 Console.WriteLine("Main-menu Continue authority: Continue selects typed run state instead of a null button");
 Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesList, and DropdownMenu are deleted from source and serialized assets");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
@@ -543,18 +553,21 @@ Console.WriteLine("Client target boot authority: Unity boot resolves the active 
 Console.WriteLine("Verse replica authority: remote client targets resolve to cache-only replica .cc files fed from the daemon");
 Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
 Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
-Console.WriteLine("Runtime simulation tuning authority: UI writes flow through gameplay checkpoint commits");
-Console.WriteLine("Hull conductivity authority: inventory UI toggles flow through gameplay checkpoint commits");
-Console.WriteLine("Inventory entity rename authority: UI rename flows through gameplay checkpoint commits");
-Console.WriteLine("Weapon group authority: UI assignment flows through gameplay checkpoint commits");
-Console.WriteLine("Action-bar binding authority: drag/drop updates and typed run restore flow through gameplay checkpoint state");
-Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop requests flow through gameplay checkpoint commits");
-Console.WriteLine("Loot pickup authority: collision pickup requests flow through gameplay checkpoint commits");
-Console.WriteLine("Entity destruction authority: hull-death observers flow through gameplay checkpoint commits");
-Console.WriteLine("Dropped pickup state: zone checkpoints carry typed dropped-pickup snapshots and keyed live lowering");
-Console.WriteLine("Trade purchase authority: UI buy requests flow through gameplay checkpoint commits");
-Console.WriteLine("Inventory loadout restore authority: UI restore requests flow through gameplay checkpoint commits");
-Console.WriteLine("Docked current-ship authority: UI selection requests flow through gameplay checkpoint commits");
+Console.WriteLine("Unity observer authority: gameplay scenes restore daemon frames and do not tick local simulation");
+Console.WriteLine("Shared simulation authority: Zone/Entity/Agent ticks stay out of Unity gameplay callers");
+Console.WriteLine("Ymir physics authority: gameplay code uses Ymir queries and has no Unity collision callback fallback");
+Console.WriteLine("Runtime simulation tuning authority: UI sends daemon operations instead of local simulation mutation");
+Console.WriteLine("Hull conductivity authority: inventory UI sends daemon operations for toggles instead of checkpoint rewrites");
+Console.WriteLine("Inventory entity rename authority: UI sends daemon operations for renames instead of local graph edits");
+Console.WriteLine("Weapon group authority: UI sends daemon operations for assignments instead of checkpoint rewrites");
+Console.WriteLine("Action-bar binding authority: drag/drop sends daemon operations and restores from daemon frames");
+Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop send daemon operations");
+Console.WriteLine("Loot pickup authority: collision pickup sends daemon operations instead of local pickup disposal");
+Console.WriteLine("Entity destruction authority: hull-death observers send daemon operations instead of local graph deletion");
+Console.WriteLine("Dropped pickup state: daemon frames carry typed dropped-pickup snapshots and keyed live lowering");
+Console.WriteLine("Trade purchase authority: UI buy requests send daemon operations instead of checkpoint rewrites");
+Console.WriteLine("Inventory loadout restore authority: UI restore requests send daemon operations instead of local mutation");
+Console.WriteLine("Docked current-ship authority: UI selection requests send daemon operations instead of checkpoint rewrites");
 
 static void RequireCount(AetheriaMigrationLedger ledger, string documentType, int actual)
 {
@@ -616,7 +629,13 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 {
     var manifestPath = Path.Combine(root, "Packages", "manifest.json");
     var lockPath = Path.Combine(root, "Packages", "packages-lock.json");
-    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var unityGeneratedProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
+    var unityAsmdefPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "GameCult.Aetheria.State.Unity.asmdef");
     var localSurfacePath = Path.Combine(root, "Packages", "org.gamecult.eve.surface");
     var localUnityUiToolkitPath = Path.Combine(root, "Packages", "org.gamecult.eve.unity-uitoolkit");
     var evePackagesRoot = Path.GetFullPath(Path.Combine(root, "..", "Eve", "packages"));
@@ -629,9 +648,12 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var packageLock = File.Exists(lockPath)
         ? File.ReadAllText(lockPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; packages-lock.json is missing.");
-    var unityFacadeProject = File.Exists(unityFacadeProjectPath)
-        ? File.ReadAllText(unityFacadeProjectPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; Aetheria.State.Unity.csproj is missing.");
+    var unityGeneratedProject = File.Exists(unityGeneratedProjectPath)
+        ? File.ReadAllText(unityGeneratedProjectPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; GameCult.Aetheria.State.Unity.csproj is missing.");
+    var unityAsmdef = File.Exists(unityAsmdefPath)
+        ? File.ReadAllText(unityAsmdefPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; GameCult.Aetheria.State.Unity.asmdef is missing.");
 
     var requiredManifestSymbols = new[]
     {
@@ -680,10 +702,12 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
             "The neighboring Eve repo is missing the shared Unity package roots Aetheria imports.");
     }
 
-    if (!unityFacadeProject.Contains(@"..\..\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs", StringComparison.Ordinal))
+    if (!unityGeneratedProject.Contains("GameCult.Eve.Surface.csproj", StringComparison.Ordinal) ||
+        !unityGeneratedProject.Contains("<Name>GameCult.Eve.Surface</Name>", StringComparison.Ordinal) ||
+        !unityAsmdef.Contains("\"GameCult.Eve.Surface\"", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria.State.Unity still points at the deleted local Eve surface package path.");
+            "Aetheria.State.Unity no longer references the shared Eve surface package assembly.");
     }
 }
 
@@ -699,9 +723,12 @@ static void RequirePackageSerializerBoundary(string root)
     {
         "AetheriaRuntimeCatalogStore.cs",
         "AetheriaRuntimeClientTargetStore.cs",
-        "AetheriaRuntimePendingCultCacheStore.cs",
-        "AetheriaRuntimeStateCommitDocument.cs",
-        "AetheriaRuntimeEveCommandDocument.cs"
+        "AetheriaRuntimeCultCacheDocumentStore.cs",
+        "AetheriaRuntimeCommandPort.cs",
+        "AetheriaRuntimeSnapshotDocuments.cs",
+        "AetheriaRuntimeEveCommandDocument.cs",
+        "AetheriaRuntimeDaemonDocuments.cs",
+        "AetheriaRuntimeDaemonSoaDocuments.cs"
     };
 
     var serializerSymbols = new[]
@@ -737,8 +764,7 @@ static void RequireTypedPendingCommitKeys(string root)
 {
     var checkedFiles = new[]
     {
-        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs"),
-        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")
     };
 
     var forbiddenSymbols = new[]
@@ -898,7 +924,6 @@ static void RequireTypedBehaviorBodyKeys(string root)
     var checkedFiles = new[]
     {
         Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs"),
-        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs"),
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
@@ -1401,15 +1426,6 @@ static void RequireTypedOrbitConsumerKeys(string root)
 
     var requiredSymbols = new Dictionary<string, string[]>
     {
-        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
-        {
-            "Zone.Orbits.Values.MinBy(orbit => lengthsq(Zone.GetOrbitPosition(orbit.OrbitKey) - entityPosition))",
-            "planet => planet.OrbitKey == followOrbit.OrbitKey",
-            "planet => planet.OrbitKey == rootOrbit.OrbitKey",
-            "Zone.TryGetOrbit(rootOrbit.ParentOrbitKey, out var parentOrbit)",
-            "Zone.GetOrbitPosition(followOrbit.OrbitKey)",
-            "Zone.GetOrbitPosition(rootOrbit.OrbitKey)"
-        },
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
             "body => body.OrbitKey == orbit.OrbitKey",
@@ -1777,7 +1793,6 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
     var checkedFiles = new[]
     {
         Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs"),
-        Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs"),
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")
     };
@@ -1821,13 +1836,6 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "public string OrbitKey { get; set; } = \"\";",
             "public string ParentOrbitKey { get; set; } = \"\";",
             "public string BodyKey { get; set; } = \"\";"
-        },
-        [Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")] = new[]
-        {
-            "OrbitKey = orbit.OrbitKey ?? \"\",",
-            "ParentOrbitKey = orbit.ParentOrbitKey ?? \"\",",
-            "BodyKey = body.BodyKey ?? \"\",",
-            "OrbitKey = body.OrbitKey ?? \"\","
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
         {
@@ -2058,10 +2066,6 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
 
     var requiredWeaponStateCoverage = new[]
     {
-        "if (weapon is InstantWeapon instant)",
-        "if (weapon is ChargedWeapon charged)",
-        "if (weapon is ConstantWeapon constant)",
-        "if (weapon is LockWeapon lockWeapon)",
         "if (weapon is LockWeapon lockWeapon)",
         "else if (weapon is ChargedWeapon chargedWeapon)",
         "else if (weapon is ConstantWeapon constantWeapon)",
@@ -2081,22 +2085,6 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
 
     var requiredBehaviorStateCoverage = new[]
     {
-        "if (!(behaviors[behaviorIndex] is IProgressBehavior progressBehavior))",
-        "if (behavior is Sensor sensor)",
-        "else if (behavior is Radiator radiator)",
-        "else if (behavior is Reactor reactor)",
-        "else if (behavior is Capacitor capacitor)",
-        "else if (behavior is AetherDrive drive)",
-        "else if (behavior is ResourceScanner resourceScanner)",
-        "else if (behavior is MiningTool miningTool)",
-        "else if (behavior is Thruster thruster)",
-        "else if (behavior is Shield shield)",
-        "else if (behavior is VelocityLimit velocityLimit)",
-        "else if (behavior is Thermotoggle thermotoggle)",
-        "else if (behavior is Switch switchBehavior)",
-        "else if (behavior is Trigger trigger)",
-        "else if (behavior is StatModifier statModifier)",
-        "else if (behavior is TurretController turretController)",
         "case Sensor sensor:",
         "case Radiator radiator:",
         "case Reactor reactor:",
@@ -2140,6 +2128,12 @@ static void RequireEveRuntimeBootstrap(string root)
         "org.gamecult.aetheria.eve-runtime",
         "Runtime",
         "AetheriaEveSurfacePresenter.cs");
+    var daemonSurfaceCommandsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonSurfaceCommands.cs");
 
     if (!File.Exists(bootstrapPath))
     {
@@ -2151,21 +2145,109 @@ static void RequireEveRuntimeBootstrap(string root)
         throw new InvalidOperationException("Aetheria Eve surface presenter is missing.");
     }
 
+    if (!File.Exists(daemonSurfaceCommandsPath))
+    {
+        throw new InvalidOperationException("Aetheria daemon surface command router is missing.");
+    }
+
     var bootstrap = File.ReadAllText(bootstrapPath);
     if (!bootstrap.Contains("RuntimeInitializeOnLoadMethod", StringComparison.Ordinal) ||
-        !bootstrap.Contains("DefaultSurfaceId = \"aetheria.operations\"", StringComparison.Ordinal) ||
+        !bootstrap.Contains("DefaultSurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId", StringComparison.Ordinal) ||
         !bootstrap.Contains("AetheriaEveSurfacePresenter", StringComparison.Ordinal) ||
         !bootstrap.Contains("UIDocument", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve runtime bootstrap no longer mounts the operations surface through the UI Toolkit presenter.");
+            "Aetheria Eve runtime bootstrap no longer mounts the daemon-published game surface through the UI Toolkit presenter.");
     }
 
     var presenter = File.ReadAllText(presenterPath);
-    if (!presenter.Contains("AetheriaRuntimeEveCommandLog.QueueCommand", StringComparison.Ordinal))
+    var daemonSurfaceCommands = File.ReadAllText(daemonSurfaceCommandsPath);
+    var requiredPresenterSymbols = new[]
+    {
+        "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeStateReader.ReadEveSurface(statePath, surfaceId)",
+        "AetheriaRuntimeStateReader.ReadEveSurface(stateBoot.StateFilePath, surfaceId)",
+        "private bool ShouldMountSurface(",
+        "_mountedSurfaceVersion != surface.Version",
+        "private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome",
+        "UseShell = false",
+        "MountSurface(string statePath, EveSurfaceDocument surface)",
+        "AetheriaEveUnitySurfaceHost.Render(",
+        "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope)",
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand("
+    };
+    var missingPresenterSymbols = requiredPresenterSymbols
+        .Where(symbol => !presenter.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingPresenterSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria Eve presenter no longer queues renderer commands through the typed Eve command log.");
+            "Aetheria Eve presenter no longer lowers refreshed daemon/CultMesh surfaces through typed Eve commands: " +
+            string.Join(", ", missingPresenterSymbols));
+    }
+
+    if (presenter.Contains("new EveUiToolkitSurfaceLowerer", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter still lowers daemon-published surfaces directly instead of delegating to the shared Unity Eve surface host.");
+    }
+
+    var daemonSubmitIndex = presenter.IndexOf(
+        "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope)",
+        StringComparison.Ordinal);
+    var eveSubmitIndex = presenter.IndexOf(
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
+        StringComparison.Ordinal);
+    if (daemonSubmitIndex < 0 || eveSubmitIndex < 0 || daemonSubmitIndex > eveSubmitIndex)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter must route daemon-published surface commands to the typed daemon boundary before falling back to Eve requests.");
+    }
+
+    var requiredDaemonSurfaceCommandSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonSurfaceCommands",
+        "private const string CommandPrefix = \"aetheria.daemon.commands.\"",
+        "EveSurfaceCommandRequest request",
+        "request.ProviderId, \"aetheria.daemon\"",
+        "AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed)",
+        "new AetheriaRuntimeDaemonOperationClient(",
+        "var command = client.Create(kind, observed)",
+        "client.TrySend(command, out envelope, out _)"
+    };
+    var missingDaemonSurfaceCommandSymbols = requiredDaemonSurfaceCommandSymbols
+        .Where(symbol => !daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonSurfaceCommandSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing no longer submits typed daemon operations: " +
+            string.Join(", ", missingDaemonSurfaceCommandSymbols));
+    }
+
+    var forbiddenDaemonSurfaceCommandSymbols = new[]
+    {
+        "request.Payload.TryGetValue",
+        "ApplyPayload(",
+        "ReadInt(",
+        "ReadDouble(",
+        "ReadString(",
+        "\"commandKind\""
+    };
+    var daemonSurfaceCommandHits = forbiddenDaemonSurfaceCommandSymbols
+        .Where(symbol => daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (daemonSurfaceCommandHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing must lower command ids to typed daemon documents, not decode string payload maps: " +
+            string.Join(", ", daemonSurfaceCommandHits));
+    }
+
+    if (daemonSurfaceCommands.Contains("AetheriaRuntimeCommandSubmitter.TrySubmitDaemonCommand(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing still calls the generic daemon submitter instead of the typed daemon operation client.");
     }
 }
 
@@ -2255,7 +2337,7 @@ static void RequireNoRendererLocalDebugPanels(string root)
     }
 }
 
-static void RequireMainMenuSettingsCommit(string root)
+static void RequireMainMenuSettingsCommands(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var sharedCommandsPath = Path.Combine(
@@ -2272,7 +2354,7 @@ static void RequireMainMenuSettingsCommit(string root)
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.cs");
     if (!File.Exists(mainMenuPath))
     {
-        throw new InvalidOperationException("Cannot verify main-menu settings commit path; MainMenu.cs is missing.");
+        throw new InvalidOperationException("Cannot verify main-menu settings command path; MainMenu.cs is missing.");
     }
     if (!File.Exists(sharedCommandsPath))
     {
@@ -2293,52 +2375,54 @@ static void RequireMainMenuSettingsCommit(string root)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify main-menu settings authority; ActionGameManager.cs is missing.");
 
-    var requiredCommits = new[]
-    {
-        "CommitRuntimePlayerName",
-        "CommitRuntimeTemperatureUnit",
-        "CommitRuntimeSignificantDigits",
-        "CommitRuntimeNebulaQuality",
-        "CommitRuntimeShowAsteroidsInMinimap",
-        "CommitRuntimePlayerSettingsCommand"
-    };
-
-    var missingCommits = requiredCommits
-        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-
-    if (missingCommits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "ActionGameManager no longer owns complete runtime player-settings commit primitives: " +
-            string.Join(", ", missingCommits));
-    }
-
     var forbiddenSymbols = new[]
     {
         "ActionGameManager.RuntimePlayerSettings.Name =",
         "ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit =",
         "ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits =",
         "ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality =",
-        "ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap ="
+        "ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap =",
+        "ActionGameManager.RequestRuntimePlayerSettingsCommand",
+        "ActionGameManager.RequestRuntimePlayerName",
+        "ActionGameManager.RequestRuntimeTemperatureUnit",
+        "ActionGameManager.RequestRuntimeSignificantDigits",
+        "ActionGameManager.RequestRuntimeNebulaQuality",
+        "ActionGameManager.RequestRuntimeShowAsteroidsInMinimap"
+    };
+
+    var actionGameManagerForbiddenSymbols = new[]
+    {
+        "RequestRuntimePlayerSettingsCommand",
+        "RequestRuntimePlayerName",
+        "RequestRuntimeTemperatureUnit",
+        "RequestRuntimeSignificantDigits",
+        "RequestRuntimeNebulaQuality",
+        "RequestRuntimeShowAsteroidsInMinimap"
     };
 
     var hits = File.ReadLines(mainMenuPath)
-        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Select((line, index) => new { Path = mainMenuPath, LineNumber = index + 1, Line = line })
         .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
-        .Select(line => $"{Path.GetRelativePath(root, mainMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Concat(File.ReadLines(actionGameManagerPath)
+            .Select((line, index) => new { Path = actionGameManagerPath, LineNumber = index + 1, Line = line })
+            .Where(line => actionGameManagerForbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal))))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
         .ToArray();
 
     if (hits.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu still owns direct RuntimePlayerSettings mutation: " +
+            "Unity still owns direct player-settings mutation instead of sending Eve commands: " +
             string.Join("; ", hits));
     }
 
     var requiredMainMenuAuthoritySymbols = new[]
     {
-        "ActionGameManager.CommitRuntimePlayerSettingsCommand"
+        "TrySendPlayerSettingsCommand(request, command.Command)",
+        "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
+        "AetheriaRuntimeEveCommands.TrySendPlayerSettingsCommand(",
+        "stateBoot.StateFilePath",
+        "\"unity-main-menu\""
     };
 
     var missingUiCalls = requiredMainMenuAuthoritySymbols
@@ -2348,8 +2432,15 @@ static void RequireMainMenuSettingsCommit(string root)
     if (missingUiCalls.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu no longer routes settings changes through ActionGameManager: " +
+            "MainMenu no longer routes settings changes through the Aetheria Eve command boundary: " +
             string.Join(", ", missingUiCalls));
+    }
+
+    if (source.Contains("TrySendPlayerSettingsCommand(request.Command, request.Payload)", StringComparison.Ordinal) ||
+        source.Contains("new AetheriaRuntimePlayerSettingsCommandBody", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu still decodes player-settings Eve payloads locally instead of delegating to the typed command client.");
     }
 
     var requiredSharedCommands = new[]
@@ -2399,8 +2490,9 @@ static void RequireMainMenuSettingsCommit(string root)
     var requiredMainMenuSymbols = new[]
     {
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
-        "new EveUiToolkitSurfaceLowerer",
-        "ActionGameManager.CommitRuntimePlayerSettingsCommand(request.Command, request.Payload)"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
+        "TrySendPlayerSettingsCommand(request, command.Command)"
     };
 
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -2417,7 +2509,14 @@ static void RequireMainMenuSettingsCommit(string root)
     var forbiddenMainMenuSymbols = new[]
     {
         "new TextField(\"Name\")",
-        "ActionGameManager.CommitRuntimePlayerName(evt.newValue)"
+        "ActionGameManager.RequestRuntimePlayerName(evt.newValue)",
+        "TryQueuePlayerSettingsCommand(",
+        "TryQueueAetheriaEveCommand(",
+        "AetheriaRuntimeEveCommandLog.QueueCommand(",
+        "ResolveMenuSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer",
+        "host.AddComponent<UIDocument>",
+        "new EveSurfaceCommandRequest("
     };
 
     var mainMenuHits = forbiddenMainMenuSymbols
@@ -2458,27 +2557,44 @@ static void RequireMainMenuSettingsCommit(string root)
 static void RequireMainMenuSettingsShellUsesEveSurface(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var mainMenuSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
     if (!File.Exists(mainMenuPath))
     {
         throw new InvalidOperationException("Cannot verify main-menu settings shell; MainMenu.cs is missing.");
     }
+    if (!File.Exists(mainMenuSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu settings shell; AetheriaRuntimeMainMenuSurfaceBuilder.cs is missing.");
+    }
 
     var source = File.ReadAllText(mainMenuPath);
+    var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
         "RenderMenuSurface(",
-        "BuildSettingsSurfaceDefinition()",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
         "BuildVerseSettingsSurfaceDefinition()",
-        "BuildInputSettingsSurfaceDefinition(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
         "HandleSettingsSurfaceCommand(",
         "HandleVerseSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
-        "WithBackAction(",
-        "ShowPlayerSettingsCommand",
-        "ShowVerseSettingsCommand",
-        "ShowInputSettingsCommand",
-        "BackToMainCommand",
-        "BackToSettingsCommand"
+        "AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(",
+        "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeMainMenuCommandKind.ShowPlayerSettings",
+        "AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings",
+        "AetheriaRuntimeMainMenuCommandKind.ShowInputSettings",
+        "AetheriaRuntimeMainMenuCommandKind.BackToMain",
+        "AetheriaRuntimeMainMenuCommandKind.BackToSettings",
+        "AetheriaRuntimeMainMenuCommandKind.OpenRuntimeInputScreen",
+        "AetheriaRuntimeMainMenuCommands.BackToSettings",
+        "ProjectMainMenuSurfaceState(",
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument)"
     };
 
     var missingSymbols = requiredSymbols
@@ -2494,6 +2610,10 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "BuildSettingsSurfaceDefinition(",
+        "BuildInputSettingsSurfaceDefinition(",
+        "private static EveSurfaceComponent Button(",
+        "private static EveSurfaceComponent Card(",
         "_nextMenu.panel.AddButton(\"Player Settings\"",
         "_nextMenu.panel.AddButton(\"Verse\"",
         "_nextMenu.panel.AddButton(\"Input\"",
@@ -2501,6 +2621,14 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "BuildAudioSettingsSurfaceDefinition(",
         "HandleAudioSettingsSurfaceCommand(",
         "ShowAudioSettingsCommand",
+        "ResolveMenuSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer",
+        "host.AddComponent<UIDocument>",
+        "switch (request.Command)",
+        "string.Equals(request.Command, AetheriaRuntimeMainMenuCommands.BackToSettings",
+        "string.Equals(request.Command, AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen",
+        "TrySendVerseHostCommand(request.Command)",
+        "AetheriaRuntimeClientTargetCommands.IsKnown(request.Command",
         "_nextMenu.panel.Title.text = \"settings\"",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"input\", \"settings\")",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"audio\", \"settings\")"
@@ -2516,28 +2644,65 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
             "MainMenu still keeps a fake audio/settings shell or old PropertiesPanel settings shell alive: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeMainMenuSurfaceBuilder",
+        "public static class AetheriaRuntimeMainMenuCommands",
+        "BuildSettings(",
+        "BuildInputSettings(",
+        "WithBackAction(",
+        "public enum AetheriaRuntimeMainMenuCommandKind",
+        "public readonly struct AetheriaRuntimeMainMenuCommand",
+        "public static class AetheriaRuntimeMainMenuSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeMainMenuCommands.ShowPlayerSettings",
+        "AetheriaRuntimeMainMenuCommands.ShowVerseSettings",
+        "AetheriaRuntimeMainMenuCommands.ShowInputSettings",
+        "AetheriaRuntimeMainMenuCommands.BackToSettings"
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu surface builder no longer owns the settings/input shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireMainMenuRootUsesEveSurface(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var mainMenuSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
     if (!File.Exists(mainMenuPath))
     {
         throw new InvalidOperationException("Cannot verify main-menu root shell; MainMenu.cs is missing.");
     }
+    if (!File.Exists(mainMenuSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu root shell; AetheriaRuntimeMainMenuSurfaceBuilder.cs is missing.");
+    }
 
     var source = File.ReadAllText(mainMenuPath);
+    var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "MainSurfaceId",
-        "ContinueRunCommand",
-        "NewGameCommand",
-        "ShowSettingsCommand",
-        "QuitCommand",
-        "BuildMainSurfaceDefinition(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
+        "ProjectMainMenuSurfaceState(",
+        "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeMainMenuCommandKind.ContinueRun",
+        "AetheriaRuntimeMainMenuCommandKind.NewGame",
+        "AetheriaRuntimeMainMenuCommandKind.ShowSettings",
+        "AetheriaRuntimeMainMenuCommandKind.Quit",
         "HandleMainSurfaceCommand(",
-        "BuildMainSurfaceDefinition(",
-        "LatestContinueRun(stateBoot)",
+        "LatestDaemonFrame(stateBoot)",
         "LatestVerseHostSettings(stateBoot)",
         "HideMenuSurface();"
     };
@@ -2572,6 +2737,9 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "_nextMenu.panel.AddButton(\"New Game\"",
         "_nextMenu.panel.AddButton(\"Settings\"",
         "_nextMenu.panel.AddButton(\"Quit\"",
+        "BuildMainSurfaceDefinition(",
+        "private static EveSurfaceDocument BuildMenuSurfaceDocument(",
+        "switch (request.Command)",
         "Fade(true)",
         "Fade(false)"
     };
@@ -2612,6 +2780,30 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         throw new InvalidOperationException(
             "Main-menu prefab still serializes the dead root shell: " +
             string.Join(", ", prefabHits));
+    }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "BuildRoot(",
+        "AetheriaRuntimeMainMenuCommands.RootSurfaceId",
+        "AetheriaRuntimeMainMenuCommands.ContinueRun",
+        "AetheriaRuntimeMainMenuCommands.NewGame",
+        "AetheriaRuntimeMainMenuCommands.ShowSettings",
+        "AetheriaRuntimeMainMenuCommands.Quit",
+        "AetheriaRuntimeMainMenuSurfaceState",
+        "public enum AetheriaRuntimeMainMenuCommandKind",
+        "public readonly struct AetheriaRuntimeMainMenuCommand",
+        "public static class AetheriaRuntimeMainMenuSurfaceCommands",
+        "public static bool TryRead("
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu surface builder no longer owns the root shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
     }
 }
 
@@ -2758,18 +2950,30 @@ static string ReadSerializedMonoBehaviourBlock(string path, string scriptGuid)
 static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
 {
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var mainMenuSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
     if (!File.Exists(mainMenuPath))
     {
         throw new InvalidOperationException("Cannot verify main-menu input delegation; MainMenu.cs is missing.");
     }
+    if (!File.Exists(mainMenuSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify main-menu input delegation; AetheriaRuntimeMainMenuSurfaceBuilder.cs is missing.");
+    }
 
     var source = File.ReadAllText(mainMenuPath);
+    var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "OpenRuntimeInputScreenCommand",
+        "AetheriaRuntimeMainMenuCommandKind.OpenRuntimeInputScreen",
         "CanOpenRuntimeInputScreen()",
         "TryOpenRuntimeInputScreen()",
-        "BuildInputSettingsSurfaceDefinition(CanOpenRuntimeInputScreen(), InGame)",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
+        "ProjectMainMenuSurfaceState(",
         "ActionGameManager.Instance.ShowInputScreenFromMenu();"
     };
 
@@ -2799,6 +3003,13 @@ static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
         throw new InvalidOperationException(
             "MainMenu input page still reports the live remap owner as future work instead of delegating to it: " +
             string.Join(", ", hits));
+    }
+
+    if (!mainMenuSurfaceBuilder.Contains("AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen", StringComparison.Ordinal) ||
+        !mainMenuSurfaceBuilder.Contains("CanOpenRuntimeInputScreen", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu input surface no longer exposes the runtime input-screen handoff.");
     }
 }
 
@@ -2836,12 +3047,14 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     var requiredInputScreenSymbols = new[]
     {
         "AetheriaRuntimeInputSettingsSurfaceBuilder.Build(",
-        "AetheriaRuntimeInputSettingsCommands.BeginCapture",
-        "AetheriaRuntimeInputSettingsCommands.ToggleActionBar",
-        "new EveUiToolkitSurfaceLowerer()",
+        "AetheriaRuntimeInputSettingsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeInputSettingsCommandKind.BeginCapture",
+        "AetheriaRuntimeInputSettingsCommandKind.ToggleActionBar",
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument)",
         "UIDocument",
-        "ActionGameManager.CommitRuntimeInputBindingOverride",
-        "ActionGameManager.CommitRuntimeActionBarInput",
+        "ActionGameManager.RequestRuntimeInputBindingOverride",
+        "ActionGameManager.RequestRuntimeActionBarInput",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "HideLegacyChildren()"
@@ -2867,7 +3080,18 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "LayoutRebuilder",
         "UILineRenderer",
         "Observable.NextFrame()",
-        "DisplayLayout(_inputLayout)"
+        "DisplayLayout(_inputLayout)",
+        "EnsureSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
+        "AetheriaRuntimeStateCommitLog.QueuePlayerSettings",
+        "ActionGameManager.CommitRuntimeInputBindingOverride",
+        "ActionGameManager.CommitRuntimeActionBarInput",
+        "BeginCapture(request.Payload)",
+        "ToggleActionBarInput(request.Payload)",
+        "private void BeginCapture(IReadOnlyDictionary<string, string> payload)",
+        "private void ToggleActionBarInput(IReadOnlyDictionary<string, string> payload)",
+        "request.Payload"
     };
 
     var survivingLegacySymbols = forbiddenInputScreenSymbols
@@ -2884,6 +3108,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     if (!commands.Contains("SurfaceId = \"aetheria.input_settings\"", StringComparison.Ordinal) ||
         !commands.Contains("BeginCapture", StringComparison.Ordinal) ||
         !commands.Contains("ToggleActionBar", StringComparison.Ordinal) ||
+        !commands.Contains("SetBindingOverride", StringComparison.Ordinal) ||
+        !commands.Contains("SetActionBarEnabled", StringComparison.Ordinal) ||
         !commands.Contains("public static bool IsKnown", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2895,9 +3121,17 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "public sealed class AetheriaRuntimeInputSettingsSurfaceState",
         "public sealed class AetheriaRuntimeInputBindingSurfaceState",
         "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
+        "public enum AetheriaRuntimeInputSettingsCommandKind",
+        "public readonly struct AetheriaRuntimeInputSettingsSurfaceCommand",
+        "public static class AetheriaRuntimeInputSettingsSurfaceCommands",
+        "public static bool TryRead(",
         "AetheriaRuntimeInputSettingsCommands.BeginCapture",
         "AetheriaRuntimeInputSettingsCommands.ToggleActionBar",
-        "\"Low-level InputSystem edits flow through this Eve surface and queue typed player-settings commits.\""
+        "ReadString(request, \"actionName\")",
+        "ReadInt(request, \"bindingIndex\", -1)",
+        "ReadString(request, \"inputPath\")",
+        "ReadBool(request, \"enabled\", false)",
+        "\"Low-level InputSystem edits flow through this Eve surface as typed input-setting requests.\""
     };
 
     var missingBuilderSymbols = requiredBuilderSymbols
@@ -2909,6 +3143,48 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         throw new InvalidOperationException(
             "Shared input-settings Eve surface builder is incomplete: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify runtime input-screen authority; ActionGameManager.cs is missing.");
+
+    var requiredActionGameManagerSymbols = new[]
+    {
+        "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand",
+        "AetheriaRuntimeInputSettingsCommands.SetBindingOverride",
+        "AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled"
+    };
+
+    var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingActionGameManagerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime input writes no longer send explicit Eve input-setting commands: " +
+            string.Join(", ", missingActionGameManagerSymbols));
+    }
+
+    var forbiddenActionGameManagerSymbols = new[]
+    {
+        "public static void CommitRuntimeInputBindingOverride",
+        "public static void CommitRuntimeActionBarInput",
+        "RuntimePlayerSettings.InputSettings.SetBindingOverride(actionName, bindingIndex, inputSystemPath)",
+        "RuntimePlayerSettings.InputSettings.SetActionBarInputEnabled(inputSystemPath, enabled)"
+    };
+
+    var survivingActionGameManagerSymbols = forbiddenActionGameManagerSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (survivingActionGameManagerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime input settings are still using Unity-local mutation authority instead of typed Eve requests: " +
+            string.Join(", ", survivingActionGameManagerSymbols));
     }
 }
 
@@ -2946,22 +3222,34 @@ static void RequireActionGameManagerInputScreenUsesSharedFullscreenPrimitive(str
 static void RequireSectorMapZoneDetailsUseEveSurface(string root)
 {
     var sectorRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs");
+    var zoneDetailsSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.cs");
     if (!File.Exists(sectorRendererPath))
     {
         throw new InvalidOperationException("Cannot verify sector-map zone details shell; SectorRenderer.cs is missing.");
     }
+    if (!File.Exists(zoneDetailsSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify sector-map zone details shell; shared runtime zone details surface builder is missing.");
+    }
 
     var source = File.ReadAllText(sectorRendererPath);
+    var zoneDetailsSurfaceBuilder = File.ReadAllText(zoneDetailsSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "ZoneDetailsSurfaceId",
-        "CloseZoneDetailsCommand",
         "RenderZoneDetailsSurface(",
         "HandleZoneDetailsSurfaceCommand(",
         "HideZoneDetailsSurface(",
-        "ResolveZoneDetailsSurfaceDocument(",
-        "BuildZoneDetailsSurfaceDefinition(",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
+        "ProjectZoneDetailsSurfaceState(",
+        "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
 
     var missingSymbols = requiredSymbols
@@ -2977,6 +3265,12 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "BuildZoneDetailsSurfaceDefinition(",
+        "ZoneDetailsSurfaceId",
+        "CloseZoneDetailsCommand",
+        "private const string ZoneDetailsSurfaceType",
+        "ResolveZoneDetailsSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
         "Properties.Clear();",
         "Properties.Title.text = zone.Name;",
         "Properties.AddProperty(\"Owner\"",
@@ -2988,7 +3282,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "Properties.AddProperty(\"Stars\"",
         "Properties.AddProperty(\"Stations\"",
         "Properties.AddProperty(\"Turrets\"",
-        "Properties.AddProperty(\"Ships\""
+        "Properties.AddProperty(\"Ships\"",
+        "string.Equals(request.Command, AetheriaRuntimeZoneDetailsSurfaceBuilder.Close"
     };
 
     var hits = forbiddenSymbols
@@ -3001,14 +3296,50 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
             "SectorRenderer still owns zone details through the old PropertiesPanel path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeZoneDetailsSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.sector_map.zone_details\"",
+        "public const string Close = \"aetheria.sector_map.zone_details.close\"",
+        "public enum AetheriaRuntimeZoneDetailsCommandKind",
+        "public readonly struct AetheriaRuntimeZoneDetailsCommand",
+        "public static class AetheriaRuntimeZoneDetailsSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeZoneDetailsSurfaceState",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "providerKind: \"sector.map\"",
+        "Factions Present",
+        "Has not been visited.",
+        "Asteroid Belts"
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !zoneDetailsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime zone details surface builder no longer owns the sector-map zone shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireRuntimeMenuTabsUseEveSurface(string root)
 {
     var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
+    var menuTabsSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.cs");
     if (!File.Exists(menuPanelPath))
     {
         throw new InvalidOperationException("Cannot verify runtime menu tab shell; MenuPanel.cs is missing.");
+    }
+    if (!File.Exists(menuTabsSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime menu tab shell; AetheriaRuntimeMenuTabsSurfaceBuilder.cs is missing.");
     }
 
     var legacyTabButtonPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuTabButton.cs");
@@ -3018,19 +3349,29 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     }
 
     var source = File.ReadAllText(menuPanelPath);
+    var surfaceHostPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveUnitySurfaceHost.cs");
+    if (!File.Exists(surfaceHostPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime menu tab shell; AetheriaEveUnitySurfaceHost.cs is missing.");
+    }
+
+    var menuTabsSurfaceBuilder = File.ReadAllText(menuTabsSurfaceBuilderPath);
+    var surfaceHost = File.ReadAllText(surfaceHostPath);
     var requiredSymbols = new[]
     {
-        "MenuTabsSurfaceId",
         "MenuTabBinding",
         "TabBindings = Array.Empty<MenuTabBinding>();",
         "RenderTabSurface(",
         "HandleTabSurfaceCommand(",
-        "ResolveTabSurfaceDocument(",
-        "BuildTabSurfaceDefinition(",
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument)",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurfaceState())",
+        "ProjectTabSurfaceState(",
         "ResolveVisibleTabs(",
         "GetTabLabel(",
-        "GetTabCommand(",
-        "new EveUiToolkitSurfaceLowerer()",
+        "AetheriaRuntimeMenuTabsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeMenuTabCommandKind.SelectTab",
+        "string.Equals(command.TabKey, TabKey(tab), StringComparison.Ordinal)",
         "TabButtons.gameObject.SetActive(false)"
     };
 
@@ -3045,12 +3386,38 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
             string.Join(", ", missingSymbols));
     }
 
+    var requiredHostSymbols = new[]
+    {
+        "public static class AetheriaEveUnitySurfaceHost",
+        "public static UIDocument Render(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "shell.Add(lowerer.Lower(surface, commandHandler))"
+    };
+
+    var missingHostSymbols = requiredHostSymbols
+        .Where(symbol => !surfaceHost.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaEveUnitySurfaceHost no longer owns the shared Unity Eve lowering path: " +
+            string.Join(", ", missingHostSymbols));
+    }
+
     var forbiddenSymbols = new[]
     {
         "MenuTabButton",
         "tabButton.Button.onClick.AddListener(",
         "tabButton.gameObject.SetActive(!tabButton.RequireDock || GameManager.DockedEntity != null);",
-        "_tabs[MenuTab.Local].gameObject.SetActive("
+        "_tabs[MenuTab.Local].gameObject.SetActive(",
+        "BuildTabSurfaceDefinition(",
+        "private static EveSurfaceComponent Button(",
+        "private static EveSurfaceComponent Text(",
+        "private static EveSurfaceComponent Node(",
+        "ResolveTabSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor("
     };
 
     var hits = forbiddenSymbols
@@ -3063,29 +3430,64 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
             "MenuPanel still owns tab-shell behavior through the old MenuTabButton path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeMenuTabsSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.runtime_menu.tabs\"",
+        "CommandFor(string tabKey)",
+        "public enum AetheriaRuntimeMenuTabCommandKind",
+        "public readonly struct AetheriaRuntimeMenuTabCommand",
+        "public static class AetheriaRuntimeMenuTabsSurfaceCommands",
+        "public static bool TryRead(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "AetheriaRuntimeMenuTabsSurfaceState",
+        "AetheriaRuntimeMenuTabSurfaceEntry"
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !menuTabsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime menu tab surface builder no longer owns the tab shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireInventoryShipSettingsUseEveSurface(string root)
 {
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var shipSettingsSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.cs");
     if (!File.Exists(inventoryMenuPath))
     {
         throw new InvalidOperationException("Cannot verify inventory ship-settings shell; InventoryMenu.cs is missing.");
     }
+    if (!File.Exists(shipSettingsSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory ship-settings shell; shared runtime ship settings surface builder is missing.");
+    }
 
     var source = File.ReadAllText(inventoryMenuPath);
+    var shipSettingsSurfaceBuilder = File.ReadAllText(shipSettingsSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "ShipSettingsSurfaceId",
         "RenderCurrentShipSettingsSurface(",
         "HandleCurrentShipSettingsSurfaceCommand(",
-        "ResolveShipSettingsSurfaceDocument(",
-        "BuildCurrentShipSettingsSurfaceDefinition(",
-        "DecrementShutdownThresholdCommand",
-        "IncrementShutdownThresholdCommand",
-        "ResetShutdownThresholdCommand",
-        "CloseShipSettingsCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument)",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurfaceState(",
+        "ProjectCurrentShipSettingsSurfaceState(",
+        "AetheriaRuntimeShipSettingsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold",
+        "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
+        "AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold",
+        "AetheriaRuntimeShipSettingsCommandKind.Close"
     };
 
     var missingSymbols = requiredSymbols
@@ -3101,9 +3503,20 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "BuildCurrentShipSettingsSurfaceDefinition(",
+        "ShipSettingsSurfaceId",
+        "DecrementShutdownThresholdCommand",
+        "IncrementShutdownThresholdCommand",
+        "ResetShutdownThresholdCommand",
+        "CloseShipSettingsCommand",
+        "private const string ShipSettingsSurfaceType",
+        "ResolveShipSettingsSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
         "PropertiesPanel.AddField(\"Shutdown Threshold\"",
         "() => GameManager.CurrentEntity.Settings.ShutdownPerformance",
-        "f => GameManager.CommitEntityShutdownPerformance(GameManager.CurrentEntity, f)"
+        "f => GameManager.RequestEntityShutdownPerformance(GameManager.CurrentEntity, f)",
+        "switch (request.Command)"
     };
 
     var hits = forbiddenSymbols
@@ -3116,28 +3529,65 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
             "InventoryMenu still owns ship settings through the old PropertiesPanel field path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeShipSettingsSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.inventory.current_ship_settings\"",
+        "public const string DecrementShutdownThreshold",
+        "public const string IncrementShutdownThreshold",
+        "public const string ResetShutdownThreshold",
+        "public const string Close",
+        "public enum AetheriaRuntimeShipSettingsCommandKind",
+        "public readonly struct AetheriaRuntimeShipSettingsCommand",
+        "public static class AetheriaRuntimeShipSettingsSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeShipSettingsSurfaceState",
+        "public static AetheriaRuntimeSurfaceDocument Build("
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !shipSettingsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime ship settings surface builder no longer owns the ship-settings shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
 {
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var cargoItemSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs");
     if (!File.Exists(inventoryMenuPath))
     {
         throw new InvalidOperationException("Cannot verify inventory cargo-item shell; InventoryMenu.cs is missing.");
     }
+    if (!File.Exists(cargoItemSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory cargo-item shell; AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs is missing.");
+    }
 
     var source = File.ReadAllText(inventoryMenuPath);
+    var cargoItemSurfaceBuilder = File.ReadAllText(cargoItemSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "CargoItemDetailsSurfaceId",
         "RenderCargoItemDetailsSurface(",
         "HandleCargoItemDetailsSurfaceCommand(",
-        "ResolveCargoItemDetailsSurfaceDocument(",
-        "BuildCargoItemDetailsSurfaceDefinition(",
-        "BuildCargoItemBehaviorCards(",
-        "BuildCargoItemBehaviorMetric(",
-        "CloseCargoItemDetailsCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_cargoItemDetailsSurfaceDocument)",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurfaceState(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeCargoItemDetailsCommandKind.Close",
+        "ProjectCargoItemDetailsSurfaceState(",
+        "ProjectCargoItemBehaviorSections(",
+        "ProjectCargoItemBehaviorMetric("
     };
 
     var missingSymbols = requiredSymbols
@@ -3155,43 +3605,106 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     {
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
     }
+
+    var forbiddenSymbols = new[]
+    {
+        "BuildCargoItemDetailsSurfaceDefinition(",
+        "BuildCargoItemBehaviorCards(",
+        "BuildCargoItemBehaviorMetric(",
+        "CargoItemDetailsSurfaceId",
+        "CloseCargoItemDetailsCommand",
+        "ResolveCargoItemDetailsSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
+        "string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close"
+    };
+    var hits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still owns cargo-item inspection surface construction instead of projecting shared runtime state: " +
+            string.Join(", ", hits));
+    }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeCargoItemDetailsSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.inventory.cargo_item_details\"",
+        "public const string Close = \"aetheria.inventory.cargo_item_details.close\"",
+        "public enum AetheriaRuntimeCargoItemDetailsCommandKind",
+        "public readonly struct AetheriaRuntimeCargoItemDetailsCommand",
+        "public static class AetheriaRuntimeCargoItemDetailsSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceState",
+        "AetheriaRuntimeCargoItemSection",
+        "AetheriaRuntimeCargoItemMetric",
+        "public static AetheriaRuntimeSurfaceDocument Build("
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !cargoItemSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared cargo-item detail surface builder no longer owns the cargo inspection contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
 {
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
-    if (!File.Exists(inventoryMenuPath))
+    var equippedItemSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs");
+    var stateProjectPath = Path.Combine(root, "Aetheria.State", "Aetheria.State.csproj");
+    var unityProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
+    var requiredFiles = new[]
     {
-        throw new InvalidOperationException("Cannot verify inventory equipped-item shell; InventoryMenu.cs is missing.");
-    }
-
-    if (!File.Exists(actionGameManagerPath))
+        inventoryMenuPath,
+        actionGameManagerPath,
+        equippedItemSurfaceBuilderPath,
+        stateProjectPath,
+        unityProjectPath
+    };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
     {
-        throw new InvalidOperationException("Cannot verify inventory equipped-item shell; ActionGameManager.cs is missing.");
+        throw new InvalidOperationException(
+            "Cannot verify inventory equipped-item shell; required files are missing: " +
+            string.Join(", ", missingFiles));
     }
 
     var source = File.ReadAllText(inventoryMenuPath);
     var requiredSymbols = new[]
     {
-        "EquippedItemDetailsSurfaceId",
         "RenderEquippedItemDetailsSurface(",
         "HandleEquippedItemDetailsSurfaceCommand(",
-        "ResolveEquippedItemDetailsSurfaceDocument(",
-        "BuildEquippedItemDetailsSurfaceDefinition(",
-        "BuildEquippedItemControlCard(",
-        "BuildEquippedItemWeaponGroupCard(",
-        "BuildEquippedItemActionBarCards(",
-        "BuildItemBehaviorCards(",
-        "CommandButton(",
-        "TextField(",
-        "CloseEquippedItemDetailsCommand",
-        "ToggleEquippedItemOverrideShutdownCommand",
-        "SetEquippedItemTargetTemperatureCommand",
-        "ToggleEquippedItemWeaponGroupCommand",
-        "BindEquippedItemWeaponGroupCommand",
-        "ClearEquippedItemActionBarBindingCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_equippedItemDetailsSurfaceDocument)",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurfaceState(",
+        "ProjectEquippedItemDetailsSurfaceState(",
+        "ProjectEquippedItemTemperatureControls(",
+        "ProjectEquippedItemBehaviorSections(",
+        "ProjectEquippedItemWeaponGroupControls(",
+        "ProjectEquippedItemActionBarSlots(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceCommands.TryRead(request, out var command)",
+        "switch (command.Kind)",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.Close",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.ToggleOverrideShutdown",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.SetTargetTemperature",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.ToggleWeaponGroup",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.BindWeaponGroup",
+        "AetheriaRuntimeEquippedItemDetailsCommandKind.ClearActionBarBinding"
     };
 
     var missingSymbols = requiredSymbols
@@ -3205,12 +3718,52 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
             string.Join(", ", missingSymbols));
     }
 
+    var forbiddenSymbols = new[]
+    {
+        "EquippedItemDetailsSurfaceId",
+        "BuildEquippedItemDetailsSurfaceDefinition(",
+        "BuildEquippedItemControlCard(",
+        "BuildEquippedItemWeaponGroupCard(",
+        "BuildEquippedItemActionBarCards(",
+        "BuildItemBehaviorCards(",
+        "BuildItemBehaviorMetric(",
+        "CloseEquippedItemDetailsCommand",
+        "ToggleEquippedItemOverrideShutdownCommand",
+        "SetEquippedItemTargetTemperatureCommand",
+        "ToggleEquippedItemWeaponGroupCommand",
+        "BindEquippedItemWeaponGroupCommand",
+        "ClearEquippedItemActionBarBindingCommand",
+        "ResolveEquippedItemDetailsSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
+        "private static EveSurfaceComponent Card(",
+        "private static EveSurfaceComponent Metric(",
+        "private static EveSurfaceComponent Text(",
+        "private static EveSurfaceComponent Button(",
+        "private static EveSurfaceComponent CommandButton(",
+        "private static EveSurfaceComponent TextField(",
+        "private static EveSurfaceComponent ButtonRow(",
+        "private static EveSurfaceComponent Node(",
+        "TryReadPayloadInt(",
+        "TryReadPayloadFloat(",
+        "request.Payload"
+    };
+    var forbiddenHits = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still owns the equipped-item surface contract locally: " +
+            string.Join(", ", forbiddenHits));
+    }
+
     if (!source.Contains("RenderEquippedItemDetailsSurface(item);", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryMenu equipped-item click path no longer routes inspection through the Eve surface.");
     }
 
-    var forbiddenSymbols = new[]
+    var legacyShellSymbols = new[]
     {
         "public PropertiesPanel PropertiesPanel;",
         "PropertiesPanel.GameManager = GameManager;",
@@ -3218,7 +3771,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "PropertiesPanel.Inspect(item);"
     };
 
-    var hits = forbiddenSymbols
+    var hits = legacyShellSymbols
         .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
@@ -3229,15 +3782,69 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
             string.Join(", ", hits));
     }
 
+    var equippedItemSurfaceBuilder = File.ReadAllText(equippedItemSurfaceBuilderPath);
+    var stateProject = File.ReadAllText(stateProjectPath);
+    var unityProject = File.ReadAllText(unityProjectPath);
+    var requiredBuilderSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeEquippedItemDetailsSurfaceState",
+        "public sealed class AetheriaRuntimeEquippedItemSection",
+        "public sealed class AetheriaRuntimeEquippedItemMetric",
+        "public sealed class AetheriaRuntimeEquippedItemControl",
+        "public sealed class AetheriaRuntimeEquippedItemTemperatureControl",
+        "public sealed class AetheriaRuntimeEquippedItemActionBarSlot",
+        "public enum AetheriaRuntimeEquippedItemDetailsCommandKind",
+        "public readonly struct AetheriaRuntimeEquippedItemDetailsCommand",
+        "public static class AetheriaRuntimeEquippedItemDetailsSurfaceCommands",
+        "public static bool TryRead(",
+        "public const string SurfaceId = \"aetheria.inventory.equipped_item_details\"",
+        "public const string Close = \"aetheria.inventory.equipped_item_details.close\"",
+        "public const string ToggleOverrideShutdown = \"aetheria.inventory.equipped_item_details.override_shutdown.toggle\"",
+        "public const string SetTargetTemperature = \"aetheria.inventory.equipped_item_details.target_temperature.set\"",
+        "public const string ToggleWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.toggle\"",
+        "public const string BindWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.bind\"",
+        "public const string ClearActionBarBinding = \"aetheria.inventory.equipped_item_details.action_bar.clear\"",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "new AetheriaRuntimeSurfaceCommandTemplate(Close",
+        "new AetheriaRuntimeSurfaceCommandTemplate(ToggleOverrideShutdown",
+        "new AetheriaRuntimeSurfaceCommandTemplate(SetTargetTemperature",
+        "new AetheriaRuntimeSurfaceCommandTemplate(ToggleWeaponGroup",
+        "new AetheriaRuntimeSurfaceCommandTemplate(BindWeaponGroup",
+        "new AetheriaRuntimeSurfaceCommandTemplate(ClearActionBarBinding",
+        "ReadInt(request, \"behaviorIndex\", -1)",
+        "ReadFloat(request, \"value\", 0f)",
+        "ReadInt(request, \"group\", -1)",
+        "ReadInt(request, \"slot\", -1)",
+        "\"control.text\"",
+        "\"inventory.menu\""
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !equippedItemSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared equipped-item detail surface builder no longer owns the equipped-item inspection contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (!stateProject.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs", StringComparison.Ordinal) ||
+        !unityProject.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared equipped-item surface builder is not included in both runtime project surfaces.");
+    }
+
     var actionGameManagerSource = File.ReadAllText(actionGameManagerPath);
     var requiredActionBarSymbols = new[]
     {
         "GetActionBarSlotCount(",
         "GetActionBarSlotLabel(",
         "GetActionBarBindingLabel(",
-        "CommitWeaponGroupActionBarBinding(",
-        "CommitClearActionBarBinding(",
-        "QueueRunCheckpoint(\"action-bar-binding\")"
+        "RequestWeaponGroupActionBarBinding(",
+        "RequestClearActionBarBinding(",
+        "TryRequestDaemonActionBarBinding(",
+        "TryRequestDaemonActionBarBindingClear("
     };
 
     var missingActionBarSymbols = requiredActionBarSymbols
@@ -3255,22 +3862,37 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
 static void RequireTradeCargoSelectorUseEveSurface(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeCargoSelectorSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.cs");
     if (!File.Exists(tradeMenuPath))
     {
         throw new InvalidOperationException("Cannot verify trade cargo-selector shell; TradeMenu.cs is missing.");
     }
+    if (!File.Exists(tradeCargoSelectorSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade cargo-selector shell; shared runtime trade cargo selector surface builder is missing.");
+    }
 
     var source = File.ReadAllText(tradeMenuPath);
+    var tradeCargoSelectorSurfaceBuilder = File.ReadAllText(tradeCargoSelectorSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "CargoSelectorSurfaceId",
         "RenderCargoSelectorSurface(",
         "BuildCargoSelectionCommands(",
         "HandleCargoSelectorSurfaceCommand(",
-        "ResolveCargoSelectorSurfaceDocument(",
-        "BuildCargoSelectorSurfaceDefinition(",
-        "CloseCargoSelectorCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_cargoSelectorSurfaceDocument)",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(ProjectTradeCargoSelectorSurfaceState(",
+        "ProjectTradeCargoSelectorSurfaceState(",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.DockingBay",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.ShipBayCommand(",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
+        "AetheriaRuntimeTradeCargoSelectorCommandKind.Select"
     };
 
     var missingSymbols = requiredSymbols
@@ -3286,8 +3908,17 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "private const string CargoSelectorSurfaceType",
+        "private const string CargoSelectorSurfaceId",
+        "CloseCargoSelectorCommand",
+        "BuildCargoSelectorSurfaceDefinition(",
+        "ResolveCargoSelectorSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
         "ContextMenu.AddOption(\"Docking Bay\"",
-        "ContextMenu.AddOption($\"{ship.Name} Bay {bay.index+1}\""
+        "ContextMenu.AddOption($\"{ship.Name} Bay {bay.index+1}\"",
+        "string.Equals(request.Command, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Close",
+        "_cargoSelectionCommands.TryGetValue(request.Command"
     };
 
     var hits = forbiddenSymbols
@@ -3300,35 +3931,75 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
             "TradeMenu still owns cargo selection through the old context-menu option path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeTradeCargoSelectorSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.trade.target_cargo_selector\"",
+        "public const string Close = \"aetheria.trade.target_cargo_selector.close\"",
+        "public const string DockingBay = \"aetheria.trade.target_cargo_selector.docking_bay\"",
+        "public enum AetheriaRuntimeTradeCargoSelectorCommandKind",
+        "public readonly struct AetheriaRuntimeTradeCargoSelectorCommand",
+        "public static class AetheriaRuntimeTradeCargoSelectorSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceState",
+        "AetheriaRuntimeTradeCargoTargetOption",
+        "public static string ShipBayCommand(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "providerKind: \"trade.menu\"",
+        "Unity projects available cargo targets; the shared runtime surface owns the cargo selector contract."
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !tradeCargoSelectorSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade cargo selector surface builder no longer owns the trade cargo-selector shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeInteractionSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.cs");
     if (!File.Exists(tradeMenuPath))
     {
         throw new InvalidOperationException("Cannot verify trade filter and row-action shells; TradeMenu.cs is missing.");
     }
+    if (!File.Exists(tradeInteractionSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade filter and row-action shells; shared runtime trade interaction surface builder is missing.");
+    }
 
     var source = File.ReadAllText(tradeMenuPath);
+    var tradeInteractionSurfaceBuilder = File.ReadAllText(tradeInteractionSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "FilterSurfaceId",
-        "RowActionSurfaceId",
         "RenderFilterSurface(",
         "BuildFilterSurfaceCommands(",
         "HandleFilterSurfaceCommand(",
-        "ResolveFilterSurfaceDocument(",
-        "BuildFilterSurfaceDefinition(",
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument)",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(ProjectTradeFilterSurfaceState(",
+        "ProjectTradeFilterSurfaceState(",
         "RenderRowActionSurface(",
         "BuildRowActionSurfaceCommands(",
         "HandleRowActionSurfaceCommand(",
-        "ResolveRowActionSurfaceDocument(",
-        "BuildRowActionSurfaceDefinition(",
+        "AetheriaEveUnitySurfaceHost.Hide(_rowActionSurfaceDocument)",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(ProjectTradeRowActionSurfaceState(",
+        "ProjectTradeRowActionSurfaceState(",
         "ShowBuyQuantityDialog(",
-        "CloseFilterSurfaceCommand",
-        "CloseRowActionSurfaceCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadFilter(request, out var command)",
+        "AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadRowAction(request, out var command)",
+        "AetheriaRuntimeTradeInteractionCommandKind.Close",
+        "AetheriaRuntimeTradeInteractionCommandKind.Select"
     };
 
     var missingSymbols = requiredSymbols
@@ -3344,11 +4015,25 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "private const string FilterSurfaceId",
+        "private const string RowActionSurfaceId",
+        "CloseFilterSurfaceCommand",
+        "CloseRowActionSurfaceCommand",
+        "BuildFilterSurfaceDefinition(",
+        "BuildRowActionSurfaceDefinition(",
+        "ResolveFilterSurfaceDocument(",
+        "ResolveRowActionSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
         "public ContextMenu ContextMenu;",
         "ContextMenu.Clear();",
         "ContextMenu.AddDropdown(",
         "ContextMenu.AddOption(",
-        "ContextMenu.Show();"
+        "ContextMenu.Show();",
+        "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseFilter",
+        "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseRowAction",
+        "_filterSurfaceCommands.TryGetValue(request.Command",
+        "_rowActionSurfaceCommands.TryGetValue(request.Command"
     };
 
     var hits = forbiddenSymbols
@@ -3361,28 +4046,72 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
             "TradeMenu still owns filter or row-action behavior through the old context-menu path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeTradeInteractionSurfaceBuilder",
+        "public const string FilterSurfaceId = \"aetheria.trade.filter_selector\"",
+        "public const string CloseFilter = \"aetheria.trade.filter_selector.close\"",
+        "public const string RowActionSurfaceId = \"aetheria.trade.row_actions\"",
+        "public const string CloseRowAction = \"aetheria.trade.row_actions.close\"",
+        "public enum AetheriaRuntimeTradeInteractionCommandKind",
+        "public readonly struct AetheriaRuntimeTradeInteractionCommand",
+        "public static class AetheriaRuntimeTradeInteractionSurfaceCommands",
+        "public static bool TryReadFilter(",
+        "public static bool TryReadRowAction(",
+        "AetheriaRuntimeTradeFilterSurfaceState",
+        "AetheriaRuntimeTradeRowActionSurfaceState",
+        "AetheriaRuntimeTradeSurfaceGroup",
+        "AetheriaRuntimeTradeSurfaceOption",
+        "public static string HardpointFilterCommand(",
+        "public static string RowActionCommand(",
+        "public static AetheriaRuntimeSurfaceDocument BuildFilter(",
+        "public static AetheriaRuntimeSurfaceDocument BuildRowActions(",
+        "providerKind: \"trade.menu\""
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !tradeInteractionSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade interaction surface builder no longer owns the trade filter/row-action shell contracts: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireTradeItemDetailsUseEveSurface(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeItemDetailsSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.cs");
     if (!File.Exists(tradeMenuPath))
     {
         throw new InvalidOperationException("Cannot verify trade item-details shell; TradeMenu.cs is missing.");
     }
+    if (!File.Exists(tradeItemDetailsSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify trade item-details shell; shared runtime trade item details surface builder is missing.");
+    }
 
     var source = File.ReadAllText(tradeMenuPath);
+    var tradeItemDetailsSurfaceBuilder = File.ReadAllText(tradeItemDetailsSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "TradeItemSurfaceId",
         "RenderTradeItemDetailsSurface(",
         "HandleTradeItemDetailsSurfaceCommand(",
-        "ResolveTradeItemDetailsSurfaceDocument(",
-        "BuildTradeItemDetailsSurfaceDefinition(",
-        "BuildTradeItemBehaviorCards(",
-        "BuildTradeItemBehaviorMetric(",
-        "CloseTradeItemDetailsCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument)",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurfaceState(",
+        "ProjectTradeItemDetailsSurfaceState(",
+        "ProjectTradeItemBehaviorSections(",
+        "ProjectTradeItemBehaviorMetric(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeTradeItemDetailsCommandKind.Close"
     };
 
     var missingSymbols = requiredSymbols
@@ -3398,8 +4127,17 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "TradeItemSurfaceId",
+        "CloseTradeItemDetailsCommand",
+        "BuildTradeItemDetailsSurfaceDefinition(",
+        "BuildTradeItemBehaviorCards(",
+        "BuildTradeItemBehaviorMetric(",
+        "ResolveTradeItemDetailsSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIDocument>",
         "public PropertiesPanel Properties;",
-        "OnClick = () => Properties.Inspect(i.TypedItem)"
+        "OnClick = () => Properties.Inspect(i.TypedItem)",
+        "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close"
     };
 
     var hits = forbiddenSymbols
@@ -3412,28 +4150,69 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
             "TradeMenu still owns typed item inspection through the old PropertiesPanel path: " +
             string.Join(", ", hits));
     }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeTradeItemDetailsSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.trade.item_details\"",
+        "public const string Close = \"aetheria.trade.item_details.close\"",
+        "public enum AetheriaRuntimeTradeItemDetailsCommandKind",
+        "public readonly struct AetheriaRuntimeTradeItemDetailsCommand",
+        "public static class AetheriaRuntimeTradeItemDetailsSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceState",
+        "AetheriaRuntimeTradeItemSection",
+        "AetheriaRuntimeTradeItemMetric",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "providerKind: \"trade.menu\"",
+        "Unity supplies the selected market row; the shared runtime surface owns trade item inspection layout."
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !tradeItemDetailsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade item details surface builder no longer owns the trade item-details shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
+    }
 }
 
 static void RequireInventoryDropdownUseEveSurface(string root)
 {
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryDropdownSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.cs");
     if (!File.Exists(inventoryPanelPath))
     {
         throw new InvalidOperationException("Cannot verify inventory dropdown shell; InventoryPanel.cs is missing.");
     }
+    if (!File.Exists(inventoryDropdownSurfaceBuilderPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory dropdown shell; shared runtime inventory dropdown surface builder is missing.");
+    }
 
     var source = File.ReadAllText(inventoryPanelPath);
+    var inventoryDropdownSurfaceBuilder = File.ReadAllText(inventoryDropdownSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
-        "DropdownSurfaceId",
         "RenderDropdownSurface(",
         "BuildDropdownCommands(",
         "HandleDropdownSurfaceCommand(",
-        "ResolveDropdownSurfaceDocument(",
-        "BuildDropdownSurfaceDefinition(",
-        "SaveLoadoutCommand",
-        "CloseDropdownSurfaceCommand",
-        "new EveUiToolkitSurfaceLowerer()"
+        "AetheriaEveUnitySurfaceHost.RenderRuntime(",
+        "AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument)",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(ProjectDropdownSurfaceState(",
+        "ProjectDropdownSurfaceState(",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout",
+        "AetheriaRuntimeInventoryDropdownSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeInventoryDropdownCommandKind.Close",
+        "AetheriaRuntimeInventoryDropdownCommandKind.Select",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand("
     };
 
     var missingSymbols = requiredSymbols
@@ -3449,11 +4228,21 @@ static void RequireInventoryDropdownUseEveSurface(string root)
 
     var forbiddenSymbols = new[]
     {
+        "DropdownSurfaceId",
+        "CloseDropdownSurfaceCommand",
+        "SaveLoadoutCommand",
+        "BuildDropdownSurfaceDefinition(",
+        "private const string DropdownSurfaceType",
+        "ResolveDropdownSurfaceDocument(",
+        "new EveUiToolkitSurfaceLowerer()",
+        "host.AddComponent<UIE.UIDocument>",
         "ContextMenu.AddDropdown(entity.Name",
         "ContextMenu.AddOption(GameManager.DockingBay.Name",
         "ContextMenu.AddOption(\"Save Loadout\"",
         "ContextMenu.AddDropdown(\"Restore Loadout\"",
-        "ContextMenu.Show();"
+        "ContextMenu.Show();",
+        "string.Equals(request.Command, AetheriaRuntimeInventoryDropdownSurfaceBuilder.Close",
+        "_dropdownCommands.TryGetValue(request.Command"
     };
 
     var hits = forbiddenSymbols
@@ -3465,6 +4254,38 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         throw new InvalidOperationException(
             "InventoryPanel still owns dropdown behavior through the old ContextMenu path: " +
             string.Join(", ", hits));
+    }
+
+    var requiredBuilderSymbols = new[]
+    {
+        "public static class AetheriaRuntimeInventoryDropdownSurfaceBuilder",
+        "public const string SurfaceId = \"aetheria.inventory.panel.dropdown\"",
+        "public const string Close = \"aetheria.inventory.panel.dropdown.close\"",
+        "public const string SaveLoadout = \"aetheria.inventory.panel.dropdown.save_loadout\"",
+        "public const string DockingBay = \"aetheria.inventory.panel.dropdown.docking_bay\"",
+        "public enum AetheriaRuntimeInventoryDropdownCommandKind",
+        "public readonly struct AetheriaRuntimeInventoryDropdownCommand",
+        "public static class AetheriaRuntimeInventoryDropdownSurfaceCommands",
+        "public static bool TryRead(",
+        "AetheriaRuntimeInventoryDropdownSurfaceState",
+        "AetheriaRuntimeInventoryDropdownGroup",
+        "AetheriaRuntimeInventoryDropdownOption",
+        "public static string EntityEquipmentCommand(",
+        "public static string EntityBayCommand(",
+        "public static string EntityCommand(",
+        "public static string LoadoutCommand(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "providerKind: \"inventory.panel\"",
+        "Unity projects available inventory navigation; the shared runtime surface owns the dropdown contract."
+    };
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !inventoryDropdownSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime inventory dropdown surface builder no longer owns the inventory dropdown shell contract: " +
+            string.Join(", ", missingBuilderSymbols));
     }
 }
 
@@ -3567,7 +4388,7 @@ static void RequirePlayerSettingsEveSurface(string root)
     var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaPlayerSettingsSurfaceProjector.cs");
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
-    var serverPath = Path.Combine(root, "Economy.Server", "Program.cs");
+    var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var sharedCommandsPath = Path.Combine(
         root,
         "Packages",
@@ -3612,9 +4433,9 @@ static void RequirePlayerSettingsEveSurface(string root)
     var provider = File.Exists(providerPath)
         ? File.ReadAllText(providerPath)
         : throw new InvalidOperationException("Player settings provider advertisement projector is missing.");
-    var server = File.Exists(serverPath)
-        ? File.ReadAllText(serverPath)
-        : throw new InvalidOperationException("Economy.Server program is missing.");
+    var daemonHost = File.Exists(daemonHostPath)
+        ? File.ReadAllText(daemonHostPath)
+        : throw new InvalidOperationException("Aetheria.State.Daemon program is missing.");
     var sharedCommands = File.Exists(sharedCommandsPath)
         ? File.ReadAllText(sharedCommandsPath)
         : throw new InvalidOperationException("Shared player-settings Eve command contract is missing.");
@@ -3622,11 +4443,11 @@ static void RequirePlayerSettingsEveSurface(string root)
         ? File.ReadAllText(surfaceBuilderPath)
         : throw new InvalidOperationException("Shared player-settings Eve surface builder is missing.");
 
-    if (!bridge.Contains("AppliedPlayerSettingsCommands", StringComparison.Ordinal) ||
-        !bridge.Contains("ApplyPlayerSettingsCommandAsync", StringComparison.Ordinal) ||
+    if (!bridge.Contains("AcceptedPlayerSettingsCommands", StringComparison.Ordinal) ||
+        !bridge.Contains("ExecutePlayerSettingsCommandAsync", StringComparison.Ordinal) ||
         !bridge.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
         !bridge.Contains("SetPlayerName", StringComparison.Ordinal) ||
-        !bridge.Contains("command.Payload.TryGetValue(\"value\"", StringComparison.Ordinal))
+        !bridge.Contains("command.PlayerSettings.PlayerName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Eve command bridge no longer owns the typed player-settings surface mutation path.");
@@ -3639,11 +4460,11 @@ static void RequirePlayerSettingsEveSurface(string root)
             "Provider advertisement no longer publishes the player-settings Eve surface and commands.");
     }
 
-    if (!server.Contains("PublishPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
-        !server.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal))
+    if (!daemonHost.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
+        !daemonHost.Contains("AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Economy.Server no longer republishes the provider-owned player-settings Eve surface.");
+            "Aetheria.State.Daemon no longer republishes the provider-owned player-settings Eve surface.");
     }
 
     if (!sharedCommands.Contains("SurfaceId = \"aetheria.player_settings\"", StringComparison.Ordinal) ||
@@ -3663,6 +4484,93 @@ static void RequirePlayerSettingsEveSurface(string root)
     }
 }
 
+static void RequireDaemonHostDoesNotDrainRuntimeCommits(string root)
+{
+    var economyServerPath = Path.Combine(root, "Economy" + ".Server", "Program.cs");
+    var economyServerProjectPath = Path.Combine(root, "Economy" + ".Server", "Economy" + ".Server.csproj");
+    var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var drainCommandsPath = Path.Combine(root, "Aetheria.State.DrainCommands", "Program.cs");
+    var packageCommitLogPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeStateCommitLog.cs");
+    var generatedUnityProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
+    if (File.Exists(economyServerPath) || File.Exists(economyServerProjectPath))
+    {
+        throw new InvalidOperationException("Economy" + ".Server still exists beside the first-class Aetheria.State.Daemon host.");
+    }
+
+    var daemonHost = File.Exists(daemonHostPath)
+        ? File.ReadAllText(daemonHostPath)
+        : throw new InvalidOperationException("Cannot verify daemon host command authority; Aetheria.State.Daemon program is missing.");
+    var generatedUnityProject = File.Exists(generatedUnityProjectPath)
+        ? File.ReadAllText(generatedUnityProjectPath)
+        : throw new InvalidOperationException("Cannot verify daemon host command authority; GameCult.Aetheria.State.Unity.csproj is missing.");
+
+    if (File.Exists(drainCommandsPath) ||
+        File.Exists(Path.Combine(root, "Aetheria.State.DrainCommands", "Aetheria.State.DrainCommands.csproj")))
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.DrainCommands still exists as a sidecar command applicator; command acceptance belongs inside the Verse daemon.");
+    }
+
+    if (File.Exists(packageCommitLogPath) ||
+        generatedUnityProject.Contains("AetheriaRuntimeStateCommitLog.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity package still exposes the legacy runtime state commit log instead of typed Eve/daemon requests.");
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "AetheriaLegacyRuntimeSnapshotImporter.ImportPendingAsync",
+        "DrainCommandsRuntimeCommitsAsync",
+        "CountPendingRuntimeCommits",
+        "Applied pending Aetheria runtime commits",
+        "AetheriaRuntimeCommitDrainStatus",
+        "PutRuntimeCommitDrainStatusAsync",
+        "GetRuntimeCommitDrainStatusAsync",
+        "PublishRuntimeCommitDrainDisabledAsync",
+        "disabled-daemon-authority"
+    };
+
+    var hits = forbiddenSymbols
+        .SelectMany(symbol => new[]
+        {
+            (Path: daemonHostPath, Symbol: symbol, Hit: daemonHost.Contains(symbol, StringComparison.Ordinal))
+        })
+        .Where(entry => entry.Hit)
+        .Select(entry => $"{Path.GetRelativePath(root, entry.Path)}: {entry.Symbol}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "First-party daemon drains still apply legacy runtime commits instead of daemon/Eve command authority: " +
+            string.Join(", ", hits));
+    }
+
+    var requiredSymbols = new[]
+    {
+        "AetheriaEveCommandBridge.AcceptObservedAsync",
+        "AppliedInputSettingsCommands = report.AcceptedInputSettingsCommands",
+        "AppliedLoadoutTemplateCommands = report.AcceptedLoadoutTemplateCommands"
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !daemonHost.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Daemon no longer advertises daemon authority while accepting observed Eve command documents: " +
+            string.Join(", ", missingSymbols));
+    }
+}
+
 static void RequireVerseHostSettingsAuthority(string root)
 {
     var settingsPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaVerseHostSettings.cs");
@@ -3673,9 +4581,7 @@ static void RequireVerseHostSettingsAuthority(string root)
     var nodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
     var operationsPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
-    var serverPath = Path.Combine(root, "Economy.Server", "Program.cs");
-    var serverSettingsPath = Path.Combine(root, "Economy.Server", "appsettings.json");
-    var applyPendingPath = Path.Combine(root, "Aetheria.State.ApplyPending", "Program.cs");
+    var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
 
     var requiredFiles = new[]
     {
@@ -3687,9 +4593,7 @@ static void RequireVerseHostSettingsAuthority(string root)
         nodePath,
         providerPath,
         operationsPath,
-        serverPath,
-        serverSettingsPath,
-        applyPendingPath
+        daemonHostPath
     };
 
     var missingFiles = requiredFiles
@@ -3710,9 +4614,7 @@ static void RequireVerseHostSettingsAuthority(string root)
     var node = File.ReadAllText(nodePath);
     var provider = File.ReadAllText(providerPath);
     var operations = File.ReadAllText(operationsPath);
-    var server = File.ReadAllText(serverPath);
-    var serverSettings = File.ReadAllText(serverSettingsPath);
-    var applyPending = File.ReadAllText(applyPendingPath);
+    var daemonHost = File.ReadAllText(daemonHostPath);
 
     var requiredSettingsSymbols = new[]
     {
@@ -3825,60 +4727,38 @@ static void RequireVerseHostSettingsAuthority(string root)
             "Operations surface does not expose the typed daemon Verse-host telemetry card.");
     }
 
-    var requiredServerSymbols = new[]
+    var requiredDaemonHostSymbols = new[]
     {
         "EnsureVerseHostSettingsAsync",
         "AetheriaVerseDiscoveryHost",
-        "RefreshVerseDiscoveryAsync",
-        "LoadVerseHostOverrides",
+        "discoveryHost.Update",
+        "ReadOption(args, \"--verse-id\")",
+        "ReadOption(args, \"--cultmesh-address\")",
         "GetVerseHostSettingsAsync",
         "PutVerseHostSettingsAsync",
-        "AetheriaProviderAdvertisementProjector.Build(verseHostSettings, node.StatePath, updatedAtUtc)"
+        "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)"
     };
-    var missingServerSymbols = requiredServerSymbols
-        .Where(symbol => !server.Contains(symbol, StringComparison.Ordinal))
+    var missingDaemonHostSymbols = requiredDaemonHostSymbols
+        .Where(symbol => !daemonHost.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingServerSymbols.Length > 0)
+    if (missingDaemonHostSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Economy.Server is missing typed verse-host startup authority: " +
-            string.Join(", ", missingServerSymbols));
-    }
-
-    var requiredServerSettingsSymbols = new[]
-    {
-        "\"Aetheria\"",
-        "\"VerseHost\"",
-        "\"VerseId\"",
-        "\"CultMeshAddress\"",
-        "\"Visibility\""
-    };
-    var missingServerSettingsSymbols = requiredServerSettingsSymbols
-        .Where(symbol => !serverSettings.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingServerSettingsSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Economy.Server appsettings are missing the daemon Verse-host section: " +
-            string.Join(", ", missingServerSettingsSymbols));
-    }
-
-    if (!applyPending.Contains("EnsureVerseHostSettingsAsync", StringComparison.Ordinal) ||
-        !applyPending.Contains("AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now)", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Aetheria.State.ApplyPending does not preserve typed verse-host projection authority.");
+            "Aetheria.State.Daemon is missing typed verse-host startup authority: " +
+            string.Join(", ", missingDaemonHostSymbols));
     }
 }
 
 static void RequireClientTargetBootAuthority(string root)
 {
-    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var unityPackageProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
     var bootPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoot.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
+    var aetheriaStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaState.cs");
     var verseDiscoveryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseDiscovery.cs");
     var replicaBridgePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseReplicaBridge.cs");
+    var mainMenuSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
     var bootstrapPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeBootstrap.cs");
     var presenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
@@ -3886,12 +4766,14 @@ static void RequireClientTargetBootAuthority(string root)
 
     var requiredFiles = new[]
     {
-        unityFacadeProjectPath,
+        unityPackageProjectPath,
         boundaryPath,
         bootPath,
         clientTargetStorePath,
+        aetheriaStatePath,
         verseDiscoveryPath,
         replicaBridgePath,
+        mainMenuSurfaceBuilderPath,
         bootstrapPath,
         presenterPath,
         actionGameManagerPath,
@@ -3909,33 +4791,36 @@ static void RequireClientTargetBootAuthority(string root)
             string.Join(", ", missingFiles));
     }
 
-    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var unityPackageProject = File.ReadAllText(unityPackageProjectPath);
     var boundary = File.ReadAllText(boundaryPath);
     var boot = File.ReadAllText(bootPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
+    var aetheriaState = File.ReadAllText(aetheriaStatePath);
     var verseDiscovery = File.ReadAllText(verseDiscoveryPath);
     var replicaBridge = File.ReadAllText(replicaBridgePath);
+    var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
     var bootstrap = File.ReadAllText(bootstrapPath);
     var presenter = File.ReadAllText(presenterPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
 
-    var requiredUnityFacadeSymbols = new[]
+    var requiredUnityPackageProjectSymbols = new[]
     {
         "AetheriaRuntimeClientTargetStore.cs",
+        "AetheriaState.cs",
         "AetheriaRuntimeVerseDiscovery.cs",
         "AetheriaRuntimeStateBoundary.cs",
         "AetheriaRuntimeStateBoot.cs",
         "AetheriaRuntimeVerseReplicaBridge.cs"
     };
-    var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
-        .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
+    var missingUnityPackageProjectSymbols = requiredUnityPackageProjectSymbols
+        .Where(symbol => !unityPackageProject.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingUnityFacadeSymbols.Length > 0)
+    if (missingUnityPackageProjectSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria.State.Unity.csproj no longer compiles the shared client-target boot files: " +
-            string.Join(", ", missingUnityFacadeSymbols));
+            "GameCult.Aetheria.State.Unity.csproj no longer compiles the shared client-target boot files: " +
+            string.Join(", ", missingUnityPackageProjectSymbols));
     }
 
     var requiredBoundarySymbols = new[]
@@ -4040,6 +4925,88 @@ static void RequireClientTargetBootAuthority(string root)
             string.Join(", ", missingVerseDiscoverySymbols));
     }
 
+    var requiredAetheriaStateSymbols = new[]
+    {
+        "public readonly struct AetheriaState",
+        "public static AetheriaState At(DirectoryInfo gameDataDirectory)",
+        "public AetheriaClientTarget ClientTarget",
+        "public readonly struct AetheriaClientTarget",
+        "public AetheriaRuntimeClientTargetDocument Refresh()",
+        "public AetheriaRuntimeClientTargetDocument DiscoverVerses()",
+        "public AetheriaRuntimeClientTargetDocument SyncReplica()",
+        "public AetheriaRuntimeClientTargetDocument CycleTransport()",
+        "public AetheriaRuntimeClientTargetDocument RequestTitle(string title)",
+        "public AetheriaRuntimeClientTargetDocument RequestVerseId(string verseId)",
+        "public AetheriaRuntimeClientTargetDocument RequestCultMeshAddress(string cultMeshAddress)",
+        "public AetheriaRuntimeClientTargetDocument RequestStateFilePath(string stateFilePath)",
+        "public AetheriaRuntimeClientTargetDocument RequestDiscoveryEndpoints(IEnumerable<string>? discoveryEndpoints)",
+        "public AetheriaRuntimeClientTargetDocument SelectDiscoveredVerse(",
+        "public bool TryRequest(AetheriaClientTargetOperation operation, out AetheriaRuntimeClientTargetDocument? document)",
+        "public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation operation)",
+        "AetheriaClientTargetOperationKind.SelectDiscoveredVerse",
+        "AetheriaRuntimeStateBoundary.GetClientTargetPath(_gameDataDirectory)",
+        "AetheriaRuntimeStateBoundary.GetStateFilePath(_gameDataDirectory)",
+        "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+        "AetheriaRuntimeVerseReplicaBridge.Sync(",
+        "AetheriaRuntimeClientTargetStore.Update(",
+        "NormalizeDiscoveryEndpoints(",
+        "GetReplicaStateFilePath(gameDataDirectory, document.VerseId)"
+    };
+    var missingAetheriaStateSymbols = requiredAetheriaStateSymbols
+        .Where(symbol => !aetheriaState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingAetheriaStateSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar no longer owns typed client-target mutation: " +
+            string.Join(", ", missingAetheriaStateSymbols));
+    }
+
+    if (aetheriaState.Contains("public bool TryApply(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        aetheriaState.Contains("public AetheriaRuntimeClientTargetDocument Apply(AetheriaClientTargetOperation", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Apply vocabulary for client-target edits; Unity should request typed target changes.");
+    }
+
+    var forbiddenClientTargetSetters = new[]
+    {
+        "public AetheriaRuntimeClientTargetDocument SetTitle(",
+        "public AetheriaRuntimeClientTargetDocument SetVerseId(",
+        "public AetheriaRuntimeClientTargetDocument SetCultMeshAddress(",
+        "public AetheriaRuntimeClientTargetDocument SetStateFilePath(",
+        "public AetheriaRuntimeClientTargetDocument SetDiscoveryEndpoints("
+    };
+    var clientTargetSetterHits = forbiddenClientTargetSetters
+        .Where(symbol => aetheriaState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (clientTargetSetterHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Set vocabulary for client-target edits; Unity should request typed target changes: " +
+            string.Join(", ", clientTargetSetterHits));
+    }
+
+    if (aetheriaState.Contains("DaemonOperations", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar regressed to command-applier naming instead of native state handles.");
+    }
+
+    if (aetheriaState.Contains("IReadOnlyDictionary<string, string>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar exposes generic dictionary payload plumbing instead of typed client-target operations.");
+    }
+
+    if (aetheriaState.Contains("EveSurfaceCommandRequest", StringComparison.Ordinal) ||
+        aetheriaState.Contains("ReadPayloadValue(", StringComparison.Ordinal) ||
+        aetheriaState.Contains("request.Payload", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Eve request payload plumbing instead of typed client-target operations.");
+    }
+
     var requiredReplicaBridgeSymbols = new[]
     {
         "public static class AetheriaRuntimeVerseReplicaBridge",
@@ -4101,7 +5068,7 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredMainMenuSymbols = new[]
     {
         "CurrentStateBoot()",
-        "LatestContinueRun(AetheriaRuntimeStateBootReport stateBoot)",
+        "LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)",
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "stateBoot.FailureMessage",
         "stateBoot.DiscoveryEndpoints",
@@ -4111,6 +5078,19 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.ReplicaStateFilePath",
         "stateBoot.LastReplicaSyncAtUtc",
         "stateBoot.LastReplicaSyncError",
+        "AetheriaState.At(ActionGameManager.GameDataDirectory)",
+        ".ClientTarget",
+        "TryRequestClientTargetCommand(request)",
+        "AetheriaRuntimeClientTargetSurfaceCommands.TryRead(request, out var operation)",
+        ".ClientTarget.Request(operation)",
+        "ProjectMainMenuSurfaceState(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings("
+    };
+    var requiredMainMenuBuilderSymbols = new[]
+    {
+        "AetheriaRuntimeMainMenuSurfaceState",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""
@@ -4123,6 +5103,15 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "MainMenu no longer lowers the shared client-target boot state through Eve: " +
             string.Join(", ", missingMainMenuSymbols));
+    }
+    var missingMainMenuBuilderSymbols = requiredMainMenuBuilderSymbols
+        .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMainMenuBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu surface builder no longer lowers the client-target boot state through Eve: " +
+            string.Join(", ", missingMainMenuBuilderSymbols));
     }
 
     var forbiddenDirectPathSymbols = new Dictionary<string, string[]>
@@ -4138,6 +5127,15 @@ static void RequireClientTargetBootAuthority(string root)
         [bootstrapPath] = new[]
         {
             "StatePathOverride()"
+        },
+        [mainMenuPath] = new[]
+        {
+            "AetheriaRuntimeStateBoundary.",
+            "AetheriaRuntimeClientTargetStore.",
+            "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+            "AetheriaRuntimeVerseReplicaBridge.Sync(",
+            "AetheriaRuntimeClientTarget.",
+            "DaemonOperations",
         }
     };
 
@@ -4254,9 +5252,10 @@ static void RequireVerseReplicaTool(string root)
 
 static void RequireVerseSettingsShellAndBridge(string root)
 {
-    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var unityPackageProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var stateProjectPath = Path.Combine(root, "Aetheria.State", "Aetheria.State.csproj");
     var clientTargetCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetCommands.cs");
+    var aetheriaStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaState.cs");
     var clientTargetSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetSurfaceBuilder.cs");
     var verseHostCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseHostCommands.cs");
     var clientTargetStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetStore.cs");
@@ -4264,16 +5263,16 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var replicaBridgePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseReplicaBridge.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var commandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
-    var drainStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandDrainStatus.cs");
+    var acceptanceStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandAcceptanceStatus.cs");
     var operationsProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
-    var applyPendingPath = Path.Combine(root, "Aetheria.State.ApplyPending", "Program.cs");
-    var economyServerPath = Path.Combine(root, "Economy.Server", "Program.cs");
+    var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
 
     var requiredFiles = new[]
     {
-        unityFacadeProjectPath,
+        unityPackageProjectPath,
         stateProjectPath,
         clientTargetCommandsPath,
+        aetheriaStatePath,
         clientTargetSurfaceBuilderPath,
         verseHostCommandsPath,
         clientTargetStorePath,
@@ -4281,10 +5280,9 @@ static void RequireVerseSettingsShellAndBridge(string root)
         replicaBridgePath,
         mainMenuPath,
         commandBridgePath,
-        drainStatusPath,
+        acceptanceStatusPath,
         operationsProjectorPath,
-        applyPendingPath,
-        economyServerPath
+        daemonHostPath
     };
 
     var missingFiles = requiredFiles
@@ -4298,9 +5296,10 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", missingFiles));
     }
 
-    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var unityPackageProject = File.ReadAllText(unityPackageProjectPath);
     var stateProject = File.ReadAllText(stateProjectPath);
     var clientTargetCommands = File.ReadAllText(clientTargetCommandsPath);
+    var aetheriaState = File.ReadAllText(aetheriaStatePath);
     var clientTargetSurfaceBuilder = File.ReadAllText(clientTargetSurfaceBuilderPath);
     var verseHostCommands = File.ReadAllText(verseHostCommandsPath);
     var clientTargetStore = File.ReadAllText(clientTargetStorePath);
@@ -4308,26 +5307,26 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var replicaBridge = File.ReadAllText(replicaBridgePath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var commandBridge = File.ReadAllText(commandBridgePath);
-    var drainStatus = File.ReadAllText(drainStatusPath);
+    var acceptanceStatus = File.ReadAllText(acceptanceStatusPath);
     var operationsProjector = File.ReadAllText(operationsProjectorPath);
-    var applyPending = File.ReadAllText(applyPendingPath);
-    var economyServer = File.ReadAllText(economyServerPath);
+    var daemonHost = File.ReadAllText(daemonHostPath);
 
-    var requiredUnityFacadeSymbols = new[]
+    var requiredUnityPackageProjectSymbols = new[]
     {
         "AetheriaRuntimeClientTargetCommands.cs",
+        "AetheriaState.cs",
         "AetheriaRuntimeClientTargetSurfaceBuilder.cs",
         "AetheriaRuntimeVerseDiscovery.cs",
         "AetheriaRuntimeVerseReplicaBridge.cs"
     };
-    var missingUnityFacadeSymbols = requiredUnityFacadeSymbols
-        .Where(symbol => !unityFacadeProject.Contains(symbol, StringComparison.Ordinal))
+    var missingUnityPackageProjectSymbols = requiredUnityPackageProjectSymbols
+        .Where(symbol => !unityPackageProject.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingUnityFacadeSymbols.Length > 0)
+    if (missingUnityPackageProjectSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria.State.Unity.csproj does not compile the Verse settings shell files: " +
-            string.Join(", ", missingUnityFacadeSymbols));
+            "GameCult.Aetheria.State.Unity.csproj does not compile the Verse settings shell files: " +
+            string.Join(", ", missingUnityPackageProjectSymbols));
     }
 
     if (!stateProject.Contains("AetheriaRuntimeVerseHostCommands.cs", StringComparison.Ordinal))
@@ -4410,6 +5409,84 @@ static void RequireVerseSettingsShellAndBridge(string root)
             "Client-target store no longer exposes typed update ownership for local target edits.");
     }
 
+    var requiredAetheriaStateSymbols = new[]
+    {
+        "public readonly struct AetheriaState",
+        "public AetheriaClientTarget ClientTarget",
+        "public readonly struct AetheriaClientTarget",
+        "public AetheriaRuntimeClientTargetDocument Refresh()",
+        "public AetheriaRuntimeClientTargetDocument DiscoverVerses()",
+        "public AetheriaRuntimeClientTargetDocument SyncReplica()",
+        "public AetheriaRuntimeClientTargetDocument CycleTransport()",
+        "public AetheriaRuntimeClientTargetDocument RequestTitle(string title)",
+        "public AetheriaRuntimeClientTargetDocument RequestVerseId(string verseId)",
+        "public AetheriaRuntimeClientTargetDocument RequestCultMeshAddress(string cultMeshAddress)",
+        "public AetheriaRuntimeClientTargetDocument RequestStateFilePath(string stateFilePath)",
+        "public AetheriaRuntimeClientTargetDocument RequestDiscoveryEndpoints(IEnumerable<string>? discoveryEndpoints)",
+        "public AetheriaRuntimeClientTargetDocument SelectDiscoveredVerse(",
+        "public bool TryRequest(AetheriaClientTargetOperation operation, out AetheriaRuntimeClientTargetDocument? document)",
+        "public AetheriaRuntimeClientTargetDocument Request(AetheriaClientTargetOperation operation)",
+        "AetheriaClientTargetOperationKind.SelectDiscoveredVerse",
+        "AetheriaRuntimeClientTargetStore.Update(",
+        "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+        "AetheriaRuntimeVerseReplicaBridge.Sync(",
+        "NormalizeDiscoveryEndpoints("
+    };
+    var missingAetheriaStateSymbols = requiredAetheriaStateSymbols
+        .Where(symbol => !aetheriaState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingAetheriaStateSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar no longer owns the Verse settings mutation bridge: " +
+            string.Join(", ", missingAetheriaStateSymbols));
+    }
+
+    if (aetheriaState.Contains("public bool TryApply(AetheriaClientTargetOperation", StringComparison.Ordinal) ||
+        aetheriaState.Contains("public AetheriaRuntimeClientTargetDocument Apply(AetheriaClientTargetOperation", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Apply vocabulary for Verse settings edits; Unity should request typed target changes.");
+    }
+
+    var forbiddenClientTargetSetters = new[]
+    {
+        "public AetheriaRuntimeClientTargetDocument SetTitle(",
+        "public AetheriaRuntimeClientTargetDocument SetVerseId(",
+        "public AetheriaRuntimeClientTargetDocument SetCultMeshAddress(",
+        "public AetheriaRuntimeClientTargetDocument SetStateFilePath(",
+        "public AetheriaRuntimeClientTargetDocument SetDiscoveryEndpoints("
+    };
+    var clientTargetSetterHits = forbiddenClientTargetSetters
+        .Where(symbol => aetheriaState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (clientTargetSetterHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Set vocabulary for Verse settings edits; Unity should request typed target changes: " +
+            string.Join(", ", clientTargetSetterHits));
+    }
+
+    if (aetheriaState.Contains("DaemonOperations", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar regressed to command-applier naming instead of native state handles.");
+    }
+
+    if (aetheriaState.Contains("IReadOnlyDictionary<string, string>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar exposes generic dictionary payload plumbing instead of typed client-target operations.");
+    }
+
+    if (aetheriaState.Contains("EveSurfaceCommandRequest", StringComparison.Ordinal) ||
+        aetheriaState.Contains("ReadPayloadValue(", StringComparison.Ordinal) ||
+        aetheriaState.Contains("request.Payload", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes Eve request payload plumbing instead of typed client-target operations.");
+    }
+
     var requiredVerseDiscoverySymbols = new[]
     {
         "CultMesh.CreateVerseCatalog()",
@@ -4445,20 +5522,23 @@ static void RequireVerseSettingsShellAndBridge(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "VerseSettingsShellSurfaceId",
-        "ShowVerseSettingsCommand",
+        "AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId",
+        "AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings",
         "ShowVerseSettingsSurface()",
         "HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)",
         "BuildVerseSettingsSurfaceDefinition()",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
-        "TryCommitClientTargetCommand(",
-        "TryQueueVerseHostCommand(",
-        "AetheriaRuntimeClientTargetStore.Update(",
-        "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
-        "AetheriaRuntimeVerseReplicaBridge.Sync(",
-        "ParseDiscoveryEndpoints(",
-        "new EveSurfaceCommandRequest(",
-        "AetheriaRuntimeVerseHostCommands.SurfaceId"
+        "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
+        "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
+        "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
+        "TryRequestClientTargetCommand(request)",
+        "TrySendVerseHostCommand(command.Command)",
+        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
+        "AetheriaState.At(ActionGameManager.GameDataDirectory)",
+        ".ClientTarget",
+        "AetheriaRuntimeClientTargetSurfaceCommands.TryRead(request, out var operation)",
+        ".ClientTarget.Request(operation)",
+        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand("
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
@@ -4470,12 +5550,49 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", missingMainMenuSymbols));
     }
 
+    var forbiddenMainMenuMutationSymbols = new[]
+    {
+        "AetheriaRuntimeClientTargetStore.",
+        "AetheriaRuntimeVerseDiscovery.RefreshClientTarget(",
+        "AetheriaRuntimeVerseReplicaBridge.Sync(",
+        "AetheriaRuntimeStateBoundary.",
+        "AetheriaRuntimeClientTarget.",
+        "DaemonOperations",
+        "ReadPayloadValue(",
+        "ParseDiscoveryEndpoints(",
+        "request.Payload",
+        "IReadOnlyDictionary<string, string>",
+        "clientTarget.SetTitle(",
+        "clientTarget.SetVerseId(",
+        "clientTarget.SetCultMeshAddress(",
+        "clientTarget.SetStateFilePath(",
+        "clientTarget.SetDiscoveryEndpoints(",
+        "clientTarget.DiscoverVerses()",
+        "clientTarget.SelectDiscoveredVerse(",
+        "clientTarget.SyncReplica()",
+        "TryQueueVerseHostCommand(",
+        "TrySendVerseHostCommand(request.Command)",
+        "AetheriaRuntimeClientTargetCommands.IsKnown(request.Command",
+        "AetheriaRuntimeVerseHostCommands.IsKnown(request.Command",
+        "new EveSurfaceCommandRequest(",
+        "AetheriaRuntimeEveCommandLog.Queue",
+    };
+    var mainMenuMutationHits = forbiddenMainMenuMutationSymbols
+        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (mainMenuMutationHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still mutates the client target directly instead of dispatching through the runtime daemon operations: " +
+            string.Join(", ", mainMenuMutationHits));
+    }
+
     var requiredBridgeSymbols = new[]
     {
-        "AppliedVerseHostCommands",
+        "AcceptedVerseHostCommands",
         "AetheriaRuntimeVerseHostCommands.Refresh",
         "AetheriaRuntimeVerseHostCommands.CycleVisibility",
-        "ApplyVerseHostCommandAsync",
+        "ExecuteVerseHostCommandAsync",
         "PutVerseHostSettingsAsync",
         "PutProviderAdvertisementAsync",
         "AetheriaOperationsSurfaceProjector.Build(",
@@ -4491,17 +5608,56 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", missingBridgeSymbols));
     }
 
-    var requiredDrainSymbols = new[]
+    var requiredAcceptanceSymbols = new[]
     {
+        "AetheriaEveCommandAcceptanceStatus",
+        "aetheria.eve_command_acceptance_status.v1",
+        "ObservedBeforeAccept",
         "AppliedVerseHostCommands"
     };
-    var missingDrainSymbols = requiredDrainSymbols
-        .Where(symbol => !drainStatus.Contains(symbol, StringComparison.Ordinal))
+    var missingAcceptanceSymbols = requiredAcceptanceSymbols
+        .Where(symbol => !acceptanceStatus.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingDrainSymbols.Length > 0)
+    if (missingAcceptanceSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria Eve command drain status no longer records Verse-host command counts.");
+            "Aetheria Eve command acceptance status no longer records Verse-host command counts: " +
+            string.Join(", ", missingAcceptanceSymbols));
+    }
+
+    if (File.Exists(Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandDrainStatus.cs")) ||
+        acceptanceStatus.Contains("AetheriaEveCommandDrainStatus", StringComparison.Ordinal) ||
+        acceptanceStatus.Contains("aetheria.eve_command_drain_status", StringComparison.Ordinal) ||
+        daemonHost.Contains("DrainEveCommandsAsync", StringComparison.Ordinal) ||
+        daemonHost.Contains("PutEveCommandDrainStatusAsync", StringComparison.Ordinal) ||
+        daemonHost.Contains("GetEveCommandDrainStatusAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command acceptance regressed to drain/queue vocabulary; the daemon should accept observed typed command records.");
+    }
+
+    if (acceptanceStatus.Contains("public int PendingBeforeApply", StringComparison.Ordinal) &&
+        !acceptanceStatus.Contains("[IgnoreMember]", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command acceptance exposes the legacy PendingBeforeApply schema shim as serialized command state.");
+    }
+
+    var pendingBeforeApplyUseSources = new Dictionary<string, string>
+    {
+        ["Aetheria daemon host"] = daemonHost,
+        ["Aetheria Eve command bridge"] = commandBridge,
+        ["operations projector"] = operationsProjector
+    };
+    var pendingBeforeApplyUses = pendingBeforeApplyUseSources
+        .Where(source => source.Value.Contains("PendingBeforeApply", StringComparison.Ordinal))
+        .Select(source => source.Key)
+        .ToArray();
+    if (pendingBeforeApplyUses.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Live Eve command acceptance code still uses the legacy PendingBeforeApply shim instead of ObservedBeforeAccept: " +
+            string.Join(", ", pendingBeforeApplyUses));
     }
 
     if (!operationsProjector.Contains("Verse Host Commands", StringComparison.Ordinal) ||
@@ -4511,18 +5667,1113 @@ static void RequireVerseSettingsShellAndBridge(string root)
             "Operations surface no longer projects Verse-host Eve command counts.");
     }
 
-    if (!applyPending.Contains("AppliedVerseHostCommands = eveReport.AppliedVerseHostCommands", StringComparison.Ordinal) ||
-        !applyPending.Contains("Eve verse host commands: {eveReport.AppliedVerseHostCommands}", StringComparison.Ordinal))
+    if (!commandBridge.Contains("report.AcceptedVerseHostCommands++", StringComparison.Ordinal) ||
+        !daemonHost.Contains("AppliedVerseHostCommands = report.AcceptedVerseHostCommands", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria.State.ApplyPending no longer publishes Verse-host Eve command totals.");
+            "Daemon command acceptance no longer publishes Verse-host Eve command totals.");
+    }
+}
+
+static void RequireTypedStatRecipeOperations(string root)
+{
+    var statRecipesPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStatRecipes.cs");
+    var legacyApplierPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStatRecipeCommandApplier.cs");
+    var catalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
+    var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "StatRecipeSurfaceCommandTests.cs");
+
+    if (!File.Exists(statRecipesPath))
+        throw new InvalidOperationException("Typed stat recipe operations are missing.");
+    if (File.Exists(legacyApplierPath))
+        throw new InvalidOperationException("Legacy stat recipe command applier still exists.");
+    if (!File.Exists(catalogStorePath) || !File.Exists(testsPath))
+        throw new InvalidOperationException("Cannot verify typed stat recipe operations; required files are missing.");
+
+    var statRecipes = File.ReadAllText(statRecipesPath);
+    var catalogStore = File.ReadAllText(catalogStorePath);
+    var tests = File.ReadAllText(testsPath);
+
+    var requiredTypedSymbols = new[]
+    {
+        "public static class AetheriaRuntimeStatRecipes",
+        "public static AetheriaRuntimeStatRecipeSurfaceState Refresh(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SelectStat(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState AddStat(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState RemoveStat(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetStatName(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetBaseValue(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetConditionEnabled(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState ToggleCondition(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState CycleInfluenceOperation(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetInfluenceAmount(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetInfluenceCurve(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState SetPreviewCondition("
+    };
+    var missingTypedSymbols = requiredTypedSymbols
+        .Where(symbol => !statRecipes.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTypedSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed stat recipe operations are incomplete: " +
+            string.Join(", ", missingTypedSymbols));
     }
 
-    if (!economyServer.Contains("AppliedVerseHostCommands = report.AppliedVerseHostCommands", StringComparison.Ordinal) ||
-        !economyServer.Contains("verseHost={report.AppliedVerseHostCommands}", StringComparison.Ordinal))
+    var forbiddenPublicStringlySymbols = new[]
+    {
+        "public static AetheriaRuntimeStatRecipeSurfaceState Apply",
+        "public static AetheriaRuntimeStatRecipeSurfaceState ApplyCommand",
+        "public static class AetheriaRuntimeStatRecipeDaemonOperations",
+        "public static AetheriaRuntimeStatRecipeSurfaceState",
+        "IReadOnlyDictionary<string, string>? payload"
+    };
+    var publicStringlyHits = forbiddenPublicStringlySymbols
+        .Where(symbol =>
+            symbol == "public static AetheriaRuntimeStatRecipeSurfaceState"
+                ? statRecipes.Contains("public static AetheriaRuntimeStatRecipeSurfaceState Apply(", StringComparison.Ordinal)
+                : statRecipes.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicStringlyHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Economy.Server no longer publishes Verse-host Eve command totals.");
+            "Stat recipe client API still exposes stringly command/payload operations: " +
+            string.Join(", ", publicStringlyHits));
+    }
+
+    var forbiddenCatalogDecoderSymbols = new[]
+    {
+        "DrainCommandsStatRecipeCommand(",
+        "AetheriaRuntimeStatRecipes.ApplyCommand(",
+        "ReadPayloadDouble(",
+        "ReadPayloadBool("
+    };
+    var catalogDecoderHits = forbiddenCatalogDecoderSymbols
+        .Where(symbol => catalogStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (catalogDecoderHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Catalog store still replays stringly stat recipe command payloads: " +
+            string.Join(", ", catalogDecoderHits));
+    }
+
+    if (tests.Contains("AetheriaRuntimeStatRecipeDaemonOperations", StringComparison.Ordinal) ||
+        tests.Contains("AetheriaRuntimeStatRecipeCommands.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Stat recipe tests still exercise string command constants instead of typed operations.");
+    }
+}
+
+static void RequireTypedDaemonCommandPayloads(string root)
+{
+    var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
+    var daemonClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationClient.cs");
+    var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var legacyDaemonApplierPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonCommandApplier.cs");
+    var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
+    var observerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
+    var daemonSurfaceCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommands.cs");
+
+    if (File.Exists(legacyDaemonApplierPath))
+        throw new InvalidOperationException("Legacy daemon command applier still exists; daemon operations must own execution.");
+
+    var requiredFiles = new[] { daemonDocumentsPath, daemonClientPath, daemonRuntimeOperationsPath, stateNodePath, observerPath, actionGameManagerPath, testsPath, daemonSurfaceCommandsPath };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed daemon command payloads cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var daemonDocuments = File.ReadAllText(daemonDocumentsPath);
+    var daemonClient = File.ReadAllText(daemonClientPath);
+    var daemonOperationsSource = File.ReadAllText(daemonRuntimeOperationsPath);
+    var stateNode = File.ReadAllText(stateNodePath);
+    var observer = File.ReadAllText(observerPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var tests = File.ReadAllText(testsPath);
+    var daemonSurfaceCommands = File.ReadAllText(daemonSurfaceCommandsPath);
+
+    var requiredPayloadTypes = new[]
+    {
+        "public enum AetheriaRuntimeDaemonCommandKinds",
+        "public sealed class AetheriaRuntimeActionBarBindingCommand",
+        "public sealed class AetheriaRuntimeCargoTransferCommand",
+        "public sealed class AetheriaRuntimeTradePurchaseCommand",
+        "public sealed class AetheriaRuntimeLootPickupCommand",
+        "public sealed class AetheriaRuntimeLoadoutRestoreCommand",
+        "public sealed class AetheriaRuntimeEquipmentTransferCommand",
+        "public sealed class AetheriaRuntimeStoreItemCommand"
+    };
+    var missingPayloadTypes = requiredPayloadTypes
+        .Where(symbol => !daemonDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingPayloadTypes.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon command document is missing typed command payloads: " +
+            string.Join(", ", missingPayloadTypes));
+    }
+
+    var liveSources = new Dictionary<string, string>
+    {
+        ["daemon documents"] = daemonDocuments,
+        ["daemon operation client"] = daemonClient,
+        ["daemon operations"] = daemonOperationsSource,
+        ["state node"] = stateNode,
+        ["Unity daemon observer"] = observer,
+        ["ActionGameManager"] = actionGameManager,
+        ["daemon command tests"] = tests,
+        ["daemon surface commands"] = daemonSurfaceCommands
+    };
+    foreach (var source in liveSources)
+    {
+        var forbidden = new[]
+            {
+                "Dictionary<string, string> Payload",
+                ".Payload[",
+                "ReadPayloadInt(",
+                "ReadPayloadDouble(",
+                "ReadPayloadBool(",
+                "Payload(command,"
+            }
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+        if (forbidden.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"{source.Key} still uses stringly daemon command payloads: " +
+                string.Join(", ", forbidden));
+        }
+    }
+
+    var forbiddenDaemonKindSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonCommandKinds",
+        "public const string SetTarget",
+        "Queue(\r\n            string kind",
+        "Create(\r\n            string kind"
+    };
+    var daemonKindSources = new Dictionary<string, string>
+    {
+        ["daemon documents"] = daemonDocuments,
+        ["daemon operation client"] = daemonClient,
+        ["Unity daemon observer"] = observer
+    };
+    foreach (var source in daemonKindSources)
+    {
+        var forbidden = forbiddenDaemonKindSymbols
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+        if (forbidden.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"{source.Key} still exposes daemon command kind as strings: " +
+                string.Join(", ", forbidden));
+        }
+    }
+
+    if (!daemonDocuments.Contains("public AetheriaRuntimeDaemonCommandKinds Kind { get; set; }", StringComparison.Ordinal) ||
+        !daemonDocuments.Contains("public AetheriaRuntimeDaemonCommandKinds Kind { get; }", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon command document/envelope must expose typed enum command kinds.");
+    }
+
+    var requiredClientSymbols = new[]
+    {
+        "public AetheriaRuntimeDaemonCommandEnvelope Send(",
+        "public bool TrySend(",
+        "ReadObservedDaemonCommands()",
+        "DeleteDaemonCommandAsync(",
+        "_operationClient.Create(",
+        "_operationClient.TrySend(command, out var envelope, out var error)",
+        "command.ActionBarBinding.Kind",
+        "command.CargoTransfer.OriginEntityKey",
+        "command.TradePurchase.TotalPrice",
+        "command.LootPickup.ItemKey",
+        "command.LoadoutRestore.TemplateName",
+        "command.EquipmentTransfer.SourceKind",
+        "command.StoreItem.SourceEquipmentIndex"
+    };
+    var clientAndObserver = daemonClient + "\n" + observer + "\n" + stateNode;
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !clientAndObserver.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon command producers are not filling typed payloads: " +
+            string.Join(", ", missingClientSymbols));
+    }
+
+    var forbiddenQueueSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonCommandLog",
+        "internal static class AetheriaRuntimeDaemonCommandLog",
+        "public AetheriaRuntimeDaemonCommandEnvelope Queue(",
+        "public static AetheriaRuntimeDaemonCommandEnvelope QueueCommand(",
+        "AetheriaRuntimeDaemonCommandLog.QueueCommand(",
+        "AetheriaRuntimeDaemonCommandLog.",
+        "AetheriaRuntimeDaemonCommandInbox",
+        "ReadPending(",
+        ".daemon.pending",
+        "stateFilePath + \".daemon.commands\"",
+        "_operationClient.Queue("
+    };
+    var daemonQueueSources = new Dictionary<string, string>
+    {
+        ["daemon operation client"] = daemonClient,
+        ["state node"] = stateNode,
+        ["Unity daemon observer"] = observer,
+        ["ActionGameManager"] = actionGameManager,
+        ["daemon command tests"] = tests
+    };
+    var survivingQueueSymbols = daemonQueueSources
+        .SelectMany(source => forbiddenQueueSymbols
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{source.Key}: {symbol}"))
+        .ToArray();
+
+    if (survivingQueueSymbols.Length > 0 ||
+        observer.Contains("_operationClient.Queue(", StringComparison.Ordinal) ||
+        daemonClient.Contains("AetheriaRuntimeDaemonCommandLog.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity-facing daemon operation clients still expose queue semantics instead of sending typed daemon operations: " +
+            string.Join(", ", survivingQueueSymbols));
+    }
+
+    if (tests.Contains("AetheriaRuntimeDaemonCommandLog.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon command tests still reach through the old command log instead of the typed command client/inbox.");
+    }
+
+    if (actionGameManager.Contains("local mutation suppressed", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still treats failed daemon submission as a local-mutation fallback.");
+    }
+
+    var failedSubmitSuccessHits = System.Text.RegularExpressions.Regex
+        .Matches(
+            actionGameManager,
+            "Failed to send Aetheria daemon[\\s\\S]*?return true;",
+            System.Text.RegularExpressions.RegexOptions.Multiline)
+        .Cast<System.Text.RegularExpressions.Match>()
+        .Where(match => !match.Value.Contains("return false;", StringComparison.Ordinal))
+        .Select(match => match.Value.Split('\n').FirstOrDefault()?.Trim() ?? "daemon submit catch")
+        .Take(5)
+        .ToArray();
+    if (failedSubmitSuccessHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager reports failed daemon submissions as successful commands: " +
+            string.Join("; ", failedSubmitSuccessHits));
+    }
+}
+
+static void RequireUnityPublicRequestVocabulary(string root)
+{
+    var checkedRoots = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay"),
+        Path.Combine(root, "Assets", "Scripts", "UI"),
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime")
+    };
+
+    var commitPattern = new System.Text.RegularExpressions.Regex(
+        "\\bCommit[A-Z][A-Za-z0-9_]*\\b",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+    var hits = checkedRoots
+        .Where(Directory.Exists)
+        .SelectMany(path => Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+        .Where(path => !path.Contains(Path.Combine("ServerShared", "NIH"), StringComparison.Ordinal))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .SelectMany(line => commitPattern.Matches(line.Line)
+            .Cast<System.Text.RegularExpressions.Match>()
+            .Select(match => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {match.Value}"))
+        .Take(20)
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity-facing Aetheria APIs must say Request/Submit, not Commit; Unity is an input provider, not state authority: " +
+            string.Join("; ", hits));
+    }
+}
+
+static void RequireDaemonVersePublication(string root)
+{
+    var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
+    var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
+    var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
+    var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
+    var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
+    var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
+    var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
+    var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
+    var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
+    var daemonSurfaceProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeEveSurfaceStateProjector.cs");
+    var providerAdvertisementPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
+    var documentStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCultCacheDocumentStore.cs");
+    var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
+    var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
+    var smokePath = Path.Combine(root, "Aetheria.State.Smoke", "Program.cs");
+    var notePath = Path.Combine(root, "Aetheria.State", "docs", "verse-daemon-shape.md");
+
+    var requiredFiles = new[]
+    {
+        daemonDocumentsPath,
+        daemonTickRunnerPath,
+        daemonPublicationStorePath,
+        daemonSoaDocumentsPath,
+        daemonGameSurfaceBuilderPath,
+        daemonEditorSurfaceBuilderPath,
+        daemonHostProjectPath,
+        daemonHostProgramPath,
+        documentRegistryPath,
+        stateNodePath,
+        daemonSurfaceProjectorPath,
+        providerAdvertisementPath,
+        documentStorePath,
+        boundaryPath,
+        testsPath,
+        smokePath,
+        notePath
+    };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon Verse publication cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var daemonDocuments = File.ReadAllText(daemonDocumentsPath);
+    var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
+    var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
+    var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
+    var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
+    var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
+    var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
+    var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
+    var documentRegistry = File.ReadAllText(documentRegistryPath);
+    var stateNode = File.ReadAllText(stateNodePath);
+    var daemonSurfaceProjector = File.ReadAllText(daemonSurfaceProjectorPath);
+    var providerAdvertisement = File.ReadAllText(providerAdvertisementPath);
+    var documentStore = File.ReadAllText(documentStorePath);
+    var boundary = File.ReadAllText(boundaryPath);
+    var tests = File.ReadAllText(testsPath);
+    var smoke = File.ReadAllText(smokePath);
+    var note = File.ReadAllText(notePath);
+
+    var requiredDocumentSymbols = new[]
+    {
+        "public const string ProviderAdvertisement = \"gamecult.aetheria.daemon_provider_advertisement.v1\"",
+        "public const string Health = \"gamecult.aetheria.daemon_health.v1\"",
+        "public const string CommandBoundary = \"gamecult.aetheria.daemon_command_boundary.v1\"",
+        "public const string GameSurface = \"gamecult.aetheria.daemon_game_surface.v1\"",
+        "public const string EditorSurface = \"gamecult.aetheria.daemon_editor_surface.v1\"",
+        "public sealed class AetheriaRuntimeDaemonProviderAdvertisementDocument",
+        "public sealed class AetheriaRuntimeDaemonHealthDocument",
+        "public sealed class AetheriaRuntimeDaemonCommandBoundaryDocument",
+        "public sealed class AetheriaRuntimeDaemonCommandBoundaryEntry",
+        "AetheriaRuntimeDaemonCommandKinds Kind",
+        "AetheriaRuntimeCargoTransferCommand",
+        "[CultDocument(\"gamecult.aetheria.daemon_provider_advertisement\", \"gamecult.aetheria.daemon_provider_advertisement.v1\")]",
+        "[CultDocument(\"gamecult.aetheria.daemon_health\", \"gamecult.aetheria.daemon_health.v1\")]",
+        "[CultDocument(\"gamecult.aetheria.daemon_command_boundary\", \"gamecult.aetheria.daemon_command_boundary.v1\")]",
+        "[CultDocument(\"gamecult.aetheria.daemon_frame\", \"gamecult.aetheria.daemon_frame.v1\")]",
+        "[CultDocument(\"gamecult.aetheria.daemon_command\", \"gamecult.aetheria.daemon_command.v1\")]",
+        "EveGuiSurfaceWitnessPath",
+        "EveTuiSurfaceWitnessPath",
+        "EditorGuiSurfaceWitnessPath",
+        "EditorTuiSurfaceWitnessPath"
+    };
+    var missingDocumentSymbols = requiredDocumentSymbols
+        .Where(symbol => !daemonDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Verse publication documents are incomplete: " +
+            string.Join(", ", missingDocumentSymbols));
+    }
+
+    if (!daemonSoaDocuments.Contains("[CultDocument(\"gamecult.aetheria.daemon_soa_view\", \"gamecult.aetheria.daemon_soa_view.v1\")]", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("Daemon SoA view is no longer a registered CultCache/CultNet document.");
+    }
+
+    var requiredBoundarySymbols = new[]
+    {
+        "RuntimeDaemonProviderFileSuffix",
+        "RuntimeDaemonHealthFileSuffix",
+        "RuntimeDaemonCommandBoundaryFileSuffix",
+        "RuntimeDaemonGameSurfaceFileSuffix",
+        "RuntimeDaemonGameTuiSurfaceFileSuffix",
+        "RuntimeDaemonEditorSurfaceFileSuffix",
+        "RuntimeDaemonEditorTuiSurfaceFileSuffix",
+        "GetDaemonProviderPath(",
+        "GetDaemonHealthPath(",
+        "GetDaemonCommandBoundaryPath(",
+        "GetDaemonGameSurfacePath(",
+        "GetDaemonGameTuiSurfacePath(",
+        "GetDaemonEditorSurfacePath(",
+        "GetDaemonEditorTuiSurfacePath("
+    };
+    var missingBoundarySymbols = requiredBoundarySymbols
+        .Where(symbol => !boundary.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBoundarySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Verse publication paths are incomplete: " +
+            string.Join(", ", missingBoundarySymbols));
+    }
+
+    var requiredStoreSymbols = new[]
+    {
+        "WriteDaemonProviderAdvertisement(",
+        "ReadDaemonProviderAdvertisement(",
+        "WriteDaemonHealth(",
+        "ReadDaemonHealth(",
+        "WriteDaemonCommandBoundary(",
+        "ReadDaemonCommandBoundary(",
+        "WriteDaemonGameSurface(",
+        "ReadDaemonGameSurface(",
+        "WriteDaemonEditorSurface(",
+        "ReadDaemonEditorSurface(",
+        "PublishProviderAdvertisement(",
+        "PublishHealth(",
+        "PublishCommandBoundary(",
+        "PublishGameSurface(",
+        "PublishGameTuiSurface(",
+        "PublishEditorSurface(",
+        "PublishEditorTuiSurface(",
+        "TryReadProviderAdvertisement(",
+        "TryReadHealth(",
+        "TryReadCommandBoundary(",
+        "TryReadGameSurface(",
+        "TryReadGameTuiSurface(",
+        "TryReadEditorSurface(",
+        "TryReadEditorTuiSurface("
+    };
+    var storeSource = documentStore + "\n" + daemonPublicationStore;
+    var missingStoreSymbols = requiredStoreSymbols
+        .Where(symbol => !storeSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStoreSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Verse publication store is incomplete: " +
+            string.Join(", ", missingStoreSymbols));
+    }
+
+    var requiredDaemonRegistrySymbols = new[]
+    {
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(registry)",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonHealthDocument>(registry)",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry)",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry)",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry)",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry)",
+        "typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument)",
+        "typeof(AetheriaRuntimeDaemonHealthDocument)",
+        "typeof(AetheriaRuntimeDaemonCommandBoundaryDocument)",
+        "typeof(AetheriaRuntimeDaemonFrameDocument)",
+        "typeof(AetheriaRuntimeDaemonSoaViewDocument)",
+        "typeof(AetheriaRuntimeDaemonCommandDocument)"
+    };
+    var missingDaemonRegistrySymbols = requiredDaemonRegistrySymbols
+        .Where(symbol => !documentRegistry.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonRegistrySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon API documents are not registered as CultCache/CultNet records: " +
+            string.Join(", ", missingDaemonRegistrySymbols));
+    }
+
+    var requiredDaemonNodeSymbols = new[]
+    {
+        "PutDaemonProviderAdvertisementAsync(",
+        "GetDaemonProviderAdvertisementAsync(",
+        "PutDaemonHealthAsync(",
+        "GetDaemonHealthAsync(",
+        "PutDaemonCommandBoundaryAsync(",
+        "GetDaemonCommandBoundaryAsync(",
+        "PutDaemonFrameAsync(",
+        "GetDaemonFrameAsync(",
+        "PutDaemonSoaViewAsync(",
+        "GetDaemonSoaViewAsync(",
+        "PutDaemonGameSurfaceAsync(",
+        "GetDaemonGameSurfaceAsync(",
+        "PutDaemonGameTuiSurfaceAsync(",
+        "GetDaemonGameTuiSurfaceAsync(",
+        "PutDaemonEditorSurfaceAsync(",
+        "GetDaemonEditorSurfaceAsync(",
+        "PutDaemonEditorTuiSurfaceAsync(",
+        "GetDaemonEditorTuiSurfaceAsync("
+    };
+    var missingDaemonNodeSymbols = requiredDaemonNodeSymbols
+        .Where(symbol => !stateNode.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonNodeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaStateNode no longer exposes daemon Verse API records ergonomically: " +
+            string.Join(", ", missingDaemonNodeSymbols));
+    }
+
+    if (!daemonSurfaceProjector.Contains("public static EveSurfaceState ToState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
+        !daemonSurfaceProjector.Contains("EveCommandTemplate", StringComparison.Ordinal) ||
+        !daemonSurfaceProjector.Contains("EveSurfaceComponent", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("Daemon Eve surface projector no longer lowers daemon surfaces into registered Eve surface state.");
+    }
+
+    if (!daemonPublicationStore.Contains("GetCommandBoundaryPath(", StringComparison.Ordinal) ||
+        !daemonDocuments.Contains("AetheriaRuntimeDaemonCommandKinds", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon command boundary no longer exposes typed daemon command metadata.");
+    }
+
+    var forbiddenDaemonQueueSymbols = new[]
+    {
+        "public static AetheriaRuntimeDaemonCommandEnvelope QueueCommand(",
+        "AetheriaRuntimeDaemonCommandLog.",
+        "AetheriaRuntimeDaemonCommandLog.QueueCommand(",
+        "var envelope = AetheriaRuntimeDaemonCommandLog.QueueCommand",
+        ".daemon.pending",
+        "ReadPending("
+    };
+    var daemonQueueSource = daemonDocuments + "\n" + daemonTickRunner + "\n" + daemonPublicationStore + "\n" + tests;
+    var survivingDaemonQueueSymbols = forbiddenDaemonQueueSymbols
+        .Where(symbol => daemonQueueSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingDaemonQueueSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon command boundary still exposes mailbox queue semantics: " +
+            string.Join(", ", survivingDaemonQueueSymbols));
+    }
+
+    if (daemonDocuments.Contains("public int PendingBeforeApply", StringComparison.Ordinal) &&
+        (!daemonDocuments.Contains("[IgnoreMember]", StringComparison.Ordinal) ||
+         !daemonDocuments.Contains("public int ObservedCommandCount", StringComparison.Ordinal)))
+    {
+        throw new InvalidOperationException(
+            "Daemon health exposes PendingBeforeApply without the ObservedCommandCount compatibility wrapper.");
+    }
+
+    var requiredProviderAdvertisementSymbols = new[]
+    {
+        "private const string DaemonCommandBoundaryId = \"aetheria.daemon.commands\"",
+        "private const string DaemonWitnessTransport = \"cultcache-witness\"",
+        "AetheriaRuntimeDaemonSchemas.ProviderAdvertisement",
+        "AetheriaRuntimeDaemonSchemas.Frame",
+        "AetheriaRuntimeDaemonSchemas.SoaView",
+        "AetheriaRuntimeDaemonSchemas.Health",
+        "AetheriaRuntimeDaemonSchemas.CommandBoundary",
+        "AetheriaRuntimeDaemonSchemas.GameSurface",
+        "AetheriaRuntimeDaemonSchemas.EditorSurface",
+        "AetheriaRuntimeDaemonSchemas.Command",
+        "AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonHealthPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(statePath)",
+        "public const string DaemonGameSurfaceKey = \"eve:surface:aetheria.daemon.game\"",
+        "public const string DaemonGameTuiSurfaceKey = \"eve:surface:aetheria.daemon.game.tui\"",
+        "public const string DaemonEditorSurfaceKey = \"eve:surface:aetheria.daemon.editor\"",
+        "public const string DaemonEditorTuiSurfaceKey = \"eve:surface:aetheria.daemon.editor.tui\"",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId"
+    };
+    var missingProviderAdvertisementSymbols = requiredProviderAdvertisementSymbols
+        .Where(symbol => !providerAdvertisement.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProviderAdvertisementSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Odin-visible provider advertisement no longer points at daemon-owned Verse witnesses: " +
+            string.Join(", ", missingProviderAdvertisementSymbols));
+    }
+
+    var requiredTickSymbols = new[]
+    {
+        "VerseId",
+        "CultMeshAddress",
+        "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
+        "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
+        "AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary",
+        "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement",
+        "AetheriaRuntimeDaemonPublicationStore.PublishHealth",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.Build",
+        "AetheriaRuntimeDaemonPublicationStore.PublishGameSurface",
+        "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
+        "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface",
+        "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface",
+        "ObservedCommands",
+        "ObservedCommandCount = commands.Length",
+        "PublicationSource = \"daemon-published\""
+    };
+    var missingTickSymbols = requiredTickSymbols
+        .Where(symbol => !daemonTickRunner.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTickSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon tick does not publish Verse-facing provider/health/command-boundary records: " +
+            string.Join(", ", missingTickSymbols));
+    }
+
+    var requiredDaemonHostSymbols = new[]
+    {
+        "<OutputType>Exe</OutputType>",
+        "ProjectReference Include=\"..\\Aetheria.State\\Aetheria.State.csproj\"",
+        "AetheriaStateNode.OpenAsync(",
+        "startServer: true",
+        "new AetheriaVerseDiscoveryHost(node)",
+        "discoveryHost.Update(",
+        "PublishDaemonApiDocumentsAsync(node, result)",
+        "PutDaemonFrameAsync(result.Frame)",
+        "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface))",
+        "PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorTuiSurface))",
+        "AetheriaEveCommandBridge.AcceptObservedAsync(",
+        "!options.KeepAccountedCommandRecords",
+        "ReadObservedDaemonCommands()",
+        "DeleteAccountedDaemonCommandsAsync(node, result)",
+        "DeleteDaemonCommandAsync(commandId)",
+        "AetheriaRuntimeDaemonTickRunner.Tick(",
+        "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)",
+        "AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)",
+        "AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt)",
+        "Role = \"verse-daemon\"",
+        "Console.CancelKeyPress",
+        "Aetheria Verse daemon is running"
+    };
+    var daemonHostSource = daemonHostProject + "\n" + daemonHostProgram;
+    var missingDaemonHostSymbols = requiredDaemonHostSymbols
+        .Where(symbol => !daemonHostSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
+            string.Join(", ", missingDaemonHostSymbols));
+    }
+
+    var forbiddenDaemonHostSymbols = new[]
+    {
+        "AetheriaRuntimeDaemonCommandLog.",
+        "DeleteProcessedCommands",
+        "new HttpListener",
+        "UseUrls(",
+        "MapGet(",
+        "JsonSerializer.Serialize"
+    };
+    var survivingDaemonHostSymbols = forbiddenDaemonHostSymbols
+        .Where(symbol => daemonHostSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingDaemonHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Daemon has drifted into private command-log/dashboard ownership instead of CultMesh Verse publication: " +
+            string.Join(", ", survivingDaemonHostSymbols));
+    }
+
+    var requiredGameSurfaceSymbols = new[]
+    {
+        "public const string SurfaceId = \"aetheria.game\"",
+        "public const string TuiSurfaceId = \"aetheria.game.tui\"",
+        "AetheriaRuntimeDaemonFrameDocument frame",
+        "AetheriaRuntimeDaemonHealthDocument health",
+        "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
+        "\"game.daemon\"",
+        "\"Typed Command Boundary\"",
+        "\"commandBody\"",
+        "nameof(AetheriaRuntimeDaemonCommandDocument)",
+        "AetheriaRuntimeDaemonCommandKinds.SetMoveVector"
+    };
+    var missingGameSurfaceSymbols = requiredGameSurfaceSymbols
+        .Where(symbol => !daemonGameSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingGameSurfaceSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon game Eve surface builder is incomplete: " +
+            string.Join(", ", missingGameSurfaceSymbols));
+    }
+
+    var requiredEditorSurfaceSymbols = new[]
+    {
+        "public const string SurfaceId = \"aetheria.daemon.editor\"",
+        "public const string TuiSurfaceId = \"aetheria.daemon.editor.tui\"",
+        "AetheriaRuntimeDaemonProviderAdvertisementDocument provider",
+        "AetheriaRuntimeDaemonHealthDocument health",
+        "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
+        "\"editor.daemon\"",
+        "\"Verse Provider\"",
+        "\"Witnesses\"",
+        "\"Typed Commands\"",
+        "AetheriaRuntimeDaemonCommandBoundaryEntry"
+    };
+    var missingEditorSurfaceSymbols = requiredEditorSurfaceSymbols
+        .Where(symbol => !daemonEditorSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingEditorSurfaceSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon editor Eve surface builder is incomplete: " +
+            string.Join(", ", missingEditorSurfaceSymbols));
+    }
+
+    var requiredTestSymbols = new[]
+    {
+        "TryReadProviderAdvertisement(",
+        "TryReadHealth(",
+        "TryReadCommandBoundary(",
+        "TryReadGameSurface(",
+        "TryReadEditorSurface(",
+        "TryReadGameTuiSurface(",
+        "TryReadEditorTuiSurface(",
+        "AetheriaRuntimeDaemonSchemas.ProviderAdvertisement",
+        "AetheriaRuntimeDaemonSchemas.CommandBoundary",
+        "AetheriaRuntimeDaemonSchemas.Health",
+        "AetheriaRuntimeDaemonSchemas.GameSurface",
+        "AetheriaRuntimeDaemonSchemas.EditorSurface",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonCommandKinds.TransferCargoItem",
+        "nameof(AetheriaRuntimeCargoTransferCommand)"
+    };
+    var missingTestSymbols = requiredTestSymbols
+        .Where(symbol => !tests.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTestSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Verse publication tests are incomplete: " +
+            string.Join(", ", missingTestSymbols));
+    }
+
+    var requiredSmokeSymbols = new[]
+    {
+        "PutDaemonProviderAdvertisementAsync(daemonProvider)",
+        "PutDaemonHealthAsync(daemonHealth)",
+        "PutDaemonCommandBoundaryAsync(daemonCommandBoundary)",
+        "AetheriaCommandPort.OpenAsync(",
+        "daemonCommandPort.SubmitDaemonCommandAsync(",
+        "eveCommandPort.SubmitEveCommandAsync(",
+        "PutDaemonFrameAsync(daemonFrame)",
+        "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface))",
+        "GetDaemonProviderAdvertisementAsync()",
+        "GetDaemonHealthAsync()",
+        "GetDaemonCommandBoundaryAsync()",
+        "GetDaemonFrameAsync()",
+        "GetDaemonGameSurfaceAsync()",
+        "DaemonGameSurfaceKey",
+        "DaemonGameTuiSurfaceKey",
+        "DaemonEditorSurfaceKey",
+        "DaemonEditorTuiSurfaceKey"
+    };
+    var missingSmokeSymbols = requiredSmokeSymbols
+        .Where(symbol => !smoke.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSmokeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "State smoke no longer proves daemon Verse API records round-trip through CultCache: " +
+            string.Join(", ", missingSmokeSymbols));
+    }
+
+    var requiredNoteSymbols = new[]
+    {
+        "Odin is the all-seer, not the owner.",
+        "Idunn keeps the daemon alive from daemon-published health and command-boundary records.",
+        "Bifrost hosts the MCP crossing for Codex and other xeno agents.",
+        "The Aetheria daemon remains the side-effect owner.",
+        "gamecult.aetheria.daemon_provider_advertisement.v1",
+        "gamecult.aetheria.daemon_health.v1",
+        "gamecult.aetheria.daemon_command_boundary.v1",
+        "gamecult.aetheria.daemon_frame.v1",
+        "gamecult.aetheria.daemon_soa_view.v1",
+        "gamecult.aetheria.daemon_game_surface.v1",
+        "gamecult.aetheria.daemon_editor_surface.v1",
+        "gamecult.eve.provider_advertisement.v1` is the Odin-visible Eve provider card",
+        "gamecult.aetheria.daemon_provider_advertisement.v1` is the daemon-owned Aetheria runtime contract",
+        "The bridge layer must point at daemon-owned witnesses instead of becoming a second source of truth.",
+        "Long term, Odin should discover the daemon-owned provider advertisement and interface bindings directly",
+        "Queues are an implementation detail.",
+        "Eve commands and daemon commands are typed `gamecult.eve.command.v1` and `gamecult.aetheria.daemon_command.v1` records in the Aetheria state graph",
+        "`AetheriaCommandPort` is the neutral command submission implementation for typed command records.",
+        "Unity-side command lowerers may use `AetheriaRuntimeCommandPort` as a facade over that same port.",
+        "`CommandLog`, `Inbox`, `mailbox`, `.eve.commands`, `.daemon.commands`, `.cc.pending`, or `" + "Pending" + "CultCacheStore` in Unity-facing daemon/Eve command code",
+        "Do not add a private HTTP dashboard, Unity-only inspector, JSON status blob, or agent-specific daemon wrapper as canonical truth."
+    };
+    var missingNoteSymbols = requiredNoteSymbols
+        .Where(symbol => !note.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingNoteSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Verse shape note no longer records the Odin/VoidBot daemon authority contract: " +
+            string.Join(", ", missingNoteSymbols));
+    }
+}
+
+static void RequireTypedEveCommandBodies(string root)
+{
+    var eveCommandDocumentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveCommandDocument.cs");
+    var eveCommandClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveCommandClient.cs");
+    var runtimeCommandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
+    var eveCommandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
+    var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var evePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
+
+    var requiredFiles = new[] { eveCommandDocumentPath, eveCommandClientPath, runtimeCommandPortPath, eveCommandBridgePath, stateNodePath, documentRegistryPath, actionGameManagerPath, mainMenuPath, evePresenterPath };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Typed Eve command bodies cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var eveCommandDocument = File.ReadAllText(eveCommandDocumentPath);
+    var eveCommandClient = File.ReadAllText(eveCommandClientPath);
+    var runtimeCommandPort = File.ReadAllText(runtimeCommandPortPath);
+    var eveCommandBridge = File.ReadAllText(eveCommandBridgePath);
+    var stateNode = File.ReadAllText(stateNodePath);
+    var documentRegistry = File.ReadAllText(documentRegistryPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var evePresenter = File.ReadAllText(evePresenterPath);
+
+    var requiredDocumentSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimePlayerSettingsCommandBody",
+        "public sealed class AetheriaRuntimeInputSettingsCommandBody",
+        "public AetheriaRuntimePlayerSettingsCommandBody PlayerSettings",
+        "public AetheriaRuntimeInputSettingsCommandBody InputSettings",
+        "public AetheriaRuntimeLoadoutTemplateCommit? LoadoutTemplate",
+        "[CultDocument(\"gamecult.eve.command\", \"gamecult.eve.command.v1\")]"
+    };
+    var missingDocumentSymbols = requiredDocumentSymbols
+        .Where(symbol => !eveCommandDocument.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve submitted command document is missing typed command bodies: " +
+            string.Join(", ", missingDocumentSymbols));
+    }
+
+    var forbiddenDocumentSymbols = new[]
+    {
+        "IReadOnlyDictionary<string, string> Payload",
+        "Dictionary<string, string> Payload",
+        "SubmitSurfaceRequest(",
+        "CreateSurfaceRequestCommand("
+    };
+    var forbiddenDocumentHits = forbiddenDocumentSymbols
+        .Where(symbol => eveCommandDocument.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve submitted command document still persists string payload maps: " +
+            string.Join(", ", forbiddenDocumentHits));
+    }
+
+    var requiredTypedCommandSymbols = new[]
+    {
+        "public static class AetheriaRuntimeEveCommands",
+        "public static class AetheriaRuntimeEveCommandClient",
+        "public sealed class AetheriaRuntimeCommandPort",
+        "public sealed class AetheriaCommandPort",
+        "namespace Aetheria.State",
+        "namespace GameCult.Aetheria.State.Unity",
+        "global::Aetheria.State.AetheriaCommandPort",
+        "public static class AetheriaRuntimeCommandSubmitter",
+        "TrySubmitEveCommand(",
+        "TrySubmitDaemonCommand(",
+        "CreatePlayerSettingsCommand(",
+        "CreateInputSettingsCommand(",
+        "CreateCatalogCommand(",
+        "CreateOperationsCommand(",
+        "CreateVerseHostCommand(",
+        "CreateLoadoutTemplateCommand(",
+        "TrySendPlayerSettingsCommand(",
+        "TrySendInputSettingsCommand(",
+        "TrySendVerseHostCommand(",
+        "TrySendLoadoutTemplateCommand(",
+        "TrySendKnownSurfaceCommand(",
+        "TryCreateKnownSurfaceCommand(",
+        "ToDocument(",
+        "AcceptObservedAsync(",
+        "node.ReadObservedEveCommands()",
+        "node.DeleteEveCommandAsync(",
+        "SubmitEveCommandAsync(",
+        "ReadObservedEveCommands(",
+        "DeleteEveCommandAsync(",
+        "EveCommandKey(",
+        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>",
+        "typeof(AetheriaRuntimeEveCommandDocument)",
+        "SubmitPlayerSettingsCommand(",
+        "command.PlayerSettings.PlayerName",
+        "command.InputSettings.ActionName",
+        "command.InputSettings.InputSystemPath",
+        "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand(",
+        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
+        "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand(",
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand("
+    };
+    var mainMenu = File.ReadAllText(mainMenuPath);
+    var typedCommandSources = eveCommandClient + "\n" + runtimeCommandPort + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
+    var missingTypedCommandSymbols = requiredTypedCommandSymbols
+        .Where(symbol => !typedCommandSources.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTypedCommandSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve command append/apply path is missing typed command body usage: " +
+            string.Join(", ", missingTypedCommandSymbols));
+    }
+
+    var forbiddenUnitySubmitterSymbols = new[]
+    {
+        "AetheriaRuntimeCommandSubmitter.TrySubmitEveCommand(",
+        "AetheriaRuntimeCommandSubmitter.TrySubmitDaemonCommand(",
+        "AetheriaRuntimeEveCommandClient.ToDocument("
+    };
+    var unitySubmitterSources = new Dictionary<string, string>
+    {
+        [Path.GetRelativePath(root, actionGameManagerPath)] = actionGameManager,
+        [Path.GetRelativePath(root, mainMenuPath)] = mainMenu,
+        [Path.GetRelativePath(root, evePresenterPath)] = evePresenter
+    };
+    var unitySubmitterHits = unitySubmitterSources
+        .SelectMany(pair => forbiddenUnitySubmitterSymbols
+            .Where(symbol => pair.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{pair.Key}: {symbol}"))
+        .ToArray();
+    if (unitySubmitterHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity-facing Eve command code still assembles transport documents instead of using typed send helpers: " +
+            string.Join(", ", unitySubmitterHits));
+    }
+
+    var forbiddenGenericSurfaceCommandSymbols = new[]
+    {
+        "SubmitSurfaceRequest(",
+        "CreateSurfaceRequestCommand("
+    };
+    var genericSurfaceCommandHits = forbiddenGenericSurfaceCommandSymbols
+        .Where(symbol => typedCommandSources.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (genericSurfaceCommandHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve command edge still exposes a generic surface-command submission back door: " +
+            string.Join(", ", genericSurfaceCommandHits));
+    }
+
+    var forbiddenQueueSymbols = new[]
+    {
+        "public static class AetheriaRuntimeEveCommandLog",
+        "internal static class AetheriaRuntimeEveCommandLog",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueuePlayerSettingsCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueInputSettingsCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueCatalogCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueOperationsCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueVerseHostCommand(",
+        "public static AetheriaRuntimeEveCommandEnvelope QueueLoadoutTemplateCommand(",
+        "private static AetheriaRuntimeEveCommandEnvelope QueueTypedCommand(",
+        "AetheriaRuntimeEveCommandLog.",
+        "AetheriaRuntimeEveCommandLog.Queue",
+        "AetheriaRuntimeEveCommandInbox",
+        "GetInboxDirectory(",
+        "Read" + "Submitted(",
+        ".eve.commands",
+        "ReadPending(",
+        ".eve.pending"
+    };
+    var forbiddenQueueSources = new Dictionary<string, string>
+    {
+        ["Eve command client"] = eveCommandClient,
+        ["Eve command bridge"] = eveCommandBridge,
+        ["Aetheria state node"] = stateNode,
+        ["ActionGameManager"] = actionGameManager,
+        ["MainMenu"] = mainMenu,
+        ["Eve presenter"] = evePresenter
+    };
+    var survivingQueueSymbols = forbiddenQueueSources
+        .SelectMany(source => forbiddenQueueSymbols
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{source.Key}: {symbol}"))
+        .ToArray();
+    if (survivingQueueSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve command edge still exposes queue-shaped public API: " +
+            string.Join(", ", survivingQueueSymbols));
+    }
+
+    var rendererLogSources = new Dictionary<string, string>
+    {
+        ["ActionGameManager"] = actionGameManager,
+        ["MainMenu"] = mainMenu,
+        ["Eve presenter"] = evePresenter
+    };
+    var rendererLogHits = rendererLogSources
+        .Where(source => source.Value.Contains("AetheriaRuntimeEveCommandLog.", StringComparison.Ordinal))
+        .Select(source => $"{source.Key}: AetheriaRuntimeEveCommandLog.")
+        .ToArray();
+    if (rendererLogHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Renderer code still speaks to the Eve mailbox log instead of the typed command port: " +
+            string.Join(", ", rendererLogHits));
+    }
+
+    if (actionGameManager.Contains("TryQueueRuntimeEveCommand(", StringComparison.Ordinal) ||
+        actionGameManager.Contains("new EveSurfaceCommandRequest(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still manufactures generic Eve surface command payloads instead of typed Eve command bodies.");
     }
 }
 
@@ -4532,13 +6783,15 @@ static void RequireMainMenuVerseHostProjection(string root)
     var packageStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
     var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var mainMenuSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
 
     var requiredFiles = new[]
     {
         packageSnapshotPath,
         packageStorePath,
         runtimeStateReaderPath,
-        mainMenuPath
+        mainMenuPath,
+        mainMenuSurfaceBuilderPath
     };
 
     var missingFiles = requiredFiles
@@ -4556,6 +6809,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     var packageStore = File.ReadAllText(packageStorePath);
     var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
+    var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
 
     var requiredSnapshotSymbols = new[]
     {
@@ -4602,6 +6856,11 @@ static void RequireMainMenuVerseHostProjection(string root)
     {
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaRuntimeStateReader.ReadVerseHostSettings(stateBoot.StateFilePath)",
+        "ProjectMainMenuSurfaceState(",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
+    };
+    var requiredBuilderSymbols = new[]
+    {
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\"",
@@ -4618,6 +6877,15 @@ static void RequireMainMenuVerseHostProjection(string root)
         throw new InvalidOperationException(
             "MainMenu no longer lowers daemon-owned Verse identity through its Eve shell: " +
             string.Join(", ", missingMainMenuSymbols));
+    }
+    var missingBuilderSymbols = requiredBuilderSymbols
+        .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu surface builder no longer lowers daemon-owned Verse identity through its Eve shell: " +
+            string.Join(", ", missingBuilderSymbols));
     }
 }
 
@@ -4662,11 +6930,12 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredMenuSymbols = new[]
     {
-        "LatestContinueRun",
+        "LatestDaemonFrame",
         "AetheriaRuntimeStateReader",
-        "ReadRunStates(stateBoot.StateFilePath)",
-        "ContinueGame(continueRun)",
-        "ActionGameManager.ContinueRunState = run",
+        "TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)",
+        "frame.IsAuthoritative",
+        "ContinueGame()",
+        "ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(",
         "SceneManager.LoadScene(\"ARPG\")"
     };
 
@@ -4677,14 +6946,8 @@ static void RequireMainMenuContinueRunState(string root)
     if (missingMenuSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu Continue no longer selects typed run state: " +
+            "MainMenu Continue no longer selects an authoritative daemon frame: " +
             string.Join(", ", missingMenuSymbols));
-    }
-
-    if (!runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Shared runtime state reader no longer exposes typed run-state lookup for Continue.");
     }
 
     if (mainMenu.Contains("AddButton(\"Continue\", null)", StringComparison.Ordinal))
@@ -4694,22 +6957,21 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredGameplaySymbols = new[]
     {
-        "AetheriaRuntimeRunStateSnapshot ContinueRunState",
-        "ResolveStartZone(continuingRun)",
-        "if (continuingRun != null)",
-        "RestoreEntityGraphFromTypedRun(continuingRun)",
-        "ReadEntitySnapshots(RuntimeStateFilePath)",
+        "ApplyLatestAuthoritativeDaemonFrame()",
+        "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
+        "if (string.IsNullOrWhiteSpace(run.RunId))",
+        "Authoritative daemon frame does not identify a run id.",
+        "Authoritative daemon frame has no zone snapshot",
         "entity.RecordKey",
         "run.CurrentEntityKey",
-        "ResolveCurrentEntityRecordKey(run)",
+        "CreateDaemonEntitySnapshots(runId, daemonZone)",
+        "CanApplyDaemonEntitySnapshotsInPlace",
+        "ApplyDaemonEntitySnapshotsInPlace",
         "ReplaceZoneEntitiesFromTypedSnapshots",
-        "Zone.Agents.Clear()",
-        "FlattenEntityGraph(Zone)",
         "RestoreChildAndDockingRelationships",
         "RestoreCurrentEntityBinding",
         "RestoreEntityContactsFromTypedSnapshot",
         "entity.Target.Value = target",
-        "string.Equals(entitySnapshot.RecordKey, currentEntityKey",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
         "RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities)",
@@ -4720,8 +6982,7 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
-        "ContinueRunState = null",
-        "RestoreDroppedPickupsFromTypedZoneState"
+        "RestoreDroppedPickupsFromDaemonZoneState"
     };
 
     var missingGameplaySymbols = requiredGameplaySymbols
@@ -4731,7 +6992,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (missingGameplaySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager no longer has the typed Continue boot path: " +
+            "ActionGameManager no longer has the daemon-frame Continue boot path: " +
             string.Join(", ", missingGameplaySymbols));
     }
 
@@ -4769,14 +7030,49 @@ static void RequireMainMenuContinueRunState(string root)
             "Unity package runtime run snapshot still exposes integer current-entity slot authority.");
     }
 
-    var pendingCommitPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs");
-    var pendingCommit = File.Exists(pendingCommitPath)
-        ? File.ReadAllText(pendingCommitPath)
-        : throw new InvalidOperationException("Cannot verify pending commit authority; AetheriaRuntimeStateCommitDocument.cs is missing.");
-    if (pendingCommit.Contains("CurrentZoneEntityIndex", StringComparison.Ordinal))
+    var snapshotDocumentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs");
+    var snapshotDocument = File.Exists(snapshotDocumentPath)
+        ? File.ReadAllText(snapshotDocumentPath)
+        : throw new InvalidOperationException("Cannot verify daemon snapshot authority; AetheriaRuntimeSnapshotDocuments.cs is missing.");
+    if (snapshotDocument.Contains("CurrentZoneEntityIndex", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Pending runtime commit transport still exposes integer current-entity slot authority.");
+            "Daemon runtime snapshot transport still exposes integer current-entity slot authority.");
+    }
+
+    var forbiddenLegacyCommitSymbols = new[]
+    {
+        "public enum AetheriaRuntimeCommitKind",
+        "public sealed class AetheriaRuntimeCommitEnvelope",
+        "public sealed class AetheriaRuntimeStateCommitDocument",
+        "internal enum AetheriaRuntimeCommitKind",
+        "internal sealed class AetheriaRuntimeCommitEnvelope",
+        "internal sealed class AetheriaRuntimeStateCommitDocument"
+    };
+    var legacyCommitHits = forbiddenLegacyCommitSymbols
+        .Where(symbol => snapshotDocument.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (legacyCommitHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Legacy runtime commit envelope leaked back into the daemon snapshot contract: " +
+            string.Join(", ", legacyCommitHits));
+    }
+
+    var forbiddenLegacyFiles = new[]
+    {
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs"),
+        Path.Combine(root, "Aetheria.State", "AetheriaLegacyRuntimeSnapshotImporter.cs")
+    };
+    var existingLegacyFiles = forbiddenLegacyFiles
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (existingLegacyFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Legacy runtime commit compatibility files must stay deleted: " +
+            string.Join(", ", existingLegacyFiles));
     }
 
     var requiredPackageSymbols = new[]
@@ -4819,6 +7115,688 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "Entity no longer exposes narrow runtime-owned restore primitives for typed Continue state: " +
             string.Join(", ", missingEntityRestoreSymbols));
+    }
+}
+
+static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
+    var galaxyPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Galaxy.cs");
+    var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
+    var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
+    var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
+    var daemonGameplayOperationsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; ActionGameManager.cs is missing.");
+    var mainMenu = File.Exists(mainMenuPath)
+        ? File.ReadAllText(mainMenuPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; MainMenu.cs is missing.");
+    var galaxy = File.Exists(galaxyPath)
+        ? File.ReadAllText(galaxyPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; Galaxy.cs is missing.");
+    var daemonDocuments = File.Exists(daemonDocumentsPath)
+        ? File.ReadAllText(daemonDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon command documents are missing.");
+    var daemonOperationsSource = File.Exists(daemonRuntimeOperationsPath)
+        ? File.ReadAllText(daemonRuntimeOperationsPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon operations is missing.");
+    var daemonIntent = File.Exists(daemonIntentPath)
+        ? File.ReadAllText(daemonIntentPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon intent state is missing.");
+    var daemonObserver = File.Exists(daemonObserverPath)
+        ? File.ReadAllText(daemonObserverPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaDaemonObserver.cs is missing.");
+    var daemonOperations = File.Exists(daemonGameplayOperationsPath)
+        ? File.ReadAllText(daemonGameplayOperationsPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaDaemonOperations.cs is missing.");
+
+    var forbiddenGameplaySymbols = new[]
+    {
+        "CurrentGalaxy",
+        "Zone.Update(Time.deltaTime)",
+        "Zone.Update(",
+        "CurrentEntity.Update(",
+        ".Update(Time.deltaTime)",
+        "Death.Subscribe(Die)",
+        "private void Die(CauseOfDeath",
+        "ZoneGenerator.GenerateZone",
+        "TryDock(",
+        "TryUndock(",
+        "IntroCutscene(",
+        "IntroDuration",
+        "ship.CultPositionXZ =",
+        "ship.CultDirection =",
+        "ship.CultVelocity =",
+        "CurrentEntity.Zone.Entities.Remove(CurrentEntity)",
+        "CurrentEntity.Zone = Zone",
+        "Zone.Entities.Add(CurrentEntity)",
+        "CurrentEntity.CultPositionXZ = TowingStation.CultPositionXZ",
+        "PopulateLevel(TowingStation.Zone.GalaxyZone)",
+        "AetheriaRuntimeStateCommitLog.QueueRunCheckpoint",
+        "AetheriaRuntimeStateCommitLog.QueuePlayerSettings",
+        "AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate"
+    };
+
+    var forbiddenGameplayHits = forbiddenGameplaySymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (forbiddenGameplayHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay still owns local simulation or legacy write fallback instead of daemon observation: " +
+            string.Join(", ", forbiddenGameplayHits));
+    }
+
+    if (daemonObserver.Contains("AetheriaRuntimeCommandSubmitter.TrySubmitDaemonCommand(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity daemon observer still calls the generic command submitter instead of the typed daemon operation client.");
+    }
+
+    var requiredGameplaySymbols = new[]
+    {
+        "ApplyLatestAuthoritativeDaemonFrame()",
+        "ResolveDaemonObserver()",
+        "observed.IsAuthoritative",
+        "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
+        "CreateDaemonZoneConstructionBlueprint(daemonZone)",
+        "CreateDaemonEntitySnapshots(runId, daemonZone)",
+        "ReplaceZoneEntitiesFromTypedSnapshots",
+        "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",
+        "public static Galaxy ObservedGalaxy",
+        "TryRequestDaemonMoveVector",
+        "TryRequestDaemonLookDirection",
+        "TryRequestDaemonTractorPower",
+        "observer.Operations.SetMoveVector",
+        "observer.Operations.SetLookDirection",
+        "observer.Operations.SetTractorPower"
+    };
+
+    var missingGameplaySymbols = requiredGameplaySymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingGameplaySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay no longer behaves as a daemon-frame observer and command lowerer: " +
+            string.Join(", ", missingGameplaySymbols));
+    }
+
+    var requiredDaemonControlValidationSymbols = new[]
+    {
+        "case AetheriaRuntimeDaemonCommandKinds.SetTractorPower:",
+        "!IsNormalizedScalar(command.ScalarValue)",
+        "private static bool IsNormalizedScalar(double value)",
+        "!IsFinite(command.DirectionX)",
+        "!IsFinite(command.DirectionY)"
+    };
+    var missingDaemonControlValidationSymbols = requiredDaemonControlValidationSymbols
+        .Where(symbol => !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonControlValidationSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon continuous controls no longer validate normalized movement and tractor inputs: " +
+            string.Join(", ", missingDaemonControlValidationSymbols));
+    }
+
+    if (actionGameManager.Contains("EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint", StringComparison.Ordinal) ||
+        actionGameManager.Contains("EntityConstructionBlueprintProjector.InstantiateFromBlueprint", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity frame application must project observed daemon state, not instantiate authoritative gameplay entities.");
+    }
+
+    var permittedEntityProjectionMethods = new[]
+    {
+        "ReplaceZoneEntitiesFromTypedSnapshots",
+        "RestoreChildAndDockingRelationships"
+    };
+    var unauthorizedEntityProjectionHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "Zone.Entities.Add(", "Zone.Entities.Remove(" })
+        .Where(hit => !permittedEntityProjectionMethods.Contains(hit.MethodName, StringComparer.Ordinal))
+        .Select(hit => $"{hit.MethodName}:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (unauthorizedEntityProjectionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay may only add/remove zone entities while lowering observed daemon snapshots: " +
+            string.Join("; ", unauthorizedEntityProjectionHits));
+    }
+
+    var zonePath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs");
+    var zoneSource = File.Exists(zonePath)
+        ? File.ReadAllText(zonePath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; Zone.cs is missing.");
+    var projectorPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs");
+    var projectorSource = File.Exists(projectorPath)
+        ? File.ReadAllText(projectorPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; EntityConstructionBlueprintProjector.cs is missing.");
+
+    var requiredProjectionBoundarySymbols = new[]
+    {
+        "public static Galaxy ProjectObservedDaemonRun",
+        "private Galaxy(",
+        "AetheriaRuntimeRunCheckpointCommit run,",
+        "public static Entity InstantiateAuthoritativeFromBlueprint",
+        "public static Entity ProjectObservedFromBlueprint",
+        "private static Entity BuildFromBlueprint",
+        "EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint)"
+    };
+    var projectionBoundaryCorpus = projectorSource + "\n" + zoneSource + "\n" + galaxy;
+    var missingProjectionBoundarySymbols = requiredProjectionBoundarySymbols
+        .Where(symbol => !projectionBoundaryCorpus.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProjectionBoundarySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Entity projection no longer separates authoritative construction from observed daemon lowering: " +
+            string.Join(", ", missingProjectionBoundarySymbols));
+    }
+
+    if (galaxy.Contains("public Galaxy(\r\n        AetheriaRuntimeRunCheckpointCommit run,", StringComparison.Ordinal) ||
+        galaxy.Contains("public Galaxy(\n        AetheriaRuntimeRunCheckpointCommit run,", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon-observed galaxy projection must be reached through ProjectObservedDaemonRun, not a public constructor.");
+    }
+
+    var forbiddenDaemonQueueLanguage = new[]
+    {
+        "observer.Queue",
+        "_lastQueuedDaemon",
+        "_hasQueuedDaemon",
+        "Failed to queue Aetheria daemon",
+        "Queued Aetheria daemon"
+    };
+    var forbiddenDaemonQueueHits = forbiddenDaemonQueueLanguage
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenDaemonQueueHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay still uses queue-shaped daemon language instead of typed sent operations: " +
+            string.Join(", ", forbiddenDaemonQueueHits));
+    }
+
+    if (daemonObserver.Contains("public AetheriaRuntimeDaemonCommandEnvelope Queue", StringComparison.Ordinal) ||
+        daemonObserver.Contains("Queued Aetheria daemon command", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaDaemonObserver still exposes queue-shaped public daemon APIs instead of typed Operations.");
+    }
+
+    var requiredDaemonNavigationAuthoritySymbols = new[]
+    {
+        "ApplyEnterWormholeIntent(run, command, context.Intents)",
+        "ApplyTowToStationIntent(run, command, context.Intents)",
+        "MoveEntityToZone(run, actor, command.TargetZoneIndex",
+        "run.CurrentZoneIndex = targetZoneIndex",
+        "run.CurrentEntityKey = movedEntityKey",
+        "run.DiscoveredZoneIndices = discovered.ToArray()"
+    };
+    var missingDaemonNavigationAuthoritySymbols = requiredDaemonNavigationAuthoritySymbols
+        .Where(symbol => !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonNavigationAuthoritySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon navigation commands no longer mutate canonical run state inside the daemon operation layer: " +
+            string.Join(", ", missingDaemonNavigationAuthoritySymbols));
+    }
+
+    var requiredSentOperationSymbols = new[]
+    {
+        "_lastSentDaemonMoveVector",
+        "_lastSentDaemonLookDirection",
+        "_lastSentDaemonTractorPower",
+        "_hasSentDaemonMoveVector",
+        "_hasSentDaemonLookDirection",
+        "_hasSentDaemonTractorPower",
+        "Failed to send Aetheria daemon movement operation",
+        "Failed to send Aetheria daemon look operation",
+        "Failed to send Aetheria daemon tractor-power operation"
+    };
+    var missingSentOperationSymbols = requiredSentOperationSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSentOperationSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay no longer describes daemon input as sent typed operations: " +
+            string.Join(", ", missingSentOperationSymbols));
+    }
+
+    var requiredDockingLoweringSymbols = new[]
+    {
+        "public void RequestDock()",
+        "public void RequestUndock()",
+        "public void RequestTowToStation()",
+        "TryRequestDaemonDock()",
+        "TryRequestDaemonUndock()",
+        "TryRequestDaemonTowToStation()",
+        "observer.Operations.Dock(targetKey)",
+        "observer.Operations.Undock()",
+        "observer.Operations.TowToStation(",
+        "TowingStation.CultPositionXZ.x",
+        "TowingStation.CultPositionXZ.y"
+    };
+
+    var missingDockingLoweringSymbols = requiredDockingLoweringSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingDockingLoweringSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity docking/towing UI no longer lowers intent through daemon commands: " +
+            string.Join(", ", missingDockingLoweringSymbols));
+    }
+
+    var forbiddenUnityDockingAuthoritySymbols = new[]
+    {
+        "public void Dock()",
+        "public void Undock()",
+        "public void TowShip()",
+        "Missing cockpit component",
+        "Missing thruster component",
+        "Missing reactor component",
+        "Must empty docking bay"
+    };
+    var unityDockingAuthorityHits = forbiddenUnityDockingAuthoritySymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityDockingAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity docking/towing still exposes imperative local authority instead of daemon-bound requests: " +
+            string.Join(", ", unityDockingAuthorityHits));
+    }
+
+    var undockLocalAuthorityHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "CurrentEntity?.Parent == null" })
+        .Where(hit => hit.MethodName == "TryRequestDaemonUndock")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (undockLocalAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity undock request still rejects through renderer-local parent state instead of daemon acceptance: " +
+            string.Join("; ", undockLocalAuthorityHits));
+    }
+
+    var dockLocalAuthorityHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "CurrentEntity?.Parent != null" })
+        .Where(hit => hit.MethodName == "TryRequestDaemonDock")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (dockLocalAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity dock request still rejects through renderer-local parent state instead of daemon acceptance: " +
+            string.Join("; ", dockLocalAuthorityHits));
+    }
+
+    var movementLocalAuthorityHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "CurrentEntity?.Parent != null" })
+        .Where(hit => hit.MethodName == "TryRequestDaemonEnterWormhole" || hit.MethodName == "TryRequestDaemonTowToStation")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (movementLocalAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity movement requests still reject through renderer-local parent state instead of daemon acceptance: " +
+            string.Join("; ", movementLocalAuthorityHits));
+    }
+
+    var requiredShieldToggleSymbols = new[]
+    {
+        "TryRequestDaemonShieldToggle",
+        "observer.Operations.ToggleShieldEnabled()",
+        "AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled",
+        "ApplyToggleEquipmentBehaviorItem(run, command, \"Shield\""
+    };
+    var missingShieldToggleSymbols = requiredShieldToggleSymbols
+        .Where(symbol =>
+            !actionGameManager.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingShieldToggleSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shield input no longer lowers through a semantic daemon shield command: " +
+            string.Join(", ", missingShieldToggleSymbols));
+    }
+
+    var forbiddenUnityShieldAuthoritySymbols = new[]
+    {
+        "RequestShieldEnabled(",
+        "TryRequestDaemonShieldEnabled(",
+        "CurrentEntity.Shield.Item.Enabled",
+        "var shieldItem = CurrentEntity?.Shield?.Item",
+        "CurrentEntity.Equipment.IndexOf(shieldItem)"
+    };
+    var shieldAuthorityHits = forbiddenUnityShieldAuthoritySymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (shieldAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity shield input still derives equipment authority from renderer-local shield components: " +
+            string.Join(", ", shieldAuthorityHits));
+    }
+
+    var requiredTargetAuthoritySymbols = new[]
+    {
+        "ApplySetTarget(run, command)",
+        "actor.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>()",
+        "contact.TargetEntityIndex == targetIndex && contact.Visible"
+    };
+    var missingTargetAuthoritySymbols = requiredTargetAuthoritySymbols
+        .Where(symbol => !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTargetAuthoritySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon target selection no longer validates visibility through authoritative contact state: " +
+            string.Join(", ", missingTargetAuthoritySymbols));
+    }
+
+    var requiredIntentAuthoritySymbols = new[]
+    {
+        "!HasWeaponGroup(entity, command.WeaponGroup)",
+        "!HasEquipmentBehavior(entity, command.EquipmentIndex, command.BehaviorIndex)",
+        "private static bool HasWeaponGroup(AetheriaRuntimeEntitySnapshotCommit entity, int weaponGroup)",
+        "private static bool HasEquipmentBehavior("
+    };
+    var missingIntentAuthoritySymbols = requiredIntentAuthoritySymbols
+        .Where(symbol => !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingIntentAuthoritySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon simulation intents no longer validate weapon-group and behavior indices against authoritative entity state: " +
+            string.Join(", ", missingIntentAuthoritySymbols));
+    }
+
+    var forbiddenUnityInputApplySymbols = new[]
+    {
+        "ApplyEnterWormhole(",
+        "ApplyLookDirection(",
+        "ApplyTractorPower(",
+        "ApplyTargetSelection(",
+        "ApplyOverrideShutdown(",
+        "ApplySensorPing(",
+        "ApplyHeatsinksEnabled(",
+        "ApplyShieldEnabled(",
+        "ApplyDock(",
+        "ApplyUndock("
+    };
+    var unityInputApplyHits = forbiddenUnityInputApplySymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityInputApplyHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity input still exposes Apply vocabulary for daemon-bound requests: " +
+            string.Join(", ", unityInputApplyHits));
+    }
+
+    var requiredTowDaemonSymbols = new[]
+    {
+        "TowToStation",
+        "AetheriaRuntimeDaemonCommandKinds.TowToStation",
+        "ApplyTowToStationIntent",
+        "MoveEntityToZone(run, actor, command.TargetZoneIndex, command.PositionX, command.PositionY, out var movedEntityKey)",
+        "intents.Towing.Add",
+        "AetheriaRuntimeDaemonTowIntent",
+        "public AetheriaRuntimeDaemonCommandEnvelope TowToStation("
+    };
+
+    var missingTowDaemonSymbols = requiredTowDaemonSymbols
+        .Where(symbol =>
+            !daemonDocuments.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonIntent.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonObserver.Contains(symbol, StringComparison.Ordinal) &&
+            !daemonOperations.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingTowDaemonSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Towing is not fully owned by daemon command state: " +
+            string.Join(", ", missingTowDaemonSymbols));
+    }
+
+    var forbiddenMenuSymbols = new[]
+    {
+        "new Galaxy(Settings",
+        "new Galaxy(settings",
+        "new Galaxy(",
+        "SectorGenerationSettings",
+        "RunGenerator",
+        "ZoneGenerator.GenerateZone"
+    };
+
+    var forbiddenMenuHits = forbiddenMenuSymbols
+        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (forbiddenMenuHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still has local run generation fallback on the gameplay boot path: " +
+            string.Join(", ", forbiddenMenuHits));
+    }
+
+    var requiredMenuSymbols = new[]
+    {
+        "TryStartDaemonObservedGame",
+        "TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)",
+        "frame.IsAuthoritative",
+        "ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(",
+        "frame.Run",
+        "SceneManager.LoadScene(\"ARPG\")"
+    };
+
+    var missingMenuSymbols = requiredMenuSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingMenuSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer boots gameplay strictly from an authoritative daemon frame: " +
+            string.Join(", ", missingMenuSymbols));
+    }
+}
+
+static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
+{
+    var checkedRoots = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay"),
+        Path.Combine(root, "Assets", "Scripts", "UI")
+    };
+
+    var forbiddenCallerSymbols = new[]
+    {
+        "Zone.Update(",
+        ".Zone.Update(",
+        "CurrentEntity.Update(",
+        ".CurrentEntity.Update(",
+        "entity.Update(delta",
+        "entity.Update(Time.deltaTime",
+        "ship.Update(delta",
+        "ship.Update(Time.deltaTime",
+        "agent.Update(delta",
+        "agent.Update(Time.deltaTime",
+        "equippedItem.Update(delta",
+        "equippedItem.Update(Time.deltaTime",
+        "alwaysUpdatedBehavior.Update(delta",
+        "alwaysUpdatedBehavior.Update(Time.deltaTime"
+    };
+
+    var hits = checkedRoots
+        .Where(Directory.Exists)
+        .SelectMany(path => Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenCallerSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay/UI still calls shared simulation tick methods instead of observing daemon frames: " +
+            string.Join("; ", hits));
+    }
+
+    var daemonTickRunnerPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonTickRunner.cs");
+    var daemonTickRunner = File.Exists(daemonTickRunnerPath)
+        ? File.ReadAllText(daemonTickRunnerPath)
+        : throw new InvalidOperationException("Cannot verify shared simulation authority; daemon tick runner is missing.");
+
+    var requiredDaemonTickSymbols = new[]
+    {
+        "AetheriaRuntimeDaemonTickRunner",
+        "Tick(",
+        "AetheriaRuntimeDaemonFrameDocument.Create",
+        "AetheriaRuntimeDaemonFrameStore.PublishFrame",
+        "AetheriaRuntimeDaemonOperations.Execute("
+    };
+
+    var missingDaemonTickSymbols = requiredDaemonTickSymbols
+        .Where(symbol => !daemonTickRunner.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+
+    if (missingDaemonTickSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared simulation ticks no longer have a daemon-owned frame publication path: " +
+            string.Join(", ", missingDaemonTickSymbols));
+    }
+}
+
+static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
+{
+    var checkedRoots = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared")
+    };
+
+    var forbiddenSymbols = new[]
+    {
+        "OnTriggerEnter",
+        "OnTriggerStay",
+        "OnTriggerExit",
+        "OnCollisionEnter",
+        "OnCollisionStay",
+        "OnCollisionExit",
+        "OnControllerColliderHit",
+        "Physics.Raycast",
+        "Physics.SphereCast",
+        "Physics.BoxCast",
+        "Physics.CapsuleCast",
+        "Physics.OverlapSphere",
+        "Physics.OverlapBox",
+        "Physics.OverlapCapsule",
+        "Physics.CheckSphere",
+        "Physics.CheckBox",
+        "Physics.CheckCapsule",
+        "Rigidbody",
+        "Rigidbody2D",
+        "Collider2D"
+    };
+
+    var hits = checkedRoots
+        .Where(Directory.Exists)
+        .SelectMany(path => Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity physics/collision callbacks are forbidden as gameplay authority; route queries through Ymir: " +
+            string.Join("; ", hits));
+    }
+
+    var ymirBridgePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "AetheriaYmirPhysicsBridge.cs");
+    var projectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Projectile.cs");
+    var guidedProjectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectile.cs");
+    var hitscanPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanEffect.cs");
+    var clickRaycasterPath = Path.Combine(root, "Assets", "Scripts", "UI", "ClickRaycaster.cs");
+
+    var requiredSymbols = new Dictionary<string, string[]>
+    {
+        [ymirBridgePath] = new[]
+        {
+            "public string ServiceUrl",
+            "public string OverlapSphereUrl",
+            "public string OverlapCircleUrl",
+            "public string CastCircleUrl",
+            "public string CastSphereUrl",
+            "TryStepProjectile(",
+            "TryCastZoneHulls(",
+            "TryBuildDaemonWorld("
+        },
+        [projectilePath] = new[]
+        {
+            "AetheriaYmirPhysicsBridge.Instance.TryStepProjectile",
+            "projectile killed instead of falling back to Unity physics."
+        },
+        [guidedProjectilePath] = new[]
+        {
+            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls"
+        },
+        [hitscanPath] = new[]
+        {
+            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls"
+        },
+        [clickRaycasterPath] = new[]
+        {
+            "AetheriaYmirPhysicsBridge.Instance.TryCastClickables"
+        }
+    };
+
+    var missingSymbols = requiredSymbols
+        .Where(pair => !File.Exists(pair.Key) || pair.Value.Any(symbol => !File.ReadAllText(pair.Key).Contains(symbol, StringComparison.Ordinal)))
+        .SelectMany(pair =>
+        {
+            var text = File.Exists(pair.Key) ? File.ReadAllText(pair.Key) : "";
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Ymir gameplay query bridge is incomplete: " +
+            string.Join("; ", missingSymbols));
     }
 }
 
@@ -5012,7 +7990,8 @@ static void RequireNameToolsUsesUiToolkit(string root)
 static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 {
     var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
-    var unityFacadeProjectPath = Path.Combine(root, "Aetheria.State.Unity", "Aetheria.State.Unity.csproj");
+    var runtimeEveSurfaceAdapterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceAdapter.cs");
+    var unityPackageProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var eveSurfacePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
@@ -5020,7 +7999,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredPaths = new[]
     {
         runtimeStateReaderPath,
-        unityFacadeProjectPath,
+        runtimeEveSurfaceAdapterPath,
+        unityPackageProjectPath,
         actionGameManagerPath,
         mainMenuPath,
         eveSurfacePresenterPath
@@ -5039,7 +8019,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
-    var unityFacadeProject = File.ReadAllText(unityFacadeProjectPath);
+    var runtimeEveSurfaceAdapter = File.ReadAllText(runtimeEveSurfaceAdapterPath);
+    var unityPackageProject = File.ReadAllText(unityPackageProjectPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var eveSurfacePresenter = File.ReadAllText(eveSurfacePresenterPath);
@@ -5054,7 +8035,21 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ReadRunStates",
         "ReadZoneStates",
         "ReadEntitySnapshots",
-        "ReadEveSurface"
+        "ReadEveSurface",
+        "TryReadDaemonGameSurface",
+        "TryReadDaemonGameTuiSurface",
+        "TryReadDaemonEditorSurface",
+        "TryReadDaemonEditorTuiSurface",
+        "AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface",
+        "AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface",
+        "AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface",
+        "AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId",
+        "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface)",
+        "AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId)"
     };
 
     var missingReaderSymbols = requiredReaderSymbols
@@ -5068,19 +8063,48 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingReaderSymbols));
     }
 
-    if (!unityFacadeProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
+    if (!unityPackageProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria.State.Unity.csproj does not include the shared runtime state reader.");
+            "GameCult.Aetheria.State.Unity.csproj does not include the shared runtime state reader.");
     }
+
+    var requiredAdapterSymbols = new[]
+    {
+        "public static class AetheriaRuntimeEveSurfaceAdapter",
+        "public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)",
+        "public static EveSurfaceDocument EmptySurface(string surfaceId)",
+        "new EveSurfaceDocument(",
+        "new EveSurfaceComponent("
+    };
+    var missingAdapterSymbols = requiredAdapterSymbols
+        .Where(symbol => !runtimeEveSurfaceAdapter.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingAdapterSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime Eve surface adapter is incomplete: " +
+            string.Join(", ", missingAdapterSymbols));
+    }
+
+    if (!unityPackageProject.Contains("AetheriaRuntimeEveSurfaceAdapter.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "GameCult.Aetheria.State.Unity.csproj does not include the shared runtime Eve surface adapter.");
+    }
+
+    var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
+    var daemonObserver = File.Exists(daemonObserverPath)
+        ? File.ReadAllText(daemonObserverPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaDaemonObserver.cs is missing.");
 
     var requiredActionGameManagerSymbols = new[]
     {
         "AetheriaRuntimeStateReader.ReadPlayerSettings",
         "AetheriaRuntimeStateReader.ReadLoadoutTemplates",
         "AetheriaRuntimeStateReader.OpenRuntimeCatalog",
-        "AetheriaRuntimeStateReader.ReadZoneStates",
-        "AetheriaRuntimeStateReader.ReadEntitySnapshots"
+        "ResolveDaemonObserver()",
+        "LastObservedState"
     };
 
     var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
@@ -5094,11 +8118,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingActionGameManagerSymbols));
     }
 
-    if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
-        !mainMenu.Contains("ReadRunStates(stateBoot.StateFilePath)", StringComparison.Ordinal))
+    if (!daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MainMenu no longer routes Continue-run lookup through the shared runtime state reader.");
+            "AetheriaDaemonObserver no longer routes observed daemon state through the shared runtime state reader.");
+    }
+
+    if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
+        !mainMenu.Contains("TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu no longer routes daemon-frame lookup through the shared runtime state reader.");
     }
 
     if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.ReadEveSurface", StringComparison.Ordinal))
@@ -5144,31 +8174,57 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Unity gameplay/UI still reads typed state directly from the raw store instead of the shared runtime state reader: " +
             string.Join("; ", directStoreHits));
     }
+
+    var unitySurfaceLowererFiles = Directory
+        .EnumerateFiles(Path.Combine(root, "Assets", "Scripts", "UI"), "*.cs", SearchOption.AllDirectories)
+        .ToArray();
+    var forbiddenLocalSurfaceAdapterSymbols = new[]
+    {
+        "private static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)",
+        "private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)",
+        "new EveSurfaceDocument(\r\n            \"surface-state\"",
+        "new EveCommandTemplate(command.Command, command.Label, command.Transport)"
+    };
+    var localSurfaceAdapterHits = unitySurfaceLowererFiles
+        .SelectMany(path =>
+        {
+            var source = File.ReadAllText(path);
+            return forbiddenLocalSurfaceAdapterSymbols
+                .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, path)} -> {symbol}");
+        })
+        .ToArray();
+    if (localSurfaceAdapterHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity UI lowerers still duplicate runtime-to-Eve surface conversion instead of using the shared adapter: " +
+            string.Join("; ", localSurfaceAdapterHits));
+    }
 }
 
-static void RequireRuntimeSimulationTuningCommits(string root)
+static void RequireRuntimeSimulationTuningRequests(string root)
 {
     var requiredActionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(requiredActionGameManagerPath)
         ? File.ReadAllText(requiredActionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify runtime simulation tuning authority; ActionGameManager.cs is missing.");
 
-    var requiredCommitMethods = new[]
+    var requiredRequestMethods = new[]
     {
-        "CommitEntityOverrideShutdown",
-        "CommitEquippedItemOverrideShutdown",
-        "CommitThermotoggleTargetTemperature",
-        "CommitEntityShutdownPerformance"
+        "RequestEntityOverrideShutdown",
+        "RequestEquippedItemOverrideShutdown",
+        "RequestThermotoggleTargetTemperature",
+        "RequestEntityShutdownPerformance"
     };
 
-    var missingMethods = requiredCommitMethods
+    var missingMethods = requiredRequestMethods
         .Where(method => !actionGameManager.Contains(method, StringComparison.Ordinal))
         .ToArray();
 
     if (missingMethods.Length > 0)
     {
         throw new InvalidOperationException(
-            "Runtime simulation tuning commit methods are missing from ActionGameManager: " +
+            "Runtime simulation tuning request methods are missing from ActionGameManager: " +
             string.Join(", ", missingMethods));
     }
 
@@ -5195,20 +8251,40 @@ static void RequireRuntimeSimulationTuningCommits(string root)
             "Runtime simulation tuning still has renderer-local UI write authority: " +
             string.Join("; ", hits));
     }
+
+    var daemonOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var daemonOperations = File.Exists(daemonOperationsPath)
+        ? File.ReadAllText(daemonOperationsPath)
+        : throw new InvalidOperationException("Cannot verify runtime simulation tuning authority; AetheriaRuntimeDaemonOperations.cs is missing.");
+    var requiredDaemonValidationSymbols = new[]
+    {
+        "case AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance:",
+        "command.ScalarValue < 0.0 || command.ScalarValue > 1.0"
+    };
+    var missingDaemonValidationSymbols = requiredDaemonValidationSymbols
+        .Where(symbol => !daemonOperations.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonValidationSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon runtime tuning no longer validates shutdown-performance range: " +
+            string.Join(", ", missingDaemonValidationSymbols));
+    }
 }
 
-static void RequireHullConductivityCommitAuthority(string root)
+static void RequireHullConductivityRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify hull conductivity authority; ActionGameManager.cs is missing.");
 
-    if (!actionGameManager.Contains("CommitHullConductivityToggle", StringComparison.Ordinal) ||
-        !actionGameManager.Contains("QueueRunCheckpoint(\"hull-conductivity-toggle\")", StringComparison.Ordinal))
+    if (!actionGameManager.Contains("RequestHullConductivityToggle", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("TryRequestDaemonHullConductivityToggle", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("Operations.ToggleHullConductivity", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Hull conductivity no longer has a gameplay-owned checkpoint commit primitive.");
+            "Hull conductivity no longer has a typed daemon request primitive.");
     }
 
     var uiRoot = Path.Combine(root, "Assets", "Scripts", "UI");
@@ -5231,18 +8307,19 @@ static void RequireHullConductivityCommitAuthority(string root)
     }
 }
 
-static void RequireInventoryEntityRenameCommitAuthority(string root)
+static void RequireInventoryEntityRenameRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify inventory entity rename authority; ActionGameManager.cs is missing.");
 
-    if (!actionGameManager.Contains("CommitEntityName", StringComparison.Ordinal) ||
-        !actionGameManager.Contains("QueueRunCheckpoint(\"entity-name\")", StringComparison.Ordinal))
+    if (!actionGameManager.Contains("RequestEntityName", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("TryRequestDaemonEntityName", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("Operations.SetEntityName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Entity rename no longer has a gameplay-owned checkpoint commit primitive.");
+            "Entity rename no longer has a typed daemon request primitive.");
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
@@ -5253,33 +8330,50 @@ static void RequireInventoryEntityRenameCommitAuthority(string root)
     if (inventoryPanel.Contains("_displayedEntity.Name =", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still renames entities directly instead of using the gameplay checkpoint commit primitive.");
+            "InventoryPanel still renames entities directly instead of using the typed daemon request primitive.");
     }
 
-    if (!inventoryPanel.Contains("GameManager.CommitEntityName", StringComparison.Ordinal))
+    if (!inventoryPanel.Contains("GameManager.RequestEntityName", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes entity rename through ActionGameManager.");
     }
 }
 
-static void RequireWeaponGroupCommitAuthority(string root)
+static void RequireWeaponGroupRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify weapon group authority; ActionGameManager.cs is missing.");
 
-    if (!actionGameManager.Contains("CommitWeaponGroupMembership", StringComparison.Ordinal) ||
-        !actionGameManager.Contains("QueueRunCheckpoint(\"weapon-group-membership\")", StringComparison.Ordinal))
+    if (!actionGameManager.Contains("RequestWeaponGroupMembership", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("TryRequestDaemonWeaponGroupMembership", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("Operations.SetWeaponGroupMembership", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Weapon group membership no longer has a gameplay-owned checkpoint commit primitive.");
+            "Weapon group membership no longer has a typed daemon request primitive.");
     }
 
     if (actionGameManager.Contains("WeaponGroupDragObject", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Weapon-group action-bar binding still keeps the dead drag-object path alive instead of routing through live gameplay APIs.");
+    }
+
+    var forbiddenLocalAcceptanceSymbols = new[]
+    {
+        "item?.Entity?.WeaponGroups == null",
+        "groupIndex >= item.Entity.WeaponGroups.Length",
+        "item.GetBehavior<Weapon>()"
+    };
+    var localAcceptanceHits = forbiddenLocalAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (localAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity weapon-group membership still rejects through renderer-local weapon/group checks instead of daemon acceptance: " +
+            string.Join(", ", localAcceptanceHits));
     }
 
     var assignmentPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "WeaponGroupAssignment.cs");
@@ -5305,7 +8399,7 @@ static void RequireWeaponGroupCommitAuthority(string root)
     }
 }
 
-static void RequireActionBarBindingCommitAuthority(string root)
+static void RequireActionBarBindingRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
@@ -5314,11 +8408,12 @@ static void RequireActionBarBindingCommitAuthority(string root)
 
     var requiredSymbols = new[]
     {
-        "CommitActionBarBinding(",
-        "QueueRunCheckpoint(\"action-bar-binding\")",
+        "RequestActionBarBinding(",
+        "TryRequestDaemonActionBarBinding(",
+        "TryRequestDaemonActionBarBindingClear(",
         "RestoreActionBarBindingsFromTypedRun(",
         "ApplyActionBarBindings(",
-        "CommitActionBarBinding(slot, dragAction)"
+        "RequestActionBarBinding(slot, dragAction)"
     };
 
     var missingSymbols = requiredSymbols
@@ -5328,14 +8423,15 @@ static void RequireActionBarBindingCommitAuthority(string root)
     if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Action-bar binding no longer has a gameplay-owned checkpoint/restore path: " +
+            "Action-bar binding no longer has a typed daemon request and observed restore path: " +
             string.Join(", ", missingSymbols));
     }
 
     var forbiddenSymbols = new[]
     {
         "var newbinds = Enumerable.Range(0, 64)",
-        ".Zip(\r\n                    bindings,"
+        ".Zip(\r\n                    bindings,",
+        "groupIndex >= CurrentEntity.WeaponGroups.Length"
     };
 
     var legacyHits = forbiddenSymbols
@@ -5350,34 +8446,53 @@ static void RequireActionBarBindingCommitAuthority(string root)
     }
 }
 
-static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
+static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify inventory transfer authority; ActionGameManager.cs is missing.");
 
-    var requiredCommits = new[]
+    var requiredRequests = new[]
     {
-        "CommitCargoItemTransfer",
-        "CommitCargoItemEquip",
-        "CommitEquippedItemStore",
-        "CommitEquippedItemEquip",
-        "QueueRunCheckpoint(\"cargo-item-transfer\")",
-        "QueueRunCheckpoint(\"cargo-item-equip\")",
-        "QueueRunCheckpoint(\"equipped-item-store\")",
-        "QueueRunCheckpoint(\"equipped-item-equip\")"
+        "RequestCargoItemTransfer",
+        "RequestCargoItemEquip",
+        "RequestEquippedItemStore",
+        "RequestEquippedItemEquip",
+        "TryRequestDaemonCargoItemTransfer",
+        "TryRequestDaemonCargoItemEquip",
+        "TryRequestDaemonEquippedItemStore",
+        "TryRequestDaemonEquippedItemEquip"
     };
 
-    var missingCommits = requiredCommits
+    var missingRequests = requiredRequests
         .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingCommits.Length > 0)
+    if (missingRequests.Length > 0)
     {
         throw new InvalidOperationException(
-            "Inventory transfer no longer has complete gameplay-owned checkpoint commit primitives: " +
-            string.Join(", ", missingCommits));
+            "Inventory transfer no longer has complete typed daemon request primitives: " +
+            string.Join(", ", missingRequests));
+    }
+
+    var forbiddenUnityInventoryAcceptanceSymbols = new[]
+    {
+        "TryFindSpace(",
+        "ItemFits(",
+        "Cargo.ContainsKey(",
+        "Equipment.Contains(",
+        "origin == destination",
+        "ReferenceEquals(equippedItem.Entity, origin)"
+    };
+    var unityInventoryAcceptanceHits = forbiddenUnityInventoryAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityInventoryAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity inventory request code still rejects requests through renderer-local capacity or membership checks: " +
+            string.Join(", ", unityInventoryAcceptanceHits));
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
@@ -5414,12 +8529,29 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
             string.Join("; ", hits));
     }
 
+    var forbiddenInventoryUiAcceptanceSymbols = new[]
+    {
+        ".ItemFits(",
+        ".TryFindSpace("
+    };
+    var inventoryUiAcceptanceHits = File.ReadLines(inventoryPanelPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenInventoryUiAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, inventoryPanelPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+    if (inventoryUiAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still rejects transfer placement through renderer-local fit checks instead of daemon authority: " +
+            string.Join("; ", inventoryUiAcceptanceHits));
+    }
+
     var requiredUiCalls = new[]
     {
-        "GameManager.CommitCargoItemTransfer",
-        "GameManager.CommitCargoItemEquip",
-        "GameManager.CommitEquippedItemStore",
-        "GameManager.CommitEquippedItemEquip"
+        "GameManager.RequestCargoItemTransfer",
+        "GameManager.RequestCargoItemEquip",
+        "GameManager.RequestEquippedItemStore",
+        "GameManager.RequestEquippedItemEquip"
     };
 
     var missingUiCalls = requiredUiCalls
@@ -5436,30 +8568,45 @@ static void RequireInventoryDoubleClickTransferCommitAuthority(string root)
     }
 }
 
-static void RequireTradePurchaseCommitAuthority(string root)
+static void RequireTradePurchaseRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify trade purchase authority; ActionGameManager.cs is missing.");
 
-    var requiredCommits = new[]
+    var requiredRequests = new[]
     {
-        "CommitTradePurchase",
-        "QueueRunCheckpoint(\"trade-purchase\")",
-        "Credits -=",
-        "new Ship("
+        "RequestTradePurchase",
+        "TryRequestDaemonTradePurchase",
+        "Operations.TradePurchase"
     };
 
-    var missingCommits = requiredCommits
+    var missingRequests = requiredRequests
         .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingCommits.Length > 0)
+    if (missingRequests.Length > 0)
     {
         throw new InvalidOperationException(
-            "Trade purchase no longer has a gameplay-owned checkpoint commit primitive: " +
-            string.Join(", ", missingCommits));
+            "Trade purchase no longer has a typed daemon request primitive: " +
+            string.Join(", ", missingRequests));
+    }
+
+    var forbiddenUnityTradeAcceptanceSymbols = new[]
+    {
+        "price > Credits",
+        "totalPrice > Credits",
+        "targetCargo.TryFindSpace("
+    };
+    var unityTradeAcceptanceHits = forbiddenUnityTradeAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityTradeAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity trade/loadout request code still rejects requests through renderer-local credits or cargo-capacity checks: " +
+            string.Join(", ", unityTradeAcceptanceHits));
     }
 
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
@@ -5488,35 +8635,46 @@ static void RequireTradePurchaseCommitAuthority(string root)
             string.Join("; ", hits));
     }
 
-    if (!tradeMenu.Contains("GameManager.CommitTradePurchase", StringComparison.Ordinal))
+    var forbiddenLocalAcceptanceSymbols = new[]
+    {
+        "price > GameManager.Credits",
+        "totalPrice > GameManager.Credits",
+        "GameManager.Credits / price",
+        "\"Insufficient Credits!\"",
+        "\"Insufficient Cargo Space!\"",
+        "\"Unable to create ship!\""
+    };
+
+    var localAcceptanceHits = File.ReadLines(tradeMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenLocalAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, tradeMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (localAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still rejects purchases through renderer-local acceptance checks instead of daemon authority: " +
+            string.Join("; ", localAcceptanceHits));
+    }
+
+    if (!tradeMenu.Contains("GameManager.RequestTradePurchase", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("TradeMenu no longer routes purchases through ActionGameManager.");
     }
 }
 
-static void RequireLootPickupCommitAuthority(string root)
+static void RequireLootPickupRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify loot pickup authority; ActionGameManager.cs is missing.");
 
-    var requiredSymbols = new[]
-    {
-        "CommitLootPickup",
-        "QueueRunCheckpoint(\"loot-pickup\")",
-        ".TryStore(item)"
-    };
-
-    var missingSymbols = requiredSymbols
-        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-
-    if (missingSymbols.Length > 0)
+    if (actionGameManager.Contains("CommitLootPickup", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Loot pickup no longer has a gameplay-owned checkpoint commit primitive: " +
-            string.Join(", ", missingSymbols));
+            "Loot pickup should not have a Unity-owned gameplay mutation primitive; daemon snapshots own pickup state.");
     }
 
     var shieldManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ShieldManager.cs");
@@ -5543,36 +8701,21 @@ static void RequireLootPickupCommitAuthority(string root)
             string.Join("; ", hits));
     }
 
-    if (!shieldManager.Contains("ActionGameManager.Instance.CommitLootPickup", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException("ShieldManager no longer routes loot pickup through ActionGameManager.");
-    }
+    if (shieldManager.Contains("ActionGameManager.Instance.CommitLootPickup", StringComparison.Ordinal))
+        throw new InvalidOperationException("ShieldManager still routes loot pickup through Unity gameplay authority.");
 }
 
-static void RequireEntityDestroyedCommitAuthority(string root)
+static void RequireEntityDestroyedRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify entity destruction authority; ActionGameManager.cs is missing.");
 
-    var requiredSymbols = new[]
-    {
-        "CommitEntityDestroyed",
-        "QueueRunCheckpoint(\"entity-destroyed\")",
-        "entity.Zone.Entities.Remove(entity)",
-        "zoneRenderer.DropItem("
-    };
-
-    var missingSymbols = requiredSymbols
-        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-
-    if (missingSymbols.Length > 0)
+    if (actionGameManager.Contains("CommitEntityDestroyed", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Entity destruction no longer has a gameplay-owned checkpoint commit primitive: " +
-            string.Join(", ", missingSymbols));
+            "Entity destruction should not have a Unity-owned gameplay mutation primitive; daemon frames own destruction and drops.");
     }
 
     var entityInstancePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "EntityInstance.cs");
@@ -5601,17 +8744,15 @@ static void RequireEntityDestroyedCommitAuthority(string root)
             string.Join("; ", hits));
     }
 
-    if (!entityInstance.Contains("ActionGameManager.Instance?.CommitEntityDestroyed", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException("EntityInstance no longer routes destruction through ActionGameManager.");
-    }
+    if (entityInstance.Contains("ActionGameManager.Instance?.CommitEntityDestroyed", StringComparison.Ordinal))
+        throw new InvalidOperationException("EntityInstance still routes destruction through Unity gameplay authority.");
 }
 
 static void RequireDroppedPickupCheckpointState(string root)
 {
     var requiredFiles = new Dictionary<string, string[]>
     {
-        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateCommitDocument.cs")] = new[]
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")] = new[]
         {
             "AetheriaRuntimeDroppedPickupCommit",
             "DroppedPickups"
@@ -5620,11 +8761,6 @@ static void RequireDroppedPickupCheckpointState(string root)
         {
             "AetheriaDroppedPickupSnapshot",
             "DroppedPickups"
-        },
-        [Path.Combine(root, "Aetheria.State", "AetheriaRuntimeCommitLogApplier.cs")] = new[]
-        {
-            "ToDroppedPickups",
-            "DroppedPickups = ToDroppedPickups(zone.DroppedPickups)"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
         {
@@ -5640,21 +8776,12 @@ static void RequireDroppedPickupCheckpointState(string root)
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
-            "ProjectDroppedPickups",
-            "DroppedPickups = ProjectDroppedPickups(zone)",
-            "RestoreDroppedPickupsFromTypedZoneState",
-            "AetheriaRuntimeStateReader.ReadZoneStates(RuntimeStateFilePath)",
+            "RestoreDroppedPickupsFromDaemonZoneState",
             "ZoneRenderer.DropItem("
         },
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
             "ActiveLoot"
-        },
-        [Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")] = new[]
-        {
-            "new AetheriaRuntimeDroppedPickupCommit",
-            "packageZones[0].RecordKey",
-            "packageZones[0].DroppedPickups"
         }
     };
 
@@ -5679,7 +8806,94 @@ static void RequireDroppedPickupCheckpointState(string root)
     }
 }
 
-static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
+static void RequireInventoryLoadoutSaveRequestAuthority(string root)
+{
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify loadout save authority; ActionGameManager.cs is missing.");
+    var eveCommandDocumentPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeEveCommandDocument.cs");
+    var loadoutCommandsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeLoadoutTemplateCommands.cs");
+    var eveBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var runtimeStateMapperPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeStateMapper.cs");
+
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath };
+    var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Cannot verify loadout save authority; missing files: " +
+            string.Join(", ", missingFiles.Select(path => Path.GetRelativePath(root, path))));
+    }
+
+    var eveCommandDocument = File.ReadAllText(eveCommandDocumentPath);
+    var loadoutCommands = File.ReadAllText(loadoutCommandsPath);
+    var eveBridge = File.ReadAllText(eveBridgePath);
+    var runtimeStateMapper = File.ReadAllText(runtimeStateMapperPath);
+
+    var requiredActionSymbols = new[]
+    {
+        "RequestLoadoutTemplateSave",
+        "TrySendRuntimeLoadoutTemplateCommand(loadout",
+        "private static bool TrySendRuntimeLoadoutTemplateCommand(",
+        "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand",
+    };
+    var missingActionSymbols = requiredActionSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingActionSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Loadout save no longer sends a typed Eve loadout-template command: " +
+            string.Join(", ", missingActionSymbols));
+    }
+
+    if (actionGameManager.Contains("AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still saves loadout templates through the runtime commit log.");
+    }
+
+    var requiredBridgeSymbols = new[]
+    {
+        "AetheriaRuntimeLoadoutTemplateCommands.Save",
+        "ExecuteLoadoutTemplateCommandAsync",
+        "command.LoadoutTemplate",
+        "AetheriaRuntimeStateMapper.ToLoadoutTemplate",
+        "AetheriaRuntimeStateMapper.LoadoutKey"
+    };
+    var missingBridgeSymbols = requiredBridgeSymbols
+        .Where(symbol => !eveBridge.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBridgeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve command bridge no longer owns typed loadout-template persistence: " +
+            string.Join(", ", missingBridgeSymbols));
+    }
+
+    if (!eveCommandDocument.Contains("AetheriaRuntimeLoadoutTemplateCommit? LoadoutTemplate", StringComparison.Ordinal) ||
+        !loadoutCommands.Contains("SurfaceId = \"aetheria.loadout_templates\"", StringComparison.Ordinal) ||
+        !loadoutCommands.Contains("Save = \"aetheria.loadout_templates.save\"", StringComparison.Ordinal) ||
+        !runtimeStateMapper.Contains("public static AetheriaLoadoutTemplate ToLoadoutTemplate", StringComparison.Ordinal) ||
+        !runtimeStateMapper.Contains("public static CultRecordKey LoadoutKey", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared loadout-template Eve command contract is incomplete.");
+    }
+}
+
+static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
@@ -5688,10 +8902,9 @@ static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
 
     var requiredSymbols = new[]
     {
-        "CommitRuntimeLoadoutRestore",
-        "EntityConstructionBlueprintProjector.InstantiateFromBlueprint",
-        "QueueRunCheckpoint(\"loadout-restore\")",
-        "Credits -="
+        "RequestRuntimeLoadoutRestore",
+        "TryRequestDaemonLoadoutRestore",
+        "Operations.RestoreLoadout"
     };
 
     var missingSymbols = requiredSymbols
@@ -5701,8 +8914,14 @@ static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
     if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Loadout restore no longer has a gameplay-owned checkpoint commit primitive: " +
+            "Loadout restore no longer has a typed daemon request primitive: " +
             string.Join(", ", missingSymbols));
+    }
+
+    if (actionGameManager.Contains("price > Credits", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity loadout restore still rejects requests through renderer-local credits instead of daemon acceptance.");
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
@@ -5713,6 +8932,8 @@ static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
     var forbiddenSymbols = new[]
     {
         "EntityConstructionBlueprintProjector.InstantiateFromBlueprint",
+        "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint",
+        "EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint",
         "GameManager.Credits -=",
         ".SetParent(GameManager.DockedEntity)"
     };
@@ -5730,13 +8951,33 @@ static void RequireInventoryLoadoutRestoreCommitAuthority(string root)
             string.Join("; ", hits));
     }
 
-    if (!inventoryPanel.Contains("GameManager.CommitRuntimeLoadoutRestore", StringComparison.Ordinal))
+    var forbiddenLocalAcceptanceSymbols = new[]
+    {
+        "price < GameManager.Credits",
+        "price <= GameManager.Credits",
+        "price > GameManager.Credits",
+        "price >= GameManager.Credits"
+    };
+    var localAcceptanceHits = File.ReadLines(inventoryPanelPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenLocalAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, inventoryPanelPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (localAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still filters loadout restore through renderer-local credit checks instead of daemon acceptance: " +
+            string.Join("; ", localAcceptanceHits));
+    }
+
+    if (!inventoryPanel.Contains("GameManager.RequestRuntimeLoadoutRestore", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes loadout restore through ActionGameManager.");
     }
 }
 
-static void RequireDockedCurrentShipCommitAuthority(string root)
+static void RequireDockedCurrentShipRequestAuthority(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
@@ -5745,9 +8986,9 @@ static void RequireDockedCurrentShipCommitAuthority(string root)
 
     var requiredSymbols = new[]
     {
-        "CommitDockedCurrentShip",
-        "QueueRunCheckpoint(\"docked-current-ship\")",
-        "DockingBay.DockedShip = ship"
+        "RequestDockedCurrentShip",
+        "TryRequestDaemonDockedCurrentShip",
+        "Operations.SetDockedCurrentShip"
     };
 
     var missingSymbols = requiredSymbols
@@ -5757,8 +8998,14 @@ static void RequireDockedCurrentShipCommitAuthority(string root)
     if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Docked current-ship selection no longer has a gameplay-owned checkpoint commit primitive: " +
+            "Docked current-ship selection no longer has a typed daemon request primitive: " +
             string.Join(", ", missingSymbols));
+    }
+
+    if (actionGameManager.Contains("DockedEntity.Children.Contains(ship)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity docked current-ship selection still rejects through renderer-local child membership instead of daemon acceptance.");
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
@@ -5782,10 +9029,83 @@ static void RequireDockedCurrentShipCommitAuthority(string root)
     }
 
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
-    if (!inventoryPanel.Contains("GameManager.CommitDockedCurrentShip", StringComparison.Ordinal))
+    if (!inventoryPanel.Contains("GameManager.RequestDockedCurrentShip", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes current-ship selection through ActionGameManager.");
     }
+}
+
+static IEnumerable<(string MethodName, int LineNumber, string Line)> FindMethodScopedLineHits(
+    string source,
+    IReadOnlyList<string> symbols)
+{
+    var currentMethod = "<top-level>";
+    var methodDepth = 0;
+    var pendingMethod = "";
+    var lines = source.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+    for (var index = 0; index < lines.Length; index++)
+    {
+        var line = lines[index];
+        var trimmed = line.Trim();
+        var declaredMethod = TryReadMethodName(trimmed);
+        if (!string.IsNullOrWhiteSpace(declaredMethod))
+            pendingMethod = declaredMethod;
+
+        foreach (var symbol in symbols)
+        {
+            if (line.Contains(symbol, StringComparison.Ordinal))
+                yield return (currentMethod, index + 1, line);
+        }
+
+        var opens = line.Count(character => character == '{');
+        var closes = line.Count(character => character == '}');
+        if (!string.IsNullOrWhiteSpace(pendingMethod) && opens > 0)
+        {
+            currentMethod = pendingMethod;
+            pendingMethod = "";
+            methodDepth = opens - closes;
+            if (methodDepth <= 0)
+            {
+                currentMethod = "<top-level>";
+                methodDepth = 0;
+            }
+            continue;
+        }
+
+        if (methodDepth <= 0)
+            continue;
+
+        methodDepth += opens - closes;
+        if (methodDepth <= 0)
+        {
+            currentMethod = "<top-level>";
+            methodDepth = 0;
+        }
+    }
+}
+
+static string TryReadMethodName(string trimmedLine)
+{
+    if (!StartsWithMethodAccessModifier(trimmedLine) ||
+        !trimmedLine.Contains('(') ||
+        trimmedLine.Contains("=>", StringComparison.Ordinal) ||
+        trimmedLine.Contains("=", StringComparison.Ordinal))
+    {
+        return "";
+    }
+
+    var beforeParameters = trimmedLine.Substring(0, trimmedLine.IndexOf('(')).Trim();
+    var tokens = beforeParameters.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+    return tokens.Length == 0 ? "" : tokens[^1];
+}
+
+static bool StartsWithMethodAccessModifier(string trimmedLine)
+{
+    return trimmedLine.StartsWith("private ", StringComparison.Ordinal) ||
+           trimmedLine.StartsWith("public ", StringComparison.Ordinal) ||
+           trimmedLine.StartsWith("protected ", StringComparison.Ordinal) ||
+           trimmedLine.StartsWith("internal ", StringComparison.Ordinal) ||
+           trimmedLine.StartsWith("static ", StringComparison.Ordinal);
 }
 
 static bool ContainsBehaviorValueKind(AetheriaBehaviorValue value, string kind)
