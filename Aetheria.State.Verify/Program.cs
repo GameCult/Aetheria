@@ -24,6 +24,7 @@ RequireTypedOrbitConsumerKeys(root);
 RequireKeyedOrbitRuntimeWrappers(root);
 RequireNativeZoneKeyResolution(root);
 RequireTypedZoneRuntimeCollections(root);
+RequireDaemonRenderQueryAuthority(root);
 RequireTypedZoneConstructionKeys(root);
 RequireTypedZoneStateSnapshotKeys(root);
 RequireTypedAsteroidZoneApi(root);
@@ -1701,7 +1702,9 @@ static void RequireTypedZoneRuntimeCollections(string root)
         "public Dictionary<Guid, Orbit> Orbits",
         "public Dictionary<Guid, AsteroidBelt> AsteroidBelts",
         "private HashSet<Guid> _updatedOrbits",
-        "orbit.Value.Position = GetOrbitPosition(orbit.Key);"
+        "orbit.Value.Position = GetOrbitPosition(orbit.Key);",
+        "public int QueryGravityInfluenceBrushes(",
+        "AetheriaGravityInfluenceBrush"
     };
     var zoneHits = forbiddenZoneSymbols
         .Where(symbol => zoneSource.Contains(symbol, StringComparison.Ordinal))
@@ -1715,7 +1718,10 @@ static void RequireTypedZoneRuntimeCollections(string root)
         "private Dictionary<Guid, Matrix4x4[][]> _beltMatrices",
         "_beltMeshes[runtimeBelt.ID] =",
         "_beltObjects[runtimeBelt.ID] =",
-        "Planets[planetInstance.ID] = planet;"
+        "Planets[planetInstance.ID] = planet;",
+        "private readonly List<AetheriaGravityInfluenceBrush> _visibleGravityBrushes",
+        "public IReadOnlyList<AetheriaGravityInfluenceBrush> VisibleGravityBrushes",
+        "Zone.QueryGravityInfluenceBrushes(viewportMin, viewportMax, _visibleGravityBrushes);"
     };
     var rendererHits = forbiddenRendererSymbols
         .Where(symbol => zoneRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -1762,6 +1768,73 @@ static void RequireTypedZoneRuntimeCollections(string root)
         throw new InvalidOperationException(
             "Zone runtime collections and renderer caches must expose typed keyed ownership end to end: " +
             string.Join("; ", missing));
+    }
+}
+
+static void RequireDaemonRenderQueryAuthority(string root)
+{
+    var queryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonRenderQueries.cs");
+    var querySource = File.Exists(queryPath)
+        ? File.ReadAllText(queryPath)
+        : throw new InvalidOperationException("Daemon render queries must live in the shared Aetheria runtime package, not in Unity ZoneRenderer.");
+
+    var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs");
+    var packageSnapshot = File.Exists(packageSnapshotPath)
+        ? File.ReadAllText(packageSnapshotPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; package snapshot documents are missing.");
+
+    var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
+    var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
+        ? File.ReadAllText(canonicalSnapshotPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; canonical runtime state documents are missing.");
+
+    var requiredQuerySymbols = new[]
+    {
+        "public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(",
+        "AetheriaRuntimeZoneSnapshotCommit? zone",
+        "public static int QueryGravityInfluences(",
+        "List<AetheriaRuntimeGravityInfluenceBrush> brushes",
+        "public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(",
+        "AetheriaRuntimeDaemonSoaViewIndex? index",
+        "AetheriaRuntimeXzRect",
+        "IntersectsCircle(viewport, center.x, center.z, radius)",
+        "IntersectsBounds(group, minX, minY, minZ, maxX, maxY, maxZ)",
+        "TryResolveBodyCenter(body, orbitPositions, out var center)"
+    };
+
+    var missingQuerySymbols = requiredQuerySymbols
+        .Where(symbol => !querySource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingQuerySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon render query API must expose gravity-in-rect and render-group bounds queries over daemon snapshot/SoA data: " +
+            string.Join(", ", missingQuerySymbols));
+    }
+
+    var requiredSnapshotSymbols = new[]
+    {
+        "public double GravityInfluenceCenterX",
+        "public double GravityInfluenceCenterZ",
+        "public double GravityInfluenceRadius",
+        "public double GravityWellDepth",
+        "public double GravityWaveRadius",
+        "public double GravityWaveDepth",
+        "public double GravityWaveSpeed"
+    };
+
+    var missingPackageSnapshotSymbols = requiredSnapshotSymbols
+        .Where(symbol => !packageSnapshot.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs: missing {symbol}");
+    var missingCanonicalSnapshotSymbols = requiredSnapshotSymbols
+        .Where(symbol => !canonicalSnapshot.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"Aetheria.State/Documents/AetheriaRuntimeStateDocuments.cs: missing {symbol}");
+    var missingSnapshotSymbols = missingPackageSnapshotSymbols.Concat(missingCanonicalSnapshotSymbols).ToArray();
+    if (missingSnapshotSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon body snapshots must publish resolved gravity influence fields so render clients do not reconstruct Unity gravity state: " +
+            string.Join("; ", missingSnapshotSymbols));
     }
 }
 

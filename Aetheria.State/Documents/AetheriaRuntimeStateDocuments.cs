@@ -347,6 +347,27 @@ public sealed class AetheriaBodySnapshot
 
     [Key(12)]
     public AetheriaSunVisualState SunVisual { get; set; } = new();
+
+    [Key(13)]
+    public double GravityInfluenceCenterX { get; set; } = double.NaN;
+
+    [Key(14)]
+    public double GravityInfluenceCenterZ { get; set; } = double.NaN;
+
+    [Key(15)]
+    public double GravityInfluenceRadius { get; set; }
+
+    [Key(16)]
+    public double GravityWellDepth { get; set; }
+
+    [Key(17)]
+    public double GravityWaveRadius { get; set; }
+
+    [Key(18)]
+    public double GravityWaveDepth { get; set; }
+
+    [Key(19)]
+    public double GravityWaveSpeed { get; set; }
 }
 
 [MessagePackObject]

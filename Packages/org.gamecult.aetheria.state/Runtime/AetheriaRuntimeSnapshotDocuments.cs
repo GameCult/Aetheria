@@ -357,6 +357,27 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(14)]
         public string OrbitKey { get; set; } = "";
+
+        [Key(15)]
+        public double GravityInfluenceCenterX { get; set; } = double.NaN;
+
+        [Key(16)]
+        public double GravityInfluenceCenterZ { get; set; } = double.NaN;
+
+        [Key(17)]
+        public double GravityInfluenceRadius { get; set; }
+
+        [Key(18)]
+        public double GravityWellDepth { get; set; }
+
+        [Key(19)]
+        public double GravityWaveRadius { get; set; }
+
+        [Key(20)]
+        public double GravityWaveDepth { get; set; }
+
+        [Key(21)]
+        public double GravityWaveSpeed { get; set; }
     }
 
     [MessagePackObject]
