@@ -6,16 +6,18 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeDaemonOperationClient
     {
+        public const string DefaultClientId = "aetheria-daemon-client";
+
         public AetheriaRuntimeDaemonOperationClient(
             string stateFilePath,
-            string clientId = "unity-observer",
+            string clientId = DefaultClientId,
             string sessionId = "local")
         {
             if (string.IsNullOrWhiteSpace(stateFilePath))
                 throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
 
             StateFilePath = stateFilePath;
-            ClientId = string.IsNullOrWhiteSpace(clientId) ? "unity-observer" : clientId;
+            ClientId = string.IsNullOrWhiteSpace(clientId) ? DefaultClientId : clientId;
             SessionId = string.IsNullOrWhiteSpace(sessionId) ? "local" : sessionId;
         }
 

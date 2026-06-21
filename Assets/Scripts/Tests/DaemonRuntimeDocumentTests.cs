@@ -1000,6 +1000,23 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void CommandClientUsesRuntimeNeutralDefaultClientId()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-daemon-command-client-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var observed = ObservedState(frameId: 34, soaGeneration: 45);
+        var client = new AetheriaRuntimeDaemonOperationClient(statePath, "", "session-default-client");
+
+        var envelope = client.SensorPing(observed);
+
+        Assert.AreEqual(AetheriaRuntimeDaemonOperationClient.DefaultClientId, envelope.ClientId);
+        Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.SensorPing, envelope.Kind);
+    }
+
+    [Test]
     public void DaemonEveSurfaceCommandSubmitsTypedDaemonOperation()
     {
         var statePath = Path.Combine(
@@ -1034,6 +1051,38 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(77, envelope.ObservedFrameId);
         Assert.AreEqual("entity:surface-player", envelope.ActorEntityKey);
         Assert.IsEmpty(envelope.Path);
+    }
+
+    [Test]
+    public void DaemonEveSurfaceCommandUsesRuntimeNeutralDefaultClientId()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-daemon-surface-command-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                CurrentEntityKey = "entity:surface-player"
+            },
+            "aetheria-daemon",
+            "session-surface-command",
+            79,
+            1.5,
+            0.02);
+        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        var request = new EveSurfaceCommandRequest(
+            "aetheria.daemon",
+            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+            "aetheria.daemon.commands.SensorPing",
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            DateTimeOffset.UtcNow,
+            "");
+
+        Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var envelope));
+        Assert.AreEqual(AetheriaRuntimeDaemonOperationClient.DefaultClientId, envelope.ClientId);
+        Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.SensorPing, envelope.Kind);
     }
 
     [Test]

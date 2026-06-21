@@ -23,7 +23,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed);
             var client = new AetheriaRuntimeDaemonOperationClient(
                 stateFilePath,
-                string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId,
+                string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,
                 observed?.Frame.SessionId ?? "local");
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
                 client,

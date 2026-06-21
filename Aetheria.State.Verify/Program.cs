@@ -5913,6 +5913,8 @@ static void RequireTypedDaemonCommandPayloads(string root)
 
     var requiredClientSymbols = new[]
     {
+        "public const string DefaultClientId = \"aetheria-daemon-client\"",
+        "ClientId = string.IsNullOrWhiteSpace(clientId) ? DefaultClientId : clientId",
         "private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)",
         "ReadObservedDaemonCommands()",
         "Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit",
@@ -6038,6 +6040,29 @@ static void RequireTypedDaemonCommandPayloads(string root)
         throw new InvalidOperationException(
             "Daemon operation client still routes typed operations through mutable document builder callbacks: " +
             string.Join(", ", clientDocumentBuilderHits));
+    }
+
+    var forbiddenSharedDaemonClientDefaults = new[]
+    {
+        "string clientId = \"unity-observer\"",
+        "? \"unity-observer\" :",
+        "? \"unity-uitoolkit\" : request.ClientId"
+    };
+    var sharedDaemonDefaultSources = new Dictionary<string, string>
+    {
+        ["daemon operation client"] = daemonClient,
+        ["daemon surface commands"] = daemonSurfaceCommands
+    };
+    var sharedDaemonDefaultHits = sharedDaemonDefaultSources
+        .SelectMany(source => forbiddenSharedDaemonClientDefaults
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{source.Key}: {symbol}"))
+        .ToArray();
+    if (sharedDaemonDefaultHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared daemon command clients still use Unity-specific fallback client ids: " +
+            string.Join(", ", sharedDaemonDefaultHits));
     }
 
     if (tests.Contains("AetheriaRuntimeDaemonCommandLog.", StringComparison.Ordinal))
