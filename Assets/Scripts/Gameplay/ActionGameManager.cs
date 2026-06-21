@@ -1915,7 +1915,6 @@ public class ActionGameManager : MonoBehaviour
             Settings.GameplaySettings,
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
-        ZoneRenderer.ItemManager = ItemManager;
 
         // If hiding minimap asteroids, turn them off to start with
         if (!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)

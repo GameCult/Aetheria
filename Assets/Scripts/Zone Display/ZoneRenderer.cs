@@ -107,7 +107,6 @@ public class ZoneRenderer : MonoBehaviour
 
     public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
-    public ItemManager ItemManager { get; set; }
 
     public Entity PerspectiveEntity
     {
@@ -332,7 +331,7 @@ public class ZoneRenderer : MonoBehaviour
         var typedHull = FindTypedZoneItem(entity.Hull);
         if (typedHull == null || string.IsNullOrWhiteSpace(typedHull.HullPrefab))
         {
-            ItemManager.Log($"Failed to instantiate {entity.Name} with missing typed hull prefab.");
+            Debug.LogWarning($"Failed to instantiate {entity.Name} with missing typed hull prefab.");
             return;
         }
 
@@ -342,7 +341,7 @@ public class ZoneRenderer : MonoBehaviour
             instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(typedHull.HullPrefab), ZoneRoot).GetComponent<ShipInstance>();
             if (instance == null)
             {
-                ItemManager.Log($"Failed to instantiate {typedHull.Name} ship with invalid prefab: no ShipInstance component!");
+                Debug.LogWarning($"Failed to instantiate {typedHull.Name} ship with invalid prefab: no ShipInstance component!");
                 return;
             }
         }
@@ -351,7 +350,7 @@ public class ZoneRenderer : MonoBehaviour
             instance = Instantiate(UnityHelpers.LoadAsset<GameObject>(typedHull.HullPrefab), ZoneRoot).GetComponent<EntityInstance>();
             if (instance == null)
             {
-                ItemManager.Log($"Failed to instantiate {typedHull.Name} entity with invalid prefab: no EntityInstance component!");
+                Debug.LogWarning($"Failed to instantiate {typedHull.Name} entity with invalid prefab: no EntityInstance component!");
                 return;
             }
             if (string.Equals(typedHull.HullType, nameof(HullType.Station), StringComparison.Ordinal))

@@ -1801,6 +1801,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var zoneRenderer = File.Exists(zoneRendererPath)
         ? File.ReadAllText(zoneRendererPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; ZoneRenderer.cs is missing.");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var actionGameManager = File.Exists(actionGameManagerPath)
+        ? File.ReadAllText(actionGameManagerPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; ActionGameManager.cs is missing.");
 
     var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
     var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
@@ -1919,10 +1923,19 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     if (zoneRenderer.Contains("public Zone Zone", StringComparison.Ordinal) ||
         zoneRenderer.Contains("public void LoadZone(", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("public Dictionary<string, PlanetObject> Planets", StringComparison.Ordinal))
+        zoneRenderer.Contains("public Dictionary<string, PlanetObject> Planets", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("public ItemManager ItemManager", StringComparison.Ordinal) ||
+        actionGameManager.Contains("ZoneRenderer.ItemManager", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer must expose daemon-view rendering concepts instead of public mirrored Zone ownership.");
+            "ZoneRenderer must expose daemon-view rendering concepts instead of public mirrored Zone/ItemManager ownership.");
+    }
+
+    if (zoneRenderer.Contains("ItemManager.Log(", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("ItemManager.Get", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must not depend on ItemManager for renderer diagnostics or item projection.");
     }
 
     if (zoneRenderer.Contains("Zone.PowerPulse(", StringComparison.Ordinal))
