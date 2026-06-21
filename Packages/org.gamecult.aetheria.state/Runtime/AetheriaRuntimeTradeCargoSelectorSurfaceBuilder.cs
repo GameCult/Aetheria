@@ -36,6 +36,81 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public enum AetheriaRuntimeTradeCargoTargetKind
+    {
+        Unknown = 0,
+        DockingBay = 1,
+        ShipBay = 2
+    }
+
+    public sealed class AetheriaRuntimeTradeCargoProjectionOption
+    {
+        public AetheriaRuntimeTradeCargoProjectionOption(
+            AetheriaRuntimeTradeCargoTargetKind kind,
+            string label,
+            int shipIndex = -1,
+            int bayIndex = -1,
+            bool isCurrent = false)
+        {
+            Kind = kind;
+            Label = label ?? "";
+            ShipIndex = shipIndex;
+            BayIndex = bayIndex;
+            IsCurrent = isCurrent;
+        }
+
+        public AetheriaRuntimeTradeCargoTargetKind Kind { get; }
+        public string Label { get; }
+        public int ShipIndex { get; }
+        public int BayIndex { get; }
+        public bool IsCurrent { get; }
+    }
+
+    public readonly struct AetheriaRuntimeTradeCargoSelection
+    {
+        public AetheriaRuntimeTradeCargoSelection(
+            AetheriaRuntimeTradeCargoTargetKind kind,
+            string command,
+            string label,
+            int shipIndex = -1,
+            int bayIndex = -1)
+        {
+            Kind = kind;
+            Command = command ?? "";
+            Label = label ?? "";
+            ShipIndex = shipIndex;
+            BayIndex = bayIndex;
+        }
+
+        public AetheriaRuntimeTradeCargoTargetKind Kind { get; }
+        public string Command { get; }
+        public string Label { get; }
+        public int ShipIndex { get; }
+        public int BayIndex { get; }
+    }
+
+    public sealed class AetheriaRuntimeTradeCargoSelectorSurfaceProjection
+    {
+        public AetheriaRuntimeTradeCargoSelectorSurfaceProjection(
+            AetheriaRuntimeTradeCargoSelectorSurfaceState state,
+            IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> selections)
+        {
+            State = state ?? new AetheriaRuntimeTradeCargoSelectorSurfaceState(
+                "",
+                Array.Empty<AetheriaRuntimeTradeCargoTargetOption>(),
+                "");
+            Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeCargoSelection>(StringComparer.Ordinal);
+        }
+
+        public AetheriaRuntimeTradeCargoSelectorSurfaceState State { get; }
+        public IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> Selections { get; }
+
+        public bool TryResolve(string command, out AetheriaRuntimeTradeCargoSelection selection)
+        {
+            return Selections.TryGetValue(command ?? "", out selection);
+        }
+    }
+
     public static class AetheriaRuntimeTradeCargoSelectorSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.trade.target_cargo_selector";
@@ -45,6 +120,50 @@ namespace GameCult.Aetheria.State.Verse
         public static string ShipBayCommand(int shipIndex, int bayIndex)
         {
             return $"{SurfaceId}.ship_{shipIndex}_bay_{bayIndex}";
+        }
+
+        public static AetheriaRuntimeTradeCargoSelectorSurfaceProjection Project(
+            string currentTarget,
+            IEnumerable<AetheriaRuntimeTradeCargoProjectionOption> targets,
+            string updatedAtUtc)
+        {
+            var options = new List<AetheriaRuntimeTradeCargoTargetOption>();
+            var selections = new Dictionary<string, AetheriaRuntimeTradeCargoSelection>(StringComparer.Ordinal);
+
+            foreach (var target in targets ?? Array.Empty<AetheriaRuntimeTradeCargoProjectionOption>())
+            {
+                if (target == null ||
+                    target.IsCurrent ||
+                    target.Kind == AetheriaRuntimeTradeCargoTargetKind.Unknown)
+                {
+                    continue;
+                }
+
+                var command = CommandFor(target);
+                if (string.IsNullOrWhiteSpace(command))
+                    continue;
+
+                var label = string.IsNullOrWhiteSpace(target.Label)
+                    ? command
+                    : target.Label;
+                options.Add(new AetheriaRuntimeTradeCargoTargetOption(
+                    $"{SurfaceId}.{StableToken(command)}",
+                    label,
+                    command));
+                selections[command] = new AetheriaRuntimeTradeCargoSelection(
+                    target.Kind,
+                    command,
+                    label,
+                    target.ShipIndex,
+                    target.BayIndex);
+            }
+
+            return new AetheriaRuntimeTradeCargoSelectorSurfaceProjection(
+                new AetheriaRuntimeTradeCargoSelectorSurfaceState(
+                    currentTarget,
+                    options,
+                    updatedAtUtc),
+                selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(
@@ -143,6 +262,31 @@ namespace GameCult.Aetheria.State.Verse
                 (props ?? Array.Empty<(string Key, string Value)>())
                     .ToDictionary(prop => prop.Key, prop => prop.Value ?? "", StringComparer.Ordinal),
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static string CommandFor(AetheriaRuntimeTradeCargoProjectionOption target)
+        {
+            switch (target.Kind)
+            {
+                case AetheriaRuntimeTradeCargoTargetKind.DockingBay:
+                    return DockingBay;
+                case AetheriaRuntimeTradeCargoTargetKind.ShipBay:
+                    return target.ShipIndex >= 0 && target.BayIndex >= 0
+                        ? ShipBayCommand(target.ShipIndex, target.BayIndex)
+                        : "";
+                default:
+                    return "";
+            }
+        }
+
+        private static string StableToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "empty";
+
+            return new string(value
+                .Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-')
+                .ToArray()).Trim('-');
         }
     }
 

@@ -29,8 +29,6 @@ public class TradeMenu : MonoBehaviour
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
-    private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands =
-        new Dictionary<string, (EquippedCargoBay Cargo, string Label)>(StringComparer.Ordinal);
     private UIDocument _cargoSelectorSurfaceDocument;
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
@@ -39,6 +37,7 @@ public class TradeMenu : MonoBehaviour
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
+    private AetheriaRuntimeTradeCargoSelectorSurfaceProjection _cargoSelectorSurfaceProjection;
     private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
@@ -1022,44 +1021,15 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderCargoSelectorSurface()
     {
-        BuildCargoSelectionCommands();
+        _cargoSelectorSurfaceProjection = ProjectTradeCargoSelectorSurface();
 
         _cargoSelectorSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _cargoSelectorSurfaceDocument,
             "Aetheria Trade Cargo Selector Surface",
-            AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(ProjectTradeCargoSelectorSurfaceState()),
+            AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceProjection.State),
             HandleCargoSelectorSurfaceCommand,
             _cargoSelectorSurfaceChrome);
-    }
-
-    private void BuildCargoSelectionCommands()
-    {
-        _cargoSelectionCommands.Clear();
-
-        if (!GameManager.TryGetObservedDockingBay(out var dockingBay))
-            return;
-
-        if (_targetCargo != dockingBay)
-        {
-            _cargoSelectionCommands[AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.DockingBay] =
-                (dockingBay, "Docking Bay");
-        }
-
-        foreach (var ship in GameManager.ObservedAvailableEntities()
-                     .OfType<Ship>()
-                     .Where(ship => ship.IsPlayerShip)
-                     .Select((ship, shipIndex) => (ship, shipIndex)))
-        {
-            foreach (var bay in ship.ship.CargoBays.Select((cargoBay, index) => (cargoBay, index)))
-            {
-                if (_targetCargo == bay.cargoBay)
-                    continue;
-
-                var command = AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.ShipBayCommand(ship.shipIndex, bay.index);
-                _cargoSelectionCommands[command] = (bay.cargoBay, $"{ship.ship.Name} Bay {bay.index + 1}");
-            }
-        }
     }
 
     private void HandleCargoSelectorSurfaceCommand(EveSurfaceCommandRequest request)
@@ -1077,10 +1047,9 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeCargoSelectorCommandKind.Select &&
-            _cargoSelectionCommands.TryGetValue(command.Command, out var option))
+            _cargoSelectorSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
         {
-            _targetCargo = option.Cargo;
-            TargetCargoLabel.text = option.Label;
+            ApplyCargoSelection(selection);
             HideCargoSelectorSurface();
             Populate();
             return;
@@ -1116,20 +1085,60 @@ public class TradeMenu : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeTradeCargoSelectorSurfaceState ProjectTradeCargoSelectorSurfaceState()
+    private AetheriaRuntimeTradeCargoSelectorSurfaceProjection ProjectTradeCargoSelectorSurface()
     {
-        var targets = _cargoSelectionCommands
-            .OrderBy(pair => pair.Value.Label, StringComparer.Ordinal)
-            .Select(pair => new AetheriaRuntimeTradeCargoTargetOption(
-                $"{AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.SurfaceId}.{pair.Key.Split('.').Last()}",
-                pair.Value.Label,
-                pair.Key))
-            .ToArray();
+        var targets = new List<AetheriaRuntimeTradeCargoProjectionOption>();
+        if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+        {
+            targets.Add(new AetheriaRuntimeTradeCargoProjectionOption(
+                AetheriaRuntimeTradeCargoTargetKind.DockingBay,
+                "Docking Bay",
+                isCurrent: _targetCargo == dockingBay));
+        }
 
-        return new AetheriaRuntimeTradeCargoSelectorSurfaceState(
+        targets.AddRange(GameManager.ObservedAvailableEntities()
+            .OfType<Ship>()
+            .Where(ship => ship.IsPlayerShip)
+            .SelectMany((ship, shipIndex) => ship.CargoBays.Select((cargoBay, bayIndex) =>
+                new AetheriaRuntimeTradeCargoProjectionOption(
+                    AetheriaRuntimeTradeCargoTargetKind.ShipBay,
+                    $"{ship.Name} Bay {bayIndex + 1}",
+                    shipIndex,
+                    bayIndex,
+                    _targetCargo == cargoBay))));
+
+        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Project(
             TargetCargoLabel.text ?? "",
             targets,
             DateTime.UtcNow.ToString("O"));
+    }
+
+    private void ApplyCargoSelection(AetheriaRuntimeTradeCargoSelection selection)
+    {
+        switch (selection.Kind)
+        {
+            case AetheriaRuntimeTradeCargoTargetKind.DockingBay:
+                if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+                {
+                    _targetCargo = dockingBay;
+                    TargetCargoLabel.text = selection.Label;
+                }
+                return;
+            case AetheriaRuntimeTradeCargoTargetKind.ShipBay:
+                var ships = GameManager.ObservedAvailableEntities()
+                    .OfType<Ship>()
+                    .Where(ship => ship.IsPlayerShip)
+                    .ToArray();
+                if (selection.ShipIndex >= 0 &&
+                    selection.ShipIndex < ships.Length &&
+                    selection.BayIndex >= 0 &&
+                    selection.BayIndex < ships[selection.ShipIndex].CargoBays.Count)
+                {
+                    _targetCargo = ships[selection.ShipIndex].CargoBays[selection.BayIndex];
+                    TargetCargoLabel.text = selection.Label;
+                }
+                return;
+        }
     }
 
     private int CountAvailablePlayerShips(string itemKey)
