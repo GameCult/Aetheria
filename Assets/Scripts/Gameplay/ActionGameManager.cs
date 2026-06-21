@@ -891,23 +891,22 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template)
+    public void RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
         var blueprint = CreateEntityConstructionBlueprint(template);
         if (blueprint == null ||
             Zone == null ||
             DockedEntity == null)
         {
-            return false;
+            return;
         }
 
         var price = blueprint.Price(ItemManager);
         var observer = ResolveDaemonObserver();
         if (observer != null && observer.HasAuthoritativeState)
         {
-            return TryRequestDaemonLoadoutRestore(observer, template, price);
+            TryRequestDaemonLoadoutRestore(observer, template, price);
         }
-        return false;
     }
 
     private bool TryRequestDaemonLoadoutRestore(
@@ -942,18 +941,14 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool RequestDockedCurrentShip(Ship ship)
+    public void RequestDockedCurrentShip(Ship ship)
     {
         if (ship == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonDockedCurrentShip(ship))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonDockedCurrentShip(ship);
     }
 
     private static AetheriaRuntimeEntityLoadoutSnapshot CreateRuntimeEntityLoadoutSnapshot(
@@ -1501,18 +1496,14 @@ public class ActionGameManager : MonoBehaviour
             return;
     }
 
-    public bool RequestHullConductivityToggle(Entity entity, int2 position, int axis)
+    public void RequestHullConductivityToggle(Entity entity, int2 position, int axis)
     {
         if (entity == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonHullConductivityToggle(entity, position, axis))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonHullConductivityToggle(entity, position, axis);
     }
 
     private bool TryRequestDaemonHullConductivityToggle(Entity entity, int2 position, int axis)

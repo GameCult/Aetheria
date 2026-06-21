@@ -8819,6 +8819,12 @@ static void RequireHullConductivityRequestAuthority(string root)
             string.Join(", ", unityAcceptanceHits));
     }
 
+    if (actionGameManager.Contains("public bool RequestHullConductivityToggle(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Hull conductivity request API still exposes submission as public acceptance state.");
+    }
+
     var uiRoot = Path.Combine(root, "Assets", "Scripts", "UI");
     var hits = Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories)
         .SelectMany(path => File.ReadLines(path)
@@ -9725,12 +9731,13 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     }
 
     if (actionGameManager.Contains("RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity", StringComparison.Ordinal) ||
+        actionGameManager.Contains("public bool RequestRuntimeLoadoutRestore(", StringComparison.Ordinal) ||
         inventoryPanel.Contains("RequestRuntimeLoadoutRestore(template, out", StringComparison.Ordinal) ||
         inventoryPanel.Contains("RequestRuntimeLoadoutRestore(loadoutEntry.template, out", StringComparison.Ordinal) ||
         inventoryPanel.Contains("Display(entity)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Loadout restore is still pretending daemon submission synchronously yields the restored Unity entity.");
+            "Loadout restore is still pretending daemon submission synchronously yields accepted Unity state.");
     }
 }
 
@@ -9780,6 +9787,12 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
         throw new InvalidOperationException(
             "Unity docked current-ship selection still rejects through renderer-local player/docking state instead of daemon acceptance: " +
             string.Join(", ", unityAcceptanceHits));
+    }
+
+    if (actionGameManager.Contains("public bool RequestDockedCurrentShip(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Docked current-ship request API still exposes submission as public acceptance state.");
     }
 
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
