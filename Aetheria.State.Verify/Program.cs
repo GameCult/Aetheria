@@ -8735,6 +8735,21 @@ static void RequireRuntimeSimulationTuningRequests(string root)
             "InventoryMenu still redraws ship settings immediately after submitting daemon shutdown-performance requests.");
     }
 
+    var normalizedInventoryMenu = inventoryMenu.Replace("\r\n", "\n", StringComparison.Ordinal);
+    var forbiddenEquippedItemTuningRedraws = new[]
+    {
+        "GameManager.RequestEquippedItemOverrideShutdown(item, !item.EquippableItem.OverrideShutdown);\n                RenderEquippedItemDetailsSurface(item);",
+        "GameManager.RequestThermotoggleTargetTemperature(thermotoggle, command.TargetTemperature);\n                    RenderEquippedItemDetailsSurface(item);"
+    };
+    var equippedItemTuningRedrawHits = forbiddenEquippedItemTuningRedraws
+        .Where(symbol => normalizedInventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (equippedItemTuningRedrawHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still redraws equipped-item tuning surfaces immediately after daemon submission.");
+    }
+
     var forbiddenUnityAcceptanceSymbols = new[]
     {
         "entity?.Settings == null",

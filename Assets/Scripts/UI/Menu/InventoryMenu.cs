@@ -324,7 +324,6 @@ public class InventoryMenu : MonoBehaviour
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.ToggleOverrideShutdown:
                 GameManager.RequestEquippedItemOverrideShutdown(item, !item.EquippableItem.OverrideShutdown);
-                RenderEquippedItemDetailsSurface(item);
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.SetTargetTemperature:
                 if (command.BehaviorIndex >= 0 &&
@@ -334,7 +333,6 @@ public class InventoryMenu : MonoBehaviour
                     GameManager != null)
                 {
                     GameManager.RequestThermotoggleTargetTemperature(thermotoggle, command.TargetTemperature);
-                    RenderEquippedItemDetailsSurface(item);
                     return;
                 }
 
