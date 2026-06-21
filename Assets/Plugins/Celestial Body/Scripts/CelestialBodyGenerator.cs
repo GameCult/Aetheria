@@ -5,7 +5,7 @@ using UnityEngine;
 [ExecuteInEditMode]
 public class CelestialBodyGenerator : MonoBehaviour {
 
-	public enum PreviewMode { LOD0, LOD1, LOD2, CollisionRes }
+	public enum PreviewMode { LOD0, LOD1, LOD2 }
 	public ResolutionSettings resolutionSettings;
 	public PreviewMode previewMode;
 
@@ -18,7 +18,6 @@ public class CelestialBodyGenerator : MonoBehaviour {
 
 	// Private variables
 	Mesh previewMesh;
-	Mesh collisionMesh;
 	Mesh[] lodMeshes;
 
 	ComputeBuffer vertexBuffer;
@@ -68,26 +67,12 @@ public class CelestialBodyGenerator : MonoBehaviour {
 				}
 			}
 
-			// Generate collision mesh
-			GenerateCollisionMesh (resolutionSettings.collider);
-
 			// Create terrain renderer and set shading properties on the instanced material
 			terrainMatInstance = new Material (body.shading.terrainMaterial);
 			body.shading.Initialize (body.shape);
 			body.shading.SetTerrainProperties (terrainMatInstance, heightMinMax, BodyScale);
 			GameObject terrainHolder = GetOrCreateMeshObject ("Terrain Mesh", null, terrainMatInstance);
 			terrainMeshFilter = terrainHolder.GetComponent<MeshFilter> ();
-
-			// Add collider
-			MeshCollider collider;
-			if (!terrainHolder.TryGetComponent<MeshCollider> (out collider)) {
-				collider = terrainHolder.AddComponent<MeshCollider> ();
-			}
-
-			var collisionBakeTimer = System.Diagnostics.Stopwatch.StartNew ();
-			MeshBaker.BakeMeshImmediate (collisionMesh);
-			collider.sharedMesh = collisionMesh;
-			LogTimer (collisionBakeTimer, "Mesh collider");
 
 		} else {
 			Debug.Log ("Could not generate mesh");
@@ -254,23 +239,6 @@ public class CelestialBodyGenerator : MonoBehaviour {
 		return new Vector2 (minHeight, maxHeight);
 	}
 
-	void GenerateCollisionMesh (int resolution) {
-		var (vertices, triangles) = CreateSphereVertsAndTris (resolution);
-		ComputeHelper.CreateStructuredBuffer<Vector3> (ref vertexBuffer, vertices);
-
-		// Set heights
-		float[] heights = body.shape.CalculateHeights (vertexBuffer);
-		for (int i = 0; i < vertices.Length; i++) {
-			float height = heights[i];
-			vertices[i] *= height;
-		}
-
-		// Create mesh
-		CreateMesh (ref collisionMesh, vertices.Length);
-		collisionMesh.vertices = vertices;
-		collisionMesh.triangles = triangles;
-	}
-
 	void CreateMesh (ref Mesh mesh, int numVertices) {
 		const int vertexLimit16Bit = 1 << 16 - 1; // 65535
 		if (mesh == null) {
@@ -324,8 +292,6 @@ public class CelestialBodyGenerator : MonoBehaviour {
 					return resolutionSettings.lod1;
 				case PreviewMode.LOD2:
 					return resolutionSettings.lod2;
-				case PreviewMode.CollisionRes:
-					return resolutionSettings.collider;
 			}
 		}
 
@@ -425,7 +391,6 @@ public class CelestialBodyGenerator : MonoBehaviour {
 		public int lod0 = 300;
 		public int lod1 = 100;
 		public int lod2 = 50;
-		public int collider = 100;
 
 		public int GetLODResolution (int lodLevel) {
 			switch (lodLevel) {
@@ -443,7 +408,6 @@ public class CelestialBodyGenerator : MonoBehaviour {
 			lod0 = Mathf.Min (maxAllowedResolution, lod0);
 			lod1 = Mathf.Min (maxAllowedResolution, lod1);
 			lod2 = Mathf.Min (maxAllowedResolution, lod2);
-			collider = Mathf.Min (maxAllowedResolution, collider);
 		}
 	}
 
