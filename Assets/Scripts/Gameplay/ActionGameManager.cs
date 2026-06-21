@@ -2075,10 +2075,9 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public void PopulateLevel(
+    private void PrepareObservedDaemonZoneContext(
         GalaxyZone galaxyZone,
-        AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
-        AetheriaRuntimeRunCheckpointCommit daemonRun = null)
+        AetheriaRuntimeZoneSnapshotCommit daemonZone = null)
     {
         if (galaxyZone == null) throw new ArgumentNullException(nameof(galaxyZone));
 
@@ -2097,14 +2096,6 @@ public class ActionGameManager : MonoBehaviour
         PlayMusic(MusicType.Overworld);
 
         Zone.Log = s => Debug.Log($"Zone: {s}");
-
-        ZoneRenderer.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, daemonRun);
-
-        if (CurrentEntity != null)
-        {
-            UnbindEntity();
-            BindToEntity(CurrentEntity);
-        }
     }
 
     public bool CanShowInputScreenFromMenu()
@@ -2254,15 +2245,17 @@ public class ActionGameManager : MonoBehaviour
 
         if (Zone?.GalaxyZone != targetZone)
         {
-            PopulateLevel(targetZone, daemonZone, run);
+            PrepareObservedDaemonZoneContext(targetZone, daemonZone);
         }
 
         var actionBarBindings = run.ActionBarBindings?
             .Select(ToActionBarBindingSnapshot)
             .Where(binding => binding != null)
             .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
-        ReplaceObservedEntityFacadesFromTypedSnapshots(entitySnapshots, currentEntityKey, actionBarBindings);
-        ZoneRenderer?.ApplyDaemonFrame(daemonZone, run);
+        ReplaceObservedEntityFacadesFromTypedSnapshots(entitySnapshots);
+        ZoneRenderer?.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, run);
+        if (_observedEntityFacadesByRecordKey.TryGetValue(currentEntityKey, out var currentEntity))
+            RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
         RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
         _lastAppliedAuthoritativeDaemonRunId = runId;
         _lastAppliedAuthoritativeDaemonZoneIndex = run.CurrentZoneIndex;
@@ -2719,9 +2712,7 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private void ReplaceObservedEntityFacadesFromTypedSnapshots(
-        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots,
-        string currentEntityKey,
-        IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings)
+        IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots)
     {
         var restoredEntities = new Dictionary<string, Entity>();
         foreach (var entitySnapshot in entitySnapshots)
@@ -2765,9 +2756,6 @@ public class ActionGameManager : MonoBehaviour
         foreach (var restoredEntity in restoredEntities)
             _observedEntityFacadesByRecordKey[restoredEntity.Key] = restoredEntity.Value;
         RebuildObservedEntityFacadeIndex();
-
-        if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
-            RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
     }
 
     private void RebuildObservedEntityFacadeIndex()

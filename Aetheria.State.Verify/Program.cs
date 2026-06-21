@@ -7755,6 +7755,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CanApplyDaemonEntitySnapshotsInPlace",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "ApplyDaemonEntitySnapshotsInPlace",
+        "PrepareObservedDaemonZoneContext(targetZone, daemonZone)",
         "ReplaceObservedEntityFacadesFromTypedSnapshots",
         "RestoreCurrentEntityBinding",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
@@ -7774,7 +7775,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_observedEntityFacadesByRecordKey",
         "_observedEntityFacadesByDaemonIndex",
         "RebuildObservedEntityFacadeIndex();",
-        "ZoneRenderer.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
+        "ZoneRenderer?.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, run)",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
@@ -8063,7 +8064,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
-        "ZoneRenderer.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
+        "PrepareObservedDaemonZoneContext(targetZone, daemonZone)",
+        "ZoneRenderer?.LoadDaemonZoneView(_observedEntityFacadesByDaemonIndex, daemonZone, run)",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",
@@ -8132,6 +8134,19 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "Unity frame application must project observed daemon state, not instantiate authoritative gameplay entities.");
+    }
+
+    var contextPrepRendererLoads = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "LoadDaemonZoneView(", "BindToEntity(" })
+        .Where(hit => hit.MethodName == "PrepareObservedDaemonZoneContext")
+        .Select(hit => $"{hit.MethodName}:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (contextPrepRendererLoads.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity zone context prep must not load renderer instances before observed daemon facades have been rebuilt: " +
+            string.Join("; ", contextPrepRendererLoads));
     }
 
     var unauthorizedEntityProjectionHits = FindMethodScopedLineHits(
