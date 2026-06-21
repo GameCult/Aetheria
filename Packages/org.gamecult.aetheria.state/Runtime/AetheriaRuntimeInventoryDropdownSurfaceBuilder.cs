@@ -101,7 +101,7 @@ namespace GameCult.Aetheria.State.Verse
                         string.IsNullOrWhiteSpace(state.CurrentView) ? "None" : state.CurrentView),
                     Text(
                         $"{SurfaceId}.note",
-                        "Unity projects available inventory navigation; the shared runtime surface owns the dropdown contract."))
+                        "The observing client projects available inventory navigation; the shared runtime surface owns the dropdown contract."))
             };
 
             foreach (var group in state.Groups)

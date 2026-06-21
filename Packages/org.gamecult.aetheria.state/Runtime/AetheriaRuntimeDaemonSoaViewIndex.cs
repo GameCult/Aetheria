@@ -104,7 +104,7 @@ namespace GameCult.Aetheria.State.Verse
 
                 if (requireObserverReadOnly && buffer.ObserverWritable)
                 {
-                    errors.Add($"SoA buffer '{buffer.BufferId}' is observer-writable; Unity must observe daemon state read-only.");
+                    errors.Add($"SoA buffer '{buffer.BufferId}' is observer-writable; clients must observe daemon state read-only.");
                 }
 
                 buffersById.Add(buffer.BufferId, buffer);

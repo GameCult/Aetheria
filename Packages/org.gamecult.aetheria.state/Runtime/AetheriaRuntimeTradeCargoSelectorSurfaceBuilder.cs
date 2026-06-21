@@ -78,7 +78,7 @@ namespace GameCult.Aetheria.State.Verse
                             Metric($"{SurfaceId}.current", "Current", state.CurrentTarget),
                             Text(
                                 $"{SurfaceId}.note",
-                                "Unity projects available cargo targets; the shared runtime surface owns the cargo selector contract."),
+                                "The observing client projects available cargo targets; the shared runtime surface owns the cargo selector contract."),
                             ButtonColumn(
                                 $"{SurfaceId}.options",
                                 targets

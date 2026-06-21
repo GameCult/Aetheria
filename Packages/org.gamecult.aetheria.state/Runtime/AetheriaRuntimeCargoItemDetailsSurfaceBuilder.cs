@@ -115,7 +115,7 @@ namespace GameCult.Aetheria.State.Verse
                             : state.Description),
                     Text(
                         $"{SurfaceId}.note",
-                        "Unity supplies the selected item; the shared runtime surface owns cargo-item inspection layout."),
+                        "The observing client supplies the selected item; the shared runtime surface owns cargo-item inspection layout."),
                     Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
                     Metric($"{SurfaceId}.mass", "Mass", state.Mass))
             };

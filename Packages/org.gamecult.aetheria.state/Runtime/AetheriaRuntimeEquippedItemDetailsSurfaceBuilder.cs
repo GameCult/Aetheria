@@ -196,7 +196,7 @@ namespace GameCult.Aetheria.State.Verse
                             : state.Description),
                     Text(
                         $"{SurfaceId}.note",
-                        "Unity projects the selected equipment; the shared runtime surface owns equipped-item inspection layout and commands."),
+                        "The observing client projects the selected equipment; the shared runtime surface owns equipped-item inspection layout and commands."),
                     Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
                     Metric($"{SurfaceId}.mass", "Mass", state.Mass)),
                 Card(

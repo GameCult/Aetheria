@@ -106,7 +106,7 @@ namespace GameCult.Aetheria.State.Verse
                             : state.Description),
                     Text(
                         $"{SurfaceId}.note",
-                        "Unity supplies the selected market row; the shared runtime surface owns trade item inspection layout."),
+                        "The observing client supplies the selected market row; the shared runtime surface owns trade item inspection layout."),
                     Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
                     Metric($"{SurfaceId}.mass", "Mass", state.Mass),
                     Metric($"{SurfaceId}.price", "Price", state.Price.ToString("N0")))

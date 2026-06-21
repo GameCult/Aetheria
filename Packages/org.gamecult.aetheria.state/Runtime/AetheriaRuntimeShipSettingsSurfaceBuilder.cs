@@ -57,7 +57,7 @@ namespace GameCult.Aetheria.State.Verse
                                 state.ShutdownPerformance),
                             Text(
                                 $"{SurfaceId}.note",
-                                "Unity projects selected ship state; shutdown changes are sent as daemon operations."),
+                                "The observing client projects selected ship state; shutdown changes are sent as daemon operations."),
                             ButtonRow(
                                 $"{SurfaceId}.shutdown.buttons",
                                 Button($"{SurfaceId}.shutdown.decrement", "Threshold -", DecrementShutdownThreshold),

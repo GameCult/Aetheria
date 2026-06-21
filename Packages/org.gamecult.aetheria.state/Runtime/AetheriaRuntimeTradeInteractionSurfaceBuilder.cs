@@ -128,7 +128,7 @@ namespace GameCult.Aetheria.State.Verse
                     "Trade Filters",
                     Text(
                         $"{FilterSurfaceId}.note",
-                        "Unity projects available trade filters; the shared runtime surface owns the filter selector contract."),
+                        "The observing client projects available trade filters; the shared runtime surface owns the filter selector contract."),
                     Text($"{FilterSurfaceId}.active", state.FilterSummary))
             };
 
@@ -200,7 +200,7 @@ namespace GameCult.Aetheria.State.Verse
                             Text($"{RowActionSurfaceId}.title", state.Title),
                             Text(
                                 $"{RowActionSurfaceId}.note",
-                                "Unity projects available row actions; the shared runtime surface owns the row action contract."),
+                                "The observing client projects available row actions; the shared runtime surface owns the row action contract."),
                             ButtonColumn(
                                 $"{RowActionSurfaceId}.options",
                                 state.Actions

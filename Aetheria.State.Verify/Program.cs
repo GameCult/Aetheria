@@ -11,6 +11,7 @@ RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireSharedEvePackagesImportedFromEveRepo(root);
 RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(root);
+RequireSharedRuntimeSurfacesUseClientNeutralVocabulary(root);
 RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
@@ -746,6 +747,39 @@ static void RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(string root)
     }
 
     Console.WriteLine("Shared runtime surface commands: command templates advertise CultMesh transport instead of Unity UI Toolkit");
+}
+
+static void RequireSharedRuntimeSurfacesUseClientNeutralVocabulary(string root)
+{
+    var runtimePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
+    if (!Directory.Exists(runtimePath))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime surface vocabulary cannot be verified because the state runtime package is missing.");
+    }
+
+    var forbiddenSurfaceVocabulary = new[]
+    {
+        "Unity supplies",
+        "Unity projects",
+        "Unity reads",
+        "Unity must observe",
+        "Unity runtime shells"
+    };
+    var hits = Directory.EnumerateFiles(runtimePath, "*.cs", SearchOption.TopDirectoryOnly)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenSurfaceVocabulary.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+    if (hits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime surfaces still describe their contract as Unity-owned instead of client-neutral CultMesh API: " +
+            string.Join("; ", hits));
+    }
+
+    Console.WriteLine("Shared runtime surfaces: surface copy uses client-neutral observer vocabulary");
 }
 
 static void RequirePackageSerializerBoundary(string root)
@@ -3993,7 +4027,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "public static string ShipBayCommand(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
-        "Unity projects available cargo targets; the shared runtime surface owns the cargo selector contract."
+        "The observing client projects available cargo targets; the shared runtime surface owns the cargo selector contract."
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !tradeCargoSelectorSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
@@ -4211,7 +4245,7 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeTradeItemMetric",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
-        "Unity supplies the selected market row; the shared runtime surface owns trade item inspection layout."
+        "The observing client supplies the selected market row; the shared runtime surface owns trade item inspection layout."
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !tradeItemDetailsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
@@ -4322,7 +4356,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "public static string LoadoutCommand(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"inventory.panel\"",
-        "Unity projects available inventory navigation; the shared runtime surface owns the dropdown contract."
+        "The observing client projects available inventory navigation; the shared runtime surface owns the dropdown contract."
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !inventoryDropdownSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
