@@ -1927,7 +1927,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         zoneRenderer.Contains("zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)", StringComparison.Ordinal) ||
         zoneRenderer.Contains("LoadPlanet(planet)", StringComparison.Ordinal) ||
         zoneRenderer.Contains("zone.AsteroidBelts.TryGetValue(body.BodyKey", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("LoadAsteroidBelt(belt)", StringComparison.Ordinal))
+        zoneRenderer.Contains("LoadAsteroidBelt(belt)", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("new Wormhole", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("zone.Galaxy", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "ZoneRenderer frame updates must read body render state from daemon body poses instead of indexed mirrored Unity planets.");
@@ -1988,6 +1990,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly HashSet<int> _daemonVisibleEntityIndicesSet",
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
         "private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits",
+        "public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "_daemonZoneSnapshot = daemonZone;",
         "_daemonRunSnapshot = daemonRun;",
@@ -2011,6 +2014,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
+        "AddWormhole(exit)",
+        "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",

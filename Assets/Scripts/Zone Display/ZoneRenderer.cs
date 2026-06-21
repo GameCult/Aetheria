@@ -101,7 +101,7 @@ public class ZoneRenderer : MonoBehaviour
     private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits =
         new List<AetheriaRuntimeDaemonWormholeExit>();
 
-    public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
+    public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
 
     public Zone Zone { get; private set; }
@@ -237,27 +237,16 @@ public class ZoneRenderer : MonoBehaviour
             Settings.WormholeDistanceRatio,
             _daemonWormholeExits);
         foreach (var exit in _daemonWormholeExits)
-        {
-            var target = zone.Galaxy != null &&
-                exit.TargetZoneIndex >= 0 &&
-                exit.TargetZoneIndex < zone.Galaxy.Zones.Length
-                    ? zone.Galaxy.Zones[exit.TargetZoneIndex]
-                    : null;
-            AddWormhole(new Wormhole
-            {
-                Target = target,
-                Position = AetheriaMath.ToCult(new float2((float)exit.PositionX, (float)exit.PositionZ))
-            });
-        }
+            AddWormhole(exit);
     }
 
-    public void AddWormhole(Wormhole wormhole)
+    public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)
     {
         var instance = Instantiate(WormholePrefab);
-        instance.position = new Vector3(wormhole.Position.x, 0, wormhole.Position.y);
+        instance.position = new Vector3((float)exit.PositionX, 0, (float)exit.PositionZ);
         var icon = CompassIconPrototype.Instantiate<CompassIcon>();
         icon.Icon.sprite = WormholeIcon;
-        WormholeInstances.Add(wormhole, (instance.gameObject, icon));
+        WormholeInstances[exit.TargetZoneIndex] = (instance.gameObject, icon);
     }
 
     public void ClearZone()
