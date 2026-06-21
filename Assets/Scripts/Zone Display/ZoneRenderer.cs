@@ -188,6 +188,21 @@ public class ZoneRenderer : MonoBehaviour
                _entityInstancesByDaemonIndex.TryGetValue(entity.DaemonEntityIndex, out instance);
     }
 
+    public bool TryGetDaemonTargetDistance(int daemonEntityIndex, out float distance)
+    {
+        distance = 0f;
+        if (!AetheriaRuntimeDaemonRenderQueries.TryQueryEntityTarget(
+                _daemonZoneSnapshot,
+                daemonEntityIndex,
+                out var target))
+        {
+            return false;
+        }
+
+        distance = (float)target.Distance;
+        return true;
+    }
+
     void Start()
     {
         var bigBounds = new Bounds(Vector3.zero, Vector3.one * 1024);

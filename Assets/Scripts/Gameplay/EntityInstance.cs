@@ -274,9 +274,12 @@ public class EntityInstance : MonoBehaviour
 
         var entityPosition = (Vector3)AetheriaMath.ToUnity(Entity.CultPosition);
         var entityLookDirection = (Vector3)AetheriaMath.ToUnity(Entity.CultLookDirection);
+        var lookAtDistance = ZoneRenderer != null &&
+                             ZoneRenderer.TryGetDaemonTargetDistance(DaemonEntityIndex, out var daemonTargetDistance)
+            ? Mathf.Max(daemonTargetDistance, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
+            : 10000;
 
-        LookAtPoint.position = transform.position + entityLookDirection *
-            (Entity.Target.Value != null ? Mathf.Max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
+        LookAtPoint.position = transform.position + entityLookDirection * lookAtDistance;
         LocalSpace.localPosition = transform.position = entityPosition;
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(entityPosition.x, 0, entityPosition.z);

@@ -2038,6 +2038,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;",
         "public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)",
         "public bool TryGetEntityInstance(Entity entity, out EntityInstance instance)",
+        "public bool TryGetDaemonTargetDistance(int daemonEntityIndex, out float distance)",
+        "AetheriaRuntimeDaemonRenderQueries.TryQueryEntityTarget(",
         "foreach (var entity in EntityInstances.Keys.ToArray())",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
@@ -2061,6 +2063,33 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "ZoneRenderer must lower daemon-authored gravity terrain snapshots instead of recomputing render height through Zone: " +
             string.Join(", ", missingZoneRendererSymbols));
+    }
+
+    var entityInstancePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "EntityInstance.cs");
+    var entityInstance = File.Exists(entityInstancePath)
+        ? File.ReadAllText(entityInstancePath)
+        : throw new InvalidOperationException("Cannot verify EntityInstance convergence authority; source file is missing.");
+    if (entityInstance.Contains("Entity.Target.Value != null ? Mathf.Max(Entity.TargetRange", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "EntityInstance convergence distance must read daemon target projection through ZoneRenderer instead of facade Entity.Target.");
+    }
+
+    var requiredEntityInstanceSymbols = new[]
+    {
+        "ZoneRenderer.TryGetDaemonTargetDistance(DaemonEntityIndex, out var daemonTargetDistance)",
+        "Mathf.Max(daemonTargetDistance, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)",
+        "LookAtPoint.position = transform.position + entityLookDirection * lookAtDistance;"
+    };
+
+    var missingEntityInstanceSymbols = requiredEntityInstanceSymbols
+        .Where(symbol => !entityInstance.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingEntityInstanceSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "EntityInstance no longer resolves convergence from daemon target projection: " +
+            string.Join(", ", missingEntityInstanceSymbols));
     }
 }
 
