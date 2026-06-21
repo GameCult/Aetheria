@@ -159,8 +159,8 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding[] ResolveVisibleTabs()
     {
         return _tabs.Values
-            .Where(tabBinding => !tabBinding.RequireDock || GameManager.DockedEntity != null)
-            .Where(tabBinding => tabBinding.Tab != MenuTab.Local || (GameManager.DockedEntity as OrbitalEntity)?.Story != null)
+            .Where(tabBinding => !tabBinding.RequireDock || GameManager.IsObservedDocked)
+            .Where(tabBinding => tabBinding.Tab != MenuTab.Local || GameManager.TryGetObservedDockedLocalStory(out _))
             .OrderBy(tabBinding => (int)tabBinding.Tab)
             .ToArray();
     }

@@ -3798,6 +3798,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
 static void RequireRuntimeMenuTabsUseEveSurface(string root)
 {
     var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
+    var localMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs");
+    var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var menuTabsSurfaceBuilderPath = Path.Combine(
         root,
         "Packages",
@@ -3807,6 +3809,14 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     if (!File.Exists(menuPanelPath))
     {
         throw new InvalidOperationException("Cannot verify runtime menu tab shell; MenuPanel.cs is missing.");
+    }
+    if (!File.Exists(localMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime local-menu shell; LocalMenu.cs is missing.");
+    }
+    if (!File.Exists(actionGameManagerPath))
+    {
+        throw new InvalidOperationException("Cannot verify runtime menu tab shell; ActionGameManager.cs is missing.");
     }
     if (!File.Exists(menuTabsSurfaceBuilderPath))
     {
@@ -3820,6 +3830,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     }
 
     var source = File.ReadAllText(menuPanelPath);
+    var localMenu = File.ReadAllText(localMenuPath);
+    var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var surfaceHostPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveUnitySurfaceHost.cs");
     if (!File.Exists(surfaceHostPath))
     {
@@ -3839,6 +3851,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurfaceState())",
         "ProjectTabSurfaceState(",
         "ResolveVisibleTabs(",
+        "GameManager.IsObservedDocked",
+        "GameManager.TryGetObservedDockedLocalStory(out _)",
         "GetTabLabel(",
         "AetheriaRuntimeMenuTabsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMenuTabCommandKind.SelectTab",
@@ -3900,6 +3914,31 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException(
             "MenuPanel still owns tab-shell behavior through the old MenuTabButton path: " +
             string.Join(", ", hits));
+    }
+
+    var requiredDockedStoryObserverSymbols = new[]
+    {
+        "public bool IsObservedDocked => DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out _);",
+        "public bool TryGetObservedDockedLocalStory(out LocationStory story)",
+        "TryGetObservedDockedLocalStory(out _currentLocation)"
+    };
+    var dockedStoryObserverCorpus = actionGameManager + "\n" + localMenu;
+    var missingDockedStoryObserverSymbols = requiredDockedStoryObserverSymbols
+        .Where(symbol => !dockedStoryObserverCorpus.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDockedStoryObserverSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime menu/local story visibility no longer flows through daemon-observed dock state: " +
+            string.Join(", ", missingDockedStoryObserverSymbols));
+    }
+
+    if (source.Contains("GameManager.DockedEntity != null", StringComparison.Ordinal) ||
+        source.Contains("GameManager.DockedEntity as OrbitalEntity", StringComparison.Ordinal) ||
+        localMenu.Contains("ActionGameManager.Instance.DockedEntity", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime menu/local UI must not inspect DockedEntity directly for dock/story visibility; ask the gameplay observer.");
     }
 
     var requiredBuilderSymbols = new[]

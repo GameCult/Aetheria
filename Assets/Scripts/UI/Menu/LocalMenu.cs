@@ -22,12 +22,13 @@ public class LocalMenu : MonoBehaviour
     
     private void OnEnable()
     {
-        if (ActionGameManager.Instance.DockedEntity is OrbitalEntity orbital)
+        if (ActionGameManager.Instance == null ||
+            !ActionGameManager.Instance.TryGetObservedDockedLocalStory(out _currentLocation))
         {
-            _currentLocation = orbital.Story;
-            _activeStory = _currentLocation.Story;
+            return;
         }
-        else return;
+
+        _activeStory = _currentLocation.Story;
         Continue();
     }
 

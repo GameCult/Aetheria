@@ -494,6 +494,18 @@ public class ActionGameManager : MonoBehaviour
         set => _currentEntity = value;
     }
 
+    public bool IsObservedDocked => DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out _);
+
+    public bool TryGetObservedDockedLocalStory(out LocationStory story)
+    {
+        story = null;
+        if (!IsObservedDocked || DockedEntity is not OrbitalEntity { Story: { } dockedStory })
+            return false;
+
+        story = dockedStory;
+        return true;
+    }
+
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
     public List<AetheriaRuntimeLoadoutTemplateSnapshot> LoadoutTemplates { get; } = new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
