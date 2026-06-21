@@ -4225,6 +4225,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs");
+    var unityProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var requiredFiles = new[]
     {
         inventoryMenuPath,
@@ -4234,7 +4235,8 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         eveUnitySurfaceHostPath,
         runtimeEveSurfaceAdapterPath,
         cargoItemSurfaceBuilderPath,
-        equippedItemSurfaceBuilderPath
+        equippedItemSurfaceBuilderPath,
+        unityProjectPath
     };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
@@ -4251,6 +4253,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var surfaceDocument = File.ReadAllText(surfaceDocumentPath);
     var daemonItemStatQueries = File.ReadAllText(daemonItemStatQueriesPath);
+    var unityProject = File.ReadAllText(unityProjectPath);
     var eveUnitySurfaceHost = File.ReadAllText(eveUnitySurfaceHostPath);
     var runtimeEveSurfaceAdapter = File.ReadAllText(runtimeEveSurfaceAdapterPath);
     var cargoItemSurfaceBuilder = File.ReadAllText(cargoItemSurfaceBuilderPath);
@@ -4261,12 +4264,11 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "HandleCargoItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_cargoItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurfaceState(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurface(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project(",
+        "ProjectCargoItemObservation(",
         "AetheriaRuntimeCargoItemDetailsSurfaceCommands.TryRead(request, out var command)",
-        "AetheriaRuntimeCargoItemDetailsCommandKind.Close",
-        "ProjectCargoItemDetailsSurfaceState(",
-        "ProjectCargoItemBehaviorSections(",
-        "ProjectCargoItemBehaviorMetric("
+        "AetheriaRuntimeCargoItemDetailsCommandKind.Close"
     };
 
     var missingSymbols = requiredSymbols
@@ -4307,6 +4309,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !daemonItemStatQueries.Contains("public static string ItemStatRef(", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public static bool TryReadItemStatRef(", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal) ||
+        !unityProject.Contains("AetheriaRuntimeDaemonItemStatQueries.cs", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
@@ -4333,7 +4336,11 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "ResolveCargoItemDetailsSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
         "host.AddComponent<UIDocument>",
-        "string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close"
+        "string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close",
+        "new AetheriaRuntimeCargoItemDetailsSurfaceState(",
+        "ProjectCargoItemDetailsSurfaceState(",
+        "ProjectCargoItemBehaviorSections(",
+        "ProjectCargoItemBehaviorMetric("
     };
     var hits = forbiddenSymbols
         .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
@@ -4355,8 +4362,12 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "public static class AetheriaRuntimeCargoItemDetailsSurfaceCommands",
         "public static bool TryRead(",
         "AetheriaRuntimeCargoItemDetailsSurfaceState",
+        "AetheriaRuntimeCargoItemObservation",
         "AetheriaRuntimeCargoItemSection",
         "AetheriaRuntimeCargoItemMetric",
+        "public static AetheriaRuntimeCargoItemDetailsSurfaceState Project(",
+        "ProjectBehaviorSections(",
+        "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build("
     };
     var missingBuilderSymbols = requiredBuilderSymbols

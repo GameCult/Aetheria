@@ -258,7 +258,7 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _cargoItemDetailsSurfaceDocument,
             "Aetheria Inventory Cargo Item Details Surface",
-            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurfaceState(item, typedItem)),
+            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurface(item, typedItem)),
             HandleCargoItemDetailsSurfaceCommand,
             _cargoItemDetailsSurfaceChrome,
             ResolveInventorySurfaceStateRef,
@@ -494,127 +494,30 @@ public class InventoryMenu : MonoBehaviour
         }
     }
 
-    private AetheriaRuntimeCargoItemDetailsSurfaceState ProjectCargoItemDetailsSurfaceState(
+    private AetheriaRuntimeCargoItemDetailsSurfaceState ProjectCargoItemDetailsSurface(
         ItemInstance item,
         AetheriaRuntimeCatalogItem typedItem)
     {
-        var quantity = item is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 0;
-        var tier = "";
-        var durability = "";
-        var thermalRange = "";
-        var behaviorSections = Array.Empty<AetheriaRuntimeCargoItemSection>();
-
-        if (item is EquippableItem equippableItem)
-        {
-            tier = FormatItemTier(typedItem, equippableItem);
-            durability = $"{(int)(equippableItem.Durability / GetMaxDurability(typedItem, equippableItem) * 100)}%";
-            thermalRange = FormatTemperatureRange(typedItem);
-            behaviorSections = ProjectCargoItemBehaviorSections(typedItem, equippableItem).ToArray();
-        }
-
-        return new AetheriaRuntimeCargoItemDetailsSurfaceState(
-            typedItem.Name,
-            typedItem.Description ?? "",
+        return AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project(
+            typedItem,
+            ProjectCargoItemObservation(item),
             ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)?.Name ?? "GameCult",
-            ActionGameManager.RuntimePlayerSettings.Format(GetCargoItemMass(item, typedItem)),
-            typedItem.Price,
-            quantity,
-            tier,
-            durability,
-            thermalRange,
-            behaviorSections,
-            DateTime.UtcNow.ToString("O"));
+            item is EquippableItem equippableItem ? FormatItemTier(typedItem, equippableItem) : "",
+            ActionGameManager.RuntimePlayerSettings.Format,
+            ActionGameManager.RuntimePlayerSettings.FormatTemperature);
     }
 
-    private IEnumerable<AetheriaRuntimeCargoItemSection> ProjectCargoItemBehaviorSections(
-        AetheriaRuntimeCatalogItem typedItem,
-        EquippableItem equippableItem)
+    private static AetheriaRuntimeCargoItemObservation ProjectCargoItemObservation(ItemInstance item)
     {
-        foreach (var behavior in typedItem.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
-        {
-            if (string.Equals(behavior.Kind, AetheriaRuntimeBehaviorKinds.StatModifier, StringComparison.Ordinal))
-            {
-                var statReference = AetheriaRuntimeBehaviorValueReader.ReadStatReference(FindTypedBehaviorField(behavior, 1)?.Value);
-                var modifier = AetheriaRuntimeBehaviorValueReader.ReadPerformanceStat(FindTypedBehaviorField(behavior, 2)?.Value);
-                var modifierType = AetheriaRuntimeBehaviorValueReader.ReadEnum(
-                    FindTypedBehaviorField(behavior, 3)?.Value,
-                    StatModifierType.Constant);
-                yield return new AetheriaRuntimeCargoItemSection(
-                    $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.stat_modifier",
-                    "Stat Modifier",
-                    new[]
-                    {
-                        new AetheriaRuntimeCargoItemMetric(
-                            $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.target",
-                            $"{statReference.Target.SplitCamelCase()}:{statReference.Stat.SplitCamelCase()}",
-                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}",
-                            AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
-                                equippableItem.ItemKey,
-                                behavior.Kind,
-                                behavior.Group,
-                                2))
-                    });
-                continue;
-            }
-
-            var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
-            if (metadata == null)
-                continue;
-
-            var fields = metadata.DisplayFields
-                .Select(field => ProjectCargoItemBehaviorMetric(behavior, field, equippableItem))
-                .Where(metric => metric != null)
-                .ToArray();
-
-            if (fields.Length == 0)
-                continue;
-
-            yield return new AetheriaRuntimeCargoItemSection(
-                $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}",
-                behavior.Kind.FormatTypeName(),
-                fields);
-        }
-    }
-
-    private AetheriaRuntimeCargoItemMetric ProjectCargoItemBehaviorMetric(
-        AetheriaRuntimeBehaviorPayload behavior,
-        AetheriaRuntimeBehaviorFieldMetadata field,
-        EquippableItem equippableItem)
-    {
-        var payloadField = FindTypedBehaviorField(behavior, field.Key);
-        if (payloadField == null)
-            return null;
-
-        string value;
-        switch (field.ValueKind)
-        {
-            case AetheriaRuntimeBehaviorFieldValueKind.Number:
-                value = ActionGameManager.RuntimePlayerSettings.Format((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Temperature:
-                value = ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)payloadField.Value.NumberValue);
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.Integer:
-                value = ((int)payloadField.Value.NumberValue).ToString();
-                break;
-            case AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat:
-                value = FormatCurrentItemStat(payloadField.Value, equippableItem);
-                break;
-            default:
-                return null;
-        }
-
-        return new AetheriaRuntimeCargoItemMetric(
-            $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
-            field.Name.SplitCamelCase(),
-            value,
-            field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat
-                ? AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
-                    equippableItem.ItemKey,
-                    behavior.Kind,
-                    behavior.Group,
-                    field.Key)
-                : "");
+        var equippableItem = item as EquippableItem;
+        return new AetheriaRuntimeCargoItemObservation(
+            item?.ItemKey ?? "",
+            item is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 0,
+            equippableItem != null,
+            equippableItem?.Quality ?? 1,
+            equippableItem?.Durability ?? 1,
+            equippableItem?.Temperature ?? 0,
+            equippableItem != null && equippableItem.OverrideShutdown);
     }
 
     private IEnumerable<AetheriaRuntimeEquippedItemSection> ProjectEquippedItemBehaviorSections(
