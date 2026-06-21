@@ -415,7 +415,7 @@ public class ZoneRenderer : MonoBehaviour
             beltObject,
             AsteroidSpritesheetWidth,
             AsteroidSpritesheetHeight,
-            Settings.MinimapAsteroidSize);
+            (float)RenderSettings.MinimapAsteroidSize);
         _beltObjects[bodyKey] = belt;
 
         LODHandler.FindPlanets();

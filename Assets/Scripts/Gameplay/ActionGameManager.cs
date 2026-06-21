@@ -591,7 +591,8 @@ public class ActionGameManager : MonoBehaviour
             Settings.DefaultMinimapZoom,
             Settings.WormholeDistanceRatio,
             Settings.DefaultViewDistance,
-            Settings.MinimapIconSize);
+            Settings.MinimapIconSize,
+            Settings.MinimapAsteroidSize);
     }
 
     private readonly (float2 direction, string name)[] _directions = {

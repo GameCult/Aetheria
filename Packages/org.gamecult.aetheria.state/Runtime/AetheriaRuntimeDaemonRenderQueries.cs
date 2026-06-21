@@ -67,7 +67,8 @@ namespace GameCult.Aetheria.State.Verse
             int defaultMinimapZoom = 0,
             double wormholeDistanceRatio = 1.0,
             double defaultViewDistance = 0.0,
-            double minimapIconScale = 0.0)
+            double minimapIconScale = 0.0,
+            double minimapAsteroidSize = 0.0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -87,6 +88,7 @@ namespace GameCult.Aetheria.State.Verse
             WormholeDistanceRatio = Math.Max(0.0, wormholeDistanceRatio);
             DefaultViewDistance = Math.Max(0.0, defaultViewDistance);
             MinimapIconScale = Math.Max(0.0, minimapIconScale);
+            MinimapAsteroidSize = Math.Max(0.0, minimapAsteroidSize);
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -107,6 +109,7 @@ namespace GameCult.Aetheria.State.Verse
         public double WormholeDistanceRatio { get; }
         public double DefaultViewDistance { get; }
         public double MinimapIconScale { get; }
+        public double MinimapAsteroidSize { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {
