@@ -8144,6 +8144,12 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity gameplay must not cache observed runtime zone context on the projected GalaxyZone model.");
     }
 
+    if (galaxy.Contains("public Zone Contents", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Projected GalaxyZone must not own Unity runtime Zone contents; observed zone context belongs to the client lowerer.");
+    }
+
     var contextPrepRendererLoads = FindMethodScopedLineHits(
             actionGameManager,
             new[] { "LoadDaemonZoneView(", "BindToEntity(" })

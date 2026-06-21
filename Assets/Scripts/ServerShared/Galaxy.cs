@@ -743,7 +743,6 @@ public class GalaxyZone
     public Dictionary<GalaxyZone, int> Distance;
     public Faction[] Factions;
     public Faction Owner;
-    public Zone Contents;
     public bool NamedZone;
     public List<LocationStory> Locations = new List<LocationStory>();
 }
