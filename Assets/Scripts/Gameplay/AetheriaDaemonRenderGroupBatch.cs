@@ -1,5 +1,5 @@
 using System;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;

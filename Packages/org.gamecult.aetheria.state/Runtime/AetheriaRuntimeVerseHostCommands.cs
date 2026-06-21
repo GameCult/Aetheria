@@ -1,4 +1,4 @@
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeVerseHostCommands
     {

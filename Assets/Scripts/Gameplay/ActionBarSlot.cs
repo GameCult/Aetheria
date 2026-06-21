@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;

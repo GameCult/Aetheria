@@ -1,5 +1,5 @@
 using System;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
 public sealed class AetheriaDaemonObserver : MonoBehaviour

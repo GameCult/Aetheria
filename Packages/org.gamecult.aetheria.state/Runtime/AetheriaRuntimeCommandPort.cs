@@ -7,7 +7,7 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
 using GameCult.Networking;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 
 #nullable enable
 
@@ -140,7 +140,7 @@ namespace Aetheria.State
     }
 }
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeCommandPort : IDisposable
     {

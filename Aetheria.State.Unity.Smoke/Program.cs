@@ -2,7 +2,7 @@ extern alias PackageUnity;
 
 using Aetheria.State;
 using Aetheria.State.Unity;
-using PackageUnity::GameCult.Aetheria.State.Unity;
+using PackageUnity::GameCult.Aetheria.State.Verse;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -178,7 +178,7 @@ try
     await using var eveCommandNode = await AetheriaStateNode.OpenAsync(
         commitSmokeStatePath,
         "aetheria-unity-runtime-eve-command-smoke");
-    await eveCommandNode.SubmitEveCommandAsync(new GameCult.Aetheria.State.Unity.AetheriaRuntimeEveCommandDocument
+    await eveCommandNode.SubmitEveCommandAsync(new GameCult.Aetheria.State.Verse.AetheriaRuntimeEveCommandDocument
     {
         Schema = eveCommand.Schema,
         CommandId = eveCommand.CommandId,
@@ -187,11 +187,11 @@ try
         Command = eveCommand.Command,
         IssuedAtUtc = eveCommand.IssuedAtUtc,
         ClientId = eveCommand.ClientId,
-        PlayerSettings = new GameCult.Aetheria.State.Unity.AetheriaRuntimePlayerSettingsCommandBody
+        PlayerSettings = new GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommandBody
         {
             PlayerName = eveCommand.PlayerSettings.PlayerName
         },
-        InputSettings = new GameCult.Aetheria.State.Unity.AetheriaRuntimeInputSettingsCommandBody
+        InputSettings = new GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommandBody
         {
             ActionName = eveCommand.InputSettings.ActionName,
             BindingIndex = eveCommand.InputSettings.BindingIndex,

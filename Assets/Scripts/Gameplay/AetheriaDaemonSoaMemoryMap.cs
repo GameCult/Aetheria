@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO.MemoryMappedFiles;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 

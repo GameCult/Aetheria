@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
 public class ShipInstance : EntityInstance

@@ -1,6 +1,6 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -6648,7 +6648,7 @@ static void RequireTypedEveCommandBodies(string root)
         "public sealed class AetheriaRuntimeCommandPort",
         "public sealed class AetheriaCommandPort",
         "namespace Aetheria.State",
-        "namespace GameCult.Aetheria.State.Unity",
+        "namespace GameCult.Aetheria.State.Verse",
         "global::Aetheria.State.AetheriaCommandPort",
         "public static class AetheriaRuntimeCommandSubmitter",
         "TrySubmitEveCommand(",
@@ -6706,6 +6706,34 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Eve command append/apply path is missing typed command body usage: " +
             string.Join(", ", missingTypedCommandSymbols));
+    }
+
+    var unityNamedRuntimeSources = new Dictionary<string, string>
+    {
+        ["Aetheria.State.Daemon"] = File.Exists(Path.Combine(root, "Aetheria.State.Daemon", "Program.cs"))
+            ? File.ReadAllText(Path.Combine(root, "Aetheria.State.Daemon", "Program.cs"))
+            : "",
+        ["Aetheria.State"] = string.Join(
+            "\n",
+            Directory.EnumerateFiles(Path.Combine(root, "Aetheria.State"), "*.cs", SearchOption.AllDirectories)
+                .Select(File.ReadAllText)),
+        ["org.gamecult.aetheria.state/Runtime"] = string.Join(
+            "\n",
+            Directory.EnumerateFiles(
+                    Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime"),
+                    "*.cs",
+                    SearchOption.TopDirectoryOnly)
+                .Select(File.ReadAllText))
+    };
+    var unityNamedRuntimeHits = unityNamedRuntimeSources
+        .Where(source => source.Value.Contains("GameCult.Aetheria.State.Unity", StringComparison.Ordinal))
+        .Select(source => source.Key)
+        .ToArray();
+    if (unityNamedRuntimeHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon/shared Aetheria runtime contracts still live under a Unity-named API namespace: " +
+            string.Join(", ", unityNamedRuntimeHits));
     }
 
     var forbiddenUnitySubmitterSymbols = new[]

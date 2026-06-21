@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public readonly struct AetheriaRuntimeVerseReplicaSyncResult
     {

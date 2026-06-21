@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeStatRecipeSurfaceState
     {

@@ -7,7 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using UniRx;
 using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;

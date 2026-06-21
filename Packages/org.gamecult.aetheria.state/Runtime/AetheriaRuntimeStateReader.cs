@@ -5,7 +5,7 @@ using GameCult.Eve.Surface;
 
 #nullable enable
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     // Unity runtime shells acquire typed state through this port so the transport can move to the daemon without spelunking every consumer.
     public static class AetheriaRuntimeStateReader

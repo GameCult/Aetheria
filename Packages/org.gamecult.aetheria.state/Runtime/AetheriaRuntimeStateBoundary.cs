@@ -1,7 +1,7 @@
 using System.IO;
 using System.Linq;
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeStateBoundary
     {

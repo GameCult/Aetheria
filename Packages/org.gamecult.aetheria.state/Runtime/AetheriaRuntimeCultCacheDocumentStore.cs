@@ -7,7 +7,7 @@ using MessagePack;
 
 #nullable enable
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     internal static class AetheriaRuntimeCultCacheDocumentStore
     {

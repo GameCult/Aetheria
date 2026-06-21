@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeInputSettingsSurfaceState
     {

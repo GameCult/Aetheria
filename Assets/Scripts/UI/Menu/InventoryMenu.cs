@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
-using GameCult.Aetheria.State.Unity;
+using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using UnityEngine;
 using UniRx;

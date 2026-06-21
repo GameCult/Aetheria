@@ -4,7 +4,7 @@ using MessagePack;
 
 #nullable enable
 
-namespace GameCult.Aetheria.State.Unity
+namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeEveCommandEnvelope
     {
