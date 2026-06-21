@@ -67,6 +67,7 @@ public class ActionGameManager : MonoBehaviour
     private string _lastAppliedAuthoritativeDaemonRunId = "";
     private int _lastAppliedAuthoritativeDaemonZoneIndex = -1;
     private readonly Dictionary<string, Entity> _observedEntityFacadesByRecordKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
+    private readonly Dictionary<int, Entity> _observedEntityFacadesByDaemonIndex = new Dictionary<int, Entity>();
     private static DirectoryInfo _gameDataDirectory;
     public static DirectoryInfo GameDataDirectory
     {
@@ -2097,7 +2098,7 @@ public class ActionGameManager : MonoBehaviour
 
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
-        ZoneRenderer.LoadDaemonZoneView(Zone, daemonZone, daemonRun);
+        ZoneRenderer.LoadDaemonZoneView(Zone, _observedEntityFacadesByDaemonIndex, daemonZone, daemonRun);
 
         if (CurrentEntity != null)
         {
@@ -2708,6 +2709,7 @@ public class ActionGameManager : MonoBehaviour
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
             RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, _observedEntityFacadesByRecordKey);
         }
+        RebuildObservedEntityFacadeIndex();
 
         foreach (var entity in _observedEntityFacadesByRecordKey.Values)
         {
@@ -2795,9 +2797,20 @@ public class ActionGameManager : MonoBehaviour
         _observedEntityFacadesByRecordKey.Clear();
         foreach (var restoredEntity in restoredEntities)
             _observedEntityFacadesByRecordKey[restoredEntity.Key] = restoredEntity.Value;
+        RebuildObservedEntityFacadeIndex();
 
         if (restoredEntities.TryGetValue(currentEntityKey, out var currentEntity))
             RestoreCurrentEntityBinding(currentEntity, actionBarBindings);
+    }
+
+    private void RebuildObservedEntityFacadeIndex()
+    {
+        _observedEntityFacadesByDaemonIndex.Clear();
+        foreach (var entity in _observedEntityFacadesByRecordKey.Values)
+        {
+            if (entity != null && entity.DaemonEntityIndex >= 0)
+                _observedEntityFacadesByDaemonIndex[entity.DaemonEntityIndex] = entity;
+        }
     }
 
     private void RestoreChildAndDockingRelationships(
@@ -3266,17 +3279,7 @@ public class ActionGameManager : MonoBehaviour
 
     private bool TryGetObservedEntityFacade(int daemonEntityIndex, out Entity entity)
     {
-        foreach (var observedEntity in _observedEntityFacadesByRecordKey.Values)
-        {
-            if (observedEntity != null && observedEntity.DaemonEntityIndex == daemonEntityIndex)
-            {
-                entity = observedEntity;
-                return true;
-            }
-        }
-
-        entity = null;
-        return false;
+        return _observedEntityFacadesByDaemonIndex.TryGetValue(daemonEntityIndex, out entity);
     }
 
     public void RequestTowToStation()

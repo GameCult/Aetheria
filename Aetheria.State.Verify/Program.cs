@@ -1978,6 +1978,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must reconcile rendered entities from daemon frame snapshots instead of subscribing to mirrored Unity entity collection mutations.");
     }
 
+    if (zoneRenderer.Contains("foreach (var entity in legacyEntityFacadeZone.Entities)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must use the daemon-indexed observed facade projection supplied by gameplay instead of enumerating Unity Zone.Entities.");
+    }
+
     if (zoneRenderer.Contains("PerspectiveEntity.EntityInfoGathered", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2015,6 +2021,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private Zone _legacyEntityFacadeZone;",
         "public void LoadDaemonZoneView(",
         "Zone legacyEntityFacadeZone,",
+        "IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "public void ApplyDaemonFrame(",
         "AetheriaRuntimeZoneSnapshotCommit daemonZone,",
@@ -2033,7 +2040,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "LoadAsteroidBelt(beltPose)",
         "void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)",
         "foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())",
-        "entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
+        "observedEntityFacadesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
         "private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex",
         "public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;",
         "public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)",
@@ -7755,6 +7762,9 @@ static void RequireMainMenuContinueRunState(string root)
         "GetObservedInfoGathered(CurrentEntity, target)",
         "IsObservedHostileContact(CurrentEntity, observedTarget)",
         "_observedEntityFacadesByRecordKey",
+        "_observedEntityFacadesByDaemonIndex",
+        "RebuildObservedEntityFacadeIndex();",
+        "ZoneRenderer.LoadDaemonZoneView(Zone, _observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "entity.HeatsinksEnabled = entitySnapshot.HeatsinksEnabled",
@@ -8012,7 +8022,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
-        "ZoneRenderer.LoadDaemonZoneView(Zone, daemonZone, daemonRun)",
+        "ZoneRenderer.LoadDaemonZoneView(Zone, _observedEntityFacadesByDaemonIndex, daemonZone, daemonRun)",
         "ZoneRenderer?.ApplyDaemonFrame(daemonZone, run)",
         "CreateDaemonEntitySnapshots(runId, daemonZone)",
         "FindCurrentDaemonZoneSnapshot()",

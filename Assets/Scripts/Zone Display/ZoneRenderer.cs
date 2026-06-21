@@ -216,6 +216,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public void LoadDaemonZoneView(
         Zone legacyEntityFacadeZone,
+        IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,
         AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
         AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
@@ -245,16 +246,11 @@ public class ZoneRenderer : MonoBehaviour
 
         _suns = _bodyViewsByBodyKey.Values.Where(p => p is SunObject).ToArray();
 
-        var entitiesByDaemonIndex = new Dictionary<int, Entity>();
-        foreach (var entity in legacyEntityFacadeZone.Entities)
-        {
-            if (entity != null && entity.DaemonEntityIndex >= 0)
-                entitiesByDaemonIndex[entity.DaemonEntityIndex] = entity;
-        }
         foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
         {
             if (entitySnapshot != null &&
-                entitiesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity))
+                observedEntityFacadesByDaemonIndex != null &&
+                observedEntityFacadesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity))
             {
                 Debug.Log($"Loading entity {entity.Name} from daemon entity snapshot {entitySnapshot.EntityIndex}");
                 LoadEntity(entity);
