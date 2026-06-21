@@ -655,7 +655,7 @@ public class ActionGameManager : MonoBehaviour
     public bool RequestWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
     {
         var slot = ResolveActionBarSlot(slotIndex);
-        if (slot == null || groupIndex < 0)
+        if (slot == null)
         {
             return false;
         }
@@ -1042,8 +1042,7 @@ public class ActionGameManager : MonoBehaviour
 
     public bool RequestWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
     {
-        if (item == null ||
-            groupIndex < 0)
+        if (item == null)
         {
             return false;
         }

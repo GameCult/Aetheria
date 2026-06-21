@@ -1328,20 +1328,29 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsRejectsWeaponGroupActionBarBindingForMissingGroup()
     {
         var run = RunWithTwoEntities();
-        var set = AetheriaRuntimeDaemonCommandDocument.Create(
+        var negative = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding,
             "codex",
             "session-bindings",
             17,
             "zone.0.entity.0");
-        set.TextValue = "<Keyboard>/1";
-        set.ActionBarBinding.Kind = "weapon_group";
-        set.WeaponGroup = 99;
+        negative.TextValue = "<Keyboard>/1";
+        negative.ActionBarBinding.Kind = "weapon_group";
+        negative.WeaponGroup = -1;
+        var tooHigh = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding,
+            "codex",
+            "session-bindings",
+            18,
+            "zone.0.entity.0");
+        tooHigh.TextValue = "<Keyboard>/2";
+        tooHigh.ActionBarBinding.Kind = "weapon_group";
+        tooHigh.WeaponGroup = 99;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { set });
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { negative, tooHigh });
 
         Assert.AreEqual(0, result.AppliedCommandIds.Count);
-        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(2, result.RejectedCommandIds.Count);
         Assert.AreEqual(0, run.ActionBarBindings.Count);
     }
 
@@ -1443,24 +1452,34 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsRejectsWeaponGroupMembershipForMissingEquipment()
+    public void DaemonOperationsRejectsInvalidWeaponGroupMembership()
     {
         var run = RunWithTwoEntities();
-        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+        var missingEquipment = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership,
             "codex",
             "session-weapon-groups",
             21,
             "zone.0.entity.0");
-        command.TargetEntityKey = "zone.0.entity.0";
-        command.EquipmentIndex = 99;
-        command.WeaponGroup = 0;
-        command.ScalarValue = 1.0;
+        missingEquipment.TargetEntityKey = "zone.0.entity.0";
+        missingEquipment.EquipmentIndex = 99;
+        missingEquipment.WeaponGroup = 0;
+        missingEquipment.ScalarValue = 1.0;
+        var negativeGroup = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership,
+            "codex",
+            "session-weapon-groups",
+            22,
+            "zone.0.entity.0");
+        negativeGroup.TargetEntityKey = "zone.0.entity.0";
+        negativeGroup.EquipmentIndex = 1;
+        negativeGroup.WeaponGroup = -1;
+        negativeGroup.ScalarValue = 1.0;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { missingEquipment, negativeGroup });
 
         Assert.AreEqual(0, result.AppliedCommandIds.Count);
-        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(2, result.RejectedCommandIds.Count);
         CollectionAssert.AreEqual(new[] { 0 }, run.Zones[0].Entities[0].WeaponGroups[0]);
     }
 

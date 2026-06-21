@@ -8637,6 +8637,7 @@ static void RequireWeaponGroupRequestAuthority(string root)
     {
         "item?.Entity?.WeaponGroups == null",
         "groupIndex >= item.Entity.WeaponGroups.Length",
+        "groupIndex < 0",
         "item.GetBehavior<Weapon>()"
     };
     var localAcceptanceHits = forbiddenLocalAcceptanceSymbols
@@ -8708,7 +8709,8 @@ static void RequireActionBarBindingRequestAuthority(string root)
         "ApplyDefaultActionBarBindings",
         "ProjectActionBarBindings",
         "ProjectActionBarBinding(slot, slot?.Binding)",
-        "Enumerable.Range(0, CurrentEntity.WeaponGroups.Length)"
+        "Enumerable.Range(0, CurrentEntity.WeaponGroups.Length)",
+        "slot == null || groupIndex < 0"
     };
 
     var legacyHits = forbiddenSymbols
