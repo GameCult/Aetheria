@@ -1,6 +1,7 @@
 param(
     [switch]$CleanBuild,
     [switch]$CleanDaemonGenerated,
+    [switch]$CleanMaterializedState,
     [switch]$CleanUnityCache,
     [switch]$CleanWwiseGenerated,
     [switch]$IncludeAgentState,
@@ -15,7 +16,24 @@ function Invoke-GitClean {
         [string[]]$Paths
     )
 
-    if ($Paths.Count -eq 0) {
+    $resolvedPaths = foreach ($path in $Paths) {
+        if ([System.Management.Automation.WildcardPattern]::ContainsWildcardCharacters($path)) {
+            Get-ChildItem -Path $path -Force -ErrorAction SilentlyContinue |
+                ForEach-Object { $_.FullName }
+            continue
+        }
+
+        if (Test-Path -LiteralPath $path) {
+            (Resolve-Path -LiteralPath $path).Path
+        }
+    }
+
+    $relativePaths = $resolvedPaths |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique |
+        ForEach-Object { Resolve-Path -LiteralPath $_ -Relative }
+
+    if ($relativePaths.Count -eq 0) {
         return
     }
 
@@ -23,7 +41,7 @@ function Invoke-GitClean {
     Write-Host "== $Label =="
 
     $mode = if ($Apply) { "-fdX" } else { "-ndX" }
-    & git clean $mode -- @Paths
+    & git clean $mode -- $relativePaths
 }
 
 function Get-PathSizeMb {
@@ -77,6 +95,7 @@ function Show-Summary {
 $anyCleanSwitch =
     $CleanBuild -or
     $CleanDaemonGenerated -or
+    $CleanMaterializedState -or
     $CleanUnityCache -or
     $CleanWwiseGenerated -or
     $IncludeAgentState
@@ -87,6 +106,7 @@ if (-not $anyCleanSwitch) {
     Write-Host "Dry-run examples:"
     Write-Host "  tools\clean-ignored-worktree.ps1 -CleanBuild"
     Write-Host "  tools\clean-ignored-worktree.ps1 -CleanDaemonGenerated"
+    Write-Host "  tools\clean-ignored-worktree.ps1 -CleanMaterializedState"
     Write-Host "  tools\clean-ignored-worktree.ps1 -CleanUnityCache"
     Write-Host ""
     Write-Host "Add -Apply to actually delete the selected ignored paths."
@@ -120,13 +140,18 @@ if ($CleanBuild) {
 }
 
 if ($CleanDaemonGenerated) {
-    Invoke-GitClean "Daemon generated CultCache and Eve sidecars" @(
+    Invoke-GitClean "Daemon generated scratch sidecars" @(
         "GameData/*.cc.daemon.*.cc",
-        "GameData/*.cc.records",
-        "GameData/*.cc.records.*",
-        "GameData/*.cultmesh",
         "GameData/*.cc.eve.pending",
         "GameData/*.cc.before-*"
+    )
+}
+
+if ($CleanMaterializedState) {
+    Invoke-GitClean "Materialized typed state backing store" @(
+        "GameData/*.cc.records",
+        "GameData/*.cc.records.*",
+        "GameData/*.cultmesh"
     )
 }
 
