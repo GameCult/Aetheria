@@ -7692,6 +7692,21 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", shieldAuthorityHits));
     }
 
+    var forbiddenActionBarIntentAcceptanceSymbols = new[]
+    {
+        "observer == null || !observer.HasAuthoritativeState || equipmentIndex < 0 || behaviorIndex < 0",
+        "observer == null || !observer.HasAuthoritativeState || weaponGroup < 0"
+    };
+    var actionBarIntentAcceptanceHits = forbiddenActionBarIntentAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (actionBarIntentAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity action-bar intent requests still reject through renderer-local index checks instead of daemon authority: " +
+            string.Join(", ", actionBarIntentAcceptanceHits));
+    }
+
     var requiredTargetAuthoritySymbols = new[]
     {
         "ApplySetTarget(run, command)",

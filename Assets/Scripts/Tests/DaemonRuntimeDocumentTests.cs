@@ -2423,18 +2423,26 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsRejectsWeaponGroupIntentForMissingGroup()
     {
         var run = RunWithTwoEntities();
-        var fire = AetheriaRuntimeDaemonCommandDocument.Create(
+        var negative = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup,
             "codex",
             "session-intents",
             33,
             "zone.0.entity.0");
-        fire.WeaponGroup = 99;
+        negative.WeaponGroup = -1;
+        var missing = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+            "codex",
+            "session-intents",
+            34,
+            "zone.0.entity.0");
+        missing.WeaponGroup = 99;
+        missing.ScalarValue = 1.0;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { fire });
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { negative, missing });
 
         Assert.AreEqual(0, result.AppliedCommandIds.Count);
-        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(2, result.RejectedCommandIds.Count);
         Assert.AreEqual(0, result.Intents.WeaponGroups.Count);
     }
 
@@ -2442,20 +2450,29 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsRejectsBehaviorIntentForMissingBehavior()
     {
         var run = RunWithTwoEntities();
-        var behavior = AetheriaRuntimeDaemonCommandDocument.Create(
+        var negative = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive,
             "codex",
             "session-intents",
             34,
             "zone.0.entity.0");
-        behavior.EquipmentIndex = 0;
-        behavior.BehaviorIndex = 99;
-        behavior.ScalarValue = 1.0;
+        negative.EquipmentIndex = -1;
+        negative.BehaviorIndex = 0;
+        negative.ScalarValue = 1.0;
+        var missing = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive,
+            "codex",
+            "session-intents",
+            35,
+            "zone.0.entity.0");
+        missing.EquipmentIndex = 0;
+        missing.BehaviorIndex = 99;
+        missing.ScalarValue = 1.0;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { behavior });
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { negative, missing });
 
         Assert.AreEqual(0, result.AppliedCommandIds.Count);
-        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(2, result.RejectedCommandIds.Count);
         Assert.AreEqual(0, result.Intents.Behaviors.Count);
     }
 

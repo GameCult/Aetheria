@@ -3956,7 +3956,7 @@ public class ActionGameManager : MonoBehaviour
     public bool TryRequestDaemonActionBarBehavior(int equipmentIndex, int behaviorIndex, bool active)
     {
         var observer = ResolveDaemonObserver();
-        if (observer == null || !observer.HasAuthoritativeState || equipmentIndex < 0 || behaviorIndex < 0)
+        if (observer == null || !observer.HasAuthoritativeState)
         {
             return false;
         }
@@ -3976,7 +3976,7 @@ public class ActionGameManager : MonoBehaviour
     public bool TryRequestDaemonActionBarWeaponGroup(int weaponGroup, bool active)
     {
         var observer = ResolveDaemonObserver();
-        if (observer == null || !observer.HasAuthoritativeState || weaponGroup < 0)
+        if (observer == null || !observer.HasAuthoritativeState)
         {
             return false;
         }
