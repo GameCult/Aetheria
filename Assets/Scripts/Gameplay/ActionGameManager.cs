@@ -617,6 +617,43 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
+    private static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(Entity entity)
+    {
+        return new AetheriaRuntimeLoadoutTemplateCommit
+        {
+            Name = entity?.Name ?? "",
+            OwnerPlayerKey = $"global:aetheria.player_settings.v1",
+            RootEntity = ProjectEntityLoadout(entity)
+        };
+    }
+
+    private static AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(Entity entity)
+    {
+        return new AetheriaRuntimeEntityLoadoutCommit
+        {
+            Name = entity?.Name ?? "",
+            Kind = entity is Ship ? "ship" : entity is OrbitalEntity ? "orbital" : "entity",
+            FactionKey = entity?.Faction?.FactionKey ?? "",
+            Hull = ProjectLoadoutItem(entity?.Hull),
+            Equipment = ProjectSlots(entity?.Equipment),
+            CargoBays = ProjectSlots(entity?.CargoBays),
+            DockingBays = ProjectSlots(entity?.DockingBays),
+            CargoContents = ProjectCargoBays(entity?.CargoBays),
+            DockingBayContents = ProjectCargoBays(entity?.DockingBays),
+            DockingBayAssignments = entity?.DockingBays?
+                .Select(dockingBay => entity.Children.IndexOf(dockingBay.DockedShip))
+                .ToArray() ?? Array.Empty<int>(),
+            WeaponGroups = entity?.WeaponGroups?
+                .Select(group => (IReadOnlyList<int>)group.items
+                    .Select(item => entity.Equipment.IndexOf(item))
+                    .ToArray())
+                .ToArray() ?? Array.Empty<IReadOnlyList<int>>(),
+            Children = entity?.Children?
+                .Select(ProjectEntityLoadout)
+                .ToArray() ?? Array.Empty<AetheriaRuntimeEntityLoadoutCommit>()
+        };
+    }
+
     private static AetheriaRuntimeLoadoutItemSlotCommit[] ProjectSlots((int2 position, EquippableItem item)[] slots)
     {
         return slots?
@@ -625,6 +662,18 @@ public class ActionGameManager : MonoBehaviour
                 X = slot.position.x,
                 Y = slot.position.y,
                 Item = ProjectLoadoutItem(slot.item)
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+    }
+
+    private static AetheriaRuntimeLoadoutItemSlotCommit[] ProjectSlots(IEnumerable<EquippedItem> slots)
+    {
+        return slots?
+            .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = slot.Position.x,
+                Y = slot.Position.y,
+                Item = ProjectLoadoutItem(slot.EquippableItem)
             })
             .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
     }
@@ -640,6 +689,23 @@ public class ActionGameManager : MonoBehaviour
                         X = slot.position.x,
                         Y = slot.position.y,
                         Item = ProjectLoadoutItem(slot.item)
+                    })
+                    .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
+            })
+            .ToArray() ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+    }
+
+    private static AetheriaRuntimeCargoBayLoadoutCommit[] ProjectCargoBays(IEnumerable<EquippedCargoBay> bays)
+    {
+        return bays?
+            .Select(bay => new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = bay.Cargo?
+                    .Select(slot => new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = slot.Value.x,
+                        Y = slot.Value.y,
+                        Item = ProjectLoadoutItem(slot.Key)
                     })
                     .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
             })
@@ -960,9 +1026,9 @@ public class ActionGameManager : MonoBehaviour
         return ObservedGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(ObservedGalaxy.Factions, faction);
     }
 
-    public void RequestLoadoutTemplateSave(EntityConstructionBlueprint blueprint)
+    public void RequestLoadoutTemplateSave(Entity entity)
     {
-        var loadout = ProjectLoadoutTemplate(blueprint);
+        var loadout = ProjectLoadoutTemplate(entity);
         SendRuntimeLoadoutTemplateCommand(loadout, "unity-inventory", "loadout template save");
     }
 

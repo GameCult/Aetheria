@@ -10586,8 +10586,9 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "AetheriaRuntimeLoadoutTemplateCommands.cs");
     var eveBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var runtimeStateMapperPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeStateMapper.cs");
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath };
     var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
     if (missingFiles.Length > 0)
     {
@@ -10600,10 +10601,15 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var loadoutCommands = File.ReadAllText(loadoutCommandsPath);
     var eveBridge = File.ReadAllText(eveBridgePath);
     var runtimeStateMapper = File.ReadAllText(runtimeStateMapperPath);
+    var inventoryPanel = File.ReadAllText(inventoryPanelPath);
 
     var requiredActionSymbols = new[]
     {
-        "RequestLoadoutTemplateSave",
+        "RequestLoadoutTemplateSave(Entity entity)",
+        "ProjectLoadoutTemplate(Entity entity)",
+        "ProjectEntityLoadout(Entity entity)",
+        "ProjectSlots(IEnumerable<EquippedItem> slots)",
+        "ProjectCargoBays(IEnumerable<EquippedCargoBay> bays)",
         "SendRuntimeLoadoutTemplateCommand(loadout",
         "private static void SendRuntimeLoadoutTemplateCommand(",
         "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand",
@@ -10622,7 +10628,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate",
         "TrySendRuntimeLoadoutTemplateCommand(",
-        "private static bool TrySendRuntimeLoadoutTemplateCommand("
+        "private static bool TrySendRuntimeLoadoutTemplateCommand(",
+        "RequestLoadoutTemplateSave(EntityConstructionBlueprint blueprint)"
     };
     var forbiddenActionHits = forbiddenActionSymbols
         .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -10632,6 +10639,13 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         throw new InvalidOperationException(
             "ActionGameManager still saves loadout templates through local commit or submission-acceptance authority: " +
             string.Join(", ", forbiddenActionHits));
+    }
+
+    if (!inventoryPanel.Contains("GameManager.RequestLoadoutTemplateSave(_displayedEntity)", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still captures a Unity EntityConstructionBlueprint before submitting a typed loadout-template save.");
     }
 
     var requiredBridgeSymbols = new[]

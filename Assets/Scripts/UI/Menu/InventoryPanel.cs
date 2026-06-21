@@ -249,7 +249,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         {
             _dropdownCommands[AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout] = () =>
             {
-                GameManager.RequestLoadoutTemplateSave(EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity));
+                GameManager.RequestLoadoutTemplateSave(_displayedEntity);
             };
         }
 
