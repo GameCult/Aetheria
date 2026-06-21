@@ -126,6 +126,7 @@ namespace GameCult.Aetheria.State.Verse
             };
 
             var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(stateFilePath, frame);
+            AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var commandBoundaryPath = AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary(
                 stateFilePath,

@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 
 public class DaemonRuntimeDocumentTests
@@ -1649,6 +1650,94 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Heat, stored.Columns[0].Kind);
         Assert.AreEqual(1, stored.DirtyRanges.Count);
         Assert.AreEqual(256, stored.DirtyRanges[0].Count);
+    }
+
+    [Test]
+    public void SoaFramePublisherPublishesMappableCurrentZoneEntitySlab()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-daemon-soa-frame-publisher-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "run-soa-frame",
+                CurrentZoneIndex = 2,
+                CurrentEntityKey = "entity:player",
+                Zones = new[]
+                {
+                    new AetheriaRuntimeZoneSnapshotCommit
+                    {
+                        ZoneIndex = 1,
+                        Entities = new[]
+                        {
+                            new AetheriaRuntimeEntitySnapshotCommit
+                            {
+                                EntityIndex = 99,
+                                PositionX = 999
+                            }
+                        }
+                    },
+                    new AetheriaRuntimeZoneSnapshotCommit
+                    {
+                        ZoneIndex = 2,
+                        Entities = new[]
+                        {
+                            new AetheriaRuntimeEntitySnapshotCommit
+                            {
+                                EntityIndex = 7,
+                                PositionX = 12,
+                                PositionY = 3,
+                                PositionZ = 34,
+                                DirectionX = 1,
+                                DirectionY = 0,
+                                VelocityX = 5,
+                                VelocityY = 6,
+                                IsActive = true
+                            },
+                            new AetheriaRuntimeEntitySnapshotCommit
+                            {
+                                EntityIndex = 3,
+                                PositionX = -2,
+                                PositionY = 4,
+                                PositionZ = -8,
+                                IsActive = false
+                            }
+                        }
+                    }
+                }
+            },
+            "aetheria-daemon",
+            "session-soa-frame",
+            44,
+            1.0,
+            0.02);
+
+        var view = AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(statePath, frame);
+        Assert.IsTrue(AetheriaRuntimeDaemonSoaViewStore.TryReadView(statePath, out var stored));
+        Assert.AreEqual(view.Generation, stored.Generation);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, stored.Backend);
+        Assert.AreEqual(1, stored.Buffers.Count);
+        Assert.IsFalse(stored.Buffers[0].ObserverWritable);
+        Assert.AreEqual(14, stored.Columns.Count);
+        Assert.AreEqual(1, stored.RenderGroups.Count);
+        Assert.AreEqual(2, stored.RenderGroups[0].InstanceCount);
+
+        var index = AetheriaRuntimeDaemonSoaViewIndex.Build(stored);
+        Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.PositionX, out var positionX));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ, out var velocityZ));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility, out var visibility));
+
+        using var memory = MemoryMappedFile.OpenExisting(stored.Buffers[0].Location, MemoryMappedFileRights.Read);
+        using var accessor = memory.CreateViewAccessor(0, stored.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
+        Assert.AreEqual(-2f, accessor.ReadSingle(positionX.AbsoluteByteOffset), 0.0001f);
+        Assert.AreEqual(12f, accessor.ReadSingle(positionX.AbsoluteByteOffset + positionX.Column.ElementStride), 0.0001f);
+        Assert.AreEqual(6f, accessor.ReadSingle(velocityZ.AbsoluteByteOffset + velocityZ.Column.ElementStride), 0.0001f);
+        Assert.AreEqual(0, accessor.ReadByte(visibility.AbsoluteByteOffset));
+        Assert.AreEqual(1, accessor.ReadByte(visibility.AbsoluteByteOffset + visibility.Column.ElementStride));
     }
 
     [Test]

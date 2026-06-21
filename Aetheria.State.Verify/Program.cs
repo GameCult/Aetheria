@@ -7396,6 +7396,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
     var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
+    var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
@@ -7418,6 +7419,7 @@ static void RequireDaemonVersePublication(string root)
         daemonTickRunnerPath,
         daemonPublicationStorePath,
         daemonSoaDocumentsPath,
+        daemonSoaFramePublisherPath,
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
@@ -7449,6 +7451,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
     var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
+    var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
@@ -7501,6 +7504,33 @@ static void RequireDaemonVersePublication(string root)
     if (!daemonSoaDocuments.Contains("[CultDocument(\"gamecult.aetheria.daemon_soa_view\", \"gamecult.aetheria.daemon_soa_view.v1\")]", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("Daemon SoA view is no longer a registered CultCache/CultNet document.");
+    }
+
+    var requiredSoaFramePublisherSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonSoaFramePublisher",
+        "PublishCurrentZoneEntities(",
+        "AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile",
+        "MemoryMappedFile.CreateOrOpen(",
+        "ObserverWritable = false",
+        "AetheriaRuntimeDaemonSoaColumnKinds.PositionX",
+        "AetheriaRuntimeDaemonSoaColumnKinds.PositionY",
+        "AetheriaRuntimeDaemonSoaColumnKinds.PositionZ",
+        "AetheriaRuntimeDaemonSoaColumnKinds.VelocityX",
+        "AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ",
+        "AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyRadius",
+        "AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility",
+        "AetheriaRuntimeDaemonSoaColumnKinds.RenderGroupId",
+        "AetheriaRuntimeDaemonSoaViewStore.PublishView(stateFilePath, view)"
+    };
+    var missingSoaFramePublisherSymbols = requiredSoaFramePublisherSymbols
+        .Where(symbol => !daemonSoaFramePublisher.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSoaFramePublisherSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon SoA frame publisher no longer turns authoritative frames into observer-readable direct-memory slabs: " +
+            string.Join(", ", missingSoaFramePublisherSymbols));
     }
 
     var requiredBoundarySymbols = new[]
@@ -7709,6 +7739,7 @@ static void RequireDaemonVersePublication(string root)
         "VerseId",
         "CultMeshAddress",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
+        "AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
         "AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary",
         "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement",
