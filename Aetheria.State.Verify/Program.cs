@@ -8671,7 +8671,11 @@ static void RequireActionBarBindingRequestAuthority(string root)
     {
         "var newbinds = Enumerable.Range(0, 64)",
         ".Zip(\r\n                    bindings,",
-        "groupIndex >= CurrentEntity.WeaponGroups.Length"
+        "groupIndex >= CurrentEntity.WeaponGroups.Length",
+        "ApplyDefaultActionBarBindings",
+        "ProjectActionBarBindings",
+        "ProjectActionBarBinding(slot, slot?.Binding)",
+        "Enumerable.Range(0, CurrentEntity.WeaponGroups.Length)"
     };
 
     var legacyHits = forbiddenSymbols

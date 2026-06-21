@@ -585,53 +585,6 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeActionBarBindingCommit[] ProjectActionBarBindings()
-    {
-        return _actionBarSlots?
-            .Select(ProjectActionBarBinding)
-            .Where(binding => binding != null)
-            .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
-    }
-
-    private static AetheriaRuntimeActionBarBindingCommit ProjectActionBarBinding(ActionBarSlot slot)
-    {
-        return ProjectActionBarBinding(slot, slot?.Binding);
-    }
-
-    private static AetheriaRuntimeActionBarBindingCommit ProjectActionBarBinding(
-        ActionBarSlot slot,
-        ActionBarBinding binding)
-    {
-        switch (binding)
-        {
-            case ActionBarConsumableBinding consumable:
-                return new AetheriaRuntimeActionBarBindingCommit
-                {
-                    ControlPath = slot.ControlPath ?? "",
-                    Kind = "consumable",
-                    ItemKey = consumable.TargetItemKey
-                };
-            case ActionBarGearBinding gear:
-                return new AetheriaRuntimeActionBarBindingCommit
-                {
-                    ControlPath = slot.ControlPath ?? "",
-                    Kind = "gear",
-                    ItemKey = gear.TargetItemKey,
-                    EquipmentIndex = gear.EquipmentIndex,
-                    BehaviorIndex = gear.BehaviorIndex
-                };
-            case ActionBarWeaponGroupBinding weaponGroup:
-                return new AetheriaRuntimeActionBarBindingCommit
-                {
-                    ControlPath = slot.ControlPath ?? "",
-                    Kind = "weapon_group",
-                    WeaponGroup = weaponGroup.Group
-                };
-            default:
-                return null;
-        }
-    }
-
     private static AetheriaRuntimeActionBarBindingCommit ToActionBarBindingCommit(
         AetheriaRuntimeActionBarBindingSnapshot binding)
     {
@@ -751,10 +704,7 @@ public class ActionGameManager : MonoBehaviour
             return;
 
         if (bindings == null || bindings.Count == 0)
-        {
-            ApplyDefaultActionBarBindings();
             return;
-        }
 
         var slotsByControlPath = _actionBarSlots
             .Where(slot => !string.IsNullOrWhiteSpace(slot?.ControlPath))
@@ -773,18 +723,6 @@ public class ActionGameManager : MonoBehaviour
             var slotBinding = CreateActionBarBinding(slot, CurrentEntity, binding);
             if (slotBinding != null)
                 slot.Binding = slotBinding;
-        }
-    }
-
-    private void ApplyDefaultActionBarBindings()
-    {
-        if (CurrentEntity?.WeaponGroups == null || _actionBarSlots == null)
-            return;
-
-        foreach (var pair in Enumerable.Range(0, CurrentEntity.WeaponGroups.Length)
-                     .Zip(_actionBarSlots, (groupIndex, slot) => (groupIndex, slot)))
-        {
-            pair.slot.Binding = new ActionBarWeaponGroupBinding(CurrentEntity, pair.slot, pair.groupIndex);
         }
     }
 
@@ -3321,7 +3259,7 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        var resolvedActionBarBindings = actionBarBindings ?? ProjectActionBarBindings();
+        var resolvedActionBarBindings = actionBarBindings ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
         CurrentEntity = entity;
         DeathPost.weight = 0;
         ZoneRenderer.PerspectiveEntity = CurrentEntity;
