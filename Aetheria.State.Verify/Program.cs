@@ -1501,8 +1501,9 @@ static void RequireTypedOrbitConsumerKeys(string root)
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
             "body => body.OrbitKey == orbit.OrbitKey",
-            "Zone.GetOrbitPosition(planetInstance.OrbitKey)",
-            "Zone.GetOrbitPosition(planetInstance.Orbit.ParentOrbitKey)"
+            "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
+            "var p = new float2((float)pose.CenterX, (float)pose.CenterZ);",
+            "var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);"
         },
         [Path.Combine(root, "Assets", "Scripts", "ServerShared", "Behaviors", "ResourceScanner.cs")] = new[]
         {
@@ -1812,7 +1813,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "TryResolveBodyCenter(body, orbitPositions, out var center)",
         "public static double EvaluateGravityTerrainHeight(",
         "zone.GravityTerrainRadius",
-        "zone.GravityTerrainWaveFrequency"
+        "zone.GravityTerrainWaveFrequency",
+        "public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(",
+        "public static int QueryBodyPoses(",
+        "new AetheriaRuntimeDaemonBodyPose("
     };
 
     var missingQuerySymbols = requiredQuerySymbols
@@ -1878,12 +1882,22 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must evaluate gravity terrain from daemon render queries instead of the mirrored Unity Zone height evaluator.");
     }
 
+    if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must position bodies from daemon render body poses instead of the mirrored Unity Zone orbit evaluator.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
+        "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
+        "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
-        "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight("
+        "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
+        "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
+        "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)"
     };
     var missingZoneRendererSymbols = requiredZoneRendererSymbols
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))

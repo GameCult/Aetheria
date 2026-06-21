@@ -86,6 +86,9 @@ public class ZoneRenderer : MonoBehaviour
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
+    private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses = new List<AetheriaRuntimeDaemonBodyPose>();
+    private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey =
+        new Dictionary<string, AetheriaRuntimeDaemonBodyPose>(StringComparer.Ordinal);
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -466,6 +469,7 @@ public class ZoneRenderer : MonoBehaviour
         // }
         
         Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
+        RefreshDaemonBodyPoses();
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
@@ -504,8 +508,11 @@ public class ZoneRenderer : MonoBehaviour
 
         foreach (var planet in Planets)
         {
+            if (!_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose))
+                continue;
+
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.OrbitKey);
+            var p = new float2((float)pose.CenterX, (float)pose.CenterZ);
             var height = GetTerrainHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
@@ -513,10 +520,11 @@ public class ZoneRenderer : MonoBehaviour
             if (planet.Value is GasGiantObject gasGiantObject)
             {
                 gasGiantObject.GravityWaves.material.SetFloat("_Phase",
-                    Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
+                Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(planetInstance.Orbit.ParentOrbitKey) - p);
+                    var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);
+                    var toParent = normalize(parent - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -562,6 +570,17 @@ public class ZoneRenderer : MonoBehaviour
         // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
+    }
+
+    private void RefreshDaemonBodyPoses()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);
+        _daemonBodyPosesByBodyKey.Clear();
+        foreach (var pose in _daemonBodyPoses)
+        {
+            if (!string.IsNullOrWhiteSpace(pose.BodyKey))
+                _daemonBodyPosesByBodyKey[pose.BodyKey] = pose;
+        }
     }
 
     private float GetTerrainHeight(float2 position)

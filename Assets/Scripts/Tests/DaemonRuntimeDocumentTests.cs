@@ -731,6 +731,60 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishBodyPosesFromZoneSnapshot()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Orbits = new[]
+            {
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:parent",
+                    FixedPositionX = 10,
+                    FixedPositionY = 20
+                },
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:child",
+                    ParentOrbitKey = "orbit:parent",
+                    Distance = 5,
+                    Phase = 0.25
+                }
+            },
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:child",
+                    OrbitKey = "orbit:child",
+                    Kind = "planet"
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:explicit",
+                    OrbitKey = "orbit:missing",
+                    Kind = "gas_giant",
+                    GravityInfluenceCenterX = -3,
+                    GravityInfluenceCenterZ = 7
+                }
+            }
+        };
+
+        var poses = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone);
+
+        Assert.AreEqual(2, poses.Length);
+        Assert.AreEqual("body:child", poses[0].BodyKey);
+        Assert.AreEqual("orbit:parent", poses[0].ParentOrbitKey);
+        Assert.AreEqual(10, poses[0].CenterX, 0.0001);
+        Assert.AreEqual(25, poses[0].CenterZ, 0.0001);
+        Assert.AreEqual(10, poses[0].ParentCenterX, 0.0001);
+        Assert.AreEqual(20, poses[0].ParentCenterZ, 0.0001);
+        Assert.AreEqual("body:explicit", poses[1].BodyKey);
+        Assert.AreEqual(-3, poses[1].CenterX, 0.0001);
+        Assert.AreEqual(7, poses[1].CenterZ, 0.0001);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(

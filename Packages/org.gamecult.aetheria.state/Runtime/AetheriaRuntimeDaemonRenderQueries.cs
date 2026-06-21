@@ -69,6 +69,38 @@ namespace GameCult.Aetheria.State.Verse
         public double WaveSpeed { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonBodyPose
+    {
+        public AetheriaRuntimeDaemonBodyPose(
+            string bodyKey,
+            string orbitKey,
+            string parentOrbitKey,
+            string kind,
+            double centerX,
+            double centerZ,
+            double parentCenterX,
+            double parentCenterZ)
+        {
+            BodyKey = bodyKey ?? "";
+            OrbitKey = orbitKey ?? "";
+            ParentOrbitKey = parentOrbitKey ?? "";
+            Kind = kind ?? "";
+            CenterX = centerX;
+            CenterZ = centerZ;
+            ParentCenterX = parentCenterX;
+            ParentCenterZ = parentCenterZ;
+        }
+
+        public string BodyKey { get; }
+        public string OrbitKey { get; }
+        public string ParentOrbitKey { get; }
+        public string Kind { get; }
+        public double CenterX { get; }
+        public double CenterZ { get; }
+        public double ParentCenterX { get; }
+        public double ParentCenterZ { get; }
+    }
+
     public static class AetheriaRuntimeDaemonRenderQueries
     {
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
@@ -117,6 +149,49 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return brushes.Count;
+        }
+
+        public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone)
+        {
+            var poses = new List<AetheriaRuntimeDaemonBodyPose>();
+            QueryBodyPoses(zone, poses);
+            return poses.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonBodyPose>() : poses.ToArray();
+        }
+
+        public static int QueryBodyPoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            List<AetheriaRuntimeDaemonBodyPose> poses)
+        {
+            if (poses == null) throw new ArgumentNullException(nameof(poses));
+            poses.Clear();
+            if (zone == null)
+                return 0;
+
+            var orbitPositions = BuildOrbitPositions(zone);
+            var orbits = BuildOrbitMap(zone);
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (body == null || !TryResolveBodyCenter(body, orbitPositions, out var center))
+                    continue;
+
+                var orbitKey = body.OrbitKey ?? "";
+                var parentOrbitKey = orbits.TryGetValue(orbitKey, out var orbit) ? orbit.ParentOrbitKey ?? "" : "";
+                var parentCenter = orbitPositions.TryGetValue(parentOrbitKey, out var parent)
+                    ? parent
+                    : new AetheriaRuntimeXzPoint(0, 0);
+                poses.Add(new AetheriaRuntimeDaemonBodyPose(
+                    body.BodyKey,
+                    orbitKey,
+                    parentOrbitKey,
+                    body.Kind,
+                    center.x,
+                    center.z,
+                    parentCenter.x,
+                    parentCenter.z));
+            }
+
+            return poses.Count;
         }
 
         public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(
@@ -211,12 +286,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)
         {
-            var source = new Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit>(StringComparer.Ordinal);
-            foreach (var orbit in zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
-            {
-                if (orbit != null && !string.IsNullOrWhiteSpace(orbit.OrbitKey))
-                    source[orbit.OrbitKey] = orbit;
-            }
+            var source = BuildOrbitMap(zone);
 
             var positions = new Dictionary<string, AetheriaRuntimeXzPoint>(StringComparer.Ordinal)
             {
@@ -226,6 +296,19 @@ namespace GameCult.Aetheria.State.Verse
                 ResolveOrbitPosition(orbitKey, source, positions);
 
             return positions;
+        }
+
+        private static Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit> BuildOrbitMap(
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var source = new Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit>(StringComparer.Ordinal);
+            foreach (var orbit in zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>())
+            {
+                if (orbit != null && !string.IsNullOrWhiteSpace(orbit.OrbitKey))
+                    source[orbit.OrbitKey] = orbit;
+            }
+
+            return source;
         }
 
         private static AetheriaRuntimeXzPoint ResolveOrbitPosition(
