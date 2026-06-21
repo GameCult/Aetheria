@@ -233,9 +233,9 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             }
         }
 
-        if (GameManager.DockingBay != null && _displayedCargo != GameManager.DockingBay)
+        if (GameManager.TryGetObservedDockingBay(out var dockingBay) && _displayedCargo != dockingBay)
         {
-            _dropdownCommands[AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay] = () => Display(GameManager.DockingBay);
+            _dropdownCommands[AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay] = () => Display(dockingBay);
         }
 
         if (_displayedEntity != null)
@@ -341,7 +341,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             }
         }
 
-        if (_dropdownCommands.ContainsKey(AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay))
+        if (_dropdownCommands.ContainsKey(AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay) &&
+            GameManager.TryGetObservedDockingBay(out var dockingBay))
         {
             groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
                 $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.dockingBay.card",
@@ -350,7 +351,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     new AetheriaRuntimeInventoryDropdownOption(
                         $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.dockingBay.select",
-                        GameManager.DockingBay.Name,
+                        dockingBay.Name,
                         AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay)
                 }));
         }

@@ -3918,7 +3918,9 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
 
     var requiredDockedStoryObserverSymbols = new[]
     {
-        "public bool IsObservedDocked => DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out _);",
+        "public bool IsObservedDocked => TryGetObservedDockingBay(out _);",
+        "public bool TryGetObservedDockingBay(out EquippedDockingBay dockingBay)",
+        "TryResolveDaemonDockingBay(CurrentEntity, out var dockParent, out var resolvedDockingBay)",
         "public bool TryGetObservedDockedLocalStory(out LocationStory story)",
         "TryGetObservedDockedLocalStory(out _currentLocation)"
     };
@@ -4406,7 +4408,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "CountAvailablePlayerShips(",
-        "GameManager.IsObservedDocked",
+        "GameManager.TryGetObservedDockingBay(out var dockingBay)",
         "GameManager.AvailableEntities()"
     };
 
@@ -4436,7 +4438,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "_cargoSelectionCommands.TryGetValue(request.Command",
         "GameManager.DockedEntity.Children",
         "GameManager.CurrentEntity.Parent.Children",
-        "GameManager.DockedEntity == null"
+        "GameManager.DockedEntity == null",
+        "GameManager.DockingBay"
     };
 
     var hits = forbiddenSymbols
@@ -4699,6 +4702,7 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
 static void RequireInventoryDropdownUseEveSurface(string root)
 {
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var inventoryDropdownSurfaceBuilderPath = Path.Combine(
         root,
         "Packages",
@@ -4709,12 +4713,17 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     {
         throw new InvalidOperationException("Cannot verify inventory dropdown shell; InventoryPanel.cs is missing.");
     }
+    if (!File.Exists(inventoryMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify inventory dropdown shell; InventoryMenu.cs is missing.");
+    }
     if (!File.Exists(inventoryDropdownSurfaceBuilderPath))
     {
         throw new InvalidOperationException("Cannot verify inventory dropdown shell; shared runtime inventory dropdown surface builder is missing.");
     }
 
     var source = File.ReadAllText(inventoryPanelPath);
+    var inventoryMenu = File.ReadAllText(inventoryMenuPath);
     var inventoryDropdownSurfaceBuilder = File.ReadAllText(inventoryDropdownSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
@@ -4730,7 +4739,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "AetheriaRuntimeInventoryDropdownCommandKind.Close",
         "AetheriaRuntimeInventoryDropdownCommandKind.Select",
         "AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(",
-        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand("
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(",
+        "GameManager.TryGetObservedDockingBay(out var dockingBay)"
     };
 
     var missingSymbols = requiredSymbols
@@ -4760,7 +4770,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "ContextMenu.AddDropdown(\"Restore Loadout\"",
         "ContextMenu.Show();",
         "string.Equals(request.Command, AetheriaRuntimeInventoryDropdownSurfaceBuilder.Close",
-        "_dropdownCommands.TryGetValue(request.Command"
+        "_dropdownCommands.TryGetValue(request.Command",
+        "GameManager.DockingBay"
     };
 
     var hits = forbiddenSymbols
@@ -4772,6 +4783,13 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         throw new InvalidOperationException(
             "InventoryPanel still owns dropdown behavior through the old ContextMenu path: " +
             string.Join(", ", hits));
+    }
+
+    if (!inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu must open against daemon-observed docking bay state instead of peeking GameManager.DockingBay directly.");
     }
 
     var requiredBuilderSymbols = new[]

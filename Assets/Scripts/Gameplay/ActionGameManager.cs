@@ -494,12 +494,26 @@ public class ActionGameManager : MonoBehaviour
         set => _currentEntity = value;
     }
 
-    public bool IsObservedDocked => DockedEntity != null && TryGetDaemonEntitySnapshot(DockedEntity, out _);
+    public bool IsObservedDocked => TryGetObservedDockingBay(out _);
+
+    public bool TryGetObservedDockingBay(out EquippedDockingBay dockingBay)
+    {
+        dockingBay = null;
+        if (CurrentEntity == null ||
+            !TryResolveDaemonDockingBay(CurrentEntity, out var dockParent, out var resolvedDockingBay) ||
+            !ReferenceEquals(dockParent, DockedEntity))
+        {
+            return false;
+        }
+
+        dockingBay = resolvedDockingBay;
+        return true;
+    }
 
     public bool TryGetObservedDockedLocalStory(out LocationStory story)
     {
         story = null;
-        if (!IsObservedDocked || DockedEntity is not OrbitalEntity { Story: { } dockedStory })
+        if (!TryGetObservedDockingBay(out _) || DockedEntity is not OrbitalEntity { Story: { } dockedStory })
             return false;
 
         story = dockedStory;

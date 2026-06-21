@@ -48,8 +48,8 @@ public class TradeMenu : MonoBehaviour
     
     private void OnEnable()
     {
-        if (!GameManager.IsObservedDocked) return;
-        _targetCargo = GameManager.DockingBay;
+        if (!GameManager.TryGetObservedDockingBay(out var dockingBay)) return;
+        _targetCargo = dockingBay;
         TargetCargoLabel.text = "Docking Bay";
         HideCargoSelectorSurface();
         HideFilterSurface();
@@ -1039,14 +1039,14 @@ public class TradeMenu : MonoBehaviour
     {
         _cargoSelectionCommands.Clear();
 
-        if (GameManager.DockingBay != null && _targetCargo != GameManager.DockingBay)
+        if (!GameManager.TryGetObservedDockingBay(out var dockingBay))
+            return;
+
+        if (_targetCargo != dockingBay)
         {
             _cargoSelectionCommands[AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.DockingBay] =
-                (GameManager.DockingBay, "Docking Bay");
+                (dockingBay, "Docking Bay");
         }
-
-        if (GameManager.DockingBay == null)
-            return;
 
         foreach (var ship in GameManager.AvailableEntities()
                      .OfType<Ship>()
