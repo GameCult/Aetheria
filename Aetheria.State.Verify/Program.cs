@@ -6838,7 +6838,7 @@ static void RequireTypedEveCommandBodies(string root)
         "global::Aetheria.State.AetheriaCommandPort",
         "public const string DefaultRuntimeId = \"aetheria-command-client\"",
         "string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId",
-        "public static class AetheriaRuntimeCommandSubmitter",
+        "internal static class AetheriaRuntimeCommandSubmitter",
         "TrySubmitEveCommand(",
         "TrySubmitDaemonCommand(",
         "CreatePlayerSettingsCommand(",
@@ -6940,6 +6940,12 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Shared command runtime still uses Unity-specific fallback runtime ids: " +
             string.Join(", ", sharedCommandRuntimeIdHits));
+    }
+
+    if (runtimeCommandPort.Contains("public static class AetheriaRuntimeCommandSubmitter", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared command runtime still exposes the generic transport submitter publicly instead of routing callers through typed clients.");
     }
 
     var forbiddenUnitySubmitterSymbols = new[]

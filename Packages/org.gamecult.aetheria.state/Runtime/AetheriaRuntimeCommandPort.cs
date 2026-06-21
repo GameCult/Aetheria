@@ -185,7 +185,7 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
-    public static class AetheriaRuntimeCommandSubmitter
+    internal static class AetheriaRuntimeCommandSubmitter
     {
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, AetheriaRuntimeCommandPort> Ports =
