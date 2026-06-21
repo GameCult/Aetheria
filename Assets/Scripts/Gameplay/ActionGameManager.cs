@@ -853,7 +853,14 @@ public class ActionGameManager : MonoBehaviour
 
     private static int ZoneIndex(GalaxyZone zone)
     {
-        return ObservedGalaxy?.Zones == null || zone == null ? -1 : Array.IndexOf(ObservedGalaxy.Zones, zone);
+        return zone?.ZoneIndex ?? -1;
+    }
+
+    private static GalaxyZone FindObservedGalaxyZone(int daemonZoneIndex)
+    {
+        return daemonZoneIndex < 0
+            ? null
+            : ObservedGalaxy?.Zones?.FirstOrDefault(zone => zone != null && zone.ZoneIndex == daemonZoneIndex);
     }
 
     public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(GalaxyZone zone)
@@ -872,11 +879,7 @@ public class ActionGameManager : MonoBehaviour
         get
         {
             var run = ResolveDaemonObserver()?.LastObservedState?.Run;
-            return run?.CurrentZoneIndex >= 0 &&
-                   ObservedGalaxy?.Zones != null &&
-                   run.CurrentZoneIndex < ObservedGalaxy.Zones.Length
-                ? ObservedGalaxy.Zones[run.CurrentZoneIndex]
-                : null;
+            return FindObservedGalaxyZone(run?.CurrentZoneIndex ?? -1);
         }
     }
 
@@ -2231,9 +2234,7 @@ public class ActionGameManager : MonoBehaviour
             return false;
         }
 
-        var targetZone = run.CurrentZoneIndex < ObservedGalaxy.Zones.Length
-            ? ObservedGalaxy.Zones[run.CurrentZoneIndex]
-            : null;
+        var targetZone = FindObservedGalaxyZone(run.CurrentZoneIndex);
         if (targetZone == null)
         {
             Debug.LogWarning($"Authoritative daemon frame references missing zone index {run.CurrentZoneIndex}.");

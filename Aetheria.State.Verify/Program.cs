@@ -8062,6 +8062,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ResolveDaemonObserver()",
         "public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(GalaxyZone zone)",
         "public GalaxyZone CurrentDaemonGalaxyZone",
+        "zone?.ZoneIndex ?? -1",
+        "FindObservedGalaxyZone(run.CurrentZoneIndex)",
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
@@ -8144,10 +8146,32 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity gameplay must not cache observed runtime zone context on the projected GalaxyZone model.");
     }
 
+    if (actionGameManager.Contains("ObservedGalaxy.Zones[run.CurrentZoneIndex]", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay must resolve observed zones by daemon zone identity, not projected array slot.");
+    }
+
     if (galaxy.Contains("public Zone Contents", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Projected GalaxyZone must not own Unity runtime Zone contents; observed zone context belongs to the client lowerer.");
+    }
+
+    var requiredObservedZoneIdentitySymbols = new[]
+    {
+        "public int ZoneIndex = -1;",
+        "ZoneIndex = zone.ZoneIndex,",
+        "new GalaxyZone { ZoneIndex = index, Position = v }"
+    };
+    var missingObservedZoneIdentitySymbols = requiredObservedZoneIdentitySymbols
+        .Where(symbol => !galaxy.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingObservedZoneIdentitySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Projected GalaxyZone no longer preserves daemon zone identity: " +
+            string.Join(", ", missingObservedZoneIdentitySymbols));
     }
 
     var contextPrepRendererLoads = FindMethodScopedLineHits(

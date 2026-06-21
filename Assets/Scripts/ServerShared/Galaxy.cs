@@ -124,6 +124,7 @@ public class Galaxy
             .OrderBy(zone => zone.ZoneIndex)
             .Select(zone => new GalaxyZone
             {
+                ZoneIndex = zone.ZoneIndex,
                 Name = string.IsNullOrWhiteSpace(zone.Name) ? $"Daemon Zone {zone.ZoneIndex}" : zone.Name,
                 Position = new float2((float)zone.PositionX, (float)zone.PositionY),
                 Factions = ResolveDaemonZoneFactions(zone),
@@ -351,7 +352,9 @@ public class Galaxy
             Background.CloudDensity,
             v => (.2f - LengthSquared(v - new float2(.5f, .5f))) * 4,
             progressCallback);
-        return outputSamples.Select(v => new GalaxyZone {Position = v}).ToArray();
+        return outputSamples
+            .Select((v, index) => new GalaxyZone { ZoneIndex = index, Position = v })
+            .ToArray();
     }
 
     private static Faction[] ProjectFactions(AetheriaRuntimeCatalogSnapshot runtimeCatalog)
@@ -736,6 +739,7 @@ public class Galaxy
 
 public class GalaxyZone
 {
+    public int ZoneIndex = -1;
     public string Name;
     public float2 Position;
     public List<GalaxyZone> AdjacentZones = new List<GalaxyZone>();
