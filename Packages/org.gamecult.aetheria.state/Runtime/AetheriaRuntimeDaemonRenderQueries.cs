@@ -51,20 +51,35 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeDaemonRenderSettings(
             AetheriaRuntimeExponentialCurve temperatureEmissionCurve,
+            AetheriaRuntimeExponentialLerp lockIndicatorFrequency,
+            AetheriaRuntimeExponentialLerp lockSpinSpeed,
             double convergenceMinimumDistance,
             double hypothermiaTemperature,
-            double heatstrokeTemperature)
+            double heatstrokeTemperature,
+            double severeHeatstrokeRiskThreshold,
+            double targetDetectionInfoThreshold,
+            double lockIndicatorNoiseAmplitude)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
+            LockIndicatorFrequency = lockIndicatorFrequency;
+            LockSpinSpeed = lockSpinSpeed;
             ConvergenceMinimumDistance = convergenceMinimumDistance;
             HypothermiaTemperature = hypothermiaTemperature;
             HeatstrokeTemperature = heatstrokeTemperature;
+            SevereHeatstrokeRiskThreshold = severeHeatstrokeRiskThreshold;
+            TargetDetectionInfoThreshold = targetDetectionInfoThreshold;
+            LockIndicatorNoiseAmplitude = lockIndicatorNoiseAmplitude;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
+        public AetheriaRuntimeExponentialLerp LockIndicatorFrequency { get; }
+        public AetheriaRuntimeExponentialLerp LockSpinSpeed { get; }
         public double ConvergenceMinimumDistance { get; }
         public double HypothermiaTemperature { get; }
         public double HeatstrokeTemperature { get; }
+        public double SevereHeatstrokeRiskThreshold { get; }
+        public double TargetDetectionInfoThreshold { get; }
+        public double LockIndicatorNoiseAmplitude { get; }
 
         public double NormalizeThermalRisk(double temperature)
         {
@@ -73,6 +88,69 @@ namespace GameCult.Aetheria.State.Verse
                 return temperature >= HeatstrokeTemperature ? 1.0 : 0.0;
 
             return Math.Max(0.0, Math.Min(1.0, (temperature - HypothermiaTemperature) / range));
+        }
+
+        public double NormalizeHeatstrokePost(double heatstroke)
+        {
+            if (SevereHeatstrokeRiskThreshold <= 0)
+                return heatstroke > 0 ? 1.0 : 0.0;
+
+            return Saturate(heatstroke / SevereHeatstrokeRiskThreshold);
+        }
+
+        public double NormalizeSevereHeatstrokePost(double heatstroke)
+        {
+            var range = 1.0 - SevereHeatstrokeRiskThreshold;
+            if (range <= 0)
+                return heatstroke >= 1.0 ? 1.0 : 0.0;
+
+            return Saturate((heatstroke - SevereHeatstrokeRiskThreshold) / range);
+        }
+
+        public double NormalizeDetectionProgress(double infoGathered)
+        {
+            return TargetDetectionInfoThreshold <= 0
+                ? (infoGathered > 0 ? 1.0 : 0.0)
+                : Saturate(infoGathered / TargetDetectionInfoThreshold);
+        }
+
+        public double NormalizeTargetVisibilityFill(double infoGathered)
+        {
+            var denominator = 1.0 - TargetDetectionInfoThreshold;
+            var normalized = denominator <= 0
+                ? (infoGathered >= 1.0 ? 1.0 : 0.0)
+                : (infoGathered - TargetDetectionInfoThreshold) / denominator;
+            return Lerp(0.25, 0.75, normalized);
+        }
+
+        public double NormalizeVisibilityToTargetFill(double infoGathered)
+        {
+            return Lerp(0.25, 0.75, NormalizeDetectionProgress(infoGathered));
+        }
+
+        public double ResolveLockIndicatorNoiseAmplitude(double lockProgress)
+        {
+            return LockIndicatorNoiseAmplitude * (1.0 - Saturate(lockProgress));
+        }
+
+        public double ResolveLockIndicatorNoiseFrequency(double lockProgress)
+        {
+            return LockIndicatorFrequency.Evaluate(lockProgress);
+        }
+
+        public double ResolveLockSpinSpeed(double lockProgress)
+        {
+            return LockSpinSpeed.Evaluate(lockProgress);
+        }
+
+        private static double Saturate(double value)
+        {
+            return Math.Max(0.0, Math.Min(1.0, value));
+        }
+
+        private static double Lerp(double minimum, double maximum, double value)
+        {
+            return minimum + Saturate(value) * (maximum - minimum);
         }
     }
 

@@ -1820,8 +1820,21 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double ConvergenceMinimumDistance { get; }",
         "public double HypothermiaTemperature { get; }",
         "public double HeatstrokeTemperature { get; }",
+        "public double SevereHeatstrokeRiskThreshold { get; }",
+        "public double TargetDetectionInfoThreshold { get; }",
+        "public double LockIndicatorNoiseAmplitude { get; }",
         "public double NormalizeThermalRisk(double temperature)",
+        "public double NormalizeHeatstrokePost(double heatstroke)",
+        "public double NormalizeSevereHeatstrokePost(double heatstroke)",
+        "public double NormalizeDetectionProgress(double infoGathered)",
+        "public double NormalizeTargetVisibilityFill(double infoGathered)",
+        "public double NormalizeVisibilityToTargetFill(double infoGathered)",
+        "public double ResolveLockIndicatorNoiseAmplitude(double lockProgress)",
+        "public double ResolveLockIndicatorNoiseFrequency(double lockProgress)",
+        "public double ResolveLockSpinSpeed(double lockProgress)",
         "public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }",
+        "public AetheriaRuntimeExponentialLerp LockIndicatorFrequency { get; }",
+        "public AetheriaRuntimeExponentialLerp LockSpinSpeed { get; }",
         "public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(",
         "AetheriaRuntimeZoneSnapshotCommit? zone",
         "public static int QueryGravityInfluences(",
@@ -2170,6 +2183,50 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         throw new InvalidOperationException(
             "HUD thermal presentation no longer flows through the shared daemon render settings bridge.");
+    }
+
+    var requiredActionGameManagerRenderSymbols = new[]
+    {
+        "renderSettings.NormalizeDetectionProgress(",
+        "renderSettings.NormalizeHeatstrokePost(",
+        "renderSettings.NormalizeSevereHeatstrokePost(",
+        "renderSettings.NormalizeTargetVisibilityFill(",
+        "renderSettings.NormalizeVisibilityToTargetFill(",
+        "renderSettings.ResolveLockIndicatorNoiseAmplitude(",
+        "renderSettings.ResolveLockIndicatorNoiseFrequency(",
+        "renderSettings.ResolveLockSpinSpeed(",
+        "new AetheriaRuntimeExponentialLerp(",
+        "Settings.GameplaySettings.TargetDetectionInfoThreshold",
+        "Settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
+        "Settings.GameplaySettings.LockIndicatorNoiseAmplitude"
+    };
+
+    var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
+        .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingActionGameManagerRenderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager no longer bridges Unity render tuning through shared daemon render settings: " +
+            string.Join(", ", missingActionGameManagerRenderSymbols));
+    }
+
+    var forbiddenRenderLoopSymbols = new[]
+    {
+        "Settings.GameplaySettings.TargetDetectionInfoThreshold",
+        "Settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
+        "Settings.GameplaySettings.LockIndicatorNoiseAmplitude",
+        "Settings.GameplaySettings.LockIndicatorFrequency",
+        "Settings.GameplaySettings.LockSpinSpeed"
+    };
+    var renderLoopHits = FindMethodScopedLineHits(actionGameManager, forbiddenRenderLoopSymbols)
+        .Where(hit => hit.MethodName is "Update" or "UpdateTargetIndicators")
+        .ToArray();
+    if (renderLoopHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager render loops must interpret observed state through shared daemon render settings instead of Unity GameSettings: " +
+            string.Join(", ", renderLoopHits.Select(hit => $"{hit.MethodName}:{hit.LineNumber}:{hit.Line.Trim()}")));
     }
 }
 

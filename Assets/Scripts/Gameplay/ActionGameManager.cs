@@ -569,9 +569,20 @@ public class ActionGameManager : MonoBehaviour
                 emissionCurve.Exponent,
                 emissionCurve.Multiplier,
                 emissionCurve.Constant),
+            new AetheriaRuntimeExponentialLerp(
+                Settings.GameplaySettings.LockIndicatorFrequency.Exponent,
+                Settings.GameplaySettings.LockIndicatorFrequency.Minimum,
+                Settings.GameplaySettings.LockIndicatorFrequency.Maximum),
+            new AetheriaRuntimeExponentialLerp(
+                Settings.GameplaySettings.LockSpinSpeed.Exponent,
+                Settings.GameplaySettings.LockSpinSpeed.Minimum,
+                Settings.GameplaySettings.LockSpinSpeed.Maximum),
             Settings.GameplaySettings.ConvergenceMinimumDistance,
             Settings.GameplaySettings.HypothermiaTemperature,
-            Settings.GameplaySettings.HeatstrokeTemperature);
+            Settings.GameplaySettings.HeatstrokeTemperature,
+            Settings.GameplaySettings.SevereHeatstrokeRiskThreshold,
+            Settings.GameplaySettings.TargetDetectionInfoThreshold,
+            Settings.GameplaySettings.LockIndicatorNoiseAmplitude);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
@@ -3344,7 +3355,7 @@ public class ActionGameManager : MonoBehaviour
             AetheriaRuntimeDaemonRenderQueries.QueryEntityContacts(
                 FindCurrentDaemonZoneSnapshot(),
                 CurrentEntity.DaemonEntityIndex,
-                Settings.GameplaySettings.TargetDetectionInfoThreshold,
+                ZoneRenderer.RenderSettings.TargetDetectionInfoThreshold,
                 true,
                 _observedVisibleContacts);
 
@@ -3644,6 +3655,7 @@ public class ActionGameManager : MonoBehaviour
             // ItemManager.Time = _time;
             if(IsCurrentEntityObservedUndocked())
             {
+                var renderSettings = ZoneRenderer.RenderSettings;
                 var observedTarget = GetObservedTarget(CurrentEntity);
                 ReconcileVisibleTargetIndicators();
                 foreach (var indicator in _visibleHostileIndicators)
@@ -3656,9 +3668,9 @@ public class ActionGameManager : MonoBehaviour
                     {
                         var infoGatheredByHostile = GetObservedInfoGathered(indicator.Key, CurrentEntity);
                         indicator.Value.Fill.fillAmount =
-                            Saturate(infoGatheredByHostile / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            (float)renderSettings.NormalizeDetectionProgress(infoGatheredByHostile);
                         indicator.Value.Fill.enabled =
-                            !(infoGatheredByHostile > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
+                            !(infoGatheredByHostile > renderSettings.TargetDetectionInfoThreshold) ||
                             Mathf.Sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
                     }
                 }
@@ -3673,7 +3685,7 @@ public class ActionGameManager : MonoBehaviour
                         indicator.Value.Fill.enabled = true;
                         var infoGatheredByFriendly = GetObservedInfoGathered(indicator.Key, CurrentEntity);
                         indicator.Value.Fill.fillAmount =
-                            Saturate(infoGatheredByFriendly / Settings.GameplaySettings.TargetDetectionInfoThreshold);
+                            (float)renderSettings.NormalizeDetectionProgress(infoGatheredByFriendly);
                     }
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
@@ -3682,8 +3694,8 @@ public class ActionGameManager : MonoBehaviour
                     Mathf.Clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * Mathf.PI, .45f * Mathf.PI));
                 _viewDirection = Quaternion.Euler(_entityYawPitch.y * Mathf.Rad2Deg, _entityYawPitch.x * Mathf.Rad2Deg, 0) * Vector3.forward;
                 RequestLookDirection(_viewDirection);
-                HeatstrokePost.weight = Saturate(Unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
-                var severeHeatstrokeLerp = Saturate(Unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
+                HeatstrokePost.weight = (float)renderSettings.NormalizeHeatstrokePost(CurrentEntity.Heatstroke);
+                var severeHeatstrokeLerp = (float)renderSettings.NormalizeSevereHeatstrokePost(CurrentEntity.Heatstroke);
                 SevereHeatstrokePost.weight =
                     severeHeatstrokeLerp + severeHeatstrokeLerp * (1 - severeHeatstrokeLerp) *
                     Mathf.Max(Settings.HeatstrokePhasingFloor, Mathf.Sin(Time.time * Settings.HeatstrokePhasingFrequency));
@@ -3697,11 +3709,10 @@ public class ActionGameManager : MonoBehaviour
                 var target = observedTarget;
                 if (target != null)
                 {
-                    var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
                     var targetInfoGathered = GetObservedInfoGathered(CurrentEntity, target);
                     var visibilityToTarget = GetObservedInfoGathered(target, CurrentEntity);
-                    TargetVisibilityFill.fillAmount = Mathf.Lerp(.25f, .75f, (targetInfoGathered - threshold) / (1 - threshold));
-                    VisibilityToTargetFill.fillAmount = Mathf.Lerp(.25f, .75f, visibilityToTarget / threshold);
+                    TargetVisibilityFill.fillAmount = (float)renderSettings.NormalizeTargetVisibilityFill(targetInfoGathered);
+                    VisibilityToTargetFill.fillAmount = (float)renderSettings.NormalizeVisibilityToTargetFill(visibilityToTarget);
                     var targetHull = FindTypedRuntimeItem(target.Hull);
                     var targetMaxDurability = targetHull?.Durability > 0
                         ? (float)targetHull.Durability
@@ -4275,9 +4286,10 @@ public class ActionGameManager : MonoBehaviour
             if(showLockingIndicator)
             {
                 indicator.Target = observedTarget.Position;
-                indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
-                indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
-                spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);
+                var renderSettings = ZoneRenderer.RenderSettings;
+                indicator.NoiseAmplitude = (float)renderSettings.ResolveLockIndicatorNoiseAmplitude(targetLock.Lock);
+                indicator.NoiseFrequency = (float)renderSettings.ResolveLockIndicatorNoiseFrequency(targetLock.Lock);
+                spin.Speed = (float)renderSettings.ResolveLockSpinSpeed(targetLock.Lock);
             }
         }
     }
