@@ -275,6 +275,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         AetheriaRuntimeEveCommandDocument command)
     {
         if (command == null) throw new ArgumentNullException(nameof(command));
+        AetheriaRuntimeEveCommandClient.NormalizeDocument(command);
         command.Schema = AetheriaRuntimeEveCommandDocument.SchemaId;
         if (string.IsNullOrWhiteSpace(command.CommandId))
             command.CommandId = Guid.NewGuid().ToString("N");
@@ -288,6 +289,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     {
         return Cache
             .GetAll<AetheriaRuntimeEveCommandDocument>()
+            .Select(AetheriaRuntimeEveCommandClient.NormalizeDocument)
             .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
             .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
             .ToArray();

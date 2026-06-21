@@ -539,7 +539,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         AetheriaRuntimeEveCommandClient.ToDocument(
             AetheriaRuntimeEveCommands.SubmitCatalogCommand(
                 statePath,
-                AetheriaRuntimeCatalogCommands.Refresh,
+                AetheriaRuntimeEveCommandKind.CatalogRefresh,
                 "aetheria-state-smoke")));
     await using (var commandVerifyNode = await AetheriaStateNode.OpenAsync(
                      statePath,
@@ -551,25 +551,31 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
         AetheriaRuntimeEveCommands.SubmitCatalogCommand(
             statePath,
-            AetheriaRuntimeCatalogCommands.Refresh,
+            AetheriaRuntimeEveCommandKind.CatalogRefresh,
             "aetheria-state-smoke")));
     await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
         AetheriaRuntimeEveCommands.SubmitPlayerSettingsCommand(
             statePath,
-            AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
+            AetheriaRuntimeEveCommandKind.IncrementSignificantDigits,
             new AetheriaRuntimePlayerSettingsCommandBody(),
             "aetheria-state-smoke")));
     await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
         AetheriaRuntimeEveCommands.SubmitPlayerSettingsCommand(
             statePath,
-            AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
+            AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap,
             new AetheriaRuntimePlayerSettingsCommandBody(),
             "aetheria-state-smoke")));
-    await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
-        AetheriaRuntimeEveCommands.SubmitCatalogCommand(
-            statePath,
-            "aetheria.catalog.unknown",
-            "aetheria-state-smoke")));
+    await node.SubmitEveCommandAsync(new AetheriaRuntimeEveCommandDocument
+    {
+        Schema = AetheriaRuntimeEveCommandDocument.SchemaId,
+        CommandId = Guid.NewGuid().ToString("N"),
+        ProviderId = "aetheria",
+        SurfaceId = AetheriaRuntimeCatalogCommands.SurfaceId,
+        Command = "aetheria.catalog.unknown",
+        Kind = AetheriaRuntimeEveCommandKind.Unknown,
+        IssuedAtUtc = DateTime.UtcNow.ToString("O"),
+        ClientId = "aetheria-state-smoke"
+    });
     var eveCommandReport = await AetheriaEveCommandBridge.AcceptObservedAsync(node);
     var eveCommandStatus = new AetheriaEveCommandAcceptanceStatus
     {

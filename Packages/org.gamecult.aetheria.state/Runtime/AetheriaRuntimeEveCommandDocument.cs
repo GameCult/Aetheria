@@ -6,6 +6,29 @@ using MessagePack;
 
 namespace GameCult.Aetheria.State.Verse
 {
+    public enum AetheriaRuntimeEveCommandKind
+    {
+        Unknown = 0,
+        CatalogRefresh = 1,
+        OperationsRefresh = 2,
+        PlayerSettingsRefresh = 3,
+        SetPlayerName = 4,
+        CycleTemperatureUnit = 5,
+        DecrementSignificantDigits = 6,
+        IncrementSignificantDigits = 7,
+        CycleNebulaQuality = 8,
+        ToggleShowAsteroidsInMinimap = 9,
+        InputSettingsRefresh = 10,
+        BeginInputCapture = 11,
+        CancelInputCapture = 12,
+        SetBindingOverride = 13,
+        ToggleActionBar = 14,
+        SetActionBarEnabled = 15,
+        SaveLoadoutTemplate = 16,
+        VerseHostRefresh = 17,
+        CycleVerseHostVisibility = 18
+    }
+
     public sealed class AetheriaRuntimeEveCommandEnvelope
     {
         public AetheriaRuntimeEveCommandEnvelope(
@@ -14,6 +37,7 @@ namespace GameCult.Aetheria.State.Verse
             string providerId,
             string surfaceId,
             string command,
+            AetheriaRuntimeEveCommandKind kind,
             string issuedAtUtc,
             string clientId,
             AetheriaRuntimePlayerSettingsCommandBody playerSettings,
@@ -26,6 +50,7 @@ namespace GameCult.Aetheria.State.Verse
             ProviderId = providerId;
             SurfaceId = surfaceId;
             Command = command;
+            Kind = kind;
             IssuedAtUtc = issuedAtUtc;
             ClientId = clientId;
             PlayerSettings = playerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody();
@@ -39,6 +64,7 @@ namespace GameCult.Aetheria.State.Verse
         public string ProviderId { get; }
         public string SurfaceId { get; }
         public string Command { get; }
+        public AetheriaRuntimeEveCommandKind Kind { get; }
         public string IssuedAtUtc { get; }
         public string ClientId { get; }
         public AetheriaRuntimePlayerSettingsCommandBody PlayerSettings { get; }
@@ -82,6 +108,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(9)]
         public AetheriaRuntimeInputSettingsCommandBody InputSettings { get; set; } = new AetheriaRuntimeInputSettingsCommandBody();
+
+        [IgnoreMember]
+        public AetheriaRuntimeEveCommandKind Kind { get; set; }
     }
 
     [MessagePackObject]

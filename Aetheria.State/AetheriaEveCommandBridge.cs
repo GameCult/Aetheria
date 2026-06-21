@@ -44,14 +44,14 @@ public static class AetheriaEveCommandBridge
                 continue;
             }
 
-            switch (command.Command)
+            switch (command.Kind)
             {
-                case AetheriaRuntimeCatalogCommands.Refresh:
+                case AetheriaRuntimeEveCommandKind.CatalogRefresh:
                     await node.PutCatalogSurfaceAsync(
                         AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), command.IssuedAtUtc)).ConfigureAwait(false);
                     report.AcceptedCatalogRefreshes++;
                     break;
-                case AetheriaRuntimeOperationsCommands.Refresh:
+                case AetheriaRuntimeEveCommandKind.OperationsRefresh:
                     var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false) ??
                         EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
                     var verseHostSettings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
@@ -63,28 +63,28 @@ public static class AetheriaEveCommandBridge
                             runtimeSession)).ConfigureAwait(false);
                     report.AcceptedOperationsRefreshes++;
                     break;
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.Refresh:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
+                case AetheriaRuntimeEveCommandKind.PlayerSettingsRefresh:
+                case AetheriaRuntimeEveCommandKind.SetPlayerName:
+                case AetheriaRuntimeEveCommandKind.CycleTemperatureUnit:
+                case AetheriaRuntimeEveCommandKind.DecrementSignificantDigits:
+                case AetheriaRuntimeEveCommandKind.IncrementSignificantDigits:
+                case AetheriaRuntimeEveCommandKind.CycleNebulaQuality:
+                case AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap:
                     await ExecutePlayerSettingsCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedPlayerSettingsCommands++;
                     break;
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.Refresh:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.SetBindingOverride:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled:
+                case AetheriaRuntimeEveCommandKind.InputSettingsRefresh:
+                case AetheriaRuntimeEveCommandKind.SetBindingOverride:
+                case AetheriaRuntimeEveCommandKind.SetActionBarEnabled:
                     await ExecuteInputSettingsCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedInputSettingsCommands++;
                     break;
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeLoadoutTemplateCommands.Save:
+                case AetheriaRuntimeEveCommandKind.SaveLoadoutTemplate:
                     await ExecuteLoadoutTemplateCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedLoadoutTemplateCommands++;
                     break;
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeVerseHostCommands.Refresh:
-                case GameCult.Aetheria.State.Verse.AetheriaRuntimeVerseHostCommands.CycleVisibility:
+                case AetheriaRuntimeEveCommandKind.VerseHostRefresh:
+                case AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility:
                     await ExecuteVerseHostCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedVerseHostCommands++;
                     break;
@@ -111,26 +111,12 @@ public static class AetheriaEveCommandBridge
             return $"Unexpected Eve command schema '{command.Schema}'.";
         if (!string.Equals(command.ProviderId, AetheriaProviderAdvertisementProjector.ProviderId, StringComparison.Ordinal))
             return $"Unexpected Eve provider '{command.ProviderId}'.";
-        if (!KnownCommand(command.SurfaceId, command.Command))
-            return $"Command '{command.Command}' is not advertised for surface '{command.SurfaceId}'.";
+        if (command.Kind == AetheriaRuntimeEveCommandKind.Unknown)
+            return $"Unknown typed Eve command kind for surface '{command.SurfaceId}' command '{command.Command}'.";
+        if (AetheriaRuntimeEveCommandClient.CommandKindForSurface(command.SurfaceId, command.Command) != command.Kind)
+            return $"Eve command '{command.Command}' does not match typed command kind '{command.Kind}'.";
 
         return "";
-    }
-
-    private static bool KnownCommand(string surfaceId, string command)
-    {
-        return (string.Equals(surfaceId, AetheriaRuntimeCatalogCommands.SurfaceId, StringComparison.Ordinal) &&
-                AetheriaRuntimeCatalogCommands.IsKnown(command)) ||
-            (string.Equals(surfaceId, AetheriaRuntimeOperationsCommands.SurfaceId, StringComparison.Ordinal) &&
-             AetheriaRuntimeOperationsCommands.IsKnown(command)) ||
-            (string.Equals(surfaceId, AetheriaPlayerSettingsSurfaceProjector.SurfaceId, StringComparison.Ordinal) &&
-             GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.IsKnown(command)) ||
-            (string.Equals(surfaceId, GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.SurfaceId, StringComparison.Ordinal) &&
-             GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.IsKnown(command)) ||
-            (string.Equals(surfaceId, GameCult.Aetheria.State.Verse.AetheriaRuntimeLoadoutTemplateCommands.SurfaceId, StringComparison.Ordinal) &&
-             GameCult.Aetheria.State.Verse.AetheriaRuntimeLoadoutTemplateCommands.IsKnown(command)) ||
-            (string.Equals(surfaceId, GameCult.Aetheria.State.Verse.AetheriaRuntimeVerseHostCommands.SurfaceId, StringComparison.Ordinal) &&
-             GameCult.Aetheria.State.Verse.AetheriaRuntimeVerseHostCommands.IsKnown(command));
     }
 
     private static async Task ExecutePlayerSettingsCommandAsync(
@@ -142,13 +128,13 @@ public static class AetheriaEveCommandBridge
         settings.Graphics ??= new AetheriaPlayerGraphicsSettings();
         var persistSettings = false;
 
-        switch (command.Command)
+        switch (command.Kind)
         {
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.SetPlayerName:
+            case AetheriaRuntimeEveCommandKind.SetPlayerName:
                 settings.PlayerName = command.PlayerSettings.PlayerName ?? "";
                 persistSettings = true;
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit:
+            case AetheriaRuntimeEveCommandKind.CycleTemperatureUnit:
                 settings.Gameplay.TemperatureUnit = Cycle(
                     settings.Gameplay.TemperatureUnit,
                     "Kelvin",
@@ -156,16 +142,16 @@ public static class AetheriaEveCommandBridge
                     "Fahrenheit");
                 persistSettings = true;
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits:
+            case AetheriaRuntimeEveCommandKind.DecrementSignificantDigits:
                 settings.Gameplay.SignificantDigits = Math.Max(0, settings.Gameplay.SignificantDigits - 1);
                 persistSettings = true;
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits:
+            case AetheriaRuntimeEveCommandKind.IncrementSignificantDigits:
                 if (settings.Gameplay.SignificantDigits < int.MaxValue)
                     settings.Gameplay.SignificantDigits++;
                 persistSettings = true;
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality:
+            case AetheriaRuntimeEveCommandKind.CycleNebulaQuality:
                 settings.Graphics.NebulaQuality = Cycle(
                     settings.Graphics.NebulaQuality,
                     "Low",
@@ -174,7 +160,7 @@ public static class AetheriaEveCommandBridge
                     "Ultra");
                 persistSettings = true;
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap:
+            case AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap:
                 settings.Graphics.ShowAsteroidsInMinimap = !settings.Graphics.ShowAsteroidsInMinimap;
                 persistSettings = true;
                 break;
@@ -199,9 +185,9 @@ public static class AetheriaEveCommandBridge
         settings.Input ??= new AetheriaPlayerInputSettings();
         var persistSettings = false;
 
-        switch (command.Command)
+        switch (command.Kind)
         {
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.SetBindingOverride:
+            case AetheriaRuntimeEveCommandKind.SetBindingOverride:
                 var actionName = command.InputSettings.ActionName ?? "";
                 var inputSystemPath = command.InputSettings.InputSystemPath ?? "";
                 var bindingIndex = command.InputSettings.BindingIndex;
@@ -225,7 +211,7 @@ public static class AetheriaEveCommandBridge
                     persistSettings = true;
                 }
                 break;
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled:
+            case AetheriaRuntimeEveCommandKind.SetActionBarEnabled:
                 var inputPath = command.InputSettings.InputSystemPath ?? "";
                 var enabled = command.InputSettings.Enabled;
                 if (!string.IsNullOrWhiteSpace(inputPath))
@@ -258,9 +244,9 @@ public static class AetheriaEveCommandBridge
         var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
         var persistSettings = false;
 
-        switch (command.Command)
+        switch (command.Kind)
         {
-            case GameCult.Aetheria.State.Verse.AetheriaRuntimeVerseHostCommands.CycleVisibility:
+            case AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility:
                 normalized.Visibility = Cycle(normalized.Visibility, "private", "public");
                 persistSettings = true;
                 break;

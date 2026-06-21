@@ -173,7 +173,7 @@ try
 {
     var eveCommand = AetheriaRuntimeEveCommands.SubmitCatalogCommand(
         commitSmokeStatePath,
-        AetheriaRuntimeCatalogCommands.Refresh,
+        AetheriaRuntimeEveCommandKind.CatalogRefresh,
         "aetheria-state-unity-smoke");
     await using var eveCommandNode = await AetheriaStateNode.OpenAsync(
         commitSmokeStatePath,
@@ -185,6 +185,7 @@ try
         ProviderId = eveCommand.ProviderId,
         SurfaceId = eveCommand.SurfaceId,
         Command = eveCommand.Command,
+        Kind = (GameCult.Aetheria.State.Verse.AetheriaRuntimeEveCommandKind)(int)eveCommand.Kind,
         IssuedAtUtc = eveCommand.IssuedAtUtc,
         ClientId = eveCommand.ClientId,
         PlayerSettings = new GameCult.Aetheria.State.Verse.AetheriaRuntimePlayerSettingsCommandBody
@@ -206,6 +207,7 @@ try
         eveSubmitted[0].ProviderId != "aetheria" ||
         eveSubmitted[0].SurfaceId != AetheriaRuntimeCatalogCommands.SurfaceId ||
         eveSubmitted[0].Command != AetheriaRuntimeCatalogCommands.Refresh ||
+        (int)eveSubmitted[0].Kind != (int)AetheriaRuntimeEveCommandKind.CatalogRefresh ||
         eveSubmitted[0].PlayerSettings == null ||
         eveSubmitted[0].InputSettings == null)
     {

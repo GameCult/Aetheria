@@ -3153,8 +3153,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     var requiredActionGameManagerSymbols = new[]
     {
         "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand",
-        "AetheriaRuntimeInputSettingsCommands.SetBindingOverride",
-        "AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled"
+        "AetheriaRuntimeEveCommandKind.SetBindingOverride",
+        "AetheriaRuntimeEveCommandKind.SetActionBarEnabled"
     };
 
     var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
@@ -5546,7 +5546,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
         "TryRequestClientTargetCommand(request)",
-        "TrySendVerseHostCommand(command.Command)",
+        "TrySendVerseHostCommand(AetheriaRuntimeEveCommandClient.CommandKindForSurface(request))",
+        "TrySendVerseHostCommand(AetheriaRuntimeEveCommandKind command)",
         "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
@@ -5603,13 +5604,13 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var requiredBridgeSymbols = new[]
     {
         "AcceptedVerseHostCommands",
-        "AetheriaRuntimeVerseHostCommands.Refresh",
-        "AetheriaRuntimeVerseHostCommands.CycleVisibility",
+        "AetheriaRuntimeEveCommandKind.VerseHostRefresh",
+        "AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility",
         "ExecuteVerseHostCommandAsync",
         "PutVerseHostSettingsAsync",
         "PutProviderAdvertisementAsync",
         "AetheriaOperationsSurfaceProjector.Build(",
-        "AetheriaRuntimeVerseHostCommands.IsKnown(command)"
+        "switch (command.Kind)"
     };
     var missingBridgeSymbols = requiredBridgeSymbols
         .Where(symbol => !commandBridge.Contains(symbol, StringComparison.Ordinal))
@@ -6598,6 +6599,7 @@ static void RequireTypedEveCommandBodies(string root)
 
     var eveCommandDocument = File.ReadAllText(eveCommandDocumentPath);
     var eveCommandClient = File.ReadAllText(eveCommandClientPath);
+    var normalizedEveCommandClient = eveCommandClient.Replace("\r\n", "\n", StringComparison.Ordinal);
     var runtimeCommandPort = File.ReadAllText(runtimeCommandPortPath);
     var eveCommandBridge = File.ReadAllText(eveCommandBridgePath);
     var stateNode = File.ReadAllText(stateNodePath);
@@ -6607,8 +6609,10 @@ static void RequireTypedEveCommandBodies(string root)
 
     var requiredDocumentSymbols = new[]
     {
+        "public enum AetheriaRuntimeEveCommandKind",
         "public sealed class AetheriaRuntimePlayerSettingsCommandBody",
         "public sealed class AetheriaRuntimeInputSettingsCommandBody",
+        "public AetheriaRuntimeEveCommandKind Kind",
         "public AetheriaRuntimePlayerSettingsCommandBody PlayerSettings",
         "public AetheriaRuntimeInputSettingsCommandBody InputSettings",
         "public AetheriaRuntimeLoadoutTemplateCommit? LoadoutTemplate",
@@ -6665,8 +6669,11 @@ static void RequireTypedEveCommandBodies(string root)
         "TrySendLoadoutTemplateCommand(",
         "TrySendKnownSurfaceCommand(",
         "TryCreateKnownSurfaceCommand(",
+        "CommandKindForSurface(",
+        "CommandText(",
         "ToDocument(",
         "AcceptObservedAsync(",
+        "switch (command.Kind)",
         "node.ReadObservedEveCommands()",
         "AccountedCommandIds",
         "SubmitEveCommandAsync(",
@@ -6773,6 +6780,29 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Eve command edge still exposes a generic surface-command submission back door: " +
             string.Join(", ", genericSurfaceCommandHits));
+    }
+
+    var forbiddenStringCommandOverloads = new[]
+    {
+        "SubmitPlayerSettingsCommand(\n            string stateFilePath,\n            string command",
+        "SubmitInputSettingsCommand(\n            string stateFilePath,\n            string command",
+        "SubmitCatalogCommand(\n            string stateFilePath,\n            string command",
+        "SubmitOperationsCommand(\n            string stateFilePath,\n            string command",
+        "SubmitVerseHostCommand(\n            string stateFilePath,\n            string command",
+        "TrySendInputSettingsCommand(\n            string stateFilePath,\n            string command",
+        "TrySendVerseHostCommand(\n            string stateFilePath,\n            string command",
+        "CreateCatalogCommand(\n            string command",
+        "CreateOperationsCommand(\n            string command",
+        "CreateVerseHostCommand(\n            string command"
+    };
+    var survivingStringCommandOverloads = forbiddenStringCommandOverloads
+        .Where(symbol => normalizedEveCommandClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingStringCommandOverloads.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve command client still exposes public string command overloads instead of typed command kinds: " +
+            string.Join(", ", survivingStringCommandOverloads));
     }
 
     var forbiddenQueueSymbols = new[]
@@ -8931,7 +8961,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
 
     var requiredBridgeSymbols = new[]
     {
-        "AetheriaRuntimeLoadoutTemplateCommands.Save",
+        "AetheriaRuntimeEveCommandKind.SaveLoadoutTemplate",
         "ExecuteLoadoutTemplateCommandAsync",
         "command.LoadoutTemplate",
         "AetheriaRuntimeStateMapper.ToLoadoutTemplate",

@@ -17,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope SubmitPlayerSettingsCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimePlayerSettingsCommandBody body,
             string clientId)
         {
@@ -57,7 +57,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope SubmitInputSettingsCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
             string clientId)
         {
@@ -66,7 +66,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool TrySendInputSettingsCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
             string clientId,
             out AetheriaRuntimeEveCommandEnvelope? envelope,
@@ -82,7 +82,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope SubmitCatalogCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return AetheriaRuntimeEveCommandClient.CreateCatalogCommand(command, clientId);
@@ -90,7 +90,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope SubmitOperationsCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return AetheriaRuntimeEveCommandClient.CreateOperationsCommand(command, clientId);
@@ -98,7 +98,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope SubmitVerseHostCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return AetheriaRuntimeEveCommandClient.CreateVerseHostCommand(command, clientId);
@@ -106,7 +106,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool TrySendVerseHostCommand(
             string stateFilePath,
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId,
             out AetheriaRuntimeEveCommandEnvelope? envelope,
             out string error)
@@ -196,23 +196,23 @@ namespace GameCult.Aetheria.State.Verse
             {
                 case AetheriaRuntimePlayerSettingsCommands.SurfaceId
                     when AetheriaRuntimePlayerSettingsCommands.IsKnown(command):
-                    envelope = CreatePlayerSettingsCommand(request, clientId);
+                    envelope = CreatePlayerSettingsCommand(CommandKindForSurface(request), request, clientId);
                     return true;
                 case AetheriaRuntimeInputSettingsCommands.SurfaceId
                     when AetheriaRuntimeInputSettingsCommands.IsKnown(command):
-                    envelope = CreateInputSettingsCommand(request, clientId);
+                    envelope = CreateInputSettingsCommand(CommandKindForSurface(request), request, clientId);
                     return true;
                 case AetheriaRuntimeCatalogCommands.SurfaceId
                     when AetheriaRuntimeCatalogCommands.IsKnown(command):
-                    envelope = CreateCatalogCommand(command, clientId);
+                    envelope = CreateCatalogCommand(CommandKindForSurface(request), clientId);
                     return true;
                 case AetheriaRuntimeOperationsCommands.SurfaceId
                     when AetheriaRuntimeOperationsCommands.IsKnown(command):
-                    envelope = CreateOperationsCommand(command, clientId);
+                    envelope = CreateOperationsCommand(CommandKindForSurface(request), clientId);
                     return true;
                 case AetheriaRuntimeVerseHostCommands.SurfaceId
                     when AetheriaRuntimeVerseHostCommands.IsKnown(command):
-                    envelope = CreateVerseHostCommand(command, clientId);
+                    envelope = CreateVerseHostCommand(CommandKindForSurface(request), clientId);
                     return true;
             }
 
@@ -221,7 +221,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreatePlayerSettingsCommand(
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimePlayerSettingsCommandBody body,
             string clientId)
         {
@@ -245,14 +245,22 @@ namespace GameCult.Aetheria.State.Verse
             string clientId)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
+            return CreatePlayerSettingsCommand(CommandKindForSurface(request), request, clientId);
+        }
+
+        private static AetheriaRuntimeEveCommandEnvelope CreatePlayerSettingsCommand(
+            AetheriaRuntimeEveCommandKind command,
+            EveSurfaceCommandRequest request,
+            string clientId)
+        {
             return CreatePlayerSettingsCommand(
-                request.Command ?? "",
+                command,
                 ReadPlayerSettingsBody(request),
                 string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId);
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateInputSettingsCommand(
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
             string clientId)
         {
@@ -270,14 +278,22 @@ namespace GameCult.Aetheria.State.Verse
             string clientId)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
+            return CreateInputSettingsCommand(CommandKindForSurface(request), request, clientId);
+        }
+
+        private static AetheriaRuntimeEveCommandEnvelope CreateInputSettingsCommand(
+            AetheriaRuntimeEveCommandKind command,
+            EveSurfaceCommandRequest request,
+            string clientId)
+        {
             return CreateInputSettingsCommand(
-                request.Command ?? "",
+                command,
                 ReadInputSettingsBody(request),
                 string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId);
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateCatalogCommand(
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return CreateTypedCommand(
@@ -290,7 +306,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateOperationsCommand(
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return CreateTypedCommand(
@@ -303,7 +319,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateVerseHostCommand(
-            string command,
+            AetheriaRuntimeEveCommandKind command,
             string clientId)
         {
             return CreateTypedCommand(
@@ -321,7 +337,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             return CreateTypedCommand(
                 AetheriaRuntimeLoadoutTemplateCommands.SurfaceId,
-                AetheriaRuntimeLoadoutTemplateCommands.Save,
+                AetheriaRuntimeEveCommandKind.SaveLoadoutTemplate,
                 clientId,
                 playerSettings: new AetheriaRuntimePlayerSettingsCommandBody(),
                 inputSettings: new AetheriaRuntimeInputSettingsCommandBody(),
@@ -332,29 +348,31 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (envelope == null) throw new ArgumentNullException(nameof(envelope));
 
-            return new AetheriaRuntimeEveCommandDocument
+            return NormalizeDocument(new AetheriaRuntimeEveCommandDocument
             {
                 Schema = string.IsNullOrWhiteSpace(envelope.Schema) ? CommandSchema : envelope.Schema,
                 CommandId = envelope.CommandId ?? "",
                 ProviderId = envelope.ProviderId ?? "",
                 SurfaceId = envelope.SurfaceId ?? "",
                 Command = envelope.Command ?? "",
+                Kind = envelope.Kind,
                 IssuedAtUtc = envelope.IssuedAtUtc ?? "",
                 ClientId = envelope.ClientId ?? "",
                 PlayerSettings = envelope.PlayerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody(),
                 InputSettings = envelope.InputSettings ?? new AetheriaRuntimeInputSettingsCommandBody(),
                 LoadoutTemplate = envelope.LoadoutTemplate
-            };
+            });
         }
 
         private static AetheriaRuntimeEveCommandEnvelope CreateTypedCommand(
             string surfaceId,
-            string command,
+            AetheriaRuntimeEveCommandKind kind,
             string clientId,
             AetheriaRuntimePlayerSettingsCommandBody playerSettings,
             AetheriaRuntimeInputSettingsCommandBody inputSettings,
             AetheriaRuntimeLoadoutTemplateCommit? loadoutTemplate)
         {
+            var command = CommandText(kind);
             var commandId = Guid.NewGuid().ToString("N");
             var issuedAtUtc = DateTime.UtcNow.ToString("O");
             var document = new AetheriaRuntimeEveCommandDocument
@@ -363,7 +381,8 @@ namespace GameCult.Aetheria.State.Verse
                 CommandId = commandId,
                 ProviderId = "aetheria",
                 SurfaceId = surfaceId ?? "",
-                Command = command ?? "",
+                Command = command,
+                Kind = kind,
                 IssuedAtUtc = issuedAtUtc,
                 ClientId = clientId ?? "",
                 PlayerSettings = playerSettings,
@@ -376,18 +395,150 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeEveCommandEnvelope ToEnvelope(AetheriaRuntimeEveCommandDocument document)
         {
+            NormalizeDocument(document);
             return new AetheriaRuntimeEveCommandEnvelope(
                 document.Schema ?? "",
                 document.CommandId ?? "",
                 document.ProviderId ?? "",
                 document.SurfaceId ?? "",
                 document.Command ?? "",
+                document.Kind,
                 document.IssuedAtUtc ?? "",
                 document.ClientId ?? "",
                 document.PlayerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody(),
                 document.InputSettings ?? new AetheriaRuntimeInputSettingsCommandBody(),
                 "",
                 document.LoadoutTemplate);
+        }
+
+        public static AetheriaRuntimeEveCommandDocument NormalizeDocument(AetheriaRuntimeEveCommandDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            document.Schema = string.IsNullOrWhiteSpace(document.Schema) ? CommandSchema : document.Schema;
+            if (document.Kind == AetheriaRuntimeEveCommandKind.Unknown)
+                document.Kind = CommandKindForSurface(document.SurfaceId ?? "", document.Command ?? "");
+            if (string.IsNullOrWhiteSpace(document.Command) && document.Kind != AetheriaRuntimeEveCommandKind.Unknown)
+                document.Command = CommandText(document.Kind);
+            return document;
+        }
+
+        public static AetheriaRuntimeEveCommandKind CommandKindForSurface(EveSurfaceCommandRequest request)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            return CommandKindForSurface(request.SurfaceId ?? "", request.Command ?? "");
+        }
+
+        public static AetheriaRuntimeEveCommandKind CommandKindForSurface(string surfaceId, string command)
+        {
+            switch (surfaceId ?? "")
+            {
+                case AetheriaRuntimeCatalogCommands.SurfaceId:
+                    return command == AetheriaRuntimeCatalogCommands.Refresh
+                        ? AetheriaRuntimeEveCommandKind.CatalogRefresh
+                        : AetheriaRuntimeEveCommandKind.Unknown;
+                case AetheriaRuntimeOperationsCommands.SurfaceId:
+                    return command == AetheriaRuntimeOperationsCommands.Refresh
+                        ? AetheriaRuntimeEveCommandKind.OperationsRefresh
+                        : AetheriaRuntimeEveCommandKind.Unknown;
+                case AetheriaRuntimePlayerSettingsCommands.SurfaceId:
+                    return PlayerSettingsKind(command);
+                case AetheriaRuntimeInputSettingsCommands.SurfaceId:
+                    return InputSettingsKind(command);
+                case AetheriaRuntimeLoadoutTemplateCommands.SurfaceId:
+                    return command == AetheriaRuntimeLoadoutTemplateCommands.Save
+                        ? AetheriaRuntimeEveCommandKind.SaveLoadoutTemplate
+                        : AetheriaRuntimeEveCommandKind.Unknown;
+                case AetheriaRuntimeVerseHostCommands.SurfaceId:
+                    return command == AetheriaRuntimeVerseHostCommands.Refresh
+                        ? AetheriaRuntimeEveCommandKind.VerseHostRefresh
+                        : command == AetheriaRuntimeVerseHostCommands.CycleVisibility
+                            ? AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility
+                            : AetheriaRuntimeEveCommandKind.Unknown;
+                default:
+                    return AetheriaRuntimeEveCommandKind.Unknown;
+            }
+        }
+
+        public static string CommandText(AetheriaRuntimeEveCommandKind kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeEveCommandKind.CatalogRefresh:
+                    return AetheriaRuntimeCatalogCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.OperationsRefresh:
+                    return AetheriaRuntimeOperationsCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.PlayerSettingsRefresh:
+                    return AetheriaRuntimePlayerSettingsCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.SetPlayerName:
+                    return AetheriaRuntimePlayerSettingsCommands.SetPlayerName;
+                case AetheriaRuntimeEveCommandKind.CycleTemperatureUnit:
+                    return AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit;
+                case AetheriaRuntimeEveCommandKind.DecrementSignificantDigits:
+                    return AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits;
+                case AetheriaRuntimeEveCommandKind.IncrementSignificantDigits:
+                    return AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits;
+                case AetheriaRuntimeEveCommandKind.CycleNebulaQuality:
+                    return AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality;
+                case AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap:
+                    return AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap;
+                case AetheriaRuntimeEveCommandKind.InputSettingsRefresh:
+                    return AetheriaRuntimeInputSettingsCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.BeginInputCapture:
+                    return AetheriaRuntimeInputSettingsCommands.BeginCapture;
+                case AetheriaRuntimeEveCommandKind.CancelInputCapture:
+                    return AetheriaRuntimeInputSettingsCommands.CancelCapture;
+                case AetheriaRuntimeEveCommandKind.SetBindingOverride:
+                    return AetheriaRuntimeInputSettingsCommands.SetBindingOverride;
+                case AetheriaRuntimeEveCommandKind.ToggleActionBar:
+                    return AetheriaRuntimeInputSettingsCommands.ToggleActionBar;
+                case AetheriaRuntimeEveCommandKind.SetActionBarEnabled:
+                    return AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled;
+                case AetheriaRuntimeEveCommandKind.SaveLoadoutTemplate:
+                    return AetheriaRuntimeLoadoutTemplateCommands.Save;
+                case AetheriaRuntimeEveCommandKind.VerseHostRefresh:
+                    return AetheriaRuntimeVerseHostCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility:
+                    return AetheriaRuntimeVerseHostCommands.CycleVisibility;
+                default:
+                    return "";
+            }
+        }
+
+        private static AetheriaRuntimeEveCommandKind PlayerSettingsKind(string command)
+        {
+            if (command == AetheriaRuntimePlayerSettingsCommands.Refresh)
+                return AetheriaRuntimeEveCommandKind.PlayerSettingsRefresh;
+            if (command == AetheriaRuntimePlayerSettingsCommands.SetPlayerName)
+                return AetheriaRuntimeEveCommandKind.SetPlayerName;
+            if (command == AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit)
+                return AetheriaRuntimeEveCommandKind.CycleTemperatureUnit;
+            if (command == AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits)
+                return AetheriaRuntimeEveCommandKind.DecrementSignificantDigits;
+            if (command == AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits)
+                return AetheriaRuntimeEveCommandKind.IncrementSignificantDigits;
+            if (command == AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality)
+                return AetheriaRuntimeEveCommandKind.CycleNebulaQuality;
+            if (command == AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap)
+                return AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap;
+            return AetheriaRuntimeEveCommandKind.Unknown;
+        }
+
+        private static AetheriaRuntimeEveCommandKind InputSettingsKind(string command)
+        {
+            if (command == AetheriaRuntimeInputSettingsCommands.Refresh)
+                return AetheriaRuntimeEveCommandKind.InputSettingsRefresh;
+            if (command == AetheriaRuntimeInputSettingsCommands.BeginCapture)
+                return AetheriaRuntimeEveCommandKind.BeginInputCapture;
+            if (command == AetheriaRuntimeInputSettingsCommands.CancelCapture)
+                return AetheriaRuntimeEveCommandKind.CancelInputCapture;
+            if (command == AetheriaRuntimeInputSettingsCommands.SetBindingOverride)
+                return AetheriaRuntimeEveCommandKind.SetBindingOverride;
+            if (command == AetheriaRuntimeInputSettingsCommands.ToggleActionBar)
+                return AetheriaRuntimeEveCommandKind.ToggleActionBar;
+            if (command == AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled)
+                return AetheriaRuntimeEveCommandKind.SetActionBarEnabled;
+            return AetheriaRuntimeEveCommandKind.Unknown;
         }
 
         private static AetheriaRuntimePlayerSettingsCommandBody ReadPlayerSettingsBody(EveSurfaceCommandRequest request)

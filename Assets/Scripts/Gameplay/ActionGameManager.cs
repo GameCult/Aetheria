@@ -89,7 +89,7 @@ public class ActionGameManager : MonoBehaviour
     public static void RequestRuntimeInputBindingOverride(string actionName, int bindingIndex, string inputSystemPath)
     {
         TrySendRuntimeInputSettingsCommand(
-            AetheriaRuntimeInputSettingsCommands.SetBindingOverride,
+            AetheriaRuntimeEveCommandKind.SetBindingOverride,
             new AetheriaRuntimeInputSettingsCommandBody
             {
                 ActionName = actionName ?? "",
@@ -103,7 +103,7 @@ public class ActionGameManager : MonoBehaviour
     public static void RequestRuntimeActionBarInput(string inputSystemPath, bool enabled)
     {
         TrySendRuntimeInputSettingsCommand(
-            AetheriaRuntimeInputSettingsCommands.SetActionBarEnabled,
+            AetheriaRuntimeEveCommandKind.SetActionBarEnabled,
             new AetheriaRuntimeInputSettingsCommandBody
             {
                 InputSystemPath = inputSystemPath ?? "",
@@ -114,7 +114,7 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private static bool TrySendRuntimeInputSettingsCommand(
-        string command,
+        AetheriaRuntimeEveCommandKind command,
         AetheriaRuntimeInputSettingsCommandBody body,
         string clientId,
         string label)

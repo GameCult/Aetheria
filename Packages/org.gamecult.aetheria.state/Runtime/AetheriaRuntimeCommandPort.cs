@@ -79,6 +79,7 @@ namespace Aetheria.State
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
 
+            AetheriaRuntimeEveCommandClient.NormalizeDocument(command);
             command.Schema = AetheriaRuntimeEveCommandDocument.SchemaId;
             if (string.IsNullOrWhiteSpace(command.CommandId))
                 command.CommandId = Guid.NewGuid().ToString("N");

@@ -341,7 +341,7 @@ public class MainMenu : MonoBehaviour
 
                 return;
             case AetheriaRuntimeMainMenuCommandKind.VerseHostCommand:
-                if (TrySendVerseHostCommand(command.Command))
+                if (TrySendVerseHostCommand(AetheriaRuntimeEveCommandClient.CommandKindForSurface(request)))
                 {
                     ShowVerseSettingsSurface();
                 }
@@ -468,10 +468,10 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static bool TrySendVerseHostCommand(string command)
+    private static bool TrySendVerseHostCommand(AetheriaRuntimeEveCommandKind command)
     {
         var stateBoot = CurrentStateBoot();
-        if (!CanSendLocalEveCommand(stateBoot, "Verse-host", command))
+        if (!CanSendLocalEveCommand(stateBoot, "Verse-host", command.ToString()))
             return true;
 
         try
