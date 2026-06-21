@@ -541,7 +541,7 @@ public class ZoneRenderer : MonoBehaviour
         //     SlimeRenderer.SpawnPositions[i] = _suns[i].Body.transform.position.Flatland();
         // }
         
-        Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
+        Shader.SetGlobalFloat("_AsteroidVerticalOffset", (float)RenderSettings.AsteroidVerticalOffset);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
         RefreshDaemonVisibleEntityInstances();
@@ -625,7 +625,7 @@ public class ZoneRenderer : MonoBehaviour
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
-            else planet.Value.Body.transform.rotation *= Quaternion.AngleAxis(Settings.PlanetRotationSpeed, Vector3.up);
+            else planet.Value.Body.transform.rotation *= Quaternion.AngleAxis((float)RenderSettings.PlanetRotationSpeed, Vector3.up);
         }
 
         foreach (var entityInstance in _entityInstancesByDaemonIndex.Values)
@@ -654,8 +654,8 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         //var fogPos = FogCameraParent.position;
-        SectorBoundaryBrush.material.SetFloat("_Power", Settings.PlanetSettings.ZoneDepthExponent);
-        SectorBoundaryBrush.material.SetFloat("_Depth", Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
+        SectorBoundaryBrush.material.SetFloat("_Power", (float)RenderSettings.ZoneBoundaryPower);
+        SectorBoundaryBrush.material.SetFloat("_Depth", (float)RenderSettings.ZoneBoundaryDepth);
         var gravityBand = AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(
             _daemonZoneSnapshot,
             RenderSettings.MinimapZoneGravityRange,

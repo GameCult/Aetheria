@@ -70,7 +70,11 @@ namespace GameCult.Aetheria.State.Verse
             double minimapIconScale = 0.0,
             double minimapAsteroidSize = 0.0,
             AetheriaRuntimeExponentialCurve bodyIconSizeCurve = default,
-            double minimapZoneGravityRange = 0.0)
+            double minimapZoneGravityRange = 0.0,
+            double asteroidVerticalOffset = 0.0,
+            double planetRotationSpeed = 0.0,
+            double zoneBoundaryPower = 0.0,
+            double zoneBoundaryDepth = 0.0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -93,6 +97,10 @@ namespace GameCult.Aetheria.State.Verse
             MinimapAsteroidSize = Math.Max(0.0, minimapAsteroidSize);
             BodyIconSizeCurve = bodyIconSizeCurve;
             MinimapZoneGravityRange = Math.Max(0.0, minimapZoneGravityRange);
+            AsteroidVerticalOffset = asteroidVerticalOffset;
+            PlanetRotationSpeed = planetRotationSpeed;
+            ZoneBoundaryPower = zoneBoundaryPower;
+            ZoneBoundaryDepth = zoneBoundaryDepth;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -116,6 +124,10 @@ namespace GameCult.Aetheria.State.Verse
         public double MinimapAsteroidSize { get; }
         public AetheriaRuntimeExponentialCurve BodyIconSizeCurve { get; }
         public double MinimapZoneGravityRange { get; }
+        public double AsteroidVerticalOffset { get; }
+        public double PlanetRotationSpeed { get; }
+        public double ZoneBoundaryPower { get; }
+        public double ZoneBoundaryDepth { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {

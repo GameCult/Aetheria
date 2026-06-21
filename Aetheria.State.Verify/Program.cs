@@ -1835,6 +1835,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double MinimapAsteroidSize { get; }",
         "public AetheriaRuntimeExponentialCurve BodyIconSizeCurve { get; }",
         "public double MinimapZoneGravityRange { get; }",
+        "public double AsteroidVerticalOffset { get; }",
+        "public double PlanetRotationSpeed { get; }",
+        "public double ZoneBoundaryPower { get; }",
+        "public double ZoneBoundaryDepth { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
@@ -2009,7 +2013,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ContainsUnitySettingsMember(zoneRenderer, "DefaultViewDistance") ||
         ContainsUnitySettingsMember(zoneRenderer, "MinimapAsteroidSize") ||
         ContainsUnitySettingsMember(zoneRenderer, "IconSize") ||
-        ContainsUnitySettingsMember(zoneRenderer, "MinimapZoneGravityRange"))
+        ContainsUnitySettingsMember(zoneRenderer, "MinimapZoneGravityRange") ||
+        ContainsUnitySettingsMember(zoneRenderer, "PlanetRotationSpeed"))
     {
         throw new InvalidOperationException(
             "ZoneRenderer must initialize view/minimap presentation through shared daemon render settings instead of Unity GameSettings.");
@@ -2170,6 +2175,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "RenderSettings.WormholeDistanceRatio",
         "RenderSettings.MinimapZoneGravityRange",
+        "RenderSettings.AsteroidVerticalOffset",
+        "RenderSettings.PlanetRotationSpeed",
+        "RenderSettings.ZoneBoundaryPower",
+        "RenderSettings.ZoneBoundaryDepth",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
@@ -2270,7 +2279,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.MinimapIconSize",
         "Settings.MinimapAsteroidSize",
         "Settings.IconSize",
-        "Settings.MinimapZoneGravityRange"
+        "Settings.MinimapZoneGravityRange",
+        "Settings.PlanetSettings.AsteroidVerticalOffset",
+        "Settings.PlanetRotationSpeed",
+        "Settings.PlanetSettings.ZoneDepthExponent",
+        "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
@@ -2281,6 +2294,27 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "ActionGameManager no longer bridges Unity render tuning through shared daemon render settings: " +
             string.Join(", ", missingActionGameManagerRenderSymbols));
+    }
+
+    var zoneRendererPresentationSettings = new Dictionary<string, string>
+    {
+        ["ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset"] = "ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset",
+        ["PlanetRotationSpeed"] = "Settings.PlanetRotationSpeed",
+        ["Settings.PlanetSettings.ZoneDepthExponent"] = "Settings.PlanetSettings.ZoneDepthExponent",
+        ["Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"] = "Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog"
+    };
+    var survivingZoneRendererPresentationSettings = zoneRendererPresentationSettings
+        .Where(symbol =>
+            symbol.Key == "PlanetRotationSpeed"
+                ? ContainsUnitySettingsMember(zoneRenderer, symbol.Key)
+                : zoneRenderer.Contains(symbol.Key, StringComparison.Ordinal))
+        .Select(symbol => symbol.Value)
+        .ToArray();
+    if (survivingZoneRendererPresentationSettings.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer still reads zone presentation tuning from Unity GameSettings instead of shared daemon render settings: " +
+            string.Join(", ", survivingZoneRendererPresentationSettings));
     }
 
     var forbiddenRenderLoopSymbols = new[]

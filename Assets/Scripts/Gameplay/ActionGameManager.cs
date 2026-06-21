@@ -598,7 +598,11 @@ public class ActionGameManager : MonoBehaviour
                 bodyIconSizeCurve.Exponent,
                 bodyIconSizeCurve.Multiplier,
                 bodyIconSizeCurve.Constant),
-            Settings.MinimapZoneGravityRange);
+            Settings.MinimapZoneGravityRange,
+            Settings.PlanetSettings.AsteroidVerticalOffset,
+            Settings.PlanetRotationSpeed,
+            Settings.PlanetSettings.ZoneDepthExponent,
+            Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
