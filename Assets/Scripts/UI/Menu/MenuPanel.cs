@@ -108,7 +108,7 @@ public class MenuPanel : MonoBehaviour
             transform,
             _tabSurfaceDocument,
             "Aetheria Runtime Menu Tabs Surface",
-            AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurfaceState()),
+            AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurface()),
             HandleTabSurfaceCommand,
             _tabSurfaceChrome);
     }
@@ -124,7 +124,7 @@ public class MenuPanel : MonoBehaviour
         foreach (var tab in _tabs.Keys)
         {
             if (command.Kind == AetheriaRuntimeMenuTabCommandKind.SelectTab &&
-                string.Equals(command.TabKey, TabKey(tab), StringComparison.Ordinal))
+                string.Equals(command.TabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal))
             {
                 ShowTab(tab);
                 return;
@@ -142,16 +142,16 @@ public class MenuPanel : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument);
     }
 
-    private AetheriaRuntimeMenuTabsSurfaceState ProjectTabSurfaceState()
+    private AetheriaRuntimeMenuTabsSurfaceState ProjectTabSurface()
     {
         var visibleTabs = ResolveVisibleTabs();
-        return new AetheriaRuntimeMenuTabsSurfaceState(
-            TabKey(CurrentTab),
+        return AetheriaRuntimeMenuTabsSurfaceBuilder.Project(
+            ToRuntimeTabKey(CurrentTab),
             visibleTabs
-                .Select(tabBinding => new AetheriaRuntimeMenuTabSurfaceEntry(
-                    TabKey(tabBinding.Tab),
+                .Select(tabBinding => new AetheriaRuntimeMenuTabProjectionOption(
+                    ToRuntimeTabKey(tabBinding.Tab),
                     GetTabLabel(tabBinding),
-                    tabBinding.Tab == CurrentTab))
+                    (int)tabBinding.Tab))
                 .ToArray(),
             DateTime.UtcNow.ToString("O"));
     }
@@ -172,9 +172,9 @@ public class MenuPanel : MonoBehaviour
             : tabBinding.Label;
     }
 
-    private static string TabKey(MenuTab tab)
+    private static string ToRuntimeTabKey(MenuTab tab)
     {
-        return tab.ToString().ToLowerInvariant();
+        return AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString());
     }
 
 // void Start()

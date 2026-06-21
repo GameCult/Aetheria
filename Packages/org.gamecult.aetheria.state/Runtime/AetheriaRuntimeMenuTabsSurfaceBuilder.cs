@@ -36,16 +36,58 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public sealed class AetheriaRuntimeMenuTabProjectionOption
+    {
+        public AetheriaRuntimeMenuTabProjectionOption(string key, string label, int order)
+        {
+            Key = key ?? "";
+            Label = label ?? "";
+            Order = order;
+        }
+
+        public string Key { get; }
+        public string Label { get; }
+        public int Order { get; }
+    }
+
     public static class AetheriaRuntimeMenuTabsSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.runtime_menu.tabs";
 
-        public static string CommandFor(string tabKey)
+        public static string NormalizeTabKey(string tabKey)
         {
-            var normalized = string.IsNullOrWhiteSpace(tabKey)
+            return string.IsNullOrWhiteSpace(tabKey)
                 ? "unknown"
                 : tabKey.Trim().ToLowerInvariant();
-            return $"aetheria.runtime_menu.tab.{normalized}";
+        }
+
+        public static string CommandFor(string tabKey)
+        {
+            return $"aetheria.runtime_menu.tab.{NormalizeTabKey(tabKey)}";
+        }
+
+        public static AetheriaRuntimeMenuTabsSurfaceState Project(
+            string currentTabKey,
+            IEnumerable<AetheriaRuntimeMenuTabProjectionOption> visibleTabs,
+            string updatedAtUtc)
+        {
+            var normalizedCurrent = NormalizeTabKey(currentTabKey);
+            return new AetheriaRuntimeMenuTabsSurfaceState(
+                normalizedCurrent,
+                (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabProjectionOption>())
+                    .Where(tab => tab != null)
+                    .OrderBy(tab => tab.Order)
+                    .ThenBy(tab => NormalizeTabKey(tab.Key), StringComparer.Ordinal)
+                    .Select(tab =>
+                    {
+                        var key = NormalizeTabKey(tab.Key);
+                        return new AetheriaRuntimeMenuTabSurfaceEntry(
+                            key,
+                            string.IsNullOrWhiteSpace(tab.Label) ? key : tab.Label,
+                            string.Equals(key, normalizedCurrent, StringComparison.Ordinal));
+                    })
+                    .ToArray(),
+                updatedAtUtc);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(

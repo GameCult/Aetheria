@@ -3897,15 +3897,19 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "HandleTabSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument)",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurfaceState())",
-        "ProjectTabSurfaceState(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurface())",
+        "ProjectTabSurface(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
+        "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
         "GameManager.IsObservedDocked",
         "GameManager.TryGetObservedDockedLocalStory(out _)",
         "GetTabLabel(",
+        "ToRuntimeTabKey(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString())",
         "AetheriaRuntimeMenuTabsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMenuTabCommandKind.SelectTab",
-        "string.Equals(command.TabKey, TabKey(tab), StringComparison.Ordinal)",
+        "string.Equals(command.TabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal)",
         "TabButtons.gameObject.SetActive(false)"
     };
 
@@ -3951,7 +3955,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "private static EveSurfaceComponent Node(",
         "ResolveTabSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
-        "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor("
+        "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
+        "ProjectTabSurfaceState(",
+        "new AetheriaRuntimeMenuTabSurfaceEntry(",
+        "private static string TabKey("
     };
 
     var hits = forbiddenSymbols
@@ -3963,6 +3970,26 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException(
             "MenuPanel still owns tab-shell behavior through the old MenuTabButton path: " +
             string.Join(", ", hits));
+    }
+
+    var requiredProjectionBuilderSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeMenuTabProjectionOption",
+        "public static string NormalizeTabKey(string tabKey)",
+        "public static AetheriaRuntimeMenuTabsSurfaceState Project(",
+        "public int Order { get; }",
+        ".OrderBy(tab => tab.Order)",
+        "new AetheriaRuntimeMenuTabSurfaceEntry(",
+        "string.Equals(key, normalizedCurrent, StringComparison.Ordinal)"
+    };
+    var missingProjectionBuilderSymbols = requiredProjectionBuilderSymbols
+        .Where(symbol => !menuTabsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProjectionBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime menu tab surface builder no longer owns tab projection semantics: " +
+            string.Join(", ", missingProjectionBuilderSymbols));
     }
 
     var requiredDockedStoryObserverSymbols = new[]
