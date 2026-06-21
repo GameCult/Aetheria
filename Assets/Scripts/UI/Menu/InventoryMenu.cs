@@ -351,24 +351,22 @@ public class InventoryMenu : MonoBehaviour
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.BindWeaponGroup:
                 if (command.GroupIndex >= 0 &&
-                    command.SlotIndex >= 0 &&
-                    GameManager.RequestWeaponGroupActionBarBinding(command.SlotIndex, command.GroupIndex))
+                    command.SlotIndex >= 0)
                 {
-                    RenderEquippedItemDetailsSurface(item);
+                    GameManager.RequestWeaponGroupActionBarBinding(command.SlotIndex, command.GroupIndex);
                     return;
                 }
 
-                Debug.LogWarning("Unable to bind equipped-item weapon group to action bar.");
+                Debug.LogWarning("Unable to submit equipped-item action-bar binding request.");
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.ClearActionBarBinding:
-                if (command.SlotIndex >= 0 &&
-                    GameManager.RequestClearActionBarBinding(command.SlotIndex))
+                if (command.SlotIndex >= 0)
                 {
-                    RenderEquippedItemDetailsSurface(item);
+                    GameManager.RequestClearActionBarBinding(command.SlotIndex);
                     return;
                 }
 
-                Debug.LogWarning("Unable to clear equipped-item action bar binding.");
+                Debug.LogWarning("Unable to submit equipped-item action-bar clear request.");
                 return;
             default:
                 Debug.LogWarning($"Unknown inventory equipped item details command: {request?.Command}");

@@ -9026,6 +9026,27 @@ static void RequireActionBarBindingRequestAuthority(string root)
             "Action-bar binding still contains the old unconditional weapon-group overwrite path: " +
             string.Join(", ", legacyHits));
     }
+
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var inventoryMenu = File.Exists(inventoryMenuPath)
+        ? File.ReadAllText(inventoryMenuPath)
+        : throw new InvalidOperationException("Cannot verify action-bar binding authority; InventoryMenu.cs is missing.");
+    var forbiddenUiAcceptanceSymbols = new[]
+    {
+        "GameManager.RequestWeaponGroupActionBarBinding(command.SlotIndex, command.GroupIndex))",
+        "GameManager.RequestClearActionBarBinding(command.SlotIndex))",
+        "Unable to bind equipped-item weapon group to action bar.",
+        "Unable to clear equipped-item action bar binding."
+    };
+    var uiAcceptanceHits = forbiddenUiAcceptanceSymbols
+        .Where(symbol => inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (uiAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still treats equipped-item action-bar command submission as accepted binding state: " +
+            string.Join(", ", uiAcceptanceHits));
+    }
 }
 
 static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
