@@ -168,7 +168,6 @@ public class InputDisplayLayout : MonoBehaviour
         return AetheriaRuntimeInputSettingsSurfaceBuilder.Project(
             ProjectObservedBindings(),
             runtimeSettings.ActionBarInputs,
-            ProjectActionBarCandidates(runtimeSettings.ActionBarInputs),
             capturePending: _captureBindingIndex >= 0 && !string.IsNullOrWhiteSpace(_captureActionName),
             capturePrompt: BuildCapturePrompt(),
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
@@ -198,51 +197,6 @@ public class InputDisplayLayout : MonoBehaviour
                 DescribeInputPath(entry.binding.effectivePath),
                 include: true))
             .ToArray();
-    }
-
-    private IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(
-        IEnumerable<string> enabledActionBarInputPaths)
-    {
-        var candidates = new List<AetheriaRuntimeInputPathSurfaceLabel>();
-
-        foreach (var defaultPath in AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths)
-        {
-            candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
-                defaultPath,
-                DescribeInputPath(defaultPath)));
-        }
-
-        foreach (var inputPath in enabledActionBarInputPaths ?? Array.Empty<string>())
-        {
-            if (!string.IsNullOrWhiteSpace(inputPath))
-            {
-                candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
-                    inputPath,
-                    DescribeInputPath(inputPath)));
-            }
-        }
-
-        if (Input != null)
-        {
-            foreach (var action in Input.Where(action => action.actionMap.name != "UI"))
-            {
-                foreach (var binding in action.bindings)
-                {
-                    if (binding.isComposite ||
-                        string.IsNullOrWhiteSpace(binding.effectivePath) ||
-                        !AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(binding.effectivePath))
-                    {
-                        continue;
-                    }
-
-                    candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
-                        binding.effectivePath,
-                        DescribeInputPath(binding.effectivePath)));
-                }
-            }
-        }
-
-        return candidates;
     }
 
     private static string DescribeBinding(string actionName, InputBinding binding)

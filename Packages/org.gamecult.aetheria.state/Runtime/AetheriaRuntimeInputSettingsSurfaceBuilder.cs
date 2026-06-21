@@ -128,11 +128,47 @@ namespace GameCult.Aetheria.State.Verse
             "<Keyboard>/leftShift"
         };
 
+        public static readonly IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> DefaultActionBarCandidateInputPaths =
+            new[]
+            {
+                new AetheriaRuntimeInputPathSurfaceLabel("<Mouse>/leftButton", "Left Button"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Mouse>/rightButton", "Right Button"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Mouse>/middleButton", "Middle Button"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Mouse>/forwardButton", "Forward Button"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Mouse>/backButton", "Back Button"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/1", "1"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/2", "2"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/3", "3"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/4", "4"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/5", "5"),
+                new AetheriaRuntimeInputPathSurfaceLabel("<Keyboard>/leftShift", "Left Shift")
+            };
+
         public static bool IsSupportedCapturePath(string path)
         {
             return !string.IsNullOrWhiteSpace(path) &&
                    (path.StartsWith("<Keyboard>/", StringComparison.Ordinal) ||
                     path.StartsWith("<Mouse>/", StringComparison.Ordinal));
+        }
+
+        public static AetheriaRuntimeInputSettingsSurfaceState Project(
+            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
+            IEnumerable<string> enabledActionBarInputPaths,
+            bool capturePending,
+            string capturePrompt,
+            string updatedAtUtc)
+        {
+            var observed = (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
+                .Where(binding => binding != null)
+                .ToArray();
+
+            return Project(
+                observed,
+                enabledActionBarInputPaths,
+                ProjectActionBarCandidates(observed, enabledActionBarInputPaths),
+                capturePending,
+                capturePrompt,
+                updatedAtUtc);
         }
 
         public static AetheriaRuntimeInputSettingsSurfaceState Project(
@@ -170,6 +206,41 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
+        public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(
+            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
+            IEnumerable<string> enabledInputPaths)
+        {
+            var candidates = new List<AetheriaRuntimeInputPathSurfaceLabel>();
+            candidates.AddRange(DefaultActionBarCandidateInputPaths);
+
+            foreach (var inputPath in enabledInputPaths ?? Array.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(inputPath))
+                {
+                    candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
+                        inputPath,
+                        ReadInputLabel(inputPath, observedBindings)));
+                }
+            }
+
+            foreach (var binding in observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
+            {
+                if (binding == null ||
+                    !binding.Include ||
+                    string.IsNullOrWhiteSpace(binding.InputPath) ||
+                    !IsSupportedCapturePath(binding.InputPath))
+                {
+                    continue;
+                }
+
+                candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
+                    binding.InputPath,
+                    string.IsNullOrWhiteSpace(binding.InputLabel) ? binding.InputPath : binding.InputLabel));
+            }
+
+            return candidates;
+        }
+
         public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(
             IEnumerable<string> enabledInputPaths,
             IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> candidateInputPaths)
@@ -205,6 +276,25 @@ namespace GameCult.Aetheria.State.Verse
                     entry.Value,
                     enabledPaths.Contains(entry.Key)))
                 .ToArray();
+        }
+
+        private static string ReadInputLabel(
+            string inputPath,
+            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings)
+        {
+            foreach (var binding in observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
+            {
+                if (binding == null ||
+                    !string.Equals(binding.InputPath, inputPath, StringComparison.Ordinal) ||
+                    string.IsNullOrWhiteSpace(binding.InputLabel))
+                {
+                    continue;
+                }
+
+                return binding.InputLabel;
+            }
+
+            return inputPath;
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(

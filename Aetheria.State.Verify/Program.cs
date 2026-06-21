@@ -3584,11 +3584,9 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "ActionGameManager.RequestRuntimeActionBarInput",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
-        "AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.Project(",
         "new AetheriaRuntimeObservedInputBinding(",
-        "new AetheriaRuntimeInputPathSurfaceLabel(",
         "HideLegacyChildren()"
     };
 
@@ -3630,7 +3628,9 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "new AetheriaRuntimeInputBindingSurfaceState(",
         "new AetheriaRuntimeActionBarInputSurfaceState(",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(",
-        "new SortedDictionary<string, string>(StringComparer.Ordinal)"
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarCandidates(",
+        "new SortedDictionary<string, string>(StringComparer.Ordinal)",
+        "private IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates("
     };
 
     var survivingLegacySymbols = forbiddenInputScreenSymbols
@@ -3663,9 +3663,11 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "public sealed class AetheriaRuntimeInputPathSurfaceLabel",
         "public sealed class AetheriaRuntimeObservedInputBinding",
         "public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths",
+        "public static readonly IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> DefaultActionBarCandidateInputPaths",
         "public static bool IsSupportedCapturePath(string path)",
         "public static AetheriaRuntimeInputSettingsSurfaceState Project(",
         "public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(",
+        "public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(",
         "public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)",
         "public enum AetheriaRuntimeInputSettingsCommandKind",
