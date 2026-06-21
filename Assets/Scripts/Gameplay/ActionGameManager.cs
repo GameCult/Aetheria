@@ -2229,6 +2229,7 @@ public class ActionGameManager : MonoBehaviour
 
         if (CanApplyDaemonEntitySnapshotsInPlace(runId, run.CurrentZoneIndex, entitySnapshots, currentEntityKey))
         {
+            ZoneRenderer?.ApplyDaemonFrame(daemonZone, run);
             RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
             return true;
         }
@@ -2243,6 +2244,7 @@ public class ActionGameManager : MonoBehaviour
             .Where(binding => binding != null)
             .ToArray() ?? Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
         ReplaceZoneEntitiesFromTypedSnapshots(entitySnapshots, currentEntityKey, actionBarBindings);
+        ZoneRenderer?.ApplyDaemonFrame(daemonZone, run);
         RestoreDroppedPickupsFromDaemonZoneState(daemonZone);
         _lastAppliedAuthoritativeDaemonRunId = runId;
         _lastAppliedAuthoritativeDaemonZoneIndex = run.CurrentZoneIndex;

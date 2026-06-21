@@ -201,14 +201,7 @@ public class ZoneRenderer : MonoBehaviour
     {
         ClearZone();
         Zone = zone;
-        _daemonRunSnapshot = daemonRun;
-        _daemonZoneSnapshot = daemonZone;
-        var zoneRenderRadius = (float)AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
-            _daemonZoneSnapshot,
-            zone.Radius);
-        SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
-        SlimeGravityCamera.orthographicSize = zoneRenderRadius;
-        SlimeRenderer.ZoneRadius = zoneRenderRadius;
+        ApplyDaemonFrame(daemonZone, daemonRun);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
         var beltPosesByBodyKey = _daemonAsteroidBeltPoses
@@ -248,14 +241,28 @@ public class ZoneRenderer : MonoBehaviour
             }
         }
 
+        foreach (var exit in _daemonWormholeExits)
+            AddWormhole(exit);
+    }
+
+    public void ApplyDaemonFrame(
+        AetheriaRuntimeZoneSnapshotCommit daemonZone,
+        AetheriaRuntimeRunCheckpointCommit daemonRun)
+    {
+        _daemonRunSnapshot = daemonRun;
+        _daemonZoneSnapshot = daemonZone;
+        var zoneRenderRadius = (float)AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+            _daemonZoneSnapshot,
+            Zone?.Radius ?? 2000);
+        SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
+        SlimeGravityCamera.orthographicSize = zoneRenderRadius;
+        SlimeRenderer.ZoneRadius = zoneRenderRadius;
         AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
             _daemonRunSnapshot,
             _daemonZoneSnapshot,
             zoneRenderRadius,
             Settings.WormholeDistanceRatio,
             _daemonWormholeExits);
-        foreach (var exit in _daemonWormholeExits)
-            AddWormhole(exit);
     }
 
     public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)
