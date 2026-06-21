@@ -768,7 +768,16 @@ public class ZoneRenderer : MonoBehaviour
         itemPickup.ScanLabel.text = typedItem?.Name ?? "Unknown Item";
         if (item is CraftedItemInstance craftedItemInstance)
         {
-            var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
+            var tradeProjection = AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+                typedItem,
+                AetheriaRuntimeDaemonTradeItemQueries.CraftedItemCommit(
+                    craftedItemInstance.ItemKey,
+                    craftedItemInstance.Quality,
+                    item is EquippableItem equippable ? equippable.Durability : 1f),
+                ActionGameManager.Instance?.ObservedTradeValueSettings());
+            var c = Color.white;
+            if (!ColorUtility.TryParseHtmlString($"#{tradeProjection.TierColorHex}", out c))
+                c = Color.white;
             c.a = 0;
             itemPickup.ScanLabel.color = c;
         }

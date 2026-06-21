@@ -508,8 +508,7 @@ public class InventoryMenu : MonoBehaviour
 
         if (item is EquippableItem equippableItem)
         {
-            var (itemTier, upgrades) = GameManager.ObservedItemTier(equippableItem);
-            tier = $"{itemTier.Name}{new string('+', upgrades)}";
+            tier = FormatItemTier(typedItem, equippableItem);
             durability = $"{(int)(equippableItem.Durability / GetMaxDurability(typedItem, equippableItem) * 100)}%";
             thermalRange = FormatTemperatureRange(typedItem);
             behaviorSections = ProjectCargoItemBehaviorSections(typedItem, equippableItem).ToArray();
@@ -713,8 +712,18 @@ public class InventoryMenu : MonoBehaviour
 
 private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
     {
-        var (tier, upgrades) = GameManager.ObservedItemTier(item.EquippableItem);
-        return $"{typedItem?.Name ?? "Unknown Item"} ({tier.Name}{new string('+', upgrades)})";
+        return $"{typedItem?.Name ?? "Unknown Item"} ({FormatItemTier(typedItem, item.EquippableItem)})";
+    }
+
+    private string FormatItemTier(AetheriaRuntimeCatalogItem typedItem, EquippableItem item)
+    {
+        var tradeProjection = AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+            typedItem,
+            ToRuntimeLoadoutItem(item),
+            GameManager.ObservedTradeValueSettings());
+        return tradeProjection.HasTier
+            ? $"{tradeProjection.TierName}{new string('+', tradeProjection.Upgrades)}"
+            : "";
     }
 
     private static string FormatCurrentItemStat(PerformanceStat stat, EquippableItem item)
