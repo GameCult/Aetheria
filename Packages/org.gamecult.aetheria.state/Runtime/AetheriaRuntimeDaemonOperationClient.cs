@@ -359,12 +359,9 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope DockNearest(
-            AetheriaRuntimeObservedDaemonState? observed,
-            double maxDistance)
+        public AetheriaRuntimeDaemonCommandEnvelope DockNearest(AetheriaRuntimeObservedDaemonState? observed)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed);
-            command.ScalarValue = maxDistance;
             return Send(command);
         }
 
@@ -373,14 +370,9 @@ namespace GameCult.Aetheria.State.Verse
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.Undock, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope Interact(
-            AetheriaRuntimeObservedDaemonState? observed,
-            double dockDistance,
-            double wormholeDistance)
+        public AetheriaRuntimeDaemonCommandEnvelope Interact(AetheriaRuntimeObservedDaemonState? observed)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.Interact, observed);
-            command.ScalarValue = dockDistance;
-            command.PositionX = wormholeDistance;
             return Send(command);
         }
 

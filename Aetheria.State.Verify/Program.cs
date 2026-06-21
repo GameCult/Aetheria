@@ -9100,9 +9100,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryRequestDaemonUndock()",
         "TryRequestDaemonInteract()",
         "TryRequestDaemonTowToStation()",
-        "observer.Operations.DockNearest(Settings.GameplaySettings.DockingDistance)",
+        "observer.Operations.DockNearest()",
         "observer.Operations.Undock()",
-        "observer.Operations.Interact(",
+        "observer.Operations.Interact()",
         "observer.Operations.TowToStation(",
         "ResolveObservedEntityZoneIndex(TowingStation)",
         "TowingStation.CultPositionXZ.x",
@@ -9187,9 +9187,11 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeDaemonCommandKinds.Interact",
         "public AetheriaRuntimeDaemonCommandEnvelope DockNearest(",
         "public AetheriaRuntimeDaemonCommandEnvelope Interact(",
-        "ApplyDockNearestIntent(run, command, context.Intents)",
-        "ApplyInteractIntent(run, command, context.Intents)",
-        "TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey)",
+        "ApplyDockNearestIntent(run, command, context.Intents, context.DockingDistance)",
+        "context.WormholeExitRadius",
+        "AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance",
+        "AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius",
+        "ResolveInteractionDistance(command.ScalarValue, defaultDockingDistance)",
         "TryFindNearestWormholeTarget("
     };
     var daemonDockNearestSources = daemonDocuments + "\n" + daemonOperationClient + "\n" + daemonOperationsSource;
@@ -9201,6 +9203,19 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Daemon no longer owns nearest docking target selection: " +
             string.Join(", ", missingDaemonDockNearestSymbols));
+    }
+
+    var unityOwnedInteractionTuningHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "Settings.GameplaySettings.DockingDistance", "Settings.GameplaySettings.WormholeExitRadius" })
+        .Where(hit => hit.MethodName == "TryRequestDaemonDock" || hit.MethodName == "TryRequestDaemonInteract")
+        .Select(hit => $"ActionGameManager.cs:{hit.LineNumber}: {hit.Line.Trim()}")
+        .ToArray();
+    if (unityOwnedInteractionTuningHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity interaction requests still carry GameSettings tuning instead of semantic daemon operations: " +
+            string.Join("; ", unityOwnedInteractionTuningHits));
     }
 
     var movementLocalAuthorityHits = FindMethodScopedLineHits(

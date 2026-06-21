@@ -200,9 +200,9 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.Dock(observed, targetEntityKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope DockNearest(double maxDistance)
+    public AetheriaRuntimeDaemonCommandEnvelope DockNearest()
     {
-        return Send((client, observed) => client.DockNearest(observed, maxDistance));
+        return Send((client, observed) => client.DockNearest(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope Undock()
@@ -210,9 +210,9 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.Undock(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope Interact(double dockDistance, double wormholeDistance)
+    public AetheriaRuntimeDaemonCommandEnvelope Interact()
     {
-        return Send((client, observed) => client.Interact(observed, dockDistance, wormholeDistance));
+        return Send((client, observed) => client.Interact(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(string targetEntityKey)

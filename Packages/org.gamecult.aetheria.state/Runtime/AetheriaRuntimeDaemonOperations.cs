@@ -29,10 +29,17 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeDaemonOperationContext
     {
+        public const double DefaultDockingDistance = 25.0;
+        public const double DefaultWormholeExitRadius = 50.0;
+
         public IReadOnlyList<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplates { get; set; } =
             Array.Empty<AetheriaRuntimeLoadoutTemplateCommit>();
 
         public AetheriaRuntimeDaemonIntentState Intents { get; set; } = new AetheriaRuntimeDaemonIntentState();
+
+        public double DockingDistance { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance;
+
+        public double WormholeExitRadius { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius;
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -160,11 +167,16 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.Dock:
                     return ApplyDockIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.DockNearest:
-                    return ApplyDockNearestIntent(run, command, context.Intents);
+                    return ApplyDockNearestIntent(run, command, context.Intents, context.DockingDistance);
                 case AetheriaRuntimeDaemonCommandKinds.Undock:
                     return ApplyUndockIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.Interact:
-                    return ApplyInteractIntent(run, command, context.Intents);
+                    return ApplyInteractIntent(
+                        run,
+                        command,
+                        context.Intents,
+                        context.DockingDistance,
+                        context.WormholeExitRadius);
                 case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
                     return ApplyEnterWormholeIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
@@ -1134,11 +1146,16 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyDockNearestIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            AetheriaRuntimeDaemonIntentState intents,
+            double defaultDockingDistance)
         {
             var actorKey = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actorKey) ||
-                !TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey))
+                !TryFindNearestDockTarget(
+                    run,
+                    actorKey,
+                    ResolveInteractionDistance(command.ScalarValue, defaultDockingDistance),
+                    out var targetKey))
             {
                 return false;
             }
@@ -1170,7 +1187,9 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyInteractIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            AetheriaRuntimeDaemonIntentState intents,
+            double defaultDockingDistance,
+            double defaultWormholeExitRadius)
         {
             var actorKey = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actorKey) ||
@@ -1185,7 +1204,7 @@ namespace GameCult.Aetheria.State.Verse
             if (TryFindNearestWormholeTarget(
                     run,
                     actorKey,
-                    command.PositionX,
+                    ResolveInteractionDistance(command.PositionX, defaultWormholeExitRadius),
                     out var targetZoneIndex,
                     out var entryX,
                     out var entryY))
@@ -1196,7 +1215,17 @@ namespace GameCult.Aetheria.State.Verse
                 return ApplyEnterWormholeIntent(run, command, intents);
             }
 
-            return ApplyDockNearestIntent(run, command, intents);
+            return ApplyDockNearestIntent(run, command, intents, defaultDockingDistance);
+        }
+
+        private static double ResolveInteractionDistance(double commandDistance, double defaultDistance)
+        {
+            if (IsFinite(commandDistance) && commandDistance > 0.0)
+                return commandDistance;
+
+            return IsFinite(defaultDistance) && defaultDistance > 0.0
+                ? defaultDistance
+                : double.PositiveInfinity;
         }
 
         private static bool TryFindNearestDockTarget(

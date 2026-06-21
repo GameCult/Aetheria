@@ -2248,9 +2248,7 @@ public class ActionGameManager : MonoBehaviour
 
         try
         {
-            observer.Operations.Interact(
-                Settings.GameplaySettings.DockingDistance,
-                Settings.GameplaySettings.WormholeExitRadius);
+            observer.Operations.Interact();
             return true;
         }
         catch (Exception ex)
@@ -4105,7 +4103,7 @@ public class ActionGameManager : MonoBehaviour
 
         try
         {
-            observer.Operations.DockNearest(Settings.GameplaySettings.DockingDistance);
+            observer.Operations.DockNearest();
             return true;
         }
         catch (Exception ex)
