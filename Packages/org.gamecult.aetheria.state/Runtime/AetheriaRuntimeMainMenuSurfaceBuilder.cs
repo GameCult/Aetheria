@@ -277,6 +277,28 @@ namespace GameCult.Aetheria.State.Verse
                     cardChildren.ToArray()));
         }
 
+        public static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsShell(
+            AetheriaRuntimePlayerSettingsSurfaceState state,
+            long version = 1)
+        {
+            return WithBackAction(
+                AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version),
+                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.BackToSettings,
+                "Back");
+        }
+
+        public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(
+            AetheriaRuntimeClientTargetSurfaceState state,
+            long version = 1)
+        {
+            return WithBackAction(
+                AetheriaRuntimeClientTargetSurfaceBuilder.Build(state, version),
+                AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.BackToSettings,
+                "Back");
+        }
+
         public static AetheriaRuntimeSurfaceDocument WithBackAction(
             AetheriaRuntimeSurfaceDocument document,
             string surfaceId,

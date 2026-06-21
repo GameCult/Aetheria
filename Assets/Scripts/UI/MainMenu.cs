@@ -206,22 +206,14 @@ public class MainMenu : MonoBehaviour
     private void ShowPlayerSettingsSurface()
     {
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(
-                BuildPlayerSettingsSurfaceDefinition(),
-                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
-                AetheriaRuntimeMainMenuCommands.BackToSettings,
-                "Back"),
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(ProjectPlayerSettingsSurfaceState()),
             HandlePlayerSettingsSurfaceCommand);
     }
 
     private void ShowVerseSettingsSurface()
     {
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(
-                BuildVerseSettingsSurfaceDefinition(),
-                AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId,
-                AetheriaRuntimeMainMenuCommands.BackToSettings,
-                "Back"),
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(ProjectVerseSettingsSurfaceState()),
             HandleVerseSettingsSurfaceCommand);
     }
 
@@ -350,46 +342,44 @@ public class MainMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument);
     }
 
-    private static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsSurfaceDefinition()
+    private static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettingsSurfaceState()
     {
-        return AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(
-            new AetheriaRuntimePlayerSettingsSurfaceState(
-                ActionGameManager.RuntimePlayerSettings.Name,
-                ActionGameManager.RuntimePlayerSettings.TutorialPassed,
-                "",
-                ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString(),
-                Math.Max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
-                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
-                ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
-                DateTime.UtcNow.ToString("O")));
+        return new AetheriaRuntimePlayerSettingsSurfaceState(
+            ActionGameManager.RuntimePlayerSettings.Name,
+            ActionGameManager.RuntimePlayerSettings.TutorialPassed,
+            "",
+            ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString(),
+            Math.Max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
+            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
+            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
+            DateTime.UtcNow.ToString("O"));
     }
 
-    private static AetheriaRuntimeSurfaceDocument BuildVerseSettingsSurfaceDefinition()
+    private static AetheriaRuntimeClientTargetSurfaceState ProjectVerseSettingsSurfaceState()
     {
         var stateBoot = CurrentStateBoot();
         var verseHost = LatestVerseHostSettings(stateBoot);
-        return AetheriaRuntimeClientTargetSurfaceBuilder.Build(
-            new AetheriaRuntimeClientTargetSurfaceState(
-                stateBoot.TargetKind,
-                stateBoot.Title,
-                stateBoot.VerseId,
-                stateBoot.CultMeshAddress,
-                stateBoot.StateFilePath,
-                stateBoot.ReplicaStateFilePath,
-                string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
-                stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-                stateBoot.LastDiscoveryAtUtc,
-                stateBoot.LastDiscoveryError,
-                stateBoot.LastReplicaSyncAtUtc,
-                stateBoot.LastReplicaSyncError,
-                stateBoot.TargetSource,
-                stateBoot.SupportsLocalStateFileRead,
-                stateBoot.FailureMessage,
-                verseHost?.Title ?? stateBoot.Title,
-                verseHost?.VerseId ?? stateBoot.VerseId,
-                verseHost?.Visibility ?? "unknown",
-                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
-                DateTime.UtcNow.ToString("O")));
+        return new AetheriaRuntimeClientTargetSurfaceState(
+            stateBoot.TargetKind,
+            stateBoot.Title,
+            stateBoot.VerseId,
+            stateBoot.CultMeshAddress,
+            stateBoot.StateFilePath,
+            stateBoot.ReplicaStateFilePath,
+            string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
+            stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+            stateBoot.LastDiscoveryAtUtc,
+            stateBoot.LastDiscoveryError,
+            stateBoot.LastReplicaSyncAtUtc,
+            stateBoot.LastReplicaSyncError,
+            stateBoot.TargetSource,
+            stateBoot.SupportsLocalStateFileRead,
+            stateBoot.FailureMessage,
+            verseHost?.Title ?? stateBoot.Title,
+            verseHost?.VerseId ?? stateBoot.VerseId,
+            verseHost?.Visibility ?? "unknown",
+            verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+            DateTime.UtcNow.ToString("O"));
     }
 
     private static AetheriaRuntimeMainMenuSurfaceState ProjectMainMenuSurfaceState(

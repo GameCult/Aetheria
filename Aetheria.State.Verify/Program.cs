@@ -2976,7 +2976,8 @@ static void RequireMainMenuSettingsCommands(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(ProjectPlayerSettingsSurfaceState())",
+        "ProjectPlayerSettingsSurfaceState()",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
         "SendKnownAetheriaEveCommand(request, \"player-settings\")"
@@ -3000,6 +3001,7 @@ static void RequireMainMenuSettingsCommands(string root)
         "TryQueuePlayerSettingsCommand(",
         "TryQueueAetheriaEveCommand(",
         "AetheriaRuntimeEveCommandLog.QueueCommand(",
+        "BuildPlayerSettingsSurfaceDefinition()",
         "ResolveMenuSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer",
         "host.AddComponent<UIDocument>",
@@ -3065,12 +3067,12 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     {
         "RenderMenuSurface(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
-        "BuildVerseSettingsSurfaceDefinition()",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(ProjectPlayerSettingsSurfaceState())",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(ProjectVerseSettingsSurfaceState())",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
         "HandleSettingsSurfaceCommand(",
         "HandleVerseSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.WithBackAction(",
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ShowPlayerSettings",
         "AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings",
@@ -3078,7 +3080,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuCommandKind.BackToMain",
         "AetheriaRuntimeMainMenuCommandKind.BackToSettings",
         "AetheriaRuntimeMainMenuCommandKind.OpenRuntimeInputScreen",
-        "AetheriaRuntimeMainMenuCommands.BackToSettings",
+        "ProjectPlayerSettingsSurfaceState(",
+        "ProjectVerseSettingsSurfaceState(",
         "ProjectMainMenuSurfaceState(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument)"
@@ -3099,6 +3102,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     {
         "BuildSettingsSurfaceDefinition(",
         "BuildInputSettingsSurfaceDefinition(",
+        "BuildPlayerSettingsSurfaceDefinition(",
+        "BuildVerseSettingsSurfaceDefinition(",
         "private static EveSurfaceComponent Button(",
         "private static EveSurfaceComponent Card(",
         "_nextMenu.panel.AddButton(\"Player Settings\"",
@@ -3139,7 +3144,12 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "public static class AetheriaRuntimeMainMenuCommands",
         "BuildSettings(",
         "BuildInputSettings(",
+        "BuildPlayerSettingsShell(",
+        "BuildVerseSettingsShell(",
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version)",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(state, version)",
         "WithBackAction(",
+        "AetheriaRuntimeMainMenuCommands.BackToSettings",
         "public enum AetheriaRuntimeMainMenuCommandKind",
         "public readonly struct AetheriaRuntimeMainMenuCommand",
         "public static class AetheriaRuntimeMainMenuSurfaceCommands",
@@ -6350,12 +6360,11 @@ static void RequireVerseSettingsShellAndBridge(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId",
         "AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings",
         "ShowVerseSettingsSurface()",
         "HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)",
-        "BuildVerseSettingsSurfaceDefinition()",
-        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
+        "ProjectVerseSettingsSurfaceState()",
+        "AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(ProjectVerseSettingsSurfaceState())",
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
