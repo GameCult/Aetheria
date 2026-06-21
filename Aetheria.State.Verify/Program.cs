@@ -4206,12 +4206,14 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     }
 
     if (!surfaceDocument.Contains("public static class AetheriaRuntimeSurfaceStateRefs", StringComparison.Ordinal) ||
+        !surfaceDocument.Contains("public const string Source = \"stateRef\"", StringComparison.Ordinal) ||
         !surfaceDocument.Contains("public const string Value = \"valueRef\"", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public const string StateRefPrefix = \"aetheria.state/items\"", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public static string ItemStatRef(", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("surface = ResolveStateRefs(surface, stateRefResolver)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("props.Add(AetheriaRuntimeSurfaceStateRefs.ValueRef(valueRef))", StringComparison.Ordinal) ||

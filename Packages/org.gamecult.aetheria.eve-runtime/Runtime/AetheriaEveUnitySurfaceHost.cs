@@ -216,6 +216,7 @@ namespace GameCult.Aetheria.EveRuntime
             Func<string, string> stateRefResolver)
         {
             var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, "value", stateRefResolver);
             ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, "value", stateRefResolver);
             ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Label, "label", stateRefResolver);
 
