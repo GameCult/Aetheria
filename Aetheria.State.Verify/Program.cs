@@ -10,6 +10,7 @@ var statePath = args.Length > 1
 RequireGameplaySourcePurity(root);
 RequirePackageSerializerBoundary(root);
 RequireSharedEvePackagesImportedFromEveRepo(root);
+RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(root);
 RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
@@ -709,6 +710,42 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         throw new InvalidOperationException(
             "Aetheria.State.Unity no longer references the shared Eve surface package assembly.");
     }
+}
+
+static void RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(string root)
+{
+    var runtimePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
+    if (!Directory.Exists(runtimePath))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime surface command transport cannot be verified because the state runtime package is missing.");
+    }
+
+    var runtimeSources = Directory.EnumerateFiles(runtimePath, "*.cs", SearchOption.TopDirectoryOnly)
+        .ToDictionary(
+            path => Path.GetRelativePath(root, path),
+            File.ReadAllText,
+            StringComparer.Ordinal);
+    var combinedRuntime = string.Join("\n", runtimeSources.Values);
+
+    if (!combinedRuntime.Contains("public const string CultMeshTransport = \"cultmesh\"", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime surface command templates do not expose a neutral CultMesh transport constant.");
+    }
+
+    var unityToolkitTransportHits = runtimeSources
+        .Where(pair => pair.Value.Contains("\"unity-uitoolkit\"", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (unityToolkitTransportHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime surface command templates still advertise Unity UI Toolkit as the transport owner: " +
+            string.Join(", ", unityToolkitTransportHits));
+    }
+
+    Console.WriteLine("Shared runtime surface commands: command templates advertise CultMesh transport instead of Unity UI Toolkit");
 }
 
 static void RequirePackageSerializerBoundary(string root)

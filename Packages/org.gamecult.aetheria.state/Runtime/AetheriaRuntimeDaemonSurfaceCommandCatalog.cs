@@ -33,7 +33,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public static IReadOnlyList<AetheriaRuntimeSurfaceCommandTemplate> ArgumentlessSurfaceCommands =>
             ArgumentlessCommandKinds
-                .Select(kind => new AetheriaRuntimeSurfaceCommandTemplate(CommandName(kind), Label(kind), "cultmesh"))
+                .Select(kind => new AetheriaRuntimeSurfaceCommandTemplate(
+                    CommandName(kind),
+                    Label(kind),
+                    AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                 .ToArray();
 
         public static string CommandName(AetheriaRuntimeDaemonCommandKinds kind)

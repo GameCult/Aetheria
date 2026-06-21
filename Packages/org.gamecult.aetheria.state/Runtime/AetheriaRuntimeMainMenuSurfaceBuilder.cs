@@ -350,7 +350,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeSurfaceCommandTemplate Command(string command, string label)
         {
-            return new AetheriaRuntimeSurfaceCommandTemplate(command, label, "unity-uitoolkit");
+            return new AetheriaRuntimeSurfaceCommandTemplate(command, label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport);
         }
 
         private static AetheriaRuntimeSurfaceComponent Card(

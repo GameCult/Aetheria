@@ -89,8 +89,8 @@ namespace GameCult.Aetheria.State.Verse
                                 Button($"{SurfaceId}.close", "Close", Close)))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: targets
-                    .Select(target => new AetheriaRuntimeSurfaceCommandTemplate(target.Command, target.Label, "unity-uitoolkit"))
-                    .Append(new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", "unity-uitoolkit"))
+                    .Select(target => new AetheriaRuntimeSurfaceCommandTemplate(target.Command, target.Label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
+                    .Append(new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                     .ToArray());
         }
 

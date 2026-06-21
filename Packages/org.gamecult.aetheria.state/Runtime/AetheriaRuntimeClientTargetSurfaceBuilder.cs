@@ -284,43 +284,43 @@ namespace GameCult.Aetheria.State.Verse
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.Refresh,
                         "Refresh",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.CycleTargetKind,
                         "Cycle Transport",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetTitle,
                         "Set Title",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetVerseId,
                         "Set Verse Id",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetCultMeshAddress,
                         "Set CultMesh Address",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetStateFilePath,
                         "Set State File Path",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints,
                         "Set Discovery Endpoints",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.DiscoverVerses,
                         "Discover Verses",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SelectDiscoveredVerse,
                         "Select Discovered Verse",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SyncReplica,
                         "Sync Replica",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeVerseHostCommands.CycleVisibility,
                         "Toggle Visibility",

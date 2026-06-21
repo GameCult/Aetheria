@@ -61,7 +61,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(tab => new AetheriaRuntimeSurfaceCommandTemplate(
                     CommandFor(tab.Key),
                     LabelFor(tab),
-                    "unity-uitoolkit"))
+                    AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                 .ToArray();
             var buttons = state.VisibleTabs
                 .Select(tab => Button(

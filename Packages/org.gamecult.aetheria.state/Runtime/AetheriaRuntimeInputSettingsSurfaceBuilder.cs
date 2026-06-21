@@ -156,19 +156,19 @@ namespace GameCult.Aetheria.State.Verse
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeInputSettingsCommands.Refresh,
                         "Refresh",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeInputSettingsCommands.BeginCapture,
                         "Capture Binding",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeInputSettingsCommands.CancelCapture,
                         "Cancel Capture",
-                        "unity-uitoolkit"),
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeInputSettingsCommands.ToggleActionBar,
                         "Toggle Action-Bar Input",
-                        "unity-uitoolkit")
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
                 });
         }
 

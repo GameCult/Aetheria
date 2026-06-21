@@ -67,10 +67,10 @@ namespace GameCult.Aetheria.State.Verse
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {
-                    new AetheriaRuntimeSurfaceCommandTemplate(DecrementShutdownThreshold, "Threshold -", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(IncrementShutdownThreshold, "Threshold +", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ResetShutdownThreshold, "Default", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", "unity-uitoolkit")
+                    new AetheriaRuntimeSurfaceCommandTemplate(DecrementShutdownThreshold, "Threshold -", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(IncrementShutdownThreshold, "Threshold +", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(ResetShutdownThreshold, "Default", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
                 });
         }
 

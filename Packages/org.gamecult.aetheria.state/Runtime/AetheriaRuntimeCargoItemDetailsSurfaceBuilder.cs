@@ -181,7 +181,7 @@ namespace GameCult.Aetheria.State.Verse
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {
-                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", "unity-uitoolkit")
+                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
                 });
         }
 

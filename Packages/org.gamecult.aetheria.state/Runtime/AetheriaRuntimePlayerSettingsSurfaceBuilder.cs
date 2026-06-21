@@ -96,6 +96,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeSurfaceCommandTemplate
     {
+        public const string CultMeshTransport = "cultmesh";
+
         public AetheriaRuntimeSurfaceCommandTemplate(string command, string label, string transport)
         {
             Command = command ?? "";

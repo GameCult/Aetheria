@@ -259,12 +259,12 @@ namespace GameCult.Aetheria.State.Verse
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {
-                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleOverrideShutdown, "Toggle Override Shutdown", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(SetTargetTemperature, "Set Target Temperature", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleWeaponGroup, "Toggle Weapon Group", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(BindWeaponGroup, "Bind Weapon Group", "unity-uitoolkit"),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ClearActionBarBinding, "Clear Action Bar Binding", "unity-uitoolkit")
+                    new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleOverrideShutdown, "Toggle Override Shutdown", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(SetTargetTemperature, "Set Target Temperature", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleWeaponGroup, "Toggle Weapon Group", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(BindWeaponGroup, "Bind Weapon Group", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(ClearActionBarBinding, "Clear Action Bar Binding", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
                 });
         }
 

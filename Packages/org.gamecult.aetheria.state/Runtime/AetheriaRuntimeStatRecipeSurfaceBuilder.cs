@@ -453,17 +453,17 @@ namespace GameCult.Aetheria.State.Verse
         {
             return new[]
             {
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.Refresh, "Refresh", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SelectStat, "Select Stat", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.AddStat, "Add Stat", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.RemoveStat, "Remove Stat", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetStatName, "Set Stat Name", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetBaseValue, "Set Base Value", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.ToggleCondition, "Toggle Condition", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.CycleInfluenceOperation, "Cycle Operation", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetInfluenceAmount, "Set Influence Amount", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetInfluenceCurve, "Set Influence Curve", "cultmesh"),
-                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetPreviewCondition, "Set Preview Condition", "cultmesh")
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.Refresh, "Refresh", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SelectStat, "Select Stat", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.AddStat, "Add Stat", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.RemoveStat, "Remove Stat", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetStatName, "Set Stat Name", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetBaseValue, "Set Base Value", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.ToggleCondition, "Toggle Condition", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.CycleInfluenceOperation, "Cycle Operation", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetInfluenceAmount, "Set Influence Amount", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetInfluenceCurve, "Set Influence Curve", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                new AetheriaRuntimeSurfaceCommandTemplate(AetheriaRuntimeStatRecipeCommands.SetPreviewCondition, "Set Preview Condition", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
             };
         }
 
