@@ -2000,17 +2000,7 @@ public class ActionGameManager : MonoBehaviour
                 Dialog.Show();
                 Dialog.MoveToCursor();
             }
-            else if (CurrentEntity.Parent == null)
-            {
-                foreach (var wormhole in ZoneRenderer.WormholeInstances.Keys)
-                {
-                    if (!(CultMath.math.length(wormhole.Position - CurrentEntity.CultPositionXZ) < Settings.GameplaySettings.WormholeExitRadius)) continue;
-                    RequestEnterWormhole(wormhole);
-                    return;
-                }
-                RequestDock();
-            }
-            else RequestUndock();
+            else RequestInteract();
         };
 
         Input.Global.MainMenu.performed += context =>
@@ -2165,35 +2155,29 @@ public class ActionGameManager : MonoBehaviour
         foreach (var a in _actionBarActions) a.Disable();
     }
 
-    private void RequestEnterWormhole(Wormhole wormhole)
+    private void RequestInteract()
     {
-        TryRequestDaemonEnterWormhole(wormhole);
+        TryRequestDaemonInteract();
     }
 
-    private bool TryRequestDaemonEnterWormhole(Wormhole wormhole)
+    private bool TryRequestDaemonInteract()
     {
         var observer = ResolveDaemonObserver();
-        if (observer == null ||
-            !observer.HasAuthoritativeState ||
-            wormhole == null)
-        {
-            return false;
-        }
-
-        var targetZoneIndex = ZoneIndex(wormhole.Target);
-        if (targetZoneIndex < 0)
+        if (observer == null || !observer.HasAuthoritativeState)
         {
             return false;
         }
 
         try
         {
-            observer.Operations.EnterWormhole(targetZoneIndex, wormhole.Position.x, wormhole.Position.y);
+            observer.Operations.Interact(
+                Settings.GameplaySettings.DockingDistance,
+                Settings.GameplaySettings.WormholeExitRadius);
             return true;
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to send Aetheria daemon wormhole operation; operation not submitted: {ex.Message}");
+            Debug.LogWarning($"Failed to send Aetheria daemon interact operation; operation not submitted: {ex.Message}");
             return false;
         }
     }

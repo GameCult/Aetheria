@@ -163,6 +163,8 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyDockNearestIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.Undock:
                     return ApplyUndockIntent(run, command, context.Intents);
+                case AetheriaRuntimeDaemonCommandKinds.Interact:
+                    return ApplyInteractIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
                     return ApplyEnterWormholeIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
@@ -1095,6 +1097,38 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
+        private static bool ApplyInteractIntent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonIntentState intents)
+        {
+            var actorKey = ResolveActorEntityKey(run, command);
+            if (string.IsNullOrWhiteSpace(actorKey) ||
+                !TryResolveEntity(run, actorKey, out var zoneIndex, out var actorIndex, out _))
+            {
+                return false;
+            }
+
+            if (IsChildReferencedInZone(run, zoneIndex, actorIndex))
+                return ApplyUndockIntent(run, command, intents);
+
+            if (TryFindNearestWormholeTarget(
+                    run,
+                    actorKey,
+                    command.PositionX,
+                    out var targetZoneIndex,
+                    out var entryX,
+                    out var entryY))
+            {
+                command.TargetZoneIndex = targetZoneIndex;
+                command.PositionX = entryX;
+                command.PositionY = entryY;
+                return ApplyEnterWormholeIntent(run, command, intents);
+            }
+
+            return ApplyDockNearestIntent(run, command, intents);
+        }
+
         private static bool TryFindNearestDockTarget(
             AetheriaRuntimeRunCheckpointCommit run,
             string actorEntityKey,
@@ -1135,6 +1169,49 @@ namespace GameCult.Aetheria.State.Verse
 
             targetEntityKey = BuildEntityKey(run.RunId, zoneIndex, closestIndex);
             return true;
+        }
+
+        private static bool TryFindNearestWormholeTarget(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string actorEntityKey,
+            double maxDistance,
+            out int targetZoneIndex,
+            out double entryX,
+            out double entryY)
+        {
+            targetZoneIndex = -1;
+            entryX = 0.0;
+            entryY = 0.0;
+            if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out _, out var actor))
+                return false;
+
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            if (zone == null)
+                return false;
+
+            var maxDistanceSq = maxDistance > 0.0 ? maxDistance * maxDistance : double.PositiveInfinity;
+            var closestDistanceSq = double.PositiveInfinity;
+            foreach (var adjacentZoneIndex in zone.AdjacentZoneIndices ?? Array.Empty<int>())
+            {
+                var candidate = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                    .FirstOrDefault(candidateZone => candidateZone != null && candidateZone.ZoneIndex == adjacentZoneIndex);
+                if (candidate == null)
+                    continue;
+
+                var deltaX = candidate.PositionX - actor.PositionX;
+                var deltaY = candidate.PositionY - actor.PositionZ;
+                var distanceSq = (deltaX * deltaX) + (deltaY * deltaY);
+                if (distanceSq >= maxDistanceSq || distanceSq >= closestDistanceSq)
+                    continue;
+
+                closestDistanceSq = distanceSq;
+                targetZoneIndex = adjacentZoneIndex;
+                entryX = candidate.PositionX;
+                entryY = candidate.PositionY;
+            }
+
+            return targetZoneIndex >= 0;
         }
 
         private static bool ApplyDockState(

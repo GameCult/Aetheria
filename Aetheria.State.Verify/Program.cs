@@ -7533,12 +7533,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "public void RequestDock()",
         "public void RequestUndock()",
+        "private void RequestInteract()",
         "public void RequestTowToStation()",
         "TryRequestDaemonDock()",
         "TryRequestDaemonUndock()",
+        "TryRequestDaemonInteract()",
         "TryRequestDaemonTowToStation()",
         "observer.Operations.DockNearest(Settings.GameplaySettings.DockingDistance)",
         "observer.Operations.Undock()",
+        "observer.Operations.Interact(",
         "observer.Operations.TowToStation(",
         "TowingStation.CultPositionXZ.x",
         "TowingStation.CultPositionXZ.y"
@@ -7563,7 +7566,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "Missing cockpit component",
         "Missing thruster component",
         "Missing reactor component",
-        "Must empty docking bay"
+        "Must empty docking bay",
+        "ZoneRenderer.WormholeInstances.Keys",
+        "RequestEnterWormhole(wormhole);"
     };
     var unityDockingAuthorityHits = forbiddenUnityDockingAuthoritySymbols
         .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -7617,9 +7622,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredDaemonDockNearestSymbols = new[]
     {
         "AetheriaRuntimeDaemonCommandKinds.DockNearest",
+        "AetheriaRuntimeDaemonCommandKinds.Interact",
         "public AetheriaRuntimeDaemonCommandEnvelope DockNearest(",
+        "public AetheriaRuntimeDaemonCommandEnvelope Interact(",
         "ApplyDockNearestIntent(run, command, context.Intents)",
-        "TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey)"
+        "ApplyInteractIntent(run, command, context.Intents)",
+        "TryFindNearestDockTarget(run, actorKey, command.ScalarValue, out var targetKey)",
+        "TryFindNearestWormholeTarget("
     };
     var daemonDockNearestSources = daemonDocuments + "\n" + daemonOperationClient + "\n" + daemonOperationsSource;
     var missingDaemonDockNearestSymbols = requiredDaemonDockNearestSymbols

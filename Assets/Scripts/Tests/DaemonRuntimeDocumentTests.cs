@@ -2004,6 +2004,79 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsInteractPrioritizesUndockWormholeThenDock()
+    {
+        var undockRun = RunWithTwoEntities();
+        undockRun.Zones[0].Entities[1].ChildEntityIndices = new[] { 0 };
+        undockRun.Zones[0].Entities[1].DockingBayAssignments = new[] { 0, -1 };
+        var undock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.Interact,
+            "codex",
+            "session-interact",
+            46,
+            "zone.0.entity.0");
+        undock.ScalarValue = 10;
+        undock.PositionX = 10;
+
+        var undockResult = AetheriaRuntimeDaemonOperations.Execute(undockRun, new[] { undock });
+        Assert.AreEqual(1, undockResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, undockResult.Intents.Docking.Count);
+        Assert.IsTrue(undockResult.Intents.Docking[0].Undock);
+        CollectionAssert.DoesNotContain(undockRun.Zones[0].Entities[1].DockingBayAssignments, 0);
+
+        var wormholeRun = RunWithTwoEntities();
+        wormholeRun.Zones[0].AdjacentZoneIndices = new[] { 2 };
+        wormholeRun.Zones[0].Entities[0].PositionX = 0;
+        wormholeRun.Zones[0].Entities[0].PositionZ = 0;
+        wormholeRun.Zones = wormholeRun.Zones
+            .Concat(new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 2,
+                    PositionX = 3,
+                    PositionY = 4
+                }
+            })
+            .ToArray();
+        var wormhole = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.Interact,
+            "codex",
+            "session-interact",
+            47,
+            "zone.0.entity.0");
+        wormhole.ScalarValue = 10;
+        wormhole.PositionX = 10;
+
+        var wormholeResult = AetheriaRuntimeDaemonOperations.Execute(wormholeRun, new[] { wormhole });
+        Assert.AreEqual(1, wormholeResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, wormholeResult.Intents.Wormholes.Count);
+        Assert.AreEqual(2, wormholeRun.CurrentZoneIndex);
+        Assert.AreEqual(3, FindZone(wormholeRun, 2).Entities[0].PositionX, 0.0001);
+        Assert.AreEqual(4, FindZone(wormholeRun, 2).Entities[0].PositionZ, 0.0001);
+
+        var dockRun = RunWithTwoEntities();
+        dockRun.Zones[0].Entities[0].PositionX = 0;
+        dockRun.Zones[0].Entities[0].PositionY = 0;
+        dockRun.Zones[0].Entities[1].PositionX = 3;
+        dockRun.Zones[0].Entities[1].PositionY = 4;
+        var dock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.Interact,
+            "codex",
+            "session-interact",
+            48,
+            "zone.0.entity.0");
+        dock.ScalarValue = 10;
+        dock.PositionX = 1;
+
+        var dockResult = AetheriaRuntimeDaemonOperations.Execute(dockRun, new[] { dock });
+        Assert.AreEqual(1, dockResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, dockResult.Intents.Docking.Count);
+        Assert.IsTrue(dockResult.Intents.Docking[0].Dock);
+        CollectionAssert.Contains(dockRun.Zones[0].Entities[1].ChildEntityIndices, 0);
+    }
+
+    [Test]
     public void DaemonOperationsTowsEntityToStationInDaemonState()
     {
         var run = RunWithTwoEntities();

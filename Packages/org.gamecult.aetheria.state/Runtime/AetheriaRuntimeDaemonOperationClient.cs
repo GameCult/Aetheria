@@ -407,6 +407,18 @@ namespace GameCult.Aetheria.State.Verse
             return Send(AetheriaRuntimeDaemonCommandKinds.Undock, observed);
         }
 
+        public AetheriaRuntimeDaemonCommandEnvelope Interact(
+            AetheriaRuntimeObservedDaemonState? observed,
+            double dockDistance,
+            double wormholeDistance)
+        {
+            return Send(AetheriaRuntimeDaemonCommandKinds.Interact, observed, command =>
+            {
+                command.ScalarValue = dockDistance;
+                command.PositionX = wormholeDistance;
+            });
+        }
+
         public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey)

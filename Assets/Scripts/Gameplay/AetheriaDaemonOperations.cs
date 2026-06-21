@@ -210,6 +210,11 @@ public sealed class AetheriaDaemonOperations
         return Send((client, observed) => client.Undock(observed));
     }
 
+    public AetheriaRuntimeDaemonCommandEnvelope Interact(double dockDistance, double wormholeDistance)
+    {
+        return Send((client, observed) => client.Interact(observed, dockDistance, wormholeDistance));
+    }
+
     public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(string targetEntityKey)
     {
         return Send((client, observed) => client.SetDockedCurrentShip(observed, targetEntityKey));

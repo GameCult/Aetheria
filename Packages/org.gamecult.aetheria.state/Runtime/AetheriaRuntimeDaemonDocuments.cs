@@ -84,6 +84,7 @@ namespace GameCult.Aetheria.State.Verse
         Dock,
         DockNearest,
         Undock,
+        Interact,
         SetDockedCurrentShip,
         TowToStation,
         EnterWormhole,
