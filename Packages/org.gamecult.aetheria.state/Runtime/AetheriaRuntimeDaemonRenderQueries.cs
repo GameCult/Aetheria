@@ -28,6 +28,39 @@ namespace GameCult.Aetheria.State.Verse
         public double MaxZ { get; }
     }
 
+    public readonly struct AetheriaRuntimeExponentialCurve
+    {
+        public AetheriaRuntimeExponentialCurve(double exponent, double multiplier, double constant)
+        {
+            Exponent = exponent;
+            Multiplier = multiplier;
+            Constant = constant;
+        }
+
+        public double Exponent { get; }
+        public double Multiplier { get; }
+        public double Constant { get; }
+
+        public double Evaluate(double value)
+        {
+            return Multiplier * Math.Pow(value, Exponent) + Constant;
+        }
+    }
+
+    public readonly struct AetheriaRuntimeDaemonRenderSettings
+    {
+        public AetheriaRuntimeDaemonRenderSettings(
+            AetheriaRuntimeExponentialCurve temperatureEmissionCurve,
+            double convergenceMinimumDistance)
+        {
+            TemperatureEmissionCurve = temperatureEmissionCurve;
+            ConvergenceMinimumDistance = convergenceMinimumDistance;
+        }
+
+        public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
+        public double ConvergenceMinimumDistance { get; }
+    }
+
     public readonly struct AetheriaRuntimeGravityInfluenceBrush
     {
         public AetheriaRuntimeGravityInfluenceBrush(

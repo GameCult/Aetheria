@@ -1813,6 +1813,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var requiredQuerySymbols = new[]
     {
+        "public readonly struct AetheriaRuntimeDaemonRenderSettings",
+        "public readonly struct AetheriaRuntimeExponentialCurve",
+        "public double ConvergenceMinimumDistance { get; }",
+        "public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }",
         "public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(",
         "AetheriaRuntimeZoneSnapshotCommit? zone",
         "public static int QueryGravityInfluences(",
@@ -2029,6 +2033,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var requiredZoneRendererSymbols = new[]
     {
+        "public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; }",
         "private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;",
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
@@ -2106,10 +2111,17 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "EntityInstance convergence distance must read daemon target projection through ZoneRenderer instead of facade Entity.Target.");
     }
 
+    if (entityInstance.Contains("Entity.ItemManager.GameplaySettings", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "EntityInstance render code must use daemon render settings instead of drilling through the observed Entity ItemManager facade.");
+    }
+
     var requiredEntityInstanceSymbols = new[]
     {
+        "ZoneRenderer.RenderSettings.TemperatureEmissionCurve.Evaluate(",
         "ZoneRenderer.TryGetDaemonTargetDistance(DaemonEntityIndex, out var daemonTargetDistance)",
-        "Mathf.Max(daemonTargetDistance, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)",
+        "Mathf.Max(daemonTargetDistance, (float)ZoneRenderer.RenderSettings.ConvergenceMinimumDistance)",
         "LookAtPoint.position = transform.position + entityLookDirection * lookAtDistance;"
     };
 

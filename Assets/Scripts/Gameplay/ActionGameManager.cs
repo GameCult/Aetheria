@@ -560,6 +560,17 @@ public class ActionGameManager : MonoBehaviour
                 .ToArray());
     }
 
+    public AetheriaRuntimeDaemonRenderSettings ObservedDaemonRenderSettings()
+    {
+        var emissionCurve = Settings.GameplaySettings.TemperatureEmissionCurve;
+        return new AetheriaRuntimeDaemonRenderSettings(
+            new AetheriaRuntimeExponentialCurve(
+                emissionCurve.Exponent,
+                emissionCurve.Multiplier,
+                emissionCurve.Constant),
+            Settings.GameplaySettings.ConvergenceMinimumDistance);
+    }
+
     private readonly (float2 direction, string name)[] _directions = {
         (new float2(0, 1), "Front"),
         (new float2(1, 0), "Right"),
@@ -1915,6 +1926,7 @@ public class ActionGameManager : MonoBehaviour
             Settings.GameplaySettings,
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
+        ZoneRenderer.RenderSettings = ObservedDaemonRenderSettings();
 
         // If hiding minimap asteroids, turn them off to start with
         if (!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)

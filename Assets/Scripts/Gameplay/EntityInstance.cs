@@ -262,7 +262,7 @@ public class EntityInstance : MonoBehaviour
         
         foreach (var x in RadiatorMeshes)
         {
-            x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
+            x.Value.material.SetFloat("_Emission", (float)ZoneRenderer.RenderSettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
         foreach (var x in Barrels)
@@ -276,7 +276,7 @@ public class EntityInstance : MonoBehaviour
         var entityLookDirection = (Vector3)AetheriaMath.ToUnity(Entity.CultLookDirection);
         var lookAtDistance = ZoneRenderer != null &&
                              ZoneRenderer.TryGetDaemonTargetDistance(DaemonEntityIndex, out var daemonTargetDistance)
-            ? Mathf.Max(daemonTargetDistance, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
+            ? Mathf.Max(daemonTargetDistance, (float)ZoneRenderer.RenderSettings.ConvergenceMinimumDistance)
             : 10000;
 
         LookAtPoint.position = transform.position + entityLookDirection * lookAtDistance;

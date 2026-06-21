@@ -107,6 +107,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;
     public IReadOnlyList<ItemPickup> ActiveLoot => _loot;
+    public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; }
 
     public Entity PerspectiveEntity
     {
