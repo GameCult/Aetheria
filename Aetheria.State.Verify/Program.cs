@@ -9311,6 +9311,24 @@ static void RequireTradePurchaseRequestAuthority(string root)
         throw new InvalidOperationException("TradeMenu no longer routes purchases through ActionGameManager.");
     }
 
+    var forbiddenSubmissionAcceptanceSymbols = new[]
+    {
+        "if (!GameManager.RequestTradePurchase(",
+        "\"Purchase request rejected!\""
+    };
+    var submissionAcceptanceHits = File.ReadLines(tradeMenuPath)
+        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+        .Where(line => forbiddenSubmissionAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, tradeMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (submissionAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still treats daemon purchase submission as accepted or rejected purchase state: " +
+            string.Join("; ", submissionAcceptanceHits));
+    }
+
     var firstTradeRequest = tradeMenu.IndexOf("GameManager.RequestTradePurchase", StringComparison.Ordinal);
     var firstCreditRefreshAfterRequest = tradeMenu.IndexOf("UpdateCreditsLabel();", firstTradeRequest, StringComparison.Ordinal);
     if (firstTradeRequest >= 0 && firstCreditRefreshAfterRequest >= 0)

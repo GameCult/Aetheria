@@ -419,11 +419,7 @@ public class TradeMenu : MonoBehaviour
             return;
         }
 
-        if (!GameManager.RequestTradePurchase(Inventory, _targetCargo, item, price, isShipHull))
-        {
-            ShowUnableToBuy("Purchase request rejected!");
-            return;
-        }
+        GameManager.RequestTradePurchase(Inventory, _targetCargo, item, price, isShipHull);
 
     }
 
@@ -437,11 +433,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         var price = typedItem.Price;
-        if (!GameManager.RequestTradePurchase(Inventory, _targetCargo, simpleCommodity, quantity, price))
-        {
-            ShowUnableToBuy("Purchase request rejected!");
-            return;
-        }
+        GameManager.RequestTradePurchase(Inventory, _targetCargo, simpleCommodity, quantity, price);
 
     }
 
