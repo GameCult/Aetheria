@@ -2051,6 +2051,7 @@ public class ActionGameManager : MonoBehaviour
             Settings.GameplaySettings,
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
+        ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections;
         ZoneRenderer.RenderSettings = ObservedDaemonRenderSettings();
         _zoomLevelIndex = ZoneRenderer.RenderSettings.ResolveDefaultMinimapZoomIndex();
         ZoneRenderer.MinimapDistance = (float)ZoneRenderer.RenderSettings.ResolveMinimapDistance(_zoomLevelIndex);

@@ -2140,6 +2140,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public void LoadDaemonZoneView(",
         "IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
+        "public BodySettingsCollection[] BodySettingsCollections;",
         "public void ApplyDaemonFrame(",
         "AetheriaRuntimeZoneSnapshotCommit daemonZone,",
         "AetheriaRuntimeRunCheckpointCommit daemonRun)",
@@ -2206,6 +2207,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "ZoneRenderer must lower daemon-authored gravity terrain snapshots instead of recomputing render height through Zone: " +
             string.Join(", ", missingZoneRendererSymbols));
+    }
+
+    if (zoneRenderer.Contains("public GameSettings Settings", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer still accepts the whole Unity GameSettings object instead of explicit renderer asset/tuning inputs.");
     }
 
     var entityInstancePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "EntityInstance.cs");
@@ -2299,7 +2306,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.AsteroidMeshCount",
         "Settings.PlanetSettings.BodyRadius",
         "Settings.PlanetSettings.LightRadius",
-        "Settings.PlanetSettings.WaveFrequency"
+        "Settings.PlanetSettings.WaveFrequency",
+        "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections;"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols

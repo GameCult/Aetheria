@@ -22,7 +22,7 @@ public class ZoneRenderer : MonoBehaviour
     public Transform WormholePrefab;
     public float EntityFadeTime;
     public Transform FogCameraParent;
-    public GameSettings Settings;
+    public BodySettingsCollection[] BodySettingsCollections;
     public Transform ZoneRoot;
     public Transform SectorBrushes;
     public MeshRenderer SectorBoundaryBrush;
@@ -459,10 +459,11 @@ public class ZoneRenderer : MonoBehaviour
         else
         {
             planet = Instantiate(Planet, ZoneRoot);
-            var possibleSettings = Settings.BodySettingsCollections
+            var possibleSettings = (BodySettingsCollections ?? Array.Empty<BodySettingsCollection>())
                 .Where(p => p.MinimumMass < mass)
-                .MaxBy(p => p.MinimumMass).BodySettings;
-            planet.Generator.body = possibleSettings[Random.Range(0, possibleSettings.Length)];
+                .MaxBy(p => p.MinimumMass)?.BodySettings ?? Array.Empty<CelestialBodySettings>();
+            if (possibleSettings.Length > 0)
+                planet.Generator.body = possibleSettings[Random.Range(0, possibleSettings.Length)];
             //Debug.Log($"Generating planet with {mass} mass! Choosing {planet.Generator.body.name} settings!");
             //planet.Icon.material.mainTexture = planetInstance.Mass > Context.GlobalData.PlanetMass ? PlanetIcon : PlanetoidIcon;
         }
