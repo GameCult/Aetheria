@@ -613,7 +613,9 @@ private void Update()
                             {
                                 //Debug.Log("Entity Drag End");
                                 IgnoreOccupancy = null;
-                                if (!GameManager.EndDrag())
+                                var hadDragTarget = GameManager.HasDragTarget;
+                                GameManager.EndDrag();
+                                if (!hadDragTarget)
                                     entity.GearOccupancy[v.x, v.y].EquippableItem.Rotation = _originalRotation;
                                 foreach(var dragObject in _dragCells)
                                     Destroy(dragObject.gameObject);
@@ -636,11 +638,8 @@ private void Update()
                                 {
                                     //Debug.Log("Entity Drag Callback");
                                     FakeOccupancy = null;
-                                    var submitted = RequestDraggedItemToEntity(drag, entity, placementPosition);
-                                    if (!submitted)
-                                        ShowUnableToSubmitItemMoveRequestDialog();
+                                    RequestDraggedItemToEntity(drag, entity, placementPosition);
                                     // TODO: SFX: Equip
-                                    return submitted;
                                 });
                             });
                         cell.PointerExitTrigger.OnPointerExitAsObservable()
@@ -831,11 +830,8 @@ private void Update()
                         {
                             //Debug.Log("Inventory Drag Callback");
                             FakeOccupancy = null;
-                            var submitted = RequestDraggedItemToCargo(drag, cargo, placementPosition);
-                            if (!submitted)
-                                ShowUnableToSubmitItemMoveRequestDialog();
+                            RequestDraggedItemToCargo(drag, cargo, placementPosition);
                             // TODO: SFX: Drop
-                            return submitted;
                         });
                     });
                 cell.PointerExitTrigger.OnPointerExitAsObservable()
@@ -1094,54 +1090,46 @@ private void Update()
         return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
-    private bool RequestDraggedItemToEntity(DragObject drag, Entity destination, int2 destinationPosition)
+    private void RequestDraggedItemToEntity(DragObject drag, Entity destination, int2 destinationPosition)
     {
         switch (drag)
         {
             case EquippedItemDragObject equippedItemDragObject:
-                return GameManager.RequestEquippedItemEquip(
+                GameManager.RequestEquippedItemEquip(
                     equippedItemDragObject.OriginEntity,
                     equippedItemDragObject.EquippedItem,
                     destination,
                     destinationPosition);
+                return;
             case ItemInstanceDragObject itemInstanceDragObject when itemInstanceDragObject.Item is EquippableItem equippableItem:
-                return GameManager.RequestCargoItemEquip(
+                GameManager.RequestCargoItemEquip(
                     itemInstanceDragObject.OriginInventory,
                     destination,
                     equippableItem,
                     destinationPosition);
-            default:
-                return false;
+                return;
         }
     }
 
-    private bool RequestDraggedItemToCargo(DragObject drag, EquippedCargoBay destination, int2 destinationPosition)
+    private void RequestDraggedItemToCargo(DragObject drag, EquippedCargoBay destination, int2 destinationPosition)
     {
         switch (drag)
         {
             case EquippedItemDragObject equippedItemDragObject:
-                return GameManager.RequestEquippedItemStore(
+                GameManager.RequestEquippedItemStore(
                     equippedItemDragObject.OriginEntity,
                     equippedItemDragObject.EquippedItem,
                     destination,
                     destinationPosition);
+                return;
             case ItemInstanceDragObject itemInstanceDragObject:
-                return GameManager.RequestCargoItemTransfer(
+                GameManager.RequestCargoItemTransfer(
                     itemInstanceDragObject.OriginInventory,
                     destination,
                     itemInstanceDragObject.Item,
                     destinationPosition);
-            default:
-                return false;
+                return;
         }
-    }
-
-    private void ShowUnableToSubmitItemMoveRequestDialog()
-    {
-        Dialog.Clear();
-        Dialog.Title.text = "Unable to submit item move request!";
-        Dialog.Show();
-        Dialog.MoveToCursor();
     }
 
     private void OnDestroy()

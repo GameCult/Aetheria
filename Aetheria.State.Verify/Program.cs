@@ -8934,6 +8934,20 @@ static void RequireWeaponGroupRequestAuthority(string root)
             string.Join(", ", localAcceptanceHits));
     }
 
+    var forbiddenPublicAcceptanceApis = new[]
+    {
+        "public bool RequestWeaponGroupMembership("
+    };
+    var publicAcceptanceApiHits = forbiddenPublicAcceptanceApis
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicAcceptanceApiHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Weapon-group request APIs still expose submission as public acceptance state: " +
+            string.Join(", ", publicAcceptanceApiHits));
+    }
+
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
@@ -9170,8 +9184,10 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "Unable to move item!",
         "Verify that cargo bays are empty before un-equipping them.",
         "var success = RequestDraggedItemTo",
+        "var submitted = RequestDraggedItemTo",
         "if (RequestCargoItemTransfer(",
-        "if (RequestEquippedItemTransfer("
+        "if (RequestEquippedItemTransfer(",
+        "ShowUnableToSubmitItemMoveRequestDialog("
     };
     var inventorySubmissionAcceptanceHits = new[] { inventoryMenuPath, inventoryPanelPath }
         .SelectMany(path => File.ReadLines(path)
@@ -9184,6 +9200,33 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         throw new InvalidOperationException(
             "Inventory UI still treats daemon transfer submission as accepted inventory movement: " +
             string.Join("; ", inventorySubmissionAcceptanceHits));
+    }
+
+    var forbiddenPublicAcceptanceApis = new[]
+    {
+        "public bool RequestCargoItemTransfer(",
+        "public bool RequestCargoItemEquip(",
+        "public bool RequestEquippedItemStore(",
+        "public bool RequestEquippedItemEquip(",
+        "private bool RequestDraggedItemToEntity(",
+        "private bool RequestDraggedItemToCargo(",
+        "private bool RequestCargoItemTransfer(",
+        "private bool RequestEquippedItemTransfer(",
+        "public bool EndDrag(",
+        "Func<DragObject, bool>",
+        "RegisterDragTarget(Func<DragObject, bool>"
+    };
+    var publicAcceptanceApiHits = new[] { actionGameManagerPath, inventoryMenuPath, inventoryPanelPath }
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenPublicAcceptanceApis.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+    if (publicAcceptanceApiHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Inventory drag/request APIs still expose submission as public acceptance state: " +
+            string.Join("; ", publicAcceptanceApiHits));
     }
 
     var requiredUiCalls = new[]
@@ -9329,12 +9372,14 @@ static void RequireTradePurchaseRequestAuthority(string root)
     var forbiddenSubmissionAcceptanceSymbols = new[]
     {
         "if (!GameManager.RequestTradePurchase(",
-        "\"Purchase request rejected!\""
+        "\"Purchase request rejected!\"",
+        "public bool RequestTradePurchase("
     };
-    var submissionAcceptanceHits = File.ReadLines(tradeMenuPath)
-        .Select((line, index) => new { LineNumber = index + 1, Line = line })
+    var submissionAcceptanceHits = new[] { tradeMenuPath, actionGameManagerPath }
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
         .Where(line => forbiddenSubmissionAcceptanceSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
-        .Select(line => $"{Path.GetRelativePath(root, tradeMenuPath)}:{line.LineNumber}: {line.Line.Trim()}")
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
         .ToArray();
 
     if (submissionAcceptanceHits.Length > 0)

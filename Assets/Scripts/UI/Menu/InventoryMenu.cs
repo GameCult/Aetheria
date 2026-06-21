@@ -691,15 +691,16 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
                item.Entity.WeaponGroups[groupIndex].items.Contains(item);
     }
 
-    private bool RequestCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
+    private void RequestCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
     {
         if (destination.DisplayedEntity != null && item is EquippableItem equippableItem)
-            return GameManager.RequestCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
+        {
+            GameManager.RequestCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
+            return;
+        }
 
         if (destination.DisplayedCargo != null)
-            return GameManager.RequestCargoItemTransfer(origin, destination.DisplayedCargo, item);
-
-        return false;
+            GameManager.RequestCargoItemTransfer(origin, destination.DisplayedCargo, item);
     }
 
     private void ClearSelectedItemSelection()
@@ -712,12 +713,10 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
         _selectedPosition = default;
     }
 
-    private bool RequestEquippedItemTransfer(Entity origin, EquippedItem item, InventoryPanel destination)
+    private void RequestEquippedItemTransfer(Entity origin, EquippedItem item, InventoryPanel destination)
     {
         if (destination.DisplayedCargo != null)
-            return GameManager.RequestEquippedItemStore(origin, item, destination.DisplayedCargo);
-
-        return false;
+            GameManager.RequestEquippedItemStore(origin, item, destination.DisplayedCargo);
     }
 
     void Update()

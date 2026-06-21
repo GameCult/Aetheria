@@ -502,7 +502,7 @@ public class ActionGameManager : MonoBehaviour
     };
 
     public DragObject DragObject { get; private set; }
-    private Func<DragObject, bool> _endDragCallback;
+    private Action<DragObject> _endDragCallback;
 
     private List<Story> _stories = new List<Story>();
 
@@ -615,18 +615,16 @@ public class ActionGameManager : MonoBehaviour
                 binding.WeaponGroup);
     }
 
-    private bool RequestActionBarBinding(ActionBarSlot slot, DragObject dragAction)
+    private void RequestActionBarBinding(ActionBarSlot slot, DragObject dragAction)
     {
         if (slot == null || dragAction == null || CurrentEntity == null)
-            return false;
+            return;
 
         var bindingCommit = CreateActionBarBindingCommit(slot, CurrentEntity, dragAction);
         if (bindingCommit == null)
-            return false;
+            return;
 
-        if (TryRequestDaemonActionBarBinding(bindingCommit))
-            return true;
-        return false;
+        TryRequestDaemonActionBarBinding(bindingCommit);
     }
 
     public int GetActionBarSlotCount()
@@ -1032,35 +1030,29 @@ public class ActionGameManager : MonoBehaviour
             return;
     }
 
-    public bool RequestWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
+    public void RequestWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
     {
         if (item == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonWeaponGroupMembership(item, groupIndex, assigned))
-            return true;
-        return false;
+        TryRequestDaemonWeaponGroupMembership(item, groupIndex, assigned);
     }
 
-    public bool RequestCargoItemTransfer(EquippedCargoBay origin, EquippedCargoBay destination, ItemInstance item)
+    public void RequestCargoItemTransfer(EquippedCargoBay origin, EquippedCargoBay destination, ItemInstance item)
     {
         if (origin == null ||
             destination == null ||
             item == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonCargoItemTransfer(origin, destination, item, default, false))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonCargoItemTransfer(origin, destination, item, default, false);
     }
 
-    public bool RequestCargoItemTransfer(
+    public void RequestCargoItemTransfer(
         EquippedCargoBay origin,
         EquippedCargoBay destination,
         ItemInstance item,
@@ -1070,14 +1062,10 @@ public class ActionGameManager : MonoBehaviour
             destination == null ||
             item == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonCargoItemTransfer(origin, destination, item, destinationPosition, true))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonCargoItemTransfer(origin, destination, item, destinationPosition, true);
     }
 
     private bool TryRequestDaemonCargoItemTransfer(
@@ -1130,23 +1118,19 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool RequestCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
+    public void RequestCargoItemEquip(EquippedCargoBay origin, Entity destination, EquippableItem item)
     {
         if (origin == null ||
             destination == null ||
             item == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonCargoItemEquip(origin, destination, item, default, false))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonCargoItemEquip(origin, destination, item, default, false);
     }
 
-    public bool RequestCargoItemEquip(
+    public void RequestCargoItemEquip(
         EquippedCargoBay origin,
         Entity destination,
         EquippableItem item,
@@ -1156,33 +1140,25 @@ public class ActionGameManager : MonoBehaviour
             destination == null ||
             item == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonCargoItemEquip(origin, destination, item, destinationPosition, true))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonCargoItemEquip(origin, destination, item, destinationPosition, true);
     }
 
-    public bool RequestEquippedItemStore(Entity origin, EquippedItem equippedItem, EquippedCargoBay destination)
+    public void RequestEquippedItemStore(Entity origin, EquippedItem equippedItem, EquippedCargoBay destination)
     {
         if (origin == null ||
             equippedItem?.EquippableItem == null ||
             destination == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, default, false))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, default, false);
     }
 
-    public bool RequestEquippedItemStore(
+    public void RequestEquippedItemStore(
         Entity origin,
         EquippedItem equippedItem,
         EquippedCargoBay destination,
@@ -1192,17 +1168,13 @@ public class ActionGameManager : MonoBehaviour
             equippedItem?.EquippableItem == null ||
             destination == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, destinationPosition, true))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonEquippedItemStore(origin, equippedItem, destination, destinationPosition, true);
     }
 
-    public bool RequestEquippedItemEquip(
+    public void RequestEquippedItemEquip(
         Entity origin,
         EquippedItem equippedItem,
         Entity destination,
@@ -1212,14 +1184,10 @@ public class ActionGameManager : MonoBehaviour
             equippedItem?.EquippableItem == null ||
             destination == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonEquippedItemEquip(origin, equippedItem, destination, destinationPosition))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonEquippedItemEquip(origin, equippedItem, destination, destinationPosition);
     }
 
     private bool TryRequestDaemonCargoItemEquip(
@@ -1360,7 +1328,7 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool RequestTradePurchase(
+    public void RequestTradePurchase(
         EquippedCargoBay stationInventory,
         EquippedCargoBay targetCargo,
         CraftedItemInstance item,
@@ -1370,7 +1338,7 @@ public class ActionGameManager : MonoBehaviour
         if (item == null ||
             price < 0)
         {
-            return false;
+            return;
         }
 
         if (createsDockedShip)
@@ -1379,30 +1347,23 @@ public class ActionGameManager : MonoBehaviour
                 Zone == null ||
                 DockedEntity == null)
             {
-                return false;
+                return;
             }
 
-            if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, true))
-            {
-                return true;
-            }
-            return false;
+            TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, true);
+            return;
         }
 
         if (stationInventory == null ||
             targetCargo == null)
         {
-            return false;
+            return;
         }
 
-        if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, false))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, 1, price, price, false);
     }
 
-    public bool RequestTradePurchase(
+    public void RequestTradePurchase(
         EquippedCargoBay stationInventory,
         EquippedCargoBay targetCargo,
         SimpleCommodity item,
@@ -1415,18 +1376,14 @@ public class ActionGameManager : MonoBehaviour
             quantity <= 0 ||
             unitPrice < 0)
         {
-            return false;
+            return;
         }
 
         var totalPrice = (long)quantity * unitPrice;
         if (totalPrice > int.MaxValue)
-            return false;
+            return;
 
-        if (TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, quantity, unitPrice, (int)totalPrice, false))
-        {
-            return true;
-        }
-        return false;
+        TryRequestDaemonTradePurchase(stationInventory, targetCargo, item, quantity, unitPrice, (int)totalPrice, false);
     }
 
     private bool TryRequestDaemonTradePurchase(
@@ -2045,7 +2002,7 @@ public class ActionGameManager : MonoBehaviour
         this.DragObject = dragObject;
     }
 
-    public void RegisterDragTarget(Func<DragObject, bool> onEndDrag)
+    public void RegisterDragTarget(Action<DragObject> onEndDrag)
     {
         _endDragCallback = onEndDrag;
     }
@@ -2055,11 +2012,12 @@ public class ActionGameManager : MonoBehaviour
         _endDragCallback = null;
     }
 
-    public bool EndDrag()
+    public bool HasDragTarget => _endDragCallback != null;
+
+    public void EndDrag()
     {
-        var success = _endDragCallback?.Invoke(DragObject);
+        _endDragCallback?.Invoke(DragObject);
         DragObject = null;
-        return success ?? false;
     }
 
     public void EnablePlayerInput()
