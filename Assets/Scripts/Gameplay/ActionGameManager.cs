@@ -494,6 +494,12 @@ public class ActionGameManager : MonoBehaviour
         set => _currentEntity = value;
     }
 
+    public static bool TryGetObservedGalaxy(out Galaxy galaxy)
+    {
+        galaxy = ObservedGalaxy;
+        return galaxy != null;
+    }
+
     public bool IsObservedDocked => TryGetObservedDockingBay(out _);
 
     public bool TryGetObservedCurrentEntity(out Entity entity)

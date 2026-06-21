@@ -91,6 +91,9 @@ public class SectorMap : MonoBehaviour
 
     public IEnumerator RevealZone(IEnumerable<GalaxyZone> zones, float linkDuration, float iconDuration)
     {
+        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
+            yield break;
+
         var linksToReveal = new List<(float2 start, float2 end, Transform linkInstance, bool critical)>();
         var zoneTransforms = new List<Transform>();
         var zoneInstanceScale = ZonePrototype.transform.localScale;
@@ -111,7 +114,7 @@ public class SectorMap : MonoBehaviour
                 {
                     zoneInstance.Primary.sharedMaterial = _factionMaterials[zone.Owner].primaryMaterial;
                     zoneInstance.Secondary.sharedMaterial = _factionMaterials[zone.Owner].secondaryMaterial;
-                    if(zone == ActionGameManager.ObservedGalaxy.HomeZones[zone.Owner])
+                    if(zone == observedGalaxy.HomeZones[zone.Owner])
                         zoneInstance.Secondary.transform.localScale = Vector3.one * 4;
                 }
                 else
@@ -119,7 +122,7 @@ public class SectorMap : MonoBehaviour
                     zoneInstance.Secondary.gameObject.SetActive(false);
                 }
 
-                var isOnCriticalPath = ActionGameManager.ObservedGalaxy.ExitPath?.Contains(zone) ?? false;
+                var isOnCriticalPath = observedGalaxy.ExitPath?.Contains(zone) ?? false;
                 foreach (var adjacentZone in zone.AdjacentZones)
                 {
                     // If the adjacent zone is in the set already revealed, then show the link
@@ -128,7 +131,7 @@ public class SectorMap : MonoBehaviour
                           _revealedLinks.Contains((adjacentZone, zone))))
                     {
                         var link = LinkPrototype.Instantiate<Transform>();
-                        var critical = isOnCriticalPath && (ActionGameManager.ObservedGalaxy.ExitPath?.Contains(adjacentZone) ?? false);
+                        var critical = isOnCriticalPath && (observedGalaxy.ExitPath?.Contains(adjacentZone) ?? false);
                         linksToReveal.Add((zone.Position, adjacentZone.Position, link, critical));
                         if (zone.Owner != null && zone.Owner.HasSameKey(adjacentZone.Owner))
                             link.GetComponent<MeshRenderer>().sharedMaterial = _factionMaterials[zone.Owner].linkMaterial;
@@ -151,7 +154,7 @@ public class SectorMap : MonoBehaviour
                 zoneTextTransform.pivot = new Vector2(sign(linkDirection.x)/2+.5f,sign(linkDirection.y)/2+.5f);
                 zoneTextTransform.localPosition = new Vector3(-linkDirection.x * LabelDistance, -linkDirection.y * LabelDistance, -1);
 
-                if (zone == ActionGameManager.ObservedGalaxy.Entrance)
+                if (zone == observedGalaxy.Entrance)
                 {
                     var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
                     iconInstance.material.mainTexture = EntranceIcon;
@@ -161,7 +164,7 @@ public class SectorMap : MonoBehaviour
                     iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
                 }
 
-                if (zone == ActionGameManager.ObservedGalaxy.Exit)
+                if (zone == observedGalaxy.Exit)
                 {
                     var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
                     iconInstance.material.mainTexture = ExitIcon;
@@ -171,8 +174,8 @@ public class SectorMap : MonoBehaviour
                     iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
                 }
 
-                var homeMega = ActionGameManager.ObservedGalaxy.HomeZones.Keys
-                    .FirstOrDefault(m => ActionGameManager.ObservedGalaxy.HomeZones[m] == zone);
+                var homeMega = observedGalaxy.HomeZones.Keys
+                    .FirstOrDefault(m => observedGalaxy.HomeZones[m] == zone);
                 if (homeMega != null)
                 {
                     var backgroundInstance = IconBackgroundPrototype.Instantiate<MeshRenderer>();
@@ -195,8 +198,8 @@ public class SectorMap : MonoBehaviour
                     iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
                 }
 
-                var bossMega = ActionGameManager.ObservedGalaxy.BossZones.Keys
-                    .FirstOrDefault(m => ActionGameManager.ObservedGalaxy.BossZones[m] == zone);
+                var bossMega = observedGalaxy.BossZones.Keys
+                    .FirstOrDefault(m => observedGalaxy.BossZones[m] == zone);
                 if (bossMega != null)
                 {
                     var backgroundInstance = IconBackgroundPrototype.Instantiate<MeshRenderer>();
@@ -268,12 +271,12 @@ public class SectorMap : MonoBehaviour
 
     public void Start()
     {
-        if (ActionGameManager.ObservedGalaxy == null)
+        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
         {
             gameObject.SetActive(false);
             return;
         }
-        foreach (var mega in ActionGameManager.ObservedGalaxy.Factions)
+        foreach (var mega in observedGalaxy.Factions)
         {
             var influenceTexture = new RenderTexture(1024, 1024, 0, RenderTextureFormat.RHalf);
             var influenceRenderer = InfluenceRendererPrototype.Instantiate<MeshRenderer>();
@@ -300,22 +303,25 @@ public class SectorMap : MonoBehaviour
             legendElement.Label.text = mega.ShortName;
         }
 
-        SectorRenderer.material.SetFloat("CloudAmplitude", ActionGameManager.ObservedGalaxy.Background.CloudAmplitude);
-        SectorRenderer.material.SetFloat("CloudExponent", ActionGameManager.ObservedGalaxy.Background.CloudExponent);
-        SectorRenderer.material.SetFloat("NoisePosition", ActionGameManager.ObservedGalaxy.Background.NoisePosition);
-        SectorRenderer.material.SetFloat("NoiseAmplitude", ActionGameManager.ObservedGalaxy.Background.NoiseAmplitude);
-        SectorRenderer.material.SetFloat("NoiseOffset", ActionGameManager.ObservedGalaxy.Background.NoiseOffset);
-        SectorRenderer.material.SetFloat("NoiseGain", ActionGameManager.ObservedGalaxy.Background.NoiseGain);
-        SectorRenderer.material.SetFloat("NoiseLacunarity", ActionGameManager.ObservedGalaxy.Background.NoiseLacunarity);
-        SectorRenderer.material.SetFloat("NoiseFrequency", ActionGameManager.ObservedGalaxy.Background.NoiseFrequency);
+        SectorRenderer.material.SetFloat("CloudAmplitude", observedGalaxy.Background.CloudAmplitude);
+        SectorRenderer.material.SetFloat("CloudExponent", observedGalaxy.Background.CloudExponent);
+        SectorRenderer.material.SetFloat("NoisePosition", observedGalaxy.Background.NoisePosition);
+        SectorRenderer.material.SetFloat("NoiseAmplitude", observedGalaxy.Background.NoiseAmplitude);
+        SectorRenderer.material.SetFloat("NoiseOffset", observedGalaxy.Background.NoiseOffset);
+        SectorRenderer.material.SetFloat("NoiseGain", observedGalaxy.Background.NoiseGain);
+        SectorRenderer.material.SetFloat("NoiseLacunarity", observedGalaxy.Background.NoiseLacunarity);
+        SectorRenderer.material.SetFloat("NoiseFrequency", observedGalaxy.Background.NoiseFrequency);
     }
 
     private void RenderInfluence()
     {
+        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
+            return;
+
         // Render Influence Textures
-        foreach (var mega in ActionGameManager.ObservedGalaxy.Factions)
+        foreach (var mega in observedGalaxy.Factions)
         {
-            foreach (var zone in ActionGameManager.ObservedGalaxy.Zones)
+            foreach (var zone in observedGalaxy.Zones)
             {
                 if(_zoneInstances.ContainsKey(zone))
                 {

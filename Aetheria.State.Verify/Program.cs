@@ -8176,6 +8176,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var sectorRenderer = File.Exists(sectorRendererPath)
         ? File.ReadAllText(sectorRendererPath)
         : throw new InvalidOperationException("Cannot verify daemon current-zone UI projection; SectorRenderer.cs is missing.");
+    var sectorMapPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorMap.cs");
+    var sectorMap = File.Exists(sectorMapPath)
+        ? File.ReadAllText(sectorMapPath)
+        : throw new InvalidOperationException("Cannot verify daemon current-zone UI projection; SectorMap.cs is missing.");
 
     if (mapRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
         sectorRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
@@ -8183,6 +8187,21 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "Map and sector UI must read current-zone identity from the daemon-observed run, not Unity's mirrored Zone hierarchy.");
+    }
+
+    if (!actionGameManager.Contains("public static bool TryGetObservedGalaxy(out Galaxy galaxy)", StringComparison.Ordinal) ||
+        !sectorMap.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Map and sector UI must request projected galaxy data through an explicit observed-galaxy boundary.");
+    }
+
+    if (sectorMap.Contains("ActionGameManager.ObservedGalaxy", StringComparison.Ordinal) ||
+        sectorRenderer.Contains("ActionGameManager.ObservedGalaxy", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Map and sector UI must not read the raw ObservedGalaxy projection directly.");
     }
 
     var requiredDaemonControlValidationSymbols = new[]

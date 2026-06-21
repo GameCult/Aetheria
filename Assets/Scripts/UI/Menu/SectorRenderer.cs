@@ -142,7 +142,9 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private AetheriaRuntimeZoneDetailsSurfaceState ProjectZoneDetailsSurfaceState(GalaxyZone zone)
     {
-        var density = saturate(ActionGameManager.ObservedGalaxy.Background.CloudDensity(zone.Position) / 2);
+        var density = ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)
+            ? saturate(observedGalaxy.Background.CloudDensity(zone.Position) / 2)
+            : 0f;
         var radius = GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(density);
         var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
         var otherFactions = zone.Factions
