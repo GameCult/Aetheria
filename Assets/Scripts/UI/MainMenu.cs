@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -49,14 +48,17 @@ public class MainMenu : MonoBehaviour
         var stateBoot = CurrentStateBoot();
         var frame = LatestDaemonFrame(stateBoot);
         var verseHost = LatestVerseHostSettings(stateBoot);
+        var playerSettings = LatestPlayerSettings(stateBoot);
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
-                ProjectMainMenuSurfaceState(
+                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
                     stateBoot,
                     frame,
                     verseHost,
+                    playerSettings,
                     CanOpenRuntimeInputScreen(),
-                    InGame)),
+                    InGame,
+                    DateTime.UtcNow.ToString("O"))),
             HandleMainSurfaceCommand);
     }
 
@@ -159,6 +161,22 @@ public class MainMenu : MonoBehaviour
         return frame;
     }
 
+    private static AetheriaRuntimePlayerSettingsSnapshot LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
+    {
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+            return null;
+
+        try
+        {
+            return AetheriaRuntimeStateReader.ReadPlayerSettings(stateBoot.StateFilePath);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed Aetheria player settings for the main menu: {ex}");
+            return null;
+        }
+    }
+
     private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
@@ -192,28 +210,39 @@ public class MainMenu : MonoBehaviour
 
     private void ShowInputSettings()
     {
+        var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
-                ProjectMainMenuSurfaceState(
-                    CurrentStateBoot(),
+                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
+                    stateBoot,
                     null,
                     null,
+                    LatestPlayerSettings(stateBoot),
                     CanOpenRuntimeInputScreen(),
-                    InGame)),
+                    InGame,
+                    DateTime.UtcNow.ToString("O"))),
             HandleInputSettingsSurfaceCommand);
     }
 
     private void ShowPlayerSettingsSurface()
     {
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(ProjectPlayerSettingsSurfaceState()),
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
+                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(
+                    LatestPlayerSettings(CurrentStateBoot()),
+                    DateTime.UtcNow.ToString("O"))),
             HandlePlayerSettingsSurfaceCommand);
     }
 
     private void ShowVerseSettingsSurface()
     {
+        var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(ProjectVerseSettingsSurfaceState()),
+            AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
+                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(
+                    stateBoot,
+                    LatestVerseHostSettings(stateBoot),
+                    DateTime.UtcNow.ToString("O"))),
             HandleVerseSettingsSurfaceCommand);
     }
 
@@ -340,71 +369,6 @@ public class MainMenu : MonoBehaviour
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument);
-    }
-
-    private static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettingsSurfaceState()
-    {
-        return new AetheriaRuntimePlayerSettingsSurfaceState(
-            ActionGameManager.RuntimePlayerSettings.Name,
-            ActionGameManager.RuntimePlayerSettings.TutorialPassed,
-            "",
-            ActionGameManager.RuntimePlayerSettings.GameplaySettings.TemperatureUnit.ToString(),
-            Math.Max(0, ActionGameManager.RuntimePlayerSettings.GameplaySettings.SignificantDigits),
-            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality.ToString(),
-            ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
-            DateTime.UtcNow.ToString("O"));
-    }
-
-    private static AetheriaRuntimeClientTargetSurfaceState ProjectVerseSettingsSurfaceState()
-    {
-        var stateBoot = CurrentStateBoot();
-        var verseHost = LatestVerseHostSettings(stateBoot);
-        return new AetheriaRuntimeClientTargetSurfaceState(
-            stateBoot.TargetKind,
-            stateBoot.Title,
-            stateBoot.VerseId,
-            stateBoot.CultMeshAddress,
-            stateBoot.StateFilePath,
-            stateBoot.ReplicaStateFilePath,
-            string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
-            stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-            stateBoot.LastDiscoveryAtUtc,
-            stateBoot.LastDiscoveryError,
-            stateBoot.LastReplicaSyncAtUtc,
-            stateBoot.LastReplicaSyncError,
-            stateBoot.TargetSource,
-            stateBoot.SupportsLocalStateFileRead,
-            stateBoot.FailureMessage,
-            verseHost?.Title ?? stateBoot.Title,
-            verseHost?.VerseId ?? stateBoot.VerseId,
-            verseHost?.Visibility ?? "unknown",
-            verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
-            DateTime.UtcNow.ToString("O"));
-    }
-
-    private static AetheriaRuntimeMainMenuSurfaceState ProjectMainMenuSurfaceState(
-        AetheriaRuntimeStateBootReport stateBoot,
-        AetheriaRuntimeDaemonFrameDocument daemonFrame,
-        AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
-        bool canOpenRuntimeInputScreen,
-        bool inGame)
-    {
-        return new AetheriaRuntimeMainMenuSurfaceState(
-            stateBoot.TargetLabel,
-            stateBoot.TargetKind,
-            stateBoot.TargetSource,
-            verseHost?.Title ?? stateBoot.Title,
-            verseHost?.VerseId ?? stateBoot.VerseId,
-            verseHost?.Visibility ?? "unknown",
-            verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
-            inGame,
-            daemonFrame != null,
-            daemonFrame?.Run?.RunId ?? "",
-            daemonFrame?.FrameId ?? -1,
-            ActionGameManager.RuntimePlayerSettings.InputSettings.InputActionMap.Count,
-            ActionGameManager.RuntimePlayerSettings.InputSettings.ActionBarInputs.Count,
-            canOpenRuntimeInputScreen,
-            DateTime.UtcNow.ToString("O"));
     }
 
     private bool CanOpenRuntimeInputScreen()

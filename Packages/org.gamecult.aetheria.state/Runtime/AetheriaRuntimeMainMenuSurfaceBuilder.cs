@@ -90,6 +90,76 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeMainMenuSurfaceBuilder
     {
+        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeDaemonFrameDocument daemonFrame,
+            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
+            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimeMainMenuSurfaceState(
+                stateBoot.TargetLabel,
+                stateBoot.TargetKind,
+                stateBoot.TargetSource,
+                verseHost?.Title ?? stateBoot.Title,
+                verseHost?.VerseId ?? stateBoot.VerseId,
+                verseHost?.Visibility ?? "unknown",
+                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+                inGame,
+                daemonFrame != null,
+                daemonFrame?.Run?.RunId ?? "",
+                daemonFrame?.FrameId ?? -1,
+                playerSettings?.BindingOverrides?.Count ?? 0,
+                playerSettings?.ActionBarInputs?.Count ?? 0,
+                canOpenRuntimeInputScreen,
+                updatedAtUtc);
+        }
+
+        public static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettings(
+            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimePlayerSettingsSurfaceState(
+                playerSettings?.PlayerName ?? "",
+                playerSettings?.TutorialPassed ?? false,
+                "",
+                playerSettings?.TemperatureUnit ?? "",
+                Math.Max(0, playerSettings?.SignificantDigits ?? 0),
+                playerSettings?.NebulaQuality ?? "",
+                playerSettings?.ShowAsteroidsInMinimap ?? false,
+                updatedAtUtc);
+        }
+
+        public static AetheriaRuntimeClientTargetSurfaceState ProjectVerseSettings(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimeClientTargetSurfaceState(
+                stateBoot.TargetKind,
+                stateBoot.Title,
+                stateBoot.VerseId,
+                stateBoot.CultMeshAddress,
+                stateBoot.StateFilePath,
+                stateBoot.ReplicaStateFilePath,
+                string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
+                stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+                stateBoot.LastDiscoveryAtUtc,
+                stateBoot.LastDiscoveryError,
+                stateBoot.LastReplicaSyncAtUtc,
+                stateBoot.LastReplicaSyncError,
+                stateBoot.TargetSource,
+                stateBoot.SupportsLocalStateFileRead,
+                stateBoot.FailureMessage,
+                verseHost?.Title ?? stateBoot.Title,
+                verseHost?.VerseId ?? stateBoot.VerseId,
+                verseHost?.Visibility ?? "unknown",
+                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+                updatedAtUtc);
+        }
+
         public static AetheriaRuntimeSurfaceDocument BuildRoot(
             AetheriaRuntimeMainMenuSurfaceState state,
             long version = 1)
