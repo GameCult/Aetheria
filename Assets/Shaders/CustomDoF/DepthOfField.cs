@@ -1,11 +1,14 @@
 using System;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.PostProcessing;
 
-namespace UnityEngine.Rendering.PostProcessing
+namespace Aetheria.Rendering.PostProcessing
 {
     /// <summary>
-    /// Convolution kernel size for the Depth of Field effect.
+    /// Convolution kernel size for the Aetheria fog blur effect.
     /// </summary>
-    public enum KernelSize
+    public enum AetheriaFogBlurKernelSize
     {
         /// <summary>
         /// Small filter.
@@ -29,37 +32,37 @@ namespace UnityEngine.Rendering.PostProcessing
     }
 
     /// <summary>
-    /// A volume parameter holding a <see cref="KernelSize"/> value.
+    /// A volume parameter holding a <see cref="AetheriaFogBlurKernelSize"/> value.
     /// </summary>
     [Serializable]
-    public sealed class KernelSizeParameter : ParameterOverride<KernelSize> {}
+    public sealed class AetheriaFogBlurKernelSizeParameter : ParameterOverride<AetheriaFogBlurKernelSize> {}
 
     /// <summary>
-    /// This class holds settings for the Depth of Field effect.
+    /// This class holds settings for Aetheria's custom fog blur effect.
     /// </summary>
     [Serializable]
-    [PostProcess(typeof(DepthOfFieldRenderer), PostProcessEvent.BeforeStack, "Aetheria/Fog Blur", false)]
-    public sealed class DepthOfField : PostProcessEffectSettings
+    [PostProcess(typeof(AetheriaFogBlurRenderer), PostProcessEvent.BeforeStack, "Aetheria/Fog Blur", false)]
+    public sealed class AetheriaFogBlur : PostProcessEffectSettings
     {
         /// <summary>
         /// The distance to the point of focus.
         /// </summary>
-        [Min(0.1f), Tooltip("Distance to the point of focus.")]
-        public FloatParameter focusDistance = new FloatParameter { value = 10f };
+        [UnityEngine.Rendering.PostProcessing.Min(0.1f), Tooltip("Distance to the point of focus.")]
+        public UnityEngine.Rendering.PostProcessing.FloatParameter focusDistance = new UnityEngine.Rendering.PostProcessing.FloatParameter { value = 10f };
 
         /// <summary>
         /// The ratio of the aperture (known as f-stop or f-number). The smaller the value is, the
         /// shallower the depth of field is.
         /// </summary>
         [Range(0.05f, 32f), Tooltip("Ratio of aperture (known as f-stop or f-number). The smaller the value is, the shallower the depth of field is.")]
-        public FloatParameter aperture = new FloatParameter { value = 5.6f };
+        public UnityEngine.Rendering.PostProcessing.FloatParameter aperture = new UnityEngine.Rendering.PostProcessing.FloatParameter { value = 5.6f };
 
         /// <summary>
         /// The distance between the lens and the film. The larger the value is, the shallower the
         /// depth of field is.
         /// </summary>
         [Range(1f, 300f), Tooltip("Distance between the lens and the film. The larger the value is, the shallower the depth of field is.")]
-        public FloatParameter focalLength = new FloatParameter { value = 50f };
+        public UnityEngine.Rendering.PostProcessing.FloatParameter focalLength = new UnityEngine.Rendering.PostProcessing.FloatParameter { value = 50f };
 
         /// <summary>
         /// The convolution kernel size of the bokeh filter, which determines the maximum radius of
@@ -67,7 +70,7 @@ namespace UnityEngine.Rendering.PostProcessing
         /// time is required).
         /// </summary>
         [DisplayName("Max Blur Size"), Tooltip("Convolution kernel size of the bokeh filter, which determines the maximum radius of bokeh. It also affects performances (the larger the kernel is, the longer the GPU time is required).")]
-        public KernelSizeParameter kernelSize = new KernelSizeParameter { value = KernelSize.Medium };
+        public AetheriaFogBlurKernelSizeParameter kernelSize = new AetheriaFogBlurKernelSizeParameter { value = AetheriaFogBlurKernelSize.Medium };
 
         /// <summary>
         /// Returns <c>true</c> if the effect is currently enabled and supported.
@@ -83,7 +86,7 @@ namespace UnityEngine.Rendering.PostProcessing
 
     [UnityEngine.Scripting.Preserve]
     // TODO: Doesn't play nice with alpha propagation, see if it can be fixed without killing performances
-    internal sealed class DepthOfFieldRenderer : PostProcessEffectRenderer<DepthOfField>
+    internal sealed class AetheriaFogBlurRenderer : PostProcessEffectRenderer<AetheriaFogBlur>
     {
         enum Pass
         {
@@ -110,7 +113,7 @@ namespace UnityEngine.Rendering.PostProcessing
         // TODO: Should be set by a physical camera
         const float k_FilmHeight = 0.024f;
 
-        public DepthOfFieldRenderer()
+        public AetheriaFogBlurRenderer()
         {
             for (int eye = 0; eye < k_NumEyes; eye++)
             {
@@ -226,7 +229,7 @@ namespace UnityEngine.Rendering.PostProcessing
             cmd.ReleaseTemporaryRT(DepthOfFieldTemp);
 
             // Debug overlay pass
-            if (context.IsDebugOverlayEnabled(DebugOverlay.DepthOfField))
+            if (context.IsDebugOverlayEnabled(UnityEngine.Rendering.PostProcessing.DebugOverlay.DepthOfField))
                 context.PushDebugOverlay(cmd, context.source, sheet, (int)Pass.DebugOverlay);
 
             // Combine pass
