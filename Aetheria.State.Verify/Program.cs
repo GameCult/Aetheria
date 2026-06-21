@@ -7758,8 +7758,6 @@ static void RequireMainMenuContinueRunState(string root)
         "ReplaceZoneEntitiesFromTypedSnapshots",
         "RestoreChildAndDockingRelationships",
         "RestoreCurrentEntityBinding",
-        "RestoreEntityContactsFromTypedSnapshot",
-        "entity.Target.Value = target",
         "RestoreCurrentEntityBinding(currentEntity, actionBarBindings)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
         "RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities)",
@@ -7832,7 +7830,14 @@ static void RequireMainMenuContinueRunState(string root)
         "CurrentEntity == null || CurrentEntity.Parent != null",
         "return observer?.Target.Value;",
         "observer.EntityInfoGathered.TryGetValue(target, out var infoGathered)",
-        "return target != null && target.IsHostileTo(observer);"
+        "return target != null && target.IsHostileTo(observer);",
+        "RestoreEntityContactsFromTypedSnapshot",
+        "entity.Target.Value = target",
+        "entity.EntityInfoGathered[target]",
+        "entity.EntityHostility[target]",
+        "entity.VisibleEntities.Add(target)",
+        "entity.VisibleEnemies.Add(target)",
+        "entity.VisibleFriendlies.Add(target)"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols

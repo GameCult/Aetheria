@@ -2711,26 +2711,6 @@ public class ActionGameManager : MonoBehaviour
         }
         RebuildObservedEntityFacadeIndex();
 
-        foreach (var entity in _observedEntityFacadesByRecordKey.Values)
-        {
-            entity.EntityInfoGathered.Clear();
-            entity.EntityHostility.Clear();
-            entity.VisibleEntities.Clear();
-            entity.VisibleEnemies.Clear();
-            entity.VisibleFriendlies.Clear();
-            entity.Target.Value = null;
-        }
-
-        foreach (var entitySnapshot in entitySnapshots)
-        {
-            if (!_observedEntityFacadesByRecordKey.TryGetValue(entitySnapshot.RecordKey, out var entity))
-                continue;
-
-            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, _observedEntityFacadesByRecordKey);
-            if (_observedEntityFacadesByRecordKey.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
-                entity.Target.Value = target;
-        }
-
         if (_observedEntityFacadesByRecordKey.TryGetValue(currentEntityKey, out var currentEntity) &&
             CurrentEntity != currentEntity)
         {
@@ -2789,9 +2769,6 @@ public class ActionGameManager : MonoBehaviour
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
             RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot);
             RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities);
-            RestoreEntityContactsFromTypedSnapshot(entity, entitySnapshot, restoredEntities);
-            if (restoredEntities.TryGetValue(entitySnapshot.TargetEntityKey, out var target))
-                entity.Target.Value = target;
         }
 
         _observedEntityFacadesByRecordKey.Clear();
@@ -2883,27 +2860,6 @@ public class ActionGameManager : MonoBehaviour
                 .Select(ToActionBarBindingCommit)
                 .Where(binding => binding != null)
                 .ToArray());
-    }
-
-    private void RestoreEntityContactsFromTypedSnapshot(
-        Entity entity,
-        AetheriaRuntimeEntitySnapshot snapshot,
-        IReadOnlyDictionary<string, Entity> restoredEntities)
-    {
-        foreach (var contact in snapshot.Contacts)
-        {
-            if (!restoredEntities.TryGetValue(contact.TargetEntityKey, out var target))
-                continue;
-
-            entity.EntityInfoGathered[target] = (float)contact.InfoGathered;
-            entity.EntityHostility[target] = contact.Hostile;
-            if (contact.Visible && !entity.VisibleEntities.Contains(target))
-                entity.VisibleEntities.Add(target);
-            if (contact.Visible && contact.Hostile && !entity.VisibleEnemies.Contains(target))
-                entity.VisibleEnemies.Add(target);
-            if (contact.Visible && !contact.Hostile && !entity.VisibleFriendlies.Contains(target))
-                entity.VisibleFriendlies.Add(target);
-        }
     }
 
     private static int EntityIndexFromRecordKey(string recordKey)
