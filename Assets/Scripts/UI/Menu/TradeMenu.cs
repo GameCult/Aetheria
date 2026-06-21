@@ -279,13 +279,13 @@ public class TradeMenu : MonoBehaviour
         return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 
-    private static AetheriaRuntimeTradeItemProjection ProjectTradeItem(ItemInstance item)
+    private AetheriaRuntimeTradeItemProjection ProjectTradeItem(ItemInstance item)
     {
         var typedItem = FindTypedTradeItem(item);
         return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
             typedItem,
             ProjectTradeItemCommit(item),
-            ProjectTradeValueSettings());
+            GameManager.ObservedTradeValueSettings());
     }
 
     private static AetheriaRuntimeLoadoutItemCommit? ProjectTradeItemCommit(ItemInstance item)
@@ -298,25 +298,6 @@ public class TradeMenu : MonoBehaviour
             item.ItemKey,
             crafted.Quality,
             durability);
-    }
-
-    private static AetheriaRuntimeTradeValueSettings ProjectTradeValueSettings()
-    {
-        var source = ActionGameManager.Settings.GameplaySettings;
-        var priceModifier = source.QualityPriceModifier;
-        return new AetheriaRuntimeTradeValueSettings(
-            new AetheriaRuntimeExponentialLerp(
-                priceModifier.Exponent,
-                priceModifier.Minimum,
-                priceModifier.Maximum),
-            (source.Tiers ?? Array.Empty<RarityTier>())
-                .Select(tier => new AetheriaRuntimeItemRarityTier(
-                    tier.Name,
-                    tier.Quality,
-                    tier.Color.x,
-                    tier.Color.y,
-                    tier.Color.z))
-                .ToArray());
     }
 
     private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
@@ -476,7 +457,7 @@ public class TradeMenu : MonoBehaviour
         return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
             typedItem,
             ProjectTradeItemCommit(item),
-            ProjectTradeValueSettings()).Price;
+            GameManager.ObservedTradeValueSettings()).Price;
     }
 
     private void ShowUnableToBuy(string reason)

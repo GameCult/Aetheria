@@ -542,6 +542,24 @@ public class ActionGameManager : MonoBehaviour
         return _observedLoadoutTemplates;
     }
 
+    public AetheriaRuntimeTradeValueSettings ObservedTradeValueSettings()
+    {
+        var priceModifier = Settings.GameplaySettings.QualityPriceModifier;
+        return new AetheriaRuntimeTradeValueSettings(
+            new AetheriaRuntimeExponentialLerp(
+                priceModifier.Exponent,
+                priceModifier.Minimum,
+                priceModifier.Maximum),
+            (Settings.GameplaySettings.Tiers ?? Array.Empty<RarityTier>())
+                .Select(tier => new AetheriaRuntimeItemRarityTier(
+                    tier.Name,
+                    tier.Quality,
+                    tier.Color.x,
+                    tier.Color.y,
+                    tier.Color.z))
+                .ToArray());
+    }
+
     public (RarityTier tier, int upgrades) ObservedItemTier(CraftedItemInstance item)
     {
         return ItemManager.GetTier(item);
@@ -973,7 +991,15 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        var price = blueprint.Price(ItemManager);
+        if (!AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
+                template,
+                RuntimeCatalog,
+                ObservedTradeValueSettings(),
+                out var price))
+        {
+            return;
+        }
+
         var observer = ResolveDaemonObserver();
         if (observer != null && observer.HasAuthoritativeState)
         {

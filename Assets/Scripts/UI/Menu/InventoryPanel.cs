@@ -181,11 +181,15 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private (string text, Action action, bool enabled) LoadoutOption(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
-        var blueprint = GameManager.CreateEntityConstructionBlueprint(template);
-        if (blueprint == null)
+        if (!AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
+                template,
+                ActionGameManager.RuntimeCatalog,
+                GameManager.ObservedTradeValueSettings(),
+                out var price))
+        {
             return ($"{template.Name} - unavailable", () => { }, false);
+        }
 
-        var price = blueprint.Price(GameManager.ItemManager);
         return ($"{template.Name} - {price:n0}", () =>
         {
             GameManager.RequestRuntimeLoadoutRestore(template);
@@ -371,8 +375,11 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         foreach (var loadoutEntry in GameManager.ObservedLoadoutTemplates().Select((template, templateIndex) => (template, templateIndex)))
         {
             var restoreCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(loadoutEntry.templateIndex);
-            var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
-            if (blueprint == null)
+            if (!AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
+                    loadoutEntry.template,
+                    ActionGameManager.RuntimeCatalog,
+                    GameManager.ObservedTradeValueSettings(),
+                    out var price))
             {
                 loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
                     $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.unavailable_{loadoutEntry.templateIndex}",
@@ -381,7 +388,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 continue;
             }
 
-            var price = blueprint.Price(GameManager.ItemManager);
             if (_dropdownCommands.ContainsKey(restoreCommand))
             {
                 loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(

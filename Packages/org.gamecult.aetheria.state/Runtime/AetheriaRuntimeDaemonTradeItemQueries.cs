@@ -119,6 +119,105 @@ namespace GameCult.Aetheria.State.Verse
                 durability);
         }
 
+        public static bool TryProjectLoadoutTemplatePrice(
+            AetheriaRuntimeLoadoutTemplateSnapshot? template,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeTradeValueSettings? settings,
+            out int price)
+        {
+            price = 0;
+            return TryProjectEntityLoadoutPrice(template?.RootEntity, catalog, settings, out price);
+        }
+
+        private static bool TryProjectEntityLoadoutPrice(
+            AetheriaRuntimeEntityLoadoutSnapshot? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeTradeValueSettings? settings,
+            out int price)
+        {
+            price = 0;
+            if (entity == null || catalog == null)
+                return false;
+
+            if (!TryAddLoadoutItemPrice(entity.Hull, catalog, settings, ref price))
+                return false;
+
+            if (!TryAddSlotPrices(entity.Equipment, catalog, settings, ref price) ||
+                !TryAddSlotPrices(entity.CargoBays, catalog, settings, ref price) ||
+                !TryAddSlotPrices(entity.DockingBays, catalog, settings, ref price) ||
+                !TryAddCargoPrices(entity.CargoContents, catalog, settings, ref price) ||
+                !TryAddCargoPrices(entity.DockingBayContents, catalog, settings, ref price))
+            {
+                return false;
+            }
+
+            foreach (var child in entity.Children ?? Array.Empty<AetheriaRuntimeEntityLoadoutSnapshot>())
+            {
+                if (!TryProjectEntityLoadoutPrice(child, catalog, settings, out var childPrice))
+                    return false;
+
+                price += childPrice;
+            }
+
+            return true;
+        }
+
+        private static bool TryAddSlotPrices(
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot>? slots,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            AetheriaRuntimeTradeValueSettings? settings,
+            ref int price)
+        {
+            foreach (var slot in slots ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>())
+            {
+                if (!TryAddLoadoutItemPrice(slot?.Item, catalog, settings, ref price))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryAddCargoPrices(
+            IReadOnlyList<AetheriaRuntimeCargoBayLoadoutSnapshot>? bays,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            AetheriaRuntimeTradeValueSettings? settings,
+            ref int price)
+        {
+            foreach (var bay in bays ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutSnapshot>())
+            {
+                if (!TryAddSlotPrices(bay?.Items, catalog, settings, ref price))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryAddLoadoutItemPrice(
+            AetheriaRuntimeLoadoutItemSnapshot? item,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            AetheriaRuntimeTradeValueSettings? settings,
+            ref int price)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.ItemKey))
+                return false;
+
+            var typedItem = catalog.FindItem(item.ItemKey);
+            if (typedItem == null)
+                return false;
+
+            if (typedItem.Stackable)
+            {
+                price += typedItem.Price * Math.Max(1, item.Quantity);
+                return true;
+            }
+
+            price += ProjectTradeItem(
+                typedItem,
+                CraftedItemCommit(item.ItemKey, item.Quality, item.Durability),
+                settings).Price;
+            return true;
+        }
+
         private static AetheriaRuntimeItemRarityTier? SelectTier(
             IReadOnlyList<AetheriaRuntimeItemRarityTier> tiers,
             double quality)

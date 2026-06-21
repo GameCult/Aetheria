@@ -4802,7 +4802,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     {
         "ProjectTradeItem(item)",
         "ProjectTradeItemCommit(",
-        "ProjectTradeValueSettings(",
+        "GameManager.ObservedTradeValueSettings()",
         "AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(",
         "AetheriaRuntimeTradeItemProjection TradeProjection",
         "public int Price => TradeProjection.Price",
@@ -10520,6 +10520,10 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; ActionGameManager.cs is missing.");
+    var tradeQueriesPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTradeItemQueries.cs");
+    var tradeQueries = File.Exists(tradeQueriesPath)
+        ? File.ReadAllText(tradeQueriesPath)
+        : throw new InvalidOperationException("Cannot verify loadout restore authority; runtime trade item queries are missing.");
 
     var requiredSymbols = new[]
     {
@@ -10543,6 +10547,14 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     {
         throw new InvalidOperationException(
             "Unity loadout restore still rejects requests through renderer-local credits instead of daemon acceptance.");
+    }
+
+    if (!actionGameManager.Contains("ObservedTradeValueSettings()", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
+        actionGameManager.Contains("blueprint.Price(ItemManager)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager must price loadout restore requests through shared runtime loadout queries instead of blueprint/ItemManager value authority.");
     }
 
     var forbiddenActionSymbols = new[]
@@ -10624,6 +10636,22 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.RequestRuntimeLoadoutRestore", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes loadout restore through ActionGameManager.");
+    }
+
+    if (!inventoryPanel.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("blueprint.Price(GameManager.ItemManager)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel must label loadout restore options through shared runtime loadout price queries instead of Unity ItemManager pricing.");
+    }
+
+    if (!tradeQueries.Contains("public static bool TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
+        !tradeQueries.Contains("TryProjectEntityLoadoutPrice(", StringComparison.Ordinal) ||
+        !tradeQueries.Contains("typedItem.Stackable", StringComparison.Ordinal) ||
+        !tradeQueries.Contains("typedItem.Price * Math.Max(1, item.Quantity)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade item queries must own typed loadout template price projection.");
     }
 
     if (!actionGameManager.Contains("public IEnumerable<AetheriaRuntimeLoadoutTemplateSnapshot> ObservedLoadoutTemplates()", StringComparison.Ordinal) ||
