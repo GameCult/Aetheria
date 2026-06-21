@@ -6344,6 +6344,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement",
         "AetheriaRuntimeDaemonPublicationStore.PublishHealth",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.Build",
+        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)",
         "AetheriaRuntimeDaemonPublicationStore.PublishGameSurface",
         "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
@@ -6466,6 +6467,9 @@ static void RequireDaemonVersePublication(string root)
         "\"editor.daemon\"",
         "\"Verse Provider\"",
         "\"Witnesses\"",
+        "\"Designer Surfaces\"",
+        "AetheriaRuntimeSurfaceDocument",
+        "AetheriaRuntimeStatRecipeCommands.SurfaceId",
         "\"Typed Commands\"",
         "AetheriaRuntimeDaemonCommandBoundaryEntry"
     };
@@ -6495,6 +6499,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonSchemas.EditorSurface",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
+        "AetheriaRuntimeStatRecipeCommands.SurfaceId",
         "AetheriaRuntimeDaemonCommandKinds.TransferCargoItem",
         "nameof(AetheriaRuntimeCargoTransferCommand)"
     };

@@ -165,10 +165,15 @@ namespace GameCult.Aetheria.State.Verse
             var gameTuiSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface(
                 stateFilePath,
                 gameSurface);
+            var designerSurfaces = new[]
+            {
+                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)
+            };
             var editorSurface = AetheriaRuntimeDaemonEditorSurfaceBuilder.Build(
                 providerAdvertisement,
                 health,
-                commandBoundary);
+                commandBoundary,
+                designerSurfaces);
             var editorSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface(
                 stateFilePath,
                 editorSurface);

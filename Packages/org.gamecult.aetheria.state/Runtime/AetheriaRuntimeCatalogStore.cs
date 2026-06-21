@@ -69,16 +69,15 @@ namespace GameCult.Aetheria.State.Verse
                 surfaces.Add(ReadEveSurface(record.Payload));
             }
 
-            surfaces.Add(ProjectStatRecipeSurface(stateFilePath));
+            surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+                ProjectStatRecipeSurfaceDocument(stateFilePath)));
             return surfaces;
         }
 
-        private static EveSurfaceDocument ProjectStatRecipeSurface(string stateFilePath)
+        public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(string stateFilePath)
         {
             var state = ProjectStatRecipeSurfaceState(stateFilePath);
-            var document = AetheriaRuntimeStatRecipeSurfaceBuilder.Build(
-                state);
-            return AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(document);
+            return AetheriaRuntimeStatRecipeSurfaceBuilder.Build(state);
         }
 
         private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(string stateFilePath)

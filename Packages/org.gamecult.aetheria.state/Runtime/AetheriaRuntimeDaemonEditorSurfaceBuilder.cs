@@ -15,11 +15,13 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeDaemonProviderAdvertisementDocument provider,
             AetheriaRuntimeDaemonHealthDocument health,
-            AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary)
+            AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
+            IReadOnlyList<AetheriaRuntimeSurfaceDocument>? designerSurfaces = null)
         {
             provider ??= new AetheriaRuntimeDaemonProviderAdvertisementDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
             commandBoundary ??= AetheriaRuntimeDaemonCommandBoundaryDocument.Create(provider.DaemonId);
+            designerSurfaces ??= Array.Empty<AetheriaRuntimeSurfaceDocument>();
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria.daemon",
@@ -94,6 +96,16 @@ namespace GameCult.Aetheria.State.Verse
                                 commandBoundary.Commands
                                     .Take(16)
                                     .Select((entry, index) => CommandRow(index, entry))
+                                    .ToArray())),
+                        Node(
+                            "aetheria.daemon.editor.designer_surfaces",
+                            "card",
+                            new[] { ("title", "Designer Surfaces") },
+                            Row(
+                                "aetheria.daemon.editor.designer_surfaces.rows",
+                                designerSurfaces
+                                    .Where(surface => surface != null)
+                                    .Select((surface, index) => DesignerSurfaceRow(index, surface))
                                     .ToArray()))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
@@ -102,6 +114,23 @@ namespace GameCult.Aetheria.State.Verse
                         entry.Kind.ToString(),
                         "cultmesh"))
                     .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent DesignerSurfaceRow(
+            int index,
+            AetheriaRuntimeSurfaceDocument surface)
+        {
+            return Node(
+                $"aetheria.daemon.editor.designer_surfaces.{index}",
+                "inspector.kv",
+                new[]
+                {
+                    ("title", surface.Title),
+                    ("surfaceId", surface.Surface.Id),
+                    ("provider", surface.ProviderId),
+                    ("kind", surface.ProviderKind),
+                    ("commands", surface.Commands.Count.ToString(CultureInfo.InvariantCulture))
+                });
         }
 
         private static AetheriaRuntimeSurfaceComponent CommandRow(

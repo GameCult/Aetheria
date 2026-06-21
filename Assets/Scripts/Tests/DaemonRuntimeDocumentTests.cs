@@ -286,6 +286,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(42, editorSurface.Version);
         Assert.IsTrue(ContainsSurfaceMetric(editorSurface.Surface.Root, "Verse", "aetheria.test"));
         Assert.IsTrue(ContainsSurfaceMetric(editorSurface.Surface.Root, "Status", "healthy"));
+        Assert.IsTrue(ContainsSurfaceProp(
+            editorSurface.Surface.Root,
+            "surfaceId",
+            AetheriaRuntimeStatRecipeCommands.SurfaceId));
         Assert.IsTrue(editorSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.TransferCargoItem" &&
             command.Transport == "cultmesh"));
@@ -2375,5 +2379,19 @@ public class DaemonRuntimeDocumentTests
         }
 
         return component.Children.Any(child => ContainsSurfaceMetric(child, label, value));
+    }
+
+    private static bool ContainsSurfaceProp(
+        AetheriaRuntimeSurfaceComponent component,
+        string key,
+        string value)
+    {
+        if (component.Props.TryGetValue(key, out var actual) &&
+            string.Equals(actual, value, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return component.Children.Any(child => ContainsSurfaceProp(child, key, value));
     }
 }
