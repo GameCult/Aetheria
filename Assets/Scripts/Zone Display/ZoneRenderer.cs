@@ -82,6 +82,7 @@ public class ZoneRenderer : MonoBehaviour
     private Entity _perspectiveEntity;
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
+    private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
     private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses = new List<AetheriaRuntimeDaemonBodyPose>();
     private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey =
@@ -99,6 +100,8 @@ public class ZoneRenderer : MonoBehaviour
     private readonly List<int> _daemonVisibleEntityIndices = new List<int>();
     private readonly HashSet<int> _daemonVisibleEntityIndicesSet = new HashSet<int>();
     private readonly HashSet<int> _visibleDaemonEntityIndices = new HashSet<int>();
+    private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits =
+        new List<AetheriaRuntimeDaemonWormholeExit>();
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -178,10 +181,14 @@ public class ZoneRenderer : MonoBehaviour
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
     }
 
-    public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)
+    public void LoadZone(
+        Zone zone,
+        AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
+        AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         ClearZone();
         Zone = zone;
+        _daemonRunSnapshot = daemonRun;
         _daemonZoneSnapshot = daemonZone;
         SectorBrushes.localScale = zone.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Radius;
@@ -217,17 +224,24 @@ public class ZoneRenderer : MonoBehaviour
             }
         }
 
-        if (zone.GalaxyZone != null)
+        AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+            _daemonRunSnapshot,
+            _daemonZoneSnapshot,
+            zone.Radius,
+            Settings.WormholeDistanceRatio,
+            _daemonWormholeExits);
+        foreach (var exit in _daemonWormholeExits)
         {
-            foreach (var adjacentZone in zone.GalaxyZone.AdjacentZones)
+            var target = zone.Galaxy != null &&
+                exit.TargetZoneIndex >= 0 &&
+                exit.TargetZoneIndex < zone.Galaxy.Zones.Length
+                    ? zone.Galaxy.Zones[exit.TargetZoneIndex]
+                    : null;
+            AddWormhole(new Wormhole
             {
-                var dir = normalize(adjacentZone.Position - zone.GalaxyZone.Position);
-                AddWormhole(new Wormhole
-                {
-                    Target = adjacentZone,
-                    Position = AetheriaMath.ToCult(dir * zone.Radius * Settings.WormholeDistanceRatio)
-                });
-            }
+                Target = target,
+                Position = AetheriaMath.ToCult(new float2((float)exit.PositionX, (float)exit.PositionZ))
+            });
         }
     }
 

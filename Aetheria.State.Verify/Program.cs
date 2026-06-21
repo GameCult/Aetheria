@@ -1833,6 +1833,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static int QueryCompassMarkers(",
         "public static int[] QueryVisibleEntityIndices(",
         "public static int QueryVisibleEntityIndices(",
+        "AetheriaRuntimeDaemonWormholeExit",
+        "public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(",
+        "public static int QueryWormholeExits(",
+        "BuildZoneMap(run)",
         "BuildEntityMap(zone)"
     };
 
@@ -1952,8 +1956,15 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must query daemon visible entity indices instead of subscribing to mirrored Unity visibility collections.");
     }
 
+    if (zoneRenderer.Contains("AdjacentZones", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon wormhole exits instead of enumerating mirrored GalaxyZone adjacency.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
+        "private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;",
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
@@ -1964,8 +1975,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly List<int> _daemonVisibleEntityIndices",
         "private readonly HashSet<int> _daemonVisibleEntityIndicesSet",
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
-        "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
+        "private readonly List<AetheriaRuntimeDaemonWormholeExit> _daemonWormholeExits",
+        "AetheriaRuntimeRunCheckpointCommit daemonRun = null",
         "_daemonZoneSnapshot = daemonZone;",
+        "_daemonRunSnapshot = daemonRun;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
         "AetheriaRuntimeDaemonRenderQueries.QueryGravityTerrainBand(",
         "private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses",
@@ -1980,6 +1993,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(",
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
+        "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose)",

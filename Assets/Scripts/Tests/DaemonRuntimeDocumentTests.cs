@@ -1084,6 +1084,46 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishWormholeExitsFromZoneAdjacency()
+    {
+        var currentZone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            PositionX = 10,
+            PositionY = 20,
+            AdjacentZoneIndices = new[] { 1, 99 }
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            Zones = new[]
+            {
+                currentZone,
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 1,
+                    PositionX = 13,
+                    PositionY = 24
+                }
+            }
+        };
+
+        var exits = new List<AetheriaRuntimeDaemonWormholeExit>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+            run,
+            currentZone,
+            100,
+            0.5,
+            exits);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual(1, exits[0].TargetZoneIndex);
+        Assert.AreEqual(0.6, exits[0].DirectionX, 0.0001);
+        Assert.AreEqual(0.8, exits[0].DirectionZ, 0.0001);
+        Assert.AreEqual(30, exits[0].PositionX, 0.0001);
+        Assert.AreEqual(40, exits[0].PositionZ, 0.0001);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(

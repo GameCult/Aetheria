@@ -188,6 +188,29 @@ namespace GameCult.Aetheria.State.Verse
         public bool Hostile { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonWormholeExit
+    {
+        public AetheriaRuntimeDaemonWormholeExit(
+            int targetZoneIndex,
+            double directionX,
+            double directionZ,
+            double positionX,
+            double positionZ)
+        {
+            TargetZoneIndex = targetZoneIndex;
+            DirectionX = directionX;
+            DirectionZ = directionZ;
+            PositionX = positionX;
+            PositionZ = positionZ;
+        }
+
+        public int TargetZoneIndex { get; }
+        public double DirectionX { get; }
+        public double DirectionZ { get; }
+        public double PositionX { get; }
+        public double PositionZ { get; }
+    }
+
     public readonly struct AetheriaRuntimeGravityTerrainBand
     {
         public AetheriaRuntimeGravityTerrainBand(double startDepth, double depthRange)
@@ -488,6 +511,55 @@ namespace GameCult.Aetheria.State.Verse
             return entityIndices.Count;
         }
 
+        public static AetheriaRuntimeDaemonWormholeExit[] QueryWormholeExits(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            double zoneRadius,
+            double wormholeDistanceRatio)
+        {
+            var exits = new List<AetheriaRuntimeDaemonWormholeExit>();
+            QueryWormholeExits(run, zone, zoneRadius, wormholeDistanceRatio, exits);
+            return exits.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonWormholeExit>() : exits.ToArray();
+        }
+
+        public static int QueryWormholeExits(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            double zoneRadius,
+            double wormholeDistanceRatio,
+            List<AetheriaRuntimeDaemonWormholeExit> exits)
+        {
+            if (exits == null) throw new ArgumentNullException(nameof(exits));
+            exits.Clear();
+            if (run == null || zone == null)
+                return 0;
+
+            var zones = BuildZoneMap(run);
+            var distance = Math.Max(0, zoneRadius) * Math.Max(0, wormholeDistanceRatio);
+            foreach (var targetZoneIndex in zone.AdjacentZoneIndices ?? Array.Empty<int>())
+            {
+                if (!zones.TryGetValue(targetZoneIndex, out var target))
+                    continue;
+
+                var deltaX = target.PositionX - zone.PositionX;
+                var deltaZ = target.PositionY - zone.PositionY;
+                var magnitude = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                if (magnitude <= 0)
+                    continue;
+
+                var directionX = deltaX / magnitude;
+                var directionZ = deltaZ / magnitude;
+                exits.Add(new AetheriaRuntimeDaemonWormholeExit(
+                    target.ZoneIndex,
+                    directionX,
+                    directionZ,
+                    directionX * distance,
+                    directionZ * distance));
+            }
+
+            return exits.Count;
+        }
+
         public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(
             AetheriaRuntimeDaemonSoaViewIndex? index,
             double minX,
@@ -604,6 +676,18 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return entities;
+        }
+
+        private static Dictionary<int, AetheriaRuntimeZoneSnapshotCommit> BuildZoneMap(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var zones = new Dictionary<int, AetheriaRuntimeZoneSnapshotCommit>();
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            {
+                if (zone != null && zone.ZoneIndex >= 0)
+                    zones[zone.ZoneIndex] = zone;
+            }
+
+            return zones;
         }
 
         private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)

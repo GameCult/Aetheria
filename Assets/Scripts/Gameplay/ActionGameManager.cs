@@ -2046,7 +2046,10 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public void PopulateLevel(GalaxyZone galaxyZone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)
+    public void PopulateLevel(
+        GalaxyZone galaxyZone,
+        AetheriaRuntimeZoneSnapshotCommit daemonZone = null,
+        AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         if (galaxyZone == null) throw new ArgumentNullException(nameof(galaxyZone));
 
@@ -2067,7 +2070,7 @@ public class ActionGameManager : MonoBehaviour
 
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
-        ZoneRenderer.LoadZone(Zone, daemonZone);
+        ZoneRenderer.LoadZone(Zone, daemonZone, daemonRun);
 
         if (CurrentEntity != null)
         {
@@ -2222,7 +2225,7 @@ public class ActionGameManager : MonoBehaviour
 
         if (Zone?.GalaxyZone != targetZone)
         {
-            PopulateLevel(targetZone, daemonZone);
+            PopulateLevel(targetZone, daemonZone, run);
         }
 
         var actionBarBindings = run.ActionBarBindings?
