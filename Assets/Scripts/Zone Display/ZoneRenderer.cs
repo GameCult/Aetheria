@@ -89,8 +89,6 @@ public class ZoneRenderer : MonoBehaviour
         new Dictionary<string, AetheriaRuntimeDaemonBodyPose>(StringComparer.Ordinal);
     private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses =
         new List<AetheriaRuntimeDaemonAsteroidBeltPose>();
-    private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey =
-        new Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose>(StringComparer.Ordinal);
     private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses =
         new List<AetheriaRuntimeDaemonAsteroidInstancePose>();
     private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers =
@@ -479,9 +477,12 @@ public class ZoneRenderer : MonoBehaviour
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
         
-        foreach (var (key, belt) in Zone.AsteroidBelts)
+        foreach (var beltPose in _daemonAsteroidBeltPoses)
         {
-            if (!_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose))
+            var key = beltPose.BodyKey;
+            if (string.IsNullOrWhiteSpace(key) ||
+                !_beltMeshes.TryGetValue(key, out var meshes) ||
+                !_beltMatrices.TryGetValue(key, out var matrices))
                 continue;
 
             var center = new float2((float)beltPose.CenterX, (float)beltPose.CenterZ);
@@ -500,8 +501,6 @@ public class ZoneRenderer : MonoBehaviour
 
             if(beltIsVisible)
             {
-                var meshes = _beltMeshes[key];
-                var matrices = _beltMatrices[key];
                 var tx = 0;
                 for (int i = 0; i < meshes.Length; i++)
                 {
@@ -614,12 +613,6 @@ public class ZoneRenderer : MonoBehaviour
     private void RefreshDaemonAsteroidBeltPoses()
     {
         AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);
-        _daemonAsteroidBeltPosesByBodyKey.Clear();
-        foreach (var pose in _daemonAsteroidBeltPoses)
-        {
-            if (!string.IsNullOrWhiteSpace(pose.BodyKey))
-                _daemonAsteroidBeltPosesByBodyKey[pose.BodyKey] = pose;
-        }
     }
 
     private void RefreshDaemonCompassMarkers()

@@ -1930,7 +1930,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     if (zoneRenderer.Contains("belt.OrbitPosition", StringComparison.Ordinal) ||
         zoneRenderer.Contains("belt.Radius", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("belt.Transforms", StringComparison.Ordinal))
+        zoneRenderer.Contains("belt.Transforms", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("foreach (var (key, belt) in Zone.AsteroidBelts)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "ZoneRenderer frame updates must read asteroid belt and instance poses from daemon render queries instead of mirrored Unity asteroid belts.");
@@ -1969,7 +1970,6 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
-        "private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey",
         "private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers",
         "private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex",
         "private readonly List<int> _daemonVisibleEntityIndices",
@@ -1990,13 +1990,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var entity in EntityInstances.Keys.ToArray())",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
+        "foreach (var beltPose in _daemonAsteroidBeltPoses)",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(",
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
-        "_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose)",
         "pose.GravityWaveSpeed"
     };
     var missingZoneRendererSymbols = requiredZoneRendererSymbols
