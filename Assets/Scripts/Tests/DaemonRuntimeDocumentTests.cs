@@ -1033,6 +1033,37 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonEveSurfaceCommandRejectsUnsupportedArgumentlessOperation()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-daemon-surface-command-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                CurrentEntityKey = "entity:surface-player"
+            },
+            "aetheria-daemon",
+            "session-surface-command",
+            78,
+            1.5,
+            0.02);
+        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        var request = new EveSurfaceCommandRequest(
+            "aetheria.daemon",
+            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+            "aetheria.daemon.commands.TransferCargoItem",
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            DateTimeOffset.UtcNow,
+            "unity-uitoolkit");
+
+        Assert.IsFalse(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var envelope));
+        Assert.IsNull(envelope);
+    }
+
+    [Test]
     public void DaemonOperationsMovesTargetSelectionIntoDaemonState()
     {
         var run = RunWithTwoEntities();

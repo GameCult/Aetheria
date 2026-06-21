@@ -79,7 +79,7 @@ namespace GameCult.Aetheria.State.Verse
                             Row(
                                 "aetheria.daemon.game.commands.primary",
                                 CommandButton("aetheria.daemon.game.commands.move", "Move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
-                                CommandButton("aetheria.daemon.game.commands.target", "Set Target", AetheriaRuntimeDaemonCommandKinds.SetTarget),
+                                CommandButton("aetheria.daemon.game.commands.target", "Target Nearest", AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                                 CommandButton("aetheria.daemon.game.commands.fire", "Fire", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
                                 CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),

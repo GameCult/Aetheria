@@ -2212,7 +2212,8 @@ static void RequireEveRuntimeBootstrap(string root)
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed)",
         "new AetheriaRuntimeDaemonOperationClient(",
-        "client.TrySendCommandKind(kind, observed, out envelope, out _)"
+        "TrySubmitKnownCommand(client, observed, kind, out envelope)",
+        "AetheriaRuntimeDaemonCommandKinds.SensorPing => client.SensorPing(observed)"
     };
     var missingDaemonSurfaceCommandSymbols = requiredDaemonSurfaceCommandSymbols
         .Where(symbol => !daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
@@ -2247,6 +2248,12 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         throw new InvalidOperationException(
             "Daemon Eve surface command routing still calls the generic daemon submitter instead of the typed daemon operation client.");
+    }
+
+    if (daemonSurfaceCommands.Contains("TrySendCommandKind(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing still uses a generic command-kind submission back door instead of explicit typed operations.");
     }
 }
 
@@ -5907,7 +5914,7 @@ static void RequireTypedDaemonCommandPayloads(string root)
 
     var requiredClientSymbols = new[]
     {
-        "public bool TrySendCommandKind(",
+        "private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)",
         "ReadObservedDaemonCommands()",
         "Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit",
         "return Send((client, observed) => client.SetTarget(observed, targetEntityKey));",
@@ -6019,6 +6026,7 @@ static void RequireTypedDaemonCommandPayloads(string root)
 
     var forbiddenClientDocumentBuilderSymbols = new[]
     {
+        "TrySendCommandKind(",
         "Action<AetheriaRuntimeDaemonCommandDocument>",
         "configure?.Invoke(command)",
         "Send(AetheriaRuntimeDaemonCommandKinds"

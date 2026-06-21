@@ -23,20 +23,6 @@ namespace GameCult.Aetheria.State.Verse
         public string ClientId { get; }
         public string SessionId { get; }
 
-        public bool TrySendCommandKind(
-            AetheriaRuntimeDaemonCommandKinds kind,
-            AetheriaRuntimeObservedDaemonState? observed,
-            out AetheriaRuntimeDaemonCommandEnvelope? envelope,
-            out string error)
-        {
-            var command = Create(kind, observed);
-            if (TrySend(command, out envelope, out error))
-                return true;
-
-            envelope = ToEnvelope(command);
-            return false;
-        }
-
         private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)
         {
             if (!TrySend(command, out var envelope, out var error))
