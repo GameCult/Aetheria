@@ -8,16 +8,18 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeEquippedItemMetric
     {
-        public AetheriaRuntimeEquippedItemMetric(string id, string label, string value)
+        public AetheriaRuntimeEquippedItemMetric(string id, string label, string value, string valueRef = "")
         {
             Id = id ?? "";
             Label = label ?? "";
             Value = value ?? "";
+            ValueRef = valueRef ?? "";
         }
 
         public string Id { get; }
         public string Label { get; }
         public string Value { get; }
+        public string ValueRef { get; }
     }
 
     public sealed class AetheriaRuntimeEquippedItemSection
@@ -218,7 +220,7 @@ namespace GameCult.Aetheria.State.Verse
                         : section.Id,
                     section.Title,
                     section.Metrics
-                        .Select(metric => Metric(metric.Id, metric.Label, metric.Value))
+                        .Select(metric => Metric(metric.Id, metric.Label, metric.Value, metric.ValueRef))
                         .ToArray()));
             }
 
@@ -335,9 +337,18 @@ namespace GameCult.Aetheria.State.Verse
             return Node(id, "card", new[] { ("title", title ?? "") }, children);
         }
 
-        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)
+        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value, string valueRef = "")
         {
-            return Node(id, "metric", new[] { ("label", label ?? ""), ("value", value ?? "") });
+            var props = new List<(string Key, string Value)>
+            {
+                ("label", label ?? ""),
+                ("value", value ?? "")
+            };
+
+            if (!string.IsNullOrWhiteSpace(valueRef))
+                props.Add(AetheriaRuntimeSurfaceStateRefs.ValueRef(valueRef));
+
+            return Node(id, "metric", props);
         }
 
         private static AetheriaRuntimeSurfaceComponent Text(string id, string value)

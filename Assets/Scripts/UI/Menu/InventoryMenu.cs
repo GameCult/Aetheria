@@ -263,6 +263,7 @@ public class InventoryMenu : MonoBehaviour
             AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurfaceState(item, typedItem)),
             HandleCargoItemDetailsSurfaceCommand,
             _cargoItemDetailsSurfaceChrome,
+            ResolveInventorySurfaceStateRef,
             sortingOrder: 1001);
     }
 
@@ -305,6 +306,7 @@ public class InventoryMenu : MonoBehaviour
             AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurfaceState(item, typedItem)),
             HandleEquippedItemDetailsSurfaceCommand,
             _equippedItemDetailsSurfaceChrome,
+            ResolveInventorySurfaceStateRef,
             sortingOrder: 1002);
     }
 
@@ -548,7 +550,12 @@ public class InventoryMenu : MonoBehaviour
                         new AetheriaRuntimeCargoItemMetric(
                             $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.target",
                             $"{statReference.Target.SplitCamelCase()}:{statReference.Stat.SplitCamelCase()}",
-                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}")
+                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}",
+                            AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
+                                equippableItem.ItemKey,
+                                behavior.Kind,
+                                behavior.Group,
+                                2))
                     });
                 continue;
             }
@@ -603,7 +610,14 @@ public class InventoryMenu : MonoBehaviour
         return new AetheriaRuntimeCargoItemMetric(
             $"{AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
             field.Name.SplitCamelCase(),
-            value);
+            value,
+            field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat
+                ? AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
+                    equippableItem.ItemKey,
+                    behavior.Kind,
+                    behavior.Group,
+                    field.Key)
+                : "");
     }
 
     private IEnumerable<AetheriaRuntimeEquippedItemSection> ProjectEquippedItemBehaviorSections(
@@ -627,7 +641,12 @@ public class InventoryMenu : MonoBehaviour
                         new AetheriaRuntimeEquippedItemMetric(
                             $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.target",
                             $"{statReference.Target.SplitCamelCase()}:{statReference.Stat.SplitCamelCase()}",
-                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}")
+                            $"{(modifierType == StatModifierType.Constant ? "+" : "x")}{FormatCurrentItemStat(modifier, equippableItem)}",
+                            AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
+                                equippableItem.ItemKey,
+                                behavior.Kind,
+                                behavior.Group,
+                                2))
                     });
                 continue;
             }
@@ -682,7 +701,14 @@ public class InventoryMenu : MonoBehaviour
         return new AetheriaRuntimeEquippedItemMetric(
             $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.behavior.{behavior.Kind}.{field.Key}",
             field.Name.SplitCamelCase(),
-            value);
+            value,
+            field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat
+                ? AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(
+                    equippableItem.ItemKey,
+                    behavior.Kind,
+                    behavior.Group,
+                    field.Key)
+                : "");
     }
 
 private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogItem typedItem)
@@ -713,6 +739,80 @@ private string BuildEquippedItemTitle(EquippedItem item, AetheriaRuntimeCatalogI
             item?.Durability ?? 1,
             enabled: true,
             overrideShutdown: item != null && item.OverrideShutdown);
+    }
+
+    private string ResolveInventorySurfaceStateRef(string stateRef)
+    {
+        return TryResolveInventorySurfaceStateRef(stateRef, out var value) ? value : "";
+    }
+
+    private bool TryResolveInventorySurfaceStateRef(string stateRef, out string value)
+    {
+        value = "";
+        if (!TryReadItemStatRef(stateRef, out var itemKey, out var behaviorKind, out var behaviorGroup, out var fieldKey))
+            return false;
+
+        var item = ResolveSelectedEquippableItem(itemKey);
+        var typedItem = FindTypedInventoryItem(item);
+        var behavior = typedItem?.BehaviorPayloads?.FirstOrDefault(candidate =>
+            string.Equals(candidate.Kind, behaviorKind, StringComparison.Ordinal) &&
+            candidate.Group == behaviorGroup);
+        var field = behavior?.Fields?.FirstOrDefault(candidate => candidate.Key == fieldKey);
+        if (item == null || field == null)
+            return false;
+
+        value = FormatCurrentItemStat(field.Value, item);
+        return true;
+    }
+
+    private EquippableItem ResolveSelectedEquippableItem(string itemKey)
+    {
+        var equipped = _selectedEquippedItem?.EquippableItem;
+        if (ItemKeyMatches(equipped, itemKey))
+            return equipped;
+
+        var cargo = _selectedItem as EquippableItem;
+        return ItemKeyMatches(cargo, itemKey) ? cargo : null;
+    }
+
+    private static bool TryReadItemStatRef(
+        string stateRef,
+        out string itemKey,
+        out string behaviorKind,
+        out int behaviorGroup,
+        out int fieldKey)
+    {
+        itemKey = "";
+        behaviorKind = "";
+        behaviorGroup = -1;
+        fieldKey = -1;
+
+        var parts = (stateRef ?? "").Split('/');
+        if (parts.Length != 8 ||
+            !string.Equals(parts[0], "aetheria.state", StringComparison.Ordinal) ||
+            !string.Equals(parts[1], "items", StringComparison.Ordinal) ||
+            !string.Equals(parts[3], "behaviors", StringComparison.Ordinal) ||
+            !string.Equals(parts[6], "stats", StringComparison.Ordinal) ||
+            !int.TryParse(parts[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out behaviorGroup) ||
+            !int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out fieldKey))
+        {
+            return false;
+        }
+
+        itemKey = DecodeRefToken(parts[2]);
+        behaviorKind = DecodeRefToken(parts[4]);
+        return !string.IsNullOrWhiteSpace(itemKey) && !string.IsNullOrWhiteSpace(behaviorKind);
+    }
+
+    private static bool ItemKeyMatches(EquippableItem item, string itemKey)
+    {
+        return item != null &&
+               string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal);
+    }
+
+    private static string DecodeRefToken(string token)
+    {
+        return (token ?? "").Replace("%2F", "/", StringComparison.Ordinal);
     }
 
     private static AetheriaRuntimeBehaviorValue ToRuntimeBehaviorValue(PerformanceStat stat)

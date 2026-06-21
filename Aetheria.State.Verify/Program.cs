@@ -4089,19 +4089,33 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonItemStatQueries.cs");
+    var eveUnitySurfaceHostPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.eve-runtime",
+        "Runtime",
+        "AetheriaEveUnitySurfaceHost.cs");
     var cargoItemSurfaceBuilderPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs");
+    var equippedItemSurfaceBuilderPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs");
     var requiredFiles = new[]
     {
         inventoryMenuPath,
         actionGameManagerPath,
         surfaceDocumentPath,
         daemonItemStatQueriesPath,
-        cargoItemSurfaceBuilderPath
+        eveUnitySurfaceHostPath,
+        cargoItemSurfaceBuilderPath,
+        equippedItemSurfaceBuilderPath
     };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
@@ -4118,7 +4132,9 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var surfaceDocument = File.ReadAllText(surfaceDocumentPath);
     var daemonItemStatQueries = File.ReadAllText(daemonItemStatQueriesPath);
+    var eveUnitySurfaceHost = File.ReadAllText(eveUnitySurfaceHostPath);
     var cargoItemSurfaceBuilder = File.ReadAllText(cargoItemSurfaceBuilderPath);
+    var equippedItemSurfaceBuilder = File.ReadAllText(equippedItemSurfaceBuilderPath);
     var requiredSymbols = new[]
     {
         "RenderCargoItemDetailsSurface(",
@@ -4149,7 +4165,10 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
     }
 
-    if (!source.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+    if (!source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
+        !source.Contains("TryReadItemStatRef(", StringComparison.Ordinal) ||
+        !source.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
+        !source.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
         source.Contains("GameManager.ItemManager.GetTier", StringComparison.Ordinal) ||
         source.Contains("GameManager.ItemManager.Evaluate", StringComparison.Ordinal) ||
         actionGameManager.Contains("ObservedItemStat(", StringComparison.Ordinal) ||
@@ -4163,7 +4182,14 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !surfaceDocument.Contains("public const string Value = \"valueRef\"", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public const string StateRefPrefix = \"aetheria.state/items\"", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public static string ItemStatRef(", StringComparison.Ordinal) ||
-        !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal))
+        !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("surface = ResolveStateRefs(surface, stateRefResolver)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
+        !cargoItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
+        !cargoItemSurfaceBuilder.Contains("props.Add(AetheriaRuntimeSurfaceStateRefs.ValueRef(valueRef))", StringComparison.Ordinal) ||
+        !equippedItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
+        !equippedItemSurfaceBuilder.Contains("props.Add(AetheriaRuntimeSurfaceStateRefs.ValueRef(valueRef))", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Eve/CultUI item stat surfaces must expose typed daemon state refs that the UI runtime can resolve.");
