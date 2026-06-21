@@ -8727,7 +8727,8 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "Cargo.ContainsKey(",
         "Equipment.Contains(",
         "origin == destination",
-        "ReferenceEquals(equippedItem.Entity, origin)"
+        "ReferenceEquals(equippedItem.Entity, origin)",
+        "!origin.Cargo.TryGetValue(item, out var sourcePosition)"
     };
     var unityInventoryAcceptanceHits = forbiddenUnityInventoryAcceptanceSymbols
         .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))

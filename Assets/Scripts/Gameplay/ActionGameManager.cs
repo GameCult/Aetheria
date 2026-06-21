@@ -1105,8 +1105,7 @@ public class ActionGameManager : MonoBehaviour
         if (!TryResolveCargoBayCommandTarget(origin, out var originEntityKey, out var originCargoIndex) ||
             !TryResolveCargoBayCommandTarget(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
             item == null ||
-            string.IsNullOrWhiteSpace(item.ItemKey) ||
-            !origin.Cargo.TryGetValue(item, out var sourcePosition))
+            string.IsNullOrWhiteSpace(item.ItemKey))
         {
             return false;
         }
@@ -1126,8 +1125,8 @@ public class ActionGameManager : MonoBehaviour
                 destinationCargoIndex,
                 item.ItemKey,
                 quantity,
-                sourcePosition.x,
-                sourcePosition.y,
+                int.MinValue,
+                int.MinValue,
                 destinationPosition.x,
                 destinationPosition.y,
                 hasDestinationPosition);
@@ -1248,8 +1247,7 @@ public class ActionGameManager : MonoBehaviour
         if (!TryResolveCargoBayCommandTarget(origin, out var originEntityKey, out var originCargoIndex) ||
             destination == null ||
             item == null ||
-            string.IsNullOrWhiteSpace(item.ItemKey) ||
-            !origin.Cargo.TryGetValue(item, out var sourcePosition))
+            string.IsNullOrWhiteSpace(item.ItemKey))
         {
             return false;
         }
@@ -1268,8 +1266,8 @@ public class ActionGameManager : MonoBehaviour
                 originCargoIndex,
                 destinationEntityKey,
                 item.ItemKey,
-                sourcePosition.x,
-                sourcePosition.y,
+                int.MinValue,
+                int.MinValue,
                 destinationPosition.x,
                 destinationPosition.y,
                 hasDestinationPosition);

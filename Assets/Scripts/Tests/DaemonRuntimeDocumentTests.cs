@@ -1582,6 +1582,50 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsResolvesCargoSourcePositionWhenClientOmitsIt()
+    {
+        var run = RunWithTwoEntities();
+        var transfer = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TransferCargoItem,
+            "codex",
+            "session-inventory",
+            31,
+            "zone.0.entity.0");
+        transfer.TextValue = "ore";
+        transfer.CargoTransfer.OriginEntityKey = "zone.0.entity.0";
+        transfer.CargoTransfer.OriginCargoIndex = 0;
+        transfer.CargoTransfer.DestinationEntityKey = "zone.0.entity.1";
+        transfer.CargoTransfer.DestinationCargoIndex = 0;
+        transfer.CargoTransfer.SourceX = int.MinValue;
+        transfer.CargoTransfer.SourceY = int.MinValue;
+
+        var transferResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { transfer });
+        Assert.AreEqual(1, transferResult.AppliedCommandIds.Count);
+        Assert.AreEqual(0, run.Zones[0].Entities[0].CargoContents[0].Items.Count);
+        Assert.AreEqual("ore", run.Zones[0].Entities[1].CargoContents[0].Items[0].Item.ItemKey);
+
+        var equip = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.EquipItem,
+            "codex",
+            "session-inventory",
+            32,
+            "zone.0.entity.0");
+        equip.TextValue = "ore";
+        equip.EquipmentTransfer.SourceKind = "cargo";
+        equip.EquipmentTransfer.OriginEntityKey = "zone.0.entity.1";
+        equip.EquipmentTransfer.OriginIndex = 0;
+        equip.EquipmentTransfer.DestinationEntityKey = "zone.0.entity.0";
+        equip.EquipmentTransfer.SourceX = int.MinValue;
+        equip.EquipmentTransfer.SourceY = int.MinValue;
+
+        var equipResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { equip });
+        Assert.AreEqual(1, equipResult.AppliedCommandIds.Count);
+        Assert.AreEqual(3, run.Zones[0].Entities[0].Equipment.Count);
+        Assert.AreEqual("ore", run.Zones[0].Entities[0].Equipment[2].Item.ItemKey);
+        Assert.AreEqual(0, run.Zones[0].Entities[1].CargoContents[0].Items.Count);
+    }
+
+    [Test]
     public void DaemonOperationsEquipsCargoItemInDaemonState()
     {
         var run = RunWithTwoEntities();
