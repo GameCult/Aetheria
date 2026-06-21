@@ -6774,7 +6774,7 @@ static void RequireDaemonVersePublication(string root)
         "Queues are an implementation detail.",
         "Eve commands and daemon commands are typed `gamecult.eve.command.v1` and `gamecult.aetheria.daemon_command.v1` records in the Aetheria state graph",
         "`AetheriaCommandPort` is the neutral command submission implementation for typed command records.",
-        "Unity-side command lowerers may use `AetheriaRuntimeCommandPort` as a facade over that same port.",
+        "Client-side command lowerers may use typed runtime clients over that same port.",
         "`CommandLog`, `Inbox`, `mailbox`, `.eve.commands`, `.daemon.commands`, `.cc.pending`, or `" + "Pending" + "CultCacheStore` in Unity-facing daemon/Eve command code",
         "Do not add a private HTTP dashboard, Unity-only inspector, JSON status blob, or agent-specific daemon wrapper as canonical truth."
     };
@@ -6872,6 +6872,8 @@ static void RequireTypedEveCommandBodies(string root)
         "global::Aetheria.State.AetheriaCommandPort",
         "public const string DefaultRuntimeId = \"aetheria-command-client\"",
         "string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId",
+        "internal Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
+        "internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
         "internal static class AetheriaRuntimeCommandSubmitter",
         "TrySubmitEveCommand(",
         "TrySubmitDaemonCommand(",
@@ -6980,6 +6982,21 @@ static void RequireTypedEveCommandBodies(string root)
     {
         throw new InvalidOperationException(
             "Shared command runtime still exposes the generic transport submitter publicly instead of routing callers through typed clients.");
+    }
+
+    var forbiddenRuntimePortSubmitMethods = new[]
+    {
+        "public Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
+        "public Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync("
+    };
+    var publicRuntimePortSubmitHits = forbiddenRuntimePortSubmitMethods
+        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicRuntimePortSubmitHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime command port still exposes raw document submission publicly instead of routing callers through typed clients: " +
+            string.Join(", ", publicRuntimePortSubmitHits));
     }
 
     var forbiddenUnitySubmitterSymbols = new[]

@@ -167,13 +167,13 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeCommandPort(port);
         }
 
-        public Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(
+        internal Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(
             AetheriaRuntimeDaemonCommandDocument command)
         {
             return _port.SubmitDaemonCommandAsync(command);
         }
 
-        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(
+        internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(
             AetheriaRuntimeEveCommandDocument command)
         {
             return _port.SubmitEveCommandAsync(command);
