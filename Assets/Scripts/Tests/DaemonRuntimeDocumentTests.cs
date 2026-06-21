@@ -1928,6 +1928,40 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsCreatesPurchasedDockedShipInDaemonState()
+    {
+        var run = RunWithTwoEntities();
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TradePurchase,
+            "codex",
+            "session-trade",
+            31,
+            "zone.0.entity.0");
+        command.TargetEntityKey = "zone.0.entity.1";
+        command.TextValue = "starter-hull";
+        command.ScalarValue = 300;
+        command.TradePurchase.PurchaseKind = "docked_ship";
+        command.TradePurchase.ItemKey = "starter-hull";
+        command.TradePurchase.Quantity = 1;
+        command.TradePurchase.UnitPrice = 300;
+        command.TradePurchase.TotalPrice = 300;
+        command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
+        command.TradePurchase.CreatesDockedShip = true;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+
+        var zone = run.Zones[0];
+        Assert.AreEqual(1, result.AppliedCommandIds.Count);
+        Assert.AreEqual(700, run.Credits);
+        Assert.AreEqual(3, zone.Entities.Count);
+        Assert.AreEqual("ship", zone.Entities[2].Kind);
+        Assert.AreEqual("starter-hull", zone.Entities[2].HullItemKey);
+        CollectionAssert.Contains(zone.Entities[1].ChildEntityIndices, 2);
+        CollectionAssert.Contains(zone.Entities[1].DockingBayAssignments, 2);
+        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.0.entity.2.v1", run.CurrentEntityKey);
+    }
+
+    [Test]
     public void DaemonOperationsRestoresLoadoutIntoDaemonState()
     {
         var run = RunWithTwoEntities();

@@ -809,6 +809,10 @@ namespace GameCult.Aetheria.State.Verse
 
             if (purchase.CreatesDockedShip)
             {
+                if (!ApplyCreateDockedShipPurchase(run, purchase, out var purchasedShipKey))
+                    return false;
+
+                run.CurrentEntityKey = purchasedShipKey;
                 run.Credits -= totalPrice;
                 return true;
             }
@@ -849,6 +853,70 @@ namespace GameCult.Aetheria.State.Verse
             purchasedSlot.Y = 0;
             AddCargoItem(targetEntity, targetCargoIndex, purchasedSlot);
             run.Credits -= totalPrice;
+            return true;
+        }
+
+        private static bool ApplyCreateDockedShipPurchase(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeTradePurchaseCommand purchase,
+            out string purchasedShipKey)
+        {
+            purchasedShipKey = "";
+            var itemKey = purchase.ItemKey ?? "";
+            if (string.IsNullOrWhiteSpace(itemKey) ||
+                !TryResolveEntity(run, purchase.TargetEntityKey, out var zoneIndex, out var parentIndex, out var parent))
+            {
+                return false;
+            }
+
+            var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>()).ToArray();
+            var zone = zones.FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            if (zone == null)
+                return false;
+
+            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToList();
+            var entityIndex = entities.Count;
+            var ship = new AetheriaRuntimeEntitySnapshotCommit
+            {
+                EntityIndex = entityIndex,
+                Name = string.IsNullOrWhiteSpace(itemKey) ? "Purchased Ship" : itemKey,
+                Kind = "ship",
+                HullItemKey = itemKey,
+                DirectionX = parent.DirectionX,
+                DirectionY = parent.DirectionY,
+                PositionX = parent.PositionX,
+                PositionY = parent.PositionY,
+                PositionZ = parent.PositionZ,
+                IsActive = true,
+                TargetEntityIndex = -1,
+                ShutdownPerformance = 0.25
+            };
+            entities.Add(ship);
+            zone.Entities = entities.ToArray();
+            run.Zones = zones;
+
+            var childIndices = (parent.ChildEntityIndices ?? Array.Empty<int>()).ToList();
+            if (!childIndices.Contains(entityIndex))
+                childIndices.Add(entityIndex);
+            parent.ChildEntityIndices = childIndices.ToArray();
+
+            var assignments = (parent.DockingBayAssignments ?? Array.Empty<int>()).ToList();
+            var assigned = false;
+            for (var index = 0; index < assignments.Count; index++)
+            {
+                if (assignments[index] >= 0)
+                    continue;
+
+                assignments[index] = entityIndex;
+                assigned = true;
+                break;
+            }
+
+            if (!assigned)
+                assignments.Add(entityIndex);
+            parent.DockingBayAssignments = assignments.ToArray();
+
+            purchasedShipKey = BuildEntityKey(run.RunId, zoneIndex, entityIndex);
             return true;
         }
 

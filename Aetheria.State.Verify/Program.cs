@@ -8889,6 +8889,27 @@ static void RequireTradePurchaseRequestAuthority(string root)
             string.Join(", ", unityTradeAcceptanceHits));
     }
 
+    var daemonOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var daemonOperations = File.Exists(daemonOperationsPath)
+        ? File.ReadAllText(daemonOperationsPath)
+        : throw new InvalidOperationException("Cannot verify trade purchase authority; daemon operations are missing.");
+    var requiredDaemonShipPurchaseSymbols = new[]
+    {
+        "ApplyCreateDockedShipPurchase(",
+        "purchase.CreatesDockedShip",
+        "run.CurrentEntityKey = purchasedShipKey",
+        "HullItemKey = itemKey"
+    };
+    var missingDaemonShipPurchaseSymbols = requiredDaemonShipPurchaseSymbols
+        .Where(symbol => !daemonOperations.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonShipPurchaseSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon trade purchase no longer materializes purchased docked ships as typed run state: " +
+            string.Join(", ", missingDaemonShipPurchaseSymbols));
+    }
+
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
     var tradeMenu = File.Exists(tradeMenuPath)
         ? File.ReadAllText(tradeMenuPath)
