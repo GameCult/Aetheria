@@ -9532,6 +9532,15 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     {
         throw new InvalidOperationException("InventoryPanel no longer routes loadout restore through ActionGameManager.");
     }
+
+    if (actionGameManager.Contains("RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("RequestRuntimeLoadoutRestore(template, out", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("RequestRuntimeLoadoutRestore(loadoutEntry.template, out", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("Display(entity)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Loadout restore is still pretending daemon submission synchronously yields the restored Unity entity.");
+    }
 }
 
 static void RequireDockedCurrentShipRequestAuthority(string root)
@@ -9606,6 +9615,12 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.RequestDockedCurrentShip", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes current-ship selection through ActionGameManager.");
+    }
+
+    if (inventoryPanel.Contains("Current.targetGraphic.color = ToggleEnabledColor;", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still paints current-ship selection as accepted immediately after daemon submission.");
     }
 }
 

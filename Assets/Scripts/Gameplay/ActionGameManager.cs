@@ -897,9 +897,8 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    public bool RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity entity)
+    public bool RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
-        entity = null;
         var blueprint = CreateEntityConstructionBlueprint(template);
         if (blueprint == null ||
             Zone == null ||

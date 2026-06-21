@@ -138,8 +138,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 {
                     if(_displayedEntity is Ship ship)
                     {
-                        if (GameManager.RequestDockedCurrentShip(ship))
-                            Current.targetGraphic.color = ToggleEnabledColor;
+                        GameManager.RequestDockedCurrentShip(ship);
                     }
                     else
                     {
@@ -187,8 +186,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         var price = blueprint.Price(GameManager.ItemManager);
         return ($"{template.Name} - {price:n0}", () =>
         {
-            if (GameManager.RequestRuntimeLoadoutRestore(template, out var entity) && entity != null)
-                Display(entity);
+            GameManager.RequestRuntimeLoadoutRestore(template);
         }, true);
     }
 
@@ -258,8 +256,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             var restoreCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(loadoutEntry.templateIndex);
             _dropdownCommands[restoreCommand] = () =>
             {
-                if (GameManager.RequestRuntimeLoadoutRestore(loadoutEntry.template, out var entity) && entity != null)
-                    Display(entity);
+                GameManager.RequestRuntimeLoadoutRestore(loadoutEntry.template);
             };
         }
     }
