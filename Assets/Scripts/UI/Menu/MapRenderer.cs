@@ -49,7 +49,7 @@ public class MapRenderer : MonoBehaviour
         GravityCamera.gameObject.SetActive(true);
         TintCamera.gameObject.SetActive(true);
         InfluenceCamera.gameObject.SetActive(true);
-        var currentZone = GameManager.CurrentDaemonGalaxyZone;
+        GameManager.TryGetObservedRunZone(out var currentZone);
         Title.text = $"Zone: {currentZone?.Name ?? "Unknown"}";
         
         // If hiding minimap asteroids, turn them back on for the map screen

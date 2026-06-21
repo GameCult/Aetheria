@@ -906,13 +906,11 @@ public class ActionGameManager : MonoBehaviour
             .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == daemonZoneIndex);
     }
 
-    public GalaxyZone CurrentDaemonGalaxyZone
+    public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)
     {
-        get
-        {
-            var run = ResolveDaemonObserver()?.LastObservedState?.Run;
-            return FindObservedGalaxyZone(run?.CurrentZoneIndex ?? -1);
-        }
+        var run = ResolveDaemonObserver()?.LastObservedState?.Run;
+        galaxyZone = FindObservedGalaxyZone(run?.CurrentZoneIndex ?? -1);
+        return galaxyZone != null;
     }
 
     private static int FactionIndex(Faction faction)

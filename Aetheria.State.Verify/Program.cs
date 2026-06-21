@@ -8131,7 +8131,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ApplyLatestAuthoritativeDaemonFrame()",
         "ResolveDaemonObserver()",
         "public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(int daemonZoneIndex)",
-        "public GalaxyZone CurrentDaemonGalaxyZone",
+        "public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)",
         "snapshot.ZoneIndex == daemonZoneIndex",
         "FindObservedGalaxyZone(run.CurrentZoneIndex)",
         "observed.IsAuthoritative",
@@ -8183,13 +8183,19 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (mapRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
         sectorRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
-        sectorRenderer.Contains("GameManager.CurrentEntity.Zone.GalaxyZone", StringComparison.Ordinal))
+        sectorRenderer.Contains("GameManager.CurrentEntity.Zone.GalaxyZone", StringComparison.Ordinal) ||
+        mapRenderer.Contains("GameManager.CurrentDaemonGalaxyZone", StringComparison.Ordinal) ||
+        sectorRenderer.Contains("GameManager.CurrentDaemonGalaxyZone", StringComparison.Ordinal) ||
+        actionGameManager.Contains("public GalaxyZone CurrentDaemonGalaxyZone", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Map and sector UI must read current-zone identity from the daemon-observed run, not Unity's mirrored Zone hierarchy.");
     }
 
     if (!actionGameManager.Contains("public static bool TryGetObservedGalaxy(out Galaxy galaxy)", StringComparison.Ordinal) ||
+        !actionGameManager.Contains("public bool TryGetObservedRunZone(out GalaxyZone galaxyZone)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("GameManager.TryGetObservedRunZone(out var currentZone)", StringComparison.Ordinal) ||
         !sectorMap.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy)", StringComparison.Ordinal))
     {

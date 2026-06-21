@@ -225,7 +225,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         _init = true;
         SectorCamera.gameObject.SetActive(true);
-        var currentZone = GameManager.CurrentDaemonGalaxyZone;
+        GameManager.TryGetObservedRunZone(out var currentZone);
         _position = currentZone?.Position ?? float2.zero;
         _viewSize = .25f;
         
