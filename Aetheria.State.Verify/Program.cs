@@ -1788,6 +1788,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ? File.ReadAllText(indirectRendererPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaDaemonIndirectRenderer.cs is missing.");
 
+    var zoneRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs");
+    var zoneRenderer = File.Exists(zoneRendererPath)
+        ? File.ReadAllText(zoneRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; ZoneRenderer.cs is missing.");
+
     var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
     var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
         ? File.ReadAllText(canonicalSnapshotPath)
@@ -1865,6 +1870,29 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "Unity's daemon indirect renderer must query daemon SoA render groups by camera bounds before lowering draw calls: " +
             string.Join(", ", missingRendererSymbols));
+    }
+
+    if (zoneRenderer.Contains("Zone.GetHeight(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must evaluate gravity terrain from daemon render queries instead of the mirrored Unity Zone height evaluator.");
+    }
+
+    var requiredZoneRendererSymbols = new[]
+    {
+        "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
+        "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
+        "_daemonZoneSnapshot = daemonZone;",
+        "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight("
+    };
+    var missingZoneRendererSymbols = requiredZoneRendererSymbols
+        .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneRendererSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must lower daemon-authored gravity terrain snapshots instead of recomputing render height through Zone: " +
+            string.Join(", ", missingZoneRendererSymbols));
     }
 }
 

@@ -85,6 +85,7 @@ public class ZoneRenderer : MonoBehaviour
     private List<IDisposable> _zoneSubscriptions = new List<IDisposable>();
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
+    private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -181,10 +182,11 @@ public class ZoneRenderer : MonoBehaviour
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
     }
 
-    public void LoadZone(Zone zone)
+    public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)
     {
         ClearZone();
         Zone = zone;
+        _daemonZoneSnapshot = daemonZone;
         SectorBrushes.localScale = zone.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Radius;
         SlimeRenderer.ZoneRadius = zone.Radius;
@@ -470,7 +472,7 @@ public class ZoneRenderer : MonoBehaviour
         
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
-            var height = Zone.GetHeight(belt.OrbitPosition);
+            var height = GetTerrainHeight(belt.OrbitPosition);
             if(isVisible(new Bounds(
                 new Vector3(belt.OrbitPosition.x,height,belt.OrbitPosition.y),
                 new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
@@ -504,7 +506,7 @@ public class ZoneRenderer : MonoBehaviour
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
             var p = Zone.GetOrbitPosition(planetInstance.OrbitKey);
-            var height = Zone.GetHeight(p);
+            var height = GetTerrainHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
@@ -560,6 +562,15 @@ public class ZoneRenderer : MonoBehaviour
         // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
+    }
+
+    private float GetTerrainHeight(float2 position)
+    {
+        return (float)AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(
+            _daemonZoneSnapshot,
+            position.x,
+            position.y,
+            Zone?.Time ?? 0);
     }
 
     public void DestroyLoot(ItemPickup loot)

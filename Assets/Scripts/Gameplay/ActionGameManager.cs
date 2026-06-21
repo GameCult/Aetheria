@@ -2067,7 +2067,7 @@ public class ActionGameManager : MonoBehaviour
 
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
-        ZoneRenderer.LoadZone(Zone);
+        ZoneRenderer.LoadZone(Zone, daemonZone);
 
         if (CurrentEntity != null)
         {
