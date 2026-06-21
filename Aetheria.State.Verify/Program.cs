@@ -7784,6 +7784,7 @@ static void RequireMainMenuContinueRunState(string root)
         "RestoreDroppedPickupsFromDaemonZoneState",
         "TryGetDaemonEntitySnapshot(",
         "TryGetDaemonParentSnapshot(",
+        "IsCurrentEntityObservedUndocked(",
         "parentSnapshot.DockingBayAssignments",
         "dockedEntitySnapshot.ChildEntityIndices",
         "TryGetObservedEntityFacade(childEntityIndex, out var entity)"
@@ -7825,7 +7826,10 @@ static void RequireMainMenuContinueRunState(string root)
         "TargetIndicator.Target = CurrentEntity.Target.Value.Position",
         "indicator.Target = CurrentEntity.Target.Value.Position",
         "foreach (var bay in CurrentEntity.Parent.DockingBays)",
-        "foreach (var entity in DockedEntity.Children)"
+        "foreach (var entity in DockedEntity.Children)",
+        "CurrentEntity != null && CurrentEntity.Parent == null",
+        "CurrentEntity !=null && CurrentEntity.Parent==null",
+        "CurrentEntity == null || CurrentEntity.Parent != null"
     };
 
     var forbiddenGameplayHits = forbiddenGameplaySymbols

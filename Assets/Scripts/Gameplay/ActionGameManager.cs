@@ -2170,7 +2170,7 @@ public class ActionGameManager : MonoBehaviour
         if (Menu.gameObject.activeSelf && Menu.CurrentTab == tab)
         {
             Menu.gameObject.SetActive(false);
-            if (CurrentEntity != null && CurrentEntity.Parent == null)
+            if (IsCurrentEntityObservedUndocked())
             {
                 EnablePlayerInput();
                 UpdatePlayerPanel();
@@ -3192,6 +3192,12 @@ public class ActionGameManager : MonoBehaviour
         return false;
     }
 
+    private bool IsCurrentEntityObservedUndocked()
+    {
+        return TryGetDaemonEntitySnapshot(CurrentEntity, out _) &&
+               !TryGetDaemonParentSnapshot(CurrentEntity, out _, out _);
+    }
+
     private bool TryQueryDaemonEntityContact(
         Entity observer,
         Entity target,
@@ -3558,7 +3564,7 @@ public class ActionGameManager : MonoBehaviour
             _hitMarkerTime -= Time.deltaTime;
             if(HitMarker.activeSelf && _hitMarkerTime < 0) HitMarker.SetActive(false);
             // ItemManager.Time = _time;
-            if(CurrentEntity !=null && CurrentEntity.Parent==null)
+            if(IsCurrentEntityObservedUndocked())
             {
                 var observedTarget = GetObservedTarget(CurrentEntity);
                 ReconcileVisibleTargetIndicators();
@@ -4163,7 +4169,7 @@ public class ActionGameManager : MonoBehaviour
 
     private void UpdateTargetIndicators()
     {
-        if (CurrentEntity == null || CurrentEntity.Parent != null) return;
+        if (!IsCurrentEntityObservedUndocked()) return;
 
         if (!ZoneRenderer.TryGetEntityInstance(CurrentEntity, out var entityInstance))
             return;
