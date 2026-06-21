@@ -1829,6 +1829,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double TargetSpottedBlinkOffset { get; }",
         "public IReadOnlyList<double> MinimapZoomLevels { get; }",
         "public int DefaultMinimapZoom { get; }",
+        "public double WormholeDistanceRatio { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
@@ -2002,6 +2003,14 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must initialize minimap distance through shared daemon render settings instead of Unity GameSettings.");
     }
 
+    if (zoneRenderer.Contains(" Settings.WormholeDistanceRatio", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("(Settings.WormholeDistanceRatio", StringComparison.Ordinal) ||
+        zoneRenderer.Contains(", Settings.WormholeDistanceRatio", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon wormhole exits through shared render settings instead of Unity GameSettings.");
+    }
+
     if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2143,6 +2152,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "RenderSettings.TargetDetectionInfoThreshold",
         "RenderSettings.ResolveDefaultMinimapDistance()",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
+        "RenderSettings.WormholeDistanceRatio",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
         "private double DaemonSimulationTimeSeconds => _daemonZoneSnapshot?.SimulationTimeSeconds ?? 0;",
@@ -2237,7 +2247,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "TargetSpottedBlinkFrequency",
         "TargetSpottedBlinkOffset",
         "Settings.MinimapZoomLevels",
-        "Settings.DefaultMinimapZoom"
+        "Settings.DefaultMinimapZoom",
+        "Settings.WormholeDistanceRatio"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols

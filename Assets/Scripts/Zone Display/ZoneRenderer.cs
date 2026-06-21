@@ -275,7 +275,7 @@ public class ZoneRenderer : MonoBehaviour
             _daemonRunSnapshot,
             _daemonZoneSnapshot,
             zoneRenderRadius,
-            Settings.WormholeDistanceRatio,
+            RenderSettings.WormholeDistanceRatio,
             _daemonWormholeExits);
     }
 
