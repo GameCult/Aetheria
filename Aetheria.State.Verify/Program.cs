@@ -4654,11 +4654,12 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(ProjectTradeFilterSurfaceState(",
         "ProjectTradeFilterSurfaceState(",
         "RenderRowActionSurface(",
-        "BuildRowActionSurfaceCommands(",
         "HandleRowActionSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.Hide(_rowActionSurfaceDocument)",
-        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(ProjectTradeRowActionSurfaceState(",
-        "ProjectTradeRowActionSurfaceState(",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.ProjectRowActions(",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceProjection.State)",
+        "_rowActionSurfaceProjection?.TryResolve(command.Command, out var selection) == true",
+        "new AetheriaRuntimeTradeRowActionOption(index, action.Label)",
         "ShowBuyQuantityDialog(",
         "AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadFilter(request, out var command)",
         "AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadRowAction(request, out var command)",
@@ -4699,7 +4700,10 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseFilter",
         "string.Equals(request.Command, AetheriaRuntimeTradeInteractionSurfaceBuilder.CloseRowAction",
         "_filterSurfaceCommands.TryGetValue(request.Command",
-        "_rowActionSurfaceCommands.TryGetValue(request.Command"
+        "_rowActionSurfaceCommands.TryGetValue(request.Command",
+        "private readonly Dictionary<string, Action> _rowActionSurfaceCommands",
+        "BuildRowActionSurfaceCommands(",
+        "ProjectTradeRowActionSurfaceState("
     };
 
     var hits = forbiddenSymbols
@@ -4727,10 +4731,15 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "public static bool TryReadRowAction(",
         "AetheriaRuntimeTradeFilterSurfaceState",
         "AetheriaRuntimeTradeRowActionSurfaceState",
+        "AetheriaRuntimeTradeRowActionOption",
+        "AetheriaRuntimeTradeRowActionSelection",
+        "AetheriaRuntimeTradeRowActionSurfaceProjection",
         "AetheriaRuntimeTradeSurfaceGroup",
         "AetheriaRuntimeTradeSurfaceOption",
         "public static string HardpointFilterCommand(",
         "public static string RowActionCommand(",
+        "public static AetheriaRuntimeTradeRowActionSurfaceProjection ProjectRowActions(",
+        "public bool TryResolve(string command, out AetheriaRuntimeTradeRowActionSelection selection)",
         "public static AetheriaRuntimeSurfaceDocument BuildFilter(",
         "public static AetheriaRuntimeSurfaceDocument BuildRowActions(",
         "providerKind: \"trade.menu\""

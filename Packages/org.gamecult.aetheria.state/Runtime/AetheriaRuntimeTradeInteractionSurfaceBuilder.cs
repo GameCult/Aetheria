@@ -70,6 +70,52 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public sealed class AetheriaRuntimeTradeRowActionOption
+    {
+        public AetheriaRuntimeTradeRowActionOption(int index, string label)
+        {
+            Index = index;
+            Label = label ?? "";
+        }
+
+        public int Index { get; }
+        public string Label { get; }
+    }
+
+    public readonly struct AetheriaRuntimeTradeRowActionSelection
+    {
+        public AetheriaRuntimeTradeRowActionSelection(string command, int index)
+        {
+            Command = command ?? "";
+            Index = index;
+        }
+
+        public string Command { get; }
+        public int Index { get; }
+    }
+
+    public sealed class AetheriaRuntimeTradeRowActionSurfaceProjection
+    {
+        public AetheriaRuntimeTradeRowActionSurfaceProjection(
+            AetheriaRuntimeTradeRowActionSurfaceState state,
+            IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> selections)
+        {
+            State = state ?? new AetheriaRuntimeTradeRowActionSurfaceState(
+                "",
+                Array.Empty<AetheriaRuntimeTradeSurfaceOption>(),
+                "");
+            Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeRowActionSelection>(StringComparer.Ordinal);
+        }
+
+        public AetheriaRuntimeTradeRowActionSurfaceState State { get; }
+        public IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> Selections { get; }
+
+        public bool TryResolve(string command, out AetheriaRuntimeTradeRowActionSelection selection)
+        {
+            return Selections.TryGetValue(command ?? "", out selection);
+        }
+    }
+
     public static class AetheriaRuntimeTradeInteractionSurfaceBuilder
     {
         public const string FilterSurfaceId = "aetheria.trade.filter_selector";
@@ -110,6 +156,38 @@ namespace GameCult.Aetheria.State.Verse
         public static string RowActionCommand(int index)
         {
             return $"{RowActionSurfaceId}.action_{index}";
+        }
+
+        public static AetheriaRuntimeTradeRowActionSurfaceProjection ProjectRowActions(
+            string title,
+            IEnumerable<AetheriaRuntimeTradeRowActionOption> actions,
+            string updatedAtUtc)
+        {
+            var options = new List<AetheriaRuntimeTradeSurfaceOption>();
+            var selections = new Dictionary<string, AetheriaRuntimeTradeRowActionSelection>(StringComparer.Ordinal);
+
+            foreach (var action in actions ?? Array.Empty<AetheriaRuntimeTradeRowActionOption>())
+            {
+                if (action == null || action.Index < 0)
+                    continue;
+
+                var command = RowActionCommand(action.Index);
+                var label = string.IsNullOrWhiteSpace(action.Label)
+                    ? $"Action {action.Index + 1}"
+                    : action.Label;
+                options.Add(new AetheriaRuntimeTradeSurfaceOption(
+                    $"{RowActionSurfaceId}.action_{action.Index}",
+                    label,
+                    command));
+                selections[command] = new AetheriaRuntimeTradeRowActionSelection(command, action.Index);
+            }
+
+            return new AetheriaRuntimeTradeRowActionSurfaceProjection(
+                new AetheriaRuntimeTradeRowActionSurfaceState(
+                    title,
+                    options,
+                    updatedAtUtc),
+                selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildFilter(

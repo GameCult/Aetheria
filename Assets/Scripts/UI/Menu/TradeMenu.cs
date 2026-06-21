@@ -30,7 +30,6 @@ public class TradeMenu : MonoBehaviour
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
     private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
     private readonly Dictionary<string, Action> _filterSurfaceCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
-    private readonly Dictionary<string, Action> _rowActionSurfaceCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
     private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands =
         new Dictionary<string, (EquippedCargoBay Cargo, string Label)>(StringComparer.Ordinal);
     private UIDocument _cargoSelectorSurfaceDocument;
@@ -41,7 +40,8 @@ public class TradeMenu : MonoBehaviour
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
-    private string _rowActionTitle = "Trade Actions";
+    private Action[] _rowActionCallbacks = Array.Empty<Action>();
+    private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
     
     public EquippedCargoBay Inventory { get; set; }
     
@@ -794,28 +794,22 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderRowActionSurface(string title, params (string Label, Action Action)[] actions)
     {
-        _rowActionTitle = title;
-        BuildRowActionSurfaceCommands(actions);
+        _rowActionCallbacks = actions
+            .Select(action => action.Action)
+            .ToArray();
+        _rowActionSurfaceProjection = AetheriaRuntimeTradeInteractionSurfaceBuilder.ProjectRowActions(
+            title,
+            actions.Select((action, index) => new AetheriaRuntimeTradeRowActionOption(index, action.Label)),
+            DateTime.UtcNow.ToString("O"));
 
         _rowActionSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _rowActionSurfaceDocument,
             "Aetheria Trade Row Action Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(ProjectTradeRowActionSurfaceState()),
+            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceProjection.State),
             HandleRowActionSurfaceCommand,
             _rowActionSurfaceChrome,
             sortingOrder: 1002);
-    }
-
-    private void BuildRowActionSurfaceCommands(IEnumerable<(string Label, Action Action)> actions)
-    {
-        _rowActionSurfaceCommands.Clear();
-
-        foreach (var actionEntry in actions.Select((entry, index) => (entry, index)))
-        {
-            var command = AetheriaRuntimeTradeInteractionSurfaceBuilder.RowActionCommand(actionEntry.index);
-            _rowActionSurfaceCommands[command] = actionEntry.entry.Action;
-        }
     }
 
     private void HandleRowActionSurfaceCommand(EveSurfaceCommandRequest request)
@@ -833,9 +827,11 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _rowActionSurfaceCommands.TryGetValue(command.Command, out var action))
+            _rowActionSurfaceProjection?.TryResolve(command.Command, out var selection) == true &&
+            selection.Index >= 0 &&
+            selection.Index < _rowActionCallbacks.Length)
         {
-            action();
+            _rowActionCallbacks[selection.Index]?.Invoke();
             HideRowActionSurface();
             return;
         }
@@ -849,22 +845,6 @@ public class TradeMenu : MonoBehaviour
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_rowActionSurfaceDocument);
-    }
-
-    private AetheriaRuntimeTradeRowActionSurfaceState ProjectTradeRowActionSurfaceState()
-    {
-        var actions = _rowActionSurfaceCommands.Keys
-            .OrderBy(command => command, StringComparer.Ordinal)
-            .Select(command => new AetheriaRuntimeTradeSurfaceOption(
-                command,
-                command.EndsWith("action_0", StringComparison.Ordinal) ? "Buy Quantity" : command.Split('.').Last(),
-                command))
-            .ToArray();
-
-        return new AetheriaRuntimeTradeRowActionSurfaceState(
-            _rowActionTitle,
-            actions,
-            DateTime.UtcNow.ToString("O"));
     }
 
     private void ApplyHardpointFilter(HardpointType hardpointType)
