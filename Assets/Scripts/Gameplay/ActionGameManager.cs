@@ -652,12 +652,12 @@ public class ActionGameManager : MonoBehaviour
         };
     }
 
-    public bool RequestWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
+    public void RequestWeaponGroupActionBarBinding(int slotIndex, int groupIndex)
     {
         var slot = ResolveActionBarSlot(slotIndex);
         if (slot == null)
         {
-            return false;
+            return;
         }
 
         var binding = new AetheriaRuntimeActionBarBindingCommit
@@ -666,20 +666,16 @@ public class ActionGameManager : MonoBehaviour
             Kind = "weapon_group",
             WeaponGroup = groupIndex
         };
-        if (TryRequestDaemonActionBarBinding(binding))
-            return true;
-        return false;
+        TryRequestDaemonActionBarBinding(binding);
     }
 
-    public bool RequestClearActionBarBinding(int slotIndex)
+    public void RequestClearActionBarBinding(int slotIndex)
     {
         var slot = ResolveActionBarSlot(slotIndex);
         if (slot == null)
-            return false;
+            return;
 
-        if (TryRequestDaemonActionBarBindingClear(slot))
-            return true;
-        return false;
+        TryRequestDaemonActionBarBindingClear(slot);
     }
 
     private void RestoreActionBarBindingsFromTypedRun(

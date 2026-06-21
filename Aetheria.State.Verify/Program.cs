@@ -9027,6 +9027,21 @@ static void RequireActionBarBindingRequestAuthority(string root)
             string.Join(", ", legacyHits));
     }
 
+    var forbiddenPublicAcceptanceApis = new[]
+    {
+        "public bool RequestWeaponGroupActionBarBinding(",
+        "public bool RequestClearActionBarBinding("
+    };
+    var publicAcceptanceApiHits = forbiddenPublicAcceptanceApis
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicAcceptanceApiHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionBar binding request APIs still expose submission as public acceptance state: " +
+            string.Join(", ", publicAcceptanceApiHits));
+    }
+
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
