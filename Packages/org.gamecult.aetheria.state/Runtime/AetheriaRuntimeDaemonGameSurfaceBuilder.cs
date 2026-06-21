@@ -43,27 +43,27 @@ namespace GameCult.Aetheria.State.Verse
                             "aetheria.daemon.game.frame",
                             "card",
                             new[] { ("title", "Daemon Frame") },
-                            Metric("aetheria.daemon.game.frame.daemon", "Daemon", frame.DaemonId),
-                            Metric("aetheria.daemon.game.frame.verse", "Verse", health.VerseId),
-                            Metric("aetheria.daemon.game.frame.frameId", "Frame", frame.FrameId.ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.frame.time", "Time", frame.SimulationTimeSeconds.ToString("0.###", CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.frame.status", "Status", health.Status),
-                            Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture))),
+                            Metric("aetheria.daemon.game.frame.daemon", "Daemon", frame.DaemonId, AetheriaRuntimeDaemonStateRefs.FrameDaemonId),
+                            Metric("aetheria.daemon.game.frame.verse", "Verse", health.VerseId, AetheriaRuntimeDaemonStateRefs.FrameVerseId),
+                            Metric("aetheria.daemon.game.frame.frameId", "Frame", frame.FrameId.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameId),
+                            Metric("aetheria.daemon.game.frame.time", "Time", frame.SimulationTimeSeconds.ToString("0.###", CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameTime),
+                            Metric("aetheria.daemon.game.frame.status", "Status", health.Status, AetheriaRuntimeDaemonStateRefs.FrameStatus),
+                            Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameObservedCommands),
+                            Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameAppliedCommands),
+                            Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands)),
                         Node(
                             "aetheria.daemon.game.player",
                             "card",
                             new[] { ("title", "Current Entity") },
-                            Metric("aetheria.daemon.game.player.run", "Run", run.RunId),
-                            Metric("aetheria.daemon.game.player.zone", "Zone", run.CurrentZoneIndex.ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.player.key", "Entity Key", run.CurrentEntityKey),
-                            Metric("aetheria.daemon.game.player.name", "Name", entityName),
-                            Metric("aetheria.daemon.game.player.position", "Position", FormatPosition(entity)),
-                            Metric("aetheria.daemon.game.player.target", "Target", string.IsNullOrWhiteSpace(target?.Name) ? "(none)" : target!.Name),
-                            Metric("aetheria.daemon.game.player.equipment", "Equipment", Count(entity?.Equipment).ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.player.cargo", "Cargo Bays", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture)),
-                            Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture))),
+                            Metric("aetheria.daemon.game.player.run", "Run", run.RunId, AetheriaRuntimeDaemonStateRefs.CurrentRunId),
+                            Metric("aetheria.daemon.game.player.zone", "Zone", run.CurrentZoneIndex.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentZoneIndex),
+                            Metric("aetheria.daemon.game.player.key", "Entity Key", run.CurrentEntityKey, AetheriaRuntimeDaemonStateRefs.CurrentEntityKey),
+                            Metric("aetheria.daemon.game.player.name", "Name", entityName, AetheriaRuntimeDaemonStateRefs.CurrentEntityName),
+                            Metric("aetheria.daemon.game.player.position", "Position", FormatPosition(entity), AetheriaRuntimeDaemonStateRefs.CurrentEntityPosition),
+                            Metric("aetheria.daemon.game.player.target", "Target", string.IsNullOrWhiteSpace(target?.Name) ? "(none)" : target!.Name, AetheriaRuntimeDaemonStateRefs.CurrentTargetName),
+                            Metric("aetheria.daemon.game.player.equipment", "Equipment", Count(entity?.Equipment).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentEquipmentCount),
+                            Metric("aetheria.daemon.game.player.cargo", "Cargo Bays", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentCargoBayCount),
+                            Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentWeaponGroupCount)),
                         Node(
                             "aetheria.daemon.game.commands",
                             "card",
@@ -71,11 +71,13 @@ namespace GameCult.Aetheria.State.Verse
                             Metric(
                                 "aetheria.daemon.game.commands.boundary",
                                 "Boundary",
-                                commandBoundary.BoundaryId),
+                                commandBoundary.BoundaryId,
+                                AetheriaRuntimeDaemonStateRefs.CommandBoundaryId),
                             Metric(
                                 "aetheria.daemon.game.commands.count",
                                 "Commands",
-                                Count(commandBoundary.Commands).ToString(CultureInfo.InvariantCulture)),
+                                Count(commandBoundary.Commands).ToString(CultureInfo.InvariantCulture),
+                                AetheriaRuntimeDaemonStateRefs.CommandCount),
                             Row(
                                 "aetheria.daemon.game.commands.primary",
                                 CommandButton("aetheria.daemon.game.commands.move", "Move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
@@ -163,9 +165,17 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
         }
 
-        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)
+        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value, string stateRef = "")
         {
-            return Node(id, "metric", new[] { ("label", label), ("value", value ?? "") });
+            var props = string.IsNullOrWhiteSpace(stateRef)
+                ? new[] { ("label", label), ("value", value ?? "") }
+                : new[]
+                {
+                    ("label", label),
+                    ("value", value ?? ""),
+                    AetheriaRuntimeSurfaceStateRefs.SourceRef(stateRef)
+                };
+            return Node(id, "metric", props);
         }
 
         private static AetheriaRuntimeSurfaceComponent CommandButton(

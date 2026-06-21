@@ -158,7 +158,8 @@ namespace GameCult.Aetheria.EveRuntime
                 "Aetheria Eve Surface",
                 surface,
                 request => EmitCommand(statePath, request),
-                RootOnlyChrome);
+                RootOnlyChrome,
+                stateRef => AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(statePath, stateRef));
             _mountedStatePath = statePath;
             _mountedSurfaceId = surface.Surface.Id;
             _mountedSurfaceVersion = surface.Version;

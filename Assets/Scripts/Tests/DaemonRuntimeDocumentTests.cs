@@ -276,6 +276,22 @@ public class DaemonRuntimeDocumentTests
             command.Transport == "cultmesh"));
         Assert.IsTrue(ContainsSurfaceMetric(gameSurface.Surface.Root, "Name", "Player"));
         Assert.IsTrue(ContainsSurfaceMetric(gameSurface.Surface.Root, "Target", "Target"));
+        Assert.IsTrue(ContainsSurfaceProp(
+            gameSurface.Surface.Root,
+            AetheriaRuntimeSurfaceStateRefs.Source,
+            AetheriaRuntimeDaemonStateRefs.CurrentEntityName));
+        Assert.IsTrue(AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
+            frame,
+            health,
+            commandBoundary,
+            AetheriaRuntimeDaemonStateRefs.CurrentEntityName,
+            out var resolvedEntityName));
+        Assert.AreEqual("Player", resolvedEntityName);
+        Assert.AreEqual(
+            "Target",
+            AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(
+                statePath,
+                AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
         Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(statePath, out var gameTuiSurface));
         Assert.AreEqual("aetheria.daemon", gameTuiSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameTuiSurface.ProviderKind);

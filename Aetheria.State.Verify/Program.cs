@@ -6935,6 +6935,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
     var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
+    var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
     var daemonSurfaceCommandCatalogPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommandCatalog.cs");
@@ -6956,6 +6957,7 @@ static void RequireDaemonVersePublication(string root)
         daemonTickRunnerPath,
         daemonPublicationStorePath,
         daemonSoaDocumentsPath,
+        daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
         daemonSurfaceCommandCatalogPath,
@@ -6986,6 +6988,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
     var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
+    var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
     var daemonSurfaceCommandCatalog = File.ReadAllText(daemonSurfaceCommandCatalogPath);
@@ -7347,6 +7350,9 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonFrameDocument frame",
         "AetheriaRuntimeDaemonHealthDocument health",
         "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
+        "AetheriaRuntimeSurfaceStateRefs.SourceRef(stateRef)",
+        "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
+        "AetheriaRuntimeDaemonStateRefs.CurrentTargetName",
         "\"game.daemon\"",
         "\"Typed Command Boundary\"",
         "\"commandBody\"",
@@ -7361,6 +7367,25 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon game Eve surface builder is incomplete: " +
             string.Join(", ", missingGameSurfaceSymbols));
+    }
+
+    var requiredDaemonStateRefSymbols = new[]
+    {
+        "public static class AetheriaRuntimeDaemonStateRefs",
+        "public const string Prefix = \"aetheria.daemon\"",
+        "public const string CurrentEntityName = Prefix + \"/current/entityName\"",
+        "public const string CurrentTargetName = Prefix + \"/current/targetName\"",
+        "public const string FrameId = Prefix + \"/frame/frameId\"",
+        "public const string CommandCount = Prefix + \"/commands/count\""
+    };
+    var missingDaemonStateRefSymbols = requiredDaemonStateRefSymbols
+        .Where(symbol => !daemonStateRefs.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonStateRefSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surfaces no longer expose a shared typed state-ref vocabulary: " +
+            string.Join(", ", missingDaemonStateRefSymbols));
     }
 
     var requiredSurfaceCommandCatalogSymbols = new[]
@@ -9450,6 +9475,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "TryReadDaemonGameTuiSurface",
         "TryReadDaemonEditorSurface",
         "TryReadDaemonEditorTuiSurface",
+        "ResolveEveSurfaceStateRef",
+        "TryResolveEveSurfaceStateRef",
+        "TryResolveDaemonStateRef",
+        "AetheriaRuntimeDaemonStateRefs.Prefix",
+        "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface",
         "AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface",
         "AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface",
@@ -9477,6 +9507,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "GameCult.Aetheria.State.Unity.csproj does not include the shared runtime state reader.");
+    }
+
+    if (!unityPackageProject.Contains("AetheriaRuntimeDaemonStateRefs.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "GameCult.Aetheria.State.Unity.csproj does not include the shared daemon state-ref vocabulary.");
     }
 
     var requiredAdapterSymbols = new[]
@@ -9545,6 +9581,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Aetheria Eve surface presenter no longer routes provider surface lookup through the shared runtime state reader.");
+    }
+
+    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(statePath, stateRef)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve surface presenter no longer resolves provider state refs through the shared runtime state reader.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>
