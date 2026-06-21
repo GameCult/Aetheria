@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Eve.UnityUIToolkit;
@@ -62,7 +63,11 @@ namespace GameCult.Aetheria.EveRuntime
             var root = document.rootVisualElement;
             ConfigureRoot(root, chrome);
 
-            surface = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, stateRefResolver);
+            var effectiveStateRefResolver = stateRefResolver ?? (
+                ContainsStateRefs(surface)
+                    ? CreateDefaultStateRefResolver()
+                    : null);
+            surface = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, effectiveStateRefResolver);
             var lowerer = new EveUiToolkitSurfaceLowerer();
             if (chrome.UseShell)
             {
@@ -187,6 +192,40 @@ namespace GameCult.Aetheria.EveRuntime
             shell.style.borderBottomColor = chrome.BorderColor;
             shell.pickingMode = chrome.ShellPickingMode;
             return shell;
+        }
+
+        private static bool ContainsStateRefs(EveSurfaceDocument surface)
+        {
+            return surface?.Surface?.Root != null && ContainsStateRefs(surface.Surface.Root);
+        }
+
+        private static bool ContainsStateRefs(EveSurfaceComponent component)
+        {
+            if (component.Props != null &&
+                (component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Source) ||
+                 component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Value) ||
+                 component.Props.ContainsKey(AetheriaRuntimeSurfaceStateRefs.Label)))
+            {
+                return true;
+            }
+
+            foreach (var child in component.Children)
+            {
+                if (ContainsStateRefs(child))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static Func<string, string> CreateDefaultStateRefResolver()
+        {
+            var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+            var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, "");
+            if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+                return _ => "";
+
+            return AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath);
         }
 
     }

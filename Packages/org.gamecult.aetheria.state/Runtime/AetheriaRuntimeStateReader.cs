@@ -272,13 +272,20 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId);
         }
 
+        public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)
+        {
+            return string.IsNullOrWhiteSpace(stateFilePath)
+                ? _ => ""
+                : CreateStateRefResolver(stateFilePath);
+        }
+
         private static EveSurfaceDocument ToResolvedEveSurfaceDocument(
             string stateFilePath,
             AetheriaRuntimeSurfaceDocument surface)
         {
             return AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
                 surface,
-                CreateStateRefResolver(stateFilePath));
+                CreateEveSurfaceStateRefResolver(stateFilePath));
         }
 
         private static EveSurfaceDocument ResolveSurfaceStateRefs(
@@ -287,7 +294,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             return AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
                 surface,
-                CreateStateRefResolver(stateFilePath));
+                CreateEveSurfaceStateRefResolver(stateFilePath));
         }
 
         private static Func<string, string> CreateStateRefResolver(string stateFilePath)

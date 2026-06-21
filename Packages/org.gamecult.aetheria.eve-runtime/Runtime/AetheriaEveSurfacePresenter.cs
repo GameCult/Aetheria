@@ -159,7 +159,7 @@ namespace GameCult.Aetheria.EveRuntime
                 surface,
                 request => EmitCommand(statePath, request),
                 RootOnlyChrome,
-                stateRef => AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(statePath, stateRef));
+                AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(statePath));
             _mountedStatePath = statePath;
             _mountedSurfaceId = surface.Surface.Id;
             _mountedSurfaceVersion = surface.Version;

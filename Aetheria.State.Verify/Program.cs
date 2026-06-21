@@ -4272,7 +4272,9 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !daemonItemStatQueries.Contains("public static bool TryReadItemStatRef(", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains("AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, stateRefResolver)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Value, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
@@ -9616,6 +9618,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId",
         "ToResolvedEveSurfaceDocument(stateFilePath, surface)",
         "ResolveSurfaceStateRefs(stateFilePath, surface)",
+        "public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)",
         "CreateStateRefResolver(string stateFilePath)",
         "AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(",
         "AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId)"
@@ -9716,7 +9719,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Aetheria Eve surface presenter no longer routes provider surface lookup through the shared runtime state reader.");
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(statePath, stateRef)", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(statePath)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria Eve surface presenter no longer resolves provider state refs through the shared runtime state reader.");
