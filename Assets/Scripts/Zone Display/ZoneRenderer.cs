@@ -143,7 +143,7 @@ public class ZoneRenderer : MonoBehaviour
             _minimapDistance = value;
             foreach (var camera in MinimapCameras)
                 camera.orthographicSize = value;
-            SetIconSize(value * Settings.MinimapIconSize);
+            SetIconSize((float)RenderSettings.ResolveMinimapIconSize(value));
             // MinimapGravityQuad.transform.localScale = value * 2 * Vector3.one;
         }
     }
@@ -207,7 +207,7 @@ public class ZoneRenderer : MonoBehaviour
     {
         var bigBounds = new Bounds(Vector3.zero, Vector3.one * 1024);
         foreach (var mesh in AsteroidMeshes) mesh.Mesh.bounds = bigBounds;
-        ViewDistance = Settings.DefaultViewDistance;
+        ViewDistance = (float)RenderSettings.DefaultViewDistance;
         MinimapDistance = (float)RenderSettings.ResolveDefaultMinimapDistance();
 
         _tourTimer = TourSwitchTime;

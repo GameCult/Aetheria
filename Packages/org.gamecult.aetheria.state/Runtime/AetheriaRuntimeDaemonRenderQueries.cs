@@ -65,7 +65,9 @@ namespace GameCult.Aetheria.State.Verse
             double targetSpottedBlinkOffset = -0.25,
             IReadOnlyList<double>? minimapZoomLevels = null,
             int defaultMinimapZoom = 0,
-            double wormholeDistanceRatio = 1.0)
+            double wormholeDistanceRatio = 1.0,
+            double defaultViewDistance = 0.0,
+            double minimapIconScale = 0.0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -83,6 +85,8 @@ namespace GameCult.Aetheria.State.Verse
             MinimapZoomLevels = CopyPositiveMinimapZoomLevels(minimapZoomLevels);
             DefaultMinimapZoom = defaultMinimapZoom;
             WormholeDistanceRatio = Math.Max(0.0, wormholeDistanceRatio);
+            DefaultViewDistance = Math.Max(0.0, defaultViewDistance);
+            MinimapIconScale = Math.Max(0.0, minimapIconScale);
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -101,6 +105,8 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<double> MinimapZoomLevels { get; }
         public int DefaultMinimapZoom { get; }
         public double WormholeDistanceRatio { get; }
+        public double DefaultViewDistance { get; }
+        public double MinimapIconScale { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {
@@ -128,6 +134,11 @@ namespace GameCult.Aetheria.State.Verse
         public double ResolveDefaultMinimapDistance()
         {
             return ResolveMinimapDistance(ResolveDefaultMinimapZoomIndex());
+        }
+
+        public double ResolveMinimapIconSize(double minimapDistance)
+        {
+            return Math.Max(0.0, minimapDistance) * MinimapIconScale;
         }
 
         public double NormalizeThermalRisk(double temperature)

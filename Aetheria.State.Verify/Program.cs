@@ -1830,10 +1830,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public IReadOnlyList<double> MinimapZoomLevels { get; }",
         "public int DefaultMinimapZoom { get; }",
         "public double WormholeDistanceRatio { get; }",
+        "public double DefaultViewDistance { get; }",
+        "public double MinimapIconScale { get; }",
         "public int ResolveDefaultMinimapZoomIndex()",
         "public int ResolveNextMinimapZoomIndex(int currentIndex)",
         "public double ResolveMinimapDistance(int zoomIndex)",
         "public double ResolveDefaultMinimapDistance()",
+        "public double ResolveMinimapIconSize(double minimapDistance)",
         "public double NormalizeThermalRisk(double temperature)",
         "public double NormalizeHeatstrokePost(double heatstroke)",
         "public double NormalizeSevereHeatstrokePost(double heatstroke)",
@@ -1996,11 +1999,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must query daemon visibility through shared render settings instead of Unity GameplaySettings.");
     }
 
-    if (zoneRenderer.Contains("Settings.MinimapZoomLevels", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("Settings.DefaultMinimapZoom", StringComparison.Ordinal))
+    if (ContainsUnitySettingsMember(zoneRenderer, "MinimapZoomLevels") ||
+        ContainsUnitySettingsMember(zoneRenderer, "DefaultMinimapZoom") ||
+        ContainsUnitySettingsMember(zoneRenderer, "MinimapIconSize") ||
+        ContainsUnitySettingsMember(zoneRenderer, "DefaultViewDistance"))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer must initialize minimap distance through shared daemon render settings instead of Unity GameSettings.");
+            "ZoneRenderer must initialize view/minimap presentation through shared daemon render settings instead of Unity GameSettings.");
     }
 
     if (zoneRenderer.Contains(" Settings.WormholeDistanceRatio", StringComparison.Ordinal) ||
@@ -2150,7 +2155,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
         "RenderSettings.TargetDetectionInfoThreshold",
+        "RenderSettings.DefaultViewDistance",
         "RenderSettings.ResolveDefaultMinimapDistance()",
+        "RenderSettings.ResolveMinimapIconSize(value)",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "RenderSettings.WormholeDistanceRatio",
         "AddWormhole(exit)",
@@ -2248,7 +2255,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "TargetSpottedBlinkOffset",
         "Settings.MinimapZoomLevels",
         "Settings.DefaultMinimapZoom",
-        "Settings.WormholeDistanceRatio"
+        "Settings.WormholeDistanceRatio",
+        "Settings.DefaultViewDistance",
+        "Settings.MinimapIconSize"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
@@ -11403,6 +11412,15 @@ static IEnumerable<(string MethodName, int LineNumber, string Line)> FindMethodS
             methodDepth = 0;
         }
     }
+}
+
+static bool ContainsUnitySettingsMember(string source, string memberName)
+{
+    return source.Contains($" Settings.{memberName}", StringComparison.Ordinal) ||
+           source.Contains($"(Settings.{memberName}", StringComparison.Ordinal) ||
+           source.Contains($", Settings.{memberName}", StringComparison.Ordinal) ||
+           source.Contains($"\tSettings.{memberName}", StringComparison.Ordinal) ||
+           source.Contains($"\nSettings.{memberName}", StringComparison.Ordinal);
 }
 
 static string TryReadMethodName(string trimmedLine)

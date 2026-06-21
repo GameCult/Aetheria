@@ -589,7 +589,9 @@ public class ActionGameManager : MonoBehaviour
             TargetSpottedBlinkOffset,
             Settings.MinimapZoomLevels?.Select(level => (double)level).ToArray(),
             Settings.DefaultMinimapZoom,
-            Settings.WormholeDistanceRatio);
+            Settings.WormholeDistanceRatio,
+            Settings.DefaultViewDistance,
+            Settings.MinimapIconSize);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
