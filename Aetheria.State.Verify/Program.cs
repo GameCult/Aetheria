@@ -8492,6 +8492,21 @@ static void RequireRuntimeSimulationTuningRequests(string root)
             string.Join("; ", hits));
     }
 
+    var forbiddenUnityAcceptanceSymbols = new[]
+    {
+        "entity?.Settings == null",
+        "entity.Settings == null"
+    };
+    var unityAcceptanceHits = forbiddenUnityAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime tuning requests still reject through renderer-local settings checks instead of daemon authority: " +
+            string.Join(", ", unityAcceptanceHits));
+    }
+
     var daemonOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
     var daemonOperations = File.Exists(daemonOperationsPath)
         ? File.ReadAllText(daemonOperationsPath)

@@ -1546,7 +1546,7 @@ public class ActionGameManager : MonoBehaviour
 
     public void RequestEntityShutdownPerformance(Entity entity, float shutdownPerformance)
     {
-        if (entity?.Settings == null)
+        if (entity == null)
             return;
 
         if (TryRequestDaemonEntityShutdownPerformance(entity, shutdownPerformance))
