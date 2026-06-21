@@ -1793,6 +1793,44 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsRejectsInvalidHullConductivityToggle()
+    {
+        var outOfRange = RunWithTwoEntities();
+        var invalidPosition = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity,
+            "codex",
+            "session-hull",
+            29,
+            "zone.0.entity.0");
+        invalidPosition.TargetEntityKey = "zone.0.entity.0";
+        invalidPosition.PositionX = 99;
+        invalidPosition.PositionY = 0;
+        invalidPosition.ScalarValue = 0;
+
+        var outOfRangeResult = AetheriaRuntimeDaemonOperations.Execute(outOfRange, new[] { invalidPosition });
+        Assert.AreEqual(0, outOfRangeResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, outOfRangeResult.RejectedCommandIds.Count);
+        CollectionAssert.AreEqual(new[] { 1.0, 0.0, 0.0, 1.0 }, outOfRange.Zones[0].Entities[0].StatGrids[0].Values);
+
+        var invalidAxis = RunWithTwoEntities();
+        var invalidAxisCommand = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity,
+            "codex",
+            "session-hull",
+            30,
+            "zone.0.entity.0");
+        invalidAxisCommand.TargetEntityKey = "zone.0.entity.0";
+        invalidAxisCommand.PositionX = 1;
+        invalidAxisCommand.PositionY = 0;
+        invalidAxisCommand.ScalarValue = 2;
+
+        var invalidAxisResult = AetheriaRuntimeDaemonOperations.Execute(invalidAxis, new[] { invalidAxisCommand });
+        Assert.AreEqual(0, invalidAxisResult.AppliedCommandIds.Count);
+        Assert.AreEqual(1, invalidAxisResult.RejectedCommandIds.Count);
+        CollectionAssert.AreEqual(new[] { 1.0, 0.0, 0.0, 1.0 }, invalidAxis.Zones[0].Entities[0].StatGrids[0].Values);
+    }
+
+    [Test]
     public void DaemonOperationsOwnsShutdownPerformanceInDaemonState()
     {
         var run = RunWithTwoEntities();

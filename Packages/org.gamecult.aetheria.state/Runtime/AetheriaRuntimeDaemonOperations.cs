@@ -770,6 +770,9 @@ namespace GameCult.Aetheria.State.Verse
             var x = (int)command.PositionX;
             var y = (int)command.PositionY;
             var axis = (int)command.ScalarValue;
+            if (axis < 0 || axis > 1)
+                return false;
+
             var gridName = axis == 0 ? "hull_conductivity_x" : "hull_conductivity_y";
             var grids = (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>()).ToArray();
             var grid = grids.FirstOrDefault(candidate =>

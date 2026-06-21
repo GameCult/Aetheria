@@ -1555,13 +1555,7 @@ public class ActionGameManager : MonoBehaviour
 
     public bool RequestHullConductivityToggle(Entity entity, int2 position, int axis)
     {
-        if (entity?.HullConductivity == null ||
-            position.x < 0 ||
-            position.y < 0 ||
-            position.x >= entity.HullConductivity.GetLength(0) ||
-            position.y >= entity.HullConductivity.GetLength(1) ||
-            axis < 0 ||
-            axis > 1)
+        if (entity == null)
         {
             return false;
         }

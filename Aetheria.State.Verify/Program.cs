@@ -8527,6 +8527,24 @@ static void RequireHullConductivityRequestAuthority(string root)
             "Hull conductivity no longer has a typed daemon request primitive.");
     }
 
+    var forbiddenUnityAcceptanceSymbols = new[]
+    {
+        "entity?.HullConductivity == null",
+        "position.x >= entity.HullConductivity.GetLength(0)",
+        "position.y >= entity.HullConductivity.GetLength(1)",
+        "axis < 0",
+        "axis > 1"
+    };
+    var unityAcceptanceHits = forbiddenUnityAcceptanceSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (unityAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity hull conductivity requests still reject through renderer-local grid bounds instead of daemon authority: " +
+            string.Join(", ", unityAcceptanceHits));
+    }
+
     var uiRoot = Path.Combine(root, "Assets", "Scripts", "UI");
     var hits = Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories)
         .SelectMany(path => File.ReadLines(path)
