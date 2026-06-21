@@ -55,10 +55,68 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public sealed class AetheriaRuntimeZoneDetailsBodyProjection
+    {
+        public AetheriaRuntimeZoneDetailsBodyProjection(string kind)
+        {
+            Kind = kind ?? "";
+        }
+
+        public string Kind { get; }
+    }
+
+    public sealed class AetheriaRuntimeZoneDetailsEntityProjection
+    {
+        public AetheriaRuntimeZoneDetailsEntityProjection(string hullType)
+        {
+            HullType = hullType ?? "";
+        }
+
+        public string HullType { get; }
+    }
+
     public static class AetheriaRuntimeZoneDetailsSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.sector_map.zone_details";
         public const string Close = "aetheria.sector_map.zone_details.close";
+
+        public static AetheriaRuntimeZoneDetailsSurfaceState Project(
+            string zoneName,
+            string ownerName,
+            string mass,
+            string radius,
+            IEnumerable<string> otherFactions,
+            IEnumerable<AetheriaRuntimeZoneDetailsBodyProjection> bodies,
+            IEnumerable<AetheriaRuntimeZoneDetailsEntityProjection> entities,
+            bool hasContents,
+            string updatedAtUtc)
+        {
+            var bodyList = (bodies ?? Array.Empty<AetheriaRuntimeZoneDetailsBodyProjection>())
+                .Where(body => body != null)
+                .ToArray();
+            var entityList = (entities ?? Array.Empty<AetheriaRuntimeZoneDetailsEntityProjection>())
+                .Where(entity => entity != null)
+                .ToArray();
+
+            return new AetheriaRuntimeZoneDetailsSurfaceState(
+                zoneName,
+                ownerName,
+                mass,
+                radius,
+                (otherFactions ?? Array.Empty<string>())
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToArray(),
+                hasContents,
+                bodyList.Count(IsPlanetBody).ToString(),
+                bodyList.Count(body => IsBodyKind(body, "asteroid_belt")).ToString(),
+                bodyList.Count(body => IsBodyKind(body, "gas_giant")).ToString(),
+                bodyList.Count(body => IsBodyKind(body, "sun")).ToString(),
+                entityList.Count(entity => HasHullType(entity, "Station")).ToString(),
+                entityList.Count(entity => HasHullType(entity, "Turret")).ToString(),
+                entityList.Count(entity => HasHullType(entity, "Ship")).ToString(),
+                updatedAtUtc);
+        }
 
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeZoneDetailsSurfaceState state,
@@ -183,6 +241,24 @@ namespace GameCult.Aetheria.State.Verse
                 (props ?? Array.Empty<(string Key, string Value)>())
                     .ToDictionary(prop => prop.Key, prop => prop.Value ?? "", StringComparer.Ordinal),
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static bool IsBodyKind(AetheriaRuntimeZoneDetailsBodyProjection body, string kind)
+        {
+            return body != null && string.Equals(body.Kind ?? "", kind, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPlanetBody(AetheriaRuntimeZoneDetailsBodyProjection body)
+        {
+            return body != null &&
+                   !IsBodyKind(body, "asteroid_belt") &&
+                   !IsBodyKind(body, "gas_giant") &&
+                   !IsBodyKind(body, "sun");
+        }
+
+        private static bool HasHullType(AetheriaRuntimeZoneDetailsEntityProjection entity, string hullType)
+        {
+            return entity != null && string.Equals(entity.HullType ?? "", hullType, StringComparison.Ordinal);
         }
     }
 

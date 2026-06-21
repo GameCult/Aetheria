@@ -84,26 +84,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         // });
     }
 
-    private static bool IsBodyKind(AetheriaRuntimeBodySnapshotCommit body, string kind)
-    {
-        return body != null && string.Equals(body.Kind ?? "", kind, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsPlanetBody(AetheriaRuntimeBodySnapshotCommit body)
-    {
-        return body != null &&
-               !IsBodyKind(body, "asteroid_belt") &&
-               !IsBodyKind(body, "gas_giant") &&
-               !IsBodyKind(body, "sun");
-    }
-
-    private static bool HasHullType(AetheriaRuntimeEntitySnapshotCommit entity, HullType hullType)
-    {
-        var typedHull = ActionGameManager.RuntimeCatalog?.FindItem(entity?.HullItemKey ?? "");
-        return typedHull != null &&
-               string.Equals(typedHull.HullType, hullType.ToString(), StringComparison.Ordinal);
-    }
-
     private void RenderZoneDetailsSurface(GalaxyZone zone)
     {
         _zoneDetailsSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
@@ -153,43 +133,40 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToArray();
 
-        if (GameManager == null ||
-            !GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone))
-        {
-            return new AetheriaRuntimeZoneDetailsSurfaceState(
-                zone.Name,
-                zone.Owner?.Name ?? "None",
-                ActionGameManager.RuntimePlayerSettings.Format(mass),
-                ActionGameManager.RuntimePlayerSettings.Format(radius),
-                otherFactions,
-                hasContents: false,
-                planets: "",
-                asteroidBelts: "",
-                gasGiants: "",
-                stars: "",
-                stations: "",
-                turrets: "",
-                ships: "",
-                updatedAtUtc: DateTime.UtcNow.ToString("O"));
-        }
-
-        var bodies = daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-        var entities = daemonZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
-        return new AetheriaRuntimeZoneDetailsSurfaceState(
+        var hasContents = GameManager != null &&
+                          GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone);
+        return AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(
             zone.Name,
             zone.Owner?.Name ?? "None",
             ActionGameManager.RuntimePlayerSettings.Format(mass),
             ActionGameManager.RuntimePlayerSettings.Format(radius),
             otherFactions,
-            hasContents: true,
-            planets: bodies.Count(IsPlanetBody).ToString(),
-            asteroidBelts: bodies.Count(body => IsBodyKind(body, "asteroid_belt")).ToString(),
-            gasGiants: bodies.Count(body => IsBodyKind(body, "gas_giant")).ToString(),
-            stars: bodies.Count(body => IsBodyKind(body, "sun")).ToString(),
-            stations: entities.Count(entity => HasHullType(entity, HullType.Station)).ToString(),
-            turrets: entities.Count(entity => HasHullType(entity, HullType.Turret)).ToString(),
-            ships: entities.Count(entity => HasHullType(entity, HullType.Ship)).ToString(),
+            ProjectZoneBodies(hasContents ? daemonZone : null),
+            ProjectZoneEntities(hasContents ? daemonZone : null),
+            hasContents,
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
+    }
+
+    private static IReadOnlyList<AetheriaRuntimeZoneDetailsBodyProjection> ProjectZoneBodies(
+        AetheriaRuntimeZoneSnapshotCommit daemonZone)
+    {
+        return (daemonZone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            .Select(body => new AetheriaRuntimeZoneDetailsBodyProjection(body?.Kind ?? ""))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<AetheriaRuntimeZoneDetailsEntityProjection> ProjectZoneEntities(
+        AetheriaRuntimeZoneSnapshotCommit daemonZone)
+    {
+        return (daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            .Select(entity => new AetheriaRuntimeZoneDetailsEntityProjection(ResolveHullType(entity)))
+            .ToArray();
+    }
+
+    private static string ResolveHullType(AetheriaRuntimeEntitySnapshotCommit entity)
+    {
+        var typedHull = ActionGameManager.RuntimeCatalog?.FindItem(entity?.HullItemKey ?? "");
+        return typedHull?.HullType ?? "";
     }
 
 // private IEnumerator AnimatePath()

@@ -3782,11 +3782,13 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
         "ProjectZoneDetailsSurfaceState(",
         "GameManager.TryGetObservedZoneSnapshot(zone?.ZoneIndex ?? -1, out var daemonZone)",
-        "daemonZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()",
-        "daemonZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()",
-        "typedHull.HullType",
+        "ProjectZoneBodies(",
+        "ProjectZoneEntities(",
+        "new AetheriaRuntimeZoneDetailsBodyProjection(",
+        "new AetheriaRuntimeZoneDetailsEntityProjection(",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -3825,6 +3827,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "runtimeZone.PlanetInstances",
         "runtimeZone.AsteroidBelts",
         "runtimeZone.Entities",
+        "new AetheriaRuntimeZoneDetailsSurfaceState(",
+        "private static bool IsBodyKind(",
+        "private static bool IsPlanetBody(",
+        "private static bool HasHullType(",
         "string.Equals(request.Command, AetheriaRuntimeZoneDetailsSurfaceBuilder.Close"
     };
 
@@ -3842,6 +3848,12 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
     var requiredBuilderSymbols = new[]
     {
         "public static class AetheriaRuntimeZoneDetailsSurfaceBuilder",
+        "public sealed class AetheriaRuntimeZoneDetailsBodyProjection",
+        "public sealed class AetheriaRuntimeZoneDetailsEntityProjection",
+        "public static AetheriaRuntimeZoneDetailsSurfaceState Project(",
+        "private static bool IsBodyKind(",
+        "private static bool IsPlanetBody(",
+        "private static bool HasHullType(",
         "public const string SurfaceId = \"aetheria.sector_map.zone_details\"",
         "public const string Close = \"aetheria.sector_map.zone_details.close\"",
         "public enum AetheriaRuntimeZoneDetailsCommandKind",
