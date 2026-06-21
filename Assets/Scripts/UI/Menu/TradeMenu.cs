@@ -425,7 +425,6 @@ public class TradeMenu : MonoBehaviour
             return;
         }
 
-        UpdateCreditsLabel();
     }
 
     private void Buy(SimpleCommodity simpleCommodity, int quantity)
@@ -444,7 +443,6 @@ public class TradeMenu : MonoBehaviour
             return;
         }
 
-        UpdateCreditsLabel();
     }
 
     private int GetTypedTradePrice(CraftedItemInstance item, AetheriaRuntimeCatalogItem typedItem)

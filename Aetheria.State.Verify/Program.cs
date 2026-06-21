@@ -9197,6 +9197,14 @@ static void RequireTradePurchaseRequestAuthority(string root)
     {
         throw new InvalidOperationException("TradeMenu no longer routes purchases through ActionGameManager.");
     }
+
+    var firstTradeRequest = tradeMenu.IndexOf("GameManager.RequestTradePurchase", StringComparison.Ordinal);
+    var firstCreditRefreshAfterRequest = tradeMenu.IndexOf("UpdateCreditsLabel();", firstTradeRequest, StringComparison.Ordinal);
+    if (firstTradeRequest >= 0 && firstCreditRefreshAfterRequest >= 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still refreshes projected credits immediately after submitting a daemon purchase request instead of waiting for daemon-observed state.");
+    }
 }
 
 static void RequireLootPickupRequestAuthority(string root)
