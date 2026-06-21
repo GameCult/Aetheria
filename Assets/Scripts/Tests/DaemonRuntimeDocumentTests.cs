@@ -795,9 +795,15 @@ public class DaemonRuntimeDocumentTests
             {
                 new AetheriaRuntimeOrbitSnapshotCommit
                 {
-                    OrbitKey = "orbit:belt",
+                    OrbitKey = "orbit:parent",
                     FixedPositionX = 11,
                     FixedPositionY = -4
+                },
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:belt",
+                    ParentOrbitKey = "orbit:parent",
+                    Distance = 30
                 }
             },
             Bodies = new[]
@@ -832,6 +838,84 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(-4, poses[0].CenterZ, 0.0001);
         Assert.AreEqual(7, poses[0].Radius, 0.0001);
         Assert.AreEqual(3, poses[0].AsteroidCount);
+    }
+
+    [Test]
+    public void DaemonRenderQueriesPublishAsteroidInstancePosesForVisibleBelt()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Orbits = new[]
+            {
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:parent",
+                    FixedPositionX = 10,
+                    FixedPositionY = 20
+                },
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:belt",
+                    ParentOrbitKey = "orbit:parent",
+                    Distance = 100
+                }
+            },
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:belt",
+                    OrbitKey = "orbit:belt",
+                    Kind = "asteroid_belt",
+                    Asteroids = new[]
+                    {
+                        new AetheriaRuntimeAsteroidCommit
+                        {
+                            Distance = 5,
+                            Phase = 0,
+                            Size = 2,
+                            RotationSpeed = 3
+                        },
+                        new AetheriaRuntimeAsteroidCommit
+                        {
+                            Distance = 7,
+                            Phase = 0.25,
+                            Size = 4,
+                            Damage = 1,
+                            RotationSpeed = 2
+                        },
+                        new AetheriaRuntimeAsteroidCommit
+                        {
+                            Distance = 11,
+                            Phase = 0.5,
+                            Size = 9,
+                            RespawnTimer = 12
+                        }
+                    }
+                },
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:other",
+                    OrbitKey = "orbit:belt",
+                    Kind = "asteroid_belt",
+                    Asteroids = new[] { new AetheriaRuntimeAsteroidCommit { Distance = 99, Size = 99 } }
+                }
+            }
+        };
+
+        var poses = AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(zone, "body:belt", 4);
+
+        Assert.AreEqual(3, poses.Length);
+        Assert.AreEqual("body:belt", poses[0].BodyKey);
+        Assert.AreEqual(0, poses[0].AsteroidIndex);
+        Assert.AreEqual(15, poses[0].PositionX, 0.0001);
+        Assert.AreEqual(20, poses[0].PositionZ, 0.0001);
+        Assert.AreEqual(12, poses[0].Rotation, 0.0001);
+        Assert.AreEqual(2, poses[0].Size, 0.0001);
+        Assert.AreEqual(10, poses[1].PositionX, 0.0001);
+        Assert.AreEqual(27, poses[1].PositionZ, 0.0001);
+        Assert.AreEqual(3, poses[1].Size, 0.0001);
+        Assert.AreEqual(0, poses[2].Size, 0.0001);
     }
 
     [Test]

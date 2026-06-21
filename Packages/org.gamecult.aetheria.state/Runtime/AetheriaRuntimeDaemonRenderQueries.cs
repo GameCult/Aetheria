@@ -130,6 +130,32 @@ namespace GameCult.Aetheria.State.Verse
         public int AsteroidCount { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonAsteroidInstancePose
+    {
+        public AetheriaRuntimeDaemonAsteroidInstancePose(
+            string bodyKey,
+            int asteroidIndex,
+            double positionX,
+            double positionZ,
+            double rotation,
+            double size)
+        {
+            BodyKey = bodyKey ?? "";
+            AsteroidIndex = Math.Max(0, asteroidIndex);
+            PositionX = positionX;
+            PositionZ = positionZ;
+            Rotation = rotation;
+            Size = Math.Max(0, size);
+        }
+
+        public string BodyKey { get; }
+        public int AsteroidIndex { get; }
+        public double PositionX { get; }
+        public double PositionZ { get; }
+        public double Rotation { get; }
+        public double Size { get; }
+    }
+
     public static class AetheriaRuntimeDaemonRenderQueries
     {
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
@@ -242,11 +268,12 @@ namespace GameCult.Aetheria.State.Verse
                 return 0;
 
             var orbitPositions = BuildOrbitPositions(zone);
+            var orbits = BuildOrbitMap(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
                 if (body == null ||
                     !string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
-                    !TryResolveBodyCenter(body, orbitPositions, out var center))
+                    !TryResolveAsteroidBeltCenter(body, orbitPositions, orbits, out var center))
                     continue;
 
                 poses.Add(new AetheriaRuntimeDaemonAsteroidBeltPose(
@@ -256,6 +283,64 @@ namespace GameCult.Aetheria.State.Verse
                     center.z,
                     ResolveAsteroidBeltRadius(body),
                     body.Asteroids?.Count ?? 0));
+            }
+
+            return poses.Count;
+        }
+
+        public static AetheriaRuntimeDaemonAsteroidInstancePose[] QueryAsteroidInstancePoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            string bodyKey,
+            double simulationTimeSeconds)
+        {
+            var poses = new List<AetheriaRuntimeDaemonAsteroidInstancePose>();
+            QueryAsteroidInstancePoses(zone, bodyKey, simulationTimeSeconds, poses);
+            return poses.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonAsteroidInstancePose>() : poses.ToArray();
+        }
+
+        public static int QueryAsteroidInstancePoses(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            string bodyKey,
+            double simulationTimeSeconds,
+            List<AetheriaRuntimeDaemonAsteroidInstancePose> poses)
+        {
+            if (poses == null) throw new ArgumentNullException(nameof(poses));
+            poses.Clear();
+            if (zone == null)
+                return 0;
+
+            var orbitPositions = BuildOrbitPositions(zone);
+            var orbits = BuildOrbitMap(zone);
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (body == null ||
+                    !string.Equals(body.BodyKey ?? "", bodyKey ?? "", StringComparison.Ordinal) ||
+                    !string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
+                    !TryResolveAsteroidBeltCenter(body, orbitPositions, orbits, out var center))
+                    continue;
+
+                var asteroids = body.Asteroids ?? Array.Empty<AetheriaRuntimeAsteroidCommit>();
+                for (var index = 0; index < asteroids.Count; index++)
+                {
+                    var asteroid = asteroids[index];
+                    if (asteroid == null)
+                        continue;
+
+                    var phase = Fraction(asteroid.Phase);
+                    var x = center.x + Math.Cos(phase * Math.PI * 2.0) * asteroid.Distance;
+                    var z = center.z + Math.Sin(phase * Math.PI * 2.0) * asteroid.Distance;
+                    var size = asteroid.RespawnTimer > 0
+                        ? 0
+                        : Math.Max(0, asteroid.Size - asteroid.Damage);
+                    var rotation = simulationTimeSeconds * asteroid.RotationSpeed;
+                    poses.Add(new AetheriaRuntimeDaemonAsteroidInstancePose(
+                        body.BodyKey ?? "",
+                        index,
+                        x,
+                        z,
+                        rotation,
+                        size));
+                }
             }
 
             return poses.Count;
@@ -452,6 +537,21 @@ namespace GameCult.Aetheria.State.Verse
             return orbitPositions.TryGetValue(body.OrbitKey ?? "", out center);
         }
 
+        private static bool TryResolveAsteroidBeltCenter(
+            AetheriaRuntimeBodySnapshotCommit body,
+            Dictionary<string, AetheriaRuntimeXzPoint> orbitPositions,
+            Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit> orbits,
+            out AetheriaRuntimeXzPoint center)
+        {
+            if (orbits.TryGetValue(body.OrbitKey ?? "", out var orbit) &&
+                orbitPositions.TryGetValue(orbit.ParentOrbitKey ?? "", out center))
+            {
+                return true;
+            }
+
+            return TryResolveBodyCenter(body, orbitPositions, out center);
+        }
+
         private static double ResolveGravityRadius(AetheriaRuntimeBodySnapshotCommit body)
         {
             return body.GravityInfluenceRadius > 0 && IsFinite(body.GravityInfluenceRadius)
@@ -504,6 +604,11 @@ namespace GameCult.Aetheria.State.Verse
             x *= 2.0;
             x = Clamp(x, -1.0, 1.0);
             return Math.Pow((x + 1.0) * (1.0 - x), exponent);
+        }
+
+        private static double Fraction(double value)
+        {
+            return value - Math.Floor(value);
         }
 
         private static double RadialWaves(

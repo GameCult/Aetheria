@@ -68,8 +68,6 @@ public class ZoneRenderer : MonoBehaviour
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
     [HideInInspector] public Dictionary<string, PlanetObject> Planets = new Dictionary<string, PlanetObject>(StringComparer.Ordinal);
 
-    private readonly Dictionary<string, EntityInstance> _entityInstancesByDaemonKey =
-        new Dictionary<string, EntityInstance>(StringComparer.Ordinal);
     private Dictionary<string, AsteroidBeltUI> _beltObjects = new Dictionary<string, AsteroidBeltUI>(StringComparer.Ordinal);
     private Dictionary<string, InstancedMesh[]> _beltMeshes = new Dictionary<string, InstancedMesh[]>(StringComparer.Ordinal);
     private Dictionary<string, Matrix4x4[][]> _beltMatrices = new Dictionary<string, Matrix4x4[][]>(StringComparer.Ordinal);
@@ -94,6 +92,8 @@ public class ZoneRenderer : MonoBehaviour
         new List<AetheriaRuntimeDaemonAsteroidBeltPose>();
     private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey =
         new Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose>(StringComparer.Ordinal);
+    private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses =
+        new List<AetheriaRuntimeDaemonAsteroidInstancePose>();
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -329,8 +329,6 @@ public class ZoneRenderer : MonoBehaviour
         instance.SetEntity(this, entity);
         
         EntityInstances.Add(entity, instance);
-        if (!string.IsNullOrWhiteSpace(entity.DaemonRecordKey))
-            _entityInstancesByDaemonKey[entity.DaemonRecordKey] = instance;
     }
 
     public void UnloadEntity(Entity entity)
@@ -349,8 +347,6 @@ public class ZoneRenderer : MonoBehaviour
 
         Destroy(instance.gameObject);
         EntityInstances.Remove(entity);
-        if (!string.IsNullOrWhiteSpace(entity.DaemonRecordKey))
-            _entityInstancesByDaemonKey.Remove(entity.DaemonRecordKey);
     }
 
     void LoadAsteroidBelt(AsteroidBelt runtimeBelt)
@@ -486,25 +482,41 @@ public class ZoneRenderer : MonoBehaviour
 
             var center = new float2((float)beltPose.CenterX, (float)beltPose.CenterZ);
             var height = GetTerrainHeight(center);
-            if(isVisible(new Bounds(
+            var beltIsVisible = isVisible(new Bounds(
                 new Vector3(center.x,height,center.y),
-                new Vector3((float)beltPose.Radius * 2,100,(float)beltPose.Radius * 2))))
+                new Vector3((float)beltPose.Radius * 2,100,(float)beltPose.Radius * 2)));
+            if (beltIsVisible || _showAsteroidUI)
+            {
+                AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(
+                    _daemonZoneSnapshot,
+                    key,
+                    Zone?.Time ?? 0,
+                    _visibleAsteroidInstancePoses);
+            }
+
+            if(beltIsVisible)
             {
                 var meshes = _beltMeshes[key];
                 var matrices = _beltMatrices[key];
-                var count = belt.Transforms.Length / meshes.Length;
+                var tx = 0;
                 for (int i = 0; i < meshes.Length; i++)
                 {
                     for (int t = 0; t < matrices[i].Length; t++)
                     {
-                        var tx = t + i * count;
-                        var transform = belt.Transforms[tx];
-                        matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,0,transform.y),
+                        if (tx >= _visibleAsteroidInstancePoses.Count)
+                        {
+                            matrices[i][t] = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.zero);
+                            continue;
+                        }
+
+                        var asteroidPose = _visibleAsteroidInstancePoses[tx];
+                        matrices[i][t] = Matrix4x4.TRS(new Vector3((float)asteroidPose.PositionX,0,(float)asteroidPose.PositionZ),
                             Quaternion.Euler(
-                                cos(transform.z + (float)i / meshes.Length) * 100,
-                                sin(transform.z + (float)i / meshes.Length) * 100,
-                                (float)tx / belt.Transforms.Length * 360),
-                            Vector3.one * transform.w);
+                                cos((float)asteroidPose.Rotation + (float)i / meshes.Length) * 100,
+                                sin((float)asteroidPose.Rotation + (float)i / meshes.Length) * 100,
+                                (float)tx / Math.Max(1, _visibleAsteroidInstancePoses.Count) * 360),
+                            Vector3.one * (float)asteroidPose.Size);
+                        tx++;
                     }
 
                     Graphics.DrawMeshInstanced(meshes[i].Mesh, 0, meshes[i].Material, matrices[i]);
@@ -512,7 +524,7 @@ public class ZoneRenderer : MonoBehaviour
             }
 
             if(_showAsteroidUI)
-                _beltObjects[key].Update(belt.Transforms, center, height, (float)beltPose.Radius);
+                _beltObjects[key].Update(_visibleAsteroidInstancePoses, center, height, (float)beltPose.Radius);
         }
 
         foreach (var planet in Planets)
@@ -736,17 +748,24 @@ public class AsteroidBeltUI
         //_collider.sharedMesh = _mesh;
     }
 
-    public void Update(float4[] transforms, float2 center, float height, float radius)
+    public void Update(IReadOnlyList<AetheriaRuntimeDaemonAsteroidInstancePose> poses, float2 center, float height, float radius)
     {
-        for (var i = 0; i < transforms.Length; i++)
+        var count = Math.Min(poses.Count, _vertices.Length / 4);
+        for (var i = 0; i < count; i++)
         {
-            var transform = transforms[i];
-            var rotation = Quaternion.Euler(90, transform.z, 0);
-            var position = new Vector3(transform.x, height, transform.y);
-            _vertices[i * 4] = rotation * new Vector3(-transform.w * _scale, -transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 1] = rotation * new Vector3(-transform.w * _scale, transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 2] = rotation * new Vector3(transform.w * _scale, transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 3] = rotation * new Vector3(transform.w * _scale, -transform.w * _scale, 0) + position;
+            var pose = poses[i];
+            var size = (float)pose.Size;
+            var rotation = Quaternion.Euler(90, (float)pose.Rotation, 0);
+            var position = new Vector3((float)pose.PositionX, height, (float)pose.PositionZ);
+            _vertices[i * 4] = rotation * new Vector3(-size * _scale, -size * _scale, 0) + position;
+            _vertices[i * 4 + 1] = rotation * new Vector3(-size * _scale, size * _scale, 0) + position;
+            _vertices[i * 4 + 2] = rotation * new Vector3(size * _scale, size * _scale, 0) + position;
+            _vertices[i * 4 + 3] = rotation * new Vector3(size * _scale, -size * _scale, 0) + position;
+        }
+
+        for (var i = count * 4; i < _vertices.Length; i++)
+        {
+            _vertices[i] = Vector3.zero;
         }
 
         var boundsRadius = Math.Max(_size, radius);

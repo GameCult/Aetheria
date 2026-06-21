@@ -1822,6 +1822,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonAsteroidBeltPose",
         "public static AetheriaRuntimeDaemonAsteroidBeltPose[] QueryAsteroidBeltPoses(",
         "public static int QueryAsteroidBeltPoses(",
+        "AetheriaRuntimeDaemonAsteroidInstancePose",
+        "public static AetheriaRuntimeDaemonAsteroidInstancePose[] QueryAsteroidInstancePoses(",
+        "public static int QueryAsteroidInstancePoses(",
+        "TryResolveAsteroidBeltCenter(body, orbitPositions, orbits, out var center)",
         "ResolveAsteroidBeltRadius(body)"
     };
 
@@ -1908,10 +1912,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
     }
 
     if (zoneRenderer.Contains("belt.OrbitPosition", StringComparison.Ordinal) ||
-        zoneRenderer.Contains("belt.Radius", StringComparison.Ordinal))
+        zoneRenderer.Contains("belt.Radius", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("belt.Transforms", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer frame updates must read asteroid belt pose and radius from daemon belt poses instead of mirrored Unity asteroid belts.");
+            "ZoneRenderer frame updates must read asteroid belt and instance poses from daemon render queries instead of mirrored Unity asteroid belts.");
     }
 
     if (zoneRenderer.Contains("_zoneSubscriptions", StringComparison.Ordinal) ||
@@ -1925,7 +1930,6 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
-        "private readonly Dictionary<string, EntityInstance> _entityInstancesByDaemonKey",
         "private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
@@ -1933,6 +1937,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
+        "private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses",
         "foreach (var pose in _daemonBodyPoses)",
         "zone.PlanetInstances.TryGetValue(pose.BodyKey, out var planet)",
         "zone.AsteroidBelts.TryGetValue(pose.BodyKey, out var belt)",
@@ -1941,6 +1946,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var entity in EntityInstances.Keys.ToArray())",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
+        "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose)",
         "pose.GravityWaveSpeed"

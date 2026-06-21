@@ -43,7 +43,6 @@ public abstract class Entity
     public Faction Faction;
     public EquippableItem Hull;
     public EquippedItem EquippedHull;
-    public string DaemonRecordKey = "";
     public int DaemonEntityIndex = -1;
     
     public float3 Position;
