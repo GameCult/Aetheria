@@ -23,7 +23,21 @@ namespace GameCult.Aetheria.State.Verse
         public string ClientId { get; }
         public string SessionId { get; }
 
-        public AetheriaRuntimeDaemonCommandEnvelope Send(
+        public bool TrySendCommandKind(
+            AetheriaRuntimeDaemonCommandKinds kind,
+            AetheriaRuntimeObservedDaemonState? observed,
+            out AetheriaRuntimeDaemonCommandEnvelope? envelope,
+            out string error)
+        {
+            var command = Create(kind, observed);
+            if (TrySend(command, out envelope, out error))
+                return true;
+
+            envelope = ToEnvelope(command);
+            return false;
+        }
+
+        private AetheriaRuntimeDaemonCommandEnvelope Send(
             AetheriaRuntimeDaemonCommandKinds kind,
             AetheriaRuntimeObservedDaemonState? observed,
             Action<AetheriaRuntimeDaemonCommandDocument>? configure = null)
@@ -39,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
             return envelope!;
         }
 
-        public bool TrySend(
+        private bool TrySend(
             AetheriaRuntimeDaemonCommandKinds kind,
             AetheriaRuntimeObservedDaemonState? observed,
             Action<AetheriaRuntimeDaemonCommandDocument>? configure,
@@ -51,7 +65,7 @@ namespace GameCult.Aetheria.State.Verse
             return TrySend(command, out envelope, out error);
         }
 
-        public bool TrySend(
+        private bool TrySend(
             AetheriaRuntimeDaemonCommandDocument command,
             out AetheriaRuntimeDaemonCommandEnvelope? envelope,
             out string error)
@@ -64,7 +78,7 @@ namespace GameCult.Aetheria.State.Verse
                 out error);
         }
 
-        public AetheriaRuntimeDaemonCommandDocument Create(
+        private AetheriaRuntimeDaemonCommandDocument Create(
             AetheriaRuntimeDaemonCommandKinds kind,
             AetheriaRuntimeObservedDaemonState? observed)
         {

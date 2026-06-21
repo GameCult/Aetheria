@@ -39,28 +39,26 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public event Action<AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonObservationResult> ObservedDaemonStateChanged;
 
     internal AetheriaRuntimeDaemonCommandEnvelope SendOperation(
-        AetheriaRuntimeDaemonCommandKinds kind,
-        Action<AetheriaRuntimeDaemonCommandDocument> configure = null)
+        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
+        if (submit == null)
+        {
+            throw new ArgumentNullException(nameof(submit));
+        }
+
         _operationClient ??= new AetheriaRuntimeDaemonOperationClient(
             ActionGameManager.RuntimeStateFilePath,
             clientId,
             LastObservedState?.Frame.SessionId ?? "local");
 
-        var command = _operationClient.Create(kind, LastObservedState);
-        configure?.Invoke(command);
-        if (!_operationClient.TrySend(command, out var envelope, out var error))
-        {
-            throw new InvalidOperationException(
-                $"Failed to submit Aetheria daemon operation {kind}: {error}");
-        }
+        var envelope = submit(_operationClient, LastObservedState);
 
         if (logChanges)
         {
-            Debug.Log($"Submitted Aetheria daemon operation {envelope!.Kind}: {envelope.CommandId}");
+            Debug.Log($"Submitted Aetheria daemon operation {envelope.Kind}: {envelope.CommandId}");
         }
 
-        return envelope!;
+        return envelope;
     }
 
     private void Update()

@@ -27,13 +27,11 @@ namespace GameCult.Aetheria.State.Verse
                 stateFilePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId,
                 observed?.Frame.SessionId ?? "local");
-            var command = client.Create(kind, observed);
-            if (client.TrySend(command, out envelope, out _))
+            if (client.TrySendCommandKind(kind, observed, out envelope, out _))
             {
                 return true;
             }
 
-            envelope = AetheriaRuntimeDaemonOperationClient.ToEnvelope(command);
             return true;
         }
 

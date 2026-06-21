@@ -12,13 +12,12 @@ public sealed class AetheriaDaemonOperations
 
     public AetheriaRuntimeDaemonCommandEnvelope SetTarget(string targetEntityKey)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetTarget, command =>
-            command.TargetEntityKey = targetEntityKey ?? "");
+        return Send((client, observed) => client.SetTarget(observed, targetEntityKey));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope ClearTarget()
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.ClearTarget);
+        return Send((client, observed) => client.ClearTarget(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
@@ -26,43 +25,27 @@ public sealed class AetheriaDaemonOperations
         double directionY,
         double scalarValue = 1.0)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, command =>
-        {
-            command.DirectionX = directionX;
-            command.DirectionY = directionY;
-            command.ScalarValue = scalarValue;
-        });
+        return Send((client, observed) => client.SetMoveVector(observed, directionX, directionY, scalarValue));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(double directionX, double directionY, double directionZ)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetLookDirection, command =>
-        {
-            command.DirectionX = directionX;
-            command.DirectionY = directionY;
-            command.PositionZ = directionZ;
-        });
+        return Send((client, observed) => client.SetLookDirection(observed, directionX, directionY, directionZ));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(double power)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, command =>
-            command.ScalarValue = power);
+        return Send((client, observed) => client.SetTractorPower(observed, power));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(int weaponGroup)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, command =>
-            command.WeaponGroup = weaponGroup);
+        return Send((client, observed) => client.FireWeaponGroup(observed, weaponGroup));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(int weaponGroup, bool active)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive, command =>
-        {
-            command.WeaponGroup = weaponGroup;
-            command.ScalarValue = active ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetWeaponGroupActive(observed, weaponGroup, active));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
@@ -71,69 +54,52 @@ public sealed class AetheriaDaemonOperations
         int weaponGroup,
         bool assigned)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.EquipmentIndex = equipmentIndex;
-            command.WeaponGroup = weaponGroup;
-            command.ScalarValue = assigned ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetWeaponGroupMembership(
+            observed,
+            targetEntityKey,
+            equipmentIndex,
+            weaponGroup,
+            assigned));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(int equipmentIndex, int behaviorIndex, bool active)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, command =>
-        {
-            command.EquipmentIndex = equipmentIndex;
-            command.BehaviorIndex = behaviorIndex;
-            command.ScalarValue = active ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetBehaviorActive(observed, equipmentIndex, behaviorIndex, active));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(string itemKey)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.ActivateConsumable, command =>
-            command.TextValue = itemKey ?? "");
+        return Send((client, observed) => client.ActivateConsumable(observed, itemKey));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SensorPing()
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SensorPing);
+        return Send((client, observed) => client.SensorPing(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(bool enabled)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled, command =>
-            command.ScalarValue = enabled ? 1.0 : 0.0);
+        return Send((client, observed) => client.SetHeatsinksEnabled(observed, enabled));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(bool enabled)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, command =>
-            command.ScalarValue = enabled ? 1.0 : 0.0);
+        return Send((client, observed) => client.SetOverrideShutdown(observed, enabled));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetEntityOverrideShutdown(string targetEntityKey, bool enabled)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.ScalarValue = enabled ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetOverrideShutdown(observed, targetEntityKey, enabled));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(int equipmentIndex, bool enabled)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetItemEnabled, command =>
-        {
-            command.EquipmentIndex = equipmentIndex;
-            command.ScalarValue = enabled ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetItemEnabled(observed, equipmentIndex, enabled));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled()
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled);
+        return Send((client, observed) => client.ToggleShieldEnabled(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
@@ -141,12 +107,11 @@ public sealed class AetheriaDaemonOperations
         int equipmentIndex,
         bool enabled)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.EquipmentIndex = equipmentIndex;
-            command.ScalarValue = enabled ? 1.0 : 0.0;
-        });
+        return Send((client, observed) => client.SetItemOverrideShutdown(
+            observed,
+            targetEntityKey,
+            equipmentIndex,
+            enabled));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
@@ -155,24 +120,22 @@ public sealed class AetheriaDaemonOperations
         int behaviorIndex,
         double targetTemperature)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.EquipmentIndex = equipmentIndex;
-            command.BehaviorIndex = behaviorIndex;
-            command.ScalarValue = targetTemperature;
-        });
+        return Send((client, observed) => client.SetThermotoggleTargetTemperature(
+            observed,
+            targetEntityKey,
+            equipmentIndex,
+            behaviorIndex,
+            targetTemperature));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
         string targetEntityKey,
         double shutdownPerformance)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.ScalarValue = shutdownPerformance;
-        });
+        return Send((client, observed) => client.SetShutdownPerformance(
+            observed,
+            targetEntityKey,
+            shutdownPerformance));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetActionBarBinding(
@@ -183,21 +146,19 @@ public sealed class AetheriaDaemonOperations
         int behaviorIndex,
         int weaponGroup)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding, command =>
-        {
-            command.TextValue = controlPath ?? "";
-            command.EquipmentIndex = equipmentIndex;
-            command.BehaviorIndex = behaviorIndex;
-            command.WeaponGroup = weaponGroup;
-            command.ActionBarBinding.Kind = kind ?? "";
-            command.ActionBarBinding.ItemKey = itemKey ?? "";
-        });
+        return Send((client, observed) => client.SetActionBarBinding(
+            observed,
+            controlPath,
+            kind,
+            itemKey,
+            equipmentIndex,
+            behaviorIndex,
+            weaponGroup));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope ClearActionBarBinding(string controlPath)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding, command =>
-            command.TextValue = controlPath ?? "");
+        return Send((client, observed) => client.ClearActionBarBinding(observed, controlPath));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
@@ -206,39 +167,27 @@ public sealed class AetheriaDaemonOperations
         int y,
         int axis)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.PositionX = x;
-            command.PositionY = y;
-            command.ScalarValue = axis;
-        });
+        return Send((client, observed) => client.ToggleHullConductivity(observed, targetEntityKey, x, y, axis));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetEntityName(string targetEntityKey, string name)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetEntityName, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.TextValue = name ?? "";
-        });
+        return Send((client, observed) => client.SetEntityName(observed, targetEntityKey, name));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope Dock(string targetEntityKey)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.Dock, command =>
-            command.TargetEntityKey = targetEntityKey ?? "");
+        return Send((client, observed) => client.Dock(observed, targetEntityKey));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope Undock()
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.Undock);
+        return Send((client, observed) => client.Undock(observed));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(string targetEntityKey)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip, command =>
-            command.TargetEntityKey = targetEntityKey ?? "");
+        return Send((client, observed) => client.SetDockedCurrentShip(observed, targetEntityKey));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
@@ -246,12 +195,7 @@ public sealed class AetheriaDaemonOperations
         double positionX,
         double positionY)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.EnterWormhole, command =>
-        {
-            command.TargetZoneIndex = targetZoneIndex;
-            command.PositionX = positionX;
-            command.PositionY = positionY;
-        });
+        return Send((client, observed) => client.EnterWormhole(observed, targetZoneIndex, positionX, positionY));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope TowToStation(
@@ -260,13 +204,12 @@ public sealed class AetheriaDaemonOperations
         double positionX,
         double positionY)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.TowToStation, command =>
-        {
-            command.TargetEntityKey = stationEntityKey ?? "";
-            command.TargetZoneIndex = targetZoneIndex;
-            command.PositionX = positionX;
-            command.PositionY = positionY;
-        });
+        return Send((client, observed) => client.TowToStation(
+            observed,
+            stationEntityKey,
+            targetZoneIndex,
+            positionX,
+            positionY));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
@@ -282,24 +225,19 @@ public sealed class AetheriaDaemonOperations
         int destinationY,
         bool hasDestinationPosition)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, command =>
-        {
-            command.TargetEntityKey = destinationEntityKey ?? "";
-            command.EquipmentIndex = destinationCargoIndex;
-            command.PositionX = destinationX;
-            command.PositionY = destinationY;
-            command.ScalarValue = quantity;
-            command.TextValue = itemKey ?? "";
-            command.CargoTransfer.OriginEntityKey = originEntityKey ?? "";
-            command.CargoTransfer.OriginCargoIndex = originCargoIndex;
-            command.CargoTransfer.DestinationEntityKey = destinationEntityKey ?? "";
-            command.CargoTransfer.DestinationCargoIndex = destinationCargoIndex;
-            command.CargoTransfer.SourceX = sourceX;
-            command.CargoTransfer.SourceY = sourceY;
-            command.CargoTransfer.DestinationX = destinationX;
-            command.CargoTransfer.DestinationY = destinationY;
-            command.CargoTransfer.HasDestinationPosition = hasDestinationPosition;
-        });
+        return Send((client, observed) => client.TransferCargoItem(
+            observed,
+            originEntityKey,
+            originCargoIndex,
+            destinationEntityKey,
+            destinationCargoIndex,
+            itemKey,
+            quantity,
+            sourceX,
+            sourceY,
+            destinationX,
+            destinationY,
+            hasDestinationPosition));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
@@ -316,27 +254,20 @@ public sealed class AetheriaDaemonOperations
         int sourceY,
         bool createsDockedShip)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.TradePurchase, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.EquipmentIndex = targetCargoIndex;
-            command.PositionX = sourceX;
-            command.PositionY = sourceY;
-            command.ScalarValue = totalPrice;
-            command.TextValue = itemKey ?? "";
-            command.TradePurchase.PurchaseKind = purchaseKind ?? "";
-            command.TradePurchase.ItemKey = itemKey ?? "";
-            command.TradePurchase.Quantity = quantity;
-            command.TradePurchase.UnitPrice = unitPrice;
-            command.TradePurchase.TotalPrice = totalPrice;
-            command.TradePurchase.StationEntityKey = stationEntityKey ?? "";
-            command.TradePurchase.StationCargoIndex = stationCargoIndex;
-            command.TradePurchase.TargetEntityKey = targetEntityKey ?? "";
-            command.TradePurchase.TargetCargoIndex = targetCargoIndex;
-            command.TradePurchase.SourceX = sourceX;
-            command.TradePurchase.SourceY = sourceY;
-            command.TradePurchase.CreatesDockedShip = createsDockedShip;
-        });
+        return Send((client, observed) => client.TradePurchase(
+            observed,
+            purchaseKind,
+            itemKey,
+            quantity,
+            unitPrice,
+            totalPrice,
+            stationEntityKey,
+            stationCargoIndex,
+            targetEntityKey,
+            targetCargoIndex,
+            sourceX,
+            sourceY,
+            createsDockedShip));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
@@ -347,20 +278,14 @@ public sealed class AetheriaDaemonOperations
         double positionY,
         double positionZ)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, command =>
-        {
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.TextValue = itemKey ?? "";
-            command.ScalarValue = quantity;
-            command.PositionX = positionX;
-            command.PositionY = positionY;
-            command.PositionZ = positionZ;
-            command.LootPickup.ItemKey = itemKey ?? "";
-            command.LootPickup.Quantity = quantity;
-            command.LootPickup.PositionX = positionX;
-            command.LootPickup.PositionY = positionY;
-            command.LootPickup.PositionZ = positionZ;
-        });
+        return Send((client, observed) => client.PickUpLoot(
+            observed,
+            targetEntityKey,
+            itemKey,
+            quantity,
+            positionX,
+            positionY,
+            positionZ));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
@@ -368,15 +293,7 @@ public sealed class AetheriaDaemonOperations
         string templateName,
         int price)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, command =>
-        {
-            command.TargetEntityKey = dockedEntityKey ?? "";
-            command.TextValue = templateName ?? "";
-            command.ScalarValue = price;
-            command.LoadoutRestore.DockedEntityKey = dockedEntityKey ?? "";
-            command.LoadoutRestore.TemplateName = templateName ?? "";
-            command.LoadoutRestore.Price = price;
-        });
+        return Send((client, observed) => client.RestoreLoadout(observed, dockedEntityKey, templateName, price));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope EquipItem(
@@ -391,22 +308,18 @@ public sealed class AetheriaDaemonOperations
         int destinationY,
         bool hasDestinationPosition)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.EquipItem, command =>
-        {
-            command.TargetEntityKey = destinationEntityKey ?? "";
-            command.PositionX = destinationX;
-            command.PositionY = destinationY;
-            command.TextValue = itemKey ?? "";
-            command.EquipmentTransfer.SourceKind = sourceKind ?? "";
-            command.EquipmentTransfer.OriginEntityKey = originEntityKey ?? "";
-            command.EquipmentTransfer.OriginIndex = originIndex;
-            command.EquipmentTransfer.DestinationEntityKey = destinationEntityKey ?? "";
-            command.EquipmentTransfer.SourceX = sourceX;
-            command.EquipmentTransfer.SourceY = sourceY;
-            command.EquipmentTransfer.DestinationX = destinationX;
-            command.EquipmentTransfer.DestinationY = destinationY;
-            command.EquipmentTransfer.HasDestinationPosition = hasDestinationPosition;
-        });
+        return Send((client, observed) => client.EquipItem(
+            observed,
+            sourceKind,
+            originEntityKey,
+            originIndex,
+            destinationEntityKey,
+            itemKey,
+            sourceX,
+            sourceY,
+            destinationX,
+            destinationY,
+            hasDestinationPosition));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope StoreItem(
@@ -419,20 +332,21 @@ public sealed class AetheriaDaemonOperations
         int destinationY,
         bool hasDestinationPosition)
     {
-        return _observer.SendOperation(AetheriaRuntimeDaemonCommandKinds.StoreItem, command =>
-        {
-            command.TargetEntityKey = destinationEntityKey ?? "";
-            command.EquipmentIndex = sourceEquipmentIndex;
-            command.PositionX = destinationX;
-            command.PositionY = destinationY;
-            command.TextValue = itemKey ?? "";
-            command.StoreItem.OriginEntityKey = originEntityKey ?? "";
-            command.StoreItem.SourceEquipmentIndex = sourceEquipmentIndex;
-            command.StoreItem.DestinationEntityKey = destinationEntityKey ?? "";
-            command.StoreItem.DestinationCargoIndex = destinationCargoIndex;
-            command.StoreItem.DestinationX = destinationX;
-            command.StoreItem.DestinationY = destinationY;
-            command.StoreItem.HasDestinationPosition = hasDestinationPosition;
-        });
+        return Send((client, observed) => client.StoreItem(
+            observed,
+            originEntityKey,
+            sourceEquipmentIndex,
+            destinationEntityKey,
+            destinationCargoIndex,
+            itemKey,
+            destinationX,
+            destinationY,
+            hasDestinationPosition));
+    }
+
+    private AetheriaRuntimeDaemonCommandEnvelope Send(
+        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit)
+    {
+        return _observer.SendOperation(submit);
     }
 }

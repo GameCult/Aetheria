@@ -2212,8 +2212,7 @@ static void RequireEveRuntimeBootstrap(string root)
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed)",
         "new AetheriaRuntimeDaemonOperationClient(",
-        "var command = client.Create(kind, observed)",
-        "client.TrySend(command, out envelope, out _)"
+        "client.TrySendCommandKind(kind, observed, out envelope, out _)"
     };
     var missingDaemonSurfaceCommandSymbols = requiredDaemonSurfaceCommandSymbols
         .Where(symbol => !daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
@@ -5908,11 +5907,11 @@ static void RequireTypedDaemonCommandPayloads(string root)
 
     var requiredClientSymbols = new[]
     {
-        "public AetheriaRuntimeDaemonCommandEnvelope Send(",
-        "public bool TrySend(",
+        "public bool TrySendCommandKind(",
         "ReadObservedDaemonCommands()",
-        "_operationClient.Create(",
-        "_operationClient.TrySend(command, out var envelope, out var error)",
+        "Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit",
+        "return Send((client, observed) => client.SetTarget(observed, targetEntityKey));",
+        "return Send((client, observed) => client.TransferCargoItem(",
         "command.ActionBarBinding.Kind",
         "command.CargoTransfer.OriginEntityKey",
         "command.TradePurchase.TotalPrice",
@@ -5921,7 +5920,8 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "command.EquipmentTransfer.SourceKind",
         "command.StoreItem.SourceEquipmentIndex"
     };
-    var clientAndObserver = daemonClient + "\n" + observer + "\n" + stateNode;
+    var daemonOperationsUnity = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs"));
+    var clientAndObserver = daemonClient + "\n" + observer + "\n" + stateNode + "\n" + daemonOperationsUnity;
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientAndObserver.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -5967,6 +5967,54 @@ static void RequireTypedDaemonCommandPayloads(string root)
         throw new InvalidOperationException(
             "Unity-facing daemon operation clients still expose queue semantics instead of sending typed daemon operations: " +
             string.Join(", ", survivingQueueSymbols));
+    }
+
+    var forbiddenUnityDocumentSubmitSymbols = new[]
+    {
+        "SendOperation(AetheriaRuntimeDaemonCommandKinds",
+        "Action<AetheriaRuntimeDaemonCommandDocument>",
+        "_operationClient.Create(",
+        "_operationClient.TrySend(command",
+        "command.TargetEntityKey =",
+        "command.ActionBarBinding.",
+        "command.CargoTransfer.",
+        "command.TradePurchase.",
+        "command.LootPickup.",
+        "command.LoadoutRestore.",
+        "command.EquipmentTransfer.",
+        "command.StoreItem."
+    };
+    var unityDocumentSubmitHits = new Dictionary<string, string>
+    {
+        ["Unity daemon observer"] = observer,
+        ["Unity daemon operations"] = daemonOperationsUnity
+    }
+        .SelectMany(source => forbiddenUnityDocumentSubmitSymbols
+            .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{source.Key}: {symbol}"))
+        .ToArray();
+    if (unityDocumentSubmitHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity daemon operation adapters still fill command documents instead of delegating to typed runtime operations: " +
+            string.Join(", ", unityDocumentSubmitHits));
+    }
+
+    var forbiddenPublicDocumentSubmitSymbols = new[]
+    {
+        "public AetheriaRuntimeDaemonCommandEnvelope Send(",
+        "public bool TrySend(\r\n            AetheriaRuntimeDaemonCommandKinds",
+        "public bool TrySend(\r\n            AetheriaRuntimeDaemonCommandDocument",
+        "public AetheriaRuntimeDaemonCommandDocument Create("
+    };
+    var publicDocumentSubmitHits = forbiddenPublicDocumentSubmitSymbols
+        .Where(symbol => daemonClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicDocumentSubmitHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon operation client still exposes public document-shaped submission APIs instead of typed operations: " +
+            string.Join(", ", publicDocumentSubmitHits));
     }
 
     if (tests.Contains("AetheriaRuntimeDaemonCommandLog.", StringComparison.Ordinal))
