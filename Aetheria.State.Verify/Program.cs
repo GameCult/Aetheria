@@ -3555,6 +3555,10 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "ActionGameManager.RequestRuntimeActionBarInput",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(",
+        "new AetheriaRuntimeInputPathSurfaceLabel(",
         "HideLegacyChildren()"
     };
 
@@ -3589,7 +3593,10 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "ToggleActionBarInput(request.Payload)",
         "private void BeginCapture(IReadOnlyDictionary<string, string> payload)",
         "private void ToggleActionBarInput(IReadOnlyDictionary<string, string> payload)",
-        "request.Payload"
+        "request.Payload",
+        "private static readonly string[] DefaultActionBarCandidatePaths",
+        "private static bool IsSupportedCapturePath(string path)",
+        "new SortedDictionary<string, string>(StringComparer.Ordinal)"
     };
 
     var survivingLegacySymbols = forbiddenInputScreenSymbols
@@ -3619,6 +3626,11 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "public sealed class AetheriaRuntimeInputSettingsSurfaceState",
         "public sealed class AetheriaRuntimeInputBindingSurfaceState",
         "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
+        "public sealed class AetheriaRuntimeInputPathSurfaceLabel",
+        "public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths",
+        "public static bool IsSupportedCapturePath(string path)",
+        "public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(",
+        "new SortedDictionary<string, string>(StringComparer.Ordinal)",
         "public enum AetheriaRuntimeInputSettingsCommandKind",
         "public readonly struct AetheriaRuntimeInputSettingsSurfaceCommand",
         "public static class AetheriaRuntimeInputSettingsSurfaceCommands",

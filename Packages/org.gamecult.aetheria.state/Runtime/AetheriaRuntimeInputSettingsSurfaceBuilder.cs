@@ -72,8 +72,80 @@ namespace GameCult.Aetheria.State.Verse
         public bool Enabled { get; }
     }
 
+    public sealed class AetheriaRuntimeInputPathSurfaceLabel
+    {
+        public AetheriaRuntimeInputPathSurfaceLabel(string inputPath, string label)
+        {
+            InputPath = inputPath ?? "";
+            Label = label ?? "";
+        }
+
+        public string InputPath { get; }
+
+        public string Label { get; }
+    }
+
     public static class AetheriaRuntimeInputSettingsSurfaceBuilder
     {
+        public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths = new[]
+        {
+            "<Mouse>/leftButton",
+            "<Mouse>/rightButton",
+            "<Mouse>/middleButton",
+            "<Mouse>/forwardButton",
+            "<Mouse>/backButton",
+            "<Keyboard>/1",
+            "<Keyboard>/2",
+            "<Keyboard>/3",
+            "<Keyboard>/4",
+            "<Keyboard>/5",
+            "<Keyboard>/leftShift"
+        };
+
+        public static bool IsSupportedCapturePath(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) &&
+                   (path.StartsWith("<Keyboard>/", StringComparison.Ordinal) ||
+                    path.StartsWith("<Mouse>/", StringComparison.Ordinal));
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(
+            IEnumerable<string> enabledInputPaths,
+            IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> candidateInputPaths)
+        {
+            var enabledPaths = new HashSet<string>(
+                (enabledInputPaths ?? Array.Empty<string>()).Where(path => !string.IsNullOrWhiteSpace(path)),
+                StringComparer.Ordinal);
+            var candidates = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (var candidate in candidateInputPaths ?? Array.Empty<AetheriaRuntimeInputPathSurfaceLabel>())
+            {
+                if (candidate == null || string.IsNullOrWhiteSpace(candidate.InputPath))
+                {
+                    continue;
+                }
+
+                candidates[candidate.InputPath] = string.IsNullOrWhiteSpace(candidate.Label)
+                    ? candidate.InputPath
+                    : candidate.Label;
+            }
+
+            foreach (var enabledPath in enabledPaths)
+            {
+                if (!candidates.ContainsKey(enabledPath))
+                {
+                    candidates[enabledPath] = enabledPath;
+                }
+            }
+
+            return candidates
+                .Select(entry => new AetheriaRuntimeActionBarInputSurfaceState(
+                    entry.Key,
+                    entry.Value,
+                    enabledPaths.Contains(entry.Key)))
+                .ToArray();
+        }
+
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeInputSettingsSurfaceState settings,
             long version = 1)

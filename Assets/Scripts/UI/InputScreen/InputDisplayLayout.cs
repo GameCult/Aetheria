@@ -11,21 +11,6 @@ using UnityEngine.UIElements;
 
 public class InputDisplayLayout : MonoBehaviour
 {
-    private static readonly string[] DefaultActionBarCandidatePaths =
-    {
-        "<Mouse>/leftButton",
-        "<Mouse>/rightButton",
-        "<Mouse>/middleButton",
-        "<Mouse>/forwardButton",
-        "<Mouse>/backButton",
-        "<Keyboard>/1",
-        "<Keyboard>/2",
-        "<Keyboard>/3",
-        "<Keyboard>/4",
-        "<Keyboard>/5",
-        "<Keyboard>/leftShift"
-    };
-
     private UIDocument _surfaceDocument;
     private AetheriaInput _ownedInput;
     private InputAction _captureAction;
@@ -202,7 +187,7 @@ public class InputDisplayLayout : MonoBehaviour
             .Where(entry =>
                 !entry.binding.isComposite &&
                 !string.IsNullOrWhiteSpace(entry.binding.effectivePath) &&
-                IsSupportedCapturePath(entry.binding.effectivePath))
+                AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(entry.binding.effectivePath))
             .Select(entry => new AetheriaRuntimeInputBindingSurfaceState(
                 entry.action.name,
                 entry.bindingIndex,
@@ -215,18 +200,22 @@ public class InputDisplayLayout : MonoBehaviour
     private IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarRows()
     {
         var runtimeSettings = ActionGameManager.RuntimePlayerSettings.InputSettings;
-        var candidates = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var candidates = new List<AetheriaRuntimeInputPathSurfaceLabel>();
 
-        foreach (var defaultPath in DefaultActionBarCandidatePaths)
+        foreach (var defaultPath in AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths)
         {
-            candidates[defaultPath] = DescribeInputPath(defaultPath);
+            candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
+                defaultPath,
+                DescribeInputPath(defaultPath)));
         }
 
         foreach (var inputPath in runtimeSettings.ActionBarInputs)
         {
             if (!string.IsNullOrWhiteSpace(inputPath))
             {
-                candidates[inputPath] = DescribeInputPath(inputPath);
+                candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
+                    inputPath,
+                    DescribeInputPath(inputPath)));
             }
         }
 
@@ -236,29 +225,23 @@ public class InputDisplayLayout : MonoBehaviour
             {
                 foreach (var binding in action.bindings)
                 {
-                    if (binding.isComposite || string.IsNullOrWhiteSpace(binding.effectivePath) || !IsSupportedCapturePath(binding.effectivePath))
+                    if (binding.isComposite ||
+                        string.IsNullOrWhiteSpace(binding.effectivePath) ||
+                        !AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(binding.effectivePath))
                     {
                         continue;
                     }
 
-                    candidates[binding.effectivePath] = DescribeInputPath(binding.effectivePath);
+                    candidates.Add(new AetheriaRuntimeInputPathSurfaceLabel(
+                        binding.effectivePath,
+                        DescribeInputPath(binding.effectivePath)));
                 }
             }
         }
 
-        return candidates
-            .Select(entry => new AetheriaRuntimeActionBarInputSurfaceState(
-                entry.Key,
-                entry.Value,
-                runtimeSettings.ActionBarInputs.Contains(entry.Key)))
-            .ToArray();
-    }
-
-    private static bool IsSupportedCapturePath(string path)
-    {
-        return !string.IsNullOrWhiteSpace(path) &&
-               (path.StartsWith("<Keyboard>/", StringComparison.Ordinal) ||
-                path.StartsWith("<Mouse>/", StringComparison.Ordinal));
+        return AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(
+            runtimeSettings.ActionBarInputs,
+            candidates);
     }
 
     private static string DescribeBinding(string actionName, InputBinding binding)
@@ -362,7 +345,7 @@ public class InputDisplayLayout : MonoBehaviour
         var inputPath = context.control?.path ?? "";
         if (string.IsNullOrWhiteSpace(inputPath) ||
             inputPath.EndsWith("anyKey", StringComparison.Ordinal) ||
-            !IsSupportedCapturePath(inputPath) ||
+            !AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(inputPath) ||
             Input == null)
         {
             return;
