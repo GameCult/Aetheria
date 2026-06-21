@@ -208,7 +208,7 @@ public class ZoneRenderer : MonoBehaviour
         var bigBounds = new Bounds(Vector3.zero, Vector3.one * 1024);
         foreach (var mesh in AsteroidMeshes) mesh.Mesh.bounds = bigBounds;
         ViewDistance = Settings.DefaultViewDistance;
-        MinimapDistance = Settings.MinimapZoomLevels[Settings.DefaultMinimapZoom];
+        MinimapDistance = (float)RenderSettings.ResolveDefaultMinimapDistance();
 
         _tourTimer = TourSwitchTime;
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();

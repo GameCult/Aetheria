@@ -1827,6 +1827,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public double HeatstrokePhasingFrequency { get; }",
         "public double TargetSpottedBlinkFrequency { get; }",
         "public double TargetSpottedBlinkOffset { get; }",
+        "public IReadOnlyList<double> MinimapZoomLevels { get; }",
+        "public int DefaultMinimapZoom { get; }",
+        "public int ResolveDefaultMinimapZoomIndex()",
+        "public int ResolveNextMinimapZoomIndex(int currentIndex)",
+        "public double ResolveMinimapDistance(int zoomIndex)",
+        "public double ResolveDefaultMinimapDistance()",
         "public double NormalizeThermalRisk(double temperature)",
         "public double NormalizeHeatstrokePost(double heatstroke)",
         "public double NormalizeSevereHeatstrokePost(double heatstroke)",
@@ -1989,6 +1995,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must query daemon visibility through shared render settings instead of Unity GameplaySettings.");
     }
 
+    if (zoneRenderer.Contains("Settings.MinimapZoomLevels", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("Settings.DefaultMinimapZoom", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must initialize minimap distance through shared daemon render settings instead of Unity GameSettings.");
+    }
+
     if (zoneRenderer.Contains("Zone.GetOrbitPosition(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2128,6 +2141,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
         "AetheriaRuntimeDaemonRenderQueries.QueryVisibleEntityIndices(",
         "RenderSettings.TargetDetectionInfoThreshold",
+        "RenderSettings.ResolveDefaultMinimapDistance()",
         "AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(",
         "AddWormhole(exit)",
         "public void AddWormhole(AetheriaRuntimeDaemonWormholeExit exit)",
@@ -2211,6 +2225,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "renderSettings.ResolveLockIndicatorNoiseAmplitude(",
         "renderSettings.ResolveLockIndicatorNoiseFrequency(",
         "renderSettings.ResolveLockSpinSpeed(",
+        "ZoneRenderer.RenderSettings.ResolveDefaultMinimapZoomIndex()",
+        "ZoneRenderer.RenderSettings.ResolveNextMinimapZoomIndex(_zoomLevelIndex)",
+        "ZoneRenderer.RenderSettings.ResolveMinimapDistance(_zoomLevelIndex)",
         "new AetheriaRuntimeExponentialLerp(",
         "Settings.GameplaySettings.TargetDetectionInfoThreshold",
         "Settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
@@ -2218,7 +2235,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "Settings.HeatstrokePhasingFloor",
         "Settings.HeatstrokePhasingFrequency",
         "TargetSpottedBlinkFrequency",
-        "TargetSpottedBlinkOffset"
+        "TargetSpottedBlinkOffset",
+        "Settings.MinimapZoomLevels",
+        "Settings.DefaultMinimapZoom"
     };
 
     var missingActionGameManagerRenderSymbols = requiredActionGameManagerRenderSymbols
@@ -2252,6 +2271,18 @@ static void RequireDaemonRenderQueryAuthority(string root)
         throw new InvalidOperationException(
             "ActionGameManager render loops must interpret observed state through shared daemon render settings instead of Unity GameSettings: " +
             string.Join(", ", renderLoopHits.Select(hit => $"{hit.MethodName}:{hit.LineNumber}:{hit.Line.Trim()}")));
+    }
+
+    var minimapBootHits = FindMethodScopedLineHits(
+            actionGameManager,
+            new[] { "Settings.MinimapZoomLevels", "Settings.DefaultMinimapZoom" })
+        .Where(hit => hit.MethodName == "Start")
+        .ToArray();
+    if (minimapBootHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager must bootstrap minimap zoom through shared daemon render settings instead of indexing Unity GameSettings directly: " +
+            string.Join(", ", minimapBootHits.Select(hit => $"{hit.MethodName}:{hit.LineNumber}:{hit.Line.Trim()}")));
     }
 }
 

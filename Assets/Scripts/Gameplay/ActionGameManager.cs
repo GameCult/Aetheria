@@ -586,7 +586,9 @@ public class ActionGameManager : MonoBehaviour
             Settings.HeatstrokePhasingFloor,
             Settings.HeatstrokePhasingFrequency,
             TargetSpottedBlinkFrequency,
-            TargetSpottedBlinkOffset);
+            TargetSpottedBlinkOffset,
+            Settings.MinimapZoomLevels?.Select(level => (double)level).ToArray(),
+            Settings.DefaultMinimapZoom);
     }
 
     private readonly (float2 direction, string name)[] _directions = {
@@ -2020,6 +2022,8 @@ public class ActionGameManager : MonoBehaviour
             Debug.Log);
         LoadRuntimeLoadoutTemplates(stateBoot.StateFilePath);
         ZoneRenderer.RenderSettings = ObservedDaemonRenderSettings();
+        _zoomLevelIndex = ZoneRenderer.RenderSettings.ResolveDefaultMinimapZoomIndex();
+        ZoneRenderer.MinimapDistance = (float)ZoneRenderer.RenderSettings.ResolveMinimapDistance(_zoomLevelIndex);
 
         // If hiding minimap asteroids, turn them off to start with
         if (!RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
@@ -2035,11 +2039,10 @@ public class ActionGameManager : MonoBehaviour
         InputDisplayLayout.Input = Input.asset;
         Input.Global.Enable();
 
-        _zoomLevelIndex = Settings.DefaultMinimapZoom;
         Input.Player.MinimapZoom.performed += context =>
         {
-            _zoomLevelIndex = (_zoomLevelIndex + 1) % Settings.MinimapZoomLevels.Length;
-            ZoneRenderer.MinimapDistance = Settings.MinimapZoomLevels[_zoomLevelIndex];
+            _zoomLevelIndex = ZoneRenderer.RenderSettings.ResolveNextMinimapZoomIndex(_zoomLevelIndex);
+            ZoneRenderer.MinimapDistance = (float)ZoneRenderer.RenderSettings.ResolveMinimapDistance(_zoomLevelIndex);
         };
 
         Input.Global.ZoneMap.performed += context =>

@@ -62,7 +62,9 @@ namespace GameCult.Aetheria.State.Verse
             double heatstrokePhasingFloor = 0.0,
             double heatstrokePhasingFrequency = 5.0,
             double targetSpottedBlinkFrequency = 20.0,
-            double targetSpottedBlinkOffset = -0.25)
+            double targetSpottedBlinkOffset = -0.25,
+            IReadOnlyList<double>? minimapZoomLevels = null,
+            int defaultMinimapZoom = 0)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -77,6 +79,8 @@ namespace GameCult.Aetheria.State.Verse
             HeatstrokePhasingFrequency = heatstrokePhasingFrequency;
             TargetSpottedBlinkFrequency = targetSpottedBlinkFrequency;
             TargetSpottedBlinkOffset = targetSpottedBlinkOffset;
+            MinimapZoomLevels = CopyPositiveMinimapZoomLevels(minimapZoomLevels);
+            DefaultMinimapZoom = defaultMinimapZoom;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -92,6 +96,36 @@ namespace GameCult.Aetheria.State.Verse
         public double HeatstrokePhasingFrequency { get; }
         public double TargetSpottedBlinkFrequency { get; }
         public double TargetSpottedBlinkOffset { get; }
+        public IReadOnlyList<double> MinimapZoomLevels { get; }
+        public int DefaultMinimapZoom { get; }
+
+        public int ResolveDefaultMinimapZoomIndex()
+        {
+            var levels = ResolveMinimapZoomLevels();
+            return ClampIndex(DefaultMinimapZoom, levels.Count);
+        }
+
+        public int ResolveNextMinimapZoomIndex(int currentIndex)
+        {
+            var levels = ResolveMinimapZoomLevels();
+            if (levels.Count == 0)
+                return 0;
+
+            return currentIndex < 0
+                ? ResolveDefaultMinimapZoomIndex()
+                : (currentIndex + 1) % levels.Count;
+        }
+
+        public double ResolveMinimapDistance(int zoomIndex)
+        {
+            var levels = ResolveMinimapZoomLevels();
+            return levels[ClampIndex(zoomIndex, levels.Count)];
+        }
+
+        public double ResolveDefaultMinimapDistance()
+        {
+            return ResolveMinimapDistance(ResolveDefaultMinimapZoomIndex());
+        }
 
         public double NormalizeThermalRisk(double temperature)
         {
@@ -182,6 +216,39 @@ namespace GameCult.Aetheria.State.Verse
         {
             return minimum + Saturate(value) * (maximum - minimum);
         }
+
+        private IReadOnlyList<double> ResolveMinimapZoomLevels()
+        {
+            return MinimapZoomLevels != null && MinimapZoomLevels.Count > 0
+                ? MinimapZoomLevels
+                : DefaultMinimapZoomLevels;
+        }
+
+        private static int ClampIndex(int index, int count)
+        {
+            if (count <= 1)
+                return 0;
+
+            return Math.Max(0, Math.Min(count - 1, index));
+        }
+
+        private static IReadOnlyList<double> CopyPositiveMinimapZoomLevels(IReadOnlyList<double>? levels)
+        {
+            if (levels == null || levels.Count == 0)
+                return DefaultMinimapZoomLevels;
+
+            var copy = new List<double>(levels.Count);
+            for (var index = 0; index < levels.Count; index++)
+            {
+                var level = levels[index];
+                if (level > 0 && !double.IsNaN(level) && !double.IsInfinity(level))
+                    copy.Add(level);
+            }
+
+            return copy.Count > 0 ? copy.ToArray() : DefaultMinimapZoomLevels;
+        }
+
+        private static readonly IReadOnlyList<double> DefaultMinimapZoomLevels = new[] { 1000.0 };
     }
 
     public readonly struct AetheriaRuntimeGravityInfluenceBrush
