@@ -191,7 +191,7 @@ namespace GameCult.Aetheria.State.Verse
         private static readonly Dictionary<string, AetheriaRuntimeCommandPort> Ports =
             new Dictionary<string, AetheriaRuntimeCommandPort>(StringComparer.OrdinalIgnoreCase);
 
-        public static bool TrySubmitDaemonCommand(
+        internal static bool TrySubmitDaemonCommand(
             string stateFilePath,
             AetheriaRuntimeDaemonCommandDocument command,
             string runtimeId,
@@ -216,7 +216,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        public static bool TrySubmitEveCommand(
+        internal static bool TrySubmitEveCommand(
             string stateFilePath,
             AetheriaRuntimeEveCommandDocument command,
             string runtimeId,

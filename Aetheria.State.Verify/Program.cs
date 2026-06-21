@@ -6875,6 +6875,8 @@ static void RequireTypedEveCommandBodies(string root)
         "internal Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
         "internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
         "internal static class AetheriaRuntimeCommandSubmitter",
+        "internal static bool TrySubmitEveCommand(",
+        "internal static bool TrySubmitDaemonCommand(",
         "TrySubmitEveCommand(",
         "TrySubmitDaemonCommand(",
         "CreatePlayerSettingsCommand(",
@@ -6997,6 +6999,21 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Runtime command port still exposes raw document submission publicly instead of routing callers through typed clients: " +
             string.Join(", ", publicRuntimePortSubmitHits));
+    }
+
+    var forbiddenPublicSubmitterMethods = new[]
+    {
+        "public static bool TrySubmitDaemonCommand(",
+        "public static bool TrySubmitEveCommand("
+    };
+    var publicSubmitterMethodHits = forbiddenPublicSubmitterMethods
+        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicSubmitterMethodHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime command submitter still marks generic submit helpers public instead of keeping them internal: " +
+            string.Join(", ", publicSubmitterMethodHits));
     }
 
     var forbiddenUnitySubmitterSymbols = new[]
