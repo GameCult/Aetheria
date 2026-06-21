@@ -334,7 +334,8 @@ public class ActionGameManager : MonoBehaviour
                 slot.Durability,
                 slot.Quantity,
                 slot.Enabled,
-                slot.OverrideShutdown))))
+                slot.OverrideShutdown,
+                slot.Temperature))))
             .Where(slot => slot.item != null)
             .ToArray();
     }
@@ -673,7 +674,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 X = slot.Position.x,
                 Y = slot.Position.y,
-                Item = ProjectLoadoutItem(slot.EquippableItem)
+                Item = ProjectLoadoutItem(slot.EquippableItem, slot.Temperature)
             })
             .ToArray() ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
     }
@@ -712,7 +713,9 @@ public class ActionGameManager : MonoBehaviour
             .ToArray() ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
     }
 
-    private static AetheriaRuntimeLoadoutItemCommit ProjectLoadoutItem(ItemInstance item)
+    private static AetheriaRuntimeLoadoutItemCommit ProjectLoadoutItem(
+        ItemInstance item,
+        double temperature = 0)
     {
         if (item == null)
             return new AetheriaRuntimeLoadoutItemCommit();
@@ -724,7 +727,8 @@ public class ActionGameManager : MonoBehaviour
             Durability = item is EquippableItem equippable ? equippable.Durability : 1.0,
             Quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1,
             Enabled = true,
-            OverrideShutdown = item is EquippableItem overrideable && overrideable.OverrideShutdown
+            OverrideShutdown = item is EquippableItem overrideable && overrideable.OverrideShutdown,
+            Temperature = temperature
         };
     }
 
@@ -1157,7 +1161,8 @@ public class ActionGameManager : MonoBehaviour
             item.Durability,
             item.Quantity,
             item.Enabled,
-            item.OverrideShutdown);
+            item.OverrideShutdown,
+            item.Temperature);
     }
 
     private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> CreateRuntimeLoadoutItemSlotSnapshots(
@@ -2674,7 +2679,8 @@ public class ActionGameManager : MonoBehaviour
                 slot.Item.Durability,
                 slot.Item.Quantity,
                 slot.Item.Enabled,
-                slot.Item.OverrideShutdown))
+                slot.Item.OverrideShutdown,
+                slot.Item.Temperature))
             .ToArray();
     }
 
@@ -2701,7 +2707,8 @@ public class ActionGameManager : MonoBehaviour
                     slot.Item.Durability,
                     slot.Item.Quantity,
                     slot.Item.Enabled,
-                    slot.Item.OverrideShutdown)))
+                    slot.Item.OverrideShutdown,
+                    slot.Item.Temperature)))
             .ToArray();
     }
 

@@ -57,7 +57,8 @@ public static class AetheriaRuntimeStateMapper
             Durability = item.Durability,
             Quantity = item.Quantity,
             Enabled = item.Enabled,
-            OverrideShutdown = item.OverrideShutdown
+            OverrideShutdown = item.OverrideShutdown,
+            Temperature = item.Temperature
         };
     }
 

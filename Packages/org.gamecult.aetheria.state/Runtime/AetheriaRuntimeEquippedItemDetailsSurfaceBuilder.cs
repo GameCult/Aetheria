@@ -535,7 +535,8 @@ namespace GameCult.Aetheria.State.Verse
                 item?.Quality ?? 1,
                 item?.Durability ?? 1,
                 enabled: true,
-                overrideShutdown: item != null && item.OverrideShutdown);
+                overrideShutdown: item != null && item.OverrideShutdown,
+                temperature: item?.Temperature ?? 0);
         }
 
         private static double MaxDurability(

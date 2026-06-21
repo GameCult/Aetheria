@@ -253,7 +253,7 @@ namespace GameCult.Aetheria.State.Verse
             value = AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
                     field.Value,
                     item,
-                    heat: 0)
+                    item.Temperature)
                 .ToString("0.###", CultureInfo.InvariantCulture);
             return true;
         }

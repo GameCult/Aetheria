@@ -1793,7 +1793,8 @@ namespace GameCult.Aetheria.State.Verse
                     Durability = item?.Durability ?? 1.0,
                     Quantity = item?.Quantity ?? 1,
                     Enabled = item?.Enabled ?? true,
-                    OverrideShutdown = item?.OverrideShutdown ?? false
+                    OverrideShutdown = item?.OverrideShutdown ?? false,
+                    Temperature = item?.Temperature ?? 0
                 }
             };
         }

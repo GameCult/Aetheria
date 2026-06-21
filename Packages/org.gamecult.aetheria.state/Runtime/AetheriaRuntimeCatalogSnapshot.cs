@@ -713,7 +713,14 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeLoadoutItemSnapshot
     {
-        public AetheriaRuntimeLoadoutItemSnapshot(string itemKey, double quality, double durability, int quantity, bool enabled, bool overrideShutdown)
+        public AetheriaRuntimeLoadoutItemSnapshot(
+            string itemKey,
+            double quality,
+            double durability,
+            int quantity,
+            bool enabled,
+            bool overrideShutdown,
+            double temperature = 0)
         {
             ItemKey = itemKey;
             Quality = quality;
@@ -721,6 +728,7 @@ namespace GameCult.Aetheria.State.Verse
             Quantity = quantity;
             Enabled = enabled;
             OverrideShutdown = overrideShutdown;
+            Temperature = temperature;
         }
 
         public string ItemKey { get; }
@@ -729,6 +737,7 @@ namespace GameCult.Aetheria.State.Verse
         public int Quantity { get; }
         public bool Enabled { get; }
         public bool OverrideShutdown { get; }
+        public double Temperature { get; }
     }
 
     public sealed class AetheriaRuntimeLoadoutItemSlotSnapshot
@@ -1137,7 +1146,16 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeEntityItemSlotSnapshot
     {
-        public AetheriaRuntimeEntityItemSlotSnapshot(int x, int y, string itemKey, double quality, double durability, int quantity, bool enabled, bool overrideShutdown)
+        public AetheriaRuntimeEntityItemSlotSnapshot(
+            int x,
+            int y,
+            string itemKey,
+            double quality,
+            double durability,
+            int quantity,
+            bool enabled,
+            bool overrideShutdown,
+            double temperature = 0)
         {
             X = x;
             Y = y;
@@ -1147,6 +1165,7 @@ namespace GameCult.Aetheria.State.Verse
             Quantity = quantity;
             Enabled = enabled;
             OverrideShutdown = overrideShutdown;
+            Temperature = temperature;
         }
 
         public int X { get; }
@@ -1157,6 +1176,7 @@ namespace GameCult.Aetheria.State.Verse
         public int Quantity { get; }
         public bool Enabled { get; }
         public bool OverrideShutdown { get; }
+        public double Temperature { get; }
     }
 
     public sealed class AetheriaRuntimeEntityStatGridSnapshot

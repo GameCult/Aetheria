@@ -132,6 +132,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(6)]
         public bool OverrideShutdown { get; set; }
+
+        [Key(7)]
+        public double Temperature { get; set; }
     }
 
     [MessagePackObject]

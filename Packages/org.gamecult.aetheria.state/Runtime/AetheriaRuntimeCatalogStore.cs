@@ -1487,7 +1487,8 @@ namespace GameCult.Aetheria.State.Verse
                 var quantity = ReadFieldInt32(ref reader, slotFields, 4);
                 var enabled = ReadFieldBool(ref reader, slotFields, 5, true);
                 var overrideShutdown = ReadFieldBool(ref reader, slotFields, 6);
-                SkipRemaining(ref reader, slotFields, 7);
+                var temperature = ReadFieldDouble(ref reader, slotFields, 7);
+                SkipRemaining(ref reader, slotFields, 8);
                 slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(
                     position.X,
                     position.Y,
@@ -1496,7 +1497,8 @@ namespace GameCult.Aetheria.State.Verse
                     durability,
                     quantity <= 0 ? 1 : quantity,
                     enabled,
-                    overrideShutdown);
+                    overrideShutdown,
+                    temperature);
             }
 
             return slots;
@@ -1963,13 +1965,14 @@ namespace GameCult.Aetheria.State.Verse
             var quantity = ReadFieldInt32(ref reader, itemFields, 3);
             var enabled = ReadFieldBool(ref reader, itemFields, 4, true);
             var overrideShutdown = ReadFieldBool(ref reader, itemFields, 5);
-            SkipRemaining(ref reader, itemFields, 6);
-            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity, enabled, overrideShutdown);
+            var temperature = ReadFieldDouble(ref reader, itemFields, 6);
+            SkipRemaining(ref reader, itemFields, 7);
+            return new AetheriaRuntimeLoadoutItemSnapshot(itemKey, quality, durability, quantity, enabled, overrideShutdown, temperature);
         }
 
         private static AetheriaRuntimeLoadoutItemSnapshot EmptyLoadoutItem()
         {
-            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1, true, false);
+            return new AetheriaRuntimeLoadoutItemSnapshot("", 1, 1, 1, true, false, 0);
         }
 
         private static IReadOnlyList<AetheriaRuntimeLoadoutItemSlotSnapshot> ReadFieldLoadoutItemSlots(ref MessagePackReader reader, int fields, int index)

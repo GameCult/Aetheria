@@ -174,6 +174,9 @@ public sealed class AetheriaLoadoutItem
 
     [Key(5)]
     public bool OverrideShutdown { get; set; }
+
+    [Key(6)]
+    public double Temperature { get; set; }
 }
 
 [MessagePackObject]
@@ -639,6 +642,9 @@ public sealed class AetheriaEntityItemSlot
 
     [Key(6)]
     public bool OverrideShutdown { get; set; }
+
+    [Key(7)]
+    public double Temperature { get; set; }
 }
 
 [MessagePackObject]

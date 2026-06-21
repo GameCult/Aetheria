@@ -174,7 +174,8 @@ namespace GameCult.Aetheria.State.Verse
             double durability,
             int quantity = 1,
             bool enabled = true,
-            bool overrideShutdown = false)
+            bool overrideShutdown = false,
+            double temperature = 0)
         {
             return new AetheriaRuntimeLoadoutItemCommit
             {
@@ -183,7 +184,8 @@ namespace GameCult.Aetheria.State.Verse
                 Durability = durability,
                 Quantity = quantity,
                 Enabled = enabled,
-                OverrideShutdown = overrideShutdown
+                OverrideShutdown = overrideShutdown,
+                Temperature = temperature
             };
         }
 

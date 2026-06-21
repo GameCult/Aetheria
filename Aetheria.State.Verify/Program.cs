@@ -4300,6 +4300,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
     if (!runtimeStateReader.Contains("TryResolveDaemonItemStatRef(", StringComparison.Ordinal) ||
         !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
         !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+        !runtimeStateReader.Contains("item.Temperature", StringComparison.Ordinal) ||
         !runtimeStateReader.Contains("FindDaemonItem(", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
         source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
@@ -10756,24 +10757,28 @@ static void RequireDroppedPickupCheckpointState(string root)
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")] = new[]
         {
             "AetheriaRuntimeDroppedPickupCommit",
-            "DroppedPickups"
+            "DroppedPickups",
+            "public double Temperature { get; set; }"
         },
         [Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs")] = new[]
         {
             "AetheriaDroppedPickupSnapshot",
-            "DroppedPickups"
+            "DroppedPickups",
+            "public double Temperature { get; set; }"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
         {
             "ReadZoneStatePayload(record.Key, record.Payload)",
             "ReadFieldDroppedPickups",
-            "AetheriaRuntimeDroppedPickupSnapshot"
+            "AetheriaRuntimeDroppedPickupSnapshot",
+            "var temperature = ReadFieldDouble(ref reader"
         },
         [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
         {
             "public string RecordKey",
             "AetheriaRuntimeDroppedPickupSnapshot",
-            "public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups"
+            "public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups",
+            "public double Temperature { get; }"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {

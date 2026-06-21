@@ -430,7 +430,8 @@ public class DaemonRuntimeDocumentTests
                                             ItemKey = "test-laser",
                                             Quality = 0.5,
                                             Durability = 1.0,
-                                            Enabled = true
+                                            Enabled = true,
+                                            Temperature = 0.5
                                         }
                                     }
                                 }
@@ -451,7 +452,7 @@ public class DaemonRuntimeDocumentTests
             {
                 NumberValue(10),
                 NumberValue(20),
-                NumberValue(0),
+                NumberValue(1),
                 NumberValue(0),
                 NumberValue(1),
                 EmptyBehaviorValue("stat-recipe")
@@ -479,7 +480,7 @@ public class DaemonRuntimeDocumentTests
             catalog,
             AetheriaRuntimeDaemonItemStatQueries.ItemStatRef("test-laser", "Weapon", 2, 7),
             out var value));
-        Assert.AreEqual("15", value);
+        Assert.AreEqual("12.5", value);
     }
 
     [Test]
