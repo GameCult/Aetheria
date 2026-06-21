@@ -4406,6 +4406,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "CountAvailablePlayerShips(",
+        "GameManager.IsObservedDocked",
         "GameManager.AvailableEntities()"
     };
 
@@ -4434,7 +4435,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "string.Equals(request.Command, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Close",
         "_cargoSelectionCommands.TryGetValue(request.Command",
         "GameManager.DockedEntity.Children",
-        "GameManager.CurrentEntity.Parent.Children"
+        "GameManager.CurrentEntity.Parent.Children",
+        "GameManager.DockedEntity == null"
     };
 
     var hits = forbiddenSymbols
