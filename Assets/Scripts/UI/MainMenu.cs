@@ -306,7 +306,7 @@ public class MainMenu : MonoBehaviour
                 ShowSettings();
                 return;
             case AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand:
-                if (!TrySendPlayerSettingsCommand(request, command.Command))
+                if (!TrySendKnownAetheriaEveCommand(request, "player-settings"))
                 {
                     Debug.LogWarning($"Unhandled player-settings command kind: {command.Kind}");
                     return;
@@ -341,7 +341,7 @@ public class MainMenu : MonoBehaviour
 
                 return;
             case AetheriaRuntimeMainMenuCommandKind.VerseHostCommand:
-                if (TrySendVerseHostCommand(AetheriaRuntimeEveCommandClient.CommandKindForSurface(request)))
+                if (TrySendKnownAetheriaEveCommand(request, "Verse-host"))
                 {
                     ShowVerseSettingsSurface();
                 }
@@ -468,78 +468,48 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static bool TrySendVerseHostCommand(AetheriaRuntimeEveCommandKind command)
-    {
-        var stateBoot = CurrentStateBoot();
-        if (!CanSendLocalEveCommand(stateBoot, "Verse-host", command.ToString()))
-            return true;
-
-        try
-        {
-            if (!AetheriaRuntimeEveCommands.TrySendVerseHostCommand(
-                    stateBoot.StateFilePath,
-                    command,
-                    "unity-main-menu",
-                    out var submitted,
-                    out var error))
-            {
-                Debug.LogError($"Failed to submit Aetheria Verse-host Eve command '{command}': {error}");
-                return true;
-            }
-
-            Debug.Log($"Submitted Aetheria Verse-host Eve command: {submitted!.CommandId}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to send Aetheria Verse-host Eve command '{command}': {ex}");
-            return true;
-        }
-    }
-
-    private static bool TrySendPlayerSettingsCommand(
+    private static bool TrySendKnownAetheriaEveCommand(
         EveSurfaceCommandRequest request,
-        string command)
+        string label)
     {
         if (request == null)
             return false;
 
         var stateBoot = CurrentStateBoot();
-        if (!CanSendLocalEveCommand(stateBoot, "player-settings", command))
+        if (!CanSendLocalEveCommand(stateBoot, label))
             return true;
 
         try
         {
-            if (!AetheriaRuntimeEveCommands.TrySendPlayerSettingsCommand(
+            if (!AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(
                     stateBoot.StateFilePath,
                     request,
                     "unity-main-menu",
                     out var submitted,
                     out var error))
             {
-                Debug.LogError($"Failed to submit Aetheria player-settings Eve command '{command}': {error}");
+                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
                 return true;
             }
 
-            Debug.Log($"Submitted Aetheria player-settings Eve command: {submitted!.CommandId}");
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
             return true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to send Aetheria player-settings Eve command '{command}': {ex}");
+            Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
             return true;
         }
     }
 
     private static bool CanSendLocalEveCommand(
         AetheriaRuntimeStateBootReport stateBoot,
-        string label,
-        string command)
+        string label)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             Debug.LogWarning(
-                $"Cannot send {label} command '{command}' because the active target is not a readable local Verse state file.");
+                $"Cannot send {label} command because the active target is not a readable local Verse state file.");
             return false;
         }
 

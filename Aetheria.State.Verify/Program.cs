@@ -2418,9 +2418,9 @@ static void RequireMainMenuSettingsCommands(string root)
 
     var requiredMainMenuAuthoritySymbols = new[]
     {
-        "TrySendPlayerSettingsCommand(request, command.Command)",
+        "TrySendKnownAetheriaEveCommand(request, \"player-settings\")",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
-        "AetheriaRuntimeEveCommands.TrySendPlayerSettingsCommand(",
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
         "stateBoot.StateFilePath",
         "\"unity-main-menu\""
     };
@@ -2436,7 +2436,8 @@ static void RequireMainMenuSettingsCommands(string root)
             string.Join(", ", missingUiCalls));
     }
 
-    if (source.Contains("TrySendPlayerSettingsCommand(request.Command, request.Payload)", StringComparison.Ordinal) ||
+    if (source.Contains("TrySendPlayerSettingsCommand(", StringComparison.Ordinal) ||
+        source.Contains("CommandKindForSurface(request)", StringComparison.Ordinal) ||
         source.Contains("new AetheriaRuntimePlayerSettingsCommandBody", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -2492,7 +2493,7 @@ static void RequireMainMenuSettingsCommands(string root)
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
-        "TrySendPlayerSettingsCommand(request, command.Command)"
+        "TrySendKnownAetheriaEveCommand(request, \"player-settings\")"
     };
 
     var missingMainMenuSymbols = requiredMainMenuSymbols
@@ -2628,6 +2629,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "string.Equals(request.Command, AetheriaRuntimeMainMenuCommands.BackToSettings",
         "string.Equals(request.Command, AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen",
         "TrySendVerseHostCommand(request.Command)",
+        "CommandKindForSurface(request)",
         "AetheriaRuntimeClientTargetCommands.IsKnown(request.Command",
         "_nextMenu.panel.Title.text = \"settings\"",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"input\", \"settings\")",
@@ -5550,13 +5552,11 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
         "TryRequestClientTargetCommand(request)",
-        "TrySendVerseHostCommand(AetheriaRuntimeEveCommandClient.CommandKindForSurface(request))",
-        "TrySendVerseHostCommand(AetheriaRuntimeEveCommandKind command)",
-        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
+        "TrySendKnownAetheriaEveCommand(request, \"Verse-host\")",
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
-        "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
-        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand("
+        "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest("
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
@@ -5590,6 +5590,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "clientTarget.SyncReplica()",
         "TryQueueVerseHostCommand(",
         "TrySendVerseHostCommand(request.Command)",
+        "CommandKindForSurface(request)",
         "AetheriaRuntimeClientTargetCommands.IsKnown(request.Command",
         "AetheriaRuntimeVerseHostCommands.IsKnown(request.Command",
         "new EveSurfaceCommandRequest(",
@@ -6677,6 +6678,7 @@ static void RequireTypedEveCommandBodies(string root)
         "TrySendLoadoutTemplateCommand(",
         "TrySendKnownSurfaceCommand(",
         "TryCreateKnownSurfaceCommand(",
+        "CreateVerseHostCommand(CommandKindForSurface(request), clientId)",
         "CommandKindForSurface(",
         "CommandText(",
         "ToDocument(",
@@ -6694,7 +6696,6 @@ static void RequireTypedEveCommandBodies(string root)
         "command.InputSettings.ActionName",
         "command.InputSettings.InputSystemPath",
         "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand(",
-        "AetheriaRuntimeEveCommands.TrySendVerseHostCommand(",
         "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand(",
         "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand("
     };
