@@ -8810,6 +8810,23 @@ static void RequireHullConductivityRequestAuthority(string root)
             "Hull conductivity still has renderer-local UI write authority: " +
             string.Join("; ", hits));
     }
+
+    var submissionAcceptanceHits = Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line =>
+            line.Line.Contains("if (GameManager.RequestHullConductivityToggle", StringComparison.Ordinal) ||
+            line.Line.Contains("if (RequestHullConductivityToggle", StringComparison.Ordinal) ||
+            line.Line.Contains("RefreshCells(new []{v,int2", StringComparison.Ordinal))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (submissionAcceptanceHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Hull conductivity UI still treats daemon submission as accepted cell state: " +
+            string.Join("; ", submissionAcceptanceHits));
+    }
 }
 
 static void RequireInventoryEntityRenameRequestAuthority(string root)

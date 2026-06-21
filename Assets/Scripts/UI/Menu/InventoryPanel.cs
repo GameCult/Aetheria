@@ -664,23 +664,19 @@ private void Update()
 //                        Debug.Log($"Clicked at pos {data.position}, normalized {point}");
                         if (_displayedHullShape[int2(v.x - 1, v.y)] && point.x < ThermalToggleRegionSize)
                         {
-                            if (GameManager.RequestHullConductivityToggle(entity, int2(v.x - 1, v.y), 0))
-                                RefreshCells(new []{v,int2(v.x - 1, v.y)});
+                            GameManager.RequestHullConductivityToggle(entity, int2(v.x - 1, v.y), 0);
                         }
                         if (_displayedHullShape[int2(v.x + 1, v.y)] && point.x > 1 - ThermalToggleRegionSize)
                         {
-                            if (GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 0))
-                                RefreshCells(new []{v,int2(v.x + 1, v.y)});
+                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 0);
                         }
                         if (_displayedHullShape[int2(v.x, v.y - 1)] && point.y < ThermalToggleRegionSize)
                         {
-                            if (GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y - 1), 1))
-                                RefreshCells(new []{v,int2(v.x, v.y - 1)});
+                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y - 1), 1);
                         }
                         if (_displayedHullShape[int2(v.x, v.y + 1)] && point.y > 1 - ThermalToggleRegionSize)
                         {
-                            if (GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 1))
-                                RefreshCells(new []{v,int2(v.x, v.y + 1)});
+                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 1);
                         }
                     });
                 }
