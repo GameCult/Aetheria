@@ -79,7 +79,8 @@ namespace GameCult.Aetheria.State.Verse
             double centerX,
             double centerZ,
             double parentCenterX,
-            double parentCenterZ)
+            double parentCenterZ,
+            double gravityWaveSpeed)
         {
             BodyKey = bodyKey ?? "";
             OrbitKey = orbitKey ?? "";
@@ -89,6 +90,7 @@ namespace GameCult.Aetheria.State.Verse
             CenterZ = centerZ;
             ParentCenterX = parentCenterX;
             ParentCenterZ = parentCenterZ;
+            GravityWaveSpeed = gravityWaveSpeed;
         }
 
         public string BodyKey { get; }
@@ -99,6 +101,7 @@ namespace GameCult.Aetheria.State.Verse
         public double CenterZ { get; }
         public double ParentCenterX { get; }
         public double ParentCenterZ { get; }
+        public double GravityWaveSpeed { get; }
     }
 
     public static class AetheriaRuntimeDaemonRenderQueries
@@ -188,7 +191,8 @@ namespace GameCult.Aetheria.State.Verse
                     center.x,
                     center.z,
                     parentCenter.x,
-                    parentCenter.z));
+                    parentCenter.z,
+                    ResolveWaveSpeed(body)));
             }
 
             return poses.Count;

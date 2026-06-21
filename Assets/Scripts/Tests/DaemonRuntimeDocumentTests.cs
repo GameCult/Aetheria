@@ -765,7 +765,8 @@ public class DaemonRuntimeDocumentTests
                     OrbitKey = "orbit:missing",
                     Kind = "gas_giant",
                     GravityInfluenceCenterX = -3,
-                    GravityInfluenceCenterZ = 7
+                    GravityInfluenceCenterZ = 7,
+                    GravityWaveSpeed = 3.5
                 }
             }
         };
@@ -782,6 +783,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("body:explicit", poses[1].BodyKey);
         Assert.AreEqual(-3, poses[1].CenterX, 0.0001);
         Assert.AreEqual(7, poses[1].CenterZ, 0.0001);
+        Assert.AreEqual(3.5, poses[1].GravityWaveSpeed, 0.0001);
     }
 
     [Test]

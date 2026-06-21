@@ -1888,6 +1888,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must position bodies from daemon render body poses instead of the mirrored Unity Zone orbit evaluator.");
     }
 
+    if (zoneRenderer.Contains("Zone.PlanetInstances[planet.Key]", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer frame updates must read body render state from daemon body poses instead of indexed mirrored Unity planets.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
@@ -1897,7 +1903,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
-        "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)"
+        "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
+        "pose.GravityWaveSpeed"
     };
     var missingZoneRendererSymbols = requiredZoneRendererSymbols
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))

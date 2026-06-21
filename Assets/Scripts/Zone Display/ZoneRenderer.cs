@@ -511,17 +511,17 @@ public class ZoneRenderer : MonoBehaviour
             if (!_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose))
                 continue;
 
-            var planetInstance = Zone.PlanetInstances[planet.Key];
             var p = new float2((float)pose.CenterX, (float)pose.CenterZ);
             var height = GetTerrainHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
-            planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
+            var bodyRadius = planet.Value.Body.transform.localScale.x;
+            planet.Value.Body.transform.localPosition = new Vector3(0, height + bodyRadius * 2, 0);
             if (planet.Value is GasGiantObject gasGiantObject)
             {
                 gasGiantObject.GravityWaves.material.SetFloat("_Phase",
-                Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
-                if (!(planet.Value is SunObject))
+                    Zone.Time * (float)pose.GravityWaveSpeed);
+                if (!string.Equals(pose.Kind, "sun", StringComparison.OrdinalIgnoreCase))
                 {
                     var parent = new float2((float)pose.ParentCenterX, (float)pose.ParentCenterZ);
                     var toParent = normalize(parent - p);
