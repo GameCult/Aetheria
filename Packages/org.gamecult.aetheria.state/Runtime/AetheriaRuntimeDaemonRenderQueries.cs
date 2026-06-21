@@ -156,6 +156,38 @@ namespace GameCult.Aetheria.State.Verse
         public double Size { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonCompassMarker
+    {
+        public AetheriaRuntimeDaemonCompassMarker(
+            int targetEntityIndex,
+            double positionX,
+            double positionZ,
+            double deltaX,
+            double deltaZ,
+            double distance,
+            double infoGathered,
+            bool hostile)
+        {
+            TargetEntityIndex = targetEntityIndex;
+            PositionX = positionX;
+            PositionZ = positionZ;
+            DeltaX = deltaX;
+            DeltaZ = deltaZ;
+            Distance = Math.Max(0, distance);
+            InfoGathered = infoGathered;
+            Hostile = hostile;
+        }
+
+        public int TargetEntityIndex { get; }
+        public double PositionX { get; }
+        public double PositionZ { get; }
+        public double DeltaX { get; }
+        public double DeltaZ { get; }
+        public double Distance { get; }
+        public double InfoGathered { get; }
+        public bool Hostile { get; }
+    }
+
     public readonly struct AetheriaRuntimeGravityTerrainBand
     {
         public AetheriaRuntimeGravityTerrainBand(double startDepth, double depthRange)
@@ -358,6 +390,64 @@ namespace GameCult.Aetheria.State.Verse
             return poses.Count;
         }
 
+        public static AetheriaRuntimeDaemonCompassMarker[] QueryCompassMarkers(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            double minimumDistance)
+        {
+            var markers = new List<AetheriaRuntimeDaemonCompassMarker>();
+            QueryCompassMarkers(zone, observerEntityIndex, minimumInfoGathered, minimumDistance, markers);
+            return markers.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonCompassMarker>() : markers.ToArray();
+        }
+
+        public static int QueryCompassMarkers(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            double minimumDistance,
+            List<AetheriaRuntimeDaemonCompassMarker> markers)
+        {
+            if (markers == null) throw new ArgumentNullException(nameof(markers));
+            markers.Clear();
+            if (zone == null || observerEntityIndex < 0)
+                return 0;
+
+            var entities = BuildEntityMap(zone);
+            if (!entities.TryGetValue(observerEntityIndex, out var observer))
+                return 0;
+
+            var requiredDistance = Math.Max(0, minimumDistance);
+            foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact == null ||
+                    !contact.Visible ||
+                    contact.InfoGathered <= minimumInfoGathered ||
+                    !entities.TryGetValue(contact.TargetEntityIndex, out var target))
+                {
+                    continue;
+                }
+
+                var deltaX = target.PositionX - observer.PositionX;
+                var deltaZ = target.PositionZ - observer.PositionZ;
+                var distance = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                if (distance <= requiredDistance)
+                    continue;
+
+                markers.Add(new AetheriaRuntimeDaemonCompassMarker(
+                    target.EntityIndex,
+                    target.PositionX,
+                    target.PositionZ,
+                    deltaX,
+                    deltaZ,
+                    distance,
+                    contact.InfoGathered,
+                    contact.Hostile));
+            }
+
+            return markers.Count;
+        }
+
         public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(
             AetheriaRuntimeDaemonSoaViewIndex? index,
             double minX,
@@ -462,6 +552,18 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeGravityTerrainBand(
                 startDepth,
                 zone.GravityTerrainDepth - startDepth + maxDepth);
+        }
+
+        private static Dictionary<int, AetheriaRuntimeEntitySnapshotCommit> BuildEntityMap(AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var entities = new Dictionary<int, AetheriaRuntimeEntitySnapshotCommit>();
+            foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (entity != null && entity.EntityIndex >= 0)
+                    entities[entity.EntityIndex] = entity;
+            }
+
+            return entities;
         }
 
         private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)

@@ -94,6 +94,10 @@ public class ZoneRenderer : MonoBehaviour
         new Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose>(StringComparer.Ordinal);
     private readonly List<AetheriaRuntimeDaemonAsteroidInstancePose> _visibleAsteroidInstancePoses =
         new List<AetheriaRuntimeDaemonAsteroidInstancePose>();
+    private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers =
+        new List<AetheriaRuntimeDaemonCompassMarker>();
+    private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex =
+        new Dictionary<int, AetheriaRuntimeDaemonCompassMarker>();
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -471,6 +475,7 @@ public class ZoneRenderer : MonoBehaviour
         Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
+        RefreshDaemonCompassMarkers();
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
         bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
@@ -556,14 +561,16 @@ public class ZoneRenderer : MonoBehaviour
         {
             if(entityInstance.CompassIcon)
             {
-                var difference = entityInstance.Entity.CultPositionXZ - PerspectiveEntity.CultPositionXZ;
-                var distance = CultMath.math.length(difference);
-                
-                entityInstance.CompassIcon.gameObject.SetActive(
-                    PerspectiveEntity.EntityInfoGathered.ContainsKey(entityInstance.Entity) && 
-                    PerspectiveEntity.EntityInfoGathered[entityInstance.Entity] > Settings.GameplaySettings.TargetDetectionInfoThreshold &&
-                    distance > _minimapDistance);
-                entityInstance.CompassIcon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
+                var active = entityInstance.Entity != null &&
+                    _daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker);
+                entityInstance.CompassIcon.gameObject.SetActive(active);
+                if (active)
+                {
+                    entityInstance.CompassIcon.transform.rotation = Quaternion.Euler(
+                        0,
+                        0,
+                        Mathf.Atan2((float)marker.DeltaZ, (float)marker.DeltaX) * Mathf.Rad2Deg - 90);
+                }
             }
         }
 
@@ -614,6 +621,19 @@ public class ZoneRenderer : MonoBehaviour
             if (!string.IsNullOrWhiteSpace(pose.BodyKey))
                 _daemonAsteroidBeltPosesByBodyKey[pose.BodyKey] = pose;
         }
+    }
+
+    private void RefreshDaemonCompassMarkers()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(
+            _daemonZoneSnapshot,
+            PerspectiveEntity?.DaemonEntityIndex ?? -1,
+            Settings.GameplaySettings.TargetDetectionInfoThreshold,
+            _minimapDistance,
+            _daemonCompassMarkers);
+        _daemonCompassMarkersByEntityIndex.Clear();
+        foreach (var marker in _daemonCompassMarkers)
+            _daemonCompassMarkersByEntityIndex[marker.TargetEntityIndex] = marker;
     }
 
     private float GetTerrainHeight(float2 position)

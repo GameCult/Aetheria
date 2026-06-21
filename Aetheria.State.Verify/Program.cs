@@ -1827,7 +1827,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static AetheriaRuntimeDaemonAsteroidInstancePose[] QueryAsteroidInstancePoses(",
         "public static int QueryAsteroidInstancePoses(",
         "TryResolveAsteroidBeltCenter(body, orbitPositions, orbits, out var center)",
-        "ResolveAsteroidBeltRadius(body)"
+        "ResolveAsteroidBeltRadius(body)",
+        "AetheriaRuntimeDaemonCompassMarker",
+        "public static AetheriaRuntimeDaemonCompassMarker[] QueryCompassMarkers(",
+        "public static int QueryCompassMarkers(",
+        "BuildEntityMap(zone)"
     };
 
     var missingQuerySymbols = requiredQuerySymbols
@@ -1934,6 +1938,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
             "ZoneRenderer must reconcile rendered entities from daemon frame snapshots instead of subscribing to mirrored Unity entity collection mutations.");
     }
 
+    if (zoneRenderer.Contains("PerspectiveEntity.EntityInfoGathered", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon compass markers instead of reading mirrored Unity entity visibility state.");
+    }
+
     var requiredZoneRendererSymbols = new[]
     {
         "private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;",
@@ -1941,6 +1951,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
         "private readonly Dictionary<string, AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPosesByBodyKey",
+        "private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers",
+        "private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex",
         "public void LoadZone(Zone zone, AetheriaRuntimeZoneSnapshotCommit daemonZone = null)",
         "_daemonZoneSnapshot = daemonZone;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
@@ -1955,6 +1967,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(_daemonZoneSnapshot, _daemonBodyPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidBeltPoses(_daemonZoneSnapshot, _daemonAsteroidBeltPoses);",
         "AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(",
+        "AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(",
+        "_daemonCompassMarkersByEntityIndex.TryGetValue(entityInstance.Entity.DaemonEntityIndex, out var marker)",
         "_daemonBodyPosesByBodyKey.TryGetValue(planet.Key, out var pose)",
         "_daemonAsteroidBeltPosesByBodyKey.TryGetValue(key, out var beltPose)",
         "pose.GravityWaveSpeed"

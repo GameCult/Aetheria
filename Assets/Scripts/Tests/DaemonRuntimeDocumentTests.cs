@@ -934,6 +934,100 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderQueriesPublishCompassMarkersFromVisibleContacts()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Entities = new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 0,
+                    PositionX = 10,
+                    PositionZ = 20,
+                    Contacts = new[]
+                    {
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 1,
+                            InfoGathered = 0.8,
+                            Visible = true,
+                            Hostile = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 2,
+                            InfoGathered = 0.2,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 3,
+                            InfoGathered = 0.9,
+                            Visible = false
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 4,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 99,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        }
+                    }
+                },
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 1,
+                    PositionX = 13,
+                    PositionZ = 24
+                },
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 2,
+                    PositionX = 100,
+                    PositionZ = 20
+                },
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 3,
+                    PositionX = 10,
+                    PositionZ = 200
+                },
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 4,
+                    PositionX = 11,
+                    PositionZ = 20
+                }
+            }
+        };
+
+        var markers = new List<AetheriaRuntimeDaemonCompassMarker>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryCompassMarkers(
+            zone,
+            0,
+            0.5,
+            2,
+            markers);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual(1, markers.Count);
+        Assert.AreEqual(1, markers[0].TargetEntityIndex);
+        Assert.AreEqual(13, markers[0].PositionX, 0.0001);
+        Assert.AreEqual(24, markers[0].PositionZ, 0.0001);
+        Assert.AreEqual(3, markers[0].DeltaX, 0.0001);
+        Assert.AreEqual(4, markers[0].DeltaZ, 0.0001);
+        Assert.AreEqual(5, markers[0].Distance, 0.0001);
+        Assert.AreEqual(0.8, markers[0].InfoGathered, 0.0001);
+        Assert.IsTrue(markers[0].Hostile);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
