@@ -145,6 +145,8 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeCommandPort : IDisposable
     {
+        public const string DefaultRuntimeId = "aetheria-command-client";
+
         private readonly global::Aetheria.State.AetheriaCommandPort _port;
 
         private AetheriaRuntimeCommandPort(global::Aetheria.State.AetheriaCommandPort port)
@@ -156,11 +158,11 @@ namespace GameCult.Aetheria.State.Verse
 
         public static async Task<AetheriaRuntimeCommandPort> OpenAsync(
             string stateFilePath,
-            string runtimeId = "unity-input-provider")
+            string runtimeId = DefaultRuntimeId)
         {
             var port = await global::Aetheria.State.AetheriaCommandPort.OpenAsync(
                     stateFilePath,
-                    string.IsNullOrWhiteSpace(runtimeId) ? "unity-input-provider" : runtimeId)
+                    string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId)
                 .ConfigureAwait(false);
             return new AetheriaRuntimeCommandPort(port);
         }
@@ -242,7 +244,7 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeCommandPort GetOrOpen(string stateFilePath, string runtimeId)
         {
             var fullPath = Path.GetFullPath(stateFilePath ?? "");
-            var key = $"{fullPath}|{(string.IsNullOrWhiteSpace(runtimeId) ? "unity-input-provider" : runtimeId)}";
+            var key = $"{fullPath}|{(string.IsNullOrWhiteSpace(runtimeId) ? AetheriaRuntimeCommandPort.DefaultRuntimeId : runtimeId)}";
             lock (Sync)
             {
                 if (Ports.TryGetValue(key, out var existing))

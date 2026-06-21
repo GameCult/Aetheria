@@ -6799,6 +6799,8 @@ static void RequireTypedEveCommandBodies(string root)
         "namespace Aetheria.State",
         "namespace GameCult.Aetheria.State.Verse",
         "global::Aetheria.State.AetheriaCommandPort",
+        "public const string DefaultRuntimeId = \"aetheria-command-client\"",
+        "string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId",
         "public static class AetheriaRuntimeCommandSubmitter",
         "TrySubmitEveCommand(",
         "TrySubmitDaemonCommand(",
@@ -6886,6 +6888,21 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Daemon/shared Aetheria runtime contracts still live under a Unity-named API namespace: " +
             string.Join(", ", unityNamedRuntimeHits));
+    }
+
+    var forbiddenSharedCommandRuntimeIds = new[]
+    {
+        "string runtimeId = \"unity-input-provider\"",
+        "? \"unity-input-provider\" : runtimeId"
+    };
+    var sharedCommandRuntimeIdHits = forbiddenSharedCommandRuntimeIds
+        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (sharedCommandRuntimeIdHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared command runtime still uses Unity-specific fallback runtime ids: " +
+            string.Join(", ", sharedCommandRuntimeIdHits));
     }
 
     var forbiddenUnitySubmitterSymbols = new[]
