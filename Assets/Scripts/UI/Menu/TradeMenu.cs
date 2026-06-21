@@ -192,7 +192,7 @@ public class TradeMenu : MonoBehaviour
             x => () =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemKey == x.ItemKey && s is Ship {IsPlayerShip: true}).ToString();
+                    return CountAvailablePlayerShips(x.ItemKey).ToString();
                 if(x.Item is SimpleCommodity)
                     return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
                 return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0).ToString();
@@ -200,7 +200,7 @@ public class TradeMenu : MonoBehaviour
             x =>
             {
                 if (x.IsHull)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.ItemKey == x.ItemKey && s is Ship {IsPlayerShip: true});
+                    return CountAvailablePlayerShips(x.ItemKey);
                 if(x.Item is SimpleCommodity)
                     return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
                 return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0;
@@ -1045,12 +1045,12 @@ public class TradeMenu : MonoBehaviour
                 (GameManager.DockingBay, "Docking Bay");
         }
 
-        if (GameManager.CurrentEntity?.Parent == null)
+        if (GameManager.DockingBay == null)
             return;
 
-        foreach (var ship in GameManager.CurrentEntity.Parent.Children
-                     .Where(entity => entity is Ship { IsPlayerShip: true })
-                     .Cast<Ship>()
+        foreach (var ship in GameManager.AvailableEntities()
+                     .OfType<Ship>()
+                     .Where(ship => ship.IsPlayerShip)
                      .Select((ship, shipIndex) => (ship, shipIndex)))
         {
             foreach (var bay in ship.ship.CargoBays.Select((cargoBay, index) => (cargoBay, index)))
@@ -1184,7 +1184,14 @@ public class TradeMenu : MonoBehaviour
             children ?? Array.Empty<EveSurfaceComponent>());
     }
 
-private void OnDisable()
+    private int CountAvailablePlayerShips(string itemKey)
+    {
+        return GameManager.AvailableEntities()
+            .OfType<Ship>()
+            .Count(ship => ship.IsPlayerShip && ship.Hull?.ItemKey == itemKey);
+    }
+
+    private void OnDisable()
     {
         HideCargoSelectorSurface();
         HideFilterSurface();

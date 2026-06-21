@@ -4365,7 +4365,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.ShipBayCommand(",
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
-        "AetheriaRuntimeTradeCargoSelectorCommandKind.Select"
+        "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
+        "CountAvailablePlayerShips(",
+        "GameManager.AvailableEntities()"
     };
 
     var missingSymbols = requiredSymbols
@@ -4391,7 +4393,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "ContextMenu.AddOption(\"Docking Bay\"",
         "ContextMenu.AddOption($\"{ship.Name} Bay {bay.index+1}\"",
         "string.Equals(request.Command, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Close",
-        "_cargoSelectionCommands.TryGetValue(request.Command"
+        "_cargoSelectionCommands.TryGetValue(request.Command",
+        "GameManager.DockedEntity.Children",
+        "GameManager.CurrentEntity.Parent.Children"
     };
 
     var hits = forbiddenSymbols
