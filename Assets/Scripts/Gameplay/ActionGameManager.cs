@@ -858,10 +858,10 @@ public class ActionGameManager : MonoBehaviour
     public void RequestLoadoutTemplateSave(EntityConstructionBlueprint blueprint)
     {
         var loadout = ProjectLoadoutTemplate(blueprint);
-        TrySendRuntimeLoadoutTemplateCommand(loadout, "unity-inventory", "loadout template save");
+        SendRuntimeLoadoutTemplateCommand(loadout, "unity-inventory", "loadout template save");
     }
 
-    private static bool TrySendRuntimeLoadoutTemplateCommand(
+    private static void SendRuntimeLoadoutTemplateCommand(
         AetheriaRuntimeLoadoutTemplateCommit loadout,
         string clientId,
         string label)
@@ -876,16 +876,14 @@ public class ActionGameManager : MonoBehaviour
                     out var error))
             {
                 Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return false;
+                return;
             }
 
             Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
-            return true;
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
-            return false;
         }
     }
 

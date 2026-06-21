@@ -9645,8 +9645,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var requiredActionSymbols = new[]
     {
         "RequestLoadoutTemplateSave",
-        "TrySendRuntimeLoadoutTemplateCommand(loadout",
-        "private static bool TrySendRuntimeLoadoutTemplateCommand(",
+        "SendRuntimeLoadoutTemplateCommand(loadout",
+        "private static void SendRuntimeLoadoutTemplateCommand(",
         "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand",
     };
     var missingActionSymbols = requiredActionSymbols
@@ -9659,10 +9659,20 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
             string.Join(", ", missingActionSymbols));
     }
 
-    if (actionGameManager.Contains("AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate", StringComparison.Ordinal))
+    var forbiddenActionSymbols = new[]
+    {
+        "AetheriaRuntimeStateCommitLog.QueueLoadoutTemplate",
+        "TrySendRuntimeLoadoutTemplateCommand(",
+        "private static bool TrySendRuntimeLoadoutTemplateCommand("
+    };
+    var forbiddenActionHits = forbiddenActionSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenActionHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager still saves loadout templates through the runtime commit log.");
+            "ActionGameManager still saves loadout templates through local commit or submission-acceptance authority: " +
+            string.Join(", ", forbiddenActionHits));
     }
 
     var requiredBridgeSymbols = new[]
