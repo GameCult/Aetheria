@@ -83,7 +83,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
-    private readonly Dictionary<string, Action> _dropdownCommands = new Dictionary<string, Action>(StringComparer.Ordinal);
+    private AetheriaRuntimeInventoryDropdownSurfaceProjection _dropdownSurfaceProjection;
     private readonly AetheriaEveUnitySurfaceChrome _dropdownSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = UIE.Align.FlexStart,
@@ -179,92 +179,17 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         }
     }
 
-    private (string text, Action action, bool enabled) LoadoutOption(AetheriaRuntimeLoadoutTemplateSnapshot template)
-    {
-        if (!AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
-                template,
-                ActionGameManager.RuntimeCatalog,
-                GameManager.ObservedTradeValueSettings(),
-                out var price))
-        {
-            return ($"{template.Name} - unavailable", () => { }, false);
-        }
-
-        return ($"{template.Name} - {price:n0}", () =>
-        {
-            GameManager.RequestRuntimeLoadoutRestore(template);
-        }, true);
-    }
-
     private void RenderDropdownSurface()
     {
-        BuildDropdownCommands();
+        _dropdownSurfaceProjection = ProjectDropdownSurface();
 
         _dropdownSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _dropdownSurfaceDocument,
             "Aetheria Inventory Dropdown Surface",
-            AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(ProjectDropdownSurfaceState()),
+            AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceProjection.State),
             HandleDropdownSurfaceCommand,
             _dropdownSurfaceChrome);
-    }
-
-    private void BuildDropdownCommands()
-    {
-        _dropdownCommands.Clear();
-
-        foreach (var entityEntry in GameManager.ObservedAvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
-        {
-            if (entityEntry.entity.CargoBays.Any())
-            {
-                if (entityEntry.entity != _displayedEntity)
-                {
-                    var equipmentCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(entityEntry.entityIndex);
-                    _dropdownCommands[equipmentCommand] = () => Display(entityEntry.entity);
-                }
-
-                foreach (var bayEntry in entityEntry.entity.CargoBays
-                             .Where(bay => bay != _displayedCargo)
-                             .Select((bay, bayIndex) => (bay, bayIndex)))
-                {
-                    var bayCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityBayCommand(
-                        entityEntry.entityIndex,
-                        bayEntry.bayIndex);
-                    _dropdownCommands[bayCommand] = () => Display(bayEntry.bay);
-                }
-            }
-            else if (entityEntry.entity != _displayedEntity)
-            {
-                var entityCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityCommand(entityEntry.entityIndex);
-                _dropdownCommands[entityCommand] = () => Display(entityEntry.entity);
-            }
-        }
-
-        if (GameManager.TryGetObservedDockingBay(out var dockingBay) && _displayedCargo != dockingBay)
-        {
-            _dropdownCommands[AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay] = () => Display(dockingBay);
-        }
-
-        if (_displayedEntity != null)
-        {
-            _dropdownCommands[AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout] = () =>
-            {
-                GameManager.RequestLoadoutTemplateSave(_displayedEntity);
-            };
-        }
-
-        foreach (var loadoutEntry in GameManager.ObservedLoadoutTemplates().Select((template, templateIndex) => (template, templateIndex)))
-        {
-            var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
-            if (blueprint == null)
-                continue;
-
-            var restoreCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(loadoutEntry.templateIndex);
-            _dropdownCommands[restoreCommand] = () =>
-            {
-                GameManager.RequestRuntimeLoadoutRestore(loadoutEntry.template);
-            };
-        }
     }
 
     private void HandleDropdownSurfaceCommand(EveSurfaceCommandRequest request)
@@ -282,14 +207,58 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         }
 
         if (command.Kind == AetheriaRuntimeInventoryDropdownCommandKind.Select &&
-            _dropdownCommands.TryGetValue(command.Command, out var action))
+            _dropdownSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
         {
-            action();
+            ExecuteDropdownSelection(selection);
             HideDropdownSurface();
             return;
         }
 
         Debug.LogWarning($"Unknown inventory dropdown command: {request?.Command}");
+    }
+
+    private void ExecuteDropdownSelection(AetheriaRuntimeInventoryDropdownSelection selection)
+    {
+        var entities = GameManager.ObservedAvailableEntities().ToArray();
+        var loadouts = GameManager.ObservedLoadoutTemplates().ToArray();
+
+        switch (selection.Kind)
+        {
+            case AetheriaRuntimeInventoryDropdownSelectionKind.EntityEquipment:
+            case AetheriaRuntimeInventoryDropdownSelectionKind.Entity:
+                if (selection.EntityIndex >= 0 && selection.EntityIndex < entities.Length)
+                {
+                    Display(entities[selection.EntityIndex]);
+                }
+                return;
+            case AetheriaRuntimeInventoryDropdownSelectionKind.EntityBay:
+                if (selection.EntityIndex >= 0 &&
+                    selection.EntityIndex < entities.Length &&
+                    selection.BayIndex >= 0 &&
+                    selection.BayIndex < entities[selection.EntityIndex].CargoBays.Count)
+                {
+                    Display(entities[selection.EntityIndex].CargoBays[selection.BayIndex]);
+                }
+                return;
+            case AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay:
+                if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+                {
+                    Display(dockingBay);
+                }
+                return;
+            case AetheriaRuntimeInventoryDropdownSelectionKind.SaveLoadout:
+                if (_displayedEntity != null)
+                {
+                    GameManager.RequestLoadoutTemplateSave(_displayedEntity);
+                }
+                return;
+            case AetheriaRuntimeInventoryDropdownSelectionKind.Loadout:
+                if (selection.TemplateIndex >= 0 && selection.TemplateIndex < loadouts.Length)
+                {
+                    GameManager.RequestRuntimeLoadoutRestore(loadouts[selection.TemplateIndex]);
+                }
+                return;
+        }
     }
 
     private void HideDropdownSurface()
@@ -300,121 +269,49 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument);
     }
 
-    private AetheriaRuntimeInventoryDropdownSurfaceState ProjectDropdownSurfaceState()
+    private AetheriaRuntimeInventoryDropdownSurfaceProjection ProjectDropdownSurface()
     {
-        var groups = new List<AetheriaRuntimeInventoryDropdownGroup>();
-
-        foreach (var entityEntry in GameManager.ObservedAvailableEntities().Select((entity, entityIndex) => (entity, entityIndex)))
-        {
-            var options = new List<AetheriaRuntimeInventoryDropdownOption>();
-            var equipmentCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(entityEntry.entityIndex);
-            if (_dropdownCommands.ContainsKey(equipmentCommand))
+        var entities = GameManager.ObservedAvailableEntities().ToArray();
+        var loadouts = GameManager.ObservedLoadoutTemplates().ToArray();
+        var entityOptions = entities
+            .Select((entity, entityIndex) => new AetheriaRuntimeInventoryDropdownEntityOption(
+                entityIndex,
+                entity.Name,
+                entity == _displayedEntity,
+                entity.CargoBays
+                    .Select((bay, bayIndex) => new AetheriaRuntimeInventoryDropdownBayOption(
+                        bayIndex,
+                        $"Bay {bayIndex + 1}",
+                        bay == _displayedCargo))
+                    .ToArray()))
+            .ToArray();
+        var loadoutOptions = loadouts
+            .Select((template, templateIndex) =>
             {
-                options.Add(new AetheriaRuntimeInventoryDropdownOption(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.entity_{entityEntry.entityIndex}.equipment",
-                    "Equipment",
-                    equipmentCommand));
-            }
+                var canRestore =
+                    GameManager.CreateEntityConstructionBlueprint(template) != null &&
+                    AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
+                        template,
+                        ActionGameManager.RuntimeCatalog,
+                        GameManager.ObservedTradeValueSettings(),
+                        out var price);
+                return new AetheriaRuntimeInventoryDropdownLoadoutOption(
+                    templateIndex,
+                    template.Name,
+                    canRestore ? $"{price:n0}" : "",
+                    canRestore);
+            })
+            .ToArray();
+        var hasDockingBay = GameManager.TryGetObservedDockingBay(out var dockingBay);
 
-            foreach (var bayEntry in entityEntry.entity.CargoBays.Select((bay, bayIndex) => (bay, bayIndex)))
-            {
-                var bayCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityBayCommand(
-                    entityEntry.entityIndex,
-                    bayEntry.bayIndex);
-                if (_dropdownCommands.ContainsKey(bayCommand))
-                {
-                    options.Add(new AetheriaRuntimeInventoryDropdownOption(
-                        $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.entity_{entityEntry.entityIndex}.bay_{bayEntry.bayIndex}",
-                        $"Bay {bayEntry.bayIndex + 1}",
-                        bayCommand));
-                }
-            }
-
-            var entityCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityCommand(entityEntry.entityIndex);
-            if (_dropdownCommands.ContainsKey(entityCommand))
-            {
-                options.Add(new AetheriaRuntimeInventoryDropdownOption(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.entity_{entityEntry.entityIndex}.select",
-                    entityEntry.entity.Name,
-                    entityCommand));
-            }
-
-            if (options.Count > 0)
-            {
-                groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.entity_{entityEntry.entityIndex}.card",
-                    entityEntry.entity.Name,
-                    options));
-            }
-        }
-
-        if (_dropdownCommands.ContainsKey(AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay) &&
-            GameManager.TryGetObservedDockingBay(out var dockingBay))
-        {
-            groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
-                $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.dockingBay.card",
-                "Docking Bay",
-                new[]
-                {
-                    new AetheriaRuntimeInventoryDropdownOption(
-                        $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.dockingBay.select",
-                        dockingBay.Name,
-                        AetheriaRuntimeInventoryDropdownSurfaceBuilder.DockingBay)
-                }));
-        }
-
-        var loadoutOptions = new List<AetheriaRuntimeInventoryDropdownOption>();
-        if (_dropdownCommands.ContainsKey(AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout))
-        {
-            loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
-                $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.save",
-                "Save Loadout",
-                AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout));
-        }
-
-        foreach (var loadoutEntry in GameManager.ObservedLoadoutTemplates().Select((template, templateIndex) => (template, templateIndex)))
-        {
-            var restoreCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(loadoutEntry.templateIndex);
-            if (!AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
-                    loadoutEntry.template,
-                    ActionGameManager.RuntimeCatalog,
-                    GameManager.ObservedTradeValueSettings(),
-                    out var price))
-            {
-                loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.unavailable_{loadoutEntry.templateIndex}",
-                    $"{loadoutEntry.template.Name} - unavailable",
-                    ""));
-                continue;
-            }
-
-            if (_dropdownCommands.ContainsKey(restoreCommand))
-            {
-                loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.restore_{loadoutEntry.templateIndex}",
-                    $"{loadoutEntry.template.Name} - {price:n0}",
-                    restoreCommand));
-            }
-            else
-            {
-                loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
-                    $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.locked_{loadoutEntry.templateIndex}",
-                    $"{loadoutEntry.template.Name} - {price:n0} (unavailable)",
-                    ""));
-            }
-        }
-
-        if (loadoutOptions.Count > 0)
-        {
-            groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
-                $"{AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId}.loadouts.card",
-                "Loadouts",
-                loadoutOptions));
-        }
-
-        return new AetheriaRuntimeInventoryDropdownSurfaceState(
+        return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Project(
             Title?.text ?? "None",
-            groups,
+            entityOptions,
+            hasDockingBay,
+            hasDockingBay ? dockingBay.Name : "",
+            hasDockingBay && dockingBay == _displayedCargo,
+            _displayedEntity != null,
+            loadoutOptions,
             DateTime.UtcNow.ToString("O"));
     }
 

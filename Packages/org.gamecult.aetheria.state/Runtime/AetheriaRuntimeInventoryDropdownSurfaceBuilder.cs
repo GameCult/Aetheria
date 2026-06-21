@@ -54,6 +54,118 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
+    public sealed class AetheriaRuntimeInventoryDropdownEntityOption
+    {
+        public AetheriaRuntimeInventoryDropdownEntityOption(
+            int entityIndex,
+            string name,
+            bool isDisplayed,
+            IReadOnlyList<AetheriaRuntimeInventoryDropdownBayOption> bays)
+        {
+            EntityIndex = entityIndex;
+            Name = name ?? "";
+            IsDisplayed = isDisplayed;
+            Bays = bays ?? Array.Empty<AetheriaRuntimeInventoryDropdownBayOption>();
+        }
+
+        public int EntityIndex { get; }
+        public string Name { get; }
+        public bool IsDisplayed { get; }
+        public IReadOnlyList<AetheriaRuntimeInventoryDropdownBayOption> Bays { get; }
+    }
+
+    public sealed class AetheriaRuntimeInventoryDropdownBayOption
+    {
+        public AetheriaRuntimeInventoryDropdownBayOption(int bayIndex, string label, bool isDisplayed)
+        {
+            BayIndex = bayIndex;
+            Label = label ?? "";
+            IsDisplayed = isDisplayed;
+        }
+
+        public int BayIndex { get; }
+        public string Label { get; }
+        public bool IsDisplayed { get; }
+    }
+
+    public sealed class AetheriaRuntimeInventoryDropdownLoadoutOption
+    {
+        public AetheriaRuntimeInventoryDropdownLoadoutOption(
+            int templateIndex,
+            string name,
+            string priceLabel,
+            bool canRestore)
+        {
+            TemplateIndex = templateIndex;
+            Name = name ?? "";
+            PriceLabel = priceLabel ?? "";
+            CanRestore = canRestore;
+        }
+
+        public int TemplateIndex { get; }
+        public string Name { get; }
+        public string PriceLabel { get; }
+        public bool CanRestore { get; }
+    }
+
+    public enum AetheriaRuntimeInventoryDropdownSelectionKind
+    {
+        Unknown = 0,
+        EntityEquipment = 1,
+        EntityBay = 2,
+        Entity = 3,
+        DockingBay = 4,
+        SaveLoadout = 5,
+        Loadout = 6
+    }
+
+    public readonly struct AetheriaRuntimeInventoryDropdownSelection
+    {
+        public AetheriaRuntimeInventoryDropdownSelection(
+            AetheriaRuntimeInventoryDropdownSelectionKind kind,
+            string command,
+            int entityIndex = -1,
+            int bayIndex = -1,
+            int templateIndex = -1)
+        {
+            Kind = kind;
+            Command = command ?? "";
+            EntityIndex = entityIndex;
+            BayIndex = bayIndex;
+            TemplateIndex = templateIndex;
+        }
+
+        public AetheriaRuntimeInventoryDropdownSelectionKind Kind { get; }
+        public string Command { get; }
+        public int EntityIndex { get; }
+        public int BayIndex { get; }
+        public int TemplateIndex { get; }
+    }
+
+    public sealed class AetheriaRuntimeInventoryDropdownSurfaceProjection
+    {
+        public AetheriaRuntimeInventoryDropdownSurfaceProjection(
+            AetheriaRuntimeInventoryDropdownSurfaceState state,
+            IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> selections)
+        {
+            State = state ?? new AetheriaRuntimeInventoryDropdownSurfaceState(
+                "",
+                Array.Empty<AetheriaRuntimeInventoryDropdownGroup>(),
+                "");
+            Selections = selections ?? new Dictionary<string, AetheriaRuntimeInventoryDropdownSelection>(StringComparer.Ordinal);
+        }
+
+        public AetheriaRuntimeInventoryDropdownSurfaceState State { get; }
+        public IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> Selections { get; }
+
+        public bool TryResolve(
+            string command,
+            out AetheriaRuntimeInventoryDropdownSelection selection)
+        {
+            return Selections.TryGetValue(command ?? "", out selection);
+        }
+    }
+
     public static class AetheriaRuntimeInventoryDropdownSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.inventory.panel.dropdown";
@@ -79,6 +191,146 @@ namespace GameCult.Aetheria.State.Verse
         public static string LoadoutCommand(int templateIndex)
         {
             return $"{SurfaceId}.loadout_{templateIndex}";
+        }
+
+        public static AetheriaRuntimeInventoryDropdownSurfaceProjection Project(
+            string currentView,
+            IEnumerable<AetheriaRuntimeInventoryDropdownEntityOption> entities,
+            bool hasDockingBay,
+            string dockingBayLabel,
+            bool dockingBayDisplayed,
+            bool canSaveLoadout,
+            IEnumerable<AetheriaRuntimeInventoryDropdownLoadoutOption> loadouts,
+            string updatedAtUtc)
+        {
+            var groups = new List<AetheriaRuntimeInventoryDropdownGroup>();
+            var selections = new Dictionary<string, AetheriaRuntimeInventoryDropdownSelection>(StringComparer.Ordinal);
+
+            foreach (var entity in entities ?? Array.Empty<AetheriaRuntimeInventoryDropdownEntityOption>())
+            {
+                if (entity == null)
+                    continue;
+
+                var options = new List<AetheriaRuntimeInventoryDropdownOption>();
+                var equipmentCommand = EntityEquipmentCommand(entity.EntityIndex);
+
+                if (entity.Bays.Count > 0 && !entity.IsDisplayed)
+                {
+                    options.Add(new AetheriaRuntimeInventoryDropdownOption(
+                        $"{SurfaceId}.entity_{entity.EntityIndex}.equipment",
+                        "Equipment",
+                        equipmentCommand));
+                    selections[equipmentCommand] = new AetheriaRuntimeInventoryDropdownSelection(
+                        AetheriaRuntimeInventoryDropdownSelectionKind.EntityEquipment,
+                        equipmentCommand,
+                        entityIndex: entity.EntityIndex);
+                }
+
+                foreach (var bay in entity.Bays)
+                {
+                    if (bay == null || bay.IsDisplayed)
+                        continue;
+
+                    var bayCommand = EntityBayCommand(entity.EntityIndex, bay.BayIndex);
+                    options.Add(new AetheriaRuntimeInventoryDropdownOption(
+                        $"{SurfaceId}.entity_{entity.EntityIndex}.bay_{bay.BayIndex}",
+                        string.IsNullOrWhiteSpace(bay.Label) ? $"Bay {bay.BayIndex + 1}" : bay.Label,
+                        bayCommand));
+                    selections[bayCommand] = new AetheriaRuntimeInventoryDropdownSelection(
+                        AetheriaRuntimeInventoryDropdownSelectionKind.EntityBay,
+                        bayCommand,
+                        entityIndex: entity.EntityIndex,
+                        bayIndex: bay.BayIndex);
+                }
+
+                if (entity.Bays.Count == 0 && !entity.IsDisplayed)
+                {
+                    var entityCommand = EntityCommand(entity.EntityIndex);
+                    options.Add(new AetheriaRuntimeInventoryDropdownOption(
+                        $"{SurfaceId}.entity_{entity.EntityIndex}.select",
+                        entity.Name,
+                        entityCommand));
+                    selections[entityCommand] = new AetheriaRuntimeInventoryDropdownSelection(
+                        AetheriaRuntimeInventoryDropdownSelectionKind.Entity,
+                        entityCommand,
+                        entityIndex: entity.EntityIndex);
+                }
+
+                if (options.Count > 0)
+                {
+                    groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
+                        $"{SurfaceId}.entity_{entity.EntityIndex}.card",
+                        entity.Name,
+                        options));
+                }
+            }
+
+            if (hasDockingBay && !dockingBayDisplayed)
+            {
+                groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
+                    $"{SurfaceId}.dockingBay.card",
+                    "Docking Bay",
+                    new[]
+                    {
+                        new AetheriaRuntimeInventoryDropdownOption(
+                            $"{SurfaceId}.dockingBay.select",
+                            dockingBayLabel,
+                            DockingBay)
+                    }));
+                selections[DockingBay] = new AetheriaRuntimeInventoryDropdownSelection(
+                    AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay,
+                    DockingBay);
+            }
+
+            var loadoutOptions = new List<AetheriaRuntimeInventoryDropdownOption>();
+            if (canSaveLoadout)
+            {
+                loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
+                    $"{SurfaceId}.loadouts.save",
+                    "Save Loadout",
+                    SaveLoadout));
+                selections[SaveLoadout] = new AetheriaRuntimeInventoryDropdownSelection(
+                    AetheriaRuntimeInventoryDropdownSelectionKind.SaveLoadout,
+                    SaveLoadout);
+            }
+
+            foreach (var loadout in loadouts ?? Array.Empty<AetheriaRuntimeInventoryDropdownLoadoutOption>())
+            {
+                if (loadout == null)
+                    continue;
+
+                var loadoutCommand = LoadoutCommand(loadout.TemplateIndex);
+                var priceSuffix = string.IsNullOrWhiteSpace(loadout.PriceLabel)
+                    ? "unavailable"
+                    : loadout.PriceLabel;
+                loadoutOptions.Add(new AetheriaRuntimeInventoryDropdownOption(
+                    $"{SurfaceId}.loadouts.{(loadout.CanRestore ? "restore" : "locked")}_{loadout.TemplateIndex}",
+                    $"{loadout.Name} - {priceSuffix}{(loadout.CanRestore ? "" : " (unavailable)")}",
+                    loadout.CanRestore ? loadoutCommand : ""));
+
+                if (loadout.CanRestore)
+                {
+                    selections[loadoutCommand] = new AetheriaRuntimeInventoryDropdownSelection(
+                        AetheriaRuntimeInventoryDropdownSelectionKind.Loadout,
+                        loadoutCommand,
+                        templateIndex: loadout.TemplateIndex);
+                }
+            }
+
+            if (loadoutOptions.Count > 0)
+            {
+                groups.Add(new AetheriaRuntimeInventoryDropdownGroup(
+                    $"{SurfaceId}.loadouts.card",
+                    "Loadouts",
+                    loadoutOptions));
+            }
+
+            return new AetheriaRuntimeInventoryDropdownSurfaceProjection(
+                new AetheriaRuntimeInventoryDropdownSurfaceState(
+                    currentView,
+                    groups,
+                    updatedAtUtc),
+                selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(
