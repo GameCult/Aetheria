@@ -7932,6 +7932,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ApplyLatestAuthoritativeDaemonFrame()",
         "ResolveDaemonObserver()",
         "public AetheriaRuntimeZoneSnapshotCommit FindDaemonZoneSnapshot(GalaxyZone zone)",
+        "public GalaxyZone CurrentDaemonGalaxyZone",
         "observed.IsAuthoritative",
         "TryRestoreEntityGraphFromDaemonRun(observed.Run)",
         "CreateDaemonZoneConstructionBlueprint(daemonZone)",
@@ -7960,6 +7961,23 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Unity gameplay no longer behaves as a daemon-frame observer and command lowerer: " +
             string.Join(", ", missingGameplaySymbols));
+    }
+
+    var mapRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MapRenderer.cs");
+    var mapRenderer = File.Exists(mapRendererPath)
+        ? File.ReadAllText(mapRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon current-zone UI projection; MapRenderer.cs is missing.");
+    var sectorRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs");
+    var sectorRenderer = File.Exists(sectorRendererPath)
+        ? File.ReadAllText(sectorRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon current-zone UI projection; SectorRenderer.cs is missing.");
+
+    if (mapRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
+        sectorRenderer.Contains("GameManager.Zone.GalaxyZone", StringComparison.Ordinal) ||
+        sectorRenderer.Contains("GameManager.CurrentEntity.Zone.GalaxyZone", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Map and sector UI must read current-zone identity from the daemon-observed run, not Unity's mirrored Zone hierarchy.");
     }
 
     var requiredDaemonControlValidationSymbols = new[]

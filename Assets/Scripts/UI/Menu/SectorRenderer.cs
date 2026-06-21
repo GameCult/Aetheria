@@ -223,11 +223,13 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         _init = true;
         SectorCamera.gameObject.SetActive(true);
-        _position = GameManager.Zone.GalaxyZone.Position;
+        var currentZone = GameManager.CurrentDaemonGalaxyZone;
+        _position = currentZone?.Position ?? float2.zero;
         _viewSize = .25f;
         
         Map.StartReveal(LinkAnimationDuration, IconAnimationDuration);
-        Map.MarkPlayerLocation(GameManager.CurrentEntity.Zone.GalaxyZone);
+        if (currentZone != null)
+            Map.MarkPlayerLocation(currentZone);
     }
 
     private void OnDisable()

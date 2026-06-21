@@ -861,6 +861,19 @@ public class ActionGameManager : MonoBehaviour
             .FirstOrDefault(snapshot => snapshot != null && snapshot.ZoneIndex == zoneIndex);
     }
 
+    public GalaxyZone CurrentDaemonGalaxyZone
+    {
+        get
+        {
+            var run = ResolveDaemonObserver()?.LastObservedState?.Run;
+            return run?.CurrentZoneIndex >= 0 &&
+                   ObservedGalaxy?.Zones != null &&
+                   run.CurrentZoneIndex < ObservedGalaxy.Zones.Length
+                ? ObservedGalaxy.Zones[run.CurrentZoneIndex]
+                : null;
+        }
+    }
+
     private static int FactionIndex(Faction faction)
     {
         return ObservedGalaxy?.Factions == null || faction == null ? -1 : Array.IndexOf(ObservedGalaxy.Factions, faction);
@@ -3117,13 +3130,7 @@ public class ActionGameManager : MonoBehaviour
 
     private AetheriaRuntimeZoneSnapshotCommit FindCurrentDaemonZoneSnapshot()
     {
-        var run = ResolveDaemonObserver()?.LastObservedState?.Run;
-        var zone = run?.CurrentZoneIndex >= 0 &&
-                   ActionGameManager.ObservedGalaxy?.Zones != null &&
-                   run.CurrentZoneIndex < ActionGameManager.ObservedGalaxy.Zones.Length
-            ? ActionGameManager.ObservedGalaxy.Zones[run.CurrentZoneIndex]
-            : null;
-        return FindDaemonZoneSnapshot(zone);
+        return FindDaemonZoneSnapshot(CurrentDaemonGalaxyZone);
     }
 
     public void RequestTowToStation()
