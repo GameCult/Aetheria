@@ -224,11 +224,11 @@ public class ActionGameManager : MonoBehaviour
         try
         {
             var loadouts = AetheriaRuntimeStateReader.ReadLoadoutTemplates(stateFilePath);
-            LoadoutTemplates.Clear();
-            LoadoutTemplates.AddRange(loadouts);
+            _observedLoadoutTemplates.Clear();
+            _observedLoadoutTemplates.AddRange(loadouts);
 
-            if (LoadoutTemplates.Count > 0)
-                Debug.Log($"Loaded {LoadoutTemplates.Count} Aetheria Verse loadout templates from typed state.");
+            if (_observedLoadoutTemplates.Count > 0)
+                Debug.Log($"Loaded {_observedLoadoutTemplates.Count} Aetheria Verse loadout templates from typed state.");
         }
         catch (FileNotFoundException)
         {
@@ -473,6 +473,8 @@ public class ActionGameManager : MonoBehaviour
     private List<ActionBarSlot> _actionBarSlots = new List<ActionBarSlot>();
     private List<InputAction> _actionBarActions = new List<InputAction>();
     private float _hitMarkerTime;
+    private readonly List<AetheriaRuntimeLoadoutTemplateSnapshot> _observedLoadoutTemplates =
+        new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
 
     public AetheriaInput Input { get; private set; }
     public EquippedDockingBay DockingBay { get; private set; }
@@ -534,7 +536,11 @@ public class ActionGameManager : MonoBehaviour
 
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public List<AetheriaRuntimeLoadoutTemplateSnapshot> LoadoutTemplates { get; } = new List<AetheriaRuntimeLoadoutTemplateSnapshot>();
+
+    public IEnumerable<AetheriaRuntimeLoadoutTemplateSnapshot> ObservedLoadoutTemplates()
+    {
+        return _observedLoadoutTemplates;
+    }
 
     private readonly (float2 direction, string name)[] _directions = {
         (new float2(0, 1), "Front"),

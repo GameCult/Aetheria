@@ -4747,7 +4747,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "AetheriaRuntimeInventoryDropdownSurfaceBuilder.EntityEquipmentCommand(",
         "AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(",
         "GameManager.TryGetObservedDockingBay(out var dockingBay)",
-        "GameManager.ObservedAvailableEntities()"
+        "GameManager.ObservedAvailableEntities()",
+        "GameManager.ObservedLoadoutTemplates()"
     };
 
     var missingSymbols = requiredSymbols
@@ -4779,7 +4780,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "string.Equals(request.Command, AetheriaRuntimeInventoryDropdownSurfaceBuilder.Close",
         "_dropdownCommands.TryGetValue(request.Command",
         "GameManager.DockingBay",
-        "GameManager.AvailableEntities()"
+        "GameManager.AvailableEntities()",
+        "GameManager.LoadoutTemplates"
     };
 
     var hits = forbiddenSymbols
@@ -10468,6 +10470,14 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     if (!inventoryPanel.Contains("GameManager.RequestRuntimeLoadoutRestore", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("InventoryPanel no longer routes loadout restore through ActionGameManager.");
+    }
+
+    if (!actionGameManager.Contains("public IEnumerable<AetheriaRuntimeLoadoutTemplateSnapshot> ObservedLoadoutTemplates()", StringComparison.Ordinal) ||
+        actionGameManager.Contains("public List<AetheriaRuntimeLoadoutTemplateSnapshot> LoadoutTemplates", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("GameManager.LoadoutTemplates", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel must enumerate daemon-observed loadout templates through ActionGameManager.ObservedLoadoutTemplates().");
     }
 
     if (actionGameManager.Contains("RequestRuntimeLoadoutRestore(AetheriaRuntimeLoadoutTemplateSnapshot template, out Entity", StringComparison.Ordinal) ||

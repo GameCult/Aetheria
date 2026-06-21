@@ -249,7 +249,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             };
         }
 
-        foreach (var loadoutEntry in GameManager.LoadoutTemplates.Select((template, templateIndex) => (template, templateIndex)))
+        foreach (var loadoutEntry in GameManager.ObservedLoadoutTemplates().Select((template, templateIndex) => (template, templateIndex)))
         {
             var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
             if (blueprint == null)
@@ -368,7 +368,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 AetheriaRuntimeInventoryDropdownSurfaceBuilder.SaveLoadout));
         }
 
-        foreach (var loadoutEntry in GameManager.LoadoutTemplates.Select((template, templateIndex) => (template, templateIndex)))
+        foreach (var loadoutEntry in GameManager.ObservedLoadoutTemplates().Select((template, templateIndex) => (template, templateIndex)))
         {
             var restoreCommand = AetheriaRuntimeInventoryDropdownSurfaceBuilder.LoadoutCommand(loadoutEntry.templateIndex);
             var blueprint = GameManager.CreateEntityConstructionBlueprint(loadoutEntry.template);
