@@ -85,6 +85,32 @@ namespace GameCult.Aetheria.State.Verse
         public string Label { get; }
     }
 
+    public sealed class AetheriaRuntimeObservedInputBinding
+    {
+        public AetheriaRuntimeObservedInputBinding(
+            string actionName,
+            int bindingIndex,
+            string bindingLabel,
+            string inputPath,
+            string inputLabel,
+            bool include)
+        {
+            ActionName = actionName ?? "";
+            BindingIndex = bindingIndex;
+            BindingLabel = bindingLabel ?? "";
+            InputPath = inputPath ?? "";
+            InputLabel = inputLabel ?? "";
+            Include = include;
+        }
+
+        public string ActionName { get; }
+        public int BindingIndex { get; }
+        public string BindingLabel { get; }
+        public string InputPath { get; }
+        public string InputLabel { get; }
+        public bool Include { get; }
+    }
+
     public static class AetheriaRuntimeInputSettingsSurfaceBuilder
     {
         public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths = new[]
@@ -107,6 +133,41 @@ namespace GameCult.Aetheria.State.Verse
             return !string.IsNullOrWhiteSpace(path) &&
                    (path.StartsWith("<Keyboard>/", StringComparison.Ordinal) ||
                     path.StartsWith("<Mouse>/", StringComparison.Ordinal));
+        }
+
+        public static AetheriaRuntimeInputSettingsSurfaceState Project(
+            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
+            IEnumerable<string> enabledActionBarInputPaths,
+            IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> actionBarCandidateInputPaths,
+            bool capturePending,
+            string capturePrompt,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimeInputSettingsSurfaceState(
+                ProjectBindingInputs(observedBindings),
+                ProjectActionBarInputs(enabledActionBarInputPaths, actionBarCandidateInputPaths),
+                capturePending,
+                capturePrompt,
+                updatedAtUtc);
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(
+            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings)
+        {
+            return (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
+                .Where(binding => binding != null &&
+                                  binding.Include &&
+                                  !string.IsNullOrWhiteSpace(binding.InputPath) &&
+                                  IsSupportedCapturePath(binding.InputPath))
+                .Select(binding => new AetheriaRuntimeInputBindingSurfaceState(
+                    binding.ActionName,
+                    binding.BindingIndex,
+                    binding.BindingLabel,
+                    string.IsNullOrWhiteSpace(binding.InputLabel) ? binding.InputPath : binding.InputLabel))
+                .OrderBy(binding => binding.BindingLabel, StringComparer.Ordinal)
+                .ThenBy(binding => binding.ActionName, StringComparer.Ordinal)
+                .ThenBy(binding => binding.BindingIndex)
+                .ToArray();
         }
 
         public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(

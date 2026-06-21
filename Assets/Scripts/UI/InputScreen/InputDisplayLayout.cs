@@ -164,19 +164,21 @@ public class InputDisplayLayout : MonoBehaviour
 
     private AetheriaRuntimeInputSettingsSurfaceState ProjectSurfaceState()
     {
-        return new AetheriaRuntimeInputSettingsSurfaceState(
-            ProjectBindingRows(),
-            ProjectActionBarRows(),
+        var runtimeSettings = ActionGameManager.RuntimePlayerSettings.InputSettings;
+        return AetheriaRuntimeInputSettingsSurfaceBuilder.Project(
+            ProjectObservedBindings(),
+            runtimeSettings.ActionBarInputs,
+            ProjectActionBarCandidates(runtimeSettings.ActionBarInputs),
             capturePending: _captureBindingIndex >= 0 && !string.IsNullOrWhiteSpace(_captureActionName),
             capturePrompt: BuildCapturePrompt(),
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 
-    private IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingRows()
+    private IReadOnlyList<AetheriaRuntimeObservedInputBinding> ProjectObservedBindings()
     {
         if (Input == null)
         {
-            return Array.Empty<AetheriaRuntimeInputBindingSurfaceState>();
+            return Array.Empty<AetheriaRuntimeObservedInputBinding>();
         }
 
         return Input
@@ -188,18 +190,19 @@ public class InputDisplayLayout : MonoBehaviour
                 !entry.binding.isComposite &&
                 !string.IsNullOrWhiteSpace(entry.binding.effectivePath) &&
                 AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(entry.binding.effectivePath))
-            .Select(entry => new AetheriaRuntimeInputBindingSurfaceState(
+            .Select(entry => new AetheriaRuntimeObservedInputBinding(
                 entry.action.name,
                 entry.bindingIndex,
                 DescribeBinding(entry.action.name, entry.binding),
-                DescribeInputPath(entry.binding.effectivePath)))
-            .OrderBy(entry => entry.BindingLabel, StringComparer.Ordinal)
+                entry.binding.effectivePath,
+                DescribeInputPath(entry.binding.effectivePath),
+                include: true))
             .ToArray();
     }
 
-    private IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarRows()
+    private IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(
+        IEnumerable<string> enabledActionBarInputPaths)
     {
-        var runtimeSettings = ActionGameManager.RuntimePlayerSettings.InputSettings;
         var candidates = new List<AetheriaRuntimeInputPathSurfaceLabel>();
 
         foreach (var defaultPath in AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths)
@@ -209,7 +212,7 @@ public class InputDisplayLayout : MonoBehaviour
                 DescribeInputPath(defaultPath)));
         }
 
-        foreach (var inputPath in runtimeSettings.ActionBarInputs)
+        foreach (var inputPath in enabledActionBarInputPaths ?? Array.Empty<string>())
         {
             if (!string.IsNullOrWhiteSpace(inputPath))
             {
@@ -239,9 +242,7 @@ public class InputDisplayLayout : MonoBehaviour
             }
         }
 
-        return AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(
-            runtimeSettings.ActionBarInputs,
-            candidates);
+        return candidates;
     }
 
     private static string DescribeBinding(string actionName, InputBinding binding)

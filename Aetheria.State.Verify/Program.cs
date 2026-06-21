@@ -3571,7 +3571,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.DefaultActionBarCandidatePaths",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
-        "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.Project(",
+        "new AetheriaRuntimeObservedInputBinding(",
         "new AetheriaRuntimeInputPathSurfaceLabel(",
         "HideLegacyChildren()"
     };
@@ -3610,6 +3611,10 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "request.Payload",
         "private static readonly string[] DefaultActionBarCandidatePaths",
         "private static bool IsSupportedCapturePath(string path)",
+        "new AetheriaRuntimeInputSettingsSurfaceState(",
+        "new AetheriaRuntimeInputBindingSurfaceState(",
+        "new AetheriaRuntimeActionBarInputSurfaceState(",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)"
     };
 
@@ -3641,8 +3646,11 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "public sealed class AetheriaRuntimeInputBindingSurfaceState",
         "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
         "public sealed class AetheriaRuntimeInputPathSurfaceLabel",
+        "public sealed class AetheriaRuntimeObservedInputBinding",
         "public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths",
         "public static bool IsSupportedCapturePath(string path)",
+        "public static AetheriaRuntimeInputSettingsSurfaceState Project(",
+        "public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(",
         "public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)",
         "public enum AetheriaRuntimeInputSettingsCommandKind",
