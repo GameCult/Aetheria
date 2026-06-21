@@ -3828,7 +3828,9 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (!stateProject.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs", StringComparison.Ordinal) ||
+    var stateProjectIncludesRuntimePackage = stateProject.Contains(@"Runtime\*.cs", StringComparison.Ordinal);
+    if ((!stateProjectIncludesRuntimePackage &&
+            !stateProject.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs", StringComparison.Ordinal)) ||
         !unityProject.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -5337,7 +5339,9 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", missingUnityPackageProjectSymbols));
     }
 
-    if (!stateProject.Contains("AetheriaRuntimeVerseHostCommands.cs", StringComparison.Ordinal))
+    var stateProjectIncludesRuntimePackage = stateProject.Contains(@"Runtime\*.cs", StringComparison.Ordinal);
+    if (!stateProjectIncludesRuntimePackage &&
+        !stateProject.Contains("AetheriaRuntimeVerseHostCommands.cs", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria.State.csproj does not compile the Verse-host Eve command contract.");
@@ -6469,7 +6473,6 @@ static void RequireDaemonVersePublication(string root)
         "\"Witnesses\"",
         "\"Designer Surfaces\"",
         "AetheriaRuntimeSurfaceDocument",
-        "AetheriaRuntimeStatRecipeCommands.SurfaceId",
         "\"Typed Commands\"",
         "AetheriaRuntimeDaemonCommandBoundaryEntry"
     };
