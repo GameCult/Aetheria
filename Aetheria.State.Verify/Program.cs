@@ -6017,6 +6017,22 @@ static void RequireTypedDaemonCommandPayloads(string root)
             string.Join(", ", publicDocumentSubmitHits));
     }
 
+    var forbiddenClientDocumentBuilderSymbols = new[]
+    {
+        "Action<AetheriaRuntimeDaemonCommandDocument>",
+        "configure?.Invoke(command)",
+        "Send(AetheriaRuntimeDaemonCommandKinds"
+    };
+    var clientDocumentBuilderHits = forbiddenClientDocumentBuilderSymbols
+        .Where(symbol => daemonClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (clientDocumentBuilderHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon operation client still routes typed operations through mutable document builder callbacks: " +
+            string.Join(", ", clientDocumentBuilderHits));
+    }
+
     if (tests.Contains("AetheriaRuntimeDaemonCommandLog.", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

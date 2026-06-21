@@ -37,32 +37,15 @@ namespace GameCult.Aetheria.State.Verse
             return false;
         }
 
-        private AetheriaRuntimeDaemonCommandEnvelope Send(
-            AetheriaRuntimeDaemonCommandKinds kind,
-            AetheriaRuntimeObservedDaemonState? observed,
-            Action<AetheriaRuntimeDaemonCommandDocument>? configure = null)
+        private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)
         {
-            var command = Create(kind, observed);
-            configure?.Invoke(command);
             if (!TrySend(command, out var envelope, out var error))
             {
                 throw new InvalidOperationException(
-                    $"Failed to submit Aetheria daemon operation {kind}: {error}");
+                    $"Failed to submit Aetheria daemon operation {command.Kind}: {error}");
             }
 
             return envelope!;
-        }
-
-        private bool TrySend(
-            AetheriaRuntimeDaemonCommandKinds kind,
-            AetheriaRuntimeObservedDaemonState? observed,
-            Action<AetheriaRuntimeDaemonCommandDocument>? configure,
-            out AetheriaRuntimeDaemonCommandEnvelope? envelope,
-            out string error)
-        {
-            var command = Create(kind, observed);
-            configure?.Invoke(command);
-            return TrySend(command, out envelope, out error);
         }
 
         private bool TrySend(
@@ -108,28 +91,29 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetTarget, observed, command =>
-                command.TargetEntityKey = targetEntityKey ?? "");
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTarget, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope ClearTarget(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.ClearTarget, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ClearTarget, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TargetNearest, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNearest, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TargetNext, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNext, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TargetReticle(
@@ -138,12 +122,11 @@ namespace GameCult.Aetheria.State.Verse
             double directionY,
             double directionZ)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TargetReticle, observed, command =>
-            {
-                command.DirectionX = directionX;
-                command.DirectionY = directionY;
-                command.PositionZ = directionZ;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TargetReticle, observed);
+            command.DirectionX = directionX;
+            command.DirectionY = directionY;
+            command.PositionZ = directionZ;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
@@ -152,12 +135,11 @@ namespace GameCult.Aetheria.State.Verse
             double directionY,
             double scalarValue = 1.0)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, observed, command =>
-            {
-                command.DirectionX = directionX;
-                command.DirectionY = directionY;
-                command.ScalarValue = scalarValue;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, observed);
+            command.DirectionX = directionX;
+            command.DirectionY = directionY;
+            command.ScalarValue = scalarValue;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
@@ -166,28 +148,29 @@ namespace GameCult.Aetheria.State.Verse
             double directionY,
             double directionZ)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetLookDirection, observed, command =>
-            {
-                command.DirectionX = directionX;
-                command.DirectionY = directionY;
-                command.PositionZ = directionZ;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetLookDirection, observed);
+            command.DirectionX = directionX;
+            command.DirectionY = directionY;
+            command.PositionZ = directionZ;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(
             AetheriaRuntimeObservedDaemonState? observed,
             double power)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, observed, command =>
-                command.ScalarValue = power);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, observed);
+            command.ScalarValue = power;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(
             AetheriaRuntimeObservedDaemonState? observed,
             int weaponGroup)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, observed, command =>
-                command.WeaponGroup = weaponGroup);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, observed);
+            command.WeaponGroup = weaponGroup;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(
@@ -195,11 +178,10 @@ namespace GameCult.Aetheria.State.Verse
             int weaponGroup,
             bool active)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive, observed, command =>
-            {
-                command.WeaponGroup = weaponGroup;
-                command.ScalarValue = active ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive, observed);
+            command.WeaponGroup = weaponGroup;
+            command.ScalarValue = active ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
@@ -209,13 +191,12 @@ namespace GameCult.Aetheria.State.Verse
             int weaponGroup,
             bool assigned)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.EquipmentIndex = equipmentIndex;
-                command.WeaponGroup = weaponGroup;
-                command.ScalarValue = assigned ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.EquipmentIndex = equipmentIndex;
+            command.WeaponGroup = weaponGroup;
+            command.ScalarValue = assigned ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(
@@ -224,41 +205,43 @@ namespace GameCult.Aetheria.State.Verse
             int behaviorIndex,
             bool active)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, observed, command =>
-            {
-                command.EquipmentIndex = equipmentIndex;
-                command.BehaviorIndex = behaviorIndex;
-                command.ScalarValue = active ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, observed);
+            command.EquipmentIndex = equipmentIndex;
+            command.BehaviorIndex = behaviorIndex;
+            command.ScalarValue = active ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(
             AetheriaRuntimeObservedDaemonState? observed,
             string itemKey)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.ActivateConsumable, observed, command =>
-                command.TextValue = itemKey ?? "");
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.ActivateConsumable, observed);
+            command.TextValue = itemKey ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SensorPing(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SensorPing, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.SensorPing, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(
             AetheriaRuntimeObservedDaemonState? observed,
             bool enabled)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled, observed, command =>
-                command.ScalarValue = enabled ? 1.0 : 0.0);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled, observed);
+            command.ScalarValue = enabled ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
             AetheriaRuntimeObservedDaemonState? observed,
             bool enabled)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed, command =>
-                command.ScalarValue = enabled ? 1.0 : 0.0);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed);
+            command.ScalarValue = enabled ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
@@ -266,11 +249,10 @@ namespace GameCult.Aetheria.State.Verse
             string targetEntityKey,
             bool enabled)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.ScalarValue = enabled ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.ScalarValue = enabled ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(
@@ -278,16 +260,15 @@ namespace GameCult.Aetheria.State.Verse
             int equipmentIndex,
             bool enabled)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetItemEnabled, observed, command =>
-            {
-                command.EquipmentIndex = equipmentIndex;
-                command.ScalarValue = enabled ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemEnabled, observed);
+            command.EquipmentIndex = equipmentIndex;
+            command.ScalarValue = enabled ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
@@ -296,12 +277,11 @@ namespace GameCult.Aetheria.State.Verse
             int equipmentIndex,
             bool enabled)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.EquipmentIndex = equipmentIndex;
-                command.ScalarValue = enabled ? 1.0 : 0.0;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.EquipmentIndex = equipmentIndex;
+            command.ScalarValue = enabled ? 1.0 : 0.0;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
@@ -311,13 +291,12 @@ namespace GameCult.Aetheria.State.Verse
             int behaviorIndex,
             double targetTemperature)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.EquipmentIndex = equipmentIndex;
-                command.BehaviorIndex = behaviorIndex;
-                command.ScalarValue = targetTemperature;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.EquipmentIndex = equipmentIndex;
+            command.BehaviorIndex = behaviorIndex;
+            command.ScalarValue = targetTemperature;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
@@ -325,11 +304,10 @@ namespace GameCult.Aetheria.State.Verse
             string targetEntityKey,
             double shutdownPerformance)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.ScalarValue = shutdownPerformance;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.ScalarValue = shutdownPerformance;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetActionBarBinding(
@@ -341,23 +319,23 @@ namespace GameCult.Aetheria.State.Verse
             int behaviorIndex,
             int weaponGroup)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding, observed, command =>
-            {
-                command.TextValue = controlPath ?? "";
-                command.EquipmentIndex = equipmentIndex;
-                command.BehaviorIndex = behaviorIndex;
-                command.WeaponGroup = weaponGroup;
-                command.ActionBarBinding.Kind = kind ?? "";
-                command.ActionBarBinding.ItemKey = itemKey ?? "";
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding, observed);
+            command.TextValue = controlPath ?? "";
+            command.EquipmentIndex = equipmentIndex;
+            command.BehaviorIndex = behaviorIndex;
+            command.WeaponGroup = weaponGroup;
+            command.ActionBarBinding.Kind = kind ?? "";
+            command.ActionBarBinding.ItemKey = itemKey ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope ClearActionBarBinding(
             AetheriaRuntimeObservedDaemonState? observed,
             string controlPath)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding, observed, command =>
-                command.TextValue = controlPath ?? "");
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding, observed);
+            command.TextValue = controlPath ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
@@ -367,13 +345,12 @@ namespace GameCult.Aetheria.State.Verse
             int y,
             int axis)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.PositionX = x;
-                command.PositionY = y;
-                command.ScalarValue = axis;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.PositionX = x;
+            command.PositionY = y;
+            command.ScalarValue = axis;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetEntityName(
@@ -381,30 +358,31 @@ namespace GameCult.Aetheria.State.Verse
             string targetEntityKey,
             string name)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetEntityName, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.TextValue = name ?? "";
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetEntityName, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.TextValue = name ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope Dock(AetheriaRuntimeObservedDaemonState? observed, string targetEntityKey)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.Dock, observed, command =>
-                command.TargetEntityKey = targetEntityKey ?? "");
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.Dock, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope DockNearest(
             AetheriaRuntimeObservedDaemonState? observed,
             double maxDistance)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed, command =>
-                command.ScalarValue = maxDistance);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed);
+            command.ScalarValue = maxDistance;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeObservedDaemonState? observed)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.Undock, observed);
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.Undock, observed));
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope Interact(
@@ -412,19 +390,19 @@ namespace GameCult.Aetheria.State.Verse
             double dockDistance,
             double wormholeDistance)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.Interact, observed, command =>
-            {
-                command.ScalarValue = dockDistance;
-                command.PositionX = wormholeDistance;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.Interact, observed);
+            command.ScalarValue = dockDistance;
+            command.PositionX = wormholeDistance;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip, observed, command =>
-                command.TargetEntityKey = targetEntityKey ?? "");
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
@@ -433,12 +411,11 @@ namespace GameCult.Aetheria.State.Verse
             double positionX,
             double positionY)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.EnterWormhole, observed, command =>
-            {
-                command.TargetZoneIndex = targetZoneIndex;
-                command.PositionX = positionX;
-                command.PositionY = positionY;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.EnterWormhole, observed);
+            command.TargetZoneIndex = targetZoneIndex;
+            command.PositionX = positionX;
+            command.PositionY = positionY;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TowToStation(
@@ -448,13 +425,12 @@ namespace GameCult.Aetheria.State.Verse
             double positionX,
             double positionY)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TowToStation, observed, command =>
-            {
-                command.TargetEntityKey = stationEntityKey ?? "";
-                command.TargetZoneIndex = targetZoneIndex;
-                command.PositionX = positionX;
-                command.PositionY = positionY;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TowToStation, observed);
+            command.TargetEntityKey = stationEntityKey ?? "";
+            command.TargetZoneIndex = targetZoneIndex;
+            command.PositionX = positionX;
+            command.PositionY = positionY;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
@@ -471,24 +447,23 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, observed, command =>
-            {
-                command.TargetEntityKey = destinationEntityKey ?? "";
-                command.EquipmentIndex = destinationCargoIndex;
-                command.PositionX = destinationX;
-                command.PositionY = destinationY;
-                command.ScalarValue = quantity;
-                command.TextValue = itemKey ?? "";
-                command.CargoTransfer.OriginEntityKey = originEntityKey ?? "";
-                command.CargoTransfer.OriginCargoIndex = originCargoIndex;
-                command.CargoTransfer.DestinationEntityKey = destinationEntityKey ?? "";
-                command.CargoTransfer.DestinationCargoIndex = destinationCargoIndex;
-                command.CargoTransfer.SourceX = sourceX;
-                command.CargoTransfer.SourceY = sourceY;
-                command.CargoTransfer.DestinationX = destinationX;
-                command.CargoTransfer.DestinationY = destinationY;
-                command.CargoTransfer.HasDestinationPosition = hasDestinationPosition;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, observed);
+            command.TargetEntityKey = destinationEntityKey ?? "";
+            command.EquipmentIndex = destinationCargoIndex;
+            command.PositionX = destinationX;
+            command.PositionY = destinationY;
+            command.ScalarValue = quantity;
+            command.TextValue = itemKey ?? "";
+            command.CargoTransfer.OriginEntityKey = originEntityKey ?? "";
+            command.CargoTransfer.OriginCargoIndex = originCargoIndex;
+            command.CargoTransfer.DestinationEntityKey = destinationEntityKey ?? "";
+            command.CargoTransfer.DestinationCargoIndex = destinationCargoIndex;
+            command.CargoTransfer.SourceX = sourceX;
+            command.CargoTransfer.SourceY = sourceY;
+            command.CargoTransfer.DestinationX = destinationX;
+            command.CargoTransfer.DestinationY = destinationY;
+            command.CargoTransfer.HasDestinationPosition = hasDestinationPosition;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
@@ -506,27 +481,26 @@ namespace GameCult.Aetheria.State.Verse
             int sourceY,
             bool createsDockedShip)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.TradePurchase, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.EquipmentIndex = targetCargoIndex;
-                command.PositionX = sourceX;
-                command.PositionY = sourceY;
-                command.ScalarValue = totalPrice;
-                command.TextValue = itemKey ?? "";
-                command.TradePurchase.PurchaseKind = purchaseKind ?? "";
-                command.TradePurchase.ItemKey = itemKey ?? "";
-                command.TradePurchase.Quantity = quantity;
-                command.TradePurchase.UnitPrice = unitPrice;
-                command.TradePurchase.TotalPrice = totalPrice;
-                command.TradePurchase.StationEntityKey = stationEntityKey ?? "";
-                command.TradePurchase.StationCargoIndex = stationCargoIndex;
-                command.TradePurchase.TargetEntityKey = targetEntityKey ?? "";
-                command.TradePurchase.TargetCargoIndex = targetCargoIndex;
-                command.TradePurchase.SourceX = sourceX;
-                command.TradePurchase.SourceY = sourceY;
-                command.TradePurchase.CreatesDockedShip = createsDockedShip;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TradePurchase, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.EquipmentIndex = targetCargoIndex;
+            command.PositionX = sourceX;
+            command.PositionY = sourceY;
+            command.ScalarValue = totalPrice;
+            command.TextValue = itemKey ?? "";
+            command.TradePurchase.PurchaseKind = purchaseKind ?? "";
+            command.TradePurchase.ItemKey = itemKey ?? "";
+            command.TradePurchase.Quantity = quantity;
+            command.TradePurchase.UnitPrice = unitPrice;
+            command.TradePurchase.TotalPrice = totalPrice;
+            command.TradePurchase.StationEntityKey = stationEntityKey ?? "";
+            command.TradePurchase.StationCargoIndex = stationCargoIndex;
+            command.TradePurchase.TargetEntityKey = targetEntityKey ?? "";
+            command.TradePurchase.TargetCargoIndex = targetCargoIndex;
+            command.TradePurchase.SourceX = sourceX;
+            command.TradePurchase.SourceY = sourceY;
+            command.TradePurchase.CreatesDockedShip = createsDockedShip;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
@@ -538,20 +512,19 @@ namespace GameCult.Aetheria.State.Verse
             double positionY,
             double positionZ)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, observed, command =>
-            {
-                command.TargetEntityKey = targetEntityKey ?? "";
-                command.TextValue = itemKey ?? "";
-                command.ScalarValue = quantity;
-                command.PositionX = positionX;
-                command.PositionY = positionY;
-                command.PositionZ = positionZ;
-                command.LootPickup.ItemKey = itemKey ?? "";
-                command.LootPickup.Quantity = quantity;
-                command.LootPickup.PositionX = positionX;
-                command.LootPickup.PositionY = positionY;
-                command.LootPickup.PositionZ = positionZ;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, observed);
+            command.TargetEntityKey = targetEntityKey ?? "";
+            command.TextValue = itemKey ?? "";
+            command.ScalarValue = quantity;
+            command.PositionX = positionX;
+            command.PositionY = positionY;
+            command.PositionZ = positionZ;
+            command.LootPickup.ItemKey = itemKey ?? "";
+            command.LootPickup.Quantity = quantity;
+            command.LootPickup.PositionX = positionX;
+            command.LootPickup.PositionY = positionY;
+            command.LootPickup.PositionZ = positionZ;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
@@ -560,15 +533,14 @@ namespace GameCult.Aetheria.State.Verse
             string templateName,
             int price)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, observed, command =>
-            {
-                command.TargetEntityKey = dockedEntityKey ?? "";
-                command.TextValue = templateName ?? "";
-                command.ScalarValue = price;
-                command.LoadoutRestore.DockedEntityKey = dockedEntityKey ?? "";
-                command.LoadoutRestore.TemplateName = templateName ?? "";
-                command.LoadoutRestore.Price = price;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, observed);
+            command.TargetEntityKey = dockedEntityKey ?? "";
+            command.TextValue = templateName ?? "";
+            command.ScalarValue = price;
+            command.LoadoutRestore.DockedEntityKey = dockedEntityKey ?? "";
+            command.LoadoutRestore.TemplateName = templateName ?? "";
+            command.LoadoutRestore.Price = price;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope EquipItem(
@@ -584,22 +556,21 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.EquipItem, observed, command =>
-            {
-                command.TargetEntityKey = destinationEntityKey ?? "";
-                command.PositionX = destinationX;
-                command.PositionY = destinationY;
-                command.TextValue = itemKey ?? "";
-                command.EquipmentTransfer.SourceKind = sourceKind ?? "";
-                command.EquipmentTransfer.OriginEntityKey = originEntityKey ?? "";
-                command.EquipmentTransfer.OriginIndex = originIndex;
-                command.EquipmentTransfer.DestinationEntityKey = destinationEntityKey ?? "";
-                command.EquipmentTransfer.SourceX = sourceX;
-                command.EquipmentTransfer.SourceY = sourceY;
-                command.EquipmentTransfer.DestinationX = destinationX;
-                command.EquipmentTransfer.DestinationY = destinationY;
-                command.EquipmentTransfer.HasDestinationPosition = hasDestinationPosition;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.EquipItem, observed);
+            command.TargetEntityKey = destinationEntityKey ?? "";
+            command.PositionX = destinationX;
+            command.PositionY = destinationY;
+            command.TextValue = itemKey ?? "";
+            command.EquipmentTransfer.SourceKind = sourceKind ?? "";
+            command.EquipmentTransfer.OriginEntityKey = originEntityKey ?? "";
+            command.EquipmentTransfer.OriginIndex = originIndex;
+            command.EquipmentTransfer.DestinationEntityKey = destinationEntityKey ?? "";
+            command.EquipmentTransfer.SourceX = sourceX;
+            command.EquipmentTransfer.SourceY = sourceY;
+            command.EquipmentTransfer.DestinationX = destinationX;
+            command.EquipmentTransfer.DestinationY = destinationY;
+            command.EquipmentTransfer.HasDestinationPosition = hasDestinationPosition;
+            return Send(command);
         }
 
         public AetheriaRuntimeDaemonCommandEnvelope StoreItem(
@@ -613,21 +584,20 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            return Send(AetheriaRuntimeDaemonCommandKinds.StoreItem, observed, command =>
-            {
-                command.TargetEntityKey = destinationEntityKey ?? "";
-                command.EquipmentIndex = sourceEquipmentIndex;
-                command.PositionX = destinationX;
-                command.PositionY = destinationY;
-                command.TextValue = itemKey ?? "";
-                command.StoreItem.OriginEntityKey = originEntityKey ?? "";
-                command.StoreItem.SourceEquipmentIndex = sourceEquipmentIndex;
-                command.StoreItem.DestinationEntityKey = destinationEntityKey ?? "";
-                command.StoreItem.DestinationCargoIndex = destinationCargoIndex;
-                command.StoreItem.DestinationX = destinationX;
-                command.StoreItem.DestinationY = destinationY;
-                command.StoreItem.HasDestinationPosition = hasDestinationPosition;
-            });
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.StoreItem, observed);
+            command.TargetEntityKey = destinationEntityKey ?? "";
+            command.EquipmentIndex = sourceEquipmentIndex;
+            command.PositionX = destinationX;
+            command.PositionY = destinationY;
+            command.TextValue = itemKey ?? "";
+            command.StoreItem.OriginEntityKey = originEntityKey ?? "";
+            command.StoreItem.SourceEquipmentIndex = sourceEquipmentIndex;
+            command.StoreItem.DestinationEntityKey = destinationEntityKey ?? "";
+            command.StoreItem.DestinationCargoIndex = destinationCargoIndex;
+            command.StoreItem.DestinationX = destinationX;
+            command.StoreItem.DestinationY = destinationY;
+            command.StoreItem.HasDestinationPosition = hasDestinationPosition;
+            return Send(command);
         }
     }
 }
