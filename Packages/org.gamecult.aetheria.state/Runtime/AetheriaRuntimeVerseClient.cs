@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Aetheria.State.Documents;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
@@ -494,6 +495,49 @@ namespace GameCult.Aetheria.State.Verse
                 await FlushAsync().ConfigureAwait(false);
 
             return AetheriaRuntimeEveCommandClient.ToEnvelope(command);
+        }
+
+        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitInputSettingsCommandAsync(
+            AetheriaRuntimeEveCommandKind command,
+            AetheriaRuntimeInputSettingsCommandBody body,
+            string clientId,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            return SubmitEveCommandAsync(
+                AetheriaRuntimeEveCommandClient.ToDocument(
+                    AetheriaRuntimeEveCommandClient.CreateInputSettingsCommand(command, body, clientId)),
+                flush);
+        }
+
+        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitLoadoutTemplateCommandAsync(
+            AetheriaRuntimeLoadoutTemplateCommit loadoutTemplate,
+            string clientId,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            return SubmitEveCommandAsync(
+                AetheriaRuntimeEveCommandClient.ToDocument(
+                    AetheriaRuntimeEveCommandClient.CreateLoadoutTemplateCommand(loadoutTemplate, clientId)),
+                flush);
+        }
+
+        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitKnownSurfaceCommandAsync(
+            EveSurfaceCommandRequest request,
+            string clientId,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            if (!AetheriaRuntimeEveCommandClient.TryCreateKnownSurfaceCommand(request, out var envelope))
+            {
+                throw new InvalidOperationException(
+                    $"Unknown Aetheria Eve surface command: {request?.ProviderId}/{request?.SurfaceId}/{request?.Command}");
+            }
+
+            var document = AetheriaRuntimeEveCommandClient.ToDocument(envelope!);
+            if (!string.IsNullOrWhiteSpace(clientId))
+                document.ClientId = clientId;
+            return SubmitEveCommandAsync(document, flush);
         }
 
         public Task FlushAsync(bool soft = false)

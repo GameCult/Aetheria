@@ -2895,7 +2895,7 @@ static void RequireEveRuntimeBootstrap(string root)
         "MountSurface(string statePath, EveSurfaceDocument surface)",
         "AetheriaEveUnitySurfaceHost.Render(",
         "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope)",
-        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand("
+        "SubmitKnownSurfaceCommandAsync("
     };
     var missingPresenterSymbols = requiredPresenterSymbols
         .Where(symbol => !presenter.Contains(symbol, StringComparison.Ordinal))
@@ -2923,7 +2923,7 @@ static void RequireEveRuntimeBootstrap(string root)
         "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope)",
         StringComparison.Ordinal);
     var eveSubmitIndex = presenter.IndexOf(
-        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
+        "SubmitKnownSurfaceCommandAsync(",
         StringComparison.Ordinal);
     if (daemonSubmitIndex < 0 || eveSubmitIndex < 0 || daemonSubmitIndex > eveSubmitIndex)
     {
@@ -3160,7 +3160,7 @@ static void RequireMainMenuSettingsCommands(string root)
     {
         "SendKnownAetheriaEveCommand(request, \"player-settings\")",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
-        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
+        "SubmitKnownSurfaceCommandAsync(request, \"unity-main-menu\")",
         "stateBoot.StateFilePath",
         "\"unity-main-menu\""
     };
@@ -3956,7 +3956,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     var requiredActionGameManagerSymbols = new[]
     {
         "SendRuntimeInputSettingsCommand(",
-        "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand",
+        "SubmitInputSettingsCommandAsync(",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled"
     };
@@ -6830,7 +6830,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
         "RequestClientTargetCommand(request)",
         "SendKnownAetheriaEveCommand(request, \"Verse-host\")",
-        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(",
+        "SubmitKnownSurfaceCommandAsync(request, \"unity-main-menu\")",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest("
@@ -8218,6 +8218,7 @@ static void RequireTypedEveCommandBodies(string root)
 {
     var eveCommandDocumentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveCommandDocument.cs");
     var eveCommandClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveCommandClient.cs");
+    var verseClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
     var runtimeCommandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
     var eveCommandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
@@ -8226,7 +8227,7 @@ static void RequireTypedEveCommandBodies(string root)
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var evePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, eveCommandClientPath, runtimeCommandPortPath, eveCommandBridgePath, stateNodePath, documentRegistryPath, actionGameManagerPath, mainMenuPath, evePresenterPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, eveCommandClientPath, verseClientPath, runtimeCommandPortPath, eveCommandBridgePath, stateNodePath, documentRegistryPath, actionGameManagerPath, mainMenuPath, evePresenterPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -8240,6 +8241,7 @@ static void RequireTypedEveCommandBodies(string root)
 
     var eveCommandDocument = File.ReadAllText(eveCommandDocumentPath);
     var eveCommandClient = File.ReadAllText(eveCommandClientPath);
+    var verseClient = File.ReadAllText(verseClientPath);
     var normalizedEveCommandClient = eveCommandClient.Replace("\r\n", "\n", StringComparison.Ordinal);
     var runtimeCommandPort = File.ReadAllText(runtimeCommandPortPath);
     var eveCommandBridge = File.ReadAllText(eveCommandBridgePath);
@@ -8333,12 +8335,12 @@ static void RequireTypedEveCommandBodies(string root)
         "command.PlayerSettings.PlayerName",
         "command.InputSettings.ActionName",
         "command.InputSettings.InputSystemPath",
-        "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand(",
-        "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand(",
-        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand("
+        "SubmitInputSettingsCommandAsync(",
+        "SubmitLoadoutTemplateCommandAsync(",
+        "SubmitKnownSurfaceCommandAsync("
     };
     var mainMenu = File.ReadAllText(mainMenuPath);
-    var typedCommandSources = eveCommandClient + "\n" + runtimeCommandPort + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
+    var typedCommandSources = eveCommandClient + "\n" + verseClient + "\n" + runtimeCommandPort + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
     if (typedCommandSources.Contains("DeleteEveCommandAsync(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -8360,6 +8362,30 @@ static void RequireTypedEveCommandBodies(string root)
         throw new InvalidOperationException(
             "Eve command append/apply path is missing typed command body usage: " +
             string.Join(", ", missingTypedCommandSymbols));
+    }
+
+    var forbiddenUnityEveCommandSubmitSymbols = new[]
+    {
+        "AetheriaRuntimeEveCommands.TrySendInputSettingsCommand",
+        "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand",
+        "AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand"
+    };
+    var unityCommandSources = new Dictionary<string, string>
+    {
+        [actionGameManagerPath] = actionGameManager,
+        [mainMenuPath] = mainMenu,
+        [evePresenterPath] = evePresenter
+    };
+    var legacyUnityCommandHits = unityCommandSources
+        .SelectMany(entry => forbiddenUnityEveCommandSubmitSymbols
+            .Where(symbol => entry.Value.Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{Path.GetRelativePath(root, entry.Key)} -> {symbol}"))
+        .ToArray();
+    if (legacyUnityCommandHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity-facing shells still submit Eve commands through legacy helper ports instead of AetheriaRuntimeVerseClient: " +
+            string.Join("; ", legacyUnityCommandHits));
     }
 
     var unityNamedRuntimeSources = new Dictionary<string, string>
@@ -11423,7 +11449,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "ProjectCargoBays(IEnumerable<EquippedCargoBay> bays)",
         "SendRuntimeLoadoutTemplateCommand(loadout",
         "private static void SendRuntimeLoadoutTemplateCommand(",
-        "AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand",
+        "SubmitLoadoutTemplateCommandAsync(loadout, clientId)",
     };
     var missingActionSymbols = requiredActionSymbols
         .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))

@@ -213,7 +213,7 @@ namespace GameCult.Aetheria.EveRuntime
             _mountedSurfaceUpdatedAtUtc = surface.UpdatedAtUtc ?? "";
         }
 
-        private static void EmitCommand(string statePath, EveSurfaceCommandRequest request)
+        private void EmitCommand(string statePath, EveSurfaceCommandRequest request)
         {
             if (AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope))
             {
@@ -222,20 +222,23 @@ namespace GameCult.Aetheria.EveRuntime
                 return;
             }
 
-            if (!AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(
-                    statePath,
-                    request,
-                    string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId,
-                    out var envelope,
-                    out var error))
+            try
+            {
+                var envelope = ResolveVerseClient(statePath)
+                    .SubmitKnownSurfaceCommandAsync(
+                        request,
+                        string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId)
+                    .GetAwaiter()
+                    .GetResult();
+
+                Debug.Log(
+                    $"Submitted Eve command for CultMesh bridge: {envelope.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
+            }
+            catch (Exception ex)
             {
                 Debug.LogWarning(
-                    $"Ignored or failed Aetheria Eve command: {request.ProviderId}/{request.SurfaceId}/{request.Command}: {error}");
-                return;
+                    $"Ignored or failed Aetheria Eve command: {request.ProviderId}/{request.SurfaceId}/{request.Command}: {ex}");
             }
-
-            Debug.Log(
-                $"Submitted Eve command for CultMesh bridge: {envelope!.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
         }
 
         private void OnDisable()

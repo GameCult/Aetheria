@@ -126,19 +126,12 @@ public class ActionGameManager : MonoBehaviour
     {
         try
         {
-            if (!AetheriaRuntimeEveCommands.TrySendInputSettingsCommand(
-                    RuntimeStateFilePath,
-                    command,
-                    body,
-                    clientId,
-                    out var submitted,
-                    out var error))
-            {
-                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return;
-            }
+            var submitted = ResolveRuntimeVerseClient(RuntimeStateFilePath)
+                .SubmitInputSettingsCommandAsync(command, body, clientId)
+                .GetAwaiter()
+                .GetResult();
 
-            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted.CommandId}");
         }
         catch (Exception ex)
         {
@@ -1101,18 +1094,12 @@ public class ActionGameManager : MonoBehaviour
     {
         try
         {
-            if (!AetheriaRuntimeEveCommands.TrySendLoadoutTemplateCommand(
-                    RuntimeStateFilePath,
-                    loadout,
-                    clientId,
-                    out var submitted,
-                    out var error))
-            {
-                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return;
-            }
+            var submitted = ResolveRuntimeVerseClient(RuntimeStateFilePath)
+                .SubmitLoadoutTemplateCommandAsync(loadout, clientId)
+                .GetAwaiter()
+                .GetResult();
 
-            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted.CommandId}");
         }
         catch (Exception ex)
         {

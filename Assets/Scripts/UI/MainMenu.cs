@@ -418,7 +418,7 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static void SendKnownAetheriaEveCommand(
+    private void SendKnownAetheriaEveCommand(
         EveSurfaceCommandRequest request,
         string label)
     {
@@ -431,18 +431,12 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            if (!AetheriaRuntimeEveCommands.TrySendKnownSurfaceCommand(
-                    stateBoot.StateFilePath,
-                    request,
-                    "unity-main-menu",
-                    out var submitted,
-                    out var error))
-            {
-                Debug.LogError($"Failed to submit Aetheria {label} Eve command: {error}");
-                return;
-            }
+            var submitted = ResolveVerseClient(stateBoot)
+                .SubmitKnownSurfaceCommandAsync(request, "unity-main-menu")
+                .GetAwaiter()
+                .GetResult();
 
-            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted!.CommandId}");
+            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted.CommandId}");
         }
         catch (Exception ex)
         {
