@@ -799,7 +799,6 @@ static void RequirePackageSerializerBoundary(string root)
         "AetheriaRuntimeCatalogStore.cs",
         "AetheriaRuntimeClientTargetStore.cs",
         "AetheriaRuntimeCultCacheDocumentStore.cs",
-        "AetheriaRuntimeCommandPort.cs",
         "AetheriaRuntimeVerseClient.cs",
         "AetheriaRuntimeSnapshotDocuments.cs",
         "AetheriaRuntimeEveCommandDocument.cs",
@@ -8013,9 +8012,9 @@ static void RequireDaemonVersePublication(string root)
         "PutDaemonProviderAdvertisementAsync(daemonProvider)",
         "PutDaemonHealthAsync(daemonHealth)",
         "PutDaemonCommandBoundaryAsync(daemonCommandBoundary)",
-        "AetheriaCommandPort.OpenAsync(",
-        "daemonCommandPort.SubmitDaemonCommandAsync(",
-        "eveCommandPort.SubmitEveCommandAsync(",
+        "AetheriaRuntimeVerseClient.OpenAsync(",
+        "daemonCommandClient.SubmitDaemonCommandAsync(",
+        "eveCommandClient.SubmitEveCommandAsync(",
         "PutDaemonFrameAsync(daemonFrame)",
         "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface))",
         "GetDaemonProviderAdvertisementAsync()",
@@ -8062,8 +8061,8 @@ static void RequireDaemonVersePublication(string root)
         "Long term, Odin should discover the daemon-owned provider advertisement and interface bindings directly",
         "Queues are an implementation detail.",
         "Eve commands and daemon commands are typed `gamecult.eve.command.v1` and `gamecult.aetheria.daemon_command.v1` records in the Aetheria state graph",
-        "`AetheriaCommandPort` is the neutral command submission implementation for typed command records.",
-        "Client-side command lowerers may use typed runtime clients over that same port.",
+        "`AetheriaRuntimeVerseClient` is the only shared submission boundary for typed command records.",
+        "Do not add command ports, cached submitters, mailboxes, or queue-like buses between clients and the typed Verse graph.",
         "`CommandLog`, `Inbox`, `mailbox`, `.eve.commands`, `.daemon.commands`, `.cc.pending`, or `" + "Pending" + "CultCacheStore` in Unity-facing daemon/Eve command code",
         "Do not add a private HTTP dashboard, Unity-only inspector, JSON status blob, or agent-specific daemon wrapper as canonical truth."
     };
@@ -8083,10 +8082,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
     var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
     var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
-    var commandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, surfaceStatePath, commandPortPath, docPath };
+    var requiredFiles = new[] { clientPath, surfaceStatePath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -8100,7 +8098,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     var client = File.ReadAllText(clientPath);
     var surfaceState = File.ReadAllText(surfaceStatePath);
-    var commandPort = File.ReadAllText(commandPortPath);
     var doc = File.ReadAllText(docPath);
 
     if (File.Exists(oldSurfaceStatePath))
@@ -8134,7 +8131,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "GetVerseHostSettingsAsync()",
         "GetLoadoutTemplatesAsync()",
         "SubmitDaemonCommandAsync(",
+        "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
+        "AetheriaRuntimeVerseRecordKeys.EveCommand(command.CommandId)",
         "DaemonGameTuiSurface { get; }",
         "DaemonEditorTuiSurface { get; }"
     };
@@ -8167,30 +8166,11 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             string.Join(", ", missingSurfaceSymbols));
     }
 
-    if (!commandPort.Contains("AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry()", StringComparison.Ordinal) ||
-        !commandPort.Contains("AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)", StringComparison.Ordinal) ||
-        !commandPort.Contains("AetheriaRuntimeVerseRecordKeys.DaemonCommand(commandId)", StringComparison.Ordinal) ||
-        !commandPort.Contains("AetheriaRuntimeVerseRecordKeys.EveCommand(commandId)", StringComparison.Ordinal))
+    var deletedCommandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
+    if (File.Exists(deletedCommandPortPath))
     {
         throw new InvalidOperationException(
-            "Runtime command port must share AetheriaRuntimeVerseClient contract registry and record keys.");
-    }
-
-    var forbiddenCommandPortRegistrySymbols = new[]
-    {
-        "private static CultDocumentRegistry CreateCultCacheRegistry",
-        "private static CultNetDocumentRegistry CreateCultNetRegistry",
-        "daemon:commands:{StableToken(commandId)}",
-        "eve:commands:{StableToken(commandId)}"
-    };
-    var forbiddenCommandPortHits = forbiddenCommandPortRegistrySymbols
-        .Where(symbol => commandPort.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (forbiddenCommandPortHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Runtime command port still owns a duplicate Verse contract boundary: " +
-            string.Join(", ", forbiddenCommandPortHits));
+            "AetheriaRuntimeCommandPort.cs has returned. Submit typed commands through AetheriaRuntimeVerseClient.");
     }
 
     var requiredDocSymbols = new[]
@@ -8227,7 +8207,7 @@ static void RequireTypedEveCommandBodies(string root)
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var evePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, eveCommandClientPath, verseClientPath, runtimeCommandPortPath, eveCommandBridgePath, stateNodePath, documentRegistryPath, actionGameManagerPath, mainMenuPath, evePresenterPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, eveCommandClientPath, verseClientPath, eveCommandBridgePath, stateNodePath, documentRegistryPath, actionGameManagerPath, mainMenuPath, evePresenterPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -8243,7 +8223,6 @@ static void RequireTypedEveCommandBodies(string root)
     var eveCommandClient = File.ReadAllText(eveCommandClientPath);
     var verseClient = File.ReadAllText(verseClientPath);
     var normalizedEveCommandClient = eveCommandClient.Replace("\r\n", "\n", StringComparison.Ordinal);
-    var runtimeCommandPort = File.ReadAllText(runtimeCommandPortPath);
     var eveCommandBridge = File.ReadAllText(eveCommandBridgePath);
     var stateNode = File.ReadAllText(stateNodePath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
@@ -8292,20 +8271,10 @@ static void RequireTypedEveCommandBodies(string root)
     {
         "public static class AetheriaRuntimeEveCommands",
         "public static class AetheriaRuntimeEveCommandClient",
-        "public sealed class AetheriaRuntimeCommandPort",
-        "public sealed class AetheriaCommandPort",
-        "namespace Aetheria.State",
         "namespace GameCult.Aetheria.State.Verse",
-        "global::Aetheria.State.AetheriaCommandPort",
-        "public const string DefaultRuntimeId = \"aetheria-command-client\"",
-        "string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId",
-        "internal Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
-        "internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
-        "internal static class AetheriaRuntimeCommandSubmitter",
-        "internal static bool TrySubmitEveCommand(",
-        "internal static bool TrySubmitDaemonCommand(",
-        "TrySubmitEveCommand(",
-        "TrySubmitDaemonCommand(",
+        "AetheriaRuntimeVerseClient.OpenAsync(",
+        "Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
+        "Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
         "CreatePlayerSettingsCommand(",
         "CreateInputSettingsCommand(",
         "CreateCatalogCommand(",
@@ -8340,7 +8309,7 @@ static void RequireTypedEveCommandBodies(string root)
         "SubmitKnownSurfaceCommandAsync("
     };
     var mainMenu = File.ReadAllText(mainMenuPath);
-    var typedCommandSources = eveCommandClient + "\n" + verseClient + "\n" + runtimeCommandPort + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
+    var typedCommandSources = eveCommandClient + "\n" + verseClient + "\n" + eveCommandBridge + "\n" + stateNode + "\n" + documentRegistry + "\n" + actionGameManager + "\n" + mainMenu + "\n" + evePresenter;
     if (typedCommandSources.Contains("DeleteEveCommandAsync(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -8416,13 +8385,19 @@ static void RequireTypedEveCommandBodies(string root)
             string.Join(", ", unityNamedRuntimeHits));
     }
 
+    if (File.Exists(runtimeCommandPortPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeCommandPort.cs has returned. Submit typed command documents through AetheriaRuntimeVerseClient.");
+    }
+
     var forbiddenSharedCommandRuntimeIds = new[]
     {
         "string runtimeId = \"unity-input-provider\"",
         "? \"unity-input-provider\" : runtimeId"
     };
     var sharedCommandRuntimeIdHits = forbiddenSharedCommandRuntimeIds
-        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => typedCommandSources.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (sharedCommandRuntimeIdHits.Length > 0)
     {
@@ -8431,40 +8406,10 @@ static void RequireTypedEveCommandBodies(string root)
             string.Join(", ", sharedCommandRuntimeIdHits));
     }
 
-    if (runtimeCommandPort.Contains("public static class AetheriaRuntimeCommandSubmitter", StringComparison.Ordinal))
+    if (typedCommandSources.Contains("AetheriaRuntimeCommandSubmitter", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared command runtime still exposes the generic transport submitter publicly instead of routing callers through typed clients.");
-    }
-
-    var forbiddenRuntimePortSubmitMethods = new[]
-    {
-        "public Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
-        "public Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync("
-    };
-    var publicRuntimePortSubmitHits = forbiddenRuntimePortSubmitMethods
-        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (publicRuntimePortSubmitHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Runtime command port still exposes raw document submission publicly instead of routing callers through typed clients: " +
-            string.Join(", ", publicRuntimePortSubmitHits));
-    }
-
-    var forbiddenPublicSubmitterMethods = new[]
-    {
-        "public static bool TrySubmitDaemonCommand(",
-        "public static bool TrySubmitEveCommand("
-    };
-    var publicSubmitterMethodHits = forbiddenPublicSubmitterMethods
-        .Where(symbol => runtimeCommandPort.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (publicSubmitterMethodHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Runtime command submitter still marks generic submit helpers public instead of keeping them internal: " +
-            string.Join(", ", publicSubmitterMethodHits));
+            "Shared command runtime still preserves the cached command submitter instead of routing typed clients through AetheriaRuntimeVerseClient.");
     }
 
     var forbiddenUnitySubmitterSymbols = new[]
@@ -8584,7 +8529,7 @@ static void RequireTypedEveCommandBodies(string root)
     if (rendererLogHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Renderer code still speaks to the Eve mailbox log instead of the typed command port: " +
+            "Renderer code still speaks to the Eve mailbox log instead of the typed Verse client path: " +
             string.Join(", ", rendererLogHits));
     }
 

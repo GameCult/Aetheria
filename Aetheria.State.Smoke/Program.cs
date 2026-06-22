@@ -139,10 +139,12 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutDaemonProviderAdvertisementAsync(daemonProvider);
     await node.PutDaemonHealthAsync(daemonHealth);
     await node.PutDaemonCommandBoundaryAsync(daemonCommandBoundary);
-    using var daemonCommandPort = await AetheriaCommandPort.OpenAsync(
+    using var daemonCommandClient = await AetheriaRuntimeVerseClient.OpenAsync(
         statePath,
-        "aetheria-state-smoke-command-client");
-    var daemonSubmitEnvelope = await daemonCommandPort.SubmitDaemonCommandAsync(
+        "aetheria-state-smoke-command-client",
+        startServer: false,
+        pullOnOpen: true);
+    var daemonSubmitEnvelope = await daemonCommandClient.SubmitDaemonCommandAsync(
         AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.SensorPing,
             "aetheria-state-smoke",
@@ -155,7 +157,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                      "aetheria-state-smoke-command-check"))
     {
         if (commandVerifyNode.ReadObservedDaemonCommands().All(command => command.CommandId != daemonSubmitEnvelope!.CommandId))
-            throw new InvalidOperationException("Runtime command port daemon submission did not appear as a typed state record.");
+            throw new InvalidOperationException("Verse client daemon submission did not appear as a typed state record.");
     }
     await node.PutDaemonFrameAsync(daemonFrame);
     await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface));
@@ -532,10 +534,12 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             await node.GetPlayerSettingsAsync(),
             now));
 
-    using var eveCommandPort = await AetheriaCommandPort.OpenAsync(
+    using var eveCommandClient = await AetheriaRuntimeVerseClient.OpenAsync(
         statePath,
-        "aetheria-state-smoke-eve-command-client");
-    var eveSubmitEnvelope = await eveCommandPort.SubmitEveCommandAsync(
+        "aetheria-state-smoke-eve-command-client",
+        startServer: false,
+        pullOnOpen: true);
+    var eveSubmitEnvelope = await eveCommandClient.SubmitEveCommandAsync(
         AetheriaRuntimeEveCommandClient.ToDocument(
             AetheriaRuntimeEveCommands.SubmitCatalogCommand(
                 statePath,
@@ -546,7 +550,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                      "aetheria-state-smoke-eve-command-check"))
     {
         if (commandVerifyNode.ReadObservedEveCommands().All(command => command.CommandId != eveSubmitEnvelope!.CommandId))
-            throw new InvalidOperationException("Runtime command port Eve submission did not appear as a typed state record.");
+            throw new InvalidOperationException("Verse client Eve submission did not appear as a typed state record.");
     }
     await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
         AetheriaRuntimeEveCommands.SubmitCatalogCommand(

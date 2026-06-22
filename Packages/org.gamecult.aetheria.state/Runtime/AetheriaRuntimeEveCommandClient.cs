@@ -171,12 +171,30 @@ namespace GameCult.Aetheria.State.Verse
             out AetheriaRuntimeEveCommandEnvelope? envelope,
             out string error)
         {
-            return AetheriaRuntimeCommandSubmitter.TrySubmitEveCommand(
-                stateFilePath,
-                AetheriaRuntimeEveCommandClient.ToDocument(commandEnvelope),
-                string.IsNullOrWhiteSpace(clientId) ? "aetheria-eve-client" : clientId,
-                out envelope,
-                out error);
+            envelope = null;
+            error = "";
+
+            try
+            {
+                using var client = AetheriaRuntimeVerseClient
+                    .OpenAsync(
+                        stateFilePath,
+                        string.IsNullOrWhiteSpace(clientId) ? "aetheria-eve-client" : clientId,
+                        startServer: false,
+                        pullOnOpen: true)
+                    .GetAwaiter()
+                    .GetResult();
+                envelope = client
+                    .SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(commandEnvelope))
+                    .GetAwaiter()
+                    .GetResult();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.ToString();
+                return false;
+            }
         }
     }
 

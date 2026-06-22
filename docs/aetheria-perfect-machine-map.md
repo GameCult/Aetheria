@@ -505,7 +505,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   command records after publishing typed documents. Run checkpoint documents now
   carry current-zone and entity snapshots so the old `.zone` file path has a
   live typed runtime projection path.
-- `AetheriaRuntimeEveCommands` is the renderer-facing typed command port. The
+- `AetheriaRuntimeEveCommands` is the renderer-facing typed command helper. The
   internal Eve command path persists typed `AetheriaRuntimeEveCommandDocument`
   records; `AetheriaEveCommandBridge` consumes the same shared document type,
   validates provider/surface/command authority, and deletes accounted command

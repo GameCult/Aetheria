@@ -41,12 +41,26 @@ namespace GameCult.Aetheria.State.Verse
             out AetheriaRuntimeDaemonCommandEnvelope? envelope,
             out string error)
         {
-            return AetheriaRuntimeCommandSubmitter.TrySubmitDaemonCommand(
-                StateFilePath,
-                command,
-                ClientId,
-                out envelope,
-                out error);
+            envelope = null;
+            error = "";
+
+            try
+            {
+                using var client = AetheriaRuntimeVerseClient
+                    .OpenAsync(StateFilePath, ClientId, startServer: false, pullOnOpen: true)
+                    .GetAwaiter()
+                    .GetResult();
+                envelope = client
+                    .SubmitDaemonCommandAsync(command)
+                    .GetAwaiter()
+                    .GetResult();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.ToString();
+                return false;
+            }
         }
 
         private AetheriaRuntimeDaemonCommandDocument Create(

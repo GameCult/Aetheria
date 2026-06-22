@@ -50,10 +50,10 @@ renderer-side commit authority.
 publishes `starting`, `running`, and `stopping` states through `Aetheria.State`;
 legacy outbox status remains operation telemetry, not daemon-session ownership.
 Unity Eve surfaces construct typed `gamecult.eve.command.v1` command documents.
-The neutral `AetheriaCommandPort` owns command submission for headless and
-non-Unity clients; Unity input providers reach the same records through the
-`AetheriaRuntimeCommandPort` facade. The Verse daemon uses `AetheriaStateNode`
-to observe and accept those CultNet records in the Aetheria state graph.
+`AetheriaRuntimeVerseClient` is the shared CultMesh client boundary for
+headless, Unity, and non-Unity runtimes. Typed command clients submit directly
+to the same Verse records; there is no command-port facade or cached submitter
+between client code and the Aetheria state graph.
 `AetheriaEveCommandBridge` is the provider-owned command acceptor for those
 records: it validates the provider, surface, and command template before
 running the narrow refresh handlers for the catalog and operations surfaces
