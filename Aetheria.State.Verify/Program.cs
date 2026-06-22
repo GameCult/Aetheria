@@ -4611,7 +4611,8 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("prop.Key.EndsWith(\"Ref\", StringComparison.Ordinal)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath)", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("AetheriaRuntimeVerseClient.CreateEveSurfaceStateRefResolver(", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("\"unity-eve-surface-host\"", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, stateRefResolver)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
@@ -8130,6 +8131,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "GetPlayerSettingsAsync()",
         "GetVerseHostSettingsAsync()",
         "GetLoadoutTemplatesAsync()",
+        "CreateEveSurfaceStateRefResolver(",
+        "AetheriaRuntimeStateReader.TryResolveDaemonStateRef(",
+        "AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
@@ -10161,6 +10165,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var eveSurfacePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
+    var eveUnitySurfaceHostPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveUnitySurfaceHost.cs");
 
     var requiredPaths = new[]
     {
@@ -10169,7 +10174,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         unityPackageProjectPath,
         actionGameManagerPath,
         mainMenuPath,
-        eveSurfacePresenterPath
+        eveSurfacePresenterPath,
+        eveUnitySurfaceHostPath
     };
 
     var missingPaths = requiredPaths
@@ -10190,6 +10196,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var eveSurfacePresenter = File.ReadAllText(eveSurfacePresenterPath);
+    var eveUnitySurfaceHost = File.ReadAllText(eveUnitySurfaceHostPath);
 
     var requiredReaderSymbols = new[]
     {
@@ -10374,10 +10381,18 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Aetheria Eve surface presenter no longer routes daemon surface lookup through the shared runtime Verse client.");
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(statePath)", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("client.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains("ResolveVerseClient(statePath).CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter no longer resolves provider state refs through the shared runtime state reader.");
+            "Aetheria Eve surface presenter no longer resolves provider state refs through the shared runtime Verse client.");
+    }
+
+    if (eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal) ||
+        eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity Eve surface lowering still resolves state refs through the file reader instead of AetheriaRuntimeVerseClient.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>

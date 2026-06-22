@@ -8,7 +8,7 @@ using GameCult.Eve.Surface;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    // Runtime shells acquire typed state through this port so the transport can move to the daemon without spelunking every consumer.
+    // Compatibility reader for file-backed tools and pure state-ref helpers; Unity shells should prefer AetheriaRuntimeVerseClient.
     public static class AetheriaRuntimeStateReader
     {
         public static AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog(string stateFilePath)

@@ -210,6 +210,23 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeVerseClient(fullPath, effectiveRuntimeId, node);
         }
 
+        public static Func<string, string> CreateEveSurfaceStateRefResolver(
+            string statePath,
+            string runtimeId = DefaultRuntimeId)
+        {
+            if (string.IsNullOrWhiteSpace(statePath))
+                return _ => "";
+
+            using var client = OpenAsync(
+                    statePath,
+                    string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId,
+                    startServer: false,
+                    pullOnOpen: true)
+                .GetAwaiter()
+                .GetResult();
+            return client.CreateEveSurfaceStateRefResolver();
+        }
+
         public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
         {
             ThrowIfDisposed();
@@ -289,6 +306,42 @@ namespace GameCult.Aetheria.State.Verse
                 soaView,
                 AetheriaRuntimeDaemonFrameStore.GetFramePath(StatePath),
                 AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
+        }
+
+        public Func<string, string> CreateEveSurfaceStateRefResolver()
+        {
+            ThrowIfDisposed();
+
+            var frame = GetLatestFrameAsync().GetAwaiter().GetResult();
+            var health = GetHealthAsync().GetAwaiter().GetResult();
+            var commandBoundary = GetCommandBoundaryAsync().GetAwaiter().GetResult();
+            AetheriaRuntimeCatalogSnapshot? catalog = null;
+
+            return stateRef =>
+            {
+                if (string.IsNullOrWhiteSpace(stateRef))
+                    return "";
+
+                if (stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal) &&
+                    AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
+                        frame,
+                        health,
+                        commandBoundary,
+                        stateRef,
+                        out var daemonValue))
+                {
+                    return daemonValue;
+                }
+
+                if (stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
+                {
+                    catalog ??= OpenRuntimeCatalog();
+                    if (AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var itemValue))
+                        return itemValue;
+                }
+
+                return "";
+            };
         }
 
         public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()
