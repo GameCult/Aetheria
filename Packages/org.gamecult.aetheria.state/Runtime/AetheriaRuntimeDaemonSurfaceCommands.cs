@@ -20,7 +20,20 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed);
+            using var verseClient = AetheriaRuntimeVerseClient
+                .OpenAsync(
+                    stateFilePath,
+                    string.IsNullOrWhiteSpace(request.ClientId)
+                        ? AetheriaRuntimeDaemonOperationClient.DefaultClientId
+                        : request.ClientId,
+                    startServer: false,
+                    pullOnOpen: true)
+                .GetAwaiter()
+                .GetResult();
+            var observed = verseClient
+                .GetObservedDaemonStateAsync()
+                .GetAwaiter()
+                .GetResult();
             var client = new AetheriaRuntimeDaemonOperationClient(
                 stateFilePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,

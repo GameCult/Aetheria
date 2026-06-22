@@ -2936,7 +2936,9 @@ static void RequireEveRuntimeBootstrap(string root)
         "public static class AetheriaRuntimeDaemonSurfaceCommands",
         "EveSurfaceCommandRequest request",
         "request.ProviderId, \"aetheria.daemon\"",
-        "AetheriaRuntimeStateReader.TryReadObservedDaemonState(stateFilePath, out var observed)",
+        "AetheriaRuntimeVerseClient",
+        ".OpenAsync(",
+        "GetObservedDaemonStateAsync()",
         "new AetheriaRuntimeDaemonOperationClient(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
@@ -2949,6 +2951,12 @@ static void RequireEveRuntimeBootstrap(string root)
         throw new InvalidOperationException(
             "Daemon Eve surface command routing no longer submits typed daemon operations: " +
             string.Join(", ", missingDaemonSurfaceCommandSymbols));
+    }
+
+    if (daemonSurfaceCommands.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing still reads observed daemon state through the runtime file reader instead of the Verse client.");
     }
 
     var forbiddenDaemonSurfaceCommandSymbols = new[]

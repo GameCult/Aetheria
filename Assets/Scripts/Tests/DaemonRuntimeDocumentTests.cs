@@ -1806,7 +1806,7 @@ public class DaemonRuntimeDocumentTests
                 }
             });
 
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
         AetheriaRuntimeDaemonSoaViewStore.PublishView(statePath, soaView);
 
         var read = AetheriaRuntimeStateReader.TryReadObservedDaemonState(statePath, out var observed);
@@ -1939,7 +1939,7 @@ public class DaemonRuntimeDocumentTests
             77,
             1.5,
             0.02);
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
@@ -1976,7 +1976,7 @@ public class DaemonRuntimeDocumentTests
             79,
             1.5,
             0.02);
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
@@ -3801,6 +3801,23 @@ public class DaemonRuntimeDocumentTests
             soaView,
             "state.cc.daemon.frame.cc",
             "state.cc.daemon.soa.cc");
+    }
+
+    private static void PublishLatestFrameThroughVerseClient(
+        string statePath,
+        AetheriaRuntimeDaemonFrameDocument frame)
+    {
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-surface-command-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        client.LatestFrame()
+            .ReplaceAsync(frame)
+            .GetAwaiter()
+            .GetResult();
+        client.FlushAsync()
+            .GetAwaiter()
+            .GetResult();
     }
 
     private static AetheriaRuntimeCatalogItem CatalogItem(
