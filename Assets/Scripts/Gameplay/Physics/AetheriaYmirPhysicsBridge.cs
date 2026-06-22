@@ -20,7 +20,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
     public bool EnableProjectileCutover = true;
     public float ProjectileRadius = 0.1f;
     public float ProjectileMass = 1.0f;
-    public float TargetRadiusPadding = 0.1f;
     public int TimeoutMilliseconds = 20;
     public AetheriaDaemonObserver DaemonObserver;
 
@@ -451,7 +450,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             return false;
 
         var view = observer.LastRenderNativeView;
-        if (!view.IsCreated || !view.HasPhysicsRadius)
+        if (!view.IsCreated || !view.HasEntityIndex || !view.HasPhysicsRadius)
             return false;
 
         _daemonBodies.Clear();
@@ -461,7 +460,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             if (radius <= 0)
                 continue;
 
-            var daemonEntityIndex = view.HasEntityIndex ? view.EntityIndex[i] : i;
+            var daemonEntityIndex = view.EntityIndex[i];
             if (sourceEntity != null && sourceEntity.DaemonEntityIndex == daemonEntityIndex)
                 continue;
             if (onlyDaemonEntityIndex.HasValue && onlyDaemonEntityIndex.Value != daemonEntityIndex)

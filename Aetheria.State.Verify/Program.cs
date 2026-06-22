@@ -9741,10 +9741,19 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
         ymirBridge.Contains("_targetBodies", StringComparison.Ordinal) ||
         ymirBridge.Contains("TargetBodyPrefix", StringComparison.Ordinal) ||
-        ymirBridge.Contains("bodyMap[bodyId] = hull", StringComparison.Ordinal))
+        ymirBridge.Contains("bodyMap[bodyId] = hull", StringComparison.Ordinal) ||
+        ymirBridge.Contains("TargetRadiusPadding", StringComparison.Ordinal) ||
+        ymirBridge.Contains("view.HasEntityIndex ? view.EntityIndex[i] : i", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Ymir gameplay target/zone queries must be built from daemon SOA entity bodies, not Unity HullCollider presentation geometry.");
+            "Ymir gameplay target/zone queries must be built from daemon SOA entity bodies with explicit daemon entity ids, not Unity HullCollider presentation geometry or row-order fallbacks.");
+    }
+
+    if (!ymirBridge.Contains("!view.IsCreated || !view.HasEntityIndex || !view.HasPhysicsRadius", StringComparison.Ordinal) ||
+        !ymirBridge.Contains("var daemonEntityIndex = view.EntityIndex[i];", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Ymir daemon body construction must require the daemon EntityIndex SoA column and derive body ids from that column.");
     }
 
     var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>
