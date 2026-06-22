@@ -13,7 +13,7 @@
 		<PackageReference Include="MessagePack" Version="2.1.90" />
 		<PackageReference Include="MessagePack.MSBuild.Tasks" Version="2.0.323" PrivateAssets="All" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0-preview.1.20120.4" />
-		<PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
 		<PackageReference Include="Remotion.Linq" Version="2.2.0" />
 	</ItemGroup>
 
