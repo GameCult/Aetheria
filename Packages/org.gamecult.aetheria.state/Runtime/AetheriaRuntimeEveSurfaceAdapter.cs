@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Eve.Surface;
+using EveSurfaceState = global::Aetheria.State.Documents.EveSurfaceState;
 
 #nullable enable
 
@@ -12,6 +13,41 @@ namespace GameCult.Aetheria.State.Verse
         public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
         {
             return ToEveSurfaceDocument(document, null);
+        }
+
+        public static EveSurfaceDocument ToEveSurfaceDocument(EveSurfaceState state)
+        {
+            return ToEveSurfaceDocument(state, null);
+        }
+
+        public static EveSurfaceDocument ToEveSurfaceDocument(
+            EveSurfaceState state,
+            Func<string, string>? stateRefResolver)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+
+            var surface = new EveSurfaceDocument(
+                state.Type,
+                state.Schema,
+                state.ProviderId,
+                state.ProviderKind,
+                state.Title,
+                state.Version,
+                state.UpdatedAtUtc,
+                new EveSurfaceTree(
+                    state.Surface.Id,
+                    ToEveSurfaceComponent(state.Surface.Root),
+                    state.Surface.Styles
+                        .Select(style => new GameCult.Eve.Surface.EveStyleToken(style.Name, style.Value))
+                        .ToArray()),
+                state.Commands
+                    .Select(command => new GameCult.Eve.Surface.EveCommandTemplate(
+                        command.Command,
+                        command.Label,
+                        command.Transport))
+                    .ToArray());
+
+            return ResolveStateRefs(surface, stateRefResolver);
         }
 
         public static EveSurfaceDocument ToEveSurfaceDocument(
@@ -87,6 +123,15 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
+        {
+            return new EveSurfaceComponent(
+                component.Id,
+                component.Kind,
+                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+                component.Children.Select(ToEveSurfaceComponent).ToArray());
+        }
+
+        private static EveSurfaceComponent ToEveSurfaceComponent(global::Aetheria.State.Documents.EveSurfaceComponent component)
         {
             return new EveSurfaceComponent(
                 component.Id,

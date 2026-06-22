@@ -1,13 +1,15 @@
 using System;
-using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaDaemonOperations
+namespace GameCult.Aetheria.State.Verse
 {
-    private readonly AetheriaDaemonObserver _observer;
+public sealed class AetheriaRuntimeDaemonOperationsClient
+{
+    private readonly Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> _submit;
 
-    internal AetheriaDaemonOperations(AetheriaDaemonObserver observer)
+    public AetheriaRuntimeDaemonOperationsClient(
+        Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
-        _observer = observer ?? throw new ArgumentNullException(nameof(observer));
+        _submit = submit ?? throw new ArgumentNullException(nameof(submit));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetTarget(string targetEntityKey)
@@ -377,6 +379,7 @@ public sealed class AetheriaDaemonOperations
     private AetheriaRuntimeDaemonCommandEnvelope Send(
         Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
-        return _observer.SendOperation(submit);
+        return _submit(submit);
     }
+}
 }

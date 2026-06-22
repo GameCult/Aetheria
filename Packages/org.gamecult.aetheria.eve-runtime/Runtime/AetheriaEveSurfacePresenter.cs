@@ -29,6 +29,8 @@ namespace GameCult.Aetheria.EveRuntime
         private float refreshIntervalSeconds = 0.1f;
 
         private UIDocument? _document;
+        private AetheriaRuntimeVerseClient? _verseClient;
+        private string _verseClientStatePath = "";
         private float _nextRefreshTime;
         private string _mountedStatePath = "";
         private string _mountedSurfaceId = "";
@@ -81,7 +83,7 @@ namespace GameCult.Aetheria.EveRuntime
                 return;
             }
 
-            var surface = AetheriaRuntimeStateReader.ReadEveSurface(statePath, surfaceId);
+            var surface = ReadDaemonSurface(statePath);
             if (surface == null)
             {
                 root.Add(BuildError($"Eve surface not found: {surfaceId}"));
@@ -112,11 +114,56 @@ namespace GameCult.Aetheria.EveRuntime
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
                 return;
 
-            var surface = AetheriaRuntimeStateReader.ReadEveSurface(stateBoot.StateFilePath, surfaceId);
+            var surface = ReadDaemonSurface(stateBoot.StateFilePath);
             if (surface == null || !ShouldMountSurface(stateBoot.StateFilePath, surface))
                 return;
 
             MountSurface(stateBoot.StateFilePath, surface);
+        }
+
+        private EveSurfaceDocument? ReadDaemonSurface(string statePath)
+        {
+            var client = ResolveVerseClient(statePath);
+            var surface = ReadDaemonSurfaceState(client);
+            return surface == null
+                ? null
+                : AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+                    surface,
+                    AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(statePath));
+        }
+
+        private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaRuntimeVerseClient client)
+        {
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
+                return client.GetDaemonGameSurfaceAsync().GetAwaiter().GetResult();
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
+                return client.GetDaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
+                return client.GetDaemonEditorSurfaceAsync().GetAwaiter().GetResult();
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
+                return client.GetDaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
+
+            return null;
+        }
+
+        private AetheriaRuntimeVerseClient ResolveVerseClient(string statePath)
+        {
+            if (_verseClient != null && string.Equals(_verseClientStatePath, statePath, StringComparison.Ordinal))
+                return _verseClient;
+
+            _verseClient?.Dispose();
+            _verseClientStatePath = statePath ?? "";
+            _verseClient = AetheriaRuntimeVerseClient.OpenAsync(
+                    _verseClientStatePath,
+                    "unity-eve-surface-presenter",
+                    startServer: false,
+                    pullOnOpen: true)
+                .GetAwaiter()
+                .GetResult();
+            return _verseClient;
         }
 
         private UIDocument ResolveDocument()
@@ -189,6 +236,13 @@ namespace GameCult.Aetheria.EveRuntime
 
             Debug.Log(
                 $"Submitted Eve command for CultMesh bridge: {envelope!.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
+        }
+
+        private void OnDisable()
+        {
+            _verseClient?.Dispose();
+            _verseClient = null;
+            _verseClientStatePath = "";
         }
     }
 }

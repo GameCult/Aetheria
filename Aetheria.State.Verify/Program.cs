@@ -2879,8 +2879,15 @@ static void RequireEveRuntimeBootstrap(string root)
     var requiredPresenterSymbols = new[]
     {
         "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
-        "AetheriaRuntimeStateReader.ReadEveSurface(statePath, surfaceId)",
-        "AetheriaRuntimeStateReader.ReadEveSurface(stateBoot.StateFilePath, surfaceId)",
+        "private AetheriaRuntimeVerseClient? _verseClient",
+        "ReadDaemonSurface(statePath)",
+        "ReadDaemonSurface(stateBoot.StateFilePath)",
+        "AetheriaRuntimeVerseClient.OpenAsync(",
+        "GetDaemonGameSurfaceAsync()",
+        "GetDaemonGameTuiSurfaceAsync()",
+        "GetDaemonEditorSurfaceAsync()",
+        "GetDaemonEditorTuiSurfaceAsync()",
+        "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
         "_mountedSurfaceVersion != surface.Version",
         "private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome",
@@ -2898,6 +2905,12 @@ static void RequireEveRuntimeBootstrap(string root)
         throw new InvalidOperationException(
             "Aetheria Eve presenter no longer lowers refreshed daemon/CultMesh surfaces through typed Eve commands: " +
             string.Join(", ", missingPresenterSymbols));
+    }
+
+    if (presenter.Contains("AetheriaRuntimeStateReader.ReadEveSurface", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter still mounts daemon surfaces through file-reader lookup instead of AetheriaRuntimeVerseClient.");
     }
 
     if (presenter.Contains("new EveUiToolkitSurfaceLowerer", StringComparison.Ordinal))
@@ -7194,8 +7207,18 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "command.EquipmentTransfer.SourceKind",
         "command.StoreItem.SourceEquipmentIndex"
     };
-    var daemonOperationsUnity = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs"));
-    var clientAndObserver = daemonClient + "\n" + observer + "\n" + stateNode + "\n" + daemonOperationsUnity;
+    var daemonOperationsClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationsClient.cs");
+    var daemonOperationsClient = File.Exists(daemonOperationsClientPath)
+        ? File.ReadAllText(daemonOperationsClientPath)
+        : throw new InvalidOperationException("Shared daemon operations client is missing from the runtime package.");
+    var legacyUnityOperationsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs");
+    if (File.Exists(legacyUnityOperationsPath))
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon operation facade still lives under Unity gameplay; move shared client operations into the runtime package.");
+    }
+
+    var clientAndObserver = daemonClient + "\n" + observer + "\n" + stateNode + "\n" + daemonOperationsClient;
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientAndObserver.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -7260,8 +7283,7 @@ static void RequireTypedDaemonCommandPayloads(string root)
     };
     var unityDocumentSubmitHits = new Dictionary<string, string>
     {
-        ["Unity daemon observer"] = observer,
-        ["Unity daemon operations"] = daemonOperationsUnity
+        ["Unity daemon observer"] = observer
     }
         .SelectMany(source => forbiddenUnityDocumentSubmitSymbols
             .Where(symbol => source.Value.Contains(symbol, StringComparison.Ordinal))
@@ -8957,7 +8979,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
-    var daemonGameplayOperationsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs");
+    var daemonGameplayOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationsClient.cs");
+    var legacyDaemonGameplayOperationsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonOperations.cs");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; ActionGameManager.cs is missing.");
@@ -8984,7 +9007,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaDaemonObserver.cs is missing.");
     var daemonOperations = File.Exists(daemonGameplayOperationsPath)
         ? File.ReadAllText(daemonGameplayOperationsPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaDaemonOperations.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; shared daemon operations client is missing.");
+
+    if (File.Exists(legacyDaemonGameplayOperationsPath))
+    {
+        throw new InvalidOperationException(
+            "Unity gameplay still owns AetheriaDaemonOperations; shared daemon operation access belongs in the runtime package.");
+    }
 
     var forbiddenGameplaySymbols = new[]
     {
@@ -10305,10 +10334,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "MainMenu no longer routes daemon-frame lookup through the shared runtime state reader.");
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.ReadEveSurface", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("AetheriaRuntimeVerseClient.OpenAsync(", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains("ReadDaemonSurface(statePath)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter no longer routes provider surface lookup through the shared runtime state reader.");
+            "Aetheria Eve surface presenter no longer routes daemon surface lookup through the shared runtime Verse client.");
     }
 
     if (!eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(statePath)", StringComparison.Ordinal))

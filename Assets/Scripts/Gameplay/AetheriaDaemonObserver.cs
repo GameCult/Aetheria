@@ -19,7 +19,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private readonly AetheriaRuntimeDaemonObservationCursor _cursor = new AetheriaRuntimeDaemonObservationCursor();
     private float _nextPollTime;
     private AetheriaRuntimeDaemonOperationClient _operationClient;
-    private AetheriaDaemonOperations _operations;
+    private AetheriaRuntimeDaemonOperationsClient _operations;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
 
@@ -34,7 +34,8 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public AetheriaDaemonSoaMemoryMap LastSoaMemoryMap => _soaMemoryMap;
     public AetheriaDaemonRenderNativeView LastRenderNativeView => _renderNativeView;
     public bool HasRenderNativeView => _renderNativeView.IsCreated;
-    public AetheriaDaemonOperations Operations => _operations ??= new AetheriaDaemonOperations(this);
+    public AetheriaRuntimeDaemonOperationsClient Operations =>
+        _operations ??= new AetheriaRuntimeDaemonOperationsClient(SendOperation);
 
     public event Action<AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonObservationResult> ObservedDaemonStateChanged;
 
