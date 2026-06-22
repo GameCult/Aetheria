@@ -10321,10 +10321,18 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingActionGameManagerSymbols));
     }
 
-    if (!daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
+    if (!daemonObserver.Contains("AetheriaRuntimeVerseClient", StringComparison.Ordinal) ||
+        !daemonObserver.Contains(".OpenAsync(statePath", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("GetObservedDaemonStateAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaDaemonObserver no longer routes observed daemon state through the shared runtime state reader.");
+            "AetheriaDaemonObserver no longer routes observed daemon state through the shared runtime Verse client.");
+    }
+
+    if (daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaDaemonObserver still spelunks observed daemon state through the runtime file reader instead of the Verse client.");
     }
 
     if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||

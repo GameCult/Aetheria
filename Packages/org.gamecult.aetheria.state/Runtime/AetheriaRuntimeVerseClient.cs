@@ -243,6 +243,28 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
         }
 
+        public async Task<AetheriaRuntimeObservedDaemonState?> GetObservedDaemonStateAsync()
+        {
+            ThrowIfDisposed();
+
+            var frame = await GetLatestFrameAsync().ConfigureAwait(false);
+            if (frame == null)
+                return null;
+
+            var soaView = await GetLatestSoaViewAsync().ConfigureAwait(false);
+            if (soaView == null ||
+                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+            {
+                soaView = null;
+            }
+
+            return new AetheriaRuntimeObservedDaemonState(
+                frame,
+                soaView,
+                AetheriaRuntimeDaemonFrameStore.GetFramePath(StatePath),
+                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
+        }
+
         public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
         {
             ThrowIfDisposed();
