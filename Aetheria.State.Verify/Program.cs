@@ -1910,6 +1910,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static int QueryCompassMarkers(",
         "public static int[] QueryVisibleEntityIndices(",
         "public static int QueryVisibleEntityIndices(",
+        "public static int[] QueryPresentationEntityIndices(",
+        "public static int QueryPresentationEntityIndices(",
+        "TryParseEntityIndex(run?.CurrentEntityKey)",
+        "ContainsPoint(viewport, entity.PositionX, entity.PositionZ)",
         "AetheriaRuntimeDaemonEntityContact",
         "public static bool TryQueryEntityContact(",
         "public static AetheriaRuntimeDaemonEntityContact[] QueryEntityContacts(",
@@ -2141,6 +2145,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly List<AetheriaRuntimeDaemonAsteroidBeltPose> _daemonAsteroidBeltPoses",
         "private readonly List<AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkers",
         "private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex",
+        "private IReadOnlyDictionary<int, Entity> _observedEntityFacadesByDaemonIndex",
+        "private readonly List<int> _daemonPresentationEntityIndices",
+        "private readonly HashSet<int> _daemonPresentationEntityIndicesSet",
         "private readonly List<int> _daemonVisibleEntityIndices",
         "private readonly HashSet<int> _daemonVisibleEntityIndicesSet",
         "private readonly HashSet<int> _visibleDaemonEntityIndices",
@@ -2155,6 +2162,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaRuntimeRunCheckpointCommit daemonRun)",
         "_daemonZoneSnapshot = daemonZone;",
         "_daemonRunSnapshot = daemonRun;",
+        "_observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;",
         "AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(",
         "AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(",
         "            2000);",
@@ -2174,8 +2182,11 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPosesByBodyKey.TryGetValue(bodyKey, out var beltPose)",
         "LoadAsteroidBelt(beltPose)",
         "void LoadAsteroidBelt(AetheriaRuntimeDaemonAsteroidBeltPose beltPose)",
-        "foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())",
-        "observedEntityFacadesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity)",
+        "private void SyncDaemonEntityInstances()",
+        "AetheriaRuntimeDaemonRenderQueries.QueryPresentationEntityIndices(",
+        "_observedEntityFacadesByDaemonIndex.TryGetValue(entityIndex, out var entity)",
+        "Loading entity {entity.Name} from daemon presentation query",
+        "UnloadEntity(pair.Value.Entity)",
         "private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex",
         "public IReadOnlyDictionary<int, EntityInstance> DaemonEntityInstances => _entityInstancesByDaemonIndex;",
         "public bool TryGetEntityInstance(int daemonEntityIndex, out EntityInstance instance)",
@@ -2227,6 +2238,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         throw new InvalidOperationException(
             "ZoneRenderer still accepts the whole Unity GameSettings object instead of explicit renderer asset/tuning inputs.");
+    }
+
+    if (zoneRenderer.Contains("foreach (var entitySnapshot in daemonZone?.Entities", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("Loading entity {entity.Name} from daemon entity snapshot", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer must query daemon presentation entities instead of loading every daemon entity snapshot into a mirrored Unity level.");
     }
 
     var entityInstancePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "EntityInstance.cs");

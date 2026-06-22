@@ -98,6 +98,9 @@ public class ZoneRenderer : MonoBehaviour
         new List<AetheriaRuntimeDaemonCompassMarker>();
     private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex =
         new Dictionary<int, AetheriaRuntimeDaemonCompassMarker>();
+    private IReadOnlyDictionary<int, Entity> _observedEntityFacadesByDaemonIndex;
+    private readonly List<int> _daemonPresentationEntityIndices = new List<int>();
+    private readonly HashSet<int> _daemonPresentationEntityIndicesSet = new HashSet<int>();
     private readonly List<int> _daemonVisibleEntityIndices = new List<int>();
     private readonly HashSet<int> _daemonVisibleEntityIndicesSet = new HashSet<int>();
     private readonly HashSet<int> _visibleDaemonEntityIndices = new HashSet<int>();
@@ -221,21 +224,13 @@ public class ZoneRenderer : MonoBehaviour
         AetheriaRuntimeRunCheckpointCommit daemonRun = null)
     {
         ClearZone();
+        _observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;
         ApplyDaemonFrame(daemonZone, daemonRun);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
         SyncDaemonBodyViews();
-
-        foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-        {
-            if (entitySnapshot != null &&
-                observedEntityFacadesByDaemonIndex != null &&
-                observedEntityFacadesByDaemonIndex.TryGetValue(entitySnapshot.EntityIndex, out var entity))
-            {
-                Debug.Log($"Loading entity {entity.Name} from daemon entity snapshot {entitySnapshot.EntityIndex}");
-                LoadEntity(entity);
-            }
-        }
+        RefreshDaemonVisibleEntityInstances();
+        SyncDaemonEntityInstances();
 
         foreach (var exit in _daemonWormholeExits)
             AddWormhole(exit);
@@ -529,6 +524,7 @@ public class ZoneRenderer : MonoBehaviour
         RefreshDaemonAsteroidBeltPoses();
         SyncDaemonBodyViews();
         RefreshDaemonVisibleEntityInstances();
+        SyncDaemonEntityInstances();
         RefreshDaemonCompassMarkers();
 
         Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
@@ -790,6 +786,39 @@ public class ZoneRenderer : MonoBehaviour
         _visibleDaemonEntityIndices.Clear();
         foreach (var entityIndex in _daemonVisibleEntityIndicesSet)
             _visibleDaemonEntityIndices.Add(entityIndex);
+    }
+
+    private void SyncDaemonEntityInstances()
+    {
+        AetheriaRuntimeDaemonRenderQueries.QueryPresentationEntityIndices(
+            _daemonRunSnapshot,
+            _daemonZoneSnapshot,
+            PerspectiveEntity?.DaemonEntityIndex ?? -1,
+            RenderSettings.TargetDetectionInfoThreshold,
+            ResolveDaemonRenderViewport(),
+            _daemonPresentationEntityIndices);
+        _daemonPresentationEntityIndicesSet.Clear();
+        foreach (var entityIndex in _daemonPresentationEntityIndices)
+            _daemonPresentationEntityIndicesSet.Add(entityIndex);
+
+        foreach (var entityIndex in _daemonPresentationEntityIndices)
+        {
+            if (_entityInstancesByDaemonIndex.ContainsKey(entityIndex) ||
+                _observedEntityFacadesByDaemonIndex == null ||
+                !_observedEntityFacadesByDaemonIndex.TryGetValue(entityIndex, out var entity))
+            {
+                continue;
+            }
+
+            Debug.Log($"Loading entity {entity.Name} from daemon presentation query {entityIndex}");
+            LoadEntity(entity);
+        }
+
+        foreach (var pair in _entityInstancesByDaemonIndex.ToArray())
+        {
+            if (!_daemonPresentationEntityIndicesSet.Contains(pair.Key))
+                UnloadEntity(pair.Value.Entity);
+        }
     }
 
     private float GetTerrainHeight(float2 position)

@@ -978,6 +978,71 @@ namespace GameCult.Aetheria.State.Verse
             return entityIndices.Count;
         }
 
+        public static int[] QueryPresentationEntityIndices(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect viewport)
+        {
+            var entityIndices = new List<int>();
+            QueryPresentationEntityIndices(run, zone, observerEntityIndex, minimumInfoGathered, viewport, entityIndices);
+            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+        }
+
+        public static int QueryPresentationEntityIndices(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect viewport,
+            List<int> entityIndices)
+        {
+            if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
+            entityIndices.Clear();
+            if (zone == null)
+                return 0;
+
+            var selected = new HashSet<int>();
+            var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
+            if (currentEntityIndex >= 0)
+                selected.Add(currentEntityIndex);
+
+            var entities = BuildEntityMap(zone);
+            if (observerEntityIndex >= 0)
+            {
+                if (entities.TryGetValue(observerEntityIndex, out var observer))
+                {
+                    selected.Add(observer.EntityIndex);
+                    foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                    {
+                        if (contact != null &&
+                            contact.Visible &&
+                            contact.InfoGathered > minimumInfoGathered &&
+                            entities.ContainsKey(contact.TargetEntityIndex))
+                        {
+                            selected.Add(contact.TargetEntityIndex);
+                        }
+                    }
+                }
+            }
+
+            foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (entity != null &&
+                    entity.EntityIndex >= 0 &&
+                    ContainsPoint(viewport, entity.PositionX, entity.PositionZ))
+                {
+                    selected.Add(entity.EntityIndex);
+                }
+            }
+
+            foreach (var entityIndex in selected.OrderBy(index => index))
+                entityIndices.Add(entityIndex);
+
+            return entityIndices.Count;
+        }
+
         public static bool TryQueryEntityContact(
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
@@ -1343,6 +1408,34 @@ namespace GameCult.Aetheria.State.Verse
             var dx = centerX - nearestX;
             var dz = centerZ - nearestZ;
             return dx * dx + dz * dz <= radius * radius;
+        }
+
+        private static bool ContainsPoint(AetheriaRuntimeXzRect rect, double x, double z)
+        {
+            return x >= rect.MinX &&
+                   x <= rect.MaxX &&
+                   z >= rect.MinZ &&
+                   z <= rect.MaxZ;
+        }
+
+        private static int TryParseEntityIndex(string? key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                return -1;
+
+            var marker = ".entity.";
+            var markerIndex = key.LastIndexOf(marker, StringComparison.Ordinal);
+            if (markerIndex < 0)
+                return -1;
+
+            var start = markerIndex + marker.Length;
+            var end = start;
+            while (end < key.Length && char.IsDigit(key[end]))
+                end++;
+
+            return int.TryParse(key.Substring(start, end - start), out var value)
+                ? value
+                : -1;
         }
 
         private static bool IntersectsBounds(
