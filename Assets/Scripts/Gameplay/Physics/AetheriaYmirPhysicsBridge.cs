@@ -8,7 +8,6 @@ using UnityEngine;
 public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 {
     private const string ProjectileBodyId = "aetheria.projectile";
-    private const string TargetBodyPrefix = "aetheria.target.";
     private const string DaemonEntityBodyPrefix = "aetheria.daemon.entity.";
 
     private static AetheriaYmirPhysicsBridge _instance;
@@ -26,7 +25,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
     public AetheriaDaemonObserver DaemonObserver;
 
     private readonly List<YmirPhysicsBody> _projectileBodies = new List<YmirPhysicsBody>();
-    private readonly List<YmirPhysicsBody> _targetBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirPhysicsBody> _daemonBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirSphereQueryBody> _clickableBodies = new List<YmirSphereQueryBody>();
     private readonly Dictionary<string, HullCollider> _hullBodyMap = new Dictionary<string, HullCollider>(StringComparer.Ordinal);
@@ -89,8 +87,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             if (string.IsNullOrWhiteSpace(otherBody))
                 continue;
 
-            var hull = ResolveTargetHull(projectile.TargetInstance, otherBody);
-            if (hull == null)
+            if (!TryResolveTargetDaemonHull(projectile.TargetInstance, otherBody, out var hull))
                 continue;
 
             step.Hit = new AetheriaYmirProjectileHit(
@@ -109,7 +106,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         out IReadOnlyList<YmirCircleOverlapHit> hits)
     {
         hits = Array.Empty<YmirCircleOverlapHit>();
-        if (!TryBuildDaemonWorld(null, out var world) || radius <= 0)
+        if (!TryBuildDaemonWorld(null, null, out var world) || radius <= 0)
             return false;
 
         var request = new YmirCircleOverlapRequest
@@ -130,7 +127,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         out IReadOnlyList<YmirCircleCastHit> hits)
     {
         hits = Array.Empty<YmirCircleCastHit>();
-        if (!TryBuildDaemonWorld(null, out var world) || distance <= 0 || radius < 0)
+        if (!TryBuildDaemonWorld(null, null, out var world) || distance <= 0 || radius < 0)
             return false;
 
         var planarDirection = new Vector3(direction.x, 0, direction.z);
@@ -159,8 +156,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || target == null || radius <= 0)
             return false;
 
-        var world = BuildTargetWorld(target);
-        if (world.bodies.Length == 0)
+        if (!TryBuildDaemonWorld(null, TargetDaemonEntityIndex(target), out var world))
             return false;
 
         var request = new YmirCircleOverlapRequest
@@ -176,8 +172,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         var resolved = new List<AetheriaYmirOverlapHit>();
         foreach (var hit in ymirHits)
         {
-            var hull = ResolveTargetHull(target, hit.bodyId);
-            if (hull == null)
+            if (!TryResolveTargetDaemonHull(target, hit.bodyId, out var hull))
                 continue;
 
             resolved.Add(new AetheriaYmirOverlapHit(
@@ -218,8 +213,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || target == null || distance <= 0 || direction.sqrMagnitude <= 0.000001f)
             return false;
 
-        var world = BuildTargetWorld(target);
-        if (world.bodies.Length == 0)
+        if (!TryBuildDaemonWorld(null, TargetDaemonEntityIndex(target), out var world))
             return false;
 
         var request = new YmirCircleCastRequest
@@ -231,14 +225,13 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             world = world
         };
 
-        if (!TryCastCircle(request, "Ymir target cast query", out var ymirHits))
+        if (!TryCastCircle(request, "Ymir daemon target cast query", out var ymirHits))
             return false;
 
         var resolved = new List<AetheriaYmirCastHit>();
         foreach (var hit in ymirHits)
         {
-            var hull = ResolveTargetHull(target, hit.bodyId);
-            if (hull == null)
+            if (!TryResolveTargetDaemonHull(target, hit.bodyId, out var hull))
                 continue;
 
             resolved.Add(new AetheriaYmirCastHit(
@@ -325,7 +318,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || zoneRenderer == null || radius <= 0)
             return false;
 
-        if (!TryBuildDaemonWorld(sourceEntity, out var world))
+        if (!TryBuildDaemonWorld(sourceEntity, null, out var world))
             return false;
 
         var request = new YmirCircleOverlapRequest
@@ -369,7 +362,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || zoneRenderer == null || distance <= 0 || direction.sqrMagnitude <= 0.000001f)
             return false;
 
-        if (!TryBuildDaemonWorld(sourceEntity, out var world))
+        if (!TryBuildDaemonWorld(sourceEntity, null, out var world))
             return false;
 
         var request = new YmirCircleCastRequest
@@ -421,8 +414,9 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             restitution = 0
         });
 
-        var target = projectile.TargetInstance;
-        if (target == null)
+        var targetDaemonEntityIndex = TargetDaemonEntityIndex(projectile.TargetInstance);
+        if (targetDaemonEntityIndex < 0 ||
+            !TryBuildDaemonWorld(projectile.SourceEntity, targetDaemonEntityIndex, out var targetWorld))
         {
             return new YmirStepRequest
             {
@@ -436,7 +430,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             };
         }
 
-        _projectileBodies.AddRange(BuildTargetWorld(target).bodies);
+        _projectileBodies.AddRange(targetWorld.bodies);
         return new YmirStepRequest
         {
             deltaTime = deltaTime,
@@ -449,41 +443,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         };
     }
 
-    private YmirWorld BuildTargetWorld(EntityInstance target)
-    {
-        _targetBodies.Clear();
-        for (var i = 0; i < target.HullColliders.Length; i++)
-        {
-            var hull = target.HullColliders[i];
-            if (hull == null)
-                continue;
-
-            var bounds = hull.YmirBounds;
-            _targetBodies.Add(new YmirPhysicsBody
-            {
-                id = TargetBodyPrefix + i,
-                position = ToVec2(bounds.center),
-                velocity = default,
-                direction = ToVec2(hull.transform.forward),
-                angularVelocity = 0,
-                torque = 0,
-                momentOfInertia = 1,
-                radius = hull.YmirPlanarRadius + TargetRadiusPadding,
-                mass = 1,
-                isStatic = true,
-                restitution = 0
-            });
-        }
-
-        return new YmirWorld
-        {
-            time = 0,
-            bodies = _targetBodies.ToArray(),
-            fields = Array.Empty<YmirRadialField>()
-        };
-    }
-
-    private bool TryBuildDaemonWorld(Entity sourceEntity, out YmirWorld world)
+    private bool TryBuildDaemonWorld(Entity sourceEntity, int? onlyDaemonEntityIndex, out YmirWorld world)
     {
         world = null;
         var observer = ResolveDaemonObserver();
@@ -503,6 +463,8 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
             var daemonEntityIndex = view.HasEntityIndex ? view.EntityIndex[i] : i;
             if (sourceEntity != null && sourceEntity.DaemonEntityIndex == daemonEntityIndex)
+                continue;
+            if (onlyDaemonEntityIndex.HasValue && onlyDaemonEntityIndex.Value != daemonEntityIndex)
                 continue;
 
             var inverseMass = view.HasPhysicsInverseMass ? view.PhysicsBodyInverseMass[i] : 1.0f;
@@ -541,6 +503,36 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             fields = Array.Empty<YmirRadialField>()
         };
         return true;
+    }
+
+    private static int TargetDaemonEntityIndex(EntityInstance target)
+    {
+        return target != null && target.Entity != null ? target.Entity.DaemonEntityIndex : -1;
+    }
+
+    private static bool TryResolveTargetDaemonHull(
+        EntityInstance target,
+        string bodyId,
+        out HullCollider hull)
+    {
+        hull = null;
+        if (target == null ||
+            target.HullColliders == null ||
+            !TryParseDaemonEntityBodyId(bodyId, out var daemonEntityIndex) ||
+            TargetDaemonEntityIndex(target) != daemonEntityIndex)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < target.HullColliders.Length; i++)
+        {
+            hull = target.HullColliders[i];
+            if (hull != null)
+                return true;
+        }
+
+        hull = null;
+        return false;
     }
 
     private static bool TryResolveDaemonEntityHull(
@@ -737,18 +729,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         }
 
         return null;
-    }
-
-    private static HullCollider ResolveTargetHull(EntityInstance target, string bodyId)
-    {
-        if (!bodyId.StartsWith(TargetBodyPrefix, StringComparison.Ordinal))
-            return null;
-
-        return int.TryParse(bodyId.Substring(TargetBodyPrefix.Length), out var index) &&
-               index >= 0 &&
-               index < target.HullColliders.Length
-            ? target.HullColliders[index]
-            : null;
     }
 
     private static ShieldManager ResolveShield(HullCollider hull)

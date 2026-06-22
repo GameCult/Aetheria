@@ -9692,6 +9692,10 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
             "private const string DaemonEntityBodyPrefix = \"aetheria.daemon.entity.\"",
             "id = DaemonEntityBodyPrefix + daemonEntityIndex",
             "TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull)",
+            "TryResolveTargetDaemonHull(target, hit.bodyId, out var hull)",
+            "TryResolveTargetDaemonHull(projectile.TargetInstance, otherBody, out var hull)",
+            "TargetDaemonEntityIndex(",
+            "onlyDaemonEntityIndex.HasValue && onlyDaemonEntityIndex.Value != daemonEntityIndex",
             "TryParseDaemonEntityBodyId("
         },
         [projectilePath] = new[]
@@ -9733,11 +9737,14 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
 
     var ymirBridge = File.ReadAllText(ymirBridgePath);
     if (ymirBridge.Contains("BuildZoneWorld(", StringComparison.Ordinal) ||
+        ymirBridge.Contains("BuildTargetWorld(", StringComparison.Ordinal) ||
         ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
+        ymirBridge.Contains("_targetBodies", StringComparison.Ordinal) ||
+        ymirBridge.Contains("TargetBodyPrefix", StringComparison.Ordinal) ||
         ymirBridge.Contains("bodyMap[bodyId] = hull", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Ymir zone queries must be built from daemon SOA entity bodies, not Unity HullCollider presentation geometry.");
+            "Ymir gameplay target/zone queries must be built from daemon SOA entity bodies, not Unity HullCollider presentation geometry.");
     }
 
     var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>
