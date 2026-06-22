@@ -709,8 +709,33 @@ namespace GameCult.Aetheria.State.Verse
             return views.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonBodyView>() : views.ToArray();
         }
 
+        public static AetheriaRuntimeDaemonBodyView[] QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            AetheriaRuntimeXzRect viewport)
+        {
+            var views = new List<AetheriaRuntimeDaemonBodyView>();
+            QueryBodyViews(zone, viewport, views);
+            return views.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonBodyView>() : views.ToArray();
+        }
+
         public static int QueryBodyViews(
             AetheriaRuntimeZoneSnapshotCommit? zone,
+            List<AetheriaRuntimeDaemonBodyView> views)
+        {
+            return QueryBodyViews(zone, null, views);
+        }
+
+        public static int QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            AetheriaRuntimeXzRect viewport,
+            List<AetheriaRuntimeDaemonBodyView> views)
+        {
+            return QueryBodyViews(zone, (AetheriaRuntimeXzRect?)viewport, views);
+        }
+
+        private static int QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            AetheriaRuntimeXzRect? viewport,
             List<AetheriaRuntimeDaemonBodyView> views)
         {
             if (views == null) throw new ArgumentNullException(nameof(views));
@@ -724,6 +749,16 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (body == null || !TryResolveBodyCenter(body, orbitPositions, out var center))
                     continue;
+
+                if (viewport.HasValue &&
+                    !IntersectsCircle(
+                        viewport.Value,
+                        center.x,
+                        center.z,
+                        Math.Max(ResolveGravityRadius(body), ResolveWaveRadius(body))))
+                {
+                    continue;
+                }
 
                 var orbitKey = body.OrbitKey ?? "";
                 var parentOrbitKey = orbits.TryGetValue(orbitKey, out var orbit) ? orbit.ParentOrbitKey ?? "" : "";

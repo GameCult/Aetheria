@@ -86,6 +86,7 @@ public class ZoneRenderer : MonoBehaviour
     private AetheriaRuntimeRunCheckpointCommit _daemonRunSnapshot;
     private AetheriaRuntimeZoneSnapshotCommit _daemonZoneSnapshot;
     private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews = new List<AetheriaRuntimeDaemonBodyView>();
+    private readonly HashSet<string> _daemonVisibleBodyKeys = new HashSet<string>(StringComparer.Ordinal);
     private readonly List<AetheriaRuntimeDaemonBodyPose> _daemonBodyPoses = new List<AetheriaRuntimeDaemonBodyPose>();
     private readonly Dictionary<string, AetheriaRuntimeDaemonBodyPose> _daemonBodyPosesByBodyKey =
         new Dictionary<string, AetheriaRuntimeDaemonBodyPose>(StringComparer.Ordinal);
@@ -221,28 +222,9 @@ public class ZoneRenderer : MonoBehaviour
     {
         ClearZone();
         ApplyDaemonFrame(daemonZone, daemonRun);
-        RefreshDaemonBodyViews();
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
-        var beltPosesByBodyKey = _daemonAsteroidBeltPoses
-            .Where(pose => !string.IsNullOrWhiteSpace(pose.BodyKey))
-            .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
-        foreach (var bodyView in _daemonBodyViews)
-        {
-            var body = bodyView.Body;
-
-            if (bodyView.IsAsteroidBelt)
-            {
-                if (beltPosesByBodyKey.TryGetValue(body.BodyKey ?? "", out var beltPose))
-                    LoadAsteroidBelt(beltPose);
-            }
-            else
-            {
-                LoadPlanet(body);
-            }
-        }
-
-        _suns = _bodyViewsByBodyKey.Values.Where(p => p is SunObject).ToArray();
+        SyncDaemonBodyViews();
 
         foreach (var entitySnapshot in daemonZone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
         {
@@ -545,6 +527,7 @@ public class ZoneRenderer : MonoBehaviour
         Shader.SetGlobalFloat("_AsteroidVerticalOffset", (float)RenderSettings.AsteroidVerticalOffset);
         RefreshDaemonBodyPoses();
         RefreshDaemonAsteroidBeltPoses();
+        SyncDaemonBodyViews();
         RefreshDaemonVisibleEntityInstances();
         RefreshDaemonCompassMarkers();
 
@@ -673,9 +656,84 @@ public class ZoneRenderer : MonoBehaviour
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
     }
 
-    private void RefreshDaemonBodyViews()
+    private void SyncDaemonBodyViews()
     {
-        AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(_daemonZoneSnapshot, _daemonBodyViews);
+        AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(
+            _daemonZoneSnapshot,
+            ResolveDaemonRenderViewport(),
+            _daemonBodyViews);
+
+        var beltPosesByBodyKey = _daemonAsteroidBeltPoses
+            .Where(pose => !string.IsNullOrWhiteSpace(pose.BodyKey))
+            .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
+        _daemonVisibleBodyKeys.Clear();
+        foreach (var bodyView in _daemonBodyViews)
+        {
+            var body = bodyView.Body;
+            var bodyKey = body?.BodyKey ?? "";
+            if (bodyKey.Length == 0)
+                continue;
+
+            _daemonVisibleBodyKeys.Add(bodyKey);
+            if (_bodyViewsByBodyKey.ContainsKey(bodyKey) || _beltObjects.ContainsKey(bodyKey))
+                continue;
+
+            if (bodyView.IsAsteroidBelt)
+            {
+                if (beltPosesByBodyKey.TryGetValue(bodyKey, out var beltPose))
+                    LoadAsteroidBelt(beltPose);
+            }
+            else
+            {
+                LoadPlanet(body);
+            }
+        }
+
+        foreach (var bodyKey in _bodyViewsByBodyKey.Keys.ToArray())
+        {
+            if (!_daemonVisibleBodyKeys.Contains(bodyKey))
+                UnloadBodyView(bodyKey);
+        }
+
+        foreach (var bodyKey in _beltObjects.Keys.ToArray())
+        {
+            if (!_daemonVisibleBodyKeys.Contains(bodyKey))
+                UnloadBodyView(bodyKey);
+        }
+
+        _suns = _bodyViewsByBodyKey.Values.Where(p => p is SunObject).ToArray();
+    }
+
+    private AetheriaRuntimeXzRect ResolveDaemonRenderViewport()
+    {
+        var center = PerspectiveEntity?.CultPositionXZ ?? default;
+        var range = Math.Max(
+            Math.Max(_viewDistance, _minimapDistance),
+            (float)RenderSettings.MinimapZoneGravityRange);
+        range = Math.Max(range, 1f);
+        return new AetheriaRuntimeXzRect(
+            center.x - range,
+            center.y - range,
+            center.x + range,
+            center.y + range);
+    }
+
+    private void UnloadBodyView(string bodyKey)
+    {
+        if (_bodyViewsByBodyKey.TryGetValue(bodyKey, out var bodyView))
+        {
+            DestroyImmediate(bodyView.gameObject);
+            _bodyViewsByBodyKey.Remove(bodyKey);
+        }
+
+        if (_beltObjects.TryGetValue(bodyKey, out var beltObject))
+        {
+            Destroy(beltObject.Filter);
+            _beltObjects.Remove(bodyKey);
+        }
+
+        _beltMeshes.Remove(bodyKey);
+        _beltMatrices.Remove(bodyKey);
     }
 
     private void RefreshDaemonBodyPoses()
