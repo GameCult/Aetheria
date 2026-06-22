@@ -17,6 +17,8 @@ public class MainMenu : MonoBehaviour
     public bool InGame;
 
     private UIDocument _menuSurfaceDocument;
+    private AetheriaRuntimeVerseClient _verseClient;
+    private string _verseClientStatePath;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.Center,
@@ -108,14 +110,10 @@ public class MainMenu : MonoBehaviour
     private bool TryStartDaemonObservedGame(string title)
     {
         var stateBoot = CurrentStateBoot();
-        if (!AetheriaRuntimeStateReader.TryReadDaemonFrame(stateBoot.StateFilePath, out var frame) ||
-            frame == null ||
-            !frame.IsAuthoritative ||
-            frame.Run == null ||
-            frame.Run.Zones == null ||
-            frame.Run.Zones.Count == 0)
+        var frame = LatestDaemonFrame(stateBoot);
+        if (frame == null)
         {
-            Debug.LogWarning($"Cannot start Aetheria observer scene without an authoritative daemon frame at {AetheriaRuntimeDaemonFrameStore.GetFramePath(stateBoot.StateFilePath)}.");
+            Debug.LogWarning($"Cannot start Aetheria observer scene without an authoritative daemon frame in {stateBoot.StateFilePath}.");
             return false;
         }
 
@@ -146,19 +144,25 @@ public class MainMenu : MonoBehaviour
         return AetheriaRuntimeStateBoot.Inspect(ActionGameManager.GameDataDirectory);
     }
 
-    private static AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)
     {
-        if (!AetheriaRuntimeStateReader.TryReadDaemonFrame(stateBoot.StateFilePath, out var frame) ||
-            frame == null ||
-            !frame.IsAuthoritative ||
-            frame.Run == null ||
-            frame.Run.Zones == null ||
-            frame.Run.Zones.Count == 0)
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             return null;
         }
 
-        return frame;
+        try
+        {
+            return ResolveVerseClient(stateBoot)
+                .GetLatestAuthoritativeRunFrameAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read authoritative Aetheria daemon frame for the main menu: {ex}");
+            return null;
+        }
     }
 
     private static AetheriaRuntimePlayerSettingsSnapshot LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
@@ -454,8 +458,33 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
+    private AetheriaRuntimeVerseClient ResolveVerseClient(AetheriaRuntimeStateBootReport stateBoot)
+    {
+        var statePath = stateBoot.StateFilePath;
+        if (_verseClient != null && string.Equals(_verseClientStatePath, statePath, StringComparison.Ordinal))
+        {
+            return _verseClient;
+        }
+
+        DisposeVerseClient();
+        _verseClient = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "unity-main-menu", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _verseClientStatePath = statePath;
+        return _verseClient;
+    }
+
+    private void DisposeVerseClient()
+    {
+        _verseClient?.Dispose();
+        _verseClient = null;
+        _verseClientStatePath = null;
+    }
+
     private void OnDestroy()
     {
+        DisposeVerseClient();
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);

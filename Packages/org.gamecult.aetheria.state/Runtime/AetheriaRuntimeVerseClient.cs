@@ -265,6 +265,23 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
         }
 
+        public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()
+        {
+            ThrowIfDisposed();
+
+            var frame = await GetLatestFrameAsync().ConfigureAwait(false);
+            if (frame == null ||
+                !frame.IsAuthoritative ||
+                frame.Run == null ||
+                frame.Run.Zones == null ||
+                frame.Run.Zones.Count == 0)
+            {
+                return null;
+            }
+
+            return frame;
+        }
+
         public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
         {
             ThrowIfDisposed();

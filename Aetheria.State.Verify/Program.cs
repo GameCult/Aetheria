@@ -6347,6 +6347,8 @@ static void RequireClientTargetBootAuthority(string root)
     {
         "CurrentStateBoot()",
         "LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)",
+        "AetheriaRuntimeVerseClient",
+        "GetLatestAuthoritativeRunFrameAsync()",
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(ActionGameManager.GameDataDirectory)",
         ".ClientTarget",
@@ -8117,6 +8119,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchDaemonGameTuiSurfaces()",
         "WatchDaemonEditorTuiSurfaces()",
         "AetheriaRuntimeVerseDocument<EveSurfaceState>",
+        "GetLatestAuthoritativeRunFrameAsync()",
+        "GetObservedDaemonStateAsync()",
         "SubmitDaemonCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
         "DaemonGameTuiSurface { get; }",
@@ -8708,9 +8712,8 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredMenuSymbols = new[]
     {
         "LatestDaemonFrame",
-        "AetheriaRuntimeStateReader",
-        "TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)",
-        "frame.IsAuthoritative",
+        "AetheriaRuntimeVerseClient",
+        "GetLatestAuthoritativeRunFrameAsync()",
         "ContinueGame()",
         "ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(",
         "SceneManager.LoadScene(\"ARPG\")"
@@ -9691,8 +9694,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredMenuSymbols = new[]
     {
         "TryStartDaemonObservedGame",
-        "TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)",
-        "frame.IsAuthoritative",
+        "LatestDaemonFrame(stateBoot)",
+        "GetLatestAuthoritativeRunFrameAsync()",
         "ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(",
         "frame.Run",
         "SceneManager.LoadScene(\"ARPG\")"
@@ -10335,11 +10338,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "AetheriaDaemonObserver still spelunks observed daemon state through the runtime file reader instead of the Verse client.");
     }
 
-    if (!mainMenu.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
-        !mainMenu.Contains("TryReadDaemonFrame(stateBoot.StateFilePath, out var frame)", StringComparison.Ordinal))
+    if (!mainMenu.Contains("AetheriaRuntimeVerseClient", StringComparison.Ordinal) ||
+        !mainMenu.Contains("GetLatestAuthoritativeRunFrameAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MainMenu no longer routes daemon-frame lookup through the shared runtime state reader.");
+            "MainMenu no longer routes daemon-frame lookup through the shared runtime Verse client.");
+    }
+
+    if (mainMenu.Contains("AetheriaRuntimeStateReader.TryReadDaemonFrame", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu still reads daemon frames through the runtime file reader instead of the Verse client.");
     }
 
     if (!eveSurfacePresenter.Contains("AetheriaRuntimeVerseClient.OpenAsync(", StringComparison.Ordinal) ||
