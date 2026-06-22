@@ -6279,6 +6279,16 @@ static void RequireClientTargetBootAuthority(string root)
             "Aetheria state sugar regressed to command-applier naming instead of native state handles.");
     }
 
+    if (aetheriaState.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
+        aetheriaState.Contains("TryReadDaemonFrame", StringComparison.Ordinal) ||
+        aetheriaState.Contains("ReadVerseHostSettings", StringComparison.Ordinal) ||
+        aetheriaState.Contains("AetheriaRuntimeDaemonFrameStore", StringComparison.Ordinal) ||
+        aetheriaState.Contains("AetheriaRuntimeCatalogStore", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes file-backed daemon state reads; clients should use AetheriaRuntimeVerseClient.");
+    }
+
     if (aetheriaState.Contains("IReadOnlyDictionary<string, string>", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -6769,6 +6779,16 @@ static void RequireVerseSettingsShellAndBridge(string root)
     {
         throw new InvalidOperationException(
             "Aetheria state sugar regressed to command-applier naming instead of native state handles.");
+    }
+
+    if (aetheriaState.Contains("AetheriaRuntimeStateReader", StringComparison.Ordinal) ||
+        aetheriaState.Contains("TryReadDaemonFrame", StringComparison.Ordinal) ||
+        aetheriaState.Contains("ReadVerseHostSettings", StringComparison.Ordinal) ||
+        aetheriaState.Contains("AetheriaRuntimeDaemonFrameStore", StringComparison.Ordinal) ||
+        aetheriaState.Contains("AetheriaRuntimeCatalogStore", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state sugar still exposes file-backed daemon state reads; clients should use AetheriaRuntimeVerseClient.");
     }
 
     if (aetheriaState.Contains("IReadOnlyDictionary<string, string>", StringComparison.Ordinal))

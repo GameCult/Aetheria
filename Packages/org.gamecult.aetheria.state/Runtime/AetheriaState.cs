@@ -21,23 +21,8 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaState(gameDataDirectory);
         }
 
-        public AetheriaRuntimeStateBootReport Boot =>
-            AetheriaRuntimeStateBoot.Inspect(_gameDataDirectory);
-
         public AetheriaClientTarget ClientTarget =>
             new AetheriaClientTarget(_gameDataDirectory);
-
-        public bool TryReadDaemonFrame(out AetheriaRuntimeDaemonFrameDocument? frame)
-        {
-            var boot = Boot;
-            return AetheriaRuntimeStateReader.TryReadDaemonFrame(boot.StateFilePath, out frame);
-        }
-
-        public AetheriaRuntimeVerseHostSettingsSnapshot ReadVerseHostSettings()
-        {
-            var boot = Boot;
-            return AetheriaRuntimeStateReader.ReadVerseHostSettings(boot.StateFilePath);
-        }
     }
 
     public readonly struct AetheriaClientTarget
