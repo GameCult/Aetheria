@@ -62,6 +62,7 @@ RequireTypedStatRecipeOperations(root);
 RequireTypedDaemonCommandPayloads(root);
 RequireUnityPublicRequestVocabulary(root);
 RequireDaemonVersePublication(root);
+RequireAetheriaRuntimeVerseClientContract(root);
 RequireTypedEveCommandBodies(root);
 RequireMainMenuVerseHostProjection(root);
 RequireMainMenuContinueRunState(root);
@@ -799,6 +800,7 @@ static void RequirePackageSerializerBoundary(string root)
         "AetheriaRuntimeClientTargetStore.cs",
         "AetheriaRuntimeCultCacheDocumentStore.cs",
         "AetheriaRuntimeCommandPort.cs",
+        "AetheriaRuntimeVerseClient.cs",
         "AetheriaRuntimeSnapshotDocuments.cs",
         "AetheriaRuntimeEveCommandDocument.cs",
         "AetheriaRuntimeDaemonDocuments.cs",
@@ -8040,6 +8042,102 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon Verse shape note no longer records the Odin/VoidBot daemon authority contract: " +
             string.Join(", ", missingNoteSymbols));
+    }
+}
+
+static void RequireAetheriaRuntimeVerseClientContract(string root)
+{
+    var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var commandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
+    var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
+
+    var requiredFiles = new[] { clientPath, commandPortPath, docPath };
+    var missingFiles = requiredFiles
+        .Where(path => !File.Exists(path))
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (missingFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client contract cannot be verified because required files are missing: " +
+            string.Join(", ", missingFiles));
+    }
+
+    var client = File.ReadAllText(clientPath);
+    var commandPort = File.ReadAllText(commandPortPath);
+    var doc = File.ReadAllText(docPath);
+
+    var requiredClientSymbols = new[]
+    {
+        "public sealed class AetheriaRuntimeVerseClient",
+        "public static class AetheriaRuntimeVerseRecordKeys",
+        "public static class AetheriaRuntimeVerseContractRegistry",
+        "AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry()",
+        "AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)",
+        "WatchLatestFrames()",
+        "WatchLatestSoaViews()",
+        "WatchRecord<AetheriaRuntimeDaemonFrameDocument>",
+        "WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>",
+        "AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonFrameDocument>",
+        "SubmitDaemonCommandAsync(",
+        "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
+        "DaemonGameTuiSurface { get; }",
+        "DaemonEditorTuiSurface { get; }"
+    };
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
+            string.Join(", ", missingClientSymbols));
+    }
+
+    if (!commandPort.Contains("AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry()", StringComparison.Ordinal) ||
+        !commandPort.Contains("AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)", StringComparison.Ordinal) ||
+        !commandPort.Contains("AetheriaRuntimeVerseRecordKeys.DaemonCommand(commandId)", StringComparison.Ordinal) ||
+        !commandPort.Contains("AetheriaRuntimeVerseRecordKeys.EveCommand(commandId)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime command port must share AetheriaRuntimeVerseClient contract registry and record keys.");
+    }
+
+    var forbiddenCommandPortRegistrySymbols = new[]
+    {
+        "private static CultDocumentRegistry CreateCultCacheRegistry",
+        "private static CultNetDocumentRegistry CreateCultNetRegistry",
+        "daemon:commands:{StableToken(commandId)}",
+        "eve:commands:{StableToken(commandId)}"
+    };
+    var forbiddenCommandPortHits = forbiddenCommandPortRegistrySymbols
+        .Where(symbol => commandPort.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenCommandPortHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime command port still owns a duplicate Verse contract boundary: " +
+            string.Join(", ", forbiddenCommandPortHits));
+    }
+
+    var requiredDocSymbols = new[]
+    {
+        "AetheriaRuntimeVerseClient",
+        "WatchRecord<T>()",
+        "AetheriaRuntimeVerseDocument<T>",
+        "Unity",
+        "Verse records",
+        "EveSurfaceState",
+        "same typed records"
+    };
+    var missingDocSymbols = requiredDocSymbols
+        .Where(symbol => !doc.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDocSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Verse client contract note is missing required architecture terms: " +
+            string.Join(", ", missingDocSymbols));
     }
 }
 

@@ -33,7 +33,7 @@ namespace Aetheria.State
                 throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
 
             var fullPath = Path.GetFullPath(stateFilePath);
-            var registry = CreateCultCacheRegistry();
+            var registry = AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry();
             var node = await CultMesh.CreateNodeAsync(
                     fullPath,
                     new CultMeshNodeOptions
@@ -50,7 +50,7 @@ namespace Aetheria.State
                         DatabaseOptions = new CultNetDatabaseOptions
                         {
                             RuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "aetheria-command-client" : runtimeId,
-                            DocumentRegistry = CreateCultNetRegistry(registry)
+                            DocumentRegistry = AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)
                         }
                     })
                 .ConfigureAwait(false);
@@ -91,47 +91,14 @@ namespace Aetheria.State
             return AetheriaRuntimeEveCommandClient.ToEnvelope(command);
         }
 
-        private static CultDocumentRegistry CreateCultCacheRegistry()
-        {
-            var registry = new CultDocumentRegistry();
-            registry.GetRequired(typeof(AetheriaRuntimeDaemonCommandDocument));
-            registry.GetRequired(typeof(AetheriaRuntimeEveCommandDocument));
-            return registry;
-        }
-
-        private static CultNetDocumentRegistry CreateCultNetRegistry(CultDocumentRegistry registry)
-        {
-            return new CultNetDocumentRegistry(
-                registry,
-                new[]
-                {
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry)
-                });
-        }
-
         private static CultRecordKey DaemonCommandKey(string commandId)
         {
-            return new CultRecordKey($"daemon:commands:{StableToken(commandId)}:gamecult.aetheria.daemon_command.v1");
+            return AetheriaRuntimeVerseRecordKeys.DaemonCommand(commandId);
         }
 
         private static CultRecordKey EveCommandKey(string commandId)
         {
-            return new CultRecordKey($"eve:commands:{StableToken(commandId)}:gamecult.eve.command.v1");
-        }
-
-        private static string StableToken(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return "empty";
-
-            var chars = value
-                .Select(character => char.IsLetterOrDigit(character) ? character : '-')
-                .ToArray();
-            var token = new string(chars).Trim('-').ToLowerInvariant();
-            while (token.Contains("--", StringComparison.Ordinal))
-                token = token.Replace("--", "-", StringComparison.Ordinal);
-            return string.IsNullOrWhiteSpace(token) ? "empty" : token;
+            return AetheriaRuntimeVerseRecordKeys.EveCommand(commandId);
         }
 
         public void Dispose()
