@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -241,6 +242,30 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Database.GetAsync<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+        }
+
+        public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
+        {
+            ThrowIfDisposed();
+            return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
+        }
+
+        public Task<AetheriaRuntimePlayerSettingsSnapshot?> GetPlayerSettingsAsync()
+        {
+            ThrowIfDisposed();
+            return Task.FromResult(AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));
+        }
+
+        public Task<AetheriaRuntimeVerseHostSettingsSnapshot?> GetVerseHostSettingsAsync()
+        {
+            ThrowIfDisposed();
+            return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));
+        }
+
+        public Task<IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> GetLoadoutTemplatesAsync()
+        {
+            ThrowIfDisposed();
+            return Task.FromResult(AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath));
         }
 
         public async Task<AetheriaRuntimeObservedDaemonState?> GetObservedDaemonStateAsync()

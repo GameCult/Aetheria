@@ -79,6 +79,9 @@ public class ActionGameManager : MonoBehaviour
     public static string RuntimeStateFilePath =>
         _runtimeStateFilePath ??= AetheriaRuntimeStateBoot.Inspect(GameDataDirectory).StateFilePath;
 
+    private static AetheriaRuntimeVerseClient _runtimeVerseClient;
+    private static string _runtimeVerseClientStatePath;
+
     private static RuntimePlayerSettings _runtimePlayerSettings;
     public static RuntimePlayerSettings RuntimePlayerSettings
     {
@@ -160,7 +163,10 @@ public class ActionGameManager : MonoBehaviour
         var settings = CreateDefaultRuntimePlayerSettings();
         try
         {
-            var stored = AetheriaRuntimeStateReader.ReadPlayerSettings(RuntimeStateFilePath);
+            var stored = ResolveRuntimeVerseClient(RuntimeStateFilePath)
+                .GetPlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
             if (stored == null)
                 return settings;
 
@@ -223,7 +229,10 @@ public class ActionGameManager : MonoBehaviour
     {
         try
         {
-            var loadouts = AetheriaRuntimeStateReader.ReadLoadoutTemplates(stateFilePath);
+            var loadouts = ResolveRuntimeVerseClient(stateFilePath)
+                .GetLoadoutTemplatesAsync()
+                .GetAwaiter()
+                .GetResult();
             _observedLoadoutTemplates.Clear();
             _observedLoadoutTemplates.AddRange(loadouts);
 
@@ -2016,6 +2025,7 @@ public class ActionGameManager : MonoBehaviour
     private void OnDisable()
     {
         Input.Dispose();
+        DisposeRuntimeVerseClient();
     }
 
     void Start()
@@ -2038,7 +2048,7 @@ public class ActionGameManager : MonoBehaviour
                 $"Aetheria runtime state file is missing at {stateBoot.StateFilePath}; gameplay requires an authoritative daemon mirror.");
         }
 
-        RuntimeCatalog = AetheriaRuntimeStateReader.OpenRuntimeCatalog(stateBoot.StateFilePath);
+        RuntimeCatalog = ResolveRuntimeVerseClient(stateBoot.StateFilePath).OpenRuntimeCatalog();
         Debug.Log($"Aetheria runtime catalog: {RuntimeCatalog.Items.Count} items, {RuntimeCatalog.Corporations.Count} corporations, {RuntimeCatalog.NameFiles.Count} name files");
 
         if (RuntimeCatalog == null)
@@ -2230,6 +2240,30 @@ public class ActionGameManager : MonoBehaviour
     public void UnregisterDragTarget()
     {
         _endDragCallback = null;
+    }
+
+    private static AetheriaRuntimeVerseClient ResolveRuntimeVerseClient(string stateFilePath)
+    {
+        if (_runtimeVerseClient != null &&
+            string.Equals(_runtimeVerseClientStatePath, stateFilePath, StringComparison.Ordinal))
+        {
+            return _runtimeVerseClient;
+        }
+
+        DisposeRuntimeVerseClient();
+        _runtimeVerseClient = AetheriaRuntimeVerseClient
+            .OpenAsync(stateFilePath, "unity-action-game", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _runtimeVerseClientStatePath = stateFilePath;
+        return _runtimeVerseClient;
+    }
+
+    private static void DisposeRuntimeVerseClient()
+    {
+        _runtimeVerseClient?.Dispose();
+        _runtimeVerseClient = null;
+        _runtimeVerseClientStatePath = null;
     }
 
     public bool HasDragTarget => _endDragCallback != null;

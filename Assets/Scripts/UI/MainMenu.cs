@@ -165,14 +165,17 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimePlayerSettingsSnapshot LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimePlayerSettingsSnapshot LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             return null;
 
         try
         {
-            return AetheriaRuntimeStateReader.ReadPlayerSettings(stateBoot.StateFilePath);
+            return ResolveVerseClient(stateBoot)
+                .GetPlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
         }
         catch (Exception ex)
         {
@@ -181,14 +184,17 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeVerseHostSettingsSnapshot LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             return null;
 
         try
         {
-            return AetheriaRuntimeStateReader.ReadVerseHostSettings(stateBoot.StateFilePath);
+            return ResolveVerseClient(stateBoot)
+                .GetVerseHostSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
         }
         catch (Exception ex)
         {

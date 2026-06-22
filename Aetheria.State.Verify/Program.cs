@@ -553,7 +553,7 @@ Console.WriteLine("Main-menu Continue authority: Continue selects typed run stat
 Console.WriteLine("Generic popup inspector shell: PropertiesPanel, PropertiesList, and DropdownMenu are deleted from source and serialized assets");
 Console.WriteLine("Typed behavior metadata authority: live heat/mining/thermotoggle payload kinds stay owned by package metadata");
 Console.WriteLine("NameTools editor shell: the remaining name helper window lowers through UI Toolkit instead of IMGUI");
-Console.WriteLine("Runtime state reader authority: Unity gameplay/UI read typed state through a shared runtime reader instead of direct store spelunking");
+Console.WriteLine("Verse client state authority: Unity gameplay/UI read typed state through the shared Verse client instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement, operations telemetry, and served Verse discovery");
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
 Console.WriteLine("Verse replica authority: remote client targets resolve to cache-only replica .cc files fed from the daemon");
@@ -8121,6 +8121,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "AetheriaRuntimeVerseDocument<EveSurfaceState>",
         "GetLatestAuthoritativeRunFrameAsync()",
         "GetObservedDaemonStateAsync()",
+        "OpenRuntimeCatalog()",
+        "GetPlayerSettingsAsync()",
+        "GetVerseHostSettingsAsync()",
+        "GetLoadoutTemplatesAsync()",
         "SubmitDaemonCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
         "DaemonGameTuiSurface { get; }",
@@ -8636,7 +8640,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     var requiredMainMenuSymbols = new[]
     {
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        "AetheriaRuntimeStateReader.ReadVerseHostSettings(stateBoot.StateFilePath)",
+        "GetVerseHostSettingsAsync()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -10197,7 +10201,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (missingPaths.Length > 0)
     {
         throw new InvalidOperationException(
-            "Runtime state reader authority cannot be verified because required files are missing: " +
+            "Verse client state authority cannot be verified because required files are missing: " +
             string.Join(", ", missingPaths));
     }
 
@@ -10306,9 +10310,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredActionGameManagerSymbols = new[]
     {
-        "AetheriaRuntimeStateReader.ReadPlayerSettings",
-        "AetheriaRuntimeStateReader.ReadLoadoutTemplates",
-        "AetheriaRuntimeStateReader.OpenRuntimeCatalog",
+        "AetheriaRuntimeVerseClient",
+        "ResolveRuntimeVerseClient(",
+        "GetPlayerSettingsAsync()",
+        "GetLoadoutTemplatesAsync()",
+        "OpenRuntimeCatalog()",
         "ResolveDaemonObserver()",
         "LastObservedState"
     };
@@ -10320,8 +10326,24 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (missingActionGameManagerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager does not route typed state reads through the shared runtime reader: " +
+            "ActionGameManager does not route typed state reads through the shared Verse client: " +
             string.Join(", ", missingActionGameManagerSymbols));
+    }
+
+    var forbiddenActionGameManagerReaderSymbols = new[]
+    {
+        "AetheriaRuntimeStateReader.ReadPlayerSettings",
+        "AetheriaRuntimeStateReader.ReadLoadoutTemplates",
+        "AetheriaRuntimeStateReader.OpenRuntimeCatalog"
+    };
+    var actionGameManagerReaderHits = forbiddenActionGameManagerReaderSymbols
+        .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (actionGameManagerReaderHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionGameManager still reads typed state through the runtime file reader instead of the Verse client: " +
+            string.Join(", ", actionGameManagerReaderHits));
     }
 
     if (!daemonObserver.Contains("AetheriaRuntimeVerseClient", StringComparison.Ordinal) ||
@@ -10349,6 +10371,21 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "MainMenu still reads daemon frames through the runtime file reader instead of the Verse client.");
+    }
+
+    var forbiddenMainMenuReaderSymbols = new[]
+    {
+        "AetheriaRuntimeStateReader.ReadPlayerSettings",
+        "AetheriaRuntimeStateReader.ReadVerseHostSettings"
+    };
+    var mainMenuReaderHits = forbiddenMainMenuReaderSymbols
+        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (mainMenuReaderHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu still reads typed state through the runtime file reader instead of the Verse client: " +
+            string.Join(", ", mainMenuReaderHits));
     }
 
     if (!eveSurfacePresenter.Contains("AetheriaRuntimeVerseClient.OpenAsync(", StringComparison.Ordinal) ||
