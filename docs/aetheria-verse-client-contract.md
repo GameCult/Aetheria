@@ -11,9 +11,9 @@ package. It opens a local `CultMeshNode` with the runtime-only Aetheria contract
 registry and exposes:
 
 - current typed reads for provider advertisement, health, command boundary,
-  latest daemon frame, and latest SoA view;
+  latest daemon frame, latest SoA view, and daemon game/editor Eve surfaces;
 - reactive watches via `WatchRecord<T>()`, including `WatchLatestFrames()` and
-  `WatchLatestSoaViews()`;
+  `WatchLatestSoaViews()`, plus daemon GUI/TUI surface watches;
 - `AetheriaRuntimeVerseDocument<T>` handles for transparent reactive POCO
   presentation;
 - typed daemon and Eve command submission through the same command record keys
@@ -68,8 +68,11 @@ The daemon already publishes game and editor Eve surface records at these keys:
 - `eve:surface:aetheria.daemon.editor`
 - `eve:surface:aetheria.daemon.editor.tui`
 
-`AetheriaRuntimeVerseRecordKeys` exposes those keys now. The remaining cleanup is
-to move the `EveSurfaceState` document contract into the shared runtime package
-so `AetheriaRuntimeVerseClient` can expose typed surface watches too. Until then,
-surface resolution stays in the existing Eve Unity runtime host, which already
-resolves Aetheria state refs automatically.
+`AetheriaRuntimeVerseRecordKeys` exposes those keys and
+`AetheriaRuntimeVerseClient` exposes typed reads, document handles, and
+`WatchRecord<EveSurfaceState>()` subscriptions for all four. The
+`EveSurfaceState` document contract lives in the shared runtime package so a
+Unity client, terminal client, daemon inspector, or later non-C# runtime binding
+can lower the same published UI surface. The existing Eve Unity runtime host can
+keep resolving Aetheria state refs automatically; it should consume those refs as
+part of lowering the shared surface, not as a separate authority path.

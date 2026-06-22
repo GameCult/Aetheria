@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Aetheria.State.Documents;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
@@ -76,7 +77,8 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
-            typeof(AetheriaRuntimeEveCommandDocument)
+            typeof(AetheriaRuntimeEveCommandDocument),
+            typeof(EveSurfaceState)
         };
 
         public static CultDocumentRegistry CreateCultCacheRegistry()
@@ -103,7 +105,8 @@ namespace GameCult.Aetheria.State.Verse
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry)
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)
                 });
         }
     }
@@ -240,6 +243,30 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
         }
 
+        public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+        }
+
+        public Task<EveSurfaceState?> GetDaemonGameTuiSurfaceAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+        }
+
+        public Task<EveSurfaceState?> GetDaemonEditorSurfaceAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+        }
+
+        public Task<EveSurfaceState?> GetDaemonEditorTuiSurfaceAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+        }
+
         public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
         {
             ThrowIfDisposed();
@@ -273,6 +300,30 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+        }
+
+        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonGameSurface()
+        {
+            ThrowIfDisposed();
+            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+        }
+
+        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonGameTuiSurface()
+        {
+            ThrowIfDisposed();
+            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+        }
+
+        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonEditorSurface()
+        {
+            ThrowIfDisposed();
+            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+        }
+
+        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonEditorTuiSurface()
+        {
+            ThrowIfDisposed();
+            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
         }
 
         public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonProviderAdvertisementDocument>>
@@ -310,6 +361,30 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Database.WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+        }
+
+        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameSurfaces()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+        }
+
+        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameTuiSurfaces()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+        }
+
+        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonEditorSurfaces()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+        }
+
+        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonEditorTuiSurfaces()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
         }
 
         public async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(

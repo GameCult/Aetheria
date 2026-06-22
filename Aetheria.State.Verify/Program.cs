@@ -803,6 +803,7 @@ static void RequirePackageSerializerBoundary(string root)
         "AetheriaRuntimeVerseClient.cs",
         "AetheriaRuntimeSnapshotDocuments.cs",
         "AetheriaRuntimeEveCommandDocument.cs",
+        "AetheriaRuntimeEveSurfaceState.cs",
         "AetheriaRuntimeDaemonDocuments.cs",
         "AetheriaRuntimeDaemonSoaDocuments.cs"
     };
@@ -8048,10 +8049,12 @@ static void RequireDaemonVersePublication(string root)
 static void RequireAetheriaRuntimeVerseClientContract(string root)
 {
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
+    var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
     var commandPortPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommandPort.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, commandPortPath, docPath };
+    var requiredFiles = new[] { clientPath, surfaceStatePath, commandPortPath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -8064,8 +8067,15 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     var client = File.ReadAllText(clientPath);
+    var surfaceState = File.ReadAllText(surfaceStatePath);
     var commandPort = File.ReadAllText(commandPortPath);
     var doc = File.ReadAllText(docPath);
+
+    if (File.Exists(oldSurfaceStatePath))
+    {
+        throw new InvalidOperationException(
+            "EveSurfaceState must live in the shared runtime package so every CultMesh client can watch daemon UI surfaces.");
+    }
 
     var requiredClientSymbols = new[]
     {
@@ -8079,6 +8089,12 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchRecord<AetheriaRuntimeDaemonFrameDocument>",
         "WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>",
         "AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonFrameDocument>",
+        "CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)",
+        "GetDaemonGameTuiSurfaceAsync()",
+        "GetDaemonEditorTuiSurfaceAsync()",
+        "WatchDaemonGameTuiSurfaces()",
+        "WatchDaemonEditorTuiSurfaces()",
+        "AetheriaRuntimeVerseDocument<EveSurfaceState>",
         "SubmitDaemonCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
         "DaemonGameTuiSurface { get; }",
@@ -8092,6 +8108,25 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    var requiredSurfaceSymbols = new[]
+    {
+        "namespace Aetheria.State.Documents",
+        "[CultDocument(\"gamecult.eve.surface\", \"gamecult.eve.surface.v1\")]",
+        "public sealed class EveSurfaceState",
+        "public sealed class EveSurface",
+        "public sealed class EveSurfaceComponent",
+        "public sealed class EveCommandTemplate"
+    };
+    var missingSurfaceSymbols = requiredSurfaceSymbols
+        .Where(symbol => !surfaceState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSurfaceSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared runtime Eve surface document contract is incomplete: " +
+            string.Join(", ", missingSurfaceSymbols));
     }
 
     if (!commandPort.Contains("AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry()", StringComparison.Ordinal) ||
