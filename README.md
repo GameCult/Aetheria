@@ -60,6 +60,13 @@ As a result of lessons learned, we then focused on the economy system, and built
 
 At the moment we are focused on implementing and polishing the ARPG gameplay as a standalone title, first as a rogue-lite combat demo and then adding a story-driven campaign mode.
 
+## Developer Navigation
+
+The repo is currently in a major typed-state migration. Before making runtime
+changes, read [docs/developer-navigation.md](docs/developer-navigation.md) for
+the current project map, command list, migration rules, and where the new
+Unity/daemon/Electron boundaries live.
+
 ## Architecture
 
 ### Project Structure
