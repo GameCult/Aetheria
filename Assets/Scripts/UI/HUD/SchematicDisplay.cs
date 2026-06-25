@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using TMPro;
@@ -67,6 +69,14 @@ public class SchematicDisplay : MonoBehaviour
     private EquippedCargoBay[] _cargoBays;
     private SchematicDisplayItem[] _schematicItems;
     private AetherDrive _aetherDrive;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimeDaemonRenderSettings _renderSettings;
+    private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;
+    private float _currentEntityDocumentReadTime = float.NegativeInfinity;
+    private const float CurrentEntityHudRefreshIntervalSeconds = 0.1f;
 
     private bool _enemy;
     private Entity _player;
@@ -83,6 +93,11 @@ public class SchematicDisplay : MonoBehaviour
         public IProgressBehavior Cooldown;
         // public ItemUsage ItemUsage;
         public Weapon Weapon;
+    }
+
+    public void SetRenderSettings(AetheriaRuntimeDaemonRenderSettings renderSettings)
+    {
+        _renderSettings = renderSettings;
     }
 
     public void ShowShip(Entity entity, Entity player = null)
@@ -142,16 +157,16 @@ public class SchematicDisplay : MonoBehaviour
         }
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedWeapon(ItemInstance item)
+    private AetheriaRuntimeCatalogItem FindTypedWeapon(ItemInstance item)
     {
-        var typedItem = ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+        var typedItem = FindTypedItem(item);
         return typedItem != null && !string.IsNullOrWhiteSpace(typedItem.WeaponType)
             ? typedItem
             : null;
     }
 
 
-    private static bool HasTypedWeaponBehavior(EquippedItem item)
+    private bool HasTypedWeaponBehavior(EquippedItem item)
     {
         var typedItem = FindTypedItem(item.EquippableItem);
         return typedItem?.BehaviorKinds.Any(WeaponBehaviorKinds.Contains) == true;
@@ -163,66 +178,67 @@ public class SchematicDisplay : MonoBehaviour
         {
             if (!_enemy)
             {
-                OverrideIcon.SetActive(_entity.OverrideShutdown && cos(Time.time * OverrideIconBlinkSpeed) > 0);
-                ShieldIcon.SetActive(_entity.Shield!=null && _entity.Shield.Item.Active.Value);
-                if (_radiators.Length == 1)
-                    RadiatorTemperatureLabel.text = $"{((int)(_radiators[0].RadiatorTemperature - 273.15f)).ToString()}°C";
-                else if (_radiators.Length > 1)
+                var hud = ResolveCurrentEntityHudStatus();
+                OverrideIcon.SetActive(hud.OverrideShutdown && cos(Time.time * OverrideIconBlinkSpeed) > 0);
+                ShieldIcon.SetActive(hud.ShieldActive);
+                if (hud.RadiatorCount == 1)
+                    RadiatorTemperatureLabel.text = FormatTemperature((float)hud.RadiatorTemperatureMinimum);
+                else if (hud.RadiatorCount > 1)
                     RadiatorTemperatureLabel.text =
-                        $"{((int)(_radiators.Min(r => r.RadiatorTemperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_radiators.Max(r => r.RadiatorTemperature) - 273.15f)).ToString()}°C";
-                HeatsinkBackground.color = _entity.HeatsinksEnabled ? HeaderElementEnabledColor : HeaderElementDisabledColor;
+                        $"{FormatTemperature((float)hud.RadiatorTemperatureMinimum)}-" +
+                        $"{FormatTemperature((float)hud.RadiatorTemperatureMaximum)}";
+                HeatsinkBackground.color = hud.HeatsinksEnabled ? HeaderElementEnabledColor : HeaderElementDisabledColor;
 
                 if (_heatStorages.Length == 1)
-                    HeatStorageTemperatureLabel.text = $"{((int)(_heatStorages[0].Item.Temperature - 273.15f)).ToString()}°C";
+                    HeatStorageTemperatureLabel.text = FormatTemperature(_heatStorages[0].Item.Temperature);
                 else if (_heatStorages.Length > 1)
                     HeatStorageTemperatureLabel.text =
-                        $"{((int)(_heatStorages.Min(r => r.Item.Temperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_heatStorages.Max(r => r.Item.Temperature) - 273.15f)).ToString()}°C";
+                        $"{FormatTemperature(_heatStorages.Min(r => r.Item.Temperature))}-" +
+                        $"{FormatTemperature(_heatStorages.Max(r => r.Item.Temperature))}";
 
                 if (_cargoBays.Length == 1)
-                    CargoTemperatureLabel.text = $"{((int)(_cargoBays[0].Temperature - 273.15f)).ToString()}°C";
+                    CargoTemperatureLabel.text = FormatTemperature(_cargoBays[0].Temperature);
                 else if (_cargoBays.Length > 1)
                     CargoTemperatureLabel.text =
-                        $"{((int)(_cargoBays.Min(r => r.Temperature) - 273.15f)).ToString()}-" +
-                        $"{((int)(_cargoBays.Max(r => r.Temperature) - 273.15f)).ToString()}°C";
+                        $"{FormatTemperature(_cargoBays.Min(r => r.Temperature))}-" +
+                        $"{FormatTemperature(_cargoBays.Max(r => r.Temperature))}";
 
                 if(_cockpit != null)
                 {
-                    CockpitTemperatureLabel.text = $"{((int) (_cockpit.Item.Temperature - 273.15f)).ToString()}°C";
+                    CockpitTemperatureLabel.text = FormatTemperature(_cockpit.Item.Temperature);
 
-                    HeatstrokeMeterFill.anchorMax = new Vector2(_entity.Heatstroke, 1);
-                    HypothermiaMeterFill.anchorMax = new Vector2(_entity.Hypothermia, 1);
+                    HeatstrokeMeterFill.anchorMax = new Vector2((float)hud.Heatstroke, 1);
+                    HypothermiaMeterFill.anchorMax = new Vector2((float)hud.Hypothermia, 1);
                     HeatstrokeLimitFill.anchorMax = new Vector2(
-                        (float)ActionGameManager.Instance.ZoneRenderer.RenderSettings.NormalizeThermalRisk(_cockpit.Item.Temperature),
+                        (float)(_renderSettings?.NormalizeThermalRisk(_cockpit.Item.Temperature) ?? 0),
                         1);
                 }
 
-                SensorCooldownFill.anchorMax = new Vector2(_entity.Sensor?.Cooldown ?? 0, 1);
+                SensorCooldownFill.anchorMax = new Vector2((float)hud.SensorCooldown, 1);
 
-                if (_capacitors.Length == 0)
+                if (hud.CapacitorCapacity <= 0)
                 {
                     EnergyFill.anchorMax = Vector2.up;
-                    EnergyLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_reactor.Draw);
+                    EnergyLabel.text = FormatValue((float)hud.ReactorDraw);
                 }
                 else
                 {
-                    var charge = _capacitors.Sum(x => x.Charge);
-                    var maxCharge = _capacitors.Sum(x => x.Capacity);
+                    var charge = hud.CapacitorCharge;
+                    var maxCharge = hud.CapacitorCapacity;
                     EnergyFill.anchorMax = new Vector2(charge / maxCharge, 1);
-                    EnergyLabel.text = $"{((int)charge).ToString()}/{((int)maxCharge).ToString()} + ({((int)_reactor.Draw).ToString()})";
+                    EnergyLabel.text = $"{((int)charge).ToString()}/{((int)maxCharge).ToString()} + ({((int)hud.ReactorDraw).ToString()})";
                 }
 
-                if (_aetherDrive != null)
+                if (hud.AetherDriveMaximumRpm > 0)
                 {
-                    ForwardRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.x);
-                    ForwardRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.x / _aetherDrive.MaximumRpm, 1);
+                    ForwardRPMLabel.text = FormatValue((float)hud.AetherDriveRpmX);
+                    ForwardRPMFill.anchorMax = new Vector2((float)(hud.AetherDriveRpmX / hud.AetherDriveMaximumRpm), 1);
                     
-                    StrafeRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.y);
-                    StrafeRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.y / _aetherDrive.MaximumRpm, 1);
+                    StrafeRPMLabel.text = FormatValue((float)hud.AetherDriveRpmY);
+                    StrafeRPMFill.anchorMax = new Vector2((float)(hud.AetherDriveRpmY / hud.AetherDriveMaximumRpm), 1);
                     
-                    TurnRPMLabel.text = ActionGameManager.RuntimePlayerSettings.Format(_aetherDrive.Rpm.z);
-                    TurnRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.z / _aetherDrive.MaximumRpm, 1);
+                    TurnRPMLabel.text = FormatValue((float)hud.AetherDriveRpmZ);
+                    TurnRPMFill.anchorMax = new Vector2((float)(hud.AetherDriveRpmZ / hud.AetherDriveMaximumRpm), 1);
                 }
             }
             // else
@@ -230,15 +246,31 @@ public class SchematicDisplay : MonoBehaviour
             //     DistanceLabel.text = $"{(int)length(_entity.Position - _player.Position)}";
             // }
 
-            if(VisibilityLabel)
-                VisibilityLabel.text = ((int)_entity.Visibility).ToString();
-
-            if(HullDurabilityFill)
+            if (!_enemy)
             {
-                _hull = _entity.Hull;
-                var dur = _hull.Durability / GetMaxDurability(_hull);
-                HullDurabilityFill.anchorMax = new Vector2(dur, 1);
-                HullDurabilityLabel.text = $"{ActionGameManager.RuntimePlayerSettings.Format(dur * 100)}%";
+                var hud = ResolveCurrentEntityHudStatus();
+                if(VisibilityLabel)
+                    VisibilityLabel.text = ((int)hud.Visibility).ToString();
+
+                if(HullDurabilityFill)
+                {
+                    var dur = (float)hud.HullDurabilityRatio;
+                    HullDurabilityFill.anchorMax = new Vector2(dur, 1);
+                    HullDurabilityLabel.text = $"{FormatValue(dur * 100)}%";
+                }
+            }
+            else
+            {
+                if(VisibilityLabel)
+                    VisibilityLabel.text = ((int)_entity.Visibility).ToString();
+
+                if(HullDurabilityFill)
+                {
+                    _hull = _entity.Hull;
+                    var dur = _hull.Durability / GetMaxDurability(_hull);
+                    HullDurabilityFill.anchorMax = new Vector2(dur, 1);
+                    HullDurabilityLabel.text = $"{FormatValue(dur * 100)}%";
+                }
             }
 
             foreach (var x in _schematicItems)
@@ -268,7 +300,7 @@ public class SchematicDisplay : MonoBehaviour
         }
     }
 
-    private static (float minimum, float maximum) GetThermalRange(ItemInstance item, float currentTemperature)
+    private (float minimum, float maximum) GetThermalRange(ItemInstance item, float currentTemperature)
     {
         var typedItem = FindTypedItem(item);
         if (typedItem != null && typedItem.MaximumTemperature > typedItem.MinimumTemperature)
@@ -285,8 +317,132 @@ public class SchematicDisplay : MonoBehaviour
         return item is EquippableItem equippable ? Math.Max(equippable.Durability, 1f) : 1f;
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
+    private AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+    }
+
+    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    {
+        if (_catalog != null)
+            return _catalog;
+
+        try
+        {
+            _catalog = ResolveClient().OpenRuntimeCatalog();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for schematic display: {ex.Message}");
+        }
+
+        return _catalog;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for schematic display: {ex.Message}");
+        }
+
+        return _playerSettings;
+    }
+
+    private AetheriaRuntimeCurrentEntityHudStatus ResolveCurrentEntityHudStatus()
+    {
+        if (_currentEntityDocument == null ||
+            Time.unscaledTime - _currentEntityDocumentReadTime >= CurrentEntityHudRefreshIntervalSeconds)
+        {
+            try
+            {
+                _currentEntityDocument = ResolveClient()
+                    .CurrentEntityAsync()
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to read Aetheria current entity HUD status: {ex.Message}");
+            }
+
+            _currentEntityDocumentReadTime = Time.unscaledTime;
+        }
+
+        return _currentEntityDocument?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-schematic-display",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private string FormatValue(float value)
+    {
+        var settings = ResolvePlayerSettings();
+        var significantDigits = settings?.SignificantDigits ?? 3;
+        var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
+        var digits = significantDigits - magnitude;
+        if (digits < 0)
+            digits = 0;
+
+        var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        var decimalSeparator = Convert.ToChar(separator);
+        return formatted.Contains(separator)
+            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
+            : formatted;
+    }
+
+    private string FormatTemperature(float value)
+    {
+        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value)} K";
+        if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
+
+        return $"{FormatValue(value - 273.15f)} C";
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _catalog = null;
+        _playerSettings = null;
+        _currentEntityDocument = null;
+        _currentEntityDocumentReadTime = float.NegativeInfinity;
+    }
+
+    private void OnDestroy()
+    {
+        DisposeClient();
     }
 }

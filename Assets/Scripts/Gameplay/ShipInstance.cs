@@ -131,15 +131,10 @@ public class ShipInstance : EntityInstance
 
     private float GetMaxDurability(ItemInstance item)
     {
-        var typedItem = FindTypedItem(item);
+        var typedItem = ZoneRenderer?.FindCatalogItem(item);
         if (typedItem != null && typedItem.Durability > 0)
             return (float)typedItem.Durability;
 
         return item is EquippableItem equippable ? Math.Max(equippable.Durability, 1f) : 1f;
-    }
-
-    private static AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
-    {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
     }
 }

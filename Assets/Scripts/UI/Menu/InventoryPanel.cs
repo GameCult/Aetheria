@@ -5,6 +5,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -28,7 +30,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     public RectTransform DragParent;
     public bool Flip;
     public GameSettings Settings;
-    public ActionGameManager GameManager;
     public TextMeshProUGUI Title;
     public TextMeshProUGUI MinTempLabel;
     public TextMeshProUGUI MaxTempLabel;
@@ -65,15 +66,32 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private Entity _displayedEntity;
     private EquippedCargoBay _displayedCargo;
+    private string _displayedEntityKey = "";
+    private string _displayedCargoEntityKey = "";
+    private int _displayedCargoIndex = -1;
     private Shape _displayedHullShape;
     private Shape _displayedHullInterior;
     private Texture2D _temperatureTexture;
     private RectTransform _firstRect;
+    private AetheriaUnityDragSession _dragSession;
+    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
 
     public ItemInstance FakeItem;
     public Shape FakeOccupancy;
     public Shape IgnoreOccupancy;
     public List<GameObject> EmptyCells = new List<GameObject>();
+
+    public void SetDragSession(AetheriaUnityDragSession dragSession)
+    {
+        _dragSession = dragSession;
+    }
+
+    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    {
+        _observedFacadeIndex = observedFacadeIndex;
+    }
+
+    private AetheriaUnityDragSession DragSession => _dragSession ??= new AetheriaUnityDragSession();
     public Dictionary<int2, InventoryCell> CellInstances = new Dictionary<int2, InventoryCell>();
     
     private List<IDisposable> _subscriptions = new List<IDisposable>();
@@ -83,6 +101,14 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
+        Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
+    private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
+        Array.Empty<AetheriaRuntimeStationLoadoutRestoreOption>();
     private AetheriaRuntimeInventoryDropdownSurfaceProjection _dropdownSurfaceProjection;
     private readonly AetheriaEveUnitySurfaceChrome _dropdownSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
@@ -134,14 +160,11 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             Current.onClick.AddListener(() =>
             {
                 HideDropdownSurface();
-                var isDisplayedCurrentEntity =
-                    GameManager.TryGetObservedCurrentEntity(out var currentEntity) &&
-                    _displayedEntity == currentEntity;
-                if (!isDisplayedCurrentEntity)
+                if (!IsCurrentEntity(_displayedEntity))
                 {
                     if(_displayedEntity is Ship ship)
                     {
-                        GameManager.RequestDockedCurrentShip(ship);
+                        RequestDockedCurrentShip(ship);
                     }
                     else
                     {
@@ -164,7 +187,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 Dialog.AddField("Name", () => entityName, s => entityName = s);
                 Dialog.Show(() =>
                 {
-                    GameManager.RequestEntityName(_displayedEntity, entityName);
+                    RequestEntityName(_displayedEntity, entityName);
                 });
                 Dialog.MoveToCursor();
             });
@@ -219,29 +242,26 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private void ExecuteDropdownSelection(AetheriaRuntimeInventoryDropdownSelection selection)
     {
-        var entities = GameManager.ObservedAvailableEntities().ToArray();
-        var loadouts = GameManager.ObservedLoadoutTemplates().ToArray();
-
         switch (selection.Kind)
         {
             case AetheriaRuntimeInventoryDropdownSelectionKind.EntityEquipment:
             case AetheriaRuntimeInventoryDropdownSelectionKind.Entity:
-                if (selection.EntityIndex >= 0 && selection.EntityIndex < entities.Length)
+                if (TryResolveStationRefitEntity(selection.EntityKey, selection.EntityIndex, out var entity))
                 {
-                    Display(entities[selection.EntityIndex]);
+                    Display(entity);
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.EntityBay:
-                if (selection.EntityIndex >= 0 &&
-                    selection.EntityIndex < entities.Length &&
+                if (TryResolveStationRefitEntity(selection.EntityKey, selection.EntityIndex, out entity) &&
                     selection.BayIndex >= 0 &&
-                    selection.BayIndex < entities[selection.EntityIndex].CargoBays.Count)
+                    selection.BayIndex < entity.CargoBays.Count)
                 {
-                    Display(entities[selection.EntityIndex].CargoBays[selection.BayIndex]);
+                    Display(entity.CargoBays[selection.BayIndex]);
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay:
-                if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+                if (TryResolveCurrentDockingBayRow(out _) &&
+                    TryGetTypedCurrentDockingBayFacade(out var dockingBay))
                 {
                     Display(dockingBay);
                 }
@@ -249,13 +269,13 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             case AetheriaRuntimeInventoryDropdownSelectionKind.SaveLoadout:
                 if (_displayedEntity != null)
                 {
-                    GameManager.RequestLoadoutTemplateSave(_displayedEntity);
+                    RequestLoadoutTemplateSave(_displayedEntity);
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.Loadout:
-                if (selection.TemplateIndex >= 0 && selection.TemplateIndex < loadouts.Length)
+                if (selection.TemplateIndex >= 0 && selection.TemplateIndex < _dropdownStationRefitLoadouts.Length)
                 {
-                    GameManager.RequestRuntimeLoadoutRestore(loadouts[selection.TemplateIndex]);
+                    RequestRuntimeLoadoutRestore(_dropdownStationRefitLoadouts[selection.TemplateIndex]);
                 }
                 return;
         }
@@ -271,45 +291,44 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private AetheriaRuntimeInventoryDropdownSurfaceProjection ProjectDropdownSurface()
     {
-        var entities = GameManager.ObservedAvailableEntities().ToArray();
-        var loadouts = GameManager.ObservedLoadoutTemplates().ToArray();
-        var entityOptions = entities
+        var stationRefit = ResolveStationRefit();
+        _dropdownStationRefitEntities = (stationRefit?.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
+            .ToArray();
+        _dropdownStationRefitLoadouts = (stationRefit?.LoadoutRestoreOptions ?? Array.Empty<AetheriaRuntimeStationLoadoutRestoreOption>())
+            .ToArray();
+        var entityOptions = _dropdownStationRefitEntities
             .Select((entity, entityIndex) => new AetheriaRuntimeInventoryDropdownEntityOption(
                 entityIndex,
-                entity.Name,
-                entity == _displayedEntity,
-                entity.CargoBays
-                    .Select((bay, bayIndex) => new AetheriaRuntimeInventoryDropdownBayOption(
+                entity.EntityKey,
+                string.IsNullOrWhiteSpace(entity.DisplayName) ? $"Entity {entity.EntityIndex}" : entity.DisplayName,
+                IsDisplayedEntityKey(entity.EntityKey),
+                Enumerable.Range(0, Math.Max(entity.CargoBayCount, 0))
+                    .Select(bayIndex => new AetheriaRuntimeInventoryDropdownBayOption(
                         bayIndex,
                         $"Bay {bayIndex + 1}",
-                        bay == _displayedCargo))
+                        IsDisplayedCargoBayKey(entity.EntityKey, bayIndex)))
                     .ToArray()))
             .ToArray();
-        var loadoutOptions = loadouts
-            .Select((template, templateIndex) =>
-            {
-                var canRestore =
-                    GameManager.CreateEntityConstructionBlueprint(template) != null &&
-                    AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
-                        template,
-                        ActionGameManager.RuntimeCatalog,
-                        GameManager.ObservedTradeValueSettings(),
-                        out var price);
-                return new AetheriaRuntimeInventoryDropdownLoadoutOption(
-                    templateIndex,
-                    template.Name,
-                    canRestore ? $"{price:n0}" : "",
-                    canRestore);
-            })
+        var loadoutOptions = _dropdownStationRefitLoadouts
+            .Select((loadout, optionIndex) => new AetheriaRuntimeInventoryDropdownLoadoutOption(
+                optionIndex,
+                loadout.TemplateName,
+                loadout.CanRestore ? $"{loadout.Price:n0}" : "",
+                loadout.CanRestore))
             .ToArray();
-        var hasDockingBay = GameManager.TryGetObservedDockingBay(out var dockingBay);
+        var hasDockingBay = TryResolveCurrentDockingBayRow(out var currentDockingBay);
 
         return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Project(
             Title?.text ?? "None",
             entityOptions,
             hasDockingBay,
-            hasDockingBay ? dockingBay.Name : "",
-            hasDockingBay && dockingBay == _displayedCargo,
+            hasDockingBay
+                ? $"Docking Bay {currentDockingBay.DockingBayIndex + 1}"
+                : "Docking Bay",
+            hasDockingBay &&
+            IsDisplayedCargoBayKey(
+                ResolveStationRefit()?.DockParentEntityKey ?? "",
+                currentDockingBay.DockingBayIndex),
             _displayedEntity != null,
             loadoutOptions,
             DateTime.UtcNow.ToString("O"));
@@ -323,8 +342,8 @@ private void Update()
             var opacity = smoothstep(0, MinTempRange, tempRange);
             if(MinTempLabel)
             {
-                MinTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MinTemp);
-                MaxTempLabel.text = ActionGameManager.RuntimePlayerSettings.FormatTemperature(_displayedEntity.MaxTemp);
+                MinTempLabel.text = FormatTemperature(_displayedEntity.MinTemp);
+                MaxTempLabel.text = FormatTemperature(_displayedEntity.MaxTemp);
             }
             for(var x = 0; x < _temperatureTexture.width; x++)
             {
@@ -358,6 +377,9 @@ private void Update()
         HideDropdownSurface();
         _displayedCargo = null;
         _displayedEntity = null;
+        _displayedEntityKey = "";
+        _displayedCargoEntityKey = "";
+        _displayedCargoIndex = -1;
         _displayedHullShape = null;
         _displayedHullInterior = null;
         
@@ -396,6 +418,11 @@ private void Update()
 
         _displayedEntity = entity;
         _displayedCargo = null;
+        _displayedCargoEntityKey = "";
+        _displayedCargoIndex = -1;
+        _displayedEntityKey = TryResolveEntityRecordKey(entity, out var displayedEntityKey)
+            ? displayedEntityKey
+            : "";
         _firstRect = null;
         
         if (TemperatureRange)
@@ -440,7 +467,7 @@ private void Update()
         {
             Current.gameObject.SetActive(true);
             Current.targetGraphic.color =
-                GameManager.TryGetObservedCurrentEntity(out var currentEntity) && entity == currentEntity
+                IsCurrentEntity(entity)
                     ? ToggleEnabledColor
                     : ToggleDisabledColor;
         }
@@ -504,7 +531,7 @@ private void Update()
                                     IgnoreOccupancy = originalOccupancy;
                                     RefreshCells();
                                     _originalRotation = item.EquippableItem.Rotation;
-                                    GameManager.BeginDrag(new EquippedItemDragObject(item, entity, item.Position - v));
+                                    DragSession.Begin(new EquippedItemDragObject(item, entity, item.Position - v));
                                     //AkSoundEngine.PostEvent("Pickup", gameObject);
                                     // TODO: SFX: Pickup Item
                                 }
@@ -523,8 +550,7 @@ private void Update()
                             {
                                 //Debug.Log("Entity Drag End");
                                 IgnoreOccupancy = null;
-                                var hadDragTarget = GameManager.HasDragTarget;
-                                GameManager.EndDrag();
+                                var hadDragTarget = DragSession.End();
                                 if (!hadDragTarget)
                                     entity.GearOccupancy[v.x, v.y].EquippableItem.Rotation = _originalRotation;
                                 foreach(var dragObject in _dragCells)
@@ -536,7 +562,7 @@ private void Update()
                             .Subscribe(data =>
                             {
                                 //Debug.Log("Entity Pointer Enter");
-                                if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
+                                if (!DragSession.TryGetDraggedItem(out var itemDragObject)) return;
                                 var item = itemDragObject.Item;
                                 if (!(item is EquippableItem equippableItem)) return;
                                 var placementPosition = v + itemDragObject.OriginCellOffset;
@@ -544,7 +570,7 @@ private void Update()
                                 FakeItem = item;
                                 FakeOccupancy = _displayedHullShape.Inset(GetItemShape(equippableItem), placementPosition, item.Rotation);
                                 RefreshCells();
-                                GameManager.RegisterDragTarget(drag =>
+                                DragSession.RegisterTarget(drag =>
                                 {
                                     //Debug.Log("Entity Drag Callback");
                                     FakeOccupancy = null;
@@ -555,11 +581,11 @@ private void Update()
                         cell.PointerExitTrigger.OnPointerExitAsObservable()
                             .Subscribe(data =>
                             {
-                                if (!(GameManager.DragObject is ItemDragObject)) return;
+                                if (!DragSession.TryGetDraggedItem(out _)) return;
                                 FakeItem = null;
                                 FakeOccupancy = null;
                                 RefreshCells();
-                                GameManager.UnregisterDragTarget();
+                                DragSession.UnregisterTarget();
                             });
                     }
                 }
@@ -572,19 +598,19 @@ private void Update()
 //                        Debug.Log($"Clicked at pos {data.position}, normalized {point}");
                         if (_displayedHullShape[int2(v.x - 1, v.y)] && point.x < ThermalToggleRegionSize)
                         {
-                            GameManager.RequestHullConductivityToggle(entity, int2(v.x - 1, v.y), 0);
+                            RequestHullConductivityToggle(entity, int2(v.x - 1, v.y), 0);
                         }
                         if (_displayedHullShape[int2(v.x + 1, v.y)] && point.x > 1 - ThermalToggleRegionSize)
                         {
-                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 0);
+                            RequestHullConductivityToggle(entity, int2(v.x, v.y), 0);
                         }
                         if (_displayedHullShape[int2(v.x, v.y - 1)] && point.y < ThermalToggleRegionSize)
                         {
-                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y - 1), 1);
+                            RequestHullConductivityToggle(entity, int2(v.x, v.y - 1), 1);
                         }
                         if (_displayedHullShape[int2(v.x, v.y + 1)] && point.y > 1 - ThermalToggleRegionSize)
                         {
-                            GameManager.RequestHullConductivityToggle(entity, int2(v.x, v.y), 1);
+                            RequestHullConductivityToggle(entity, int2(v.x, v.y), 1);
                         }
                     });
                 }
@@ -649,6 +675,17 @@ private void Update()
         
         _displayedCargo = cargo;
         _displayedEntity = null;
+        _displayedEntityKey = "";
+        if (TryResolveCargoBay(cargo, out var displayedCargoEntityKey, out var displayedCargoIndex))
+        {
+            _displayedCargoEntityKey = displayedCargoEntityKey;
+            _displayedCargoIndex = displayedCargoIndex;
+        }
+        else
+        {
+            _displayedCargoEntityKey = "";
+            _displayedCargoIndex = -1;
+        }
 
         if(Title)
             Title.text = cargo.Name;
@@ -701,7 +738,7 @@ private void Update()
                             IgnoreOccupancy = originalOccupancy;
                             RefreshCells();
                             _originalRotation = item.Rotation;
-                            GameManager.BeginDrag(new ItemInstanceDragObject(item, cargo, cargo.Cargo[item] - v));
+                            DragSession.Begin(new ItemInstanceDragObject(item, cargo, cargo.Cargo[item] - v));
                             // TODO: SFX: Pickup
                         }
                     });
@@ -719,7 +756,7 @@ private void Update()
                     {
                         //Debug.Log("Inventory Drag End");
                         IgnoreOccupancy = null;
-                        GameManager.EndDrag();
+                        DragSession.End();
                         foreach(var dragObject in _dragCells)
                             Destroy(dragObject.gameObject);
                         _dragCells = null;
@@ -729,14 +766,14 @@ private void Update()
                     .Subscribe(data =>
                     {
                         //Debug.Log("Inventory Pointer Enter");
-                        if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
+                        if (!DragSession.TryGetDraggedItem(out var itemDragObject)) return;
                         var item = itemDragObject.Item;
                         var placementPosition = v + itemDragObject.OriginCellOffset;
                         //foreach (var cell in _dragCells) cell.gameObject.SetActive(false);
                         FakeItem = item;
                         FakeOccupancy = cargo.InteriorShape.Inset(GetItemShape(item), placementPosition, item.Rotation);
                         RefreshCells();
-                        GameManager.RegisterDragTarget(drag =>
+                        DragSession.RegisterTarget(drag =>
                         {
                             //Debug.Log("Inventory Drag Callback");
                             FakeOccupancy = null;
@@ -747,11 +784,11 @@ private void Update()
                 cell.PointerExitTrigger.OnPointerExitAsObservable()
                     .Subscribe(data =>
                     {
-                        if (!(GameManager.DragObject is ItemDragObject)) return;
+                        if (!DragSession.TryGetDraggedItem(out _)) return;
                         FakeItem = null;
                         FakeOccupancy = null;
                         RefreshCells();
-                        GameManager.UnregisterDragTarget();
+                        DragSession.UnregisterTarget();
                     });
                 
                 CellInstances.Add(v, cell);
@@ -935,7 +972,7 @@ private void Update()
         }
     }
 
-    private static bool TryGetTypedHardpointType(ItemInstance item, out HardpointType hardpointType)
+    private bool TryGetTypedHardpointType(ItemInstance item, out HardpointType hardpointType)
     {
         hardpointType = HardpointType.Hull;
         var typedItem = FindTypedInventoryItem(item);
@@ -962,7 +999,7 @@ private void Update()
         return new Shape(1, 1);
     }
 
-    private static bool TryResolveTypedHullGeometry(ItemInstance hull, out Shape hullShape, out Shape interiorShape)
+    private bool TryResolveTypedHullGeometry(ItemInstance hull, out Shape hullShape, out Shape interiorShape)
     {
         hullShape = null;
         interiorShape = null;
@@ -995,9 +1032,581 @@ private void Update()
         return shape;
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
+    private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+    }
+
+    private void RequestDockedCurrentShip(Ship ship)
+    {
+        if (ship == null || !TryResolveEntityRecordKey(ship, out var targetEntityKey))
+            return;
+
+        TrySubmitOperation(
+            operations => operations.SetDockedCurrentShip(targetEntityKey),
+            "docked current ship");
+    }
+
+    private void RequestEntityName(Entity entity, string name)
+    {
+        if (entity == null || !TryResolveEntityRecordKey(entity, out var targetEntityKey))
+            return;
+
+        TrySubmitOperation(
+            operations => operations.SetEntityName(targetEntityKey, name ?? ""),
+            "entity name");
+    }
+
+    private void RequestRuntimeLoadoutRestore(AetheriaRuntimeStationLoadoutRestoreOption loadout)
+    {
+        if (loadout == null ||
+            !loadout.CanRestore ||
+            string.IsNullOrWhiteSpace(loadout.TargetEntityKey) ||
+            string.IsNullOrWhiteSpace(loadout.TemplateName))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.RestoreLoadout(loadout.TargetEntityKey, loadout.TemplateName, loadout.Price),
+            "loadout restore");
+    }
+
+    private void RequestLoadoutTemplateSave(Entity entity)
+    {
+        if (entity == null || !TryResolveEntityRecordKey(entity, out var targetEntityKey))
+            return;
+
+        try
+        {
+            var loadout = ResolveClient()
+                .LoadoutTemplateAsync(targetEntityKey)
+                .GetAwaiter()
+                .GetResult();
+            if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
+                return;
+
+            var submitted = ResolveClient()
+                .Ui.SaveLoadoutTemplateAsync(loadout, "unity-inventory")
+                .GetAwaiter()
+                .GetResult();
+
+            Debug.Log($"Submitted Aetheria loadout template save Eve operation: {submitted.OperationId}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to send Aetheria loadout template save Eve command: {ex}");
+        }
+    }
+
+    private void RequestHullConductivityToggle(Entity entity, int2 position, int axis)
+    {
+        if (entity == null || !TryResolveEntityRecordKey(entity, out var targetEntityKey))
+            return;
+
+        TrySubmitOperation(
+            operations => operations.ToggleHullConductivity(targetEntityKey, position.x, position.y, axis),
+            "hull conductivity");
+    }
+
+    private bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
+    {
+        recordKey = "";
+        return _observedFacadeIndex != null &&
+               _observedFacadeIndex.TryResolveEntityRecordKey(entity, out recordKey);
+    }
+
+    private bool IsCurrentEntity(Entity entity)
+    {
+        if (entity == null ||
+            !TryResolveEntityRecordKey(entity, out var entityKey) ||
+            string.IsNullOrWhiteSpace(entityKey) ||
+            !TryResolveCurrentEntityKey(out var currentEntityKey))
+        {
+            return false;
+        }
+
+        return string.Equals(entityKey, currentEntityKey, StringComparison.Ordinal);
+    }
+
+    private bool TryResolveCurrentEntityKey(out string currentEntityKey)
+    {
+        currentEntityKey = "";
+
+        try
+        {
+            currentEntityKey = ResolveClient()
+                .CurrentEntityAsync()
+                .GetAwaiter()
+                .GetResult()
+                ?.EntityKey ?? "";
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current entity for inventory panel: {ex.Message}");
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(currentEntityKey);
+    }
+
+    private bool TryGetTypedCurrentDockingBayFacade(out EquippedDockingBay dockingBay)
+    {
+        dockingBay = null;
+        var stationRefit = ResolveStationRefit();
+        var dockParentEntityKey = stationRefit?.DockParentEntityKey ?? "";
+        if (_observedFacadeIndex == null ||
+            !TryResolveCurrentDockingBayRow(out var dockingBayRow) ||
+            string.IsNullOrWhiteSpace(dockParentEntityKey) ||
+            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
+                dockParentEntityKey,
+                dockingBayRow.DockingBayIndex,
+                out dockingBay))
+        {
+            return false;
+        }
+
+        return dockingBay != null;
+    }
+
+    private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
+    {
+        dockingBay = null;
+        var stationRefit = ResolveStationRefit();
+        if (stationRefit?.IsDocked != true || stationRefit.DockingBayIndex < 0)
+            return false;
+
+        dockingBay = (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+            .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex);
+        return dockingBay != null;
+    }
+
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    {
+        docking = null;
+
+        try
+        {
+            docking = ResolveClient()
+                .CurrentDockingAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for inventory panel: {ex.Message}");
+            return false;
+        }
+
+        return docking != null;
+    }
+
+    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
+    {
+        try
+        {
+            return ResolveClient()
+                .StationRefitAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria station refit projection for inventory panel: {ex.Message}");
+            return null;
+        }
+    }
+
+    private bool TryResolveStationRefitEntity(string entityKey, int optionIndex, out Entity entity)
+    {
+        entity = null;
+        if (string.IsNullOrWhiteSpace(entityKey) &&
+            optionIndex >= 0 &&
+            optionIndex < (_dropdownStationRefitEntities?.Length ?? 0))
+        {
+            entityKey = _dropdownStationRefitEntities[optionIndex]?.EntityKey ?? "";
+        }
+
+        return TryResolveObservedAvailableEntityByKey(entityKey, out entity);
+    }
+
+    private bool TryResolveObservedAvailableEntityByKey(string entityKey, out Entity entity)
+    {
+        entity = null;
+        if (_observedFacadeIndex == null || string.IsNullOrWhiteSpace(entityKey))
+            return false;
+
+        return _observedFacadeIndex.TryResolveEntityByRecordKey(entityKey, out entity);
+    }
+
+    private bool IsDisplayedEntityKey(string entityKey)
+    {
+        return _displayedEntity != null &&
+               !string.IsNullOrWhiteSpace(_displayedEntityKey) &&
+               string.Equals(_displayedEntityKey, entityKey, StringComparison.Ordinal);
+    }
+
+    private bool IsDisplayedCargoBayKey(string entityKey, int cargoBayIndex)
+    {
+        return _displayedCargo != null &&
+               !string.IsNullOrWhiteSpace(_displayedCargoEntityKey) &&
+               string.Equals(_displayedCargoEntityKey, entityKey, StringComparison.Ordinal) &&
+               _displayedCargoIndex == cargoBayIndex;
+    }
+
+    private bool TryResolveCargoBay(EquippedCargoBay cargoBay, out string entityKey, out int cargoIndex)
+    {
+        return TryResolveEquippedItem(cargoBay, out entityKey, out cargoIndex);
+    }
+
+    private bool TryResolveEquippedItem(EquippedItem item, out string entityKey, out int equipmentIndex)
+    {
+        entityKey = "";
+        equipmentIndex = -1;
+        var entity = item?.Entity;
+        if (entity?.Equipment == null ||
+            !TryResolveEntityRecordKey(entity, out entityKey))
+        {
+            return false;
+        }
+
+        equipmentIndex = entity.Equipment.IndexOf(item);
+        return equipmentIndex >= 0;
+    }
+
+    private bool TryResolveTypedInventoryRows(
+        string entityKey,
+        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> equipment,
+        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> cargo)
+    {
+        equipment = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        cargo = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        if (string.IsNullOrWhiteSpace(entityKey))
+            return false;
+
+        try
+        {
+            var current = ResolveClient()
+                .CurrentEntityAsync()
+                .GetAwaiter()
+                .GetResult();
+            if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
+            {
+                equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                cargo = current.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                return true;
+            }
+
+            var refit = ResolveStationRefit();
+            var entityIndex = -1;
+            if (refit != null)
+            {
+                if (string.Equals(refit.DockParentEntityKey, entityKey, StringComparison.Ordinal))
+                    entityIndex = refit.DockParentEntityIndex;
+                else
+                    entityIndex = (refit.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
+                        .FirstOrDefault(option => string.Equals(option.EntityKey, entityKey, StringComparison.Ordinal))
+                        ?.EntityIndex ?? -1;
+            }
+
+            if (entityIndex < 0)
+                return false;
+
+            var inventory = ResolveClient()
+                .InventoryAsync(entityIndex)
+                .GetAwaiter()
+                .GetResult();
+            if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
+                return false;
+
+            equipment = inventory.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+            cargo = inventory.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to validate Aetheria inventory projection for {entityKey}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryValidateTypedCargoSlot(
+        string entityKey,
+        int cargoIndex,
+        ItemInstance item,
+        int2 originPosition,
+        bool hasOriginPosition)
+    {
+        if (item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !TryResolveTypedInventoryRows(entityKey, out _, out var cargo))
+        {
+            return false;
+        }
+
+        return cargo.Any(row =>
+            string.Equals(row.Source, "cargo", StringComparison.Ordinal) &&
+            row.SourceIndex == cargoIndex &&
+            string.Equals(row.ItemKey, item.ItemKey, StringComparison.Ordinal) &&
+            (!hasOriginPosition || (row.X == originPosition.x && row.Y == originPosition.y)));
+    }
+
+    private bool TryValidateTypedEquipmentSlot(
+        string entityKey,
+        int equipmentIndex,
+        EquippedItem item)
+    {
+        if (item?.EquippableItem == null ||
+            string.IsNullOrWhiteSpace(item.EquippableItem.ItemKey) ||
+            !TryResolveTypedInventoryRows(entityKey, out var equipment, out _))
+        {
+            return false;
+        }
+
+        return equipment.Any(row =>
+            string.Equals(row.Source, "equipment", StringComparison.Ordinal) &&
+            row.SourceIndex == equipmentIndex &&
+            row.X == item.Position.x &&
+            row.Y == item.Position.y &&
+            string.Equals(row.ItemKey, item.EquippableItem.ItemKey, StringComparison.Ordinal));
+    }
+
+    private void RequestCargoItemTransfer(
+        EquippedCargoBay origin,
+        EquippedCargoBay destination,
+        ItemInstance item,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
+            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var originPosition) ||
+            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
+        {
+            return;
+        }
+
+        var quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1;
+        if (quantity <= 0)
+            return;
+
+        TrySubmitOperation(
+            operations => operations.TransferCargoItem(
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                item.ItemKey,
+                quantity,
+                originPosition.x,
+                originPosition.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition),
+            "cargo transfer");
+    }
+
+    private void RequestCargoItemEquip(
+        EquippedCargoBay origin,
+        Entity destination,
+        EquippableItem item,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
+            !TryResolveEntityRecordKey(destination, out var destinationEntityKey) ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var originPosition) ||
+            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.EquipItem(
+                "cargo",
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                item.ItemKey,
+                originPosition.x,
+                originPosition.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition),
+            "cargo equip");
+    }
+
+    private void RequestEquippedItemStore(
+        EquippedItem item,
+        EquippedCargoBay destination,
+        int2 destinationPosition,
+        bool hasDestinationPosition)
+    {
+        if (!TryResolveEquippedItem(item, out var originEntityKey, out var equipmentIndex) ||
+            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            item?.EquippableItem == null ||
+            !TryValidateTypedEquipmentSlot(originEntityKey, equipmentIndex, item))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.StoreItem(
+                originEntityKey,
+                equipmentIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                item.EquippableItem.ItemKey,
+                destinationPosition.x,
+                destinationPosition.y,
+                hasDestinationPosition),
+            "equipment store");
+    }
+
+    private void RequestEquippedItemEquip(
+        EquippedItem item,
+        Entity destination,
+        int2 destinationPosition)
+    {
+        if (!TryResolveEquippedItem(item, out var originEntityKey, out var equipmentIndex) ||
+            !TryResolveEntityRecordKey(destination, out var destinationEntityKey) ||
+            item?.EquippableItem == null ||
+            !TryValidateTypedEquipmentSlot(originEntityKey, equipmentIndex, item))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.EquipItem(
+                "equipment",
+                originEntityKey,
+                equipmentIndex,
+                destinationEntityKey,
+                item.EquippableItem.ItemKey,
+                item.Position.x,
+                item.Position.y,
+                destinationPosition.x,
+                destinationPosition.y,
+                true),
+            "equipment equip");
+    }
+
+    private bool TrySubmitOperation(
+        Action<AetheriaControl> submit,
+        string label)
+    {
+        if (submit == null)
+            return false;
+
+        try
+        {
+            submit(ResolveClient().Control);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon inventory {label} operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-inventory",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _catalog = null;
+        _playerSettings = null;
+    }
+
+    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    {
+        if (_catalog != null)
+            return _catalog;
+
+        try
+        {
+            _catalog = ResolveClient().OpenRuntimeCatalog();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for inventory panel: {ex.Message}");
+        }
+
+        return _catalog;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for inventory panel: {ex.Message}");
+        }
+
+        return _playerSettings;
+    }
+
+    private string FormatValue(float value)
+    {
+        var settings = ResolvePlayerSettings();
+        var significantDigits = settings?.SignificantDigits ?? 3;
+        var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
+        var digits = significantDigits - magnitude;
+        if (digits < 0)
+            digits = 0;
+
+        var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        var decimalSeparator = Convert.ToChar(separator);
+        return formatted.Contains(separator)
+            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
+            : formatted;
+    }
+
+    private string FormatTemperature(float value)
+    {
+        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value)} K";
+        if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
+
+        return $"{FormatValue(value - 273.15f)} C";
     }
 
     private void RequestDraggedItemToEntity(DragObject drag, Entity destination, int2 destinationPosition)
@@ -1005,18 +1614,18 @@ private void Update()
         switch (drag)
         {
             case EquippedItemDragObject equippedItemDragObject:
-                GameManager.RequestEquippedItemEquip(
-                    equippedItemDragObject.OriginEntity,
+                RequestEquippedItemEquip(
                     equippedItemDragObject.EquippedItem,
                     destination,
                     destinationPosition);
                 return;
             case ItemInstanceDragObject itemInstanceDragObject when itemInstanceDragObject.Item is EquippableItem equippableItem:
-                GameManager.RequestCargoItemEquip(
+                RequestCargoItemEquip(
                     itemInstanceDragObject.OriginInventory,
                     destination,
                     equippableItem,
-                    destinationPosition);
+                    destinationPosition,
+                    true);
                 return;
         }
     }
@@ -1026,24 +1635,27 @@ private void Update()
         switch (drag)
         {
             case EquippedItemDragObject equippedItemDragObject:
-                GameManager.RequestEquippedItemStore(
-                    equippedItemDragObject.OriginEntity,
+                RequestEquippedItemStore(
                     equippedItemDragObject.EquippedItem,
                     destination,
-                    destinationPosition);
+                    destinationPosition,
+                    true);
                 return;
             case ItemInstanceDragObject itemInstanceDragObject:
-                GameManager.RequestCargoItemTransfer(
+                RequestCargoItemTransfer(
                     itemInstanceDragObject.OriginInventory,
                     destination,
                     itemInstanceDragObject.Item,
-                    destinationPosition);
+                    destinationPosition,
+                    true);
                 return;
         }
     }
 
     private void OnDestroy()
     {
+        DisposeClient();
+
         if (_dropdownSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_dropdownSurfaceDocument);

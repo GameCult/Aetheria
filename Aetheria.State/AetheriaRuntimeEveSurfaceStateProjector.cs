@@ -16,11 +16,18 @@ public static class AetheriaRuntimeEveSurfaceStateProjector
             UpdatedAtUtc = document.UpdatedAtUtc,
             Surface = ToSurface(document.Surface),
             Commands = document.Commands
-                .Select(command => new EveCommandTemplate
+                .Select(command =>
                 {
-                    Command = command.Command,
-                    Label = command.Label,
-                    Transport = command.Transport
+                    var record = GameCult.Mesh.CultMesh.OperationBindingRecord(command.Operation);
+                    return new EveCommandTemplate
+                    {
+                        Command = record.OperationId,
+                        Label = record.Label,
+                        Transport = record.RouteDescription,
+                        SchemaId = record.SchemaId,
+                        RouteKind = record.RouteKind,
+                        RouteDescription = record.RouteDescription
+                    };
                 })
                 .ToArray()
         };
@@ -44,12 +51,30 @@ public static class AetheriaRuntimeEveSurfaceStateProjector
 
     private static EveSurfaceComponent ToComponent(AetheriaRuntimeSurfaceComponent component)
     {
+        var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+        AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
+
         return new EveSurfaceComponent
         {
             Id = component.Id,
             Kind = component.Kind,
-            Props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-            Children = component.Children.Select(ToComponent).ToArray()
+            Props = props,
+            Children = component.Children.Select(ToComponent).ToArray(),
+            StateBindings = component.StateBindings
+                .Select(binding =>
+                {
+                    var record = GameCult.Mesh.CultMesh.StateBindingRecord(binding);
+                    return new EveSurfaceStateBinding
+                    {
+                        TargetProp = record.TargetProp,
+                        PointerId = record.PointerId,
+                        SourceId = record.SourceId,
+                        SchemaId = record.SchemaId,
+                        RouteKind = record.RouteKind,
+                        RouteDescription = record.RouteDescription
+                    };
+                })
+                .ToArray()
         };
     }
 }

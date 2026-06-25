@@ -117,6 +117,20 @@ Aetheria.State.Replica/bin/
 Aetheria.State.Replica/obj/
 Aetheria.State.Verify/bin/
 Aetheria.State.Verify/obj/
+Aetheria.Rts.Web/bin/
+Aetheria.Rts.Web/obj/
+Aetheria.Rts.Web/electron-dist/
+Aetheria.Rts.Web/logs/
+Aetheria.Rts.Web/node_modules/
+Aetheria.Rts.Web/runtime/
+Aetheria.Rts.Web/Aetheria.Rts.Web/logs/
+Aetheria.Rts.Web/*.log
+Aetheria.Rts.Web/wwwroot/*.js
+Aetheria.State.AuthoritySmoke/bin/
+Aetheria.State.AuthoritySmoke/obj/
+Aetheria.State.Freeze/bin/
+Aetheria.State.Freeze/obj/
+Aetheria.State.Daemon/*.log
 
 # JetBrains Rider .idea folder
 .idea/

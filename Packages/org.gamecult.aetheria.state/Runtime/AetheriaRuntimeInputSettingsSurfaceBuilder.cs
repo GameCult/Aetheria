@@ -531,7 +531,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeInputSettingsCommands.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            switch (request.Command ?? "")
+            switch (request.Operation?.OperationId ?? "")
             {
                 case AetheriaRuntimeInputSettingsCommands.Refresh:
                     command = new AetheriaRuntimeInputSettingsSurfaceCommand(
@@ -562,28 +562,17 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string ReadString(EveSurfaceCommandRequest request, string key, string defaultValue = "")
         {
-            return request.Payload != null &&
-                   request.Payload.TryGetValue(key, out var raw)
-                ? raw ?? defaultValue
-                : defaultValue;
+            return request.Payload.GetString(key, defaultValue);
         }
 
         private static int ReadInt(EveSurfaceCommandRequest request, string key, int defaultValue)
         {
-            return request.Payload != null &&
-                   request.Payload.TryGetValue(key, out var raw) &&
-                   int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : defaultValue;
+            return request.Payload.GetInt32(key, defaultValue);
         }
 
         private static bool ReadBool(EveSurfaceCommandRequest request, string key, bool defaultValue)
         {
-            return request.Payload != null &&
-                   request.Payload.TryGetValue(key, out var raw) &&
-                   bool.TryParse(raw, out var value)
-                ? value
-                : defaultValue;
+            return request.Payload.GetBoolean(key, defaultValue);
         }
     }
 }

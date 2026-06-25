@@ -6,6 +6,53 @@ namespace Aetheria.State;
 
 public static class AetheriaRuntimeStateMapper
 {
+    public static AetheriaTradeValuePolicy ToTradeValuePolicy(
+        AetheriaRuntimeTradeValueSettings settings,
+        string updatedAtUtc)
+    {
+        return new AetheriaTradeValuePolicy
+        {
+            QualityPriceModifier = new AetheriaExponentialLerp
+            {
+                Exponent = settings.QualityPriceModifier.Exponent,
+                Minimum = settings.QualityPriceModifier.Minimum,
+                Maximum = settings.QualityPriceModifier.Maximum
+            },
+            Tiers = settings.Tiers
+                .Select(tier => new AetheriaItemRarityTier
+                {
+                    Name = tier.Name,
+                    Quality = tier.Quality,
+                    Red = tier.Red,
+                    Green = tier.Green,
+                    Blue = tier.Blue
+                })
+                .ToArray(),
+            UpdatedAtUtc = updatedAtUtc
+        };
+    }
+
+    public static AetheriaRuntimeTradeValueSettings ToRuntimeTradeValueSettings(
+        AetheriaTradeValuePolicy? policy)
+    {
+        if (policy == null)
+            return AetheriaRuntimeTradeValueSettings.Default;
+
+        return new AetheriaRuntimeTradeValueSettings(
+            new AetheriaRuntimeExponentialLerp(
+                policy.QualityPriceModifier?.Exponent ?? 1,
+                policy.QualityPriceModifier?.Minimum ?? 1,
+                policy.QualityPriceModifier?.Maximum ?? 1),
+            (policy.Tiers ?? Array.Empty<AetheriaItemRarityTier>())
+                .Select(tier => new AetheriaRuntimeItemRarityTier(
+                    tier.Name,
+                    tier.Quality,
+                    tier.Red,
+                    tier.Green,
+                    tier.Blue))
+                .ToArray());
+    }
+
     public static AetheriaLoadoutTemplate ToLoadoutTemplate(
         AetheriaRuntimeLoadoutTemplateCommit loadout,
         string updatedAtUtc)

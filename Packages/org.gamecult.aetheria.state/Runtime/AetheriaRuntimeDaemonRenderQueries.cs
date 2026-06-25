@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using CultMath;
 
 #nullable enable
 
@@ -12,6 +14,9 @@ namespace GameCult.Aetheria.State.Verse
         Sun
     }
 
+    /// <summary>
+    /// Legacy Unity XZ viewport adapter. New daemon/client query code should use CultMath.rect in Aetheria XY space.
+    /// </summary>
     public readonly struct AetheriaRuntimeXzRect
     {
         public AetheriaRuntimeXzRect(double minX, double minZ, double maxX, double maxZ)
@@ -26,6 +31,15 @@ namespace GameCult.Aetheria.State.Verse
         public double MinZ { get; }
         public double MaxX { get; }
         public double MaxZ { get; }
+
+        public rect ToAetheriaXyRect()
+        {
+            return new rect(
+                (float)MinX,
+                (float)MinZ,
+                (float)MaxX,
+                (float)MaxZ);
+        }
     }
 
     public readonly struct AetheriaRuntimeExponentialCurve
@@ -562,6 +576,38 @@ namespace GameCult.Aetheria.State.Verse
         public double Distance { get; }
     }
 
+    public readonly struct AetheriaRuntimeDaemonObjectViewportEntity
+    {
+        public AetheriaRuntimeDaemonObjectViewportEntity(
+            int entityIndex,
+            string entityKey,
+            string displayName,
+            double3 position,
+            double2 xy,
+            double2 direction,
+            double2 velocity,
+            bool controlled)
+        {
+            EntityIndex = entityIndex;
+            EntityKey = entityKey ?? "";
+            DisplayName = displayName ?? "";
+            Position = position;
+            Xy = xy;
+            Direction = direction;
+            Velocity = velocity;
+            Controlled = controlled;
+        }
+
+        public int EntityIndex { get; }
+        public string EntityKey { get; }
+        public string DisplayName { get; }
+        public double3 Position { get; }
+        public double2 Xy { get; }
+        public double2 Direction { get; }
+        public double2 Velocity { get; }
+        public bool Controlled { get; }
+    }
+
     public readonly struct AetheriaRuntimeDaemonWormholeExit
     {
         public AetheriaRuntimeDaemonWormholeExit(
@@ -613,6 +659,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             AetheriaRuntimeXzRect viewport)
         {
+            return QueryGravityInfluences(zone, viewport.ToAetheriaXyRect());
+        }
+
+        public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            rect viewport)
+        {
             var brushes = new List<AetheriaRuntimeGravityInfluenceBrush>();
             QueryGravityInfluences(zone, viewport, brushes);
             return brushes.Count == 0 ? Array.Empty<AetheriaRuntimeGravityInfluenceBrush>() : brushes.ToArray();
@@ -621,6 +674,14 @@ namespace GameCult.Aetheria.State.Verse
         public static int QueryGravityInfluences(
             AetheriaRuntimeZoneSnapshotCommit? zone,
             AetheriaRuntimeXzRect viewport,
+            List<AetheriaRuntimeGravityInfluenceBrush> brushes)
+        {
+            return QueryGravityInfluences(zone, viewport.ToAetheriaXyRect(), brushes);
+        }
+
+        public static int QueryGravityInfluences(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            rect viewport,
             List<AetheriaRuntimeGravityInfluenceBrush> brushes)
         {
             if (brushes == null) throw new ArgumentNullException(nameof(brushes));
@@ -713,6 +774,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             AetheriaRuntimeXzRect viewport)
         {
+            return QueryBodyViews(zone, viewport.ToAetheriaXyRect());
+        }
+
+        public static AetheriaRuntimeDaemonBodyView[] QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            rect viewport)
+        {
             var views = new List<AetheriaRuntimeDaemonBodyView>();
             QueryBodyViews(zone, viewport, views);
             return views.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonBodyView>() : views.ToArray();
@@ -730,12 +798,20 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeXzRect viewport,
             List<AetheriaRuntimeDaemonBodyView> views)
         {
-            return QueryBodyViews(zone, (AetheriaRuntimeXzRect?)viewport, views);
+            return QueryBodyViews(zone, viewport.ToAetheriaXyRect(), views);
+        }
+
+        public static int QueryBodyViews(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            rect viewport,
+            List<AetheriaRuntimeDaemonBodyView> views)
+        {
+            return QueryBodyViews(zone, (rect?)viewport, views);
         }
 
         private static int QueryBodyViews(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            AetheriaRuntimeXzRect? viewport,
+            rect? viewport,
             List<AetheriaRuntimeDaemonBodyView> views)
         {
             if (views == null) throw new ArgumentNullException(nameof(views));
@@ -985,9 +1061,23 @@ namespace GameCult.Aetheria.State.Verse
             double minimumInfoGathered,
             AetheriaRuntimeXzRect viewport)
         {
-            var entityIndices = new List<int>();
-            QueryPresentationEntityIndices(run, zone, observerEntityIndex, minimumInfoGathered, viewport, entityIndices);
-            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+            return QueryPresentationEntityIndices(run, zone, observerEntityIndex, minimumInfoGathered, viewport.ToAetheriaXyRect());
+        }
+
+        public static int[] QueryPresentationEntityIndices(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport)
+        {
+            var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
+            return QueryPresentationEntityIndices(
+                currentEntityIndex,
+                zone,
+                observerEntityIndex,
+                minimumInfoGathered,
+                viewport);
         }
 
         public static int QueryPresentationEntityIndices(
@@ -998,13 +1088,117 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeXzRect viewport,
             List<int> entityIndices)
         {
+            return QueryPresentationEntityIndices(run, zone, observerEntityIndex, minimumInfoGathered, viewport.ToAetheriaXyRect(), entityIndices);
+        }
+
+        public static int QueryPresentationEntityIndices(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport,
+            List<int> entityIndices)
+        {
+            var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
+            return QueryPresentationEntityIndices(
+                currentEntityIndex,
+                zone,
+                observerEntityIndex,
+                minimumInfoGathered,
+                viewport,
+                entityIndices);
+        }
+
+        public static int[] QueryPresentationEntityIndices(
+            string? currentEntityKey,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect viewport)
+        {
+            return QueryPresentationEntityIndices(currentEntityKey, zone, observerEntityIndex, minimumInfoGathered, viewport.ToAetheriaXyRect());
+        }
+
+        public static int[] QueryPresentationEntityIndices(
+            string? currentEntityKey,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport)
+        {
+            var entityIndices = new List<int>();
+            var currentEntityIndex = TryParseEntityIndex(currentEntityKey);
+            QueryPresentationEntityIndices(
+                currentEntityIndex,
+                zone,
+                observerEntityIndex,
+                minimumInfoGathered,
+                viewport,
+                entityIndices);
+            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+        }
+
+        private static int[] QueryPresentationEntityIndices(
+            int currentEntityIndex,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport)
+        {
+            var entityIndices = new List<int>();
+            QueryPresentationEntityIndices(
+                currentEntityIndex,
+                zone,
+                observerEntityIndex,
+                minimumInfoGathered,
+                viewport,
+                entityIndices);
+            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+        }
+
+        public static int QueryPresentationEntityIndices(
+            string? currentEntityKey,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect viewport,
+            List<int> entityIndices)
+        {
+            return QueryPresentationEntityIndices(currentEntityKey, zone, observerEntityIndex, minimumInfoGathered, viewport.ToAetheriaXyRect(), entityIndices);
+        }
+
+        public static int QueryPresentationEntityIndices(
+            string? currentEntityKey,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport,
+            List<int> entityIndices)
+        {
+            var currentEntityIndex = TryParseEntityIndex(currentEntityKey);
+            return QueryPresentationEntityIndices(
+                currentEntityIndex,
+                zone,
+                observerEntityIndex,
+                minimumInfoGathered,
+                viewport,
+                entityIndices);
+        }
+
+        private static int QueryPresentationEntityIndices(
+            int currentEntityIndex,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex,
+            double minimumInfoGathered,
+            rect viewport,
+            List<int> entityIndices)
+        {
             if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
             entityIndices.Clear();
             if (zone == null)
                 return 0;
 
             var selected = new HashSet<int>();
-            var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
             if (currentEntityIndex >= 0)
                 selected.Add(currentEntityIndex);
 
@@ -1041,6 +1235,157 @@ namespace GameCult.Aetheria.State.Verse
                 entityIndices.Add(entityIndex);
 
             return entityIndices.Count;
+        }
+
+        public static int[] QueryObjectsViewportEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            rect viewport)
+        {
+            var entityIndices = new List<int>();
+            QueryObjectsViewportEntityIndices(zone, controlledEntityIndices, minimumInfoGathered, viewport, entityIndices);
+            return entityIndices.Count == 0 ? Array.Empty<int>() : entityIndices.ToArray();
+        }
+
+        public static int QueryObjectsViewportEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            rect viewport,
+            List<int> entityIndices)
+        {
+            if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
+            entityIndices.Clear();
+            if (zone == null || controlledEntityIndices == null || controlledEntityIndices.Count == 0)
+                return 0;
+
+            var entities = BuildEntityMap(zone);
+            var visible = new HashSet<int>();
+            foreach (var observerEntityIndex in controlledEntityIndices)
+            {
+                if (observerEntityIndex < 0 ||
+                    !entities.TryGetValue(observerEntityIndex, out var observer))
+                {
+                    continue;
+                }
+
+                visible.Add(observer.EntityIndex);
+                foreach (var contact in observer.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                {
+                    if (contact != null &&
+                        contact.Visible &&
+                        contact.InfoGathered > minimumInfoGathered &&
+                        entities.ContainsKey(contact.TargetEntityIndex))
+                    {
+                        visible.Add(contact.TargetEntityIndex);
+                    }
+                }
+            }
+
+            foreach (var entityIndex in visible.OrderBy(index => index))
+            {
+                if (entities.TryGetValue(entityIndex, out var entity) &&
+                    viewport.Contains(new float2((float)entity.PositionX, (float)entity.PositionZ)))
+                {
+                    entityIndices.Add(entityIndex);
+                }
+            }
+
+            return entityIndices.Count;
+        }
+
+        public static int[] QueryObjectsViewportEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect unityViewport)
+        {
+            return QueryObjectsViewportEntityIndices(
+                zone,
+                controlledEntityIndices,
+                minimumInfoGathered,
+                ToRuntimeRect(unityViewport));
+        }
+
+        public static int QueryObjectsViewportEntityIndices(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect unityViewport,
+            List<int> entityIndices)
+        {
+            return QueryObjectsViewportEntityIndices(
+                zone,
+                controlledEntityIndices,
+                minimumInfoGathered,
+                ToRuntimeRect(unityViewport),
+                entityIndices);
+        }
+
+        public static AetheriaRuntimeDaemonObjectViewportEntity[] QueryObjectsViewport(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            rect viewport)
+        {
+            var entities = new List<AetheriaRuntimeDaemonObjectViewportEntity>();
+            QueryObjectsViewport(zone, controlledEntityIndices, minimumInfoGathered, viewport, entities);
+            return entities.Count == 0 ? Array.Empty<AetheriaRuntimeDaemonObjectViewportEntity>() : entities.ToArray();
+        }
+
+        public static int QueryObjectsViewport(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            rect viewport,
+            List<AetheriaRuntimeDaemonObjectViewportEntity> entities)
+        {
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+            entities.Clear();
+
+            var entityIndices = new List<int>();
+            QueryObjectsViewportEntityIndices(zone, controlledEntityIndices, minimumInfoGathered, viewport, entityIndices);
+            if (zone == null || entityIndices.Count == 0)
+                return 0;
+
+            var entityMap = BuildEntityMap(zone);
+            var controlled = new HashSet<int>(controlledEntityIndices ?? Array.Empty<int>());
+            foreach (var entityIndex in entityIndices)
+            {
+                if (entityMap.TryGetValue(entityIndex, out var entity))
+                    entities.Add(BuildObjectViewportEntity(entity, controlled.Contains(entityIndex)));
+            }
+
+            return entities.Count;
+        }
+
+        public static AetheriaRuntimeDaemonObjectViewportEntity[] QueryObjectsViewport(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect unityViewport)
+        {
+            return QueryObjectsViewport(
+                zone,
+                controlledEntityIndices,
+                minimumInfoGathered,
+                ToRuntimeRect(unityViewport));
+        }
+
+        public static int QueryObjectsViewport(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<int>? controlledEntityIndices,
+            double minimumInfoGathered,
+            AetheriaRuntimeXzRect unityViewport,
+            List<AetheriaRuntimeDaemonObjectViewportEntity> entities)
+        {
+            return QueryObjectsViewport(
+                zone,
+                controlledEntityIndices,
+                minimumInfoGathered,
+                ToRuntimeRect(unityViewport),
+                entities);
         }
 
         public static bool TryQueryEntityContact(
@@ -1185,6 +1530,46 @@ namespace GameCult.Aetheria.State.Verse
             return exits.Count;
         }
 
+        public static int QueryWormholeExits(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<AetheriaRuntimeZoneRenderAdjacentZone>? adjacentZones,
+            double zoneRadius,
+            double wormholeDistanceRatio,
+            List<AetheriaRuntimeDaemonWormholeExit> exits)
+        {
+            if (exits == null) throw new ArgumentNullException(nameof(exits));
+            exits.Clear();
+            if (zone == null || adjacentZones == null || adjacentZones.Count == 0)
+                return 0;
+
+            var adjacentByIndex = adjacentZones
+                .Where(candidate => candidate != null && candidate.ZoneIndex >= 0)
+                .ToDictionary(candidate => candidate.ZoneIndex);
+            var distance = Math.Max(0, zoneRadius) * Math.Max(0, wormholeDistanceRatio);
+            foreach (var targetZoneIndex in zone.AdjacentZoneIndices ?? Array.Empty<int>())
+            {
+                if (!adjacentByIndex.TryGetValue(targetZoneIndex, out var target))
+                    continue;
+
+                var deltaX = target.X - zone.PositionX;
+                var deltaZ = target.Y - zone.PositionY;
+                var magnitude = Math.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                if (magnitude <= 0)
+                    continue;
+
+                var directionX = deltaX / magnitude;
+                var directionZ = deltaZ / magnitude;
+                exits.Add(new AetheriaRuntimeDaemonWormholeExit(
+                    target.ZoneIndex,
+                    directionX,
+                    directionZ,
+                    directionX * distance,
+                    directionZ * distance));
+            }
+
+            return exits.Count;
+        }
+
         public static AetheriaRuntimeDaemonRenderGroupDocument[] QueryRenderGroups(
             AetheriaRuntimeDaemonSoaViewIndex? index,
             double minX,
@@ -1249,7 +1634,7 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var brush in QueryGravityInfluences(
                          zone,
-                         new AetheriaRuntimeXzRect(positionX, positionZ, positionX, positionZ)))
+                         new rect((float)positionX, (float)positionZ, (float)positionX, (float)positionZ)))
             {
                 var dx = positionX - brush.CenterX;
                 var dz = positionZ - brush.CenterZ;
@@ -1322,6 +1707,25 @@ namespace GameCult.Aetheria.State.Verse
                 contact.InfoGathered,
                 contact.Hostile,
                 contact.Visible);
+        }
+
+        private static AetheriaRuntimeDaemonObjectViewportEntity BuildObjectViewportEntity(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            bool controlled)
+        {
+            var position = new double3(entity.PositionX, entity.PositionY, entity.PositionZ);
+            var xy = new double2(entity.PositionX, entity.PositionZ);
+            var direction = new double2(entity.DirectionX, entity.DirectionY);
+            var velocity = new double2(entity.VelocityX, entity.VelocityY);
+            return new AetheriaRuntimeDaemonObjectViewportEntity(
+                entity.EntityIndex,
+                entity.Name,
+                entity.Name,
+                position,
+                xy,
+                direction,
+                velocity,
+                controlled);
         }
 
         private static AetheriaRuntimeDaemonEntityTarget BuildEntityTarget(
@@ -1398,24 +1802,36 @@ namespace GameCult.Aetheria.State.Verse
             return position;
         }
 
-        private static bool IntersectsCircle(AetheriaRuntimeXzRect rect, double centerX, double centerZ, double radius)
+        private static bool IntersectsCircle(rect viewport, double centerX, double centerY, double radius)
         {
             if (radius <= 0)
                 return false;
 
-            var nearestX = Clamp(centerX, rect.MinX, rect.MaxX);
-            var nearestZ = Clamp(centerZ, rect.MinZ, rect.MaxZ);
+            var nearestX = Clamp(centerX, viewport.min.x, viewport.max.x);
+            var nearestZ = Clamp(centerY, viewport.min.y, viewport.max.y);
             var dx = centerX - nearestX;
-            var dz = centerZ - nearestZ;
+            var dz = centerY - nearestZ;
             return dx * dx + dz * dz <= radius * radius;
+        }
+
+        private static bool IntersectsCircle(AetheriaRuntimeXzRect rect, double centerX, double centerZ, double radius)
+        {
+            return IntersectsCircle(rect.ToAetheriaXyRect(), centerX, centerZ, radius);
         }
 
         private static bool ContainsPoint(AetheriaRuntimeXzRect rect, double x, double z)
         {
-            return x >= rect.MinX &&
-                   x <= rect.MaxX &&
-                   z >= rect.MinZ &&
-                   z <= rect.MaxZ;
+            return ContainsPoint(rect.ToAetheriaXyRect(), x, z);
+        }
+
+        private static bool ContainsPoint(rect viewport, double x, double y)
+        {
+            return viewport.Contains(new float2((float)x, (float)y));
+        }
+
+        private static rect ToRuntimeRect(AetheriaRuntimeXzRect unityViewport)
+        {
+            return unityViewport.ToAetheriaXyRect();
         }
 
         private static int TryParseEntityIndex(string? key)

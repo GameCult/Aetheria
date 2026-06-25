@@ -17,8 +17,11 @@ public class MainMenu : MonoBehaviour
     public bool InGame;
 
     private UIDocument _menuSurfaceDocument;
-    private AetheriaRuntimeVerseClient _verseClient;
-    private string _verseClientStatePath;
+    private AetheriaClient _client;
+    private string _clientStatePath;
+    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private Func<bool> _canOpenRuntimeInputScreen;
+    private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.Center,
@@ -48,14 +51,14 @@ public class MainMenu : MonoBehaviour
     private void ShowMain()
     {
         var stateBoot = CurrentStateBoot();
-        var frame = LatestDaemonFrame(stateBoot);
+        var sectorMap = LatestSectorMap(stateBoot);
         var verseHost = LatestVerseHostSettings(stateBoot);
         var playerSettings = LatestPlayerSettings(stateBoot);
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
                     stateBoot,
-                    frame,
+                    sectorMap,
                     verseHost,
                     playerSettings,
                     CanOpenRuntimeInputScreen(),
@@ -75,9 +78,9 @@ public class MainMenu : MonoBehaviour
         switch (command.Kind)
         {
             case AetheriaRuntimeMainMenuCommandKind.ContinueRun:
-                if (LatestDaemonFrame(CurrentStateBoot()) == null)
+                if (LatestSectorMap(CurrentStateBoot()) == null)
                 {
-                    Debug.LogWarning("Main-menu Continue requested without an authoritative daemon frame.");
+                    Debug.LogWarning("Main-menu Continue requested without a typed Aetheria sector-map projection.");
                     ShowMain();
                     return;
                 }
@@ -110,10 +113,10 @@ public class MainMenu : MonoBehaviour
     private bool TryStartDaemonObservedGame(string title)
     {
         var stateBoot = CurrentStateBoot();
-        var frame = LatestDaemonFrame(stateBoot);
-        if (frame == null)
+        var sectorMap = LatestSectorMap(stateBoot);
+        if (sectorMap == null)
         {
-            Debug.LogWarning($"Cannot start Aetheria observer scene without an authoritative daemon frame in {stateBoot.StateFilePath}.");
+            Debug.LogWarning($"Cannot start Aetheria observer scene without a typed Aetheria sector-map projection in {stateBoot.StateFilePath}.");
             return false;
         }
 
@@ -126,14 +129,20 @@ public class MainMenu : MonoBehaviour
         Dialog.AddProperty(() => generatorState);
         Dialog.Show();
 
-        setState($"Observing daemon frame {frame.FrameId}");
-        ActionGameManager.IsTutorial = frame.Run.IsTutorial;
-        var backgroundSettings = frame.Run.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
-        backgroundSettings.NoisePosition = frame.Run.GenerationSeed == 0 ? 1 : frame.Run.GenerationSeed;
-        ActionGameManager.ObservedGalaxy = Galaxy.ProjectObservedDaemonRun(
-            frame.Run,
+        setState($"Observing sector-map frame {sectorMap.FrameId}");
+        var backgroundSettings = sectorMap.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
+        backgroundSettings.NoisePosition = sectorMap.GenerationSeed == 0 ? 1 : sectorMap.GenerationSeed;
+        var runtimeCatalog = OpenRuntimeCatalog(stateBoot);
+        if (runtimeCatalog == null)
+        {
+            Debug.LogWarning($"Cannot start Aetheria observer scene without a runtime catalog in {stateBoot.StateFilePath}.");
+            return false;
+        }
+
+        AetheriaUnityObservedRunProjection.Project(
+            sectorMap,
             backgroundSettings,
-            ActionGameManager.RuntimeCatalog,
+            runtimeCatalog,
             Debug.Log);
         SceneManager.LoadScene("ARPG");
         return true;
@@ -141,10 +150,10 @@ public class MainMenu : MonoBehaviour
 
     private static AetheriaRuntimeStateBootReport CurrentStateBoot()
     {
-        return AetheriaRuntimeStateBoot.Inspect(ActionGameManager.GameDataDirectory);
+        return AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
     }
 
-    private AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeSectorMapDocument LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
@@ -153,14 +162,14 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            return ResolveVerseClient(stateBoot)
-                .GetLatestAuthoritativeRunFrameAsync()
+            return ResolveClient(stateBoot)
+                .SectorMapAsync()
                 .GetAwaiter()
                 .GetResult();
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to read authoritative Aetheria daemon frame for the main menu: {ex}");
+            Debug.LogError($"Failed to read typed Aetheria sector-map state for the main menu: {ex}");
             return null;
         }
     }
@@ -172,8 +181,8 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            return ResolveVerseClient(stateBoot)
-                .GetPlayerSettingsAsync()
+            return ResolveClient(stateBoot)
+                .PlayerSettingsAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -191,14 +200,34 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            return ResolveVerseClient(stateBoot)
-                .GetVerseHostSettingsAsync()
+            return ResolveClient(stateBoot)
+                .VerseHostSettingsAsync()
                 .GetAwaiter()
                 .GetResult();
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to read typed Aetheria Verse host settings for the main menu: {ex}");
+            return null;
+        }
+    }
+
+    private AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)
+    {
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+            return null;
+
+        if (_catalog != null)
+            return _catalog;
+
+        try
+        {
+            _catalog = ResolveClient(stateBoot).OpenRuntimeCatalog();
+            return _catalog;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to read typed Aetheria runtime catalog for the main menu: {ex}");
             return null;
         }
     }
@@ -381,12 +410,16 @@ public class MainMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument);
     }
 
+    public void SetRuntimeInputScreenShell(Func<bool> canOpenRuntimeInputScreen, Action openRuntimeInputScreen)
+    {
+        _canOpenRuntimeInputScreen = canOpenRuntimeInputScreen;
+        _openRuntimeInputScreen = openRuntimeInputScreen;
+    }
+
     private bool CanOpenRuntimeInputScreen()
     {
         return InGame &&
-               ActionGameManager.Instance != null &&
-               ActionGameManager.Instance.CanShowInputScreenFromMenu() &&
-               ActionGameManager.Instance.InputDisplayLayout != null;
+               _canOpenRuntimeInputScreen?.Invoke() == true;
     }
 
     private bool TryOpenRuntimeInputScreen()
@@ -396,7 +429,7 @@ public class MainMenu : MonoBehaviour
 
         HideMenuSurface();
         gameObject.SetActive(false);
-        ActionGameManager.Instance.ShowInputScreenFromMenu();
+        _openRuntimeInputScreen?.Invoke();
         return true;
     }
 
@@ -405,7 +438,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             if (!AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(
-                    AetheriaState.At(ActionGameManager.GameDataDirectory).ClientTarget,
+                    AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory).ClientTarget,
                     request,
                     out _))
             {
@@ -431,12 +464,12 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            var submitted = ResolveVerseClient(stateBoot)
-                .SubmitKnownSurfaceCommandAsync(request, "unity-main-menu")
+            var submitted = ResolveClient(stateBoot)
+                .Ui.SurfaceCommandAsync(request, "unity-main-menu")
                 .GetAwaiter()
                 .GetResult();
 
-            Debug.Log($"Submitted Aetheria {label} Eve command: {submitted.CommandId}");
+            Debug.Log($"Submitted Aetheria {label} Eve operation: {submitted.OperationId}");
         }
         catch (Exception ex)
         {
@@ -458,33 +491,39 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
-    private AetheriaRuntimeVerseClient ResolveVerseClient(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot)
     {
         var statePath = stateBoot.StateFilePath;
-        if (_verseClient != null && string.Equals(_verseClientStatePath, statePath, StringComparison.Ordinal))
+        if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
         {
-            return _verseClient;
+            return _client;
         }
 
-        DisposeVerseClient();
-        _verseClient = AetheriaRuntimeVerseClient
-            .OpenAsync(statePath, "unity-main-menu", startServer: false, pullOnOpen: true)
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenAsync(
+                statePath,
+                "unity-main-menu",
+                "local",
+                startServer: false,
+                pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        _verseClientStatePath = statePath;
-        return _verseClient;
+        _clientStatePath = statePath;
+        return _client;
     }
 
-    private void DisposeVerseClient()
+    private void DisposeClient()
     {
-        _verseClient?.Dispose();
-        _verseClient = null;
-        _verseClientStatePath = null;
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = null;
+        _catalog = null;
     }
 
     private void OnDestroy()
     {
-        DisposeVerseClient();
+        DisposeClient();
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);

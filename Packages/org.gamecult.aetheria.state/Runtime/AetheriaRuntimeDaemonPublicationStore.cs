@@ -17,9 +17,19 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeStateBoundary.GetDaemonHealthPath(stateFilePath);
         }
 
+        public static string GetVerseAuthorityPolicyPath(string stateFilePath)
+        {
+            return AetheriaRuntimeStateBoundary.GetVerseAuthorityPolicyPath(stateFilePath);
+        }
+
         public static string GetCommandBoundaryPath(string stateFilePath)
         {
             return AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(stateFilePath);
+        }
+
+        public static string GetStarbridgeSessionSummaryPath(string stateFilePath)
+        {
+            return AetheriaRuntimeStateBoundary.GetDaemonStarbridgeSessionSummaryPath(stateFilePath);
         }
 
         public static string GetGameSurfacePath(string stateFilePath)
@@ -72,6 +82,22 @@ namespace GameCult.Aetheria.State.Verse
             return path;
         }
 
+        public static string PublishVerseAuthorityPolicy(
+            string stateFilePath,
+            AetheriaRuntimeVerseAuthorityPolicyDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            document.Schema = AetheriaRuntimeVerseAuthoritySchemas.Policy;
+            if (string.IsNullOrWhiteSpace(document.UpdatedAtUtc))
+                document.UpdatedAtUtc = DateTime.UtcNow.ToString("O");
+
+            var path = GetVerseAuthorityPolicyPath(stateFilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            AetheriaRuntimeCultCacheDocumentStore.WriteVerseAuthorityPolicy(path, document);
+            return path;
+        }
+
         public static string PublishCommandBoundary(
             string stateFilePath,
             AetheriaRuntimeDaemonCommandBoundaryDocument document)
@@ -85,6 +111,22 @@ namespace GameCult.Aetheria.State.Verse
             var path = GetCommandBoundaryPath(stateFilePath);
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
             AetheriaRuntimeCultCacheDocumentStore.WriteDaemonCommandBoundary(path, document);
+            return path;
+        }
+
+        public static string PublishStarbridgeSessionSummary(
+            string stateFilePath,
+            AetheriaRuntimeStarbridgeSessionSummaryDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            document.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary;
+            if (string.IsNullOrWhiteSpace(document.PublishedAtUtc))
+                document.PublishedAtUtc = DateTime.UtcNow.ToString("O");
+
+            var path = GetStarbridgeSessionSummaryPath(stateFilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            AetheriaRuntimeCultCacheDocumentStore.WriteStarbridgeSessionSummary(path, document);
             return path;
         }
 
@@ -156,6 +198,21 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
+        public static bool TryReadVerseAuthorityPolicy(
+            string stateFilePath,
+            out AetheriaRuntimeVerseAuthorityPolicyDocument document)
+        {
+            var path = GetVerseAuthorityPolicyPath(stateFilePath);
+            if (!File.Exists(path))
+            {
+                document = new AetheriaRuntimeVerseAuthorityPolicyDocument();
+                return false;
+            }
+
+            document = AetheriaRuntimeCultCacheDocumentStore.ReadVerseAuthorityPolicy(path);
+            return true;
+        }
+
         public static bool TryReadCommandBoundary(
             string stateFilePath,
             out AetheriaRuntimeDaemonCommandBoundaryDocument document)
@@ -168,6 +225,21 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             document = AetheriaRuntimeCultCacheDocumentStore.ReadDaemonCommandBoundary(path);
+            return true;
+        }
+
+        public static bool TryReadStarbridgeSessionSummary(
+            string stateFilePath,
+            out AetheriaRuntimeStarbridgeSessionSummaryDocument document)
+        {
+            var path = GetStarbridgeSessionSummaryPath(stateFilePath);
+            if (!File.Exists(path))
+            {
+                document = new AetheriaRuntimeStarbridgeSessionSummaryDocument();
+                return false;
+            }
+
+            document = AetheriaRuntimeCultCacheDocumentStore.ReadStarbridgeSessionSummary(path);
             return true;
         }
 

@@ -48,12 +48,14 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeTradeCargoProjectionOption(
             AetheriaRuntimeTradeCargoTargetKind kind,
             string label,
+            string entityKey = "",
             int shipIndex = -1,
             int bayIndex = -1,
             bool isCurrent = false)
         {
             Kind = kind;
             Label = label ?? "";
+            EntityKey = entityKey ?? "";
             ShipIndex = shipIndex;
             BayIndex = bayIndex;
             IsCurrent = isCurrent;
@@ -61,6 +63,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaRuntimeTradeCargoTargetKind Kind { get; }
         public string Label { get; }
+        public string EntityKey { get; }
         public int ShipIndex { get; }
         public int BayIndex { get; }
         public bool IsCurrent { get; }
@@ -72,12 +75,14 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeTradeCargoTargetKind kind,
             string command,
             string label,
+            string entityKey = "",
             int shipIndex = -1,
             int bayIndex = -1)
         {
             Kind = kind;
             Command = command ?? "";
             Label = label ?? "";
+            EntityKey = entityKey ?? "";
             ShipIndex = shipIndex;
             BayIndex = bayIndex;
         }
@@ -85,6 +90,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeTradeCargoTargetKind Kind { get; }
         public string Command { get; }
         public string Label { get; }
+        public string EntityKey { get; }
         public int ShipIndex { get; }
         public int BayIndex { get; }
     }
@@ -154,6 +160,7 @@ namespace GameCult.Aetheria.State.Verse
                     target.Kind,
                     command,
                     label,
+                    target.EntityKey,
                     target.ShipIndex,
                     target.BayIndex);
             }
@@ -322,7 +329,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            var commandText = request.Command ?? "";
+            var commandText = request.Operation?.OperationId ?? "";
             if (string.Equals(commandText, AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Close, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeTradeCargoSelectorCommand(

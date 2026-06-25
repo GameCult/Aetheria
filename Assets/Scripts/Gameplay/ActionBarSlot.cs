@@ -45,14 +45,54 @@ public class ActionBarSlot : MonoBehaviour
 public abstract class ActionBarBinding
 {
     public Entity Entity { get; }
+    protected AetheriaClient Client { get; }
     protected ActionBarSlot Slot { get; }
+    protected GameSettings Settings { get; }
+    private AetheriaRuntimeCatalogSnapshot _catalog;
     public abstract void Activate();
     public abstract void Deactivate();
     public abstract void Update();
-    public ActionBarBinding(Entity entity, ActionBarSlot slot)
+
+    protected ActionBarBinding(Entity entity, ActionBarSlot slot, AetheriaClient client, GameSettings settings)
     {
         Entity = entity;
         Slot = slot;
+        Client = client;
+        Settings = settings;
+    }
+
+    protected bool TrySubmit(Action<AetheriaControl> submit, string label)
+    {
+        if (Client == null || submit == null)
+            return false;
+
+        try
+        {
+            submit(Client.Control);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon action-bar {label} operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    protected AetheriaRuntimeCatalogItem FindCatalogItem(ItemInstance item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.ItemKey) || Client == null)
+            return null;
+
+        try
+        {
+            _catalog ??= Client.OpenRuntimeCatalog();
+            return _catalog?.FindItem(item.ItemKey);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for action-bar binding: {ex.Message}");
+            return null;
+        }
     }
 }
 
@@ -63,7 +103,9 @@ public class ActionBarConsumableBinding : ActionBarBinding
     public ActionBarConsumableBinding(
         Entity entity,
         ActionBarSlot slot,
-        AetheriaRuntimeCatalogItem target) : base(entity, slot)
+        AetheriaClient client,
+        GameSettings settings,
+        AetheriaRuntimeCatalogItem target) : base(entity, slot, client, settings)
     {
         Target = target;
         Slot.QuantityRemaining.gameObject.SetActive(true);
@@ -73,7 +115,9 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Activate()
     {
-        ActionGameManager.Instance.RequestActionBarConsumable(TargetItemKey);
+        TrySubmit(
+            operations => operations.ActivateConsumable(TargetItemKey),
+            "consumable");
     }
 
     public override void Deactivate()
@@ -111,7 +155,13 @@ public class ActionBarGearBinding : ActionBarBinding
 
     public string TargetItemKey => Item?.EquippableItem?.ItemKey ?? "";
 
-    public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
+    public ActionBarGearBinding(
+        Entity entity,
+        ActionBarSlot slot,
+        AetheriaClient client,
+        GameSettings settings,
+        EquippedItem item,
+        IActivatedBehavior behavior) : base(entity, slot, client, settings)
     {
         Item = item;
         Behavior = behavior;
@@ -123,7 +173,7 @@ public class ActionBarGearBinding : ActionBarBinding
 
     private Texture2D ResolveIconTexture()
     {
-        var typedItem = FindTypedGearItem(Item.EquippableItem);
+        var typedItem = FindCatalogItem(Item.EquippableItem);
         if (typedItem != null)
         {
             var actionBarIcon = LoadActionBarIcon(typedItem.ActionBarIcon);
@@ -131,13 +181,13 @@ public class ActionBarGearBinding : ActionBarBinding
                 return actionBarIcon;
 
             if (Enum.TryParse<WeaponType>(typedItem.WeaponType, out var weaponType))
-                return ActionGameManager.Instance.Settings.GetIcon(weaponType).texture;
+                return Settings.GetIcon(weaponType).texture;
 
             if (Enum.TryParse<HardpointType>(typedItem.HardpointType, out var hardpointType))
-                return ActionGameManager.Instance.Settings.GetIcon(hardpointType).texture;
+                return Settings.GetIcon(hardpointType).texture;
         }
 
-        return ActionGameManager.Instance.Settings.GetIcon(HardpointType.Tool).texture;
+        return Settings.GetIcon(HardpointType.Tool).texture;
     }
 
     private static Texture2D LoadActionBarIcon(string path)
@@ -154,21 +204,20 @@ public class ActionBarGearBinding : ActionBarBinding
         return Resources.Load<Texture2D>(resourcePath);
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedGearItem(ItemInstance item)
-    {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
-    }
-
     public override void Activate()
     {
         Active = true;
-        ActionGameManager.Instance.RequestActionBarBehavior(EquipmentIndex, BehaviorIndex, true);
+        TrySubmit(
+            operations => operations.SetBehaviorActive(EquipmentIndex, BehaviorIndex, true),
+            "behavior activation");
     }
 
     public override void Deactivate()
     {
         Active = false;
-        ActionGameManager.Instance.RequestActionBarBehavior(EquipmentIndex, BehaviorIndex, false);
+        TrySubmit(
+            operations => operations.SetBehaviorActive(EquipmentIndex, BehaviorIndex, false),
+            "behavior activation");
     }
 
     public override void Update()
@@ -181,7 +230,12 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
 {
     public int Group;
 
-    public ActionBarWeaponGroupBinding(Entity entity, ActionBarSlot slot, int group) : base(entity, slot)
+    public ActionBarWeaponGroupBinding(
+        Entity entity,
+        ActionBarSlot slot,
+        AetheriaClient client,
+        GameSettings settings,
+        int group) : base(entity, slot, client, settings)
     {
         Group = group;
         slot.Label.gameObject.SetActive(true);
@@ -191,12 +245,16 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
 
     public override void Activate()
     {
-        ActionGameManager.Instance.RequestActionBarWeaponGroup(Group, true);
+        TrySubmit(
+            operations => operations.SetWeaponGroupActive(Group, true),
+            "weapon-group");
     }
 
     public override void Deactivate()
     {
-        ActionGameManager.Instance.RequestActionBarWeaponGroup(Group, false);
+        TrySubmit(
+            operations => operations.SetWeaponGroupActive(Group, false),
+            "weapon-group");
     }
 
     public override void Update()

@@ -15,11 +15,13 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeCatalogSnapshot(
             AetheriaRuntimeCatalogItem[] items,
             AetheriaRuntimeCorporation[] corporations,
-            AetheriaRuntimeNameFile[] nameFiles)
+            AetheriaRuntimeNameFile[] nameFiles,
+            AetheriaRuntimeTradeValueSettings? tradeValueSettings = null)
         {
             Items = items;
             Corporations = corporations;
             NameFiles = nameFiles;
+            TradeValueSettings = tradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default;
             TradeItems = items.Where(item => item.Price > 0).ToArray();
             EquipmentItems = items.Where(item => !string.IsNullOrWhiteSpace(item.HardpointType)).ToArray();
 
@@ -43,6 +45,8 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeCorporation> Corporations { get; }
 
         public IReadOnlyList<AetheriaRuntimeNameFile> NameFiles { get; }
+
+        public AetheriaRuntimeTradeValueSettings TradeValueSettings { get; }
 
         public AetheriaRuntimeCatalogItem? FindItem(string itemKey)
         {
@@ -556,6 +560,7 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeStoryFileHash> storyFileHashes,
             string temperatureUnit,
             int significantDigits,
+            double defaultShutdownPerformance,
             string nebulaQuality,
             bool showAsteroidsInMinimap,
             IReadOnlyList<AetheriaRuntimeInputBindingOverride> bindingOverrides,
@@ -566,6 +571,7 @@ namespace GameCult.Aetheria.State.Verse
             StoryFileHashes = storyFileHashes;
             TemperatureUnit = temperatureUnit;
             SignificantDigits = significantDigits;
+            DefaultShutdownPerformance = defaultShutdownPerformance;
             NebulaQuality = nebulaQuality;
             ShowAsteroidsInMinimap = showAsteroidsInMinimap;
             BindingOverrides = bindingOverrides;
@@ -577,6 +583,7 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeStoryFileHash> StoryFileHashes { get; }
         public string TemperatureUnit { get; }
         public int SignificantDigits { get; }
+        public double DefaultShutdownPerformance { get; }
         public string NebulaQuality { get; }
         public bool ShowAsteroidsInMinimap { get; }
         public IReadOnlyList<AetheriaRuntimeInputBindingOverride> BindingOverrides { get; }
@@ -775,7 +782,6 @@ namespace GameCult.Aetheria.State.Verse
             string currentEntityKey,
             IReadOnlyList<int> discoveredZoneIndices,
             IReadOnlyList<string> zoneKeys,
-            IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> actionBarBindings,
             IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> factionRelationships,
             string updatedAtUtc,
             uint generationSeed)
@@ -788,7 +794,6 @@ namespace GameCult.Aetheria.State.Verse
             CurrentEntityKey = currentEntityKey;
             DiscoveredZoneIndices = discoveredZoneIndices;
             ZoneKeys = zoneKeys;
-            ActionBarBindings = actionBarBindings;
             FactionRelationships = factionRelationships;
             UpdatedAtUtc = updatedAtUtc;
             GenerationSeed = generationSeed;
@@ -802,7 +807,6 @@ namespace GameCult.Aetheria.State.Verse
         public string CurrentEntityKey { get; }
         public IReadOnlyList<int> DiscoveredZoneIndices { get; }
         public IReadOnlyList<string> ZoneKeys { get; }
-        public IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ActionBarBindings { get; }
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> FactionRelationships { get; }
         public string UpdatedAtUtc { get; }
         public uint GenerationSeed { get; }
@@ -1029,26 +1033,6 @@ namespace GameCult.Aetheria.State.Verse
         public double InfoGathered { get; }
         public bool Hostile { get; }
         public bool Visible { get; }
-    }
-
-    public sealed class AetheriaRuntimeActionBarBindingSnapshot
-    {
-        public AetheriaRuntimeActionBarBindingSnapshot(string controlPath, string kind, string targetKey, int equipmentIndex, int behaviorIndex, int weaponGroup)
-        {
-            ControlPath = controlPath;
-            Kind = kind;
-            TargetKey = targetKey;
-            EquipmentIndex = equipmentIndex;
-            BehaviorIndex = behaviorIndex;
-            WeaponGroup = weaponGroup;
-        }
-
-        public string ControlPath { get; }
-        public string Kind { get; }
-        public string TargetKey { get; }
-        public int EquipmentIndex { get; }
-        public int BehaviorIndex { get; }
-        public int WeaponGroup { get; }
     }
 
     public sealed class AetheriaRuntimeFactionRelationshipSnapshot

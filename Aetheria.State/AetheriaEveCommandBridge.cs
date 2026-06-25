@@ -11,6 +11,7 @@ public sealed class AetheriaEveCommandAcceptanceReport
     public int AcceptedInputSettingsCommands { get; set; }
     public int AcceptedLoadoutTemplateCommands { get; set; }
     public int AcceptedVerseHostCommands { get; set; }
+    public int AcceptedTradeValuePolicyCommands { get; set; }
     public int RejectedCommands { get; set; }
     public string[] AcceptedCommandIds { get; set; } = [];
     public string[] RejectedCommandIds { get; set; } = [];
@@ -87,6 +88,14 @@ public static class AetheriaEveCommandBridge
                 case AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility:
                     await ExecuteVerseHostCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedVerseHostCommands++;
+                    break;
+                case AetheriaRuntimeEveCommandKind.TradeValuePolicyRefresh:
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMinimum:
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMaximum:
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityExponent:
+                case AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality:
+                    await ExecuteTradeValuePolicyCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedTradeValuePolicyCommands++;
                     break;
             }
 
@@ -283,6 +292,50 @@ public static class AetheriaEveCommandBridge
             loadout).ConfigureAwait(false);
     }
 
+    private static async Task ExecuteTradeValuePolicyCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var policy = await node.GetTradeValuePolicyAsync().ConfigureAwait(false) ??
+            AetheriaRuntimeStateMapper.ToTradeValuePolicy(
+                AetheriaRuntimeTradeValueSettings.Default,
+                command.IssuedAtUtc);
+        policy.QualityPriceModifier ??= new AetheriaExponentialLerp();
+        policy.Tiers ??= Array.Empty<AetheriaItemRarityTier>();
+        var persistPolicy = false;
+        var value = command.TradeValuePolicy.Value;
+
+        switch (command.Kind)
+        {
+            case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMinimum:
+                policy.QualityPriceModifier.Minimum = ClampFinite(value, 0, double.MaxValue);
+                persistPolicy = true;
+                break;
+            case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMaximum:
+                policy.QualityPriceModifier.Maximum = ClampFinite(value, 0, double.MaxValue);
+                persistPolicy = true;
+                break;
+            case AetheriaRuntimeEveCommandKind.SetTradeValueQualityExponent:
+                policy.QualityPriceModifier.Exponent = ClampFinite(value, 0.001, double.MaxValue);
+                persistPolicy = true;
+                break;
+            case AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality:
+                var tierIndex = command.TradeValuePolicy.TierIndex;
+                if (tierIndex >= 0 && tierIndex < policy.Tiers.Length)
+                {
+                    policy.Tiers[tierIndex].Quality = ClampFinite(value, 0, 1);
+                    persistPolicy = true;
+                }
+                break;
+        }
+
+        if (persistPolicy)
+        {
+            policy.UpdatedAtUtc = command.IssuedAtUtc;
+            await node.PutTradeValuePolicyAsync(policy).ConfigureAwait(false);
+        }
+    }
+
     private static string Cycle(string current, params string[] values)
     {
         if (values.Length == 0)
@@ -293,6 +346,17 @@ public static class AetheriaEveCommandBridge
             return values[0];
 
         return values[(index + 1) % values.Length];
+    }
+
+    private static double ClampFinite(double value, double min, double max)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+            return min;
+        if (value < min)
+            return min;
+        if (value > max)
+            return max;
+        return value;
     }
 
     private static void RecordRejection(

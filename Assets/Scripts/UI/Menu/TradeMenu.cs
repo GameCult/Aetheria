@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -13,7 +15,6 @@ using static Unity.Mathematics.math;
 
 public class TradeMenu : MonoBehaviour
 {
-    public ActionGameManager GameManager;
     public ConfirmationDialog Dialog;
     public UnityEngine.UI.Button NewFilterButton;
     public Prototype FilterPrototype;
@@ -24,7 +25,9 @@ public class TradeMenu : MonoBehaviour
     public UnityEngine.UI.Button FoldoutButton;
     public TextMeshProUGUI CreditsLabel;
 
-    private EquippedCargoBay _targetCargo;
+    private string _targetCargoEntityKey = "";
+    private int _targetCargoIndex = -1;
+    private string _targetCargoLabel = "Docking Bay";
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
@@ -33,11 +36,18 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
     private UIDocument _tradeItemSurfaceDocument;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private AetheriaRuntimeTradeCargoSelectorSurfaceProjection _cargoSelectorSurfaceProjection;
+    private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
+        Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
+    private AetheriaRuntimeStationRefitDocument _stationRefit;
     private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
@@ -46,9 +56,15 @@ public class TradeMenu : MonoBehaviour
     
     private void OnEnable()
     {
-        if (!GameManager.TryGetObservedDockingBay(out var dockingBay)) return;
-        _targetCargo = dockingBay;
-        TargetCargoLabel.text = "Docking Bay";
+        if (!TryResolveCurrentDocking(out var docking) ||
+            !docking.IsDocked ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
+            docking.DockingBayIndex < 0)
+        {
+            return;
+        }
+
+        SetTargetCargo(docking.DockParentEntityKey, docking.DockingBayIndex, "Docking Bay");
         HideCargoSelectorSurface();
         HideFilterSurface();
         HideRowActionSurface();
@@ -80,7 +96,7 @@ public class TradeMenu : MonoBehaviour
         var columns = new List<(string name, int size, Func<TradeRow, Func<string>> output, Func<TradeRow, IComparable> sortKey)>();
         
         columns.Add(("Name", 3,
-            x => () => x.Item is CraftedItemInstance && !string.IsNullOrWhiteSpace(x.TierColorHex) ?
+            x => () => !string.IsNullOrWhiteSpace(x.TierColorHex) ?
                 $"<color=#{x.TierColorHex}>{x.Name}" :
                 x.Name,
             x => x.Name));
@@ -107,7 +123,7 @@ public class TradeMenu : MonoBehaviour
                     return 0;
                 }));
         columns.Add(("Mass", 1,
-            x => () => ActionGameManager.RuntimePlayerSettings.Format(x.Mass),
+            x => () => FormatValue(x.Mass),
             x => x.Mass));
         columns.Add(("Price", 1,
             x => () => x.Price.ToString("N0"),
@@ -116,9 +132,7 @@ public class TradeMenu : MonoBehaviour
             x => () => $"{x.ShapeWidth}x{x.ShapeHeight}",
             x => x.ShapeWidth * x.ShapeHeight));
         
-        var items = Inventory.Cargo.Keys
-            .Where(PassesTypedTradeFilters)
-            .Select(item => new TradeRow(item, FindTypedTradeItem(item), ProjectTradeItem(item)));
+        var items = BuildStationStockRows();
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
@@ -149,7 +163,7 @@ public class TradeMenu : MonoBehaviour
                     columns.Add((field.Name, 1, x =>
                     {
                         var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => ActionGameManager.RuntimePlayerSettings.Format((float)value);
+                        return () => FormatValue((float)value);
                     }, x =>
                     {
                         return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
@@ -158,7 +172,7 @@ public class TradeMenu : MonoBehaviour
                     columns.Add((field.Name, 1, x =>
                     {
                         var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => ActionGameManager.RuntimePlayerSettings.FormatTemperature((float)value);
+                        return () => FormatTemperature((float)value);
                     }, x =>
                     {
                         return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
@@ -177,7 +191,7 @@ public class TradeMenu : MonoBehaviour
                     columns.Add((field.Name, 1, x =>
                     {
                         var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => ActionGameManager.RuntimePlayerSettings.Format((float)value);
+                        return () => FormatValue((float)value);
                     }, x =>
                     {
                         return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
@@ -187,22 +201,8 @@ public class TradeMenu : MonoBehaviour
         }
         
         columns.Add(("Owned", 1,
-            x => () =>
-            {
-                if (x.IsHull)
-                    return CountAvailablePlayerShips(x.ItemKey).ToString();
-                if(x.Item is SimpleCommodity)
-                    return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
-                return (_targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0).ToString();
-            }, 
-            x =>
-            {
-                if (x.IsHull)
-                    return CountAvailablePlayerShips(x.ItemKey);
-                if(x.Item is SimpleCommodity)
-                    return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
-                return _targetCargo.ItemsOfType.ContainsKey(x.ItemKey) ? _targetCargo.ItemsOfType[x.ItemKey].Count : 0;
-            }));
+            x => () => x.OwnedQuantity.ToString(),
+            x => x.OwnedQuantity));
         
         Spreadsheet.ShowData(
             columns.Select(x => x.name).ToArray(),
@@ -217,33 +217,39 @@ public class TradeMenu : MonoBehaviour
                 OnClick = () => RenderTradeItemDetailsSurface(i.TypedItem),
                 OnDoubleClick = () =>
                 {
-                    switch (i.Item)
-                    {
-                        case CraftedItemInstance c:
-                            Buy(c);
-                            break;
-                        case SimpleCommodity s:
-                            Buy(s, 1);
-                            break;
-                    }
-
+                    Buy(i, 1);
                     Populate();
                 },
                 OnRightClick = () =>
                 {
-                    if (i.Item is SimpleCommodity s)
+                    if (i.TryGetTypedSimpleCommodityCategory(out _))
                     {
                         RenderRowActionSurface(
                             $"Buying {i.Name}",
-                            ("Buy Quantity", () => ShowBuyQuantityDialog(i.Name, i.Price, s)));
+                            ("Buy Quantity", () => ShowBuyQuantityDialog(i)));
                     }
                 }
             }));
     }
 
-    private bool PassesTypedTradeFilters(ItemInstance item)
+    private IEnumerable<TradeRow> BuildStationStockRows()
     {
-        var typedItem = FindTypedTradeItem(item);
+        return (ResolveStationRefit()?.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>())
+            .Select(stock =>
+            {
+                var typedItem = FindTypedTradeItem(stock.ItemKey);
+                return new TradeRow(
+                    stock,
+                    typedItem,
+                    ProjectTradeItem(stock, typedItem));
+            })
+            .Where(row => row.TypedItem != null)
+            .Where(PassesTypedTradeFilters);
+    }
+
+    private bool PassesTypedTradeFilters(TradeRow row)
+    {
+        var typedItem = row.TypedItem;
         if (typedItem == null)
         {
             return true;
@@ -272,30 +278,30 @@ public class TradeMenu : MonoBehaviour
         return _behaviorFilters.All(filter => HasTypedBehavior(typedItem, filter));
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedTradeItem(ItemInstance item)
+    private AetheriaRuntimeCatalogItem FindTypedTradeItem(string itemKey)
     {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(itemKey ?? "");
     }
 
-    private AetheriaRuntimeTradeItemProjection ProjectTradeItem(ItemInstance item)
+    private AetheriaRuntimeTradeItemProjection ProjectTradeItem(
+        AetheriaRuntimeStationStockItem stock,
+        AetheriaRuntimeCatalogItem typedItem)
     {
-        var typedItem = FindTypedTradeItem(item);
         return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
             typedItem,
-            ProjectTradeItemCommit(item),
-            GameManager.ObservedTradeValueSettings());
+            ProjectTradeItemCommit(stock),
+            ResolveCatalog()?.TradeValueSettings);
     }
 
-    private static AetheriaRuntimeLoadoutItemCommit? ProjectTradeItemCommit(ItemInstance item)
+    private static AetheriaRuntimeLoadoutItemCommit? ProjectTradeItemCommit(AetheriaRuntimeStationStockItem stock)
     {
-        if (item is not CraftedItemInstance crafted)
+        if (stock == null || string.IsNullOrWhiteSpace(stock.ItemKey))
             return null;
 
-        var durability = item is EquippableItem equippable ? equippable.Durability : 1f;
         return AetheriaRuntimeDaemonTradeItemQueries.CraftedItemCommit(
-            item.ItemKey,
-            crafted.Quality,
-            durability);
+            stock.ItemKey,
+            stock.Quality,
+            stock.Durability);
     }
 
     private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
@@ -353,28 +359,30 @@ public class TradeMenu : MonoBehaviour
     private sealed class TradeRow
     {
         public TradeRow(
-            ItemInstance item,
+            AetheriaRuntimeStationStockItem stock,
             AetheriaRuntimeCatalogItem typedItem,
             AetheriaRuntimeTradeItemProjection tradeProjection)
         {
-            Item = item;
+            Stock = stock;
             TypedItem = typedItem;
             TradeProjection = tradeProjection;
         }
 
-        public ItemInstance Item { get; }
+        public AetheriaRuntimeStationStockItem Stock { get; }
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
 
         public AetheriaRuntimeTradeItemProjection TradeProjection { get; }
 
-        public string ItemKey => Item?.ItemKey ?? "";
+        public string ItemKey => Stock?.ItemKey ?? "";
 
         public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : "Unknown Item";
 
         public float Mass => TypedItem != null ? (float)TypedItem.Mass : 0f;
 
         public int Price => TradeProjection.Price;
+
+        public int OwnedQuantity => Stock?.OwnedQuantity ?? 0;
 
         public string TierColorHex => TradeProjection.TierColorHex;
 
@@ -410,52 +418,303 @@ public class TradeMenu : MonoBehaviour
     {
         if (CreditsLabel != null)
         {
-            CreditsLabel.text = GameManager.Credits.ToString("N0");
+            CreditsLabel.text = ResolveStationRefit()?.Credits.ToString("N0") ?? "0";
         }
     }
 
-    private void Buy(CraftedItemInstance item)
+    private void Buy(TradeRow row, int quantity)
     {
-        var typedItem = FindTypedTradeItem(item);
-        if (typedItem == null)
+        if (row?.TypedItem == null || row.Stock == null)
         {
             ShowUnableToBuy("Missing typed trade row!");
             return;
         }
 
-        var price = GetTypedTradePrice(item, typedItem);
-        var isShipHull = !string.IsNullOrWhiteSpace(typedItem?.HullType);
-        if (isShipHull &&
-            !string.Equals(typedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
+        var createsDockedShip = !string.IsNullOrWhiteSpace(row.TypedItem.HullType);
+        if (createsDockedShip &&
+            !string.Equals(row.TypedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
         {
             ShowUnableToBuy("Unsupported hull purchase!");
             return;
         }
 
-        GameManager.RequestTradePurchase(Inventory, _targetCargo, item, price, isShipHull);
-
+        RequestTradePurchase(row, quantity, createsDockedShip);
     }
 
-    private void Buy(SimpleCommodity simpleCommodity, int quantity)
+    private void RequestTradePurchase(
+        TradeRow row,
+        int quantity,
+        bool createsDockedShip)
     {
-        var typedItem = FindTypedTradeItem(simpleCommodity);
-        if (typedItem == null)
+        if (row?.Stock == null ||
+            string.IsNullOrWhiteSpace(row.ItemKey) ||
+            quantity <= 0 ||
+            row.Price < 0)
         {
-            ShowUnableToBuy("Missing typed trade row!");
             return;
         }
 
-        var price = typedItem.Price;
-        GameManager.RequestTradePurchase(Inventory, _targetCargo, simpleCommodity, quantity, price);
+        var totalPrice = (long)quantity * row.Price;
+        if (totalPrice > int.MaxValue)
+            return;
 
+        var stationRefit = ResolveStationRefit();
+        var stationEntityKey = stationRefit?.DockParentEntityKey ?? "";
+        var stationCargoIndex = row.Stock.CargoBayIndex;
+        var sourcePosition = new int2(row.Stock.X, row.Stock.Y);
+        if (string.IsNullOrWhiteSpace(stationEntityKey) ||
+            stationCargoIndex < 0 ||
+            sourcePosition.x < 0 ||
+            sourcePosition.y < 0)
+        {
+            return;
+        }
+
+        var targetEntityKey = _targetCargoEntityKey ?? "";
+        var targetCargoIndex = _targetCargoIndex;
+
+        if (createsDockedShip)
+        {
+            if (!TryResolveCurrentDockingTargetEntityKey(out targetEntityKey))
+            {
+                return;
+            }
+
+            targetCargoIndex = -1;
+        }
+        else if (string.IsNullOrWhiteSpace(targetEntityKey) ||
+                 targetCargoIndex < 0)
+        {
+            return;
+        }
+
+        var purchaseKind = createsDockedShip
+            ? "docked_ship"
+            : row.TryGetTypedSimpleCommodityCategory(out _)
+                ? "commodity"
+                : "crafted";
+
+        TrySubmitOperation(
+            operations => operations.TradePurchase(
+                purchaseKind,
+                row.ItemKey,
+                quantity,
+                row.Price,
+                (int)totalPrice,
+                stationEntityKey,
+                stationCargoIndex,
+                targetEntityKey,
+                targetCargoIndex,
+                sourcePosition.x,
+                sourcePosition.y,
+                createsDockedShip),
+            "trade purchase");
     }
 
-    private int GetTypedTradePrice(CraftedItemInstance item, AetheriaRuntimeCatalogItem typedItem)
+    private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
     {
-        return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
-            typedItem,
-            ProjectTradeItemCommit(item),
-            GameManager.ObservedTradeValueSettings()).Price;
+        targetEntityKey = "";
+        if (!TryResolveCurrentDocking(out var docking) ||
+            !docking.IsDocked ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
+        {
+            return false;
+        }
+
+        targetEntityKey = docking.DockParentEntityKey;
+        return true;
+    }
+
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    {
+        docking = null;
+
+        try
+        {
+            docking = ResolveClient()
+                .CurrentDockingAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for trade menu: {ex.Message}");
+            return false;
+        }
+
+        return docking != null;
+    }
+
+    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
+    {
+        if (_stationRefit != null)
+            return _stationRefit;
+
+        try
+        {
+            _stationRefit = ResolveClient()
+                .StationRefitAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria station refit projection for trade menu: {ex.Message}");
+            return null;
+        }
+
+        return _stationRefit;
+    }
+
+    private void InvalidateStationRefit()
+    {
+        _stationRefit = null;
+    }
+
+    private bool TryResolveStationRefitCargoTarget(
+        string entityKey,
+        int cargoBayIndex,
+        out AetheriaRuntimeStationCargoTargetRow target)
+    {
+        target = null;
+        if (string.IsNullOrWhiteSpace(entityKey) ||
+            cargoBayIndex < 0)
+        {
+            return false;
+        }
+
+        target = (_cargoSelectorStationRefitTargets ?? Array.Empty<AetheriaRuntimeStationCargoTargetRow>())
+            .FirstOrDefault(option =>
+                option != null &&
+                string.Equals(option.EntityKey, entityKey, StringComparison.Ordinal) &&
+                option.BayIndex == cargoBayIndex);
+        return target != null;
+    }
+
+    private bool IsTargetCargoBayKey(string entityKey, int cargoBayIndex)
+    {
+        return string.Equals(_targetCargoEntityKey, entityKey, StringComparison.Ordinal) &&
+               _targetCargoIndex == cargoBayIndex;
+    }
+
+    private bool TrySubmitOperation(
+        Action<AetheriaControl> submit,
+        string label)
+    {
+        if (submit == null)
+            return false;
+
+        try
+        {
+            submit(ResolveClient().Control);
+            InvalidateStationRefit();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon trade {label} operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-trade",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _catalog = null;
+        _playerSettings = null;
+        _stationRefit = null;
+    }
+
+    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    {
+        if (_catalog != null)
+            return _catalog;
+
+        try
+        {
+            _catalog = ResolveClient().OpenRuntimeCatalog();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for trade menu: {ex.Message}");
+        }
+
+        return _catalog;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for trade menu: {ex.Message}");
+        }
+
+        return _playerSettings;
+    }
+
+    private string ResolveManufacturerName(AetheriaRuntimeCatalogItem item)
+    {
+        return ResolveCatalog()?.GetManufacturer(item)?.Name ?? "GameCult";
+    }
+
+    private string FormatValue(float value)
+    {
+        var settings = ResolvePlayerSettings();
+        var significantDigits = settings?.SignificantDigits ?? 3;
+        var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
+        var digits = significantDigits - magnitude;
+        if (digits < 0)
+            digits = 0;
+
+        var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        var decimalSeparator = Convert.ToChar(separator);
+        return formatted.Contains(separator)
+            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
+            : formatted;
+    }
+
+    private string FormatTemperature(float value)
+    {
+        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value)} K";
+        if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
+
+        return $"{FormatValue(value - 273.15f)} C";
     }
 
     private void ShowUnableToBuy(string reason)
@@ -466,18 +725,18 @@ public class TradeMenu : MonoBehaviour
         Dialog.MoveToCursor();
     }
 
-    private void ShowBuyQuantityDialog(string itemName, int price, SimpleCommodity simpleCommodity)
+    private void ShowBuyQuantityDialog(TradeRow row)
     {
         int quantity = 1;
         Dialog.Clear();
-        Dialog.Title.text = $"Buying {itemName}";
+        Dialog.Title.text = $"Buying {row?.Name ?? "Unknown Item"}";
         Dialog.AddField(
             "Quantity",
             () => quantity,
             q => quantity = q);
         Dialog.Show(() =>
         {
-            Buy(simpleCommodity, quantity);
+            Buy(row, quantity);
             Populate();
         });
         Dialog.MoveToCursor();
@@ -523,13 +782,13 @@ public class TradeMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument);
     }
 
-    private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
+    private AetheriaRuntimeTradeItemDetailsSurfaceState ProjectTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
     {
         return AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(
             item,
-            ActionGameManager.RuntimeCatalog?.GetManufacturer(item)?.Name ?? "GameCult",
-            ActionGameManager.RuntimePlayerSettings.Format,
-            ActionGameManager.RuntimePlayerSettings.FormatTemperature);
+            ResolveManufacturerName(item),
+            FormatValue,
+            FormatTemperature);
     }
 
     void Start()
@@ -978,27 +1237,33 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeCargoSelectorSurfaceProjection ProjectTradeCargoSelectorSurface()
     {
         var targets = new List<AetheriaRuntimeTradeCargoProjectionOption>();
-        if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+        var stationRefit = ResolveStationRefit();
+        if (stationRefit?.IsDocked == true &&
+            !string.IsNullOrWhiteSpace(stationRefit.DockParentEntityKey) &&
+            stationRefit.DockingBayIndex >= 0)
         {
             targets.Add(new AetheriaRuntimeTradeCargoProjectionOption(
                 AetheriaRuntimeTradeCargoTargetKind.DockingBay,
                 "Docking Bay",
-                isCurrent: _targetCargo == dockingBay));
+                stationRefit.DockParentEntityKey,
+                bayIndex: stationRefit.DockingBayIndex,
+                isCurrent: IsTargetCargoBayKey(stationRefit.DockParentEntityKey, stationRefit.DockingBayIndex)));
         }
 
-        targets.AddRange(GameManager.ObservedAvailableEntities()
-            .OfType<Ship>()
-            .Where(ship => ship.IsPlayerShip)
-            .SelectMany((ship, shipIndex) => ship.CargoBays.Select((cargoBay, bayIndex) =>
-                new AetheriaRuntimeTradeCargoProjectionOption(
-                    AetheriaRuntimeTradeCargoTargetKind.ShipBay,
-                    $"{ship.Name} Bay {bayIndex + 1}",
-                    shipIndex,
-                    bayIndex,
-                    _targetCargo == cargoBay))));
+        _cargoSelectorStationRefitTargets = (stationRefit?.CargoTargets ??
+                Array.Empty<AetheriaRuntimeStationCargoTargetRow>())
+            .ToArray();
+        targets.AddRange(_cargoSelectorStationRefitTargets
+            .Select(target => new AetheriaRuntimeTradeCargoProjectionOption(
+                target.Kind,
+                target.Label,
+                target.EntityKey,
+                target.TargetIndex,
+                target.BayIndex,
+                IsTargetCargoBayKey(target.EntityKey, target.BayIndex))));
 
         return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Project(
-            TargetCargoLabel.text ?? "",
+            _targetCargoLabel ?? "",
             targets,
             DateTime.UtcNow.ToString("O"));
     }
@@ -1008,34 +1273,32 @@ public class TradeMenu : MonoBehaviour
         switch (selection.Kind)
         {
             case AetheriaRuntimeTradeCargoTargetKind.DockingBay:
-                if (GameManager.TryGetObservedDockingBay(out var dockingBay))
+                if (TryResolveStationRefitCargoTarget(selection.EntityKey, selection.BayIndex, out var target) &&
+                    target.Kind == AetheriaRuntimeTradeCargoTargetKind.DockingBay)
                 {
-                    _targetCargo = dockingBay;
-                    TargetCargoLabel.text = selection.Label;
+                    SetTargetCargo(selection.EntityKey, selection.BayIndex, selection.Label);
                 }
                 return;
             case AetheriaRuntimeTradeCargoTargetKind.ShipBay:
-                var ships = GameManager.ObservedAvailableEntities()
-                    .OfType<Ship>()
-                    .Where(ship => ship.IsPlayerShip)
-                    .ToArray();
-                if (selection.ShipIndex >= 0 &&
-                    selection.ShipIndex < ships.Length &&
-                    selection.BayIndex >= 0 &&
-                    selection.BayIndex < ships[selection.ShipIndex].CargoBays.Count)
+                if (TryResolveStationRefitCargoTarget(selection.EntityKey, selection.BayIndex, out target) &&
+                    target.Kind == AetheriaRuntimeTradeCargoTargetKind.ShipBay &&
+                    target.TargetIndex == selection.ShipIndex)
                 {
-                    _targetCargo = ships[selection.ShipIndex].CargoBays[selection.BayIndex];
-                    TargetCargoLabel.text = selection.Label;
+                    SetTargetCargo(target.EntityKey, selection.BayIndex, selection.Label);
                 }
                 return;
         }
     }
 
-    private int CountAvailablePlayerShips(string itemKey)
+    private void SetTargetCargo(string entityKey, int cargoBayIndex, string label)
     {
-        return GameManager.ObservedAvailableEntities()
-            .OfType<Ship>()
-            .Count(ship => ship.IsPlayerShip && ship.Hull?.ItemKey == itemKey);
+        _targetCargoEntityKey = entityKey ?? "";
+        _targetCargoIndex = cargoBayIndex;
+        _targetCargoLabel = string.IsNullOrWhiteSpace(label) ? "Docking Bay" : label;
+        if (TargetCargoLabel != null)
+        {
+            TargetCargoLabel.text = _targetCargoLabel;
+        }
     }
 
     private void OnDisable()
@@ -1048,6 +1311,8 @@ public class TradeMenu : MonoBehaviour
 
     private void OnDestroy()
     {
+        DisposeClient();
+
         if (_cargoSelectorSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_cargoSelectorSurfaceDocument);

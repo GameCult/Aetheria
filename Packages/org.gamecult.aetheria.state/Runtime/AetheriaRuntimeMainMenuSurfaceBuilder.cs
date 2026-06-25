@@ -117,6 +117,33 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc);
         }
 
+        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeSectorMapDocument sectorMap,
+            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
+            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimeMainMenuSurfaceState(
+                stateBoot.TargetLabel,
+                stateBoot.TargetKind,
+                stateBoot.TargetSource,
+                verseHost?.Title ?? stateBoot.Title,
+                verseHost?.VerseId ?? stateBoot.VerseId,
+                verseHost?.Visibility ?? "unknown",
+                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+                inGame,
+                sectorMap != null,
+                sectorMap?.RunId ?? "",
+                sectorMap?.FrameId ?? -1,
+                playerSettings?.BindingOverrides?.Count ?? 0,
+                playerSettings?.ActionBarInputs?.Count ?? 0,
+                canOpenRuntimeInputScreen,
+                updatedAtUtc);
+        }
+
         public static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettings(
             AetheriaRuntimePlayerSettingsSnapshot playerSettings,
             string updatedAtUtc)
@@ -141,6 +168,7 @@ namespace GameCult.Aetheria.State.Verse
                 stateBoot.TargetKind,
                 stateBoot.Title,
                 stateBoot.VerseId,
+                stateBoot.RuntimeId,
                 stateBoot.CultMeshAddress,
                 stateBoot.StateFilePath,
                 stateBoot.ReplicaStateFilePath,
@@ -538,18 +566,19 @@ namespace GameCult.Aetheria.State.Verse
             if (request == null)
                 return false;
 
+            var operationId = request.Operation?.OperationId ?? "";
             switch (request.SurfaceId ?? "")
             {
                 case AetheriaRuntimeMainMenuCommands.RootSurfaceId:
-                    return TryReadRoot(request.Command ?? "", out command);
+                    return TryReadRoot(operationId, out command);
                 case AetheriaRuntimeMainMenuCommands.SettingsSurfaceId:
-                    return TryReadSettings(request.Command ?? "", out command);
+                    return TryReadSettings(operationId, out command);
                 case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
-                    return TryReadInputSettings(request.Command ?? "", out command);
+                    return TryReadInputSettings(operationId, out command);
                 case AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId:
-                    return TryReadPlayerSettingsShell(request.Command ?? "", out command);
+                    return TryReadPlayerSettingsShell(operationId, out command);
                 case AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId:
-                    return TryReadVerseSettingsShell(request.Command ?? "", out command);
+                    return TryReadVerseSettingsShell(operationId, out command);
                 default:
                     return false;
             }

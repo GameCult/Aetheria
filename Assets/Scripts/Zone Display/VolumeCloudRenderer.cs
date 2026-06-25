@@ -1,7 +1,9 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -52,6 +54,9 @@ public class VolumeCloudRenderer : EffectBase
     // The index of 4x4 pixels.
     private int frameIndex = 0;
     private bool firstFrame = true;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
 
     [SerializeField]
     private Shader cloudShader;
@@ -63,6 +68,7 @@ public class VolumeCloudRenderer : EffectBase
     }
 
     private void OnDestroy() {
+        DisposeClient();
         if (this.fullBuffer != null) {
             for (int i = 0; i < fullBuffer.Length; i++) {
                 fullBuffer[i].Release();
@@ -78,7 +84,63 @@ public class VolumeCloudRenderer : EffectBase
     private void Start() {
         this.EnsureMaterial(true);
         if (Application.isPlaying)
-            quality = ActionGameManager.RuntimePlayerSettings.GraphicsSettings.NebulaQuality;
+            quality = ResolveNebulaQuality(quality);
+    }
+
+    private Quality ResolveNebulaQuality(Quality fallback)
+    {
+        var snapshot = ResolvePlayerSettings();
+        return Enum.TryParse(snapshot?.NebulaQuality, true, out Quality resolved)
+            ? resolved
+            : fallback;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for volume cloud renderer: {ex.Message}");
+        }
+
+        return _playerSettings;
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-volume-cloud-renderer",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _playerSettings = null;
     }
 
     [ImageEffectOpaque]

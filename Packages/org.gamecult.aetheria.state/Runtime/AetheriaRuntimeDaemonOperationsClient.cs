@@ -1,43 +1,46 @@
 using System;
+using GameCult.Mesh;
+
+#nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
 public sealed class AetheriaRuntimeDaemonOperationsClient
 {
-    private readonly Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> _submit;
+    private readonly Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState?, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> _submit;
 
-    public AetheriaRuntimeDaemonOperationsClient(
-        Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> submit)
+    internal AetheriaRuntimeDaemonOperationsClient(
+        Func<Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState?, AetheriaRuntimeDaemonCommandEnvelope>, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
         _submit = submit ?? throw new ArgumentNullException(nameof(submit));
     }
 
     public AetheriaRuntimeDaemonCommandEnvelope SetTarget(string targetEntityKey)
     {
-        return Send((client, observed) => client.SetTarget(observed, targetEntityKey));
+        return Submit((client, observed) => client.SetTarget(observed, targetEntityKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope ClearTarget()
+    public CultMeshOperationReceipt ClearTarget()
     {
         return Send((client, observed) => client.ClearTarget(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TargetNearest()
+    public CultMeshOperationReceipt TargetNearest()
     {
         return Send((client, observed) => client.TargetNearest(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TargetNext()
+    public CultMeshOperationReceipt TargetNext()
     {
         return Send((client, observed) => client.TargetNext(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TargetPrevious()
+    public CultMeshOperationReceipt TargetPrevious()
     {
         return Send((client, observed) => client.TargetPrevious(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TargetReticle(double directionX, double directionY, double directionZ)
+    public CultMeshOperationReceipt TargetReticle(double directionX, double directionY, double directionZ)
     {
         return Send((client, observed) => client.TargetReticle(observed, directionX, directionY, directionZ));
     }
@@ -47,30 +50,30 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         double directionY,
         double scalarValue = 1.0)
     {
-        return Send((client, observed) => client.SetMoveVector(observed, directionX, directionY, scalarValue));
+        return Submit((client, observed) => client.SetMoveVector(observed, directionX, directionY, scalarValue));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(double directionX, double directionY, double directionZ)
+    public CultMeshOperationReceipt SetLookDirection(double directionX, double directionY, double directionZ)
     {
         return Send((client, observed) => client.SetLookDirection(observed, directionX, directionY, directionZ));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(double power)
+    public CultMeshOperationReceipt SetTractorPower(double power)
     {
         return Send((client, observed) => client.SetTractorPower(observed, power));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(int weaponGroup)
+    public CultMeshOperationReceipt FireWeaponGroup(int weaponGroup)
     {
         return Send((client, observed) => client.FireWeaponGroup(observed, weaponGroup));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(int weaponGroup, bool active)
+    public CultMeshOperationReceipt SetWeaponGroupActive(int weaponGroup, bool active)
     {
         return Send((client, observed) => client.SetWeaponGroupActive(observed, weaponGroup, active));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
+    public CultMeshOperationReceipt SetWeaponGroupMembership(
         string targetEntityKey,
         int equipmentIndex,
         int weaponGroup,
@@ -84,47 +87,47 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             assigned));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(int equipmentIndex, int behaviorIndex, bool active)
+    public CultMeshOperationReceipt SetBehaviorActive(int equipmentIndex, int behaviorIndex, bool active)
     {
         return Send((client, observed) => client.SetBehaviorActive(observed, equipmentIndex, behaviorIndex, active));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(string itemKey)
+    public CultMeshOperationReceipt ActivateConsumable(string itemKey)
     {
         return Send((client, observed) => client.ActivateConsumable(observed, itemKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SensorPing()
+    public CultMeshOperationReceipt SensorPing()
     {
         return Send((client, observed) => client.SensorPing(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(bool enabled)
+    public CultMeshOperationReceipt SetHeatsinksEnabled(bool enabled)
     {
         return Send((client, observed) => client.SetHeatsinksEnabled(observed, enabled));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(bool enabled)
+    public CultMeshOperationReceipt SetOverrideShutdown(bool enabled)
     {
         return Send((client, observed) => client.SetOverrideShutdown(observed, enabled));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetEntityOverrideShutdown(string targetEntityKey, bool enabled)
+    public CultMeshOperationReceipt SetEntityOverrideShutdown(string targetEntityKey, bool enabled)
     {
         return Send((client, observed) => client.SetOverrideShutdown(observed, targetEntityKey, enabled));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(int equipmentIndex, bool enabled)
+    public CultMeshOperationReceipt SetItemEnabled(int equipmentIndex, bool enabled)
     {
         return Send((client, observed) => client.SetItemEnabled(observed, equipmentIndex, enabled));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled()
+    public CultMeshOperationReceipt ToggleShieldEnabled()
     {
         return Send((client, observed) => client.ToggleShieldEnabled(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
+    public CultMeshOperationReceipt SetItemOverrideShutdown(
         string targetEntityKey,
         int equipmentIndex,
         bool enabled)
@@ -136,7 +139,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             enabled));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
+    public CultMeshOperationReceipt SetThermotoggleTargetTemperature(
         string targetEntityKey,
         int equipmentIndex,
         int behaviorIndex,
@@ -150,7 +153,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             targetTemperature));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
+    public CultMeshOperationReceipt SetShutdownPerformance(
         string targetEntityKey,
         double shutdownPerformance)
     {
@@ -160,30 +163,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             shutdownPerformance));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetActionBarBinding(
-        string controlPath,
-        string kind,
-        string itemKey,
-        int equipmentIndex,
-        int behaviorIndex,
-        int weaponGroup)
-    {
-        return Send((client, observed) => client.SetActionBarBinding(
-            observed,
-            controlPath,
-            kind,
-            itemKey,
-            equipmentIndex,
-            behaviorIndex,
-            weaponGroup));
-    }
-
-    public AetheriaRuntimeDaemonCommandEnvelope ClearActionBarBinding(string controlPath)
-    {
-        return Send((client, observed) => client.ClearActionBarBinding(observed, controlPath));
-    }
-
-    public AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
+    public CultMeshOperationReceipt ToggleHullConductivity(
         string targetEntityKey,
         int x,
         int y,
@@ -192,37 +172,37 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         return Send((client, observed) => client.ToggleHullConductivity(observed, targetEntityKey, x, y, axis));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetEntityName(string targetEntityKey, string name)
+    public CultMeshOperationReceipt SetEntityName(string targetEntityKey, string name)
     {
         return Send((client, observed) => client.SetEntityName(observed, targetEntityKey, name));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope Dock(string targetEntityKey)
+    public CultMeshOperationReceipt Dock(string targetEntityKey)
     {
         return Send((client, observed) => client.Dock(observed, targetEntityKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope DockNearest()
+    public CultMeshOperationReceipt DockNearest()
     {
         return Send((client, observed) => client.DockNearest(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope Undock()
+    public CultMeshOperationReceipt Undock()
     {
         return Send((client, observed) => client.Undock(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope Interact()
+    public CultMeshOperationReceipt Interact()
     {
         return Send((client, observed) => client.Interact(observed));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(string targetEntityKey)
+    public CultMeshOperationReceipt SetDockedCurrentShip(string targetEntityKey)
     {
         return Send((client, observed) => client.SetDockedCurrentShip(observed, targetEntityKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
+    public CultMeshOperationReceipt EnterWormhole(
         int targetZoneIndex,
         double positionX,
         double positionY)
@@ -230,21 +210,12 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         return Send((client, observed) => client.EnterWormhole(observed, targetZoneIndex, positionX, positionY));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TowToStation(
-        string stationEntityKey,
-        int targetZoneIndex,
-        double positionX,
-        double positionY)
+    public CultMeshOperationReceipt TowToStation(string stationEntityKey)
     {
-        return Send((client, observed) => client.TowToStation(
-            observed,
-            stationEntityKey,
-            targetZoneIndex,
-            positionX,
-            positionY));
+        return Send((client, observed) => client.TowToStation(observed, stationEntityKey));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
+    public CultMeshOperationReceipt TransferCargoItem(
         string originEntityKey,
         int originCargoIndex,
         string destinationEntityKey,
@@ -272,7 +243,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             hasDestinationPosition));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
+    public CultMeshOperationReceipt TradePurchase(
         string purchaseKind,
         string itemKey,
         int quantity,
@@ -302,7 +273,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             createsDockedShip));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
+    public CultMeshOperationReceipt PickUpLoot(
         string targetEntityKey,
         string itemKey,
         int quantity,
@@ -320,7 +291,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             positionZ));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
+    public CultMeshOperationReceipt RestoreLoadout(
         string dockedEntityKey,
         string templateName,
         int price)
@@ -328,7 +299,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         return Send((client, observed) => client.RestoreLoadout(observed, dockedEntityKey, templateName, price));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope EquipItem(
+    public CultMeshOperationReceipt EquipItem(
         string sourceKind,
         string originEntityKey,
         int originIndex,
@@ -354,7 +325,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             hasDestinationPosition));
     }
 
-    public AetheriaRuntimeDaemonCommandEnvelope StoreItem(
+    public CultMeshOperationReceipt StoreItem(
         string originEntityKey,
         int sourceEquipmentIndex,
         string destinationEntityKey,
@@ -376,8 +347,14 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             hasDestinationPosition));
     }
 
-    private AetheriaRuntimeDaemonCommandEnvelope Send(
-        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit)
+    private CultMeshOperationReceipt Send(
+        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState?, AetheriaRuntimeDaemonCommandEnvelope> submit)
+    {
+        return Submit(submit);
+    }
+
+    private AetheriaRuntimeDaemonCommandEnvelope Submit(
+        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState?, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
         return _submit(submit);
     }

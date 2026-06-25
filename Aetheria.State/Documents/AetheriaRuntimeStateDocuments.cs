@@ -56,6 +56,9 @@ public sealed class AetheriaPlayerGameplaySettings
 
     [Key(1)]
     public int SignificantDigits { get; set; } = 3;
+
+    [Key(2)]
+    public float DefaultShutdownPerformance { get; set; } = 0.25f;
 }
 
 [MessagePackObject]
@@ -222,9 +225,6 @@ public sealed class AetheriaRunState
     [Key(7)]
     [CultReference(typeof(AetheriaZoneState), many: true)]
     public string[] ZoneKeys { get; set; } = [];
-
-    [Key(8)]
-    public AetheriaActionBarBinding[] ActionBarBindings { get; set; } = [];
 
     [Key(9)]
     public AetheriaFactionRelationshipState[] FactionRelationships { get; set; } = [];
@@ -934,28 +934,6 @@ public sealed class AetheriaBehaviorStateSnapshot
 
     [Key(54)]
     public bool TurretControllerPredictShots { get; set; }
-}
-
-[MessagePackObject]
-public sealed class AetheriaActionBarBinding
-{
-    [Key(0)]
-    public string ControlPath { get; set; } = "";
-
-    [Key(1)]
-    public string Kind { get; set; } = "";
-
-    [Key(2)]
-    public string TargetKey { get; set; } = "";
-
-    [Key(3)]
-    public int EquipmentIndex { get; set; } = -1;
-
-    [Key(4)]
-    public int BehaviorIndex { get; set; } = -1;
-
-    [Key(5)]
-    public int WeaponGroup { get; set; } = -1;
 }
 
 [MessagePackObject]

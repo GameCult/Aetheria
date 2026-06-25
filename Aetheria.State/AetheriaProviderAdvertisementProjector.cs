@@ -44,6 +44,7 @@ public static class AetheriaProviderAdvertisementProjector
                 "aetheria.item_definition.v1",
                 "aetheria.corporation.v2",
                 "aetheria.name_file.v2",
+                "aetheria.trade_value_policy.v1",
                 "aetheria.player_settings.v1",
                 "aetheria.loadout_template.v1",
                 "aetheria.run_state.v1",

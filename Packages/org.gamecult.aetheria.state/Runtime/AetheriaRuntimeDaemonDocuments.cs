@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Mesh;
 using MessagePack;
 
 #nullable enable
@@ -19,7 +20,8 @@ namespace GameCult.Aetheria.State.Verse
             long observedFrameId,
             AetheriaRuntimeDaemonCommandKinds kind,
             string actorEntityKey,
-            string path)
+            string path,
+            CultMeshOperationReceipt? receipt = null)
         {
             Schema = schema;
             CommandId = commandId;
@@ -30,6 +32,7 @@ namespace GameCult.Aetheria.State.Verse
             Kind = kind;
             ActorEntityKey = actorEntityKey;
             Path = path;
+            Receipt = receipt ?? AetheriaRuntimeDaemonOperationIds.CreateReceipt(kind);
         }
 
         public string Schema { get; }
@@ -41,18 +44,106 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonCommandKinds Kind { get; }
         public string ActorEntityKey { get; }
         public string Path { get; }
+        public CultMeshOperationReceipt Receipt { get; }
+        public string OperationId => Receipt.OperationId;
+        public bool Accepted => Receipt.Accepted;
+        public CultMeshRouteHint Route => Receipt.Route;
+        public string? Diagnostic => Receipt.Diagnostic;
+
+        public static implicit operator CultMeshOperationReceipt(AetheriaRuntimeDaemonCommandEnvelope envelope)
+        {
+            if (envelope == null) throw new ArgumentNullException(nameof(envelope));
+            return envelope.Receipt;
+        }
     }
 
     public static class AetheriaRuntimeDaemonSchemas
     {
         public const string Frame = "gamecult.aetheria.daemon_frame.v1";
         public const string Command = "gamecult.aetheria.daemon_command.v1";
+        public const string CommittedCommandFact = "gamecult.aetheria.committed_command_fact.v1";
+        public const string RtsViewport = "gamecult.aetheria.rts_viewport.v1";
+        public const string ObjectsViewport = "gamecult.aetheria.objects_viewport.v1";
+        public const string GravityViewport = "gamecult.aetheria.gravity_viewport.v1";
+        public const string CurrentZone = "gamecult.aetheria.current_zone.v1";
+        public const string CurrentEntity = "gamecult.aetheria.current_entity.v1";
+        public const string CurrentDocking = "gamecult.aetheria.current_docking.v1";
+        public const string ZoneContacts = "gamecult.aetheria.zone_contacts.v1";
+        public const string StationRefit = "gamecult.aetheria.station_refit.v1";
+        public const string SectorMap = "gamecult.aetheria.sector_map.v1";
+        public const string ZoneDetails = "gamecult.aetheria.zone_details.v1";
+        public const string ZoneRender = "gamecult.aetheria.zone_render.v1";
+        public const string SelectedObject = "gamecult.aetheria.selected_object.v1";
+        public const string Inventory = "gamecult.aetheria.inventory.v1";
+        public const string StarbridgeScenario = "gamecult.aetheria.starbridge_scenario.v1";
+        public const string StarbridgeSession = "gamecult.aetheria.starbridge_session.v1";
+        public const string StarbridgeSessionSummary = "gamecult.aetheria.starbridge_session_summary.v1";
+        public const string VerseAuthorityPolicy = AetheriaRuntimeVerseAuthoritySchemas.Policy;
+        public const string AuthorityLease = AetheriaRuntimeVerseAuthoritySchemas.Lease;
         public const string SoaView = "gamecult.aetheria.daemon_soa_view.v1";
         public const string ProviderAdvertisement = "gamecult.aetheria.daemon_provider_advertisement.v1";
         public const string Health = "gamecult.aetheria.daemon_health.v1";
         public const string CommandBoundary = "gamecult.aetheria.daemon_command_boundary.v1";
         public const string GameSurface = "gamecult.aetheria.daemon_game_surface.v1";
         public const string EditorSurface = "gamecult.aetheria.daemon_editor_surface.v1";
+    }
+
+    public static class AetheriaRuntimeDaemonOperationIds
+    {
+        public static string SetMoveVector => ForKind(AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
+        public static string SetTarget => ForKind(AetheriaRuntimeDaemonCommandKinds.SetTarget);
+
+        public static string ForKind(AetheriaRuntimeDaemonCommandKinds kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeDaemonCommandKinds.SetMoveVector:
+                    return "gamecult.aetheria.pilot.set_move_vector.v1";
+                case AetheriaRuntimeDaemonCommandKinds.SetTarget:
+                    return "gamecult.aetheria.pilot.set_target.v1";
+                case AetheriaRuntimeDaemonCommandKinds.None:
+                    return "gamecult.aetheria.daemon.none.v1";
+                default:
+                    return "gamecult.aetheria.daemon." + ToSnakeCase(kind.ToString()) + ".v1";
+            }
+        }
+
+        public static CultMeshOperationReceipt CreateReceipt(
+            AetheriaRuntimeDaemonCommandKinds kind,
+            bool accepted = true,
+            CultMeshRouteHint? route = null,
+            string? diagnostic = null)
+        {
+            return new CultMeshOperationReceipt(
+                ForKind(kind),
+                accepted,
+                route ?? new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-daemon-command"),
+                diagnostic);
+        }
+
+        private static string ToSnakeCase(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "unknown";
+
+            var chars = new List<char>(value.Length + 8);
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (char.IsUpper(c))
+                {
+                    if (i > 0)
+                        chars.Add('_');
+                    chars.Add(char.ToLowerInvariant(c));
+                }
+                else
+                {
+                    chars.Add(c);
+                }
+            }
+
+            return new string(chars.ToArray());
+        }
     }
 
     public enum AetheriaRuntimeDaemonCommandKinds
@@ -77,8 +168,6 @@ namespace GameCult.Aetheria.State.Verse
         SetItemEnabled,
         SetItemOverrideShutdown,
         SetThermotoggleTargetTemperature,
-        SetActionBarBinding,
-        ClearActionBarBinding,
         PickUpLoot,
         RestoreLoadout,
         Dock,
@@ -201,9 +290,26 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeDaemonSchemas.SoaView,
                     AetheriaRuntimeDaemonSchemas.Health,
                     AetheriaRuntimeDaemonSchemas.CommandBoundary,
+                    AetheriaRuntimeDaemonSchemas.ObjectsViewport,
+                    AetheriaRuntimeDaemonSchemas.GravityViewport,
+                    AetheriaRuntimeDaemonSchemas.CurrentZone,
+                    AetheriaRuntimeDaemonSchemas.CurrentEntity,
+                    AetheriaRuntimeDaemonSchemas.CurrentDocking,
+                    AetheriaRuntimeDaemonSchemas.ZoneContacts,
+                    AetheriaRuntimeDaemonSchemas.StationRefit,
+                    AetheriaRuntimeDaemonSchemas.SectorMap,
+                    AetheriaRuntimeDaemonSchemas.ZoneDetails,
+                    AetheriaRuntimeDaemonSchemas.ZoneRender,
+                    AetheriaRuntimeDaemonSchemas.SelectedObject,
+                    AetheriaRuntimeDaemonSchemas.Inventory,
                     AetheriaRuntimeDaemonSchemas.GameSurface,
                     AetheriaRuntimeDaemonSchemas.EditorSurface,
-                    AetheriaRuntimeDaemonSchemas.Command
+                    AetheriaRuntimeDaemonSchemas.Command,
+                    AetheriaRuntimeDaemonSchemas.StarbridgeScenario,
+                    AetheriaRuntimeDaemonSchemas.StarbridgeSession,
+                    AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
+                    AetheriaRuntimeDaemonSchemas.VerseAuthorityPolicy,
+                    AetheriaRuntimeDaemonSchemas.AuthorityLease
                 },
                 CommandBoundaryIds = new[] { "aetheria.daemon.commands" }
             };
@@ -308,8 +414,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             switch (kind)
             {
-                case AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding:
-                    return nameof(AetheriaRuntimeActionBarBindingCommand);
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                     return nameof(AetheriaRuntimeCargoTransferCommand);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
@@ -389,6 +493,27 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(13)]
         public IReadOnlyList<string> AccountedCommandIds { get; set; } = Array.Empty<string>();
+
+        [Key(14)]
+        public IReadOnlyList<string> CumulativeAppliedCommandIds { get; set; } = Array.Empty<string>();
+
+        [Key(15)]
+        public IReadOnlyList<string> CumulativeRejectedCommandIds { get; set; } = Array.Empty<string>();
+
+        [Key(16)]
+        public IReadOnlyList<string> ImportedFactIds { get; set; } = Array.Empty<string>();
+
+        [Key(17)]
+        public IReadOnlyList<string> RejectedImportedFactIds { get; set; } = Array.Empty<string>();
+
+        [Key(18)]
+        public IReadOnlyList<string> DuplicateImportedFactIds { get; set; } = Array.Empty<string>();
+
+        [Key(19)]
+        public IReadOnlyList<string> CumulativeImportedFactIds { get; set; } = Array.Empty<string>();
+
+        [Key(20)]
+        public IReadOnlyList<string> CumulativeRejectedImportedFactIds { get; set; } = Array.Empty<string>();
 
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,
@@ -479,9 +604,6 @@ namespace GameCult.Aetheria.State.Verse
         [Key(19)]
         public string TextValue { get; set; } = "";
 
-        [Key(20)]
-        public AetheriaRuntimeActionBarBindingCommand ActionBarBinding { get; set; } = new AetheriaRuntimeActionBarBindingCommand();
-
         [Key(21)]
         public AetheriaRuntimeCargoTransferCommand CargoTransfer { get; set; } = new AetheriaRuntimeCargoTransferCommand();
 
@@ -500,6 +622,15 @@ namespace GameCult.Aetheria.State.Verse
         [Key(26)]
         public AetheriaRuntimeStoreItemCommand StoreItem { get; set; } = new AetheriaRuntimeStoreItemCommand();
 
+        [Key(27)]
+        public string AuthorRuntimeId { get; set; } = "";
+
+        [Key(28)]
+        public string SubjectKey { get; set; } = "";
+
+        [Key(29)]
+        public string ClaimKind { get; set; } = "";
+
         public static AetheriaRuntimeDaemonCommandDocument Create(
             AetheriaRuntimeDaemonCommandKinds kind,
             string clientId,
@@ -515,19 +646,137 @@ namespace GameCult.Aetheria.State.Verse
                 SessionId = sessionId ?? "",
                 ObservedFrameId = observedFrameId,
                 Kind = kind,
-                ActorEntityKey = actorEntityKey ?? ""
+                ActorEntityKey = actorEntityKey ?? "",
+                AuthorRuntimeId = clientId ?? "",
+                SubjectKey = actorEntityKey ?? "",
+                ClaimKind = AetheriaRuntimeAuthorityRouter.ResolveClaimKind(kind)
             };
         }
     }
 
+    public static class AetheriaRuntimeCommandFactOutcomes
+    {
+        public const string Applied = "applied";
+        public const string Rejected = "rejected";
+    }
+
+    [CultDocument("gamecult.aetheria.committed_command_fact", "gamecult.aetheria.committed_command_fact.v1")]
     [MessagePackObject]
-    public sealed class AetheriaRuntimeActionBarBindingCommand
+    public sealed class AetheriaRuntimeCommittedCommandFactDocument
     {
         [Key(0)]
-        public string Kind { get; set; } = "";
+        public string Schema { get; set; } = AetheriaRuntimeDaemonSchemas.CommittedCommandFact;
 
         [Key(1)]
-        public string ItemKey { get; set; } = "";
+        public string FactId { get; set; } = "";
+
+        [Key(2)]
+        public string VerseId { get; set; } = "aetheria.local";
+
+        [Key(3)]
+        public string SourceRuntimeId { get; set; } = "";
+
+        [Key(4)]
+        public string SourceDaemonId { get; set; } = "";
+
+        [Key(5)]
+        public string SessionId { get; set; } = "";
+
+        [Key(6)]
+        public long SourceFrameId { get; set; } = -1;
+
+        [Key(7)]
+        public string CommandId { get; set; } = "";
+
+        [Key(8)]
+        public string SubjectKey { get; set; } = "";
+
+        [Key(9)]
+        public string ClaimKind { get; set; } = "";
+
+        [Key(10)]
+        public AetheriaRuntimeDaemonCommandKinds CommandKind { get; set; } = AetheriaRuntimeDaemonCommandKinds.None;
+
+        [Key(11)]
+        public string Outcome { get; set; } = AetheriaRuntimeCommandFactOutcomes.Applied;
+
+        [Key(12)]
+        public string CommittedAtUtc { get; set; } = "";
+
+        [Key(13)]
+        public AetheriaRuntimeDaemonCommandDocument Command { get; set; } = new AetheriaRuntimeDaemonCommandDocument();
+
+        public static AetheriaRuntimeCommittedCommandFactDocument FromAppliedCommand(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeDaemonCommandDocument command,
+            string verseId)
+        {
+            return FromCommand(frame, command, verseId, AetheriaRuntimeCommandFactOutcomes.Applied);
+        }
+
+        public static AetheriaRuntimeCommittedCommandFactDocument FromRejectedCommand(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeDaemonCommandDocument command,
+            string verseId)
+        {
+            return FromCommand(frame, command, verseId, AetheriaRuntimeCommandFactOutcomes.Rejected);
+        }
+
+        public static string CreateRecordKey(string factId)
+        {
+            return $"daemon:facts:{StableToken(factId)}:{AetheriaRuntimeDaemonSchemas.CommittedCommandFact}";
+        }
+
+        private static AetheriaRuntimeCommittedCommandFactDocument FromCommand(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeDaemonCommandDocument command,
+            string verseId,
+            string outcome)
+        {
+            frame ??= new AetheriaRuntimeDaemonFrameDocument();
+            command ??= new AetheriaRuntimeDaemonCommandDocument();
+            var sourceRuntimeId = string.IsNullOrWhiteSpace(command.AuthorRuntimeId)
+                ? command.ClientId ?? ""
+                : command.AuthorRuntimeId;
+            var subjectKey = AetheriaRuntimeAuthorityRouter.ResolveSubjectKey(command);
+            var claimKind = AetheriaRuntimeAuthorityRouter.ResolveClaimKind(command.Kind);
+            return new AetheriaRuntimeCommittedCommandFactDocument
+            {
+                FactId = string.Join(
+                    ":",
+                    "fact",
+                    string.IsNullOrWhiteSpace(frame.DaemonId) ? "daemon" : frame.DaemonId,
+                    Math.Max(frame.FrameId, 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    string.IsNullOrWhiteSpace(command.CommandId) ? Guid.NewGuid().ToString("N") : command.CommandId,
+                    string.IsNullOrWhiteSpace(outcome) ? AetheriaRuntimeCommandFactOutcomes.Applied : outcome),
+                VerseId = string.IsNullOrWhiteSpace(verseId) ? "aetheria.local" : verseId,
+                SourceRuntimeId = sourceRuntimeId,
+                SourceDaemonId = frame.DaemonId ?? "",
+                SessionId = frame.SessionId ?? command.SessionId ?? "",
+                SourceFrameId = frame.FrameId,
+                CommandId = command.CommandId ?? "",
+                SubjectKey = subjectKey,
+                ClaimKind = claimKind,
+                CommandKind = command.Kind,
+                Outcome = string.IsNullOrWhiteSpace(outcome) ? AetheriaRuntimeCommandFactOutcomes.Applied : outcome,
+                CommittedAtUtc = DateTime.UtcNow.ToString("O"),
+                Command = command
+            };
+        }
+
+        private static string StableToken(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "empty";
+
+            var chars = value
+                .Select(character => char.IsLetterOrDigit(character) ? character : '-')
+                .ToArray();
+            var token = new string(chars).Trim('-').ToLowerInvariant();
+            while (token.Contains("--", StringComparison.Ordinal))
+                token = token.Replace("--", "-", StringComparison.Ordinal);
+            return string.IsNullOrWhiteSpace(token) ? "empty" : token;
+        }
     }
 
     [MessagePackObject]

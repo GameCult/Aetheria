@@ -15,31 +15,50 @@ namespace GameCult.Aetheria.State.Verse
             envelope = null;
             if (request == null ||
                 !string.Equals(request.ProviderId, "aetheria.daemon", StringComparison.Ordinal) ||
-                !TryResolveKind(request, out var kind))
+                !TryResolveKind(request, out _))
             {
                 return false;
             }
 
-            using var verseClient = AetheriaRuntimeVerseClient
+            using var client = AetheriaClient
                 .OpenAsync(
                     stateFilePath,
                     string.IsNullOrWhiteSpace(request.ClientId)
                         ? AetheriaRuntimeDaemonOperationClient.DefaultClientId
                         : request.ClientId,
+                    "local",
                     startServer: false,
                     pullOnOpen: true)
                 .GetAwaiter()
                 .GetResult();
-            var observed = verseClient
-                .GetObservedDaemonStateAsync()
+            return TrySubmit(client, request, out envelope);
+        }
+
+        public static bool TrySubmit(
+            AetheriaClient client,
+            EveSurfaceCommandRequest request,
+            out AetheriaRuntimeDaemonCommandEnvelope? envelope)
+        {
+            envelope = null;
+            if (request == null ||
+                client == null ||
+                !string.Equals(request.ProviderId, "aetheria.daemon", StringComparison.Ordinal) ||
+                !TryResolveKind(request, out var kind))
+            {
+                return false;
+            }
+
+            var observed = client
+                .ObserveAsync()
                 .GetAwaiter()
                 .GetResult();
-            var client = new AetheriaRuntimeDaemonOperationClient(
-                stateFilePath,
+            var operationClient = new AetheriaRuntimeDaemonOperationClient(
+                client.StatePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,
-                observed?.Frame.SessionId ?? "local");
+                observed?.Frame.SessionId ?? "local",
+                client.SubmitDaemonCommandDocument);
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
-                client,
+                operationClient,
                 observed,
                 kind,
                 out envelope);
@@ -48,7 +67,7 @@ namespace GameCult.Aetheria.State.Verse
         private static bool TryResolveKind(EveSurfaceCommandRequest request, out AetheriaRuntimeDaemonCommandKinds kind)
         {
             kind = AetheriaRuntimeDaemonCommandKinds.None;
-            var command = request.Command ?? "";
+            var command = request.Operation?.OperationId ?? "";
             if (command.StartsWith(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix, StringComparison.Ordinal))
                 command = command.Substring(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix.Length);
 

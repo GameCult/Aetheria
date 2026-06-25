@@ -54,7 +54,7 @@ namespace GameCult.Aetheria.State.Verse
             return ArgumentlessCommandKinds.Contains(kind);
         }
 
-        public static bool TrySubmitArgumentless(
+        internal static bool TrySubmitArgumentless(
             AetheriaRuntimeDaemonOperationClient client,
             AetheriaRuntimeObservedDaemonState? observed,
             AetheriaRuntimeDaemonCommandKinds kind,

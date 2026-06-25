@@ -3,13 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using GameCult.Aetheria.State.Verse;
 using TMPro;
 using UniRx;
 using UnityEngine;
 using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
 using Random = UnityEngine.Random;
+using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
 
 public class SectorMap : MonoBehaviour
@@ -41,32 +41,44 @@ public class SectorMap : MonoBehaviour
     public Color PlayerLocationLabelColor;
     public float PlayerLocationIconSize = 1.25f;
 
-    public Subject<GalaxyZone> ZoneClicked = new Subject<GalaxyZone>();
+    public Subject<int> ZoneClicked = new Subject<int>();
 
-    private GalaxyZone _currentPlayerLocation;
-    private HashSet<GalaxyZone> _revealedZones = new HashSet<GalaxyZone>();
-    private HashSet<(GalaxyZone, GalaxyZone)> _revealedLinks = new HashSet<(GalaxyZone, GalaxyZone)>();
+    private int _currentPlayerLocation = -1;
+    private readonly HashSet<int> _revealedZones = new HashSet<int>();
+    private readonly HashSet<(int, int)> _revealedLinks = new HashSet<(int, int)>();
+    private readonly Dictionary<int, (MeshRenderer influenceRenderer, RenderTexture influence, Material primaryMaterial, Material secondaryMaterial, Material linkMaterial)> _factionMaterials =
+        new Dictionary<int, (MeshRenderer influenceRenderer, RenderTexture influence, Material primaryMaterial, Material secondaryMaterial, Material linkMaterial)>();
+    private readonly Dictionary<int, SectorZoneUI> _zoneInstances = new Dictionary<int, SectorZoneUI>();
+    private readonly Queue<IEnumerable<int>> _queuedZoneReveals = new Queue<IEnumerable<int>>();
+    private readonly Dictionary<int, AetheriaRuntimeSectorMapZone> _zonesByIndex =
+        new Dictionary<int, AetheriaRuntimeSectorMapZone>();
+    private AetheriaRuntimeSectorMapDocument _sectorMap;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private bool _sectorMapLoaded;
 
-    private Dictionary<Faction, (MeshRenderer influenceRenderer, RenderTexture influence, Material primaryMaterial, Material secondaryMaterial, Material linkMaterial)> _factionMaterials =
-        new Dictionary<Faction, (MeshRenderer influenceRenderer, RenderTexture influence, Material primaryMaterial, Material secondaryMaterial, Material linkMaterial)>();
-
-    private Dictionary<GalaxyZone, SectorZoneUI> _zoneInstances = new Dictionary<GalaxyZone, SectorZoneUI>();
-    private Queue<IEnumerable<GalaxyZone>> _queuedZoneReveals = new Queue<IEnumerable<GalaxyZone>>();
-
-    public void MarkPlayerLocation(GalaxyZone zone)
+    public bool TryMarkPlayerLocation(int zoneIndex)
     {
-        if (_currentPlayerLocation != null)
+        EnsureSectorMapLoaded();
+        if (!_zonesByIndex.ContainsKey(zoneIndex))
+            return false;
+
+        MarkPlayerLocation(zoneIndex);
+        return true;
+    }
+
+    private void MarkPlayerLocation(int zoneIndex)
+    {
+        if (_currentPlayerLocation >= 0 && _zoneInstances.TryGetValue(_currentPlayerLocation, out var previous))
         {
-            _zoneInstances[_currentPlayerLocation].Label.color = Color.white;
-            _zoneInstances[_currentPlayerLocation].Label.fontStyle = FontStyles.Normal;
-            _zoneInstances[_currentPlayerLocation].IconContainer.localScale = Vector3.one;
+            previous.Label.color = Color.white;
+            previous.Label.fontStyle = FontStyles.Normal;
+            previous.IconContainer.localScale = Vector3.one;
         }
 
-        _currentPlayerLocation = zone;
-        if(_zoneInstances.ContainsKey(_currentPlayerLocation))
-        {
-            MarkPlayerLocation(_zoneInstances[_currentPlayerLocation]);
-        }
+        _currentPlayerLocation = zoneIndex;
+        if (_zoneInstances.TryGetValue(_currentPlayerLocation, out var zoneUI))
+            MarkPlayerLocation(zoneUI);
     }
 
     private void MarkPlayerLocation(SectorZoneUI zoneUI)
@@ -76,274 +88,315 @@ public class SectorMap : MonoBehaviour
         zoneUI.IconContainer.localScale = new Vector3(PlayerLocationIconSize, PlayerLocationIconSize, 1);
     }
 
-    public void QueueZoneReveal(IEnumerable<GalaxyZone> zones)
+    public void QueueZoneReveal(IEnumerable<int> zoneIndices)
     {
-        _queuedZoneReveals.Enqueue(zones);
+        _queuedZoneReveals.Enqueue(zoneIndices ?? Array.Empty<int>());
     }
 
     public void StartReveal(float linkDuration, float iconDuration)
     {
+        EnsureSectorMapLoaded();
         if (_queuedZoneReveals.Count > 0)
-        {
             StartCoroutine(RevealZone(_queuedZoneReveals.Dequeue(), linkDuration, iconDuration));
-        }
     }
 
-    public IEnumerator RevealZone(IEnumerable<GalaxyZone> zones, float linkDuration, float iconDuration)
+    public IEnumerator RevealZone(IEnumerable<int> zoneIndices, float linkDuration, float iconDuration)
     {
-        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
-            yield break;
-
         var linksToReveal = new List<(float2 start, float2 end, Transform linkInstance, bool critical)>();
         var zoneTransforms = new List<Transform>();
         var zoneInstanceScale = ZonePrototype.transform.localScale;
 
-        foreach (var zone in zones)
+        foreach (var zoneIndex in zoneIndices ?? Array.Empty<int>())
         {
-            if (!_revealedZones.Contains(zone))
+            if (!_zonesByIndex.TryGetValue(zoneIndex, out var zone) || _revealedZones.Contains(zoneIndex))
+                continue;
+
+            var zoneInstance = ZonePrototype.Instantiate<SectorZoneUI>();
+            zoneInstance.Clickable.OnClick += (_, _, _, _) => ZoneClicked.OnNext(zone.ZoneIndex);
+            if(zone.ZoneIndex == _currentPlayerLocation)
+                MarkPlayerLocation(zoneInstance);
+            _zoneInstances[zone.ZoneIndex] = zoneInstance;
+            var zoneInstanceTransform = zoneInstance.transform;
+            zoneTransforms.Add(zoneInstanceTransform);
+            zoneInstanceTransform.localPosition = new Vector3((float)zone.X, (float)zone.Y);
+
+            if (zone.OwnerFactionIndex >= 0 && _factionMaterials.TryGetValue(zone.OwnerFactionIndex, out var ownerMaterials))
             {
-                var zoneInstance = ZonePrototype.Instantiate<SectorZoneUI>();
-                zoneInstance.Clickable.OnClick += (_, _, _, _) => ZoneClicked.OnNext(zone);
-                if(zone == _currentPlayerLocation)
-                    MarkPlayerLocation(zoneInstance);
-                _zoneInstances[zone] = zoneInstance;
-                var zoneInstanceTransform = zoneInstance.transform;
-                zoneTransforms.Add(zoneInstanceTransform);
-                zoneInstanceTransform.localPosition = new Vector3(zone.Position.x, zone.Position.y);
-                if(zone.Owner != null)
-                {
-                    zoneInstance.Primary.sharedMaterial = _factionMaterials[zone.Owner].primaryMaterial;
-                    zoneInstance.Secondary.sharedMaterial = _factionMaterials[zone.Owner].secondaryMaterial;
-                    if(zone == observedGalaxy.HomeZones[zone.Owner])
-                        zoneInstance.Secondary.transform.localScale = Vector3.one * 4;
-                }
-                else
-                {
-                    zoneInstance.Secondary.gameObject.SetActive(false);
-                }
-
-                var isOnCriticalPath = observedGalaxy.ExitPath?.Contains(zone) ?? false;
-                foreach (var adjacentZone in zone.AdjacentZones)
-                {
-                    // If the adjacent zone is in the set already revealed, then show the link
-                    if (_revealedZones.Contains(adjacentZone) && 
-                        !(_revealedLinks.Contains((zone, adjacentZone)) || 
-                          _revealedLinks.Contains((adjacentZone, zone))))
-                    {
-                        var link = LinkPrototype.Instantiate<Transform>();
-                        var critical = isOnCriticalPath && (observedGalaxy.ExitPath?.Contains(adjacentZone) ?? false);
-                        linksToReveal.Add((zone.Position, adjacentZone.Position, link, critical));
-                        if (zone.Owner != null && zone.Owner.HasSameKey(adjacentZone.Owner))
-                            link.GetComponent<MeshRenderer>().sharedMaterial = _factionMaterials[zone.Owner].linkMaterial;
-
-                        var dir = normalize(zone.Position - adjacentZone.Position);
-                        link.rotation = Quaternion.Euler(0,0,atan2(dir.y,dir.x) * Mathf.Rad2Deg);
-                        
-                        placeLink(zone.Position, adjacentZone.Position, link, 0, critical);
-                    }
-                }
-                _revealedZones.Add(zone);
-
-                // Determine center of mass for adjacent zone links, used for placement of label and icons
-                var linkDirection = normalize(zone.AdjacentZones
-                    .Aggregate(float2.zero, (v, adjacentZone) => v + normalize(adjacentZone.Position - zone.Position)));
-                
-                var zoneText = zoneInstance.Label;
-                zoneText.text = zone.Name;
-                var zoneTextTransform = zoneText.GetComponent<RectTransform>();
-                zoneTextTransform.pivot = new Vector2(sign(linkDirection.x)/2+.5f,sign(linkDirection.y)/2+.5f);
-                zoneTextTransform.localPosition = new Vector3(-linkDirection.x * LabelDistance, -linkDirection.y * LabelDistance, -1);
-
-                if (zone == observedGalaxy.Entrance)
-                {
-                    var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
-                    iconInstance.material.mainTexture = EntranceIcon;
-                    var iconTransform = iconInstance.transform;
-                    iconTransform.SetParent(zoneInstanceTransform);
-                    iconTransform.localScale = Vector3.one;
-                    iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
-                }
-
-                if (zone == observedGalaxy.Exit)
-                {
-                    var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
-                    iconInstance.material.mainTexture = ExitIcon;
-                    var iconTransform = iconInstance.transform;
-                    iconTransform.SetParent(zoneInstanceTransform);
-                    iconTransform.localScale = Vector3.one;
-                    iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
-                }
-
-                var homeMega = observedGalaxy.HomeZones.Keys
-                    .FirstOrDefault(m => observedGalaxy.HomeZones[m] == zone);
-                if (homeMega != null)
-                {
-                    var backgroundInstance = IconBackgroundPrototype.Instantiate<MeshRenderer>();
-                    var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
-                    
-                    backgroundInstance.material.SetColor("_Color", homeMega.SecondaryColor.ToColor());
-                    iconInstance.material.mainTexture = HomeIcon;
-                    iconInstance.material.SetColor("_Color", homeMega.PrimaryColor.ToColor());
-                    
-                    var backgroundTransform = backgroundInstance.transform;
-                    var iconTransform = iconInstance.transform;
-                    
-                    backgroundTransform.SetParent(zoneInstanceTransform);
-                    iconTransform.SetParent(zoneInstanceTransform);
-                    
-                    backgroundTransform.localScale = Vector3.one * IconBackgroundSize;
-                    iconTransform.localScale = Vector3.one;
-                    
-                    backgroundTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance, .5f);
-                    iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
-                }
-
-                var bossMega = observedGalaxy.BossZones.Keys
-                    .FirstOrDefault(m => observedGalaxy.BossZones[m] == zone);
-                if (bossMega != null)
-                {
-                    var backgroundInstance = IconBackgroundPrototype.Instantiate<MeshRenderer>();
-                    var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
-                    
-                    backgroundInstance.material.SetColor("_Color", bossMega.SecondaryColor.ToColor());
-                    iconInstance.material.mainTexture = BossIcon;
-                    iconInstance.material.SetColor("_Color", bossMega.PrimaryColor.ToColor());
-                    
-                    var backgroundTransform = backgroundInstance.transform;
-                    var iconTransform = iconInstance.transform;
-                    
-                    backgroundTransform.SetParent(zoneInstanceTransform);
-                    iconTransform.SetParent(zoneInstanceTransform);
-                    
-                    backgroundTransform.localScale = Vector3.one * IconBackgroundSize;
-                    iconTransform.localScale = Vector3.one;
-                    
-                    if (homeMega != null)
-                    {
-                        backgroundTransform.localPosition = new Vector3(linkDirection.x * IconDistance, linkDirection.y * IconDistance, .5f);
-                        iconTransform.localPosition = new Vector3(linkDirection.x * IconDistance, linkDirection.y * IconDistance);
-                    }
-                    else
-                    {
-                        backgroundTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance, .5f);
-                        iconTransform.localPosition = new Vector3(-linkDirection.x * IconDistance, -linkDirection.y * IconDistance);
-                    }
-                }
+                zoneInstance.Primary.sharedMaterial = ownerMaterials.primaryMaterial;
+                zoneInstance.Secondary.sharedMaterial = ownerMaterials.secondaryMaterial;
             }
+            else
+            {
+                zoneInstance.Secondary.gameObject.SetActive(false);
+            }
+
+            foreach (var link in LinksForZone(zone.ZoneIndex))
+            {
+                var adjacentIndex = link.FromZoneIndex == zone.ZoneIndex ? link.ToZoneIndex : link.FromZoneIndex;
+                if (!_zonesByIndex.TryGetValue(adjacentIndex, out var adjacentZone) ||
+                    !_revealedZones.Contains(adjacentIndex) ||
+                    _revealedLinks.Contains((zone.ZoneIndex, adjacentIndex)) ||
+                    _revealedLinks.Contains((adjacentIndex, zone.ZoneIndex)))
+                {
+                    continue;
+                }
+
+                var linkInstance = LinkPrototype.Instantiate<Transform>();
+                var critical = zone.Entrance || zone.Exit || adjacentZone.Entrance || adjacentZone.Exit;
+                var start = Position(zone);
+                var end = Position(adjacentZone);
+                linksToReveal.Add((start, end, linkInstance, critical));
+                if (zone.OwnerFactionIndex >= 0 &&
+                    zone.OwnerFactionIndex == adjacentZone.OwnerFactionIndex &&
+                    _factionMaterials.TryGetValue(zone.OwnerFactionIndex, out var factionMaterials))
+                {
+                    linkInstance.GetComponent<MeshRenderer>().sharedMaterial = factionMaterials.linkMaterial;
+                }
+
+                var dir = normalize(start - end);
+                linkInstance.rotation = Quaternion.Euler(0, 0, atan2(dir.y, dir.x) * Mathf.Rad2Deg);
+                placeLink(start, end, linkInstance, 0, critical);
+                _revealedLinks.Add((zone.ZoneIndex, adjacentIndex));
+            }
+
+            _revealedZones.Add(zone.ZoneIndex);
+            var linkDirection = ResolveLabelDirection(zone);
+            var zoneText = zoneInstance.Label;
+            zoneText.text = zone.Name;
+            var zoneTextTransform = zoneText.GetComponent<RectTransform>();
+            zoneTextTransform.pivot = new Vector2(sign(linkDirection.x) / 2 + .5f, sign(linkDirection.y) / 2 + .5f);
+            zoneTextTransform.localPosition = new Vector3(-linkDirection.x * LabelDistance, -linkDirection.y * LabelDistance, -1);
+
+            if (zone.Entrance)
+                AddZoneIcon(zoneInstanceTransform, EntranceIcon, linkDirection, -1);
+
+            if (zone.Exit)
+                AddZoneIcon(zoneInstanceTransform, ExitIcon, linkDirection, zone.Entrance ? 1 : -1);
         }
         foreach (var tr in zoneTransforms) tr.gameObject.SetActive(false);
 
-        // Local function for animating the placement of a link
         void placeLink(float2 start, float2 end, Transform link, float t, bool critical)
         {
             var pos = lerp(start, end, t / 2);
             link.localPosition = new Vector3(pos.x, pos.y);
-
-            var localScale = link.localScale;
-            localScale = new Vector3(length(start - end)*t, critical ? CriticalLinkWidth : LinkWidth, 1);
-            link.localScale = localScale;
+            link.localScale = new Vector3(length(start - end) * t, critical ? CriticalLinkWidth : LinkWidth, 1);
         }
 
         var startTime = Time.time;
         while (Time.time - startTime < linkDuration)
         {
             var t = (Time.time - startTime) / linkDuration;
-            foreach (var (start, end, link, critical) in linksToReveal) placeLink(end, start, link, t, critical);
+            foreach (var (start, end, link, critical) in linksToReveal)
+                placeLink(end, start, link, t, critical);
 
             yield return null;
         }
-        foreach (var (start, end, link, critical) in linksToReveal) placeLink(start, end, link, 1, critical);
+        foreach (var (start, end, link, critical) in linksToReveal)
+            placeLink(start, end, link, 1, critical);
 
-        foreach (var tr in zoneTransforms) tr.gameObject.SetActive(true);
+        foreach (var tr in zoneTransforms)
+            tr.gameObject.SetActive(true);
+
         startTime = Time.time;
         while (Time.time - startTime < iconDuration)
         {
             var t = (Time.time - startTime) / iconDuration;
-            foreach (var tr in zoneTransforms) tr.localScale = zoneInstanceScale * IconScaleAnimation.Evaluate(t);
+            foreach (var tr in zoneTransforms)
+                tr.localScale = zoneInstanceScale * IconScaleAnimation.Evaluate(t);
             RenderInfluence();
 
             yield return null;
         }
-        foreach (var tr in zoneTransforms) tr.localScale = zoneInstanceScale;
+        foreach (var tr in zoneTransforms)
+            tr.localScale = zoneInstanceScale;
 
         StartReveal(linkDuration, iconDuration);
     }
 
     public void Start()
     {
-        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
+        EnsureSectorMapLoaded();
+    }
+
+    private void EnsureSectorMapLoaded()
+    {
+        _sectorMap = ResolveClient()
+            .SectorMapAsync()
+            .GetAwaiter()
+            .GetResult();
+
+        if (_sectorMapLoaded)
+            return;
+
+        _sectorMapLoaded = true;
+
+        if (_sectorMap?.Zones == null || _sectorMap.Zones.Count == 0)
         {
             gameObject.SetActive(false);
             return;
         }
-        foreach (var mega in observedGalaxy.Factions)
+
+        _zonesByIndex.Clear();
+        foreach (var zone in _sectorMap.Zones)
+            _zonesByIndex[zone.ZoneIndex] = zone;
+
+        foreach (var factionIndex in ResolveFactionIndices())
+            AddFactionMaterials(factionIndex);
+
+        foreach (var zoneIndex in _sectorMap.DiscoveredZoneIndices)
+            QueueZoneReveal([zoneIndex]);
+
+        if (_queuedZoneReveals.Count == 0)
+            QueueZoneReveal(_sectorMap.Zones.Select(zone => zone.ZoneIndex));
+
+        if (_sectorMap.CurrentZoneIndex >= 0)
+            TryMarkPlayerLocation(_sectorMap.CurrentZoneIndex);
+    }
+
+    private void OnDestroy()
+    {
+        DisposeClient();
+    }
+
+    private void AddFactionMaterials(int factionIndex)
+    {
+        if (_factionMaterials.ContainsKey(factionIndex))
+            return;
+
+        var primaryColor = ResolveFactionColor(factionIndex, secondary: false);
+        var secondaryColor = ResolveFactionColor(factionIndex, secondary: true);
+        var influenceTexture = new RenderTexture(1024, 1024, 0, RenderTextureFormat.RHalf);
+        var influenceRenderer = InfluenceRendererPrototype.Instantiate<MeshRenderer>();
+        influenceRenderer.material.mainTexture = influenceTexture;
+        influenceRenderer.material.SetColor("_Color1", primaryColor);
+        influenceRenderer.material.SetColor("_Color2", secondaryColor);
+        influenceRenderer.material.SetFloat("_FillTilt", Random.value * PI);
+
+        var primary = Instantiate(ZonePrimaryMaterial);
+        primary.SetColor("_Color", primaryColor * MegaPrimaryBoost);
+
+        var secondary = Instantiate(ZoneSecondaryMaterial);
+        secondary.SetColor("_Color", secondaryColor * MegaSecondaryBoost);
+
+        var link = Instantiate(ZoneLinkMaterial);
+        link.SetColor("_Color", primaryColor * MegaLinkBoost);
+
+        _factionMaterials.Add(factionIndex, (influenceRenderer, influenceTexture, primary, secondary, link));
+
+        var legendElement = LegendPrototype.Instantiate<LegendElement>();
+        legendElement.Primary.color = primaryColor;
+        legendElement.Secondary.color = secondaryColor;
+        legendElement.Label.text = factionIndex < 0 ? "None" : $"F{factionIndex}";
+    }
+
+    private IEnumerable<int> ResolveFactionIndices()
+    {
+        return (_sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
+            .SelectMany(zone => (zone.FactionIndices ?? Array.Empty<int>()).Append(zone.OwnerFactionIndex))
+            .Where(index => index >= 0)
+            .Distinct()
+            .OrderBy(index => index);
+    }
+
+    private Color ResolveFactionColor(int factionIndex, bool secondary)
+    {
+        var hue = frac((factionIndex + (secondary ? 0.37f : 0f)) * 0.173f);
+        return Color.HSVToRGB(hue, secondary ? 0.48f : 0.62f, secondary ? 0.72f : 0.88f);
+    }
+
+    private IEnumerable<AetheriaRuntimeSectorMapLink> LinksForZone(int zoneIndex)
+    {
+        return (_sectorMap?.Links ?? Array.Empty<AetheriaRuntimeSectorMapLink>())
+            .Where(link => link.FromZoneIndex == zoneIndex || link.ToZoneIndex == zoneIndex);
+    }
+
+    private float2 ResolveLabelDirection(AetheriaRuntimeSectorMapZone zone)
+    {
+        var direction = float2.zero;
+        foreach (var adjacentIndex in zone.AdjacentZoneIndices ?? Array.Empty<int>())
         {
-            var influenceTexture = new RenderTexture(1024, 1024, 0, RenderTextureFormat.RHalf);
-            var influenceRenderer = InfluenceRendererPrototype.Instantiate<MeshRenderer>();
-            
-            influenceRenderer.material.mainTexture = influenceTexture;
-            influenceRenderer.material.SetColor("_Color1", mega.PrimaryColor.ToColor());
-            influenceRenderer.material.SetColor("_Color2", mega.SecondaryColor.ToColor());
-            influenceRenderer.material.SetFloat("_FillTilt", Random.value * PI);
-            
-            var primary = Instantiate(ZonePrimaryMaterial);
-            primary.SetColor("_Color", (mega.PrimaryColor * MegaPrimaryBoost).ToColor());
-            
-            var secondary = Instantiate(ZoneSecondaryMaterial);
-            secondary.SetColor("_Color", (mega.SecondaryColor * MegaSecondaryBoost).ToColor());
-            
-            var link = Instantiate(ZoneLinkMaterial);
-            link.SetColor("_Color", (mega.PrimaryColor * MegaLinkBoost).ToColor());
-            
-            _factionMaterials.Add(mega, (influenceRenderer, influenceTexture, primary, secondary, link));
-            
-            var legendElement = LegendPrototype.Instantiate<LegendElement>();
-            legendElement.Primary.color = mega.PrimaryColor.ToColor();
-            legendElement.Secondary.color = mega.SecondaryColor.ToColor();
-            legendElement.Label.text = mega.ShortName;
+            if (_zonesByIndex.TryGetValue(adjacentIndex, out var adjacent))
+                direction += normalizesafe(Position(adjacent) - Position(zone));
         }
 
-        SectorRenderer.material.SetFloat("CloudAmplitude", observedGalaxy.Background.CloudAmplitude);
-        SectorRenderer.material.SetFloat("CloudExponent", observedGalaxy.Background.CloudExponent);
-        SectorRenderer.material.SetFloat("NoisePosition", observedGalaxy.Background.NoisePosition);
-        SectorRenderer.material.SetFloat("NoiseAmplitude", observedGalaxy.Background.NoiseAmplitude);
-        SectorRenderer.material.SetFloat("NoiseOffset", observedGalaxy.Background.NoiseOffset);
-        SectorRenderer.material.SetFloat("NoiseGain", observedGalaxy.Background.NoiseGain);
-        SectorRenderer.material.SetFloat("NoiseLacunarity", observedGalaxy.Background.NoiseLacunarity);
-        SectorRenderer.material.SetFloat("NoiseFrequency", observedGalaxy.Background.NoiseFrequency);
+        return lengthsq(direction) <= 0 ? new float2(0, 1) : normalize(direction);
+    }
+
+    private void AddZoneIcon(
+        Transform zoneInstanceTransform,
+        Texture2D icon,
+        float2 linkDirection,
+        int side)
+    {
+        var iconInstance = IconPrototype.Instantiate<MeshRenderer>();
+        iconInstance.material.mainTexture = icon;
+        var iconTransform = iconInstance.transform;
+        iconTransform.SetParent(zoneInstanceTransform);
+        iconTransform.localScale = Vector3.one;
+        iconTransform.localPosition = new Vector3(
+            side * -linkDirection.x * IconDistance,
+            side * -linkDirection.y * IconDistance);
     }
 
     private void RenderInfluence()
     {
-        if (!ActionGameManager.TryGetObservedGalaxy(out var observedGalaxy))
-            return;
-
-        // Render Influence Textures
-        foreach (var mega in observedGalaxy.Factions)
+        foreach (var pair in _factionMaterials)
         {
-            foreach (var zone in observedGalaxy.Zones)
+            foreach (var zone in _sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
             {
-                if(_zoneInstances.ContainsKey(zone))
-                {
-                    var instance = _zoneInstances[zone];
-                    var influence = 0f;
-                    if (zone.Factions.Length > 0)
-                    {
-                        if (zone.Factions.Contains(mega))
-                        {
-                            influence = 10;
-                            if (!zone.Owner.HasSameKey(mega))
-                                influence *= .5f;
-                        }
-                        else influence = -10;
-                    }
+                if (!_zoneInstances.TryGetValue(zone.ZoneIndex, out var instance))
+                    continue;
 
-                    instance.Influence.material.SetFloat("_Depth", influence);
+                var influence = 0f;
+                if (zone.FactionIndices?.Count > 0)
+                {
+                    if (zone.FactionIndices.Contains(pair.Key))
+                    {
+                        influence = 10;
+                        if (zone.OwnerFactionIndex != pair.Key)
+                            influence *= .5f;
+                    }
+                    else influence = -10;
                 }
+
+                instance.Influence.material.SetFloat("_Depth", influence);
             }
 
-            InfluenceCamera.targetTexture = _factionMaterials[mega].influence;
+            InfluenceCamera.targetTexture = pair.Value.influence;
             InfluenceCamera.Render();
         }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-sector-map",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _sectorMapLoaded = false;
+    }
+
+    private static float2 Position(AetheriaRuntimeSectorMapZone zone)
+    {
+        return new float2((float)zone.X, (float)zone.Y);
     }
 }

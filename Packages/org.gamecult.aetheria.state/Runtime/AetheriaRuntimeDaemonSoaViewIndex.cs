@@ -359,13 +359,15 @@ namespace GameCult.Aetheria.State.Verse
                     }
 
                     break;
-                case AetheriaRuntimeDaemonSoaColumnKinds.PositionX:
-                case AetheriaRuntimeDaemonSoaColumnKinds.PositionY:
-                case AetheriaRuntimeDaemonSoaColumnKinds.PositionZ:
+                case AetheriaRuntimeDaemonSoaColumnKinds.Position:
+                case AetheriaRuntimeDaemonSoaColumnKinds.Velocity:
+                    if (!string.Equals(column.ScalarType, "float3", StringComparison.Ordinal))
+                    {
+                        errors.Add($"SoA column '{column.ColumnId}' {column.Kind} must use float3.");
+                    }
+
+                    break;
                 case AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians:
-                case AetheriaRuntimeDaemonSoaColumnKinds.VelocityX:
-                case AetheriaRuntimeDaemonSoaColumnKinds.VelocityY:
-                case AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ:
                 case AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyRadius:
                 case AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyMass:
                 case AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyInverseMass:
@@ -419,6 +421,8 @@ namespace GameCult.Aetheria.State.Verse
         {
             switch (scalarType)
             {
+                case "float3":
+                    return 12;
                 case "float32":
                 case "int32":
                 case "uint32":

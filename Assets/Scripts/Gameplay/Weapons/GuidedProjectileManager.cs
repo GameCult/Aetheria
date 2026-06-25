@@ -25,6 +25,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
+            p.ZoneRenderer = source.ZoneRenderer;
             p.Target = target.transform;
             p.Frequency = weapon.GuidedProjectileDodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
@@ -48,6 +49,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
+            p.ZoneRenderer = source.ZoneRenderer;
             p.Frequency = weapon.GuidedProjectileDodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);

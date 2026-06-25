@@ -4,11 +4,12 @@ using System;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeDaemonOperationClient
+    internal sealed class AetheriaRuntimeDaemonOperationClient
     {
         public const string DefaultClientId = "aetheria-daemon-client";
+        private readonly Func<AetheriaRuntimeDaemonCommandDocument, AetheriaRuntimeDaemonCommandEnvelope>? _submit;
 
-        public AetheriaRuntimeDaemonOperationClient(
+        internal AetheriaRuntimeDaemonOperationClient(
             string stateFilePath,
             string clientId = DefaultClientId,
             string sessionId = "local")
@@ -21,12 +22,25 @@ namespace GameCult.Aetheria.State.Verse
             SessionId = string.IsNullOrWhiteSpace(sessionId) ? "local" : sessionId;
         }
 
+        internal AetheriaRuntimeDaemonOperationClient(
+            string stateFilePath,
+            string clientId,
+            string sessionId,
+            Func<AetheriaRuntimeDaemonCommandDocument, AetheriaRuntimeDaemonCommandEnvelope> submit)
+            : this(stateFilePath, clientId, sessionId)
+        {
+            _submit = submit ?? throw new ArgumentNullException(nameof(submit));
+        }
+
         public string StateFilePath { get; }
         public string ClientId { get; }
         public string SessionId { get; }
 
         private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)
         {
+            if (_submit != null)
+                return _submit(command);
+
             if (!TrySend(command, out var envelope, out var error))
             {
                 throw new InvalidOperationException(
@@ -46,14 +60,12 @@ namespace GameCult.Aetheria.State.Verse
 
             try
             {
-                using var client = AetheriaRuntimeVerseClient
+                using var client = AetheriaClient
                     .OpenAsync(StateFilePath, ClientId, startServer: false, pullOnOpen: true)
                     .GetAwaiter()
                     .GetResult();
                 envelope = client
-                    .SubmitDaemonCommandAsync(command)
-                    .GetAwaiter()
-                    .GetResult();
+                    .SubmitDaemonCommandDocument(command);
                 return true;
             }
             catch (Exception ex)
@@ -75,7 +87,7 @@ namespace GameCult.Aetheria.State.Verse
                 observed?.Run.CurrentEntityKey ?? "");
         }
 
-        public static AetheriaRuntimeDaemonCommandEnvelope ToEnvelope(AetheriaRuntimeDaemonCommandDocument command)
+        internal static AetheriaRuntimeDaemonCommandEnvelope ToEnvelope(AetheriaRuntimeDaemonCommandDocument command)
         {
             return new AetheriaRuntimeDaemonCommandEnvelope(
                 command.Schema ?? "",
@@ -89,7 +101,7 @@ namespace GameCult.Aetheria.State.Verse
                 "");
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetTarget(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetTarget(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey)
         {
@@ -98,27 +110,27 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope ClearTarget(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope ClearTarget(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.ClearTarget, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNearest, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNext, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TargetReticle(
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetReticle(
             AetheriaRuntimeObservedDaemonState? observed,
             double directionX,
             double directionY,
@@ -131,7 +143,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
             AetheriaRuntimeObservedDaemonState? observed,
             double directionX,
             double directionY,
@@ -144,7 +156,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
             AetheriaRuntimeObservedDaemonState? observed,
             double directionX,
             double directionY,
@@ -157,7 +169,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(
             AetheriaRuntimeObservedDaemonState? observed,
             double power)
         {
@@ -166,7 +178,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(
+        internal AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(
             AetheriaRuntimeObservedDaemonState? observed,
             int weaponGroup)
         {
@@ -175,7 +187,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(
             AetheriaRuntimeObservedDaemonState? observed,
             int weaponGroup,
             bool active)
@@ -186,7 +198,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             int equipmentIndex,
@@ -201,7 +213,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(
             AetheriaRuntimeObservedDaemonState? observed,
             int equipmentIndex,
             int behaviorIndex,
@@ -214,7 +226,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(
+        internal AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(
             AetheriaRuntimeObservedDaemonState? observed,
             string itemKey)
         {
@@ -223,12 +235,12 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SensorPing(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope SensorPing(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.SensorPing, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(
             AetheriaRuntimeObservedDaemonState? observed,
             bool enabled)
         {
@@ -237,7 +249,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
             AetheriaRuntimeObservedDaemonState? observed,
             bool enabled)
         {
@@ -246,7 +258,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             bool enabled)
@@ -257,7 +269,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(
             AetheriaRuntimeObservedDaemonState? observed,
             int equipmentIndex,
             bool enabled)
@@ -268,12 +280,12 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             int equipmentIndex,
@@ -286,7 +298,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             int equipmentIndex,
@@ -301,7 +313,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             double shutdownPerformance)
@@ -312,35 +324,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetActionBarBinding(
-            AetheriaRuntimeObservedDaemonState? observed,
-            string controlPath,
-            string kind,
-            string itemKey,
-            int equipmentIndex,
-            int behaviorIndex,
-            int weaponGroup)
-        {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding, observed);
-            command.TextValue = controlPath ?? "";
-            command.EquipmentIndex = equipmentIndex;
-            command.BehaviorIndex = behaviorIndex;
-            command.WeaponGroup = weaponGroup;
-            command.ActionBarBinding.Kind = kind ?? "";
-            command.ActionBarBinding.ItemKey = itemKey ?? "";
-            return Send(command);
-        }
-
-        public AetheriaRuntimeDaemonCommandEnvelope ClearActionBarBinding(
-            AetheriaRuntimeObservedDaemonState? observed,
-            string controlPath)
-        {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding, observed);
-            command.TextValue = controlPath ?? "";
-            return Send(command);
-        }
-
-        public AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
+        internal AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             int x,
@@ -355,7 +339,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetEntityName(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetEntityName(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             string name)
@@ -366,31 +350,31 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope Dock(AetheriaRuntimeObservedDaemonState? observed, string targetEntityKey)
+        internal AetheriaRuntimeDaemonCommandEnvelope Dock(AetheriaRuntimeObservedDaemonState? observed, string targetEntityKey)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.Dock, observed);
             command.TargetEntityKey = targetEntityKey ?? "";
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope DockNearest(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope DockNearest(AetheriaRuntimeObservedDaemonState? observed)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed);
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeObservedDaemonState? observed)
         {
             return Send(Create(AetheriaRuntimeDaemonCommandKinds.Undock, observed));
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope Interact(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope Interact(AetheriaRuntimeObservedDaemonState? observed)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.Interact, observed);
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(
+        internal AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey)
         {
@@ -399,7 +383,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
+        internal AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
             AetheriaRuntimeObservedDaemonState? observed,
             int targetZoneIndex,
             double positionX,
@@ -412,22 +396,16 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TowToStation(
+        internal AetheriaRuntimeDaemonCommandEnvelope TowToStation(
             AetheriaRuntimeObservedDaemonState? observed,
-            string stationEntityKey,
-            int targetZoneIndex,
-            double positionX,
-            double positionY)
+            string stationEntityKey)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.TowToStation, observed);
             command.TargetEntityKey = stationEntityKey ?? "";
-            command.TargetZoneIndex = targetZoneIndex;
-            command.PositionX = positionX;
-            command.PositionY = positionY;
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
+        internal AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
             AetheriaRuntimeObservedDaemonState? observed,
             string originEntityKey,
             int originCargoIndex,
@@ -460,7 +438,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
+        internal AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
             AetheriaRuntimeObservedDaemonState? observed,
             string purchaseKind,
             string itemKey,
@@ -497,7 +475,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
+        internal AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
             AetheriaRuntimeObservedDaemonState? observed,
             string targetEntityKey,
             string itemKey,
@@ -521,7 +499,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
+        internal AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
             AetheriaRuntimeObservedDaemonState? observed,
             string dockedEntityKey,
             string templateName,
@@ -537,7 +515,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope EquipItem(
+        internal AetheriaRuntimeDaemonCommandEnvelope EquipItem(
             AetheriaRuntimeObservedDaemonState? observed,
             string sourceKind,
             string originEntityKey,
@@ -567,7 +545,7 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        public AetheriaRuntimeDaemonCommandEnvelope StoreItem(
+        internal AetheriaRuntimeDaemonCommandEnvelope StoreItem(
             AetheriaRuntimeObservedDaemonState? observed,
             string originEntityKey,
             int sourceEquipmentIndex,

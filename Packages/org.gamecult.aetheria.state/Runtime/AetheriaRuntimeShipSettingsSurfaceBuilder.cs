@@ -169,7 +169,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeShipSettingsSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            switch (request.Command ?? "")
+            switch (request.Operation?.OperationId ?? "")
             {
                 case AetheriaRuntimeShipSettingsSurfaceBuilder.DecrementShutdownThreshold:
                     command = new AetheriaRuntimeShipSettingsCommand(

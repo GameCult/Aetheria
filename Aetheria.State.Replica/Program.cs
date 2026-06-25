@@ -1,5 +1,4 @@
 using Aetheria.State;
-using GameCult.Aetheria.State.Unity;
 
 return await ProgramMainAsync(args).ConfigureAwait(false);
 
@@ -16,6 +15,7 @@ static async Task<int> ProgramMainAsync(string[] args)
     var endpoint = RequireOption(options, "endpoint");
     var runtimeId = ReadOption(options, "runtime-id", "aetheria-verse-replica");
     var replicaPath = ResolveReplicaPath(options);
+    SeedBaselineReplica(options, replicaPath);
 
     switch (mode)
     {
@@ -59,9 +59,40 @@ static string ResolveReplicaPath(IReadOnlyDictionary<string, string> options)
 
     var gameDataRoot = RequireOption(options, "game-data-root");
     var verseId = RequireOption(options, "verse-id");
-    return AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(
-        new DirectoryInfo(Path.GetFullPath(gameDataRoot)),
-        verseId);
+    return Path.Combine(
+        Path.GetFullPath(gameDataRoot),
+        "Verses",
+        $"{SanitizeVerseId(verseId)}.cc");
+}
+
+static void SeedBaselineReplica(IReadOnlyDictionary<string, string> options, string replicaPath)
+{
+    var baselinePath = ReadOption(options, "baseline-state", "");
+    if (string.IsNullOrWhiteSpace(baselinePath) ||
+        File.Exists(replicaPath) ||
+        !File.Exists(baselinePath))
+    {
+        return;
+    }
+
+    Directory.CreateDirectory(Path.GetDirectoryName(replicaPath) ?? ".");
+    File.Copy(baselinePath, replicaPath, overwrite: false);
+}
+
+static string SanitizeVerseId(string verseId)
+{
+    var safeVerseId = string.IsNullOrWhiteSpace(verseId)
+        ? "unknown-verse"
+        : new string((verseId ?? "")
+            .Select(ch => char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.'
+                ? ch
+                : '-')
+            .ToArray())
+            .Trim('-');
+
+    return string.IsNullOrWhiteSpace(safeVerseId)
+        ? "unknown-verse"
+        : safeVerseId;
 }
 
 static Dictionary<string, string> ParseOptions(IEnumerable<string> args)
@@ -114,7 +145,7 @@ static double ReadDoubleOption(IReadOnlyDictionary<string, string> options, stri
 static void PrintUsage()
 {
     Console.WriteLine("Usage:");
-    Console.WriteLine("  sync --endpoint cultnet://host:3075 --replica path-to-replica.cc");
-    Console.WriteLine("  sync --endpoint cultnet://host:3075 --game-data-root GameData --verse-id verse.id");
-    Console.WriteLine("  follow --endpoint cultnet://host:3075 --replica path-to-replica.cc [--poll-seconds 1]");
+    Console.WriteLine("  sync --endpoint cultnet://host:3075 --replica path-to-replica.cc [--runtime-id aetheria-verse-replica]");
+    Console.WriteLine("  sync --endpoint cultnet://host:3075 --game-data-root GameData --verse-id verse.id [--runtime-id aetheria-verse-replica]");
+    Console.WriteLine("  follow --endpoint cultnet://host:3075 --replica path-to-replica.cc [--poll-seconds 1] [--runtime-id aetheria-verse-replica]");
 }

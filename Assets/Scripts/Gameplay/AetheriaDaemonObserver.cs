@@ -18,10 +18,8 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private readonly AetheriaRuntimeDaemonObservationCursor _cursor = new AetheriaRuntimeDaemonObservationCursor();
     private float _nextPollTime;
-    private AetheriaRuntimeDaemonOperationClient _operationClient;
-    private AetheriaRuntimeDaemonOperationsClient _operations;
-    private AetheriaRuntimeVerseClient _verseClient;
-    private string _verseClientStatePath;
+    private AetheriaClient _client;
+    private string _clientStatePath;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
 
@@ -36,33 +34,10 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public AetheriaDaemonSoaMemoryMap LastSoaMemoryMap => _soaMemoryMap;
     public AetheriaDaemonRenderNativeView LastRenderNativeView => _renderNativeView;
     public bool HasRenderNativeView => _renderNativeView.IsCreated;
-    public AetheriaRuntimeDaemonOperationsClient Operations =>
-        _operations ??= new AetheriaRuntimeDaemonOperationsClient(SendOperation);
+    public AetheriaClient Client => ResolveClient();
+    public AetheriaControl Control => Client.Control;
 
     public event Action<AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonObservationResult> ObservedDaemonStateChanged;
-
-    internal AetheriaRuntimeDaemonCommandEnvelope SendOperation(
-        Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonCommandEnvelope> submit)
-    {
-        if (submit == null)
-        {
-            throw new ArgumentNullException(nameof(submit));
-        }
-
-        _operationClient ??= new AetheriaRuntimeDaemonOperationClient(
-            ActionGameManager.RuntimeStateFilePath,
-            clientId,
-            LastObservedState?.Frame.SessionId ?? "local");
-
-        var envelope = submit(_operationClient, LastObservedState);
-
-        if (logChanges)
-        {
-            Debug.Log($"Submitted Aetheria daemon operation {envelope.Kind}: {envelope.CommandId}");
-        }
-
-        return envelope;
-    }
 
     private void Update()
     {
@@ -117,38 +92,42 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void OnDisable()
     {
-        DisposeVerseClient();
+        DisposeClient();
         DisposeSoaMemoryMap();
     }
 
     private AetheriaRuntimeObservedDaemonState ReadObservedDaemonState()
     {
-        var client = ResolveVerseClient();
-        return client.GetObservedDaemonStateAsync().GetAwaiter().GetResult();
+        return ResolveClient().ObserveAsync().GetAwaiter().GetResult();
     }
 
-    private AetheriaRuntimeVerseClient ResolveVerseClient()
+    private AetheriaClient ResolveClient()
     {
-        var statePath = ActionGameManager.RuntimeStateFilePath;
-        if (_verseClient != null && string.Equals(_verseClientStatePath, statePath, StringComparison.Ordinal))
+        var statePath = AetheriaUnityRuntimePaths.RuntimeStateFilePath;
+        if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
         {
-            return _verseClient;
+            return _client;
         }
 
-        DisposeVerseClient();
-        _verseClient = AetheriaRuntimeVerseClient
-            .OpenAsync(statePath, clientId, startServer: false, pullOnOpen: true)
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenAsync(
+                statePath,
+                clientId,
+                LastObservedState?.Frame.SessionId ?? "local",
+                startServer: false,
+                pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        _verseClientStatePath = statePath;
-        return _verseClient;
+        _clientStatePath = statePath;
+        return _client;
     }
 
-    private void DisposeVerseClient()
+    private void DisposeClient()
     {
-        _verseClient?.Dispose();
-        _verseClient = null;
-        _verseClientStatePath = null;
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = null;
     }
 
     private void RemapSoaView(AetheriaRuntimeObservedDaemonState observed)

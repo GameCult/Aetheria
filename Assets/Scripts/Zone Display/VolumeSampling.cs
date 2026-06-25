@@ -52,7 +52,7 @@ public class VolumeSampling : MonoBehaviour
         if(GridCamera != null)
             Shader.SetGlobalVector("_GridTransform", new Vector4(_gridTransform.position.x,_gridTransform.position.z,GridCamera.orthographicSize*2));
 
-        var environment = ActionGameManager.Instance?.CurrentEnvironment ?? Settings.DefaultEnvironment;
+        var environment = Settings.DefaultEnvironment;
 
         if (GridMesh != null)
         {

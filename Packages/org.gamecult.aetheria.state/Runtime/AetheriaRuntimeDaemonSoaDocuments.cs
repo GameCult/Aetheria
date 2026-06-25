@@ -26,13 +26,9 @@ namespace GameCult.Aetheria.State.Verse
         public const string EntityIndex = "entity.index";
         public const string EntityKey = "entity.key";
         public const string ZoneIndex = "entity.zone_index";
-        public const string PositionX = "transform.position.x";
-        public const string PositionY = "transform.position.y";
-        public const string PositionZ = "transform.position.z";
+        public const string Position = "transform.position";
         public const string RotationRadians = "transform.rotation.radians";
-        public const string VelocityX = "motion.velocity.x";
-        public const string VelocityY = "motion.velocity.y";
-        public const string VelocityZ = "motion.velocity.z";
+        public const string Velocity = "motion.velocity";
         public const string PhysicsBodyRadius = "physics.body.radius";
         public const string PhysicsBodyMass = "physics.body.mass";
         public const string PhysicsBodyInverseMass = "physics.body.inverse_mass";

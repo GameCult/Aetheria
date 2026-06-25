@@ -16,6 +16,7 @@ public class ConstantLaser : MonoBehaviour
     public float Spread { get; set; }
     public DamageType DamageType { get; set; }
     public Entity SourceEntity { get; set; }
+    public ZoneRenderer ZoneRenderer { get; set; }
     public float Range { get; set; }
 
     private float _intensity;
@@ -69,7 +70,7 @@ public class ConstantLaser : MonoBehaviour
         LineRenderer.SetPosition(0, transform.position);
         var hitFound = false;
         if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
-                ActionGameManager.Instance?.ZoneRenderer,
+                ZoneRenderer,
                 SourceEntity,
                 transform.position,
                 transform.forward,

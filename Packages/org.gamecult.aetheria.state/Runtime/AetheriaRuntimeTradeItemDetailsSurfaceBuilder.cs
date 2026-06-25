@@ -534,7 +534,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            if (string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
+            if (string.Equals(request.Operation?.OperationId, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeTradeItemDetailsCommand(AetheriaRuntimeTradeItemDetailsCommandKind.Close);
                 return true;

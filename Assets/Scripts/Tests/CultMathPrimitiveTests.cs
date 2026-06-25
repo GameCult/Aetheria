@@ -58,4 +58,17 @@ public sealed class CultMathPrimitiveTests
         Assert.AreEqual(float3(1, 0, 0), rgb);
         Assert.AreEqual(new Unity.Mathematics.float3(1, 0, 0), AetheriaMath.ToUnity(rgb));
     }
+
+    [Test]
+    public void RectNormalizesBoundsAndContainsPoints()
+    {
+        var viewport = rect(10, 20, -5, -2);
+
+        Assert.AreEqual(float2(-5, -2), viewport.min);
+        Assert.AreEqual(float2(10, 20), viewport.max);
+        Assert.AreEqual(float2(15, 22), viewport.size);
+        Assert.AreEqual(float2(2.5f, 9), viewport.center);
+        Assert.IsTrue(viewport.Contains(float2(0, 0)));
+        Assert.IsFalse(viewport.Contains(float2(11, 0)));
+    }
 }

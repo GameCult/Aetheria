@@ -9,13 +9,9 @@ public struct AetheriaDaemonRenderNativeView
     public long Generation;
     public int Count;
     public NativeArray<int> EntityIndex;
-    public NativeArray<float> PositionX;
-    public NativeArray<float> PositionY;
-    public NativeArray<float> PositionZ;
+    public NativeArray<float3> Position;
     public NativeArray<float> RotationRadians;
-    public NativeArray<float> VelocityX;
-    public NativeArray<float> VelocityY;
-    public NativeArray<float> VelocityZ;
+    public NativeArray<float3> Velocity;
     public NativeArray<float> PhysicsBodyRadius;
     public NativeArray<float> PhysicsBodyMass;
     public NativeArray<float> PhysicsBodyInverseMass;
@@ -26,13 +22,11 @@ public struct AetheriaDaemonRenderNativeView
 
     public bool IsCreated =>
         Count > 0 &&
-        PositionX.IsCreated &&
-        PositionY.IsCreated &&
-        PositionZ.IsCreated;
+        Position.IsCreated;
 
     public bool HasRotation => RotationRadians.IsCreated;
     public bool HasEntityIndex => EntityIndex.IsCreated;
-    public bool HasVelocity => VelocityX.IsCreated && VelocityY.IsCreated && VelocityZ.IsCreated;
+    public bool HasVelocity => Velocity.IsCreated;
     public bool HasPhysicsRadius => PhysicsBodyRadius.IsCreated;
     public bool HasPhysicsMass => PhysicsBodyMass.IsCreated;
     public bool HasPhysicsInverseMass => PhysicsBodyInverseMass.IsCreated;
@@ -60,9 +54,7 @@ public struct AetheriaDaemonRenderNativeView
 
         var job = new AetheriaDaemonRenderMatrixJob
         {
-            PositionX = PositionX,
-            PositionY = PositionY,
-            PositionZ = PositionZ,
+            Position = Position,
             RotationRadians = RotationRadians,
             PhysicsBodyRadius = PhysicsBodyRadius,
             RenderScale = RenderScale,
@@ -89,33 +81,18 @@ public struct AetheriaDaemonRenderNativeView
 
         if (!map.TryCreateFirstNativeArrayOfKind(
                 index,
-                AetheriaRuntimeDaemonSoaColumnKinds.PositionX,
-                out view.PositionX) ||
-            !map.TryCreateFirstNativeArrayOfKind(
-                index,
-                AetheriaRuntimeDaemonSoaColumnKinds.PositionY,
-                out view.PositionY) ||
-            !map.TryCreateFirstNativeArrayOfKind(
-                index,
-                AetheriaRuntimeDaemonSoaColumnKinds.PositionZ,
-                out view.PositionZ))
+                AetheriaRuntimeDaemonSoaColumnKinds.Position,
+                out view.Position))
         {
             view = default;
             return false;
         }
 
-        view.Count = view.PositionX.Length;
-        if (view.PositionY.Length != view.Count || view.PositionZ.Length != view.Count)
-        {
-            view = default;
-            return false;
-        }
+        view.Count = view.Position.Length;
 
         TryAssignOptionalIntColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, view.Count, out view.EntityIndex);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians, view.Count, out view.RotationRadians);
-        TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.VelocityX, view.Count, out view.VelocityX);
-        TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.VelocityY, view.Count, out view.VelocityY);
-        TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ, view.Count, out view.VelocityZ);
+        TryAssignOptionalFloat3Column(index, map, AetheriaRuntimeDaemonSoaColumnKinds.Velocity, view.Count, out view.Velocity);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyRadius, view.Count, out view.PhysicsBodyRadius);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyMass, view.Count, out view.PhysicsBodyMass);
         TryAssignOptionalColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyInverseMass, view.Count, out view.PhysicsBodyInverseMass);
@@ -124,17 +101,37 @@ public struct AetheriaDaemonRenderNativeView
         TryAssignOptionalIntColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.RenderLod, view.Count, out view.RenderLod);
         TryAssignOptionalUIntColumn(index, map, AetheriaRuntimeDaemonSoaColumnKinds.RenderGroupId, view.Count, out view.RenderGroupId);
 
-        if ((view.VelocityX.IsCreated || view.VelocityY.IsCreated || view.VelocityZ.IsCreated) &&
-            !view.HasVelocity)
-        {
-            view.VelocityX = default;
-            view.VelocityY = default;
-            view.VelocityZ = default;
-        }
-
         view.FrameId = index.View.FrameId;
         view.Generation = index.View.Generation;
         return true;
+    }
+
+    private static bool TryAssignOptionalFloat3Column(
+        AetheriaRuntimeDaemonSoaViewIndex index,
+        AetheriaDaemonSoaMemoryMap map,
+        string kind,
+        int expectedCount,
+        out NativeArray<float3> array)
+    {
+        array = default;
+        if (!index.TryGetFirstColumnOfKind(kind, out _))
+        {
+            return false;
+        }
+
+        if (!map.TryCreateFirstNativeArrayOfKind(index, kind, out array))
+        {
+            array = default;
+            return false;
+        }
+
+        if (array.Length == expectedCount)
+        {
+            return true;
+        }
+
+        array = default;
+        return false;
     }
 
     private static bool TryAssignOptionalColumn(

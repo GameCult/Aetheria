@@ -7,6 +7,7 @@ public class HitscanManager : InstantWeaponEffectManager
     {
         var p = Prototype.Instantiate<HitscanEffect>();
         p.SourceEntity = source.Entity;
+        p.ZoneRenderer = source.ZoneRenderer;
         var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
         var barrel = source.GetBarrel(hp);
         var t = p.transform;

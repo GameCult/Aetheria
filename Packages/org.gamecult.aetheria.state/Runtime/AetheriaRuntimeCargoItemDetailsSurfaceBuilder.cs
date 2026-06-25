@@ -803,7 +803,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            if (string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
+            if (string.Equals(request.Operation?.OperationId, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeCargoItemDetailsCommand(AetheriaRuntimeCargoItemDetailsCommandKind.Close);
                 return true;

@@ -5,6 +5,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using GameCult.Aetheria.State.Verse;
 using TMPro;
 using UnityEngine;
 using Unity.Mathematics;
@@ -14,7 +17,6 @@ using int2 = Unity.Mathematics.int2;
 
 public class MapRenderer : MonoBehaviour
 {
-    public ActionGameManager GameManager;
     public ZoneRenderer ZoneRenderer;
     public TextMeshProUGUI Title;
     public Camera MapOverlayCamera;
@@ -36,6 +38,11 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _influenceTexture;
     private int2 _size;
     private bool _init;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimeObjectsViewportDocument _objectsViewport;
+    private AetheriaRuntimeGravityViewportDocument _gravityViewport;
+    private float _nextViewportRefreshTime;
     
     void Start()
     {
@@ -49,11 +56,10 @@ public class MapRenderer : MonoBehaviour
         GravityCamera.gameObject.SetActive(true);
         TintCamera.gameObject.SetActive(true);
         InfluenceCamera.gameObject.SetActive(true);
-        GameManager.TryGetObservedRunZone(out var currentZone);
-        Title.text = $"Zone: {currentZone?.Name ?? "Unknown"}";
+        RefreshViewportDocuments(force: true);
         
         // If hiding minimap asteroids, turn them back on for the map screen
-        if (!ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
+        if (!ResolveShowAsteroidsInMinimap())
             ZoneRenderer.ShowAsteroidUI = true;
     }
 
@@ -69,8 +75,13 @@ public class MapRenderer : MonoBehaviour
         InfluenceCamera.gameObject.SetActive(false);
         
         // If hiding minimap asteroids, turn them back off when leaving the map screen
-        if (!ActionGameManager.RuntimePlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
+        if (!ResolveShowAsteroidsInMinimap())
             ZoneRenderer.ShowAsteroidUI = false;
+    }
+
+    private void OnDestroy()
+    {
+        DisposeClient();
     }
 
     void ReleaseTextures()
@@ -130,5 +141,96 @@ public class MapRenderer : MonoBehaviour
         InfluenceCamera.orthographicSize = _size.y * Scale * .5f;
         
         ZoneRenderer.SetIconSize(IconSize * Scale);
+        RefreshViewportDocuments(force: false);
+    }
+
+    private void RefreshViewportDocuments(bool force)
+    {
+        if (!force && Time.unscaledTime < _nextViewportRefreshTime)
+            return;
+
+        _nextViewportRefreshTime = Time.unscaledTime + .5f;
+        try
+        {
+            var client = ResolveClient();
+            var viewport = ResolveViewportBounds();
+            _objectsViewport = client
+                .ObjectsViewportAsync(viewport)
+                .GetAwaiter()
+                .GetResult();
+            _gravityViewport = client
+                .GravityViewportAsync(viewport)
+                .GetAwaiter()
+                .GetResult();
+
+            var zoneName = string.IsNullOrWhiteSpace(_objectsViewport?.ZoneName)
+                ? "Unknown"
+                : _objectsViewport.ZoneName;
+            Title.text = $"Zone: {zoneName}";
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria map viewport from local Verse state: {ex.Message}");
+            Title.text = "Zone: Unknown";
+        }
+    }
+
+    private AetheriaRuntimeRtsViewportBounds ResolveViewportBounds()
+    {
+        var screenHeight = _size.y <= 0 ? Math.Max(1, Screen.height) : _size.y;
+        var screenWidth = _size.x <= 0 ? Math.Max(1, Screen.width) : _size.x;
+        var halfHeight = screenHeight * Scale * .5f;
+        var halfWidth = screenWidth * Scale * .5f;
+        return new AetheriaRuntimeRtsViewportBounds
+        {
+            MinX = Position.x - halfWidth,
+            MinY = Position.y - halfHeight,
+            MaxX = Position.x + halfWidth,
+            MaxY = Position.y + halfHeight
+        };
+    }
+
+    private bool ResolveShowAsteroidsInMinimap()
+    {
+        try
+        {
+            return ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult()
+                ?.ShowAsteroidsInMinimap ?? false;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria map graphics settings from local Verse state: {ex.Message}");
+            return false;
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-map-renderer",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
     }
 }

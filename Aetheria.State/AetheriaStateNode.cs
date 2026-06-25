@@ -31,7 +31,8 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public static async Task<AetheriaStateNode> OpenAsync(
         string statePath,
         string runtimeId = "aetheria-local",
-        bool startServer = false)
+        bool startServer = false,
+        bool enableDurableShardLogs = true)
     {
         if (string.IsNullOrWhiteSpace(statePath))
         {
@@ -46,7 +47,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             new CultMeshNodeOptions
             {
                 StartServer = startServer,
-                EnableDurableShardLogs = true,
+                EnableDurableShardLogs = enableDurableShardLogs,
                 CacheOptions = new CultCacheOpenOptions
                 {
                     Registry = cacheRegistry,
@@ -163,7 +164,20 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return new AetheriaCatalogSnapshot(
             Cache.GetAll<AetheriaItemDefinition>(),
             Cache.GetAll<AetheriaCorporation>(),
-            Cache.GetAll<AetheriaNameFile>());
+            Cache.GetAll<AetheriaNameFile>(),
+            Cache.GetAll<AetheriaTradeValuePolicy>().FirstOrDefault());
+    }
+
+    public Task<CultRecordHandle<AetheriaTradeValuePolicy>> PutTradeValuePolicyAsync(
+        AetheriaTradeValuePolicy policy)
+    {
+        return Database.PutAsync(new CultRecordKey(AetheriaTradeValuePolicy.RecordKey), policy);
+    }
+
+    public Task<AetheriaTradeValuePolicy?> GetTradeValuePolicyAsync()
+    {
+        return Database.GetAsync<AetheriaTradeValuePolicy>(
+            new CultRecordKey(AetheriaTradeValuePolicy.RecordKey));
     }
 
     public Task<CultRecordHandle<EveSurfaceState>> PutCatalogSurfaceAsync(EveSurfaceState surface)
@@ -266,6 +280,49 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             .ToArray();
     }
 
+    public Task<CultRecordHandle<AetheriaRuntimeCommittedCommandFactDocument>> PutCommittedCommandFactAsync(
+        AetheriaRuntimeCommittedCommandFactDocument fact)
+    {
+        if (fact == null) throw new ArgumentNullException(nameof(fact));
+        fact.Schema = AetheriaRuntimeDaemonSchemas.CommittedCommandFact;
+        if (string.IsNullOrWhiteSpace(fact.FactId))
+            fact.FactId = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(fact.CommittedAtUtc))
+            fact.CommittedAtUtc = DateTime.UtcNow.ToString("O");
+
+        return Database.PutAsync(
+            new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(fact.FactId)),
+            fact);
+    }
+
+    public IReadOnlyList<AetheriaRuntimeCommittedCommandFactDocument> ReadCommittedCommandFacts()
+    {
+        return Cache
+            .GetAll<AetheriaRuntimeCommittedCommandFactDocument>()
+            .OrderBy(fact => fact.CommittedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeVerseAuthorityPolicyDocument>> PutVerseAuthorityPolicyAsync(
+        AetheriaRuntimeVerseAuthorityPolicyDocument policy)
+    {
+        return Database.PutAsync(
+            new CultRecordKey(AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey),
+            policy);
+    }
+
+    public Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> GetVerseAuthorityPolicyAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+            new CultRecordKey(AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey));
+    }
+
+    public IReadOnlyList<AetheriaRuntimeAuthorityLeaseDocument> ReadAuthorityLeases()
+    {
+        return Cache.GetAll<AetheriaRuntimeAuthorityLeaseDocument>().ToArray();
+    }
+
     private static CultRecordKey DaemonCommandKey(string commandId)
     {
         return new CultRecordKey($"daemon:commands:{StableToken(commandId)}:gamecult.aetheria.daemon_command.v1");
@@ -322,6 +379,30 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     {
         return Database.GetAsync<AetheriaRuntimeDaemonSoaViewDocument>(
             new CultRecordKey("daemon:aetheria.soa_view.latest.v1"));
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeStarbridgeScenarioDocument>> PutStarbridgeScenarioAsync(
+        AetheriaRuntimeStarbridgeScenarioDocument scenario)
+    {
+        return Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest, scenario);
+    }
+
+    public Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeStarbridgeScenarioDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+    }
+
+    public Task<CultRecordHandle<AetheriaRuntimeStarbridgeSessionDocument>> PutStarbridgeSessionAsync(
+        AetheriaRuntimeStarbridgeSessionDocument session)
+    {
+        return Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest, session);
+    }
+
+    public Task<AetheriaRuntimeStarbridgeSessionDocument?> GetStarbridgeSessionAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeStarbridgeSessionDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
     }
 
     public Task<CultRecordHandle<EveSurfaceState>> PutDaemonGameSurfaceAsync(EveSurfaceState surface)

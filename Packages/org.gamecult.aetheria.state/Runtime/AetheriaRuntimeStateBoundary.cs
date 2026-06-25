@@ -12,13 +12,17 @@ namespace GameCult.Aetheria.State.Verse
         public const string RuntimeDaemonSoaViewFileSuffix = ".daemon.soa.cc";
         public const string RuntimeDaemonProviderFileSuffix = ".daemon.provider.cc";
         public const string RuntimeDaemonHealthFileSuffix = ".daemon.health.cc";
+        public const string RuntimeVerseAuthorityPolicyFileSuffix = ".authority.policy.cc";
         public const string RuntimeDaemonCommandBoundaryFileSuffix = ".daemon.commands.cc";
+        public const string RuntimeDaemonStarbridgeSessionSummaryFileSuffix = ".daemon.starbridge.session.cc";
         public const string RuntimeDaemonGameSurfaceFileSuffix = ".daemon.game.eve.cc";
         public const string RuntimeDaemonGameTuiSurfaceFileSuffix = ".daemon.game.tui.cc";
         public const string RuntimeDaemonEditorSurfaceFileSuffix = ".daemon.editor.eve.cc";
         public const string RuntimeDaemonEditorTuiSurfaceFileSuffix = ".daemon.editor.tui.cc";
         public const string RuntimeStatePathOverrideEnvironmentVariable = "AETHERIA_STATE_PATH";
         public const string LegacyRuntimeStatePathOverrideEnvironmentVariable = "AETHERIA_EVE_STATE_PATH";
+        public const string RuntimeIdOverrideEnvironmentVariable = "AETHERIA_RUNTIME_ID";
+        public const string UnityRuntimeIdOverrideEnvironmentVariable = "AETHERIA_UNITY_RUNTIME_ID";
 
         public static string GetStateFilePath(DirectoryInfo gameDataDirectory)
         {
@@ -50,9 +54,19 @@ namespace GameCult.Aetheria.State.Verse
             return stateFilePath + RuntimeDaemonHealthFileSuffix;
         }
 
+        public static string GetVerseAuthorityPolicyPath(string stateFilePath)
+        {
+            return stateFilePath + RuntimeVerseAuthorityPolicyFileSuffix;
+        }
+
         public static string GetDaemonCommandBoundaryPath(string stateFilePath)
         {
             return stateFilePath + RuntimeDaemonCommandBoundaryFileSuffix;
+        }
+
+        public static string GetDaemonStarbridgeSessionSummaryPath(string stateFilePath)
+        {
+            return stateFilePath + RuntimeDaemonStarbridgeSessionSummaryFileSuffix;
         }
 
         public static string GetDaemonGameSurfacePath(string stateFilePath)
@@ -99,6 +113,15 @@ namespace GameCult.Aetheria.State.Verse
                 return configured;
 
             return System.Environment.GetEnvironmentVariable(LegacyRuntimeStatePathOverrideEnvironmentVariable) ?? "";
+        }
+
+        public static string ResolveRuntimeIdOverride()
+        {
+            var configured = System.Environment.GetEnvironmentVariable(RuntimeIdOverrideEnvironmentVariable);
+            if (!string.IsNullOrWhiteSpace(configured))
+                return configured;
+
+            return System.Environment.GetEnvironmentVariable(UnityRuntimeIdOverrideEnvironmentVariable) ?? "";
         }
     }
 }

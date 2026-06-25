@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using MessagePack;
 
 #nullable enable
@@ -16,12 +17,14 @@ namespace GameCult.Aetheria.State.Verse
         private const string CorporationSchema = "aetheria.corporation";
         private const string NameFileSchema = "aetheria.name_file";
         private const string EveSurfaceSchema = "gamecult.eve.surface";
+        private const string TradeValuePolicySchema = "aetheria.trade_value_policy";
         private const string PlayerSettingsSchema = "aetheria.player_settings";
         private const string VerseHostSettingsSchema = "aetheria.verse_host_settings";
         private const string LoadoutTemplateSchema = "aetheria.loadout_template";
         private const string RunStateSchema = "aetheria.run_state";
         private const string ZoneStateSchema = "aetheria.zone_state";
         private const string EntitySnapshotSchema = "aetheria.entity_snapshot";
+        private const string TradeValuePolicyKey = "global:aetheria.trade_value_policy.v1";
         private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
         private const string VerseHostSettingsKey = "global:aetheria.verse_host_settings.v1";
 
@@ -34,6 +37,7 @@ namespace GameCult.Aetheria.State.Verse
             var items = new List<AetheriaRuntimeCatalogItem>();
             var corporations = new List<AetheriaRuntimeCorporation>();
             var nameFiles = new List<AetheriaRuntimeNameFile>();
+            var tradeValueSettings = AetheriaRuntimeTradeValueSettings.Default;
 
             foreach (var record in ReadRecords(stateFilePath))
             {
@@ -46,12 +50,15 @@ namespace GameCult.Aetheria.State.Verse
                     corporations.Add(ReadCorporation(record.Payload));
                 else if (schemaName == NameFileSchema)
                     nameFiles.Add(ReadNameFile(record.Payload));
+                else if (record.Key == TradeValuePolicyKey && schemaName == TradeValuePolicySchema)
+                    tradeValueSettings = ReadTradeValuePolicyPayload(record.Payload);
             }
 
             return new AetheriaRuntimeCatalogSnapshot(
                 items.ToArray(),
                 corporations.ToArray(),
-                nameFiles.ToArray());
+                nameFiles.ToArray(),
+                tradeValueSettings);
         }
 
         public static IReadOnlyList<EveSurfaceDocument> ReadEveSurfaces(string stateFilePath)
@@ -71,6 +78,8 @@ namespace GameCult.Aetheria.State.Verse
 
             surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
                 ProjectStatRecipeSurfaceDocument(stateFilePath)));
+            surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+                ProjectTradeValuePolicySurfaceDocument(stateFilePath)));
             return surfaces;
         }
 
@@ -78,6 +87,19 @@ namespace GameCult.Aetheria.State.Verse
         {
             var state = ProjectStatRecipeSurfaceState(stateFilePath);
             return AetheriaRuntimeStatRecipeSurfaceBuilder.Build(state);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(string stateFilePath)
+        {
+            var state = ProjectTradeValuePolicySurfaceState(stateFilePath);
+            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.Build(state);
+        }
+
+        private static AetheriaRuntimeTradeValuePolicySurfaceState ProjectTradeValuePolicySurfaceState(string stateFilePath)
+        {
+            return new AetheriaRuntimeTradeValuePolicySurfaceState(
+                ReadTradeValuePolicy(stateFilePath),
+                DateTime.UtcNow.ToString("O"));
         }
 
         private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(string stateFilePath)
@@ -272,6 +294,26 @@ namespace GameCult.Aetheria.State.Verse
                     continue;
 
                 settings = ReadPlayerSettingsPayload(record.Payload);
+            }
+
+            return settings;
+        }
+
+        public static AetheriaRuntimeTradeValueSettings ReadTradeValuePolicy(string stateFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
+
+            var catalog = ReadSchemaCatalog(stateFilePath);
+            var settings = AetheriaRuntimeTradeValueSettings.Default;
+            foreach (var record in ReadRecords(stateFilePath))
+            {
+                if (record.Key != TradeValuePolicyKey ||
+                    !catalog.TryGetValue(record.SchemaId, out var schemaName) ||
+                    schemaName != TradeValuePolicySchema)
+                    continue;
+
+                settings = ReadTradeValuePolicyPayload(record.Payload);
             }
 
             return settings;
@@ -1046,10 +1088,22 @@ namespace GameCult.Aetheria.State.Verse
                 storyFileHashes,
                 gameplay.TemperatureUnit,
                 gameplay.SignificantDigits,
+                gameplay.DefaultShutdownPerformance,
                 graphics.NebulaQuality,
                 graphics.ShowAsteroidsInMinimap,
                 input.BindingOverrides,
                 input.ActionBarInputs);
+        }
+
+        private static AetheriaRuntimeTradeValueSettings ReadTradeValuePolicyPayload(byte[] payload)
+        {
+            var reader = new MessagePackReader(payload);
+            var fields = reader.ReadArrayHeader();
+            SkipFields(ref reader, fields, 0, 2);
+            var qualityPriceModifier = ReadFieldTradeValueLerp(ref reader, fields, 2);
+            var tiers = ReadFieldTradeValueTiers(ref reader, fields, 3);
+            SkipRemaining(ref reader, fields, 4);
+            return new AetheriaRuntimeTradeValueSettings(qualityPriceModifier, tiers);
         }
 
         private static AetheriaRuntimeVerseHostSettingsSnapshot ReadVerseHostSettingsPayload(byte[] payload)
@@ -1109,7 +1163,7 @@ namespace GameCult.Aetheria.State.Verse
             var legacyCurrentZoneEntityIndex = ReadFieldInt32(ref reader, fields, 5, -1);
             var discoveredZoneIndices = ReadFieldInt32Array(ref reader, fields, 6);
             var zoneKeys = ReadFieldStringArray(ref reader, fields, 7);
-            var actionBarBindings = ReadFieldActionBarBindings(ref reader, fields, 8);
+            SkipField(ref reader, fields, 8);
             var factionRelationships = ReadFieldFactionRelationships(ref reader, fields, 9);
             var updatedAtUtc = ReadFieldString(ref reader, fields, 10);
             var generationSeed = ReadFieldUInt32(ref reader, fields, 11);
@@ -1129,7 +1183,6 @@ namespace GameCult.Aetheria.State.Verse
                 currentEntityKey,
                 discoveredZoneIndices,
                 zoneKeys,
-                actionBarBindings,
                 factionRelationships,
                 updatedAtUtc,
                 generationSeed);
@@ -1315,33 +1368,6 @@ namespace GameCult.Aetheria.State.Verse
             var z = ReadFieldDouble(ref reader, vectorFields, 2);
             SkipRemaining(ref reader, vectorFields, 3);
             return new Vector3Value(x, y, z);
-        }
-
-        private static IReadOnlyList<AetheriaRuntimeActionBarBindingSnapshot> ReadFieldActionBarBindings(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields) return Array.Empty<AetheriaRuntimeActionBarBindingSnapshot>();
-            var count = reader.ReadArrayHeader();
-            var bindings = new AetheriaRuntimeActionBarBindingSnapshot[count];
-            for (var binding = 0; binding < count; binding++)
-            {
-                var bindingFields = reader.ReadArrayHeader();
-                var controlPath = ReadFieldString(ref reader, bindingFields, 0);
-                var kind = ReadFieldString(ref reader, bindingFields, 1);
-                var targetKey = ReadFieldString(ref reader, bindingFields, 2);
-                var equipmentIndex = ReadFieldInt32(ref reader, bindingFields, 3);
-                var behaviorIndex = ReadFieldInt32(ref reader, bindingFields, 4);
-                var weaponGroup = ReadFieldInt32(ref reader, bindingFields, 5);
-                SkipRemaining(ref reader, bindingFields, 6);
-                bindings[binding] = new AetheriaRuntimeActionBarBindingSnapshot(
-                    controlPath,
-                    kind,
-                    targetKey,
-                    equipmentIndex,
-                    behaviorIndex,
-                    weaponGroup);
-            }
-
-            return bindings;
         }
 
         private static IReadOnlyList<AetheriaRuntimeFactionRelationshipSnapshot> ReadFieldFactionRelationships(ref MessagePackReader reader, int fields, int index)
@@ -1845,12 +1871,57 @@ namespace GameCult.Aetheria.State.Verse
 
         private static PlayerGameplaySettings ReadFieldPlayerGameplaySettings(ref MessagePackReader reader, int fields, int index)
         {
-            if (index >= fields) return new PlayerGameplaySettings("Celsius", 3);
+            if (index >= fields) return new PlayerGameplaySettings("Celsius", 3, 0.25);
             var gameplayFields = reader.ReadArrayHeader();
             var temperatureUnit = ReadFieldString(ref reader, gameplayFields, 0);
             var significantDigits = ReadFieldInt32(ref reader, gameplayFields, 1);
-            SkipRemaining(ref reader, gameplayFields, 2);
-            return new PlayerGameplaySettings(temperatureUnit, significantDigits);
+            var defaultShutdownPerformance = ReadFieldDouble(ref reader, gameplayFields, 2);
+            SkipRemaining(ref reader, gameplayFields, 3);
+            return new PlayerGameplaySettings(
+                temperatureUnit,
+                significantDigits,
+                defaultShutdownPerformance <= 0 ? 0.25 : defaultShutdownPerformance);
+        }
+
+        private static AetheriaRuntimeExponentialLerp ReadFieldTradeValueLerp(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields)
+                return AetheriaRuntimeTradeValueSettings.Default.QualityPriceModifier;
+
+            var lerpFields = reader.ReadArrayHeader();
+            var exponent = ReadFieldDouble(ref reader, lerpFields, 0);
+            var minimum = ReadFieldDouble(ref reader, lerpFields, 1);
+            var maximum = ReadFieldDouble(ref reader, lerpFields, 2);
+            SkipRemaining(ref reader, lerpFields, 3);
+            return new AetheriaRuntimeExponentialLerp(exponent, minimum, maximum);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeItemRarityTier> ReadFieldTradeValueTiers(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields)
+                return AetheriaRuntimeTradeValueSettings.Default.Tiers;
+
+            var count = reader.ReadArrayHeader();
+            var tiers = new AetheriaRuntimeItemRarityTier[count];
+            for (var tierIndex = 0; tierIndex < count; tierIndex++)
+            {
+                var tierFields = reader.ReadArrayHeader();
+                tiers[tierIndex] = new AetheriaRuntimeItemRarityTier(
+                    ReadFieldString(ref reader, tierFields, 0),
+                    ReadFieldDouble(ref reader, tierFields, 1),
+                    ReadFieldDouble(ref reader, tierFields, 2),
+                    ReadFieldDouble(ref reader, tierFields, 3),
+                    ReadFieldDouble(ref reader, tierFields, 4));
+                SkipRemaining(ref reader, tierFields, 5);
+            }
+
+            return tiers;
         }
 
         private static PlayerGraphicsSettings ReadFieldPlayerGraphicsSettings(ref MessagePackReader reader, int fields, int index)
@@ -2181,7 +2252,10 @@ namespace GameCult.Aetheria.State.Verse
                 var label = ReadFieldString(ref reader, commandFields, 1);
                 var transport = ReadFieldString(ref reader, commandFields, 2);
                 SkipRemaining(ref reader, commandFields, 3);
-                commands[command] = new EveCommandTemplate(name, label, transport);
+                commands[command] = new EveCommandTemplate(CultMesh.OperationBinding(
+                    name,
+                    label,
+                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.Automatic, transport)));
             }
 
             return commands;
@@ -2571,15 +2645,21 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly struct PlayerGameplaySettings
         {
-            public PlayerGameplaySettings(string temperatureUnit, int significantDigits)
+            public PlayerGameplaySettings(
+                string temperatureUnit,
+                int significantDigits,
+                double defaultShutdownPerformance)
             {
                 TemperatureUnit = temperatureUnit;
                 SignificantDigits = significantDigits;
+                DefaultShutdownPerformance = defaultShutdownPerformance;
             }
 
             public string TemperatureUnit { get; }
 
             public int SignificantDigits { get; }
+
+            public double DefaultShutdownPerformance { get; }
         }
 
         private readonly struct PlayerGraphicsSettings

@@ -25,6 +25,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeVerseReplicaBridge
     {
+        public const string ReplicaWorkerPathEnvironmentVariable = "AETHERIA_REPLICA_WORKER_PATH";
+
         public static AetheriaRuntimeVerseReplicaSyncResult Sync(
             DirectoryInfo gameDataDirectory,
             AetheriaRuntimeClientTargetDocument target,
@@ -41,13 +43,10 @@ namespace GameCult.Aetheria.State.Verse
             var replicaStateFilePath = string.IsNullOrWhiteSpace(target.ReplicaStateFilePath)
                 ? AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, verseId)
                 : Path.GetFullPath(target.ReplicaStateFilePath);
-            var repoRoot = gameDataDirectory.Parent?.FullName;
-            if (string.IsNullOrWhiteSpace(repoRoot))
-                throw new InvalidOperationException("Cannot resolve the Aetheria repo root from the GameData directory.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(replicaStateFilePath) ?? gameDataDirectory.FullName);
 
-            var startInfo = BuildStartInfo(repoRoot, endpoint, replicaStateFilePath, verseId);
+            var startInfo = BuildStartInfo(gameDataDirectory, endpoint, replicaStateFilePath, verseId);
             using var process = new Process { StartInfo = startInfo };
             var output = new StringBuilder();
             var error = new StringBuilder();
@@ -101,37 +100,130 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static ProcessStartInfo BuildStartInfo(
-            string repoRoot,
+            DirectoryInfo gameDataDirectory,
             string endpoint,
             string replicaStateFilePath,
             string verseId)
         {
-            var executablePath = Path.Combine(repoRoot, "Aetheria.State.Replica", "bin", "Debug", "net10.0", "Aetheria.State.Replica.exe");
-            if (File.Exists(executablePath))
+            var baselineStateFilePath = AetheriaRuntimeStateBoundary.GetStateFilePath(gameDataDirectory);
+            foreach (var candidate in EnumerateWorkerCandidates(gameDataDirectory))
             {
-                return CreateStartInfo(
-                    executablePath,
-                    BuildArguments("sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId),
-                    repoRoot);
+                var path = candidate.Path;
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    continue;
+
+                var workingDirectory = string.IsNullOrWhiteSpace(candidate.WorkingDirectory)
+                    ? (Path.GetDirectoryName(path) ?? Directory.GetCurrentDirectory())
+                    : candidate.WorkingDirectory;
+
+                var extension = Path.GetExtension(path);
+                if (string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateStartInfo(
+                        path,
+                        BuildArguments("sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId, "--baseline-state", baselineStateFilePath),
+                        workingDirectory);
+                }
+
+                if (string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateStartInfo(
+                        "dotnet",
+                        BuildArguments(path, "sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId, "--baseline-state", baselineStateFilePath),
+                        workingDirectory);
+                }
+
+                if (string.Equals(extension, ".csproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    return CreateStartInfo(
+                        "dotnet",
+                        BuildArguments("run", "--project", path, "--", "sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId, "--baseline-state", baselineStateFilePath),
+                        workingDirectory);
+                }
             }
 
-            var dllPath = Path.Combine(repoRoot, "Aetheria.State.Replica", "bin", "Debug", "net10.0", "Aetheria.State.Replica.dll");
-            if (File.Exists(dllPath))
+            throw new FileNotFoundException(
+                $"Cannot find the Aetheria.State.Replica worker. Publish it beside the Unity build, keep the repo-local project available, or set {ReplicaWorkerPathEnvironmentVariable}.");
+        }
+
+        private static WorkerCandidate[] EnumerateWorkerCandidates(DirectoryInfo gameDataDirectory)
+        {
+            var candidates = new System.Collections.Generic.List<WorkerCandidate>();
+            var configured = Environment.GetEnvironmentVariable(ReplicaWorkerPathEnvironmentVariable);
+            if (!string.IsNullOrWhiteSpace(configured))
             {
-                return CreateStartInfo(
-                    "dotnet",
-                    BuildArguments(dllPath, "sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId),
-                    repoRoot);
+                var configuredPath = Path.GetFullPath(configured);
+                if (Directory.Exists(configuredPath))
+                {
+                    AddPublishedWorkerCandidates(candidates, configuredPath);
+                    AddRepoWorkerCandidates(candidates, configuredPath);
+                }
+                else
+                {
+                    candidates.Add(new WorkerCandidate(
+                        configuredPath,
+                        Path.GetDirectoryName(configuredPath) ?? Directory.GetCurrentDirectory()));
+                }
             }
 
-            var projectPath = Path.Combine(repoRoot, "Aetheria.State.Replica", "Aetheria.State.Replica.csproj");
-            if (!File.Exists(projectPath))
-                throw new FileNotFoundException("Cannot find the Aetheria.State.Replica project.", projectPath);
+            foreach (var root in EnumerateSearchRoots(gameDataDirectory))
+            {
+                AddPublishedWorkerCandidates(candidates, root);
+                AddRepoWorkerCandidates(candidates, root);
+            }
 
-            return CreateStartInfo(
-                "dotnet",
-                BuildArguments("run", "--project", projectPath, "--", "sync", "--endpoint", endpoint, "--replica", replicaStateFilePath, "--verse-id", verseId),
-                repoRoot);
+            return candidates
+                .GroupBy(candidate => candidate.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
+        }
+
+        private static System.Collections.Generic.IEnumerable<string> EnumerateSearchRoots(DirectoryInfo gameDataDirectory)
+        {
+            var roots = new[]
+            {
+                gameDataDirectory?.Parent?.FullName,
+                AppDomain.CurrentDomain.BaseDirectory,
+                Directory.GetCurrentDirectory()
+            };
+
+            foreach (var root in roots)
+            {
+                if (string.IsNullOrWhiteSpace(root))
+                    continue;
+
+                var directory = new DirectoryInfo(Path.GetFullPath(root));
+                for (var depth = 0; depth < 6 && directory != null; depth++, directory = directory.Parent)
+                    yield return directory.FullName;
+            }
+        }
+
+        private static void AddPublishedWorkerCandidates(
+            System.Collections.Generic.List<WorkerCandidate> candidates,
+            string root)
+        {
+            AddWorkerCandidate(candidates, root, Path.Combine(root, "Aetheria.State.Replica.exe"));
+            AddWorkerCandidate(candidates, root, Path.Combine(root, "Aetheria.State.Replica.dll"));
+            AddWorkerCandidate(candidates, root, Path.Combine(root, "Aetheria.State.Replica", "Aetheria.State.Replica.exe"));
+            AddWorkerCandidate(candidates, root, Path.Combine(root, "Aetheria.State.Replica", "Aetheria.State.Replica.dll"));
+        }
+
+        private static void AddRepoWorkerCandidates(
+            System.Collections.Generic.List<WorkerCandidate> candidates,
+            string root)
+        {
+            var projectRoot = Path.Combine(root, "Aetheria.State.Replica");
+            AddWorkerCandidate(candidates, root, Path.Combine(projectRoot, "bin", "Debug", "net10.0", "Aetheria.State.Replica.exe"));
+            AddWorkerCandidate(candidates, root, Path.Combine(projectRoot, "bin", "Debug", "net10.0", "Aetheria.State.Replica.dll"));
+            AddWorkerCandidate(candidates, root, Path.Combine(projectRoot, "Aetheria.State.Replica.csproj"));
+        }
+
+        private static void AddWorkerCandidate(
+            System.Collections.Generic.List<WorkerCandidate> candidates,
+            string workingDirectory,
+            string path)
+        {
+            candidates.Add(new WorkerCandidate(path, workingDirectory));
         }
 
         private static ProcessStartInfo CreateStartInfo(string fileName, string arguments, string workingDirectory)
@@ -163,6 +255,18 @@ namespace GameCult.Aetheria.State.Verse
                 return text;
 
             return "\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        }
+
+        private readonly struct WorkerCandidate
+        {
+            public WorkerCandidate(string path, string workingDirectory)
+            {
+                Path = path ?? "";
+                WorkingDirectory = workingDirectory ?? "";
+            }
+
+            public string Path { get; }
+            public string WorkingDirectory { get; }
         }
     }
 }

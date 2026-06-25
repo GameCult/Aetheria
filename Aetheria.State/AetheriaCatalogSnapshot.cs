@@ -16,11 +16,13 @@ public sealed class AetheriaCatalogSnapshot
     public AetheriaCatalogSnapshot(
         IEnumerable<AetheriaItemDefinition> items,
         IEnumerable<AetheriaCorporation> corporations,
-        IEnumerable<AetheriaNameFile> nameFiles)
+        IEnumerable<AetheriaNameFile> nameFiles,
+        AetheriaTradeValuePolicy? tradeValuePolicy = null)
     {
         Items = items.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         Corporations = corporations.OrderBy(corporation => corporation.Name, StringComparer.OrdinalIgnoreCase).ToArray();
         NameFiles = nameFiles.OrderBy(nameFile => nameFile.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        TradeValuePolicy = tradeValuePolicy;
 
         _itemsByLegacyId = Items
             .Where(item => !string.IsNullOrWhiteSpace(item.LegacyId))
@@ -44,6 +46,8 @@ public sealed class AetheriaCatalogSnapshot
     public IReadOnlyList<AetheriaCorporation> Corporations { get; }
 
     public IReadOnlyList<AetheriaNameFile> NameFiles { get; }
+
+    public AetheriaTradeValuePolicy? TradeValuePolicy { get; }
 
     public IEnumerable<AetheriaItemDefinition> TradeItems =>
         Items.Where(item => item.Price > 0).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);

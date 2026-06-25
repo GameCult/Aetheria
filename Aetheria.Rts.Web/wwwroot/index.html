@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aetheria RTS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="map-pane">
+      <header class="topbar">
+        <div>
+          <strong>Aetheria RTS</strong>
+          <span id="status">Connecting</span>
+        </div>
+        <div class="toolbar">
+          <button id="zoom-out" type="button" title="Zoom out">-</button>
+          <output id="zoom-label">1x</output>
+          <button id="zoom-in" type="button" title="Zoom in">+</button>
+          <button id="refresh" type="button" title="Refresh viewport">Refresh</button>
+        </div>
+      </header>
+      <canvas id="map"></canvas>
+    </section>
+    <aside class="side-pane">
+      <section>
+        <h1 id="selection-title">No Selection</h1>
+        <dl id="selection-details"></dl>
+      </section>
+      <section>
+        <h2>Controlled</h2>
+        <div id="controlled-list"></div>
+      </section>
+      <section>
+        <h2>Starbridge</h2>
+        <dl id="starbridge-details"></dl>
+      </section>
+      <section>
+        <h2>Frame</h2>
+        <dl id="frame-details"></dl>
+      </section>
+      <section>
+        <h2>Runtime Surfaces</h2>
+        <dl id="runtime-surface-details"></dl>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

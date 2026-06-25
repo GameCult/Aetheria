@@ -79,6 +79,11 @@ namespace GameCult.Aetheria.State.Verse
             });
         }
 
+        public AetheriaRuntimeClientTargetDocument RequestRuntimeId(string runtimeId)
+        {
+            return Edit(document => document.RuntimeId = runtimeId ?? "");
+        }
+
         public AetheriaRuntimeClientTargetDocument RequestCultMeshAddress(string cultMeshAddress)
         {
             return Edit(document =>
@@ -114,6 +119,8 @@ namespace GameCult.Aetheria.State.Verse
                 document.TargetKind = AetheriaRuntimeClientTargetKinds.CultMeshVerse;
                 document.Title = title ?? "";
                 document.VerseId = verseId ?? "";
+                if (string.IsNullOrWhiteSpace(document.RuntimeId))
+                    document.RuntimeId = "raven-unity";
                 document.CultMeshAddress = cultMeshAddress ?? "";
                 document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
                 document.DiscoveryEndpoints = NormalizeDiscoveryEndpoints(discoveryEndpoints);

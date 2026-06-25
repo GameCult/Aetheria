@@ -29,8 +29,8 @@ namespace GameCult.Aetheria.EveRuntime
         private float refreshIntervalSeconds = 0.1f;
 
         private UIDocument? _document;
-        private AetheriaRuntimeVerseClient? _verseClient;
-        private string _verseClientStatePath = "";
+        private AetheriaClient? _client;
+        private string _clientStatePath = "";
         private float _nextRefreshTime;
         private string _mountedStatePath = "";
         private string _mountedSurfaceId = "";
@@ -123,7 +123,7 @@ namespace GameCult.Aetheria.EveRuntime
 
         private EveSurfaceDocument? ReadDaemonSurface(string statePath)
         {
-            var client = ResolveVerseClient(statePath);
+            var client = ResolveClient(statePath);
             var surface = ReadDaemonSurfaceState(client);
             return surface == null
                 ? null
@@ -132,38 +132,39 @@ namespace GameCult.Aetheria.EveRuntime
                     client.CreateEveSurfaceStateRefResolver());
         }
 
-        private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaRuntimeVerseClient client)
+        private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaClient client)
         {
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.GetDaemonGameSurfaceAsync().GetAwaiter().GetResult();
+                return client.DaemonGameSurfaceAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.GetDaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
+                return client.DaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.GetDaemonEditorSurfaceAsync().GetAwaiter().GetResult();
+                return client.DaemonEditorSurfaceAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.GetDaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
+                return client.DaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
 
             return null;
         }
 
-        private AetheriaRuntimeVerseClient ResolveVerseClient(string statePath)
+        private AetheriaClient ResolveClient(string statePath)
         {
-            if (_verseClient != null && string.Equals(_verseClientStatePath, statePath, StringComparison.Ordinal))
-                return _verseClient;
+            if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
+                return _client;
 
-            _verseClient?.Dispose();
-            _verseClientStatePath = statePath ?? "";
-            _verseClient = AetheriaRuntimeVerseClient.OpenAsync(
-                    _verseClientStatePath,
+            _client?.Dispose();
+            _clientStatePath = statePath ?? "";
+            _client = AetheriaClient.OpenAsync(
+                    _clientStatePath,
                     "unity-eve-surface-presenter",
+                    "local",
                     startServer: false,
                     pullOnOpen: true)
                 .GetAwaiter()
                 .GetResult();
-            return _verseClient;
+            return _client;
         }
 
         private UIDocument ResolveDocument()
@@ -206,7 +207,7 @@ namespace GameCult.Aetheria.EveRuntime
                 surface,
                 request => EmitCommand(statePath, request),
                 RootOnlyChrome,
-                ResolveVerseClient(statePath).CreateEveSurfaceStateRefResolver());
+                ResolveClient(statePath).CreateEveSurfaceStateRefResolver());
             _mountedStatePath = statePath;
             _mountedSurfaceId = surface.Surface.Id;
             _mountedSurfaceVersion = surface.Version;
@@ -215,7 +216,7 @@ namespace GameCult.Aetheria.EveRuntime
 
         private void EmitCommand(string statePath, EveSurfaceCommandRequest request)
         {
-            if (AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var daemonEnvelope))
+            if (AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(ResolveClient(statePath), request, out var daemonEnvelope))
             {
                 Debug.Log(
                     $"Submitted Aetheria daemon operation from Eve surface: {daemonEnvelope!.Kind} {daemonEnvelope.CommandId}");
@@ -224,28 +225,28 @@ namespace GameCult.Aetheria.EveRuntime
 
             try
             {
-                var envelope = ResolveVerseClient(statePath)
-                    .SubmitKnownSurfaceCommandAsync(
+                var envelope = ResolveClient(statePath)
+                    .Ui.SurfaceCommandAsync(
                         request,
                         string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId)
                     .GetAwaiter()
                     .GetResult();
 
                 Debug.Log(
-                    $"Submitted Eve command for CultMesh bridge: {envelope.ProviderId}/{envelope.SurfaceId}/{envelope.Command} {envelope.CommandId}");
+                    $"Submitted Eve operation for CultMesh bridge: {envelope.OperationId}");
             }
             catch (Exception ex)
             {
                 Debug.LogWarning(
-                    $"Ignored or failed Aetheria Eve command: {request.ProviderId}/{request.SurfaceId}/{request.Command}: {ex}");
+                    $"Ignored or failed Aetheria Eve command: {request.ProviderId}/{request.SurfaceId}/{request.Operation?.OperationId}: {ex}");
             }
         }
 
         private void OnDisable()
         {
-            _verseClient?.Dispose();
-            _verseClient = null;
-            _verseClientStatePath = "";
+            _client?.Dispose();
+            _client = null;
+            _clientStatePath = "";
         }
     }
 }

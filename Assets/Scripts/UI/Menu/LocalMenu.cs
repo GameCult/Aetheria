@@ -1,12 +1,18 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using GameCult.Aetheria.EveRuntime;
+using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.Surface;
 using Ink.Runtime;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class LocalMenu : MonoBehaviour
 {
@@ -18,13 +24,37 @@ public class LocalMenu : MonoBehaviour
     private string _currentPath;
     private LocationStory _currentLocation;
     private Story _activeStory;
-    private List<GameObject> _choiceInstances = new List<GameObject>();
+    private readonly List<ActiveStoryChoice> _activeChoices = new List<ActiveStoryChoice>();
+    private UIDocument _surfaceDocument;
+    private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+
+    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    {
+        _observedFacadeIndex = observedFacadeIndex;
+    }
+
+    private sealed class ActiveStoryChoice
+    {
+        public ActiveStoryChoice(int index, Story story, Choice choice)
+        {
+            Index = index;
+            Story = story;
+            Choice = choice;
+        }
+
+        public int Index { get; }
+        public Story Story { get; }
+        public Choice Choice { get; }
+    }
     
     private void OnEnable()
     {
-        if (ActionGameManager.Instance == null ||
-            !ActionGameManager.Instance.TryGetObservedDockedLocalStory(out _currentLocation))
+        if (!TryResolveDockedLocalStory(out _currentLocation))
         {
+            HideStorySurface();
             return;
         }
 
@@ -46,11 +76,10 @@ public class LocalMenu : MonoBehaviour
         if (!_activeStory.state.previousPointer.isNull) _currentPath = _activeStory.state.previousPointer.path.head.name;
         if(_activeStory.canContinue) _activeStory.Continue();
         if (!_activeStory.state.previousPointer.isNull) _currentPath = _activeStory.state.previousPointer.path.head.name;
-        Output.text = _activeStory.currentText;
+        if (Output != null)
+            Output.text = _activeStory.currentText;
 
-        foreach(var instance in _choiceInstances)
-            Destroy(instance);
-        _choiceInstances.Clear();
+        _activeChoices.Clear();
         
         if(_activeStory.currentChoices.Any())
         {
@@ -72,6 +101,8 @@ public class LocalMenu : MonoBehaviour
                 Continue();
             }
         }
+
+        RenderStorySurface();
     }
 
     void PresentCurrentChoices()
@@ -93,15 +124,174 @@ public class LocalMenu : MonoBehaviour
 
     void PresentChoice(Story story, Choice choice)
     {
-        var choiceInstance = Instantiate(ChoicePrefab, ChoiceParent);
-        choiceInstance.Label.text = choice.text;
-        choiceInstance.Button.onClick.AddListener(() =>
+        _activeChoices.Add(new ActiveStoryChoice(_activeChoices.Count, story, choice));
+    }
+
+    private void RenderStorySurface()
+    {
+        if (_activeStory == null)
+            return;
+
+        if (Output != null)
+            Output.gameObject.SetActive(false);
+        if (ChoiceParent != null)
+            ChoiceParent.gameObject.SetActive(false);
+
+        _surfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
+            transform,
+            _surfaceDocument,
+            "Aetheria Runtime Local Story Surface",
+            AetheriaRuntimeLocalStorySurfaceBuilder.Build(ProjectStorySurface()),
+            HandleStorySurfaceCommand,
+            _surfaceChrome);
+    }
+
+    private AetheriaRuntimeLocalStorySurfaceState ProjectStorySurface()
+    {
+        return AetheriaRuntimeLocalStorySurfaceBuilder.Project(
+            ResolveLocationLabel(),
+            _currentPath,
+            _activeStory?.currentText ?? "",
+            _activeStory?.canContinue == true,
+            _activeChoices.Select(choice => new AetheriaRuntimeLocalStoryChoiceState(
+                choice.Index,
+                choice.Choice?.text ?? "")),
+            DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+    }
+
+    private void HandleStorySurfaceCommand(EveSurfaceCommandRequest request)
+    {
+        if (!AetheriaRuntimeLocalStorySurfaceCommands.TryRead(request, out var command))
         {
-            _activeStory = story;
-            _activeStory.ChoosePath(choice.targetPath);
-            Continue();
-        });
-        _choiceInstances.Add(choiceInstance.gameObject);
+            Debug.LogWarning($"Unknown runtime local story command: {request?.Command}");
+            return;
+        }
+
+        switch (command.Kind)
+        {
+            case AetheriaRuntimeLocalStoryCommandKind.Continue:
+                Continue();
+                return;
+            case AetheriaRuntimeLocalStoryCommandKind.Choose:
+                ChooseStoryOption(command.ChoiceIndex);
+                return;
+            default:
+                Debug.LogWarning($"Unknown runtime local story command: {request?.Command}");
+                return;
+        }
+    }
+
+    private void ChooseStoryOption(int choiceIndex)
+    {
+        var selected = _activeChoices.FirstOrDefault(choice => choice.Index == choiceIndex);
+        if (selected == null)
+        {
+            Debug.LogWarning($"Unknown runtime local story choice index: {choiceIndex}");
+            return;
+        }
+
+        _activeStory = selected.Story;
+        _activeStory.ChoosePath(selected.Choice.targetPath);
+        Continue();
+    }
+
+    private string ResolveLocationLabel()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentLocation?.Name))
+            return _currentLocation.Name;
+        if (!string.IsNullOrWhiteSpace(_currentLocation?.FileName))
+            return _currentLocation.FileName;
+        return "Local";
+    }
+
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    {
+        docking = null;
+
+        try
+        {
+            docking = ResolveClient()
+                .CurrentDockingAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for local story surface: {ex.Message}");
+            return false;
+        }
+
+        return docking != null;
+    }
+
+    private bool TryResolveDockedLocalStory(out LocationStory story)
+    {
+        story = null;
+        if (_observedFacadeIndex == null ||
+            !TryResolveCurrentDocking(out var docking) ||
+            !docking.IsDocked ||
+            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
+                docking.DockParentEntityKey,
+                docking.DockingBayIndex,
+                out var dockingBay) ||
+            dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory })
+        {
+            return false;
+        }
+
+        story = dockedStory;
+        return true;
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-runtime-local-story",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void HideStorySurface()
+    {
+        if (_surfaceDocument == null)
+            return;
+
+        AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument);
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+    }
+
+    private void OnDisable()
+    {
+        HideStorySurface();
+    }
+
+    private void OnDestroy()
+    {
+        DisposeClient();
+        if (_surfaceDocument != null)
+        {
+            AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
+            _surfaceDocument = null;
+        }
     }
 
     // Update is called once per frame

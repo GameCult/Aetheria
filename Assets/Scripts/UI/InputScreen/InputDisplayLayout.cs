@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -13,6 +14,9 @@ public class InputDisplayLayout : MonoBehaviour
 {
     private UIDocument _surfaceDocument;
     private AetheriaInput _ownedInput;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
     private InputAction _captureAction;
     private InputActionAsset _input;
     private string _captureActionName = "";
@@ -92,6 +96,8 @@ public class InputDisplayLayout : MonoBehaviour
         _ownedInput?.Dispose();
         _ownedInput = null;
 
+        DisposeClient();
+
         if (_surfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
@@ -164,10 +170,10 @@ public class InputDisplayLayout : MonoBehaviour
 
     private AetheriaRuntimeInputSettingsSurfaceState ProjectSurfaceState()
     {
-        var runtimeSettings = ActionGameManager.RuntimePlayerSettings.InputSettings;
+        var runtimeSettings = ResolvePlayerSettings();
         return AetheriaRuntimeInputSettingsSurfaceBuilder.Project(
             ProjectObservedBindings(),
-            runtimeSettings.ActionBarInputs,
+            runtimeSettings?.ActionBarInputs ?? Array.Empty<string>(),
             capturePending: _captureBindingIndex >= 0 && !string.IsNullOrWhiteSpace(_captureActionName),
             capturePrompt: BuildCapturePrompt(),
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
@@ -286,7 +292,14 @@ public class InputDisplayLayout : MonoBehaviour
             return;
         }
 
-        ActionGameManager.RequestRuntimeActionBarInput(command.InputPath, command.Enabled);
+        SendInputSettingsCommand(
+            AetheriaRuntimeEveCommandKind.SetActionBarEnabled,
+            new AetheriaRuntimeInputSettingsCommandBody
+            {
+                InputSystemPath = command.InputPath,
+                Enabled = command.Enabled
+            },
+            "action-bar input");
         RenderSurface();
     }
 
@@ -316,9 +329,94 @@ public class InputDisplayLayout : MonoBehaviour
         }
 
         action.ApplyBindingOverride(_captureBindingIndex, inputPath);
-        ActionGameManager.RequestRuntimeInputBindingOverride(action.name, _captureBindingIndex, inputPath);
+        SendInputSettingsCommand(
+            AetheriaRuntimeEveCommandKind.SetBindingOverride,
+            new AetheriaRuntimeInputSettingsCommandBody
+            {
+                ActionName = action.name,
+                BindingIndex = _captureBindingIndex,
+                InputSystemPath = inputPath
+            },
+            "input binding override");
         ClearCapture();
         RenderSurface();
+    }
+
+    private void SendInputSettingsCommand(
+        AetheriaRuntimeEveCommandKind command,
+        AetheriaRuntimeInputSettingsCommandBody body,
+        string label)
+    {
+        try
+        {
+            var submitted = ResolveClient()
+                .Ui.InputSettingsAsync(command, body, "unity-input-screen")
+                .GetAwaiter()
+                .GetResult();
+
+            Debug.Log($"Submitted Aetheria {label} Eve operation: {submitted.OperationId}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
+        {
+            throw new InvalidOperationException(
+                $"Input settings require a readable local Aetheria Verse state file: {stateBoot.FailureMessage}");
+        }
+
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            return _client;
+        }
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenAsync(
+                stateBoot.StateFilePath,
+                "unity-input-screen",
+                "local",
+                startServer: false,
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _playerSettings = null;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for input screen: {ex.Message}");
+        }
+
+        return _playerSettings;
     }
 
     private void ClearCapture()

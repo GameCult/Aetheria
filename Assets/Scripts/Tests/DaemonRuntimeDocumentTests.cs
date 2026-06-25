@@ -1,11 +1,18 @@
+using CultMath;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
+using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveStyleToken = GameCult.Eve.Surface.EveStyleToken;
+using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
+using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
+using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
 
 public class DaemonRuntimeDocumentTests
 {
@@ -281,6 +288,11 @@ public class DaemonRuntimeDocumentTests
             gameSurface.Surface.Root,
             AetheriaRuntimeSurfaceStateRefs.Source,
             AetheriaRuntimeDaemonStateRefs.CurrentEntityName));
+        Assert.IsTrue(ContainsSurfaceStateBinding(
+            gameSurface.Surface.Root,
+            "value",
+            AetheriaRuntimeDaemonStateRefs.CurrentEntityName,
+            AetheriaRuntimeDaemonSchemas.Frame));
         Assert.IsTrue(AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
             frame,
             health,
@@ -358,6 +370,19 @@ public class DaemonRuntimeDocumentTests
             genericGameSurface.Surface.Root,
             AetheriaRuntimeSurfaceStateRefs.Source,
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
+        Assert.IsTrue(ContainsEveSurfaceProp(
+            genericGameSurface.Surface.Root,
+            AetheriaRuntimeSurfaceStateBindings.PropPrefix + "value" + AetheriaRuntimeSurfaceStateBindings.SourceIdSuffix,
+            AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
+        Assert.IsTrue(ContainsEveSurfaceProp(
+            genericGameSurface.Surface.Root,
+            AetheriaRuntimeSurfaceStateBindings.PropPrefix + "value" + AetheriaRuntimeSurfaceStateBindings.SchemaIdSuffix,
+            AetheriaRuntimeDaemonSchemas.Frame));
+        Assert.IsTrue(ContainsEveSurfaceStateBinding(
+            genericGameSurface.Surface.Root,
+            "value",
+            AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
+            AetheriaRuntimeDaemonSchemas.Frame));
         var genericGameTuiSurface = AetheriaRuntimeStateReader.ReadEveSurface(
             statePath,
             AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId);
@@ -576,21 +601,21 @@ public class DaemonRuntimeDocumentTests
             DaemonWritable = true,
             ObserverWritable = false
         };
-        var positionX = new AetheriaRuntimeDaemonSoaColumnDocument
+        var position = new AetheriaRuntimeDaemonSoaColumnDocument
         {
-            ColumnId = "position-x",
-            Kind = AetheriaRuntimeDaemonSoaColumnKinds.PositionX,
+            ColumnId = "position",
+            Kind = AetheriaRuntimeDaemonSoaColumnKinds.Position,
             BufferId = buffer.BufferId,
-            ScalarType = "float32",
+            ScalarType = "float3",
             ByteOffset = 0,
-            ElementStride = 4,
+            ElementStride = 12,
             ElementCount = 128,
             Unit = "world_units",
             CoordinateSpace = "zone"
         };
         var dirtyRange = new AetheriaRuntimeDaemonSoaDirtyRangeDocument
         {
-            ColumnId = positionX.ColumnId,
+            ColumnId = position.ColumnId,
             StartIndex = 16,
             Count = 8,
             Generation = 77
@@ -602,7 +627,7 @@ public class DaemonRuntimeDocumentTests
             42,
             77,
             new[] { buffer },
-            new[] { positionX },
+            new[] { position },
             new[] { dirtyRange },
             AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile,
             AetheriaRuntimeDaemonSoaSynchronizationModes.DoubleBuffered);
@@ -618,7 +643,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1, view.Buffers.Count);
         Assert.IsTrue(view.Buffers[0].DaemonWritable);
         Assert.IsFalse(view.Buffers[0].ObserverWritable);
-        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.PositionX, view.Columns[0].Kind);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Position, view.Columns[0].Kind);
         Assert.AreEqual(16, view.DirtyRanges[0].StartIndex);
         Assert.AreEqual(8, view.DirtyRanges[0].Count);
         Assert.IsNotEmpty(view.PublishedAtUtc);
@@ -650,12 +675,12 @@ public class DaemonRuntimeDocumentTests
             {
                 new AetheriaRuntimeDaemonSoaColumnDocument
                 {
-                    ColumnId = "position-x",
-                    Kind = AetheriaRuntimeDaemonSoaColumnKinds.PositionX,
+                    ColumnId = "position",
+                    Kind = AetheriaRuntimeDaemonSoaColumnKinds.Position,
                     BufferId = "transform-hot",
-                    ScalarType = "float32",
+                    ScalarType = "float3",
                     ByteOffset = 16,
-                    ElementStride = 4,
+                    ElementStride = 12,
                     ElementCount = 64,
                     Unit = "world_units",
                     CoordinateSpace = "zone"
@@ -665,7 +690,7 @@ public class DaemonRuntimeDocumentTests
             {
                 new AetheriaRuntimeDaemonSoaDirtyRangeDocument
                 {
-                    ColumnId = "position-x",
+                    ColumnId = "position",
                     StartIndex = 8,
                     Count = 4,
                     Generation = 91
@@ -676,14 +701,14 @@ public class DaemonRuntimeDocumentTests
         var index = AetheriaRuntimeDaemonSoaViewIndex.Build(view);
 
         Assert.IsTrue(index.IsValid);
-        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.PositionX, out var binding));
-        Assert.AreEqual("position-x", binding.Column.ColumnId);
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Position, out var binding));
+        Assert.AreEqual("position", binding.Column.ColumnId);
         Assert.AreEqual("transform-hot", binding.Buffer.BufferId);
         Assert.AreEqual(144, binding.AbsoluteByteOffset);
-        Assert.AreEqual(256, binding.ByteLength);
+        Assert.AreEqual(768, binding.ByteLength);
         Assert.IsTrue(binding.DirectMemoryCompatible);
-        Assert.AreEqual(1, index.GetDirtyRanges("position-x").Count);
-        Assert.AreEqual(8, index.GetDirtyRanges("position-x")[0].StartIndex);
+        Assert.AreEqual(1, index.GetDirtyRanges("position").Count);
+        Assert.AreEqual(8, index.GetDirtyRanges("position")[0].StartIndex);
     }
 
     [Test]
@@ -888,7 +913,7 @@ public class DaemonRuntimeDocumentTests
         var brushes = new List<AetheriaRuntimeGravityInfluenceBrush>();
         var count = AetheriaRuntimeDaemonRenderQueries.QueryGravityInfluences(
             zone,
-            new AetheriaRuntimeXzRect(-10, -10, 10, 10),
+            new rect(-10, -10, 10, 10),
             brushes);
 
         Assert.AreEqual(1, count);
@@ -1080,6 +1105,14 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(7, views[0].Body.GravityWellDepth, 0.0001);
         Assert.AreEqual("body:belt", views[1].Body.BodyKey);
         Assert.IsTrue(views[1].IsAsteroidBelt);
+
+        count = AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(
+            zone,
+            new rect(0, -20, 30, 10),
+            views);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual("body:planet", views[0].Body.BodyKey);
     }
 
     [Test]
@@ -1362,6 +1395,102 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(2, count);
         Assert.AreEqual(10, visible[0]);
         Assert.AreEqual(11, visible[1]);
+    }
+
+    [Test]
+    public void DaemonRenderQueriesPublishCollectiveVisibleEntitiesInsideObjectsViewport()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Entities = new[]
+            {
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 1,
+                    PositionX = 0,
+                    PositionZ = 0,
+                    Contacts = new[]
+                    {
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 3,
+                            InfoGathered = 0.8,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 4,
+                            InfoGathered = 0.4,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 6,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 7,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        }
+                    }
+                },
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 2,
+                    PositionX = 30,
+                    PositionZ = 0,
+                    Contacts = new[]
+                    {
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 5,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        },
+                        new AetheriaRuntimeEntityContactCommit
+                        {
+                            TargetEntityIndex = 7,
+                            InfoGathered = 0.9,
+                            Visible = true
+                        }
+                    }
+                },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 3, PositionX = 8, PositionZ = 8 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 4, PositionX = 9, PositionZ = 9 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 5, PositionX = 12, PositionZ = 0 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 6, PositionX = 100, PositionZ = 100 },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 7, PositionX = 5, PositionZ = 5 }
+            }
+        };
+
+        var visible = new List<int>();
+        var count = AetheriaRuntimeDaemonRenderQueries.QueryObjectsViewportEntityIndices(
+            zone,
+            new[] { 1, 2 },
+            0.5,
+            new rect(-10, -10, 40, 20),
+            visible);
+
+        Assert.AreEqual(5, count);
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 5, 7 }, visible);
+
+        var objects = AetheriaRuntimeDaemonRenderQueries.QueryObjectsViewport(
+            zone,
+            new[] { 1, 2 },
+            0.5,
+            new rect(-10, -10, 40, 20));
+
+        Assert.AreEqual(5, objects.Length);
+        Assert.AreEqual(1, objects[0].EntityIndex);
+        Assert.IsTrue(objects[0].Controlled);
+        Assert.AreEqual(new double3(0, 0, 0), objects[0].Position);
+        Assert.AreEqual(new double2(0, 0), objects[0].Xy);
+        Assert.AreEqual(7, objects[4].EntityIndex);
+        Assert.IsFalse(objects[4].Controlled);
+        Assert.AreEqual(new double2(5, 5), objects[4].Xy);
     }
 
     [Test]
@@ -1721,24 +1850,26 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, stored.Backend);
         Assert.AreEqual(1, stored.Buffers.Count);
         Assert.IsFalse(stored.Buffers[0].ObserverWritable);
-        Assert.AreEqual(15, stored.Columns.Count);
+        Assert.AreEqual(11, stored.Columns.Count);
         Assert.AreEqual(1, stored.RenderGroups.Count);
         Assert.AreEqual(2, stored.RenderGroups[0].InstanceCount);
 
         var index = AetheriaRuntimeDaemonSoaViewIndex.Build(stored);
         Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, out var entityIndex));
-        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.PositionX, out var positionX));
-        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ, out var velocityZ));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Position, out var position));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Velocity, out var velocity));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility, out var visibility));
 
         using var memory = MemoryMappedFile.OpenExisting(stored.Buffers[0].Location, MemoryMappedFileRights.Read);
         using var accessor = memory.CreateViewAccessor(0, stored.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
         Assert.AreEqual(3, accessor.ReadInt32(entityIndex.AbsoluteByteOffset));
         Assert.AreEqual(7, accessor.ReadInt32(entityIndex.AbsoluteByteOffset + entityIndex.Column.ElementStride));
-        Assert.AreEqual(-2f, accessor.ReadSingle(positionX.AbsoluteByteOffset), 0.0001f);
-        Assert.AreEqual(12f, accessor.ReadSingle(positionX.AbsoluteByteOffset + positionX.Column.ElementStride), 0.0001f);
-        Assert.AreEqual(6f, accessor.ReadSingle(velocityZ.AbsoluteByteOffset + velocityZ.Column.ElementStride), 0.0001f);
+        Assert.AreEqual(-2f, accessor.ReadSingle(position.AbsoluteByteOffset), 0.0001f);
+        Assert.AreEqual(-8f, accessor.ReadSingle(position.AbsoluteByteOffset + 8), 0.0001f);
+        Assert.AreEqual(12f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride), 0.0001f);
+        Assert.AreEqual(34f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride + 8), 0.0001f);
+        Assert.AreEqual(6f, accessor.ReadSingle(velocity.AbsoluteByteOffset + velocity.Column.ElementStride + 8), 0.0001f);
         Assert.AreEqual(0, accessor.ReadByte(visibility.AbsoluteByteOffset));
         Assert.AreEqual(1, accessor.ReadByte(visibility.AbsoluteByteOffset + visibility.Column.ElementStride));
     }
@@ -1797,11 +1928,11 @@ public class DaemonRuntimeDocumentTests
             {
                 new AetheriaRuntimeDaemonSoaColumnDocument
                 {
-                    ColumnId = "position-x",
-                    Kind = AetheriaRuntimeDaemonSoaColumnKinds.PositionX,
+                    ColumnId = "position",
+                    Kind = AetheriaRuntimeDaemonSoaColumnKinds.Position,
                     BufferId = "entity-hot",
-                    ScalarType = "float32",
-                    ElementStride = 4,
+                    ScalarType = "float3",
+                    ElementStride = 12,
                     ElementCount = 64
                 }
             });
@@ -1943,8 +2074,8 @@ public class DaemonRuntimeDocumentTests
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-            "aetheria.daemon.commands.FireWeaponGroup",
-            new Dictionary<string, string>(StringComparer.Ordinal),
+            CultMesh.OperationInvocation("aetheria.daemon.commands.FireWeaponGroup"),
+            CultMesh.OperationPayload(),
             DateTimeOffset.UtcNow,
             "unity-uitoolkit");
 
@@ -1980,8 +2111,8 @@ public class DaemonRuntimeDocumentTests
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-            "aetheria.daemon.commands.SensorPing",
-            new Dictionary<string, string>(StringComparer.Ordinal),
+            CultMesh.OperationInvocation("aetheria.daemon.commands.SensorPing"),
+            CultMesh.OperationPayload(),
             DateTimeOffset.UtcNow,
             "");
 
@@ -2012,8 +2143,8 @@ public class DaemonRuntimeDocumentTests
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-            "aetheria.daemon.commands.TransferCargoItem",
-            new Dictionary<string, string>(StringComparer.Ordinal),
+            CultMesh.OperationInvocation("aetheria.daemon.commands.TransferCargoItem"),
+            CultMesh.OperationPayload(),
             DateTimeOffset.UtcNow,
             "unity-uitoolkit");
 
@@ -2291,78 +2422,17 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsOwnsActionBarBindingsInDaemonState()
+    public void DaemonCommandSchemaDoesNotOwnActionBarBindings()
     {
-        var run = RunWithTwoEntities();
-        run.ActionBarBindings = new[]
-        {
-            new AetheriaRuntimeActionBarBindingCommit
-            {
-                ControlPath = "<Keyboard>/1",
-                Kind = "equipment",
-                EquipmentIndex = 0
-            }
-        };
-        var set = AetheriaRuntimeDaemonCommandDocument.Create(
-            AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding,
-            "codex",
-            "session-bindings",
-            17,
-            "zone.0.entity.0");
-        set.TextValue = "<Keyboard>/1";
-        set.ActionBarBinding.Kind = "weapon_group";
-        set.ActionBarBinding.ItemKey = "laser";
-        set.WeaponGroup = 2;
-        var clear = AetheriaRuntimeDaemonCommandDocument.Create(
-            AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding,
-            "codex",
-            "session-bindings",
-            18,
-            "zone.0.entity.0");
-        clear.TextValue = "<Keyboard>/1";
+        var commandNames = Enum.GetNames(typeof(AetheriaRuntimeDaemonCommandKinds));
+        var boundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create("codex");
+        var commandBodies = boundary.Commands
+            .Select(command => command.CommandBody)
+            .ToArray();
 
-        var setResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { set });
-
-        Assert.AreEqual(1, setResult.AppliedCommandIds.Count);
-        Assert.AreEqual(1, run.ActionBarBindings.Count);
-        Assert.AreEqual("weapon_group", run.ActionBarBindings[0].Kind);
-        Assert.AreEqual("laser", run.ActionBarBindings[0].ItemKey);
-        Assert.AreEqual(2, run.ActionBarBindings[0].WeaponGroup);
-
-        var clearResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { clear });
-
-        Assert.AreEqual(1, clearResult.AppliedCommandIds.Count);
-        Assert.AreEqual(0, run.ActionBarBindings.Count);
-    }
-
-    [Test]
-    public void DaemonOperationsRejectsWeaponGroupActionBarBindingForMissingGroup()
-    {
-        var run = RunWithTwoEntities();
-        var negative = AetheriaRuntimeDaemonCommandDocument.Create(
-            AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding,
-            "codex",
-            "session-bindings",
-            17,
-            "zone.0.entity.0");
-        negative.TextValue = "<Keyboard>/1";
-        negative.ActionBarBinding.Kind = "weapon_group";
-        negative.WeaponGroup = -1;
-        var tooHigh = AetheriaRuntimeDaemonCommandDocument.Create(
-            AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding,
-            "codex",
-            "session-bindings",
-            18,
-            "zone.0.entity.0");
-        tooHigh.TextValue = "<Keyboard>/2";
-        tooHigh.ActionBarBinding.Kind = "weapon_group";
-        tooHigh.WeaponGroup = 99;
-
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { negative, tooHigh });
-
-        Assert.AreEqual(0, result.AppliedCommandIds.Count);
-        Assert.AreEqual(2, result.RejectedCommandIds.Count);
-        Assert.AreEqual(0, run.ActionBarBindings.Count);
+        Assert.IsFalse(commandNames.Contains("SetActionBarBinding"));
+        Assert.IsFalse(commandNames.Contains("ClearActionBarBinding"));
+        Assert.IsFalse(commandBodies.Contains("AetheriaRuntimeActionBarBindingCommand"));
     }
 
     [Test]
@@ -3269,7 +3339,9 @@ public class DaemonRuntimeDocumentTests
                     new AetheriaRuntimeEntitySnapshotCommit
                     {
                         EntityIndex = 0,
-                        Name = "Tow Station"
+                        Name = "Tow Station",
+                        PositionX = 300,
+                        PositionZ = 400
                     }
                 }
             }
@@ -3281,9 +3353,6 @@ public class DaemonRuntimeDocumentTests
             46,
             "zone.0.entity.0");
         command.TargetEntityKey = "zone.3.entity.0";
-        command.TargetZoneIndex = 3;
-        command.PositionX = 300;
-        command.PositionY = 400;
 
         var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
 
@@ -3624,6 +3693,47 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(-1, envelope.ObservedFrameId);
         Assert.AreEqual("", envelope.ActorEntityKey);
         Assert.IsEmpty(envelope.Path);
+        Assert.AreEqual(AetheriaRuntimeDaemonOperationIds.SetMoveVector, envelope.OperationId);
+        Assert.IsTrue(envelope.Accepted);
+        Assert.AreEqual(CultMeshLocalityKind.Network, envelope.Route.Kind);
+        Assert.IsNull(envelope.Diagnostic);
+    }
+
+    [Test]
+    public void EveCommandDocumentPreservesCultMeshInvocationAndPayload()
+    {
+        var request = new EveSurfaceCommandRequest(
+            "aetheria",
+            AetheriaRuntimePlayerSettingsCommands.SurfaceId,
+            CultMesh.OperationInvocation(
+                AetheriaRuntimePlayerSettingsCommands.SetPlayerName,
+                AetheriaRuntimeEveCommandDocument.SchemaId,
+                new CultMeshRouteHint(CultMeshLocalityKind.Ipc, "eve-ui-test"),
+                "idempotent-player-name"),
+            CultMesh.OperationPayload(("value", "Raven")),
+            DateTimeOffset.UtcNow,
+            "unity-raven");
+
+        var envelope = AetheriaRuntimeEveCommandClient.CreatePlayerSettingsCommand(request, "unity-raven");
+        var document = AetheriaRuntimeEveCommandClient.ToDocument(envelope);
+        var restored = AetheriaRuntimeEveCommandClient.ToEnvelope(document);
+
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsCommands.SetPlayerName, document.OperationId);
+        Assert.AreEqual(AetheriaRuntimeEveCommandDocument.SchemaId, document.OperationSchemaId);
+        Assert.AreEqual(CultMeshLocalityKind.Ipc.ToString(), document.OperationRouteKind);
+        Assert.AreEqual("eve-ui-test", document.OperationRouteDescription);
+        Assert.AreEqual("idempotent-player-name", document.OperationIdempotencyKey);
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsCommands.SetPlayerName, document.Operation.OperationId);
+        Assert.AreEqual(AetheriaRuntimeEveCommandDocument.SchemaId, document.Operation.SchemaId);
+        Assert.AreEqual(CultMeshLocalityKind.Ipc.ToString(), document.Operation.RouteKind);
+        Assert.AreEqual("eve-ui-test", document.Operation.RouteDescription);
+        Assert.AreEqual("idempotent-player-name", document.Operation.IdempotencyKey);
+        Assert.IsTrue(document.Payload.TryGetValue("value", out var documentValue));
+        Assert.AreEqual("Raven", documentValue);
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsCommands.SetPlayerName, restored.Invocation.OperationId);
+        Assert.AreEqual(CultMeshLocalityKind.Ipc, restored.Invocation.RouteHint.Kind);
+        Assert.AreEqual("Raven", restored.Payload.GetString("value"));
+        Assert.AreEqual("Raven", restored.PlayerSettings.PlayerName);
     }
 
     private static AetheriaRuntimeRunCheckpointCommit RunWithTwoEntities()
@@ -3794,7 +3904,7 @@ public class DaemonRuntimeDocumentTests
             frameId,
             soaGeneration,
             new[] { new AetheriaRuntimeDaemonSoaBufferDocument { BufferId = "hot" } },
-            new[] { new AetheriaRuntimeDaemonSoaColumnDocument { ColumnId = "position-x", BufferId = "hot" } });
+            new[] { new AetheriaRuntimeDaemonSoaColumnDocument { ColumnId = "position", BufferId = "hot" } });
 
         return new AetheriaRuntimeObservedDaemonState(
             frame,
@@ -3932,6 +4042,23 @@ public class DaemonRuntimeDocumentTests
         return component.Children.Any(child => ContainsSurfaceProp(child, key, value));
     }
 
+    private static bool ContainsSurfaceStateBinding(
+        AetheriaRuntimeSurfaceComponent component,
+        string targetProp,
+        string sourceId,
+        string schemaId)
+    {
+        if (component.StateBindings.Any(binding =>
+                binding.TargetProp == targetProp &&
+                binding.SourceId == sourceId &&
+                binding.SchemaId == schemaId))
+        {
+            return true;
+        }
+
+        return component.Children.Any(child => ContainsSurfaceStateBinding(child, targetProp, sourceId, schemaId));
+    }
+
     private static bool ContainsEveSurfaceMetric(
         EveSurfaceComponent component,
         string label,
@@ -3961,5 +4088,22 @@ public class DaemonRuntimeDocumentTests
         }
 
         return component.Children.Any(child => ContainsEveSurfaceProp(child, key, value));
+    }
+
+    private static bool ContainsEveSurfaceStateBinding(
+        EveSurfaceComponent component,
+        string targetProp,
+        string sourceId,
+        string schemaId)
+    {
+        if (component.StateBindings.Any(binding =>
+                binding.TargetProp == targetProp &&
+                binding.SourceId == sourceId &&
+                binding.SchemaId == schemaId))
+        {
+            return true;
+        }
+
+        return component.Children.Any(child => ContainsEveSurfaceStateBinding(child, targetProp, sourceId, schemaId));
     }
 }

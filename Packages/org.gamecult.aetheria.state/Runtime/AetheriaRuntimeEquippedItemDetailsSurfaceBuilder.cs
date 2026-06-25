@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 namespace GameCult.Aetheria.State.Verse
 {
@@ -45,21 +46,18 @@ namespace GameCult.Aetheria.State.Verse
             string id,
             string label,
             string command,
-            IReadOnlyDictionary<string, string> payload)
+            CultMeshOperationPayload payload)
         {
             Id = id ?? "";
             Label = label ?? "";
             Command = command ?? "";
-            Payload = payload ?? EmptyPayload;
+            Payload = payload ?? CultMeshOperationPayload.Empty;
         }
 
         public string Id { get; }
         public string Label { get; }
         public string Command { get; }
-        public IReadOnlyDictionary<string, string> Payload { get; }
-
-        private static readonly IReadOnlyDictionary<string, string> EmptyPayload =
-            new Dictionary<string, string>(StringComparer.Ordinal);
+        public CultMeshOperationPayload Payload { get; }
     }
 
     public sealed class AetheriaRuntimeEquippedItemTemperatureControl
@@ -68,41 +66,18 @@ namespace GameCult.Aetheria.State.Verse
             string id,
             string label,
             string value,
-            IReadOnlyDictionary<string, string> payload)
+            CultMeshOperationPayload payload)
         {
             Id = id ?? "";
             Label = label ?? "";
             Value = value ?? "";
-            Payload = payload ?? EmptyPayload;
+            Payload = payload ?? CultMeshOperationPayload.Empty;
         }
 
         public string Id { get; }
         public string Label { get; }
         public string Value { get; }
-        public IReadOnlyDictionary<string, string> Payload { get; }
-
-        private static readonly IReadOnlyDictionary<string, string> EmptyPayload =
-            new Dictionary<string, string>(StringComparer.Ordinal);
-    }
-
-    public sealed class AetheriaRuntimeEquippedItemActionBarSlot
-    {
-        public AetheriaRuntimeEquippedItemActionBarSlot(
-            string id,
-            string title,
-            string currentBinding,
-            IReadOnlyList<AetheriaRuntimeEquippedItemControl> controls)
-        {
-            Id = id ?? "";
-            Title = title ?? "";
-            CurrentBinding = currentBinding ?? "";
-            Controls = controls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>();
-        }
-
-        public string Id { get; }
-        public string Title { get; }
-        public string CurrentBinding { get; }
-        public IReadOnlyList<AetheriaRuntimeEquippedItemControl> Controls { get; }
+        public CultMeshOperationPayload Payload { get; }
     }
 
     public sealed class AetheriaRuntimeEquippedItemDetailsSurfaceState
@@ -120,7 +95,6 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls,
             IReadOnlyList<AetheriaRuntimeEquippedItemSection> behaviorSections,
             IReadOnlyList<AetheriaRuntimeEquippedItemControl> weaponGroupControls,
-            IReadOnlyList<AetheriaRuntimeEquippedItemActionBarSlot> actionBarSlots,
             string updatedAtUtc)
         {
             ItemName = itemName ?? "";
@@ -135,7 +109,6 @@ namespace GameCult.Aetheria.State.Verse
             TemperatureControls = temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>();
             BehaviorSections = behaviorSections ?? Array.Empty<AetheriaRuntimeEquippedItemSection>();
             WeaponGroupControls = weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>();
-            ActionBarSlots = actionBarSlots ?? Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>();
             UpdatedAtUtc = updatedAtUtc ?? "";
         }
 
@@ -151,7 +124,6 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> TemperatureControls { get; }
         public IReadOnlyList<AetheriaRuntimeEquippedItemSection> BehaviorSections { get; }
         public IReadOnlyList<AetheriaRuntimeEquippedItemControl> WeaponGroupControls { get; }
-        public IReadOnlyList<AetheriaRuntimeEquippedItemActionBarSlot> ActionBarSlots { get; }
         public string UpdatedAtUtc { get; }
         public bool HasWeaponControls => WeaponGroupControls.Count > 0;
     }
@@ -186,8 +158,6 @@ namespace GameCult.Aetheria.State.Verse
         public const string ToggleOverrideShutdown = "aetheria.inventory.equipped_item_details.override_shutdown.toggle";
         public const string SetTargetTemperature = "aetheria.inventory.equipped_item_details.target_temperature.set";
         public const string ToggleWeaponGroup = "aetheria.inventory.equipped_item_details.weapon_group.toggle";
-        public const string BindWeaponGroup = "aetheria.inventory.equipped_item_details.weapon_group.bind";
-        public const string ClearActionBarBinding = "aetheria.inventory.equipped_item_details.action_bar.clear";
 
         public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(
             AetheriaRuntimeCatalogItem typedItem,
@@ -198,7 +168,6 @@ namespace GameCult.Aetheria.State.Verse
             Func<float, string> formatTemperature,
             IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls,
             IReadOnlyList<AetheriaRuntimeEquippedItemControl> weaponGroupControls,
-            IReadOnlyList<AetheriaRuntimeEquippedItemActionBarSlot> actionBarSlots,
             DateTime updatedAtUtc = default(DateTime))
         {
             if (updatedAtUtc == default(DateTime))
@@ -219,7 +188,6 @@ namespace GameCult.Aetheria.State.Verse
                     temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
                     Array.Empty<AetheriaRuntimeEquippedItemSection>(),
                     weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                    actionBarSlots ?? Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>(),
                     updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
             }
 
@@ -240,7 +208,6 @@ namespace GameCult.Aetheria.State.Verse
                 temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
                 ProjectBehaviorSections(typedItem, item, formatValue, formatTemperature).ToArray(),
                 weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                actionBarSlots ?? Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>(),
                 updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
         }
 
@@ -261,7 +228,6 @@ namespace GameCult.Aetheria.State.Verse
                 Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
                 Array.Empty<AetheriaRuntimeEquippedItemSection>(),
                 Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>(),
                 "");
 
             var children = new List<AetheriaRuntimeSurfaceComponent>
@@ -311,12 +277,10 @@ namespace GameCult.Aetheria.State.Verse
                     "Weapon Groups",
                     Text(
                         $"{SurfaceId}.weapon_groups.note",
-                        "Toggle membership directly; action-bar group binding is handled below."),
+                        "Toggle membership directly; local clients may map inputs to equipment activation."),
                     ButtonRow(
                         $"{SurfaceId}.weapon_groups.actions",
                         state.WeaponGroupControls.Select(Button).ToArray())));
-
-                children.AddRange(state.ActionBarSlots.Select(BuildActionBarCard));
             }
 
             children.Add(ButtonRow(
@@ -342,16 +306,13 @@ namespace GameCult.Aetheria.State.Verse
                     new AetheriaRuntimeSurfaceCommandTemplate(Close, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(ToggleOverrideShutdown, "Toggle Override Shutdown", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(SetTargetTemperature, "Set Target Temperature", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleWeaponGroup, "Toggle Weapon Group", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
-                    new AetheriaRuntimeSurfaceCommandTemplate(BindWeaponGroup, "Bind Weapon Group", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
-                    new AetheriaRuntimeSurfaceCommandTemplate(ClearActionBarBinding, "Clear Action Bar Binding", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
+                    new AetheriaRuntimeSurfaceCommandTemplate(ToggleWeaponGroup, "Toggle Weapon Group", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport)
                 });
         }
 
-        public static IReadOnlyDictionary<string, string> Payload(params (string Key, string Value)[] values)
+        public static CultMeshOperationPayload Payload(params (string Key, string Value)[] values)
         {
-            return (values ?? Array.Empty<(string Key, string Value)>())
-                .ToDictionary(value => value.Key ?? "", value => value.Value ?? "", StringComparer.Ordinal);
+            return CultMesh.OperationPayload(values ?? Array.Empty<(string Key, string Value)>());
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildControlsCard(
@@ -385,16 +346,6 @@ namespace GameCult.Aetheria.State.Verse
                 control.Payload)));
 
             return Card($"{SurfaceId}.controls.card", "Controls", children.ToArray());
-        }
-
-        private static AetheriaRuntimeSurfaceComponent BuildActionBarCard(
-            AetheriaRuntimeEquippedItemActionBarSlot slot)
-        {
-            return Card(
-                slot.Id,
-                slot.Title,
-                Metric($"{slot.Id}.binding", "Current", slot.CurrentBinding),
-                ButtonRow($"{slot.Id}.actions", slot.Controls.Select(Button).ToArray()));
         }
 
         private static string SafeId(string value)
@@ -862,7 +813,7 @@ namespace GameCult.Aetheria.State.Verse
             string id,
             string label,
             string command,
-            IReadOnlyDictionary<string, string> payload)
+            CultMeshOperationPayload payload)
         {
             var props = new List<(string Key, string Value)>
             {
@@ -883,7 +834,7 @@ namespace GameCult.Aetheria.State.Verse
             string label,
             string command,
             string value,
-            IReadOnlyDictionary<string, string> payload)
+            CultMeshOperationPayload payload)
         {
             var props = new List<(string Key, string Value)>
             {
@@ -928,9 +879,7 @@ namespace GameCult.Aetheria.State.Verse
         Close = 1,
         ToggleOverrideShutdown = 2,
         SetTargetTemperature = 3,
-        ToggleWeaponGroup = 4,
-        BindWeaponGroup = 5,
-        ClearActionBarBinding = 6
+        ToggleWeaponGroup = 4
     }
 
     internal enum AetheriaRuntimeEquippedItemStatModifierType
@@ -957,21 +906,18 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEquippedItemDetailsCommandKind kind,
             int behaviorIndex = -1,
             float targetTemperature = 0f,
-            int groupIndex = -1,
-            int slotIndex = -1)
+            int groupIndex = -1)
         {
             Kind = kind;
             BehaviorIndex = behaviorIndex;
             TargetTemperature = targetTemperature;
             GroupIndex = groupIndex;
-            SlotIndex = slotIndex;
         }
 
         public AetheriaRuntimeEquippedItemDetailsCommandKind Kind { get; }
         public int BehaviorIndex { get; }
         public float TargetTemperature { get; }
         public int GroupIndex { get; }
-        public int SlotIndex { get; }
     }
 
     public static class AetheriaRuntimeEquippedItemDetailsSurfaceCommands
@@ -985,7 +931,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            switch (request.Command ?? "")
+            switch (request.Operation?.OperationId ?? "")
             {
                 case AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Close:
                     command = new AetheriaRuntimeEquippedItemDetailsCommand(
@@ -1006,17 +952,6 @@ namespace GameCult.Aetheria.State.Verse
                         AetheriaRuntimeEquippedItemDetailsCommandKind.ToggleWeaponGroup,
                         groupIndex: ReadInt(request, "group", -1));
                     return true;
-                case AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.BindWeaponGroup:
-                    command = new AetheriaRuntimeEquippedItemDetailsCommand(
-                        AetheriaRuntimeEquippedItemDetailsCommandKind.BindWeaponGroup,
-                        groupIndex: ReadInt(request, "group", -1),
-                        slotIndex: ReadInt(request, "slot", -1));
-                    return true;
-                case AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.ClearActionBarBinding:
-                    command = new AetheriaRuntimeEquippedItemDetailsCommand(
-                        AetheriaRuntimeEquippedItemDetailsCommandKind.ClearActionBarBinding,
-                        slotIndex: ReadInt(request, "slot", -1));
-                    return true;
                 default:
                     return false;
             }
@@ -1024,20 +959,12 @@ namespace GameCult.Aetheria.State.Verse
 
         private static int ReadInt(EveSurfaceCommandRequest request, string key, int defaultValue)
         {
-            return request.Payload != null &&
-                   request.Payload.TryGetValue(key, out var raw) &&
-                   int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : defaultValue;
+            return request.Payload.GetInt32(key, defaultValue);
         }
 
         private static float ReadFloat(EveSurfaceCommandRequest request, string key, float defaultValue)
         {
-            return request.Payload != null &&
-                   request.Payload.TryGetValue(key, out var raw) &&
-                   float.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : defaultValue;
+            return (float)request.Payload.GetDouble(key, defaultValue);
         }
     }
 }

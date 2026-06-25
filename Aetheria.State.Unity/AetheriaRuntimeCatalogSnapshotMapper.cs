@@ -10,7 +10,8 @@ internal static class AetheriaRuntimeCatalogSnapshotMapper
         return new AetheriaRuntimeCatalogSnapshot(
             catalog.Items.Select(FromState).ToArray(),
             catalog.Corporations.Select(FromState).ToArray(),
-            catalog.NameFiles.Select(FromState).ToArray());
+            catalog.NameFiles.Select(FromState).ToArray(),
+            AetheriaRuntimeStateMapper.ToRuntimeTradeValueSettings(catalog.TradeValuePolicy));
     }
 
     private static AetheriaRuntimeCatalogItem FromState(AetheriaItemDefinition item)

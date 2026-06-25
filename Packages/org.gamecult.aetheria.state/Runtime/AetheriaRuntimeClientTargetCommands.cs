@@ -12,6 +12,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string CycleTargetKind = "aetheria.client_target.kind.cycle";
         public const string SetTitle = "aetheria.client_target.title.set";
         public const string SetVerseId = "aetheria.client_target.verse_id.set";
+        public const string SetRuntimeId = "aetheria.client_target.runtime_id.set";
         public const string SetCultMeshAddress = "aetheria.client_target.cultmesh_address.set";
         public const string SetStateFilePath = "aetheria.client_target.state_file_path.set";
         public const string SetDiscoveryEndpoints = "aetheria.client_target.discovery_endpoints.set";
@@ -25,6 +26,7 @@ namespace GameCult.Aetheria.State.Verse
                 command == CycleTargetKind ||
                 command == SetTitle ||
                 command == SetVerseId ||
+                command == SetRuntimeId ||
                 command == SetCultMeshAddress ||
                 command == SetStateFilePath ||
                 command == SetDiscoveryEndpoints ||
@@ -58,7 +60,7 @@ namespace GameCult.Aetheria.State.Verse
             if (request == null)
                 return false;
 
-            var command = request.Command ?? "";
+            var command = request.Operation?.OperationId ?? "";
             switch (command)
             {
                 case AetheriaRuntimeClientTargetCommands.Refresh:
@@ -75,6 +77,11 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeClientTargetCommands.SetVerseId:
                     operation = new AetheriaClientTargetOperation(
                         AetheriaClientTargetOperationKind.SetVerseId,
+                        value: ReadPayloadValue(request, "value"));
+                    return true;
+                case AetheriaRuntimeClientTargetCommands.SetRuntimeId:
+                    operation = new AetheriaClientTargetOperation(
+                        AetheriaClientTargetOperationKind.SetRuntimeId,
                         value: ReadPayloadValue(request, "value"));
                     return true;
                 case AetheriaRuntimeClientTargetCommands.SetCultMeshAddress:
@@ -125,6 +132,8 @@ namespace GameCult.Aetheria.State.Verse
                     return target.RequestTitle(operation.Value);
                 case AetheriaClientTargetOperationKind.SetVerseId:
                     return target.RequestVerseId(operation.Value);
+                case AetheriaClientTargetOperationKind.SetRuntimeId:
+                    return target.RequestRuntimeId(operation.Value);
                 case AetheriaClientTargetOperationKind.SetCultMeshAddress:
                     return target.RequestCultMeshAddress(operation.Value);
                 case AetheriaClientTargetOperationKind.SetStateFilePath:
@@ -150,9 +159,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string ReadPayloadValue(EveSurfaceCommandRequest request, string key)
         {
-            return request.Payload != null && request.Payload.TryGetValue(key, out var value)
-                ? value ?? ""
-                : "";
+            return request.Payload.GetString(key);
         }
 
         private static string[] ParseDiscoveryEndpoints(string value)
@@ -172,12 +179,13 @@ namespace GameCult.Aetheria.State.Verse
             CycleTransport = 2,
             SetTitle = 3,
             SetVerseId = 4,
-            SetCultMeshAddress = 5,
-            SetStateFilePath = 6,
-            SetDiscoveryEndpoints = 7,
-            DiscoverVerses = 8,
-            SelectDiscoveredVerse = 9,
-            SyncReplica = 10
+            SetRuntimeId = 5,
+            SetCultMeshAddress = 6,
+            SetStateFilePath = 7,
+            SetDiscoveryEndpoints = 8,
+            DiscoverVerses = 9,
+            SelectDiscoveredVerse = 10,
+            SyncReplica = 11
         }
 
         private readonly struct AetheriaClientTargetOperation

@@ -127,6 +127,33 @@ namespace GameCult.Aetheria.State.Verse
                 true);
         }
 
+        public static AetheriaRuntimeZoneDetailsDaemonProjection ProjectDaemonZone(
+            AetheriaRuntimeZoneDetailsDocument zone,
+            Func<string, string> resolveHullType)
+        {
+            if (zone == null)
+            {
+                return new AetheriaRuntimeZoneDetailsDaemonProjection(
+                    0,
+                    0,
+                    Array.Empty<AetheriaRuntimeZoneDetailsBodyProjection>(),
+                    Array.Empty<AetheriaRuntimeZoneDetailsEntityProjection>(),
+                    false);
+            }
+
+            resolveHullType ??= _ => "";
+            return new AetheriaRuntimeZoneDetailsDaemonProjection(
+                zone.Mass,
+                Math.Max(0, zone.Radius),
+                (zone.BodyKinds ?? Array.Empty<string>())
+                    .Select(kind => new AetheriaRuntimeZoneDetailsBodyProjection(kind))
+                    .ToArray(),
+                (zone.EntityHullItemKeys ?? Array.Empty<string>())
+                    .Select(hullItemKey => new AetheriaRuntimeZoneDetailsEntityProjection(resolveHullType(hullItemKey)))
+                    .ToArray(),
+                zone.HasContents);
+        }
+
         public static AetheriaRuntimeZoneDetailsSurfaceState Project(
             string zoneName,
             string ownerName,
@@ -356,7 +383,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeZoneDetailsSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            if (string.Equals(request.Command, AetheriaRuntimeZoneDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
+            if (string.Equals(request.Operation?.OperationId, AetheriaRuntimeZoneDetailsSurfaceBuilder.Close, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeZoneDetailsCommand(AetheriaRuntimeZoneDetailsCommandKind.Close);
                 return true;

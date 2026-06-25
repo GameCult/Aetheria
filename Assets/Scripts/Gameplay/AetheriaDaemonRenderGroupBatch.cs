@@ -104,9 +104,7 @@ public sealed class AetheriaDaemonRenderGroupBatch : IDisposable
         using var writtenCount = new NativeArray<int>(1, Allocator.TempJob);
         var job = new AetheriaDaemonRenderGroupMatrixJob
         {
-            PositionX = view.PositionX,
-            PositionY = view.PositionY,
-            PositionZ = view.PositionZ,
+            Position = view.Position,
             RotationRadians = view.RotationRadians,
             PhysicsBodyRadius = view.PhysicsBodyRadius,
             RenderScale = view.RenderScale,

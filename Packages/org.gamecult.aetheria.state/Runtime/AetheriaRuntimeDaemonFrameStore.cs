@@ -38,8 +38,16 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            frame = AetheriaRuntimeCultCacheDocumentStore.ReadDaemonFrame(framePath);
-            return true;
+            try
+            {
+                frame = AetheriaRuntimeCultCacheDocumentStore.ReadDaemonFrame(framePath);
+                return true;
+            }
+            catch (Exception)
+            {
+                frame = new AetheriaRuntimeDaemonFrameDocument();
+                return false;
+            }
         }
 
         public static AetheriaRuntimeDaemonFrameDocument ReadFrame(string stateFilePath)

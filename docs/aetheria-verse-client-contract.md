@@ -14,8 +14,9 @@ registry and exposes:
   latest daemon frame, latest SoA view, and daemon game/editor Eve surfaces;
 - reactive watches via `WatchRecord<T>()`, including `WatchLatestFrames()` and
   `WatchLatestSoaViews()`, plus daemon GUI/TUI surface watches;
-- `AetheriaRuntimeVerseDocument<T>` handles for transparent reactive POCO
-  presentation;
+- `CultMeshMutableStatePointer<T>` handles for transparent reactive POCO
+  presentation, including read, watch, and replace through shared CultMesh
+  Verse context semantics;
 - typed daemon and Eve command submission through the same command record keys
   used by the daemon.
 
@@ -55,9 +56,8 @@ The alternative idea of "Unity runs CultMesh using the same state assembly, but
 not the daemon assembly" is exactly what this contract supports. The Unity side
 references the runtime state package, opens `AetheriaRuntimeVerseClient`, and
 uses CultMesh reactive wrappers to observe daemon state as if it were native
-state. The current Unity CultMesh DLL exposes `WatchRecord<T>()`; once the
-packaged DLL catches up with local CultLib, the client handle can delegate
-directly to CultMesh `Document<T>` without changing callers.
+state. The client document handles now delegate to shared CultMesh mutable state
+pointers instead of a private Aetheria wrapper.
 
 ## Eve Surface Boundary
 
@@ -69,7 +69,7 @@ The daemon already publishes game and editor Eve surface records at these keys:
 - `eve:surface:aetheria.daemon.editor.tui`
 
 `AetheriaRuntimeVerseRecordKeys` exposes those keys and
-`AetheriaRuntimeVerseClient` exposes typed reads, document handles, and
+`AetheriaRuntimeVerseClient` exposes typed reads, mutable state pointers, and
 `WatchRecord<EveSurfaceState>()` subscriptions for all four. The
 `EveSurfaceState` document contract lives in the shared runtime package so a
 Unity client, terminal client, daemon inspector, or later non-C# runtime binding

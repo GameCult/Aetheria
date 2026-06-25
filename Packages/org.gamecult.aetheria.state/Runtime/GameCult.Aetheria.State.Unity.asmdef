@@ -4,6 +4,7 @@
     "references": [
         "GameCult.Eve.Surface",
         "GameCult.Mesh",
+        "CultMath",
         "MessagePack"
     ],
     "includePlatforms": [],
@@ -28,10 +29,12 @@
         "MessagePack.CultMesh.dll",
         "R3.dll",
         "System.Collections.Immutable.dll",
+        "System.ComponentModel.Annotations.dll",
         "System.IO.Pipelines.dll",
         "System.Text.Encodings.Web.dll",
         "System.Text.Json.dll",
-        "System.Threading.Channels.dll"
+        "System.Threading.Channels.dll",
+        "System.Threading.Tasks.Extensions.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],

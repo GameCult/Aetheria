@@ -15,17 +15,83 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonHealthDocument health,
-            AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary)
+            AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
+            AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
             commandBoundary ??= AetheriaRuntimeDaemonCommandBoundaryDocument.Create(frame.DaemonId);
+            starbridge ??= AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(frame);
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = FindCurrentZone(run);
             var entity = FindCurrentEntity(run, zone);
             var target = FindTargetEntity(zone, entity);
             var entityName = string.IsNullOrWhiteSpace(entity?.Name) ? "(no current entity)" : entity!.Name;
+            var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
+            {
+                Node(
+                    "aetheria.daemon.game.frame",
+                    "card",
+                    new[] { ("title", "Daemon Frame") },
+                    Metric("aetheria.daemon.game.frame.daemon", "Daemon", frame.DaemonId, AetheriaRuntimeDaemonStateRefs.FrameDaemonId),
+                    Metric("aetheria.daemon.game.frame.verse", "Verse", health.VerseId, AetheriaRuntimeDaemonStateRefs.FrameVerseId),
+                    Metric("aetheria.daemon.game.frame.frameId", "Frame", frame.FrameId.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameId),
+                    Metric("aetheria.daemon.game.frame.time", "Time", frame.SimulationTimeSeconds.ToString("0.###", CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameTime),
+                    Metric("aetheria.daemon.game.frame.status", "Status", health.Status, AetheriaRuntimeDaemonStateRefs.FrameStatus),
+                    Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameObservedCommands),
+                    Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameAppliedCommands),
+                    Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands)),
+                Node(
+                    "aetheria.daemon.game.starbridge",
+                    "card",
+                    new[] { ("title", "Starbridge Session") },
+                    Metric("aetheria.daemon.game.starbridge.scenario", "Scenario", starbridge.ScenarioName),
+                    Metric("aetheria.daemon.game.starbridge.session", "Session", starbridge.SessionId),
+                    Metric("aetheria.daemon.game.starbridge.phase", "Phase", starbridge.Phase),
+                    Metric("aetheria.daemon.game.starbridge.wave", "Wave", starbridge.CurrentWaveIndex.ToString(CultureInfo.InvariantCulture)),
+                    Metric("aetheria.daemon.game.starbridge.zone", "Zone", starbridge.ZoneName),
+                    Metric("aetheria.daemon.game.starbridge.base", "Base", starbridge.BaseStatus?.DisplayName ?? ""),
+                    Metric("aetheria.daemon.game.starbridge.base_hull", "Base Hull", FormatNumber(starbridge.BaseStatus?.Hull ?? 0)),
+                    Metric("aetheria.daemon.game.starbridge.base_shield", "Base Shield", FormatNumber(starbridge.BaseStatus?.Shield ?? 0)),
+                    Metric("aetheria.daemon.game.starbridge.base_heat", "Base Heat", FormatNumber(starbridge.BaseStatus?.Heat ?? 0))),
+                BuildStarbridgeStationStockCard(starbridge),
+                BuildStarbridgeWaveForecastCard(starbridge),
+                BuildStarbridgeRuntimeRolesCard(starbridge),
+                Node(
+                    "aetheria.daemon.game.player",
+                    "card",
+                    new[] { ("title", "Current Entity") },
+                    Metric("aetheria.daemon.game.player.run", "Run", run.RunId, AetheriaRuntimeDaemonStateRefs.CurrentRunId),
+                    Metric("aetheria.daemon.game.player.zone", "Zone", run.CurrentZoneIndex.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentZoneIndex),
+                    Metric("aetheria.daemon.game.player.key", "Entity Key", run.CurrentEntityKey, AetheriaRuntimeDaemonStateRefs.CurrentEntityKey),
+                    Metric("aetheria.daemon.game.player.name", "Name", entityName, AetheriaRuntimeDaemonStateRefs.CurrentEntityName),
+                    Metric("aetheria.daemon.game.player.position", "Position", FormatPosition(entity), AetheriaRuntimeDaemonStateRefs.CurrentEntityPosition),
+                    Metric("aetheria.daemon.game.player.target", "Target", string.IsNullOrWhiteSpace(target?.Name) ? "(none)" : target!.Name, AetheriaRuntimeDaemonStateRefs.CurrentTargetName),
+                    Metric("aetheria.daemon.game.player.equipment", "Equipment", Count(entity?.Equipment).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentEquipmentCount),
+                    Metric("aetheria.daemon.game.player.cargo", "Cargo Bays", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentCargoBayCount),
+                    Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentWeaponGroupCount)),
+                Node(
+                    "aetheria.daemon.game.commands",
+                    "card",
+                    new[] { ("title", "Typed Command Boundary") },
+                    Metric(
+                        "aetheria.daemon.game.commands.boundary",
+                        "Boundary",
+                        commandBoundary.BoundaryId,
+                        AetheriaRuntimeDaemonStateRefs.CommandBoundaryId),
+                    Metric(
+                        "aetheria.daemon.game.commands.count",
+                        "Commands",
+                        Count(commandBoundary.Commands).ToString(CultureInfo.InvariantCulture),
+                        AetheriaRuntimeDaemonStateRefs.CommandCount),
+                    Row(
+                        "aetheria.daemon.game.commands.primary",
+                        CommandButton("aetheria.daemon.game.commands.move", "Move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                        CommandButton("aetheria.daemon.game.commands.target", "Target Nearest", AetheriaRuntimeDaemonCommandKinds.TargetNearest),
+                        CommandButton("aetheria.daemon.game.commands.fire", "Fire", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+                        CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))
+            };
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria.daemon",
@@ -39,51 +105,7 @@ namespace GameCult.Aetheria.State.Verse
                         "aetheria.daemon.game.root",
                         "surface",
                         Array.Empty<(string Key, string Value)>(),
-                        Node(
-                            "aetheria.daemon.game.frame",
-                            "card",
-                            new[] { ("title", "Daemon Frame") },
-                            Metric("aetheria.daemon.game.frame.daemon", "Daemon", frame.DaemonId, AetheriaRuntimeDaemonStateRefs.FrameDaemonId),
-                            Metric("aetheria.daemon.game.frame.verse", "Verse", health.VerseId, AetheriaRuntimeDaemonStateRefs.FrameVerseId),
-                            Metric("aetheria.daemon.game.frame.frameId", "Frame", frame.FrameId.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameId),
-                            Metric("aetheria.daemon.game.frame.time", "Time", frame.SimulationTimeSeconds.ToString("0.###", CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameTime),
-                            Metric("aetheria.daemon.game.frame.status", "Status", health.Status, AetheriaRuntimeDaemonStateRefs.FrameStatus),
-                            Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameObservedCommands),
-                            Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameAppliedCommands),
-                            Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands)),
-                        Node(
-                            "aetheria.daemon.game.player",
-                            "card",
-                            new[] { ("title", "Current Entity") },
-                            Metric("aetheria.daemon.game.player.run", "Run", run.RunId, AetheriaRuntimeDaemonStateRefs.CurrentRunId),
-                            Metric("aetheria.daemon.game.player.zone", "Zone", run.CurrentZoneIndex.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentZoneIndex),
-                            Metric("aetheria.daemon.game.player.key", "Entity Key", run.CurrentEntityKey, AetheriaRuntimeDaemonStateRefs.CurrentEntityKey),
-                            Metric("aetheria.daemon.game.player.name", "Name", entityName, AetheriaRuntimeDaemonStateRefs.CurrentEntityName),
-                            Metric("aetheria.daemon.game.player.position", "Position", FormatPosition(entity), AetheriaRuntimeDaemonStateRefs.CurrentEntityPosition),
-                            Metric("aetheria.daemon.game.player.target", "Target", string.IsNullOrWhiteSpace(target?.Name) ? "(none)" : target!.Name, AetheriaRuntimeDaemonStateRefs.CurrentTargetName),
-                            Metric("aetheria.daemon.game.player.equipment", "Equipment", Count(entity?.Equipment).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentEquipmentCount),
-                            Metric("aetheria.daemon.game.player.cargo", "Cargo Bays", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentCargoBayCount),
-                            Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentWeaponGroupCount)),
-                        Node(
-                            "aetheria.daemon.game.commands",
-                            "card",
-                            new[] { ("title", "Typed Command Boundary") },
-                            Metric(
-                                "aetheria.daemon.game.commands.boundary",
-                                "Boundary",
-                                commandBoundary.BoundaryId,
-                                AetheriaRuntimeDaemonStateRefs.CommandBoundaryId),
-                            Metric(
-                                "aetheria.daemon.game.commands.count",
-                                "Commands",
-                                Count(commandBoundary.Commands).ToString(CultureInfo.InvariantCulture),
-                                AetheriaRuntimeDaemonStateRefs.CommandCount),
-                            Row(
-                                "aetheria.daemon.game.commands.primary",
-                                CommandButton("aetheria.daemon.game.commands.move", "Move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
-                                CommandButton("aetheria.daemon.game.commands.target", "Target Nearest", AetheriaRuntimeDaemonCommandKinds.TargetNearest),
-                                CommandButton("aetheria.daemon.game.commands.fire", "Fire", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
-                                CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))),
+                        surfaceChildren.ToArray()),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
                     .Where(entry => AetheriaRuntimeDaemonSurfaceCommandCatalog.IsArgumentlessCommand(entry.Kind))
@@ -92,6 +114,67 @@ namespace GameCult.Aetheria.State.Verse
                         AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
                         "cultmesh"))
                     .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildStarbridgeStationStockCard(
+            AetheriaRuntimeStarbridgeSessionSummaryDocument summary)
+        {
+            var stockRows = (summary.StationStock ?? Array.Empty<AetheriaRuntimeStarbridgeStationStockItem>())
+                .Take(6)
+                .Select((item, index) => Row(
+                    $"aetheria.daemon.game.starbridge.stock.{index}",
+                    Metric($"aetheria.daemon.game.starbridge.stock.{index}.item", "Item", item.ItemKey),
+                    Metric($"aetheria.daemon.game.starbridge.stock.{index}.quantity", "Qty", item.Quantity.ToString(CultureInfo.InvariantCulture)),
+                    Metric($"aetheria.daemon.game.starbridge.stock.{index}.quality", "Quality", FormatNumber(item.Quality))))
+                .DefaultIfEmpty(Text("aetheria.daemon.game.starbridge.stock.empty", "No station stock published."))
+                .ToArray();
+
+            return Node(
+                "aetheria.daemon.game.starbridge.stock",
+                "card",
+                new[] { ("title", "Station Stock") },
+                stockRows);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildStarbridgeWaveForecastCard(
+            AetheriaRuntimeStarbridgeSessionSummaryDocument summary)
+        {
+            var waveRows = (summary.WaveForecast ?? Array.Empty<AetheriaRuntimeStarbridgeWaveForecast>())
+                .Take(4)
+                .Select((wave, index) => Row(
+                    $"aetheria.daemon.game.starbridge.wave.{index}",
+                    Metric($"aetheria.daemon.game.starbridge.wave.{index}.name", "Wave", wave.DisplayName),
+                    Metric($"aetheria.daemon.game.starbridge.wave.{index}.attackers", "Attackers", Join(wave.AttackerKeys)),
+                    Metric($"aetheria.daemon.game.starbridge.wave.{index}.boss", "Boss", wave.BossKey),
+                    Metric($"aetheria.daemon.game.starbridge.wave.{index}.tech", "Tech", Join(wave.RecoveredTechnologyKeys))))
+                .DefaultIfEmpty(Text("aetheria.daemon.game.starbridge.wave.empty", "No wave forecast published."))
+                .ToArray();
+
+            return Node(
+                "aetheria.daemon.game.starbridge.waves",
+                "card",
+                new[] { ("title", "Wave Forecast") },
+                waveRows);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildStarbridgeRuntimeRolesCard(
+            AetheriaRuntimeStarbridgeSessionSummaryDocument summary)
+        {
+            var roleRows = (summary.RuntimeRoles ?? Array.Empty<AetheriaRuntimeStarbridgeRuntimeRole>())
+                .Take(8)
+                .Select((role, index) => Row(
+                    $"aetheria.daemon.game.starbridge.role.{index}",
+                    Metric($"aetheria.daemon.game.starbridge.role.{index}.runtime", "Runtime", role.RuntimeId),
+                    Metric($"aetheria.daemon.game.starbridge.role.{index}.role", "Role", role.Role),
+                    Metric($"aetheria.daemon.game.starbridge.role.{index}.entity", "Entity", role.EntityKey)))
+                .DefaultIfEmpty(Text("aetheria.daemon.game.starbridge.role.empty", "No runtime roles published."))
+                .ToArray();
+
+            return Node(
+                "aetheria.daemon.game.starbridge.roles",
+                "card",
+                new[] { ("title", "Runtime Roles") },
+                roleRows);
         }
 
         private static AetheriaRuntimeZoneSnapshotCommit FindCurrentZone(AetheriaRuntimeRunCheckpointCommit run)
@@ -160,6 +243,18 @@ namespace GameCult.Aetheria.State.Verse
             return values?.Count ?? 0;
         }
 
+        private static string FormatNumber(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string Join(IReadOnlyList<string>? values)
+        {
+            return values == null || values.Count == 0
+                ? ""
+                : string.Join(", ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+        }
+
         private static string CommandName(AetheriaRuntimeDaemonCommandKinds kind)
         {
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
@@ -176,6 +271,11 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeSurfaceStateRefs.SourceRef(stateRef)
                 };
             return Node(id, "metric", props);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Text(string id, string value)
+        {
+            return Node(id, "text", new[] { ("value", value ?? "") });
         }
 
         private static AetheriaRuntimeSurfaceComponent CommandButton(

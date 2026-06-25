@@ -13,6 +13,7 @@ public class HitscanEffect : MonoBehaviour
     public float Spread { get; set; }
     public DamageType DamageType { get; set; }
     public Entity SourceEntity { get; set; }
+    public ZoneRenderer ZoneRenderer { get; set; }
     public float Range { get; set; }
     
     private float _startTime;
@@ -23,7 +24,7 @@ public class HitscanEffect : MonoBehaviour
         _startTime = Time.time;
         var hitFound = false;
         if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
-                ActionGameManager.Instance?.ZoneRenderer,
+                ZoneRenderer,
                 SourceEntity,
                 transform.position,
                 transform.forward,

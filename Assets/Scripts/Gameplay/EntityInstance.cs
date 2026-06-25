@@ -41,11 +41,6 @@ public class EntityInstance : MonoBehaviour
     // private (Reactor reactor, GameObject sfxSource) _reactor;
     // private Dictionary<Radiator, GameObject> _radiatorSfx = new Dictionary<Radiator, GameObject>();
     
-    private static AetheriaRuntimeCatalogItem FindTypedHull(ItemInstance hull)
-    {
-        return ActionGameManager.RuntimeCatalog?.FindItem(hull?.ItemKey ?? "");
-    }
-
     private static Vector2 ToVector2(CultMath.float2 value) => new Vector2(value.x, value.y);
     private static Vector2 ToVector2(Unity.Mathematics.float2 value) => new Vector2(value.x, value.y);
 
@@ -156,7 +151,7 @@ public class EntityInstance : MonoBehaviour
         Entity = entity;
         DaemonEntityIndex = entity.DaemonEntityIndex;
         ZoneRenderer = zoneRenderer;
-        var typedHull = FindTypedHull(entity.Hull);
+        var typedHull = ZoneRenderer?.FindCatalogItem(entity.Hull);
         if (typedHull == null || typedHull.ShapeWidth <= 0 || typedHull.ShapeHeight <= 0 || typedHull.ShapeCells.Count == 0)
         {
             Debug.LogError($"Cannot bind entity instance for {entity.Name}: missing typed hull shape.");

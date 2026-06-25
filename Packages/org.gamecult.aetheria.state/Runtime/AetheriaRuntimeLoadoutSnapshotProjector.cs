@@ -8,6 +8,39 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeLoadoutSnapshotProjector
     {
+        public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string entityKey)
+        {
+            if (run == null ||
+                !TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex))
+            {
+                return new AetheriaRuntimeLoadoutTemplateCommit();
+            }
+
+            return ProjectLoadoutTemplate(run, zoneIndex, entityIndex);
+        }
+
+        public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(
+            AetheriaRuntimeRunCheckpointCommit run,
+            int zoneIndex,
+            int entityIndex)
+        {
+            var zone = (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            var entities = zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            var entity = entities.FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == entityIndex);
+            if (entity == null)
+                return new AetheriaRuntimeLoadoutTemplateCommit();
+
+            return new AetheriaRuntimeLoadoutTemplateCommit
+            {
+                Name = entity.Name ?? "",
+                OwnerPlayerKey = "global:aetheria.player_settings.v1",
+                RootEntity = ProjectEntityLoadout(entity, entities)
+            };
+        }
+
         public static string AppendToZone(
             AetheriaRuntimeRunCheckpointCommit run,
             int zoneIndex,
@@ -40,6 +73,50 @@ namespace GameCult.Aetheria.State.Verse
             zone.Entities = entities.ToArray();
             run.Zones = zones;
             return EntityKey(run.RunId, zoneIndex, rootIndex);
+        }
+
+        private static AetheriaRuntimeEntityLoadoutCommit ProjectEntityLoadout(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> zoneEntities)
+        {
+            var childIndices = (entity.ChildEntityIndices ?? Array.Empty<int>())
+                .Where(index => index >= 0)
+                .ToArray();
+            var children = childIndices
+                .Select(index => zoneEntities.FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == index))
+                .Where(child => child != null)
+                .Select(child => ProjectEntityLoadout(child!, zoneEntities))
+                .ToArray();
+            var childIndexByEntityIndex = childIndices
+                .Select((entityIndex, childIndex) => new { entityIndex, childIndex })
+                .ToDictionary(pair => pair.entityIndex, pair => pair.childIndex);
+
+            return new AetheriaRuntimeEntityLoadoutCommit
+            {
+                Name = entity.Name ?? "",
+                Kind = string.IsNullOrWhiteSpace(entity.Kind) ? "ship" : entity.Kind,
+                FactionKey = entity.FactionKey ?? "",
+                Hull = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = entity.HullItemKey ?? "",
+                    Quality = 1.0,
+                    Durability = 1.0,
+                    Quantity = 1,
+                    Enabled = true
+                },
+                Equipment = CloneSlots(entity.Equipment),
+                CargoBays = CloneSlots(entity.CargoBays),
+                DockingBays = CloneSlots(entity.DockingBays),
+                CargoContents = CloneCargo(entity.CargoContents),
+                DockingBayContents = CloneCargo(entity.DockingBayContents),
+                DockingBayAssignments = (entity.DockingBayAssignments ?? Array.Empty<int>())
+                    .Select(index => childIndexByEntityIndex.TryGetValue(index, out var childIndex) ? childIndex : -1)
+                    .ToArray(),
+                WeaponGroups = (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>())
+                    .Select(group => (IReadOnlyList<int>)(group ?? Array.Empty<int>()).ToArray())
+                    .ToArray(),
+                Children = children
+            };
         }
 
         private static int AppendEntity(

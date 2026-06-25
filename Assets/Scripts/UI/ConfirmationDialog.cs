@@ -30,6 +30,8 @@ public class ConfirmationDialog : MonoBehaviour
     private readonly List<Action> _refreshers = new();
     private Action _onCancel;
     private Action _onConfirm;
+    private Action _enableGlobalInput;
+    private Action _disableGlobalInput;
 
     private void Start()
     {
@@ -88,6 +90,12 @@ public class ConfirmationDialog : MonoBehaviour
         return property;
     }
 
+    public void SetInputGate(Action enableGlobalInput, Action disableGlobalInput)
+    {
+        _enableGlobalInput = enableGlobalInput;
+        _disableGlobalInput = disableGlobalInput;
+    }
+
     public void AddField(string name, Func<string> read, Action<string> write)
     {
         var field = Instantiate(InputField, Content ?? (RectTransform)transform);
@@ -129,7 +137,7 @@ public class ConfirmationDialog : MonoBehaviour
 
         CancelClickCatcher?.gameObject.SetActive(false);
         gameObject.SetActive(false);
-        ActionGameManager.Instance?.Input.Global.Enable();
+        _enableGlobalInput?.Invoke();
     }
 
     public void MoveToCursor()
@@ -153,7 +161,7 @@ public class ConfirmationDialog : MonoBehaviour
         ButtonGroup.SetActive(onConfirm != null || onCancel != null);
 
         CancelClickCatcher?.gameObject.SetActive(true);
-        ActionGameManager.Instance?.Input.Global.Disable();
+        _disableGlobalInput?.Invoke();
     }
 
     private void RegisterEntry(GameObject entry)

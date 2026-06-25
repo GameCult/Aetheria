@@ -39,6 +39,7 @@ public class GuidedProjectile : MonoBehaviour
     public float Spread { get; set; }
     public DamageType DamageType { get; set; }
     public Entity SourceEntity { get; set; }
+    public ZoneRenderer ZoneRenderer { get; set; }
 
     public event Action OnKill;
 
@@ -112,6 +113,7 @@ public class GuidedProjectile : MonoBehaviour
                     child.Source = Source;
                     child.Target = Target;
                     child.SourceEntity = SourceEntity;
+                    child.ZoneRenderer = ZoneRenderer;
                     child.GuidanceCurve = GuidanceCurve;
                     child.LiftCurve = LiftCurve;
                     child.ThrustCurve = ThrustCurve;
@@ -144,7 +146,7 @@ public class GuidedProjectile : MonoBehaviour
         if(_alive)
         {
             if (AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls(
-                    ActionGameManager.Instance?.ZoneRenderer,
+                    ZoneRenderer,
                     SourceEntity,
                     t.position,
                     Velocity,

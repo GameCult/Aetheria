@@ -46,6 +46,17 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeTradeValueSettings
     {
+        public static AetheriaRuntimeTradeValueSettings Default { get; } = new AetheriaRuntimeTradeValueSettings(
+            new AetheriaRuntimeExponentialLerp(3, 0.25, 8),
+            new[]
+            {
+                new AetheriaRuntimeItemRarityTier("Common", 0.3, 0.75, 0.75, 0.75),
+                new AetheriaRuntimeItemRarityTier("Uncommon", 0.45, 0, 1, 0.5),
+                new AetheriaRuntimeItemRarityTier("Rare", 0.6, 0, 0.6, 1),
+                new AetheriaRuntimeItemRarityTier("Epic", 0.75, 0.75, 0, 1),
+                new AetheriaRuntimeItemRarityTier("Legendary", 0.9, 1, 0.4, 0),
+            });
+
         public AetheriaRuntimeTradeValueSettings(
             AetheriaRuntimeExponentialLerp qualityPriceModifier,
             IReadOnlyList<AetheriaRuntimeItemRarityTier> tiers)

@@ -139,25 +139,24 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.PutDaemonProviderAdvertisementAsync(daemonProvider);
     await node.PutDaemonHealthAsync(daemonHealth);
     await node.PutDaemonCommandBoundaryAsync(daemonCommandBoundary);
-    using var daemonCommandClient = await AetheriaRuntimeVerseClient.OpenAsync(
+    using var daemonCommandClient = await AetheriaClient.OpenAsync(
         statePath,
         "aetheria-state-smoke-command-client",
+        "smoke-session",
         startServer: false,
         pullOnOpen: true);
-    var daemonSubmitEnvelope = await daemonCommandClient.SubmitDaemonCommandAsync(
-        AetheriaRuntimeDaemonCommandDocument.Create(
-            AetheriaRuntimeDaemonCommandKinds.SensorPing,
-            "aetheria-state-smoke",
-            "smoke-session",
-            daemonFrame.FrameId,
-            entityKey.ToString()));
+    daemonCommandClient.Control.SensorPing();
 
     await using (var commandVerifyNode = await AetheriaStateNode.OpenAsync(
                      statePath,
                      "aetheria-state-smoke-command-check"))
     {
-        if (commandVerifyNode.ReadObservedDaemonCommands().All(command => command.CommandId != daemonSubmitEnvelope!.CommandId))
-            throw new InvalidOperationException("Verse client daemon submission did not appear as a typed state record.");
+        if (commandVerifyNode.ReadObservedDaemonCommands().All(command =>
+                command.Kind != AetheriaRuntimeDaemonCommandKinds.SensorPing ||
+                command.ClientId != "aetheria-state-smoke-command-client"))
+        {
+            throw new InvalidOperationException("AetheriaClient control submission did not appear as a typed daemon state record.");
+        }
     }
     await node.PutDaemonFrameAsync(daemonFrame);
     await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface));
@@ -480,14 +479,6 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         GenerationSeed = 424242,
         DiscoveredZoneIndices = [0],
         ZoneKeys = [zoneKey.ToString()],
-        ActionBarBindings =
-        [
-            new AetheriaActionBarBinding
-            {
-                Kind = "weapon-group",
-                WeaponGroup = 0
-            }
-        ],
         UpdatedAtUtc = now
     });
 
@@ -534,23 +525,31 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             await node.GetPlayerSettingsAsync(),
             now));
 
-    using var eveCommandClient = await AetheriaRuntimeVerseClient.OpenAsync(
+    using var eveCommandClient = await AetheriaClient.OpenAsync(
         statePath,
         "aetheria-state-smoke-eve-command-client",
         startServer: false,
         pullOnOpen: true);
-    var eveSubmitEnvelope = await eveCommandClient.SubmitEveCommandAsync(
-        AetheriaRuntimeEveCommandClient.ToDocument(
-            AetheriaRuntimeEveCommands.SubmitCatalogCommand(
-                statePath,
-                AetheriaRuntimeEveCommandKind.CatalogRefresh,
-                "aetheria-state-smoke")));
+    await eveCommandClient.Ui.InputSettingsAsync(
+        AetheriaRuntimeEveCommandKind.SetBindingOverride,
+        new AetheriaRuntimeInputSettingsCommandBody
+        {
+            ActionName = "Thrust",
+            BindingIndex = 0,
+            InputSystemPath = "<Keyboard>/w",
+            Enabled = true
+        },
+        "aetheria-state-smoke-eve-command-client");
     await using (var commandVerifyNode = await AetheriaStateNode.OpenAsync(
                      statePath,
                      "aetheria-state-smoke-eve-command-check"))
     {
-        if (commandVerifyNode.ReadObservedEveCommands().All(command => command.CommandId != eveSubmitEnvelope!.CommandId))
-            throw new InvalidOperationException("Verse client Eve submission did not appear as a typed state record.");
+        if (commandVerifyNode.ReadObservedEveCommands().All(command =>
+                command.Kind != AetheriaRuntimeEveCommandKind.SetBindingOverride ||
+                command.ClientId != "aetheria-state-smoke-eve-command-client"))
+        {
+            throw new InvalidOperationException("AetheriaClient UI submission did not appear as a typed Eve state record.");
+        }
     }
     await node.SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(
         AetheriaRuntimeEveCommands.SubmitCatalogCommand(
@@ -766,8 +765,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     if (runState?.RunId != "smoke" ||
         runState.GenerationSeed != 424242 ||
         runState.CurrentEntityKey != entityKey.ToString() ||
-        runState.ZoneKeys.Length != 1 ||
-        runState.ActionBarBindings.Length != 1)
+        runState.ZoneKeys.Length != 1)
     {
         throw new InvalidOperationException("Run state did not survive flush/reopen.");
     }

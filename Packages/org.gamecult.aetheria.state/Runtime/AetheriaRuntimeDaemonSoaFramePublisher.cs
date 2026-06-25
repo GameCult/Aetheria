@@ -14,6 +14,7 @@ namespace GameCult.Aetheria.State.Verse
         private const string BufferId = "current-zone-entities-hot";
         private const int EntityRenderGroupId = 1;
         private const int FloatStride = 4;
+        private const int Float3Stride = 12;
         private const int IntStride = 4;
         private const int ByteStride = 1;
         private const int RetainedBufferCount = 4;
@@ -21,6 +22,7 @@ namespace GameCult.Aetheria.State.Verse
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, RetainedMappedBuffer> RetainedBuffers =
             new Dictionary<string, RetainedMappedBuffer>(StringComparer.Ordinal);
+        private static long RetainedBufferUseSequence;
 
         public static AetheriaRuntimeDaemonSoaViewDocument PublishCurrentZoneEntities(
             string stateFilePath,
@@ -125,13 +127,9 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var entity = entities[index];
                 accessor.Write(layout.EntityIndex + index * IntStride, entity.EntityIndex);
-                WriteFloat(accessor, layout.PositionX, index, entity.PositionX);
-                WriteFloat(accessor, layout.PositionY, index, entity.PositionY);
-                WriteFloat(accessor, layout.PositionZ, index, entity.PositionZ);
+                WriteFloat3(accessor, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
                 WriteFloat(accessor, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
-                WriteFloat(accessor, layout.VelocityX, index, entity.VelocityX);
-                WriteFloat(accessor, layout.VelocityY, index, 0.0);
-                WriteFloat(accessor, layout.VelocityZ, index, entity.VelocityY);
+                WriteFloat3(accessor, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
                 WriteFloat(accessor, layout.PhysicsBodyRadius, index, 1.0);
                 WriteFloat(accessor, layout.PhysicsBodyMass, index, 1.0);
                 WriteFloat(accessor, layout.PhysicsBodyInverseMass, index, 1.0);
@@ -147,6 +145,20 @@ namespace GameCult.Aetheria.State.Verse
             accessor.Write(byteOffset + index * FloatStride, IsFinite(value) ? (float)value : 0.0f);
         }
 
+        private static void WriteFloat3(
+            MemoryMappedViewAccessor accessor,
+            long byteOffset,
+            int index,
+            double x,
+            double y,
+            double z)
+        {
+            var elementOffset = byteOffset + index * Float3Stride;
+            accessor.Write(elementOffset, IsFinite(x) ? (float)x : 0.0f);
+            accessor.Write(elementOffset + FloatStride, IsFinite(y) ? (float)y : 0.0f);
+            accessor.Write(elementOffset + FloatStride * 2, IsFinite(z) ? (float)z : 0.0f);
+        }
+
         private static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
@@ -157,23 +169,31 @@ namespace GameCult.Aetheria.State.Verse
             lock (Sync)
             {
                 if (RetainedBuffers.TryGetValue(location, out var existing))
+                {
+                    existing.MarkUsed(++RetainedBufferUseSequence);
                     return existing;
+                }
 
                 var memory = MemoryMappedFile.CreateOrOpen(location, byteLength, MemoryMappedFileAccess.ReadWrite);
                 var accessor = memory.CreateViewAccessor(0, byteLength, MemoryMappedFileAccess.ReadWrite);
-                var buffer = new RetainedMappedBuffer(memory, accessor);
+                var buffer = new RetainedMappedBuffer(memory, accessor, ++RetainedBufferUseSequence);
                 RetainedBuffers[location] = buffer;
-                TrimRetainedBuffers();
+                TrimRetainedBuffers(location);
                 return buffer;
             }
         }
 
-        private static void TrimRetainedBuffers()
+        private static void TrimRetainedBuffers(string retainedLocation)
         {
             if (RetainedBuffers.Count <= RetainedBufferCount)
                 return;
 
-            foreach (var key in RetainedBuffers.Keys.OrderBy(key => key).Take(RetainedBuffers.Count - RetainedBufferCount).ToArray())
+            foreach (var key in RetainedBuffers
+                .Where(pair => !string.Equals(pair.Key, retainedLocation, StringComparison.Ordinal))
+                .OrderBy(pair => pair.Value.LastUsedSequence)
+                .Select(pair => pair.Key)
+                .Take(RetainedBuffers.Count - RetainedBufferCount)
+                .ToArray())
             {
                 RetainedBuffers[key].Dispose();
                 RetainedBuffers.Remove(key);
@@ -191,13 +211,21 @@ namespace GameCult.Aetheria.State.Verse
         private sealed class RetainedMappedBuffer : IDisposable
         {
             private readonly MemoryMappedFile _memory;
-            public RetainedMappedBuffer(MemoryMappedFile memory, MemoryMappedViewAccessor accessor)
+            public RetainedMappedBuffer(MemoryMappedFile memory, MemoryMappedViewAccessor accessor, long lastUsedSequence)
             {
                 _memory = memory;
                 Accessor = accessor;
+                LastUsedSequence = lastUsedSequence;
             }
 
             public MemoryMappedViewAccessor Accessor { get; }
+
+            public long LastUsedSequence { get; private set; }
+
+            public void MarkUsed(long sequence)
+            {
+                LastUsedSequence = sequence;
+            }
 
             public void Dispose()
             {
@@ -210,13 +238,9 @@ namespace GameCult.Aetheria.State.Verse
         {
             private EntityHotSlabLayout(
                 long entityIndex,
-                long positionX,
-                long positionY,
-                long positionZ,
+                long position,
                 long rotationRadians,
-                long velocityX,
-                long velocityY,
-                long velocityZ,
+                long velocity,
                 long physicsBodyRadius,
                 long physicsBodyMass,
                 long physicsBodyInverseMass,
@@ -227,13 +251,9 @@ namespace GameCult.Aetheria.State.Verse
                 long totalByteLength)
             {
                 EntityIndex = entityIndex;
-                PositionX = positionX;
-                PositionY = positionY;
-                PositionZ = positionZ;
+                Position = position;
                 RotationRadians = rotationRadians;
-                VelocityX = velocityX;
-                VelocityY = velocityY;
-                VelocityZ = velocityZ;
+                Velocity = velocity;
                 PhysicsBodyRadius = physicsBodyRadius;
                 PhysicsBodyMass = physicsBodyMass;
                 PhysicsBodyInverseMass = physicsBodyInverseMass;
@@ -245,13 +265,9 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             public long EntityIndex { get; }
-            public long PositionX { get; }
-            public long PositionY { get; }
-            public long PositionZ { get; }
+            public long Position { get; }
             public long RotationRadians { get; }
-            public long VelocityX { get; }
-            public long VelocityY { get; }
-            public long VelocityZ { get; }
+            public long Velocity { get; }
             public long PhysicsBodyRadius { get; }
             public long PhysicsBodyMass { get; }
             public long PhysicsBodyInverseMass { get; }
@@ -266,13 +282,9 @@ namespace GameCult.Aetheria.State.Verse
                 count = Math.Max(0, count);
                 var offset = 0L;
                 var entityIndex = Take(ref offset, count, IntStride);
-                var positionX = Take(ref offset, count, FloatStride);
-                var positionY = Take(ref offset, count, FloatStride);
-                var positionZ = Take(ref offset, count, FloatStride);
+                var position = Take(ref offset, count, Float3Stride);
                 var rotationRadians = Take(ref offset, count, FloatStride);
-                var velocityX = Take(ref offset, count, FloatStride);
-                var velocityY = Take(ref offset, count, FloatStride);
-                var velocityZ = Take(ref offset, count, FloatStride);
+                var velocity = Take(ref offset, count, Float3Stride);
                 var physicsBodyRadius = Take(ref offset, count, FloatStride);
                 var physicsBodyMass = Take(ref offset, count, FloatStride);
                 var physicsBodyInverseMass = Take(ref offset, count, FloatStride);
@@ -283,13 +295,9 @@ namespace GameCult.Aetheria.State.Verse
                 var renderGroupId = Take(ref offset, count, IntStride);
                 return new EntityHotSlabLayout(
                     entityIndex,
-                    positionX,
-                    positionY,
-                    positionZ,
+                    position,
                     rotationRadians,
-                    velocityX,
-                    velocityY,
-                    velocityZ,
+                    velocity,
                     physicsBodyRadius,
                     physicsBodyMass,
                     physicsBodyInverseMass,
@@ -305,13 +313,9 @@ namespace GameCult.Aetheria.State.Verse
                 return new[]
                 {
                     Column("entity-index", AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, "int32", EntityIndex, IntStride, count, "index", "world"),
-                    Column("position-x", AetheriaRuntimeDaemonSoaColumnKinds.PositionX, "float32", PositionX, FloatStride, count, "world_units", "world"),
-                    Column("position-y", AetheriaRuntimeDaemonSoaColumnKinds.PositionY, "float32", PositionY, FloatStride, count, "world_units", "world"),
-                    Column("position-z", AetheriaRuntimeDaemonSoaColumnKinds.PositionZ, "float32", PositionZ, FloatStride, count, "world_units", "world"),
+                    Column("position", AetheriaRuntimeDaemonSoaColumnKinds.Position, "float3", Position, Float3Stride, count, "world_units", "world"),
                     Column("rotation-radians", AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians, "float32", RotationRadians, FloatStride, count, "radians", "world"),
-                    Column("velocity-x", AetheriaRuntimeDaemonSoaColumnKinds.VelocityX, "float32", VelocityX, FloatStride, count, "world_units_per_second", "world"),
-                    Column("velocity-y", AetheriaRuntimeDaemonSoaColumnKinds.VelocityY, "float32", VelocityY, FloatStride, count, "world_units_per_second", "world"),
-                    Column("velocity-z", AetheriaRuntimeDaemonSoaColumnKinds.VelocityZ, "float32", VelocityZ, FloatStride, count, "world_units_per_second", "world"),
+                    Column("velocity", AetheriaRuntimeDaemonSoaColumnKinds.Velocity, "float3", Velocity, Float3Stride, count, "world_units_per_second", "world"),
                     Column("physics-body-radius", AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyRadius, "float32", PhysicsBodyRadius, FloatStride, count, "world_units", "world"),
                     Column("physics-body-mass", AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyMass, "float32", PhysicsBodyMass, FloatStride, count, "mass_units", "world"),
                     Column("physics-body-inverse-mass", AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyInverseMass, "float32", PhysicsBodyInverseMass, FloatStride, count, "inverse_mass_units", "world"),

@@ -58,17 +58,20 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeInventoryDropdownEntityOption(
             int entityIndex,
+            string entityKey,
             string name,
             bool isDisplayed,
             IReadOnlyList<AetheriaRuntimeInventoryDropdownBayOption> bays)
         {
             EntityIndex = entityIndex;
+            EntityKey = entityKey ?? "";
             Name = name ?? "";
             IsDisplayed = isDisplayed;
             Bays = bays ?? Array.Empty<AetheriaRuntimeInventoryDropdownBayOption>();
         }
 
         public int EntityIndex { get; }
+        public string EntityKey { get; }
         public string Name { get; }
         public bool IsDisplayed { get; }
         public IReadOnlyList<AetheriaRuntimeInventoryDropdownBayOption> Bays { get; }
@@ -124,12 +127,14 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeInventoryDropdownSelection(
             AetheriaRuntimeInventoryDropdownSelectionKind kind,
             string command,
+            string entityKey = "",
             int entityIndex = -1,
             int bayIndex = -1,
             int templateIndex = -1)
         {
             Kind = kind;
             Command = command ?? "";
+            EntityKey = entityKey ?? "";
             EntityIndex = entityIndex;
             BayIndex = bayIndex;
             TemplateIndex = templateIndex;
@@ -137,6 +142,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaRuntimeInventoryDropdownSelectionKind Kind { get; }
         public string Command { get; }
+        public string EntityKey { get; }
         public int EntityIndex { get; }
         public int BayIndex { get; }
         public int TemplateIndex { get; }
@@ -223,6 +229,7 @@ namespace GameCult.Aetheria.State.Verse
                     selections[equipmentCommand] = new AetheriaRuntimeInventoryDropdownSelection(
                         AetheriaRuntimeInventoryDropdownSelectionKind.EntityEquipment,
                         equipmentCommand,
+                        entityKey: entity.EntityKey,
                         entityIndex: entity.EntityIndex);
                 }
 
@@ -239,6 +246,7 @@ namespace GameCult.Aetheria.State.Verse
                     selections[bayCommand] = new AetheriaRuntimeInventoryDropdownSelection(
                         AetheriaRuntimeInventoryDropdownSelectionKind.EntityBay,
                         bayCommand,
+                        entityKey: entity.EntityKey,
                         entityIndex: entity.EntityIndex,
                         bayIndex: bay.BayIndex);
                 }
@@ -253,6 +261,7 @@ namespace GameCult.Aetheria.State.Verse
                     selections[entityCommand] = new AetheriaRuntimeInventoryDropdownSelection(
                         AetheriaRuntimeInventoryDropdownSelectionKind.Entity,
                         entityCommand,
+                        entityKey: entity.EntityKey,
                         entityIndex: entity.EntityIndex);
                 }
 
@@ -500,7 +509,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
                 return false;
 
-            var commandText = request.Command ?? "";
+            var commandText = request.Operation?.OperationId ?? "";
             if (string.Equals(commandText, AetheriaRuntimeInventoryDropdownSurfaceBuilder.Close, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeInventoryDropdownCommand(

@@ -473,13 +473,15 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
                     ? 1.0f / inverseMass
                     : 1.0f;
             var rotation = view.HasRotation ? view.RotationRadians[i] : 0;
+            var position = view.Position[i];
+            var velocity = view.HasVelocity ? view.Velocity[i] : default;
 
             _daemonBodies.Add(new YmirPhysicsBody
             {
                 id = DaemonEntityBodyPrefix + daemonEntityIndex,
-                position = new YmirVec2 { x = view.PositionX[i], y = view.PositionZ[i] },
+                position = new YmirVec2 { x = position.x, y = position.z },
                 velocity = view.HasVelocity
-                    ? new YmirVec2 { x = view.VelocityX[i], y = view.VelocityZ[i] }
+                    ? new YmirVec2 { x = velocity.x, y = velocity.z }
                     : default,
                 direction = new YmirVec2 { x = Mathf.Sin(rotation), y = Mathf.Cos(rotation) },
                 angularVelocity = 0,

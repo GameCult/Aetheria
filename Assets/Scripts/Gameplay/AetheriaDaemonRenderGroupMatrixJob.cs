@@ -7,13 +7,7 @@ using Unity.Mathematics;
 public struct AetheriaDaemonRenderGroupMatrixJob : IJob
 {
     [ReadOnly]
-    public NativeArray<float> PositionX;
-
-    [ReadOnly]
-    public NativeArray<float> PositionY;
-
-    [ReadOnly]
-    public NativeArray<float> PositionZ;
+    public NativeArray<float3> Position;
 
     [ReadOnly]
     public NativeArray<float> RotationRadians;
@@ -51,7 +45,7 @@ public struct AetheriaDaemonRenderGroupMatrixJob : IJob
     public void Execute()
     {
         var written = 0;
-        for (var index = 0; index < PositionX.Length; index++)
+        for (var index = 0; index < Position.Length; index++)
         {
             if (HasRenderGroupFilter && RenderGroupId[index] != TargetRenderGroupId)
             {
@@ -73,7 +67,7 @@ public struct AetheriaDaemonRenderGroupMatrixJob : IJob
                 break;
             }
 
-            var position = new float3(PositionX[index], PositionY[index], PositionZ[index]);
+            var position = Position[index];
             var rotation = HasRotation
                 ? quaternion.RotateY(RotationRadians[index])
                 : quaternion.identity;

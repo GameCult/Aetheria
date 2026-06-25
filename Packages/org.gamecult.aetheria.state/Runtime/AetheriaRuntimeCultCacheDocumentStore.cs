@@ -3,6 +3,7 @@ using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using GameCult.Mesh;
 using MessagePack;
 
 #nullable enable
@@ -127,6 +128,26 @@ namespace GameCult.Aetheria.State.Verse
                 ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Health));
         }
 
+        public static void WriteVerseAuthorityPolicy(
+            string path,
+            AetheriaRuntimeVerseAuthorityPolicyDocument document)
+        {
+            WriteDocument(
+                path,
+                AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey,
+                AetheriaRuntimeVerseAuthoritySchemas.Policy,
+                "gamecult.aetheria.verse_authority_policy",
+                "gamecult.aetheria.verse_authority_policy.v1",
+                document.UpdatedAtUtc,
+                MessagePackSerializer.Serialize(document));
+        }
+
+        public static AetheriaRuntimeVerseAuthorityPolicyDocument ReadVerseAuthorityPolicy(string path)
+        {
+            return MessagePackSerializer.Deserialize<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+                ReadDocumentPayload(path, AetheriaRuntimeVerseAuthoritySchemas.Policy));
+        }
+
         public static void WriteDaemonCommandBoundary(
             string path,
             AetheriaRuntimeDaemonCommandBoundaryDocument document)
@@ -145,6 +166,26 @@ namespace GameCult.Aetheria.State.Verse
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                 ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.CommandBoundary));
+        }
+
+        public static void WriteStarbridgeSessionSummary(
+            string path,
+            AetheriaRuntimeStarbridgeSessionSummaryDocument document)
+        {
+            WriteDocument(
+                path,
+                $"latest:gamecult.aetheria.starbridge_session_summary.{document.SessionId}.v1",
+                AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
+                "gamecult.aetheria.starbridge_session_summary",
+                "gamecult.aetheria.starbridge_session_summary.v1",
+                document.PublishedAtUtc,
+                MessagePackSerializer.Serialize(document));
+        }
+
+        public static AetheriaRuntimeStarbridgeSessionSummaryDocument ReadStarbridgeSessionSummary(string path)
+        {
+            return MessagePackSerializer.Deserialize<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
+                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         }
 
         public static void WriteDaemonGameSurface(string path, AetheriaRuntimeSurfaceDocument document)
@@ -338,7 +379,7 @@ namespace GameCult.Aetheria.State.Verse
                 new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal),
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());
 
-            writer.WriteArrayHeader(4);
+            writer.WriteArrayHeader(5);
             writer.Write(component.Id ?? "");
             writer.Write(component.Kind ?? "");
             writer.WriteMapHeader(component.Props?.Count ?? 0);
@@ -353,6 +394,19 @@ namespace GameCult.Aetheria.State.Verse
             {
                 WriteSurfaceComponent(ref writer, child);
             }
+
+            writer.WriteArrayHeader(component.StateBindings?.Count ?? 0);
+            foreach (var binding in component.StateBindings ?? Array.Empty<CultMeshStateBindingDescriptor>())
+            {
+                var record = CultMesh.StateBindingRecord(binding);
+                writer.WriteArrayHeader(6);
+                writer.Write(record.TargetProp);
+                writer.Write(record.PointerId);
+                writer.Write(record.SourceId);
+                writer.Write(record.SchemaId);
+                writer.Write(record.RouteKind);
+                writer.Write(record.RouteDescription);
+            }
         }
 
         private static void WriteSurfaceCommands(
@@ -362,10 +416,13 @@ namespace GameCult.Aetheria.State.Verse
             writer.WriteArrayHeader(commands?.Count ?? 0);
             foreach (var command in commands ?? Array.Empty<AetheriaRuntimeSurfaceCommandTemplate>())
             {
-                writer.WriteArrayHeader(3);
-                writer.Write(command.Command ?? "");
-                writer.Write(command.Label ?? "");
-                writer.Write(command.Transport ?? "");
+                var record = CultMesh.OperationBindingRecord(command.Operation);
+                writer.WriteArrayHeader(5);
+                writer.Write(record.OperationId);
+                writer.Write(record.Label);
+                writer.Write(record.SchemaId);
+                writer.Write(record.RouteKind);
+                writer.Write(record.RouteDescription);
             }
         }
 
@@ -449,12 +506,54 @@ namespace GameCult.Aetheria.State.Verse
             var kind = ReadFieldString(ref reader, componentFields, 1, "");
             var props = ReadFieldStringMap(ref reader, componentFields, 2);
             var children = ReadFieldSurfaceComponents(ref reader, componentFields, 3);
-            for (var field = 4; field < componentFields; field++)
+            var stateBindings = ReadFieldSurfaceStateBindings(ref reader, componentFields, 4);
+            for (var field = 5; field < componentFields; field++)
             {
                 reader.Skip();
             }
 
-            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children);
+            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children, stateBindings);
+        }
+
+        private static System.Collections.Generic.IReadOnlyList<CultMeshStateBindingDescriptor> ReadFieldSurfaceStateBindings(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields || reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                if (index < fields)
+                    reader.ReadNil();
+
+                return Array.Empty<CultMeshStateBindingDescriptor>();
+            }
+
+            var count = reader.ReadArrayHeader();
+            var bindings = new CultMeshStateBindingDescriptor[count];
+            for (var item = 0; item < count; item++)
+            {
+                var bindingFields = reader.ReadArrayHeader();
+                var targetProp = ReadFieldString(ref reader, bindingFields, 0, "value");
+                var pointerId = ReadFieldString(ref reader, bindingFields, 1, "");
+                var sourceId = ReadFieldString(ref reader, bindingFields, 2, "");
+                var schemaId = ReadFieldString(ref reader, bindingFields, 3, "");
+                var routeKind = ReadFieldString(ref reader, bindingFields, 4, "");
+                var routeDescription = ReadFieldString(ref reader, bindingFields, 5, "");
+                for (var field = 6; field < bindingFields; field++)
+                {
+                    reader.Skip();
+                }
+
+                bindings[item] = CultMesh.StateBindingRecord(
+                    targetProp,
+                    pointerId,
+                    sourceId,
+                    schemaId,
+                    routeKind,
+                    routeDescription).ToBinding();
+            }
+
+            return bindings;
         }
 
         private static System.Collections.Generic.IReadOnlyList<AetheriaRuntimeSurfaceComponent> ReadFieldSurfaceComponents(
@@ -554,13 +653,25 @@ namespace GameCult.Aetheria.State.Verse
                 var commandFields = reader.ReadArrayHeader();
                 var name = ReadFieldString(ref reader, commandFields, 0, "");
                 var label = ReadFieldString(ref reader, commandFields, 1, "");
-                var transport = ReadFieldString(ref reader, commandFields, 2, "");
-                for (var field = 3; field < commandFields; field++)
+                var legacyTransportOrSchema = ReadFieldString(ref reader, commandFields, 2, "");
+                var routeKind = commandFields > 3
+                    ? ReadFieldString(ref reader, commandFields, 3, "")
+                    : nameof(CultMeshLocalityKind.Automatic);
+                var routeDescription = commandFields > 4
+                    ? ReadFieldString(ref reader, commandFields, 4, "")
+                    : legacyTransportOrSchema;
+                for (var field = 5; field < commandFields; field++)
                 {
                     reader.Skip();
                 }
 
-                commands[command] = new AetheriaRuntimeSurfaceCommandTemplate(name, label, transport);
+                commands[command] = new AetheriaRuntimeSurfaceCommandTemplate(
+                    CultMesh.OperationBindingRecord(
+                        name,
+                        label,
+                        commandFields > 3 ? legacyTransportOrSchema : "",
+                        routeKind,
+                        routeDescription).ToBinding());
             }
 
             return commands;

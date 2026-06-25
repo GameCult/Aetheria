@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using GameCult.Caching;
 using MessagePack;
@@ -37,7 +38,7 @@ public sealed class EveSurfaceState
     public EveSurface Surface { get; set; } = new();
 
     [Key(8)]
-    public EveCommandTemplate[] Commands { get; set; } = [];
+    public EveCommandTemplate[] Commands { get; set; } = Array.Empty<EveCommandTemplate>();
 }
 
 [MessagePackObject]
@@ -50,7 +51,7 @@ public sealed class EveSurface
     public EveSurfaceComponent Root { get; set; } = new();
 
     [Key(2)]
-    public EveStyleToken[] Styles { get; set; } = [];
+    public EveStyleToken[] Styles { get; set; } = Array.Empty<EveStyleToken>();
 }
 
 [MessagePackObject]
@@ -66,7 +67,32 @@ public sealed class EveSurfaceComponent
     public Dictionary<string, string> Props { get; set; } = new();
 
     [Key(3)]
-    public EveSurfaceComponent[] Children { get; set; } = [];
+    public EveSurfaceComponent[] Children { get; set; } = Array.Empty<EveSurfaceComponent>();
+
+    [Key(4)]
+    public EveSurfaceStateBinding[] StateBindings { get; set; } = Array.Empty<EveSurfaceStateBinding>();
+}
+
+[MessagePackObject]
+public sealed class EveSurfaceStateBinding
+{
+    [Key(0)]
+    public string TargetProp { get; set; } = "value";
+
+    [Key(1)]
+    public string PointerId { get; set; } = "";
+
+    [Key(2)]
+    public string SourceId { get; set; } = "";
+
+    [Key(3)]
+    public string SchemaId { get; set; } = "";
+
+    [Key(4)]
+    public string RouteKind { get; set; } = "";
+
+    [Key(5)]
+    public string RouteDescription { get; set; } = "";
 }
 
 [MessagePackObject]
@@ -90,4 +116,13 @@ public sealed class EveCommandTemplate
 
     [Key(2)]
     public string Transport { get; set; } = "cultmesh";
+
+    [Key(3)]
+    public string SchemaId { get; set; } = "";
+
+    [Key(4)]
+    public string RouteKind { get; set; } = "";
+
+    [Key(5)]
+    public string RouteDescription { get; set; } = "";
 }

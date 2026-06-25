@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -18,7 +19,6 @@ using UnityEngine.UIElements;
 public class InventoryMenu : MonoBehaviour
 {
     public InventoryPanel[] InventoryPanels;
-    public ActionGameManager GameManager;
     public ConfirmationDialog Dialog;
     // public ClickCatcher Background;
 
@@ -27,9 +27,16 @@ public class InventoryMenu : MonoBehaviour
     private ItemInstance _selectedItem;
     private EquippedItem _selectedEquippedItem;
     private int2[] _selectedCells;
+    private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
+    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaUnityActionBarPresentation _actionBarPresentation;
+    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
     private readonly AetheriaEveUnitySurfaceChrome _cargoItemDetailsSurfaceChrome = PanelChrome(420f, 520f);
     private readonly AetheriaEveUnitySurfaceChrome _equippedItemDetailsSurfaceChrome = PanelChrome(460f, 560f);
@@ -38,6 +45,25 @@ public class InventoryMenu : MonoBehaviour
     // private ItemInstance _dragItem;
     // private Transform[] _dragCells;
     // private Vector2[] _dragOffsets;
+
+    public void SetDragSession(AetheriaUnityDragSession dragSession)
+    {
+        if (InventoryPanels == null)
+            return;
+
+        foreach (var panel in InventoryPanels)
+            panel?.SetDragSession(dragSession);
+    }
+
+    public void SetActionBarPresentation(AetheriaUnityActionBarPresentation actionBarPresentation)
+    {
+        _actionBarPresentation = actionBarPresentation;
+    }
+
+    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    {
+        _observedFacadeIndex = observedFacadeIndex;
+    }
     // private int2 _dragCellOffset;
     // private ItemRotation _originalRotation;
     // //private Shape _previousFakeOccupancy;
@@ -63,8 +89,8 @@ public class InventoryMenu : MonoBehaviour
         // {
         //     _destroyItem = false;
         // });
-        var hasObservedCurrentEntity = GameManager.TryGetObservedCurrentEntity(out var currentEntity);
-        var cargo = GameManager.TryGetObservedDockingBay(out var dockingBay)
+        var hasObservedCurrentEntity = TryGetTypedCurrentEntityFacade(out var currentEntity);
+        var cargo = TryGetTypedCurrentDockingBayFacade(out var dockingBay)
             ? dockingBay
             : currentEntity?.CargoBays.FirstOrDefault();
         if (cargo!=null)
@@ -157,44 +183,45 @@ public class InventoryMenu : MonoBehaviour
 
             panel.OnBackgroundClick.Subscribe(data =>
             {
-                if (!GameManager.TryGetObservedCurrentEntity(out var currentEntity)) return;
+                if (!TryResolveCurrentEntityDocument(out var currentEntity)) return;
 
                 RenderCurrentShipSettingsSurface(currentEntity);
             });
         }
     }
 
-    private void RenderCurrentShipSettingsSurface(Entity entity)
+    private void RenderCurrentShipSettingsSurface(AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        if (entity == null)
+        if (currentEntity == null || string.IsNullOrWhiteSpace(currentEntity.EntityKey))
             return;
 
         HideCargoItemDetailsSurface();
         HideEquippedItemDetailsSurface();
         ClearSelectedItemSelection();
+        _shipSettingsCurrentEntity = currentEntity;
 
         _shipSettingsSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _shipSettingsSurfaceDocument,
             "Aetheria Inventory Ship Settings Surface",
-            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurface(entity)),
+            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurface(currentEntity)),
             HandleCurrentShipSettingsSurfaceCommand,
             _shipSettingsSurfaceChrome);
     }
 
     private void HandleCurrentShipSettingsSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (!GameManager.TryGetObservedCurrentEntity(out var entity))
+        var currentEntity = _shipSettingsCurrentEntity;
+        if (currentEntity == null ||
+            string.IsNullOrWhiteSpace(currentEntity.EntityKey) ||
+            !TryResolveCurrentEntityDocument(out var latestCurrentEntity) ||
+            !string.Equals(latestCurrentEntity.EntityKey, currentEntity.EntityKey, StringComparison.Ordinal))
         {
             HideCurrentShipSettingsSurface();
             return;
         }
 
-        if (entity?.Settings == null)
-        {
-            HideCurrentShipSettingsSurface();
-            return;
-        }
+        _shipSettingsCurrentEntity = latestCurrentEntity;
 
         if (!AetheriaRuntimeShipSettingsSurfaceCommands.TryRead(request, out var command))
         {
@@ -207,12 +234,12 @@ public class InventoryMenu : MonoBehaviour
             case AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold:
             case AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold:
             case AetheriaRuntimeShipSettingsCommandKind.ResetShutdownThreshold:
-                GameManager.RequestEntityShutdownPerformance(
-                    entity,
+                RequestEntityShutdownPerformance(
+                    latestCurrentEntity.EntityKey,
                     AetheriaRuntimeShipSettingsSurfaceCommands.ResolveShutdownPerformance(
                         command.Kind,
-                        entity.Settings.ShutdownPerformance,
-                        GameManager.Settings.GameplaySettings.DefaultShutdownPerformance));
+                        (float)latestCurrentEntity.ShutdownPerformance,
+                        ResolveDefaultShutdownPerformance()));
                 return;
             case AetheriaRuntimeShipSettingsCommandKind.Close:
                 HideCurrentShipSettingsSurface();
@@ -225,18 +252,20 @@ public class InventoryMenu : MonoBehaviour
 
     private void HideCurrentShipSettingsSurface()
     {
+        _shipSettingsCurrentEntity = null;
         if (_shipSettingsSurfaceDocument == null)
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument);
     }
 
-    private static AetheriaRuntimeShipSettingsSurfaceState ProjectCurrentShipSettingsSurface(Entity entity)
+    private AetheriaRuntimeShipSettingsSurfaceState ProjectCurrentShipSettingsSurface(
+        AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
         return AetheriaRuntimeShipSettingsSurfaceBuilder.Project(
-            entity?.Name ?? "",
-            entity?.Settings?.ShutdownPerformance ?? 0f,
-            ActionGameManager.RuntimePlayerSettings.Format);
+            currentEntity?.Entity?.DisplayName ?? "",
+            (float)(currentEntity?.ShutdownPerformance ?? 0),
+            FormatValue);
     }
 
     private void RenderCargoItemDetailsSurface(ItemInstance item)
@@ -322,16 +351,15 @@ public class InventoryMenu : MonoBehaviour
                 ClearSelectedItemSelection();
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.ToggleOverrideShutdown:
-                GameManager.RequestEquippedItemOverrideShutdown(item, !item.EquippableItem.OverrideShutdown);
+                RequestEquippedItemOverrideShutdown(item, !item.EquippableItem.OverrideShutdown);
                 return;
             case AetheriaRuntimeEquippedItemDetailsCommandKind.SetTargetTemperature:
                 if (command.BehaviorIndex >= 0 &&
                     command.BehaviorIndex < (item.Behaviors?.Length ?? 0) &&
                     item.Behaviors[command.BehaviorIndex] is Thermotoggle thermotoggle &&
-                    thermotoggle.Adjustable &&
-                    GameManager != null)
+                    thermotoggle.Adjustable)
                 {
-                    GameManager.RequestThermotoggleTargetTemperature(thermotoggle, command.TargetTemperature);
+                    RequestThermotoggleTargetTemperature(item, command.BehaviorIndex, command.TargetTemperature);
                     return;
                 }
 
@@ -342,30 +370,11 @@ public class InventoryMenu : MonoBehaviour
                 if (command.GroupIndex >= 0)
                 {
                     var assigned = !IsWeaponGroupAssigned(item, command.GroupIndex);
-                    GameManager.RequestWeaponGroupMembership(item, command.GroupIndex, assigned);
+                    RequestWeaponGroupMembership(item, command.GroupIndex, assigned);
                     return;
                 }
 
                 Debug.LogWarning("Unable to submit equipped-item weapon group membership request.");
-                return;
-            case AetheriaRuntimeEquippedItemDetailsCommandKind.BindWeaponGroup:
-                if (command.GroupIndex >= 0 &&
-                    command.SlotIndex >= 0)
-                {
-                    GameManager.RequestWeaponGroupActionBarBinding(command.SlotIndex, command.GroupIndex);
-                    return;
-                }
-
-                Debug.LogWarning("Unable to submit equipped-item action-bar binding request.");
-                return;
-            case AetheriaRuntimeEquippedItemDetailsCommandKind.ClearActionBarBinding:
-                if (command.SlotIndex >= 0)
-                {
-                    GameManager.RequestClearActionBarBinding(command.SlotIndex);
-                    return;
-                }
-
-                Debug.LogWarning("Unable to submit equipped-item action-bar clear request.");
                 return;
             default:
                 Debug.LogWarning($"Unknown inventory equipped item details command: {request?.Command}");
@@ -408,12 +417,11 @@ public class InventoryMenu : MonoBehaviour
             typedItem,
             ProjectEquippedItemObservation(item),
             BuildEquippedItemTitle(item, typedItem),
-            ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)?.Name ?? "GameCult",
-            ActionGameManager.RuntimePlayerSettings.Format,
-            ActionGameManager.RuntimePlayerSettings.FormatTemperature,
+            ResolveManufacturerName(typedItem),
+            FormatValue,
+            FormatTemperature,
             ProjectEquippedItemTemperatureControls(item).ToArray(),
-            hasWeapon ? ProjectEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-            hasWeapon ? ProjectEquippedItemActionBarSlots(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemActionBarSlot>());
+            hasWeapon ? ProjectEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>());
     }
 
     private static AetheriaRuntimeEquippedItemObservation ProjectEquippedItemObservation(EquippedItem item)
@@ -456,38 +464,6 @@ public class InventoryMenu : MonoBehaviour
                     ("group", groupIndex.ToString(CultureInfo.InvariantCulture)))));
     }
 
-    private IEnumerable<AetheriaRuntimeEquippedItemActionBarSlot> ProjectEquippedItemActionBarSlots(
-        EquippedItem item)
-    {
-        for (var slotIndex = 0; slotIndex < GameManager.GetActionBarSlotCount(); slotIndex++)
-        {
-            var controls = Enumerable.Range(0, item.Entity?.WeaponGroups?.Length ?? 0)
-                .Select(groupIndex => new AetheriaRuntimeEquippedItemControl(
-                    $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.action_bar.{slotIndex}.group.{groupIndex}",
-                    $"G{groupIndex + 1}",
-                    AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.BindWeaponGroup,
-                    AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Payload(
-                        ("slot", slotIndex.ToString(CultureInfo.InvariantCulture)),
-                        ("group", groupIndex.ToString(CultureInfo.InvariantCulture)))))
-                .Concat(new[]
-                {
-                    new AetheriaRuntimeEquippedItemControl(
-                        $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.action_bar.{slotIndex}.clear",
-                        "Clear",
-                        AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.ClearActionBarBinding,
-                        AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Payload(
-                            ("slot", slotIndex.ToString(CultureInfo.InvariantCulture))))
-                })
-                .ToArray();
-
-            yield return new AetheriaRuntimeEquippedItemActionBarSlot(
-                $"{AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId}.action_bar.{slotIndex}.card",
-                $"Action Bar {GameManager.GetActionBarSlotLabel(slotIndex)}",
-                GameManager.GetActionBarBindingLabel(slotIndex),
-                controls);
-        }
-    }
-
     private AetheriaRuntimeCargoItemDetailsSurfaceState ProjectCargoItemDetailsSurface(
         ItemInstance item,
         AetheriaRuntimeCatalogItem typedItem)
@@ -495,10 +471,10 @@ public class InventoryMenu : MonoBehaviour
         return AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project(
             typedItem,
             ProjectCargoItemObservation(item),
-            ActionGameManager.RuntimeCatalog?.GetManufacturer(typedItem)?.Name ?? "GameCult",
+            ResolveManufacturerName(typedItem),
             item is EquippableItem equippableItem ? FormatItemTier(typedItem, equippableItem) : "",
-            ActionGameManager.RuntimePlayerSettings.Format,
-            ActionGameManager.RuntimePlayerSettings.FormatTemperature);
+            FormatValue,
+            FormatTemperature);
     }
 
     private static AetheriaRuntimeCargoItemObservation ProjectCargoItemObservation(ItemInstance item)
@@ -510,7 +486,7 @@ public class InventoryMenu : MonoBehaviour
             equippableItem != null,
             equippableItem?.Quality ?? 1,
             equippableItem?.Durability ?? 1,
-            equippableItem?.Temperature ?? 0,
+            0,
             equippableItem != null && equippableItem.OverrideShutdown);
     }
 
@@ -524,7 +500,7 @@ public class InventoryMenu : MonoBehaviour
         var tradeProjection = AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
             typedItem,
             ToRuntimeLoadoutItem(item),
-            GameManager.ObservedTradeValueSettings());
+            ResolveCatalog()?.TradeValueSettings);
         return tradeProjection.HasTier
             ? $"{tradeProjection.TierName}{new string('+', tradeProjection.Upgrades)}"
             : "";
@@ -552,12 +528,12 @@ public class InventoryMenu : MonoBehaviour
     {
         if (destination.DisplayedEntity != null && item is EquippableItem equippableItem)
         {
-            GameManager.RequestCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
+            RequestCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
             return;
         }
 
         if (destination.DisplayedCargo != null)
-            GameManager.RequestCargoItemTransfer(origin, destination.DisplayedCargo, item);
+            RequestCargoItemTransfer(origin, destination.DisplayedCargo, item);
     }
 
     private void ClearSelectedItemSelection()
@@ -573,7 +549,440 @@ public class InventoryMenu : MonoBehaviour
     private void RequestEquippedItemTransfer(Entity origin, EquippedItem item, InventoryPanel destination)
     {
         if (destination.DisplayedCargo != null)
-            GameManager.RequestEquippedItemStore(origin, item, destination.DisplayedCargo);
+            RequestEquippedItemStore(item, destination.DisplayedCargo);
+    }
+
+    private void RequestCargoItemTransfer(
+        EquippedCargoBay origin,
+        EquippedCargoBay destination,
+        ItemInstance item)
+    {
+        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
+            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var originPosition) ||
+            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
+        {
+            return;
+        }
+
+        var quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1;
+        if (quantity <= 0)
+            return;
+
+        TrySubmitOperation(
+            operations => operations.TransferCargoItem(
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                item.ItemKey,
+                quantity,
+                originPosition.x,
+                originPosition.y,
+                default,
+                default,
+                false),
+            "cargo transfer");
+    }
+
+    private void RequestCargoItemEquip(
+        EquippedCargoBay origin,
+        Entity destination,
+        EquippableItem item)
+    {
+        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
+            !TryResolveEntityRecordKey(destination, out var destinationEntityKey) ||
+            item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !origin.Cargo.TryGetValue(item, out var originPosition) ||
+            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.EquipItem(
+                "cargo",
+                originEntityKey,
+                originCargoIndex,
+                destinationEntityKey,
+                item.ItemKey,
+                originPosition.x,
+                originPosition.y,
+                default,
+                default,
+                false),
+            "cargo equip");
+    }
+
+    private void RequestEquippedItemStore(
+        EquippedItem item,
+        EquippedCargoBay destination)
+    {
+        if (!TryResolveEquippedItem(item, out var originEntityKey, out var equipmentIndex) ||
+            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
+            item?.EquippableItem == null ||
+            !TryValidateTypedEquipmentSlot(originEntityKey, equipmentIndex, item))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.StoreItem(
+                originEntityKey,
+                equipmentIndex,
+                destinationEntityKey,
+                destinationCargoIndex,
+                item.EquippableItem.ItemKey,
+                default,
+                default,
+                false),
+            "equipment store");
+    }
+
+    private void RequestEntityShutdownPerformance(string targetEntityKey, float shutdownPerformance)
+    {
+        if (string.IsNullOrWhiteSpace(targetEntityKey))
+            return;
+
+        TrySubmitOperation(
+            operations => operations.SetShutdownPerformance(targetEntityKey, shutdownPerformance),
+            "entity shutdown-performance");
+    }
+
+    private void RequestEquippedItemOverrideShutdown(EquippedItem item, bool enabled)
+    {
+        if (!TryResolveEquippedItem(item, out var targetEntityKey, out var equipmentIndex) ||
+            item?.EquippableItem == null)
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.SetItemOverrideShutdown(targetEntityKey, equipmentIndex, enabled),
+            "equipped-item override-shutdown");
+    }
+
+    private void RequestThermotoggleTargetTemperature(
+        EquippedItem item,
+        int behaviorIndex,
+        float targetTemperature)
+    {
+        if (!TryResolveEquippedItem(item, out var targetEntityKey, out var equipmentIndex) ||
+            behaviorIndex < 0 ||
+            behaviorIndex >= (item?.Behaviors?.Length ?? 0))
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.SetThermotoggleTargetTemperature(
+                targetEntityKey,
+                equipmentIndex,
+                behaviorIndex,
+                targetTemperature),
+            "thermotoggle target-temperature");
+    }
+
+    private void RequestWeaponGroupMembership(EquippedItem item, int groupIndex, bool assigned)
+    {
+        if (!TryResolveEquippedItem(item, out var targetEntityKey, out var equipmentIndex) ||
+            groupIndex < 0)
+        {
+            return;
+        }
+
+        TrySubmitOperation(
+            operations => operations.SetWeaponGroupMembership(
+                targetEntityKey,
+                equipmentIndex,
+                groupIndex,
+                assigned),
+            "weapon-group membership");
+    }
+
+    private bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
+    {
+        recordKey = "";
+        return _observedFacadeIndex != null &&
+               _observedFacadeIndex.TryResolveEntityRecordKey(entity, out recordKey);
+    }
+
+    private bool IsCurrentEntity(Entity entity)
+    {
+        if (entity == null ||
+            !TryResolveEntityRecordKey(entity, out var entityKey) ||
+            string.IsNullOrWhiteSpace(entityKey) ||
+            !TryResolveCurrentEntityKey(out var currentEntityKey))
+        {
+            return false;
+        }
+
+        return string.Equals(entityKey, currentEntityKey, StringComparison.Ordinal);
+    }
+
+    private bool TryGetTypedCurrentEntityFacade(out Entity entity)
+    {
+        entity = null;
+        if (_observedFacadeIndex == null ||
+            !TryResolveCurrentEntityKey(out var currentEntityKey))
+        {
+            return false;
+        }
+
+        return _observedFacadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out entity);
+    }
+
+    private bool TryGetTypedCurrentDockingBayFacade(out EquippedDockingBay dockingBay)
+    {
+        dockingBay = null;
+        var stationRefit = ResolveStationRefit();
+        var dockParentEntityKey = stationRefit?.DockParentEntityKey ?? "";
+        if (_observedFacadeIndex == null ||
+            !TryResolveCurrentDockingBayRow(out var dockingBayRow) ||
+            string.IsNullOrWhiteSpace(dockParentEntityKey) ||
+            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
+                dockParentEntityKey,
+                dockingBayRow.DockingBayIndex,
+                out dockingBay))
+        {
+            return false;
+        }
+
+        return dockingBay != null;
+    }
+
+    private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
+    {
+        dockingBay = null;
+        var stationRefit = ResolveStationRefit();
+        if (stationRefit?.IsDocked != true || stationRefit.DockingBayIndex < 0)
+            return false;
+
+        dockingBay = (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+            .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex);
+        return dockingBay != null;
+    }
+
+    private bool TryResolveCurrentEntityKey(out string currentEntityKey)
+    {
+        currentEntityKey = "";
+
+        if (!TryResolveCurrentEntityDocument(out var currentEntity))
+            return false;
+
+        currentEntityKey = currentEntity?.EntityKey ?? "";
+        return !string.IsNullOrWhiteSpace(currentEntityKey);
+    }
+
+    private bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
+    {
+        currentEntity = null;
+
+        try
+        {
+            currentEntity = ResolveClient()
+                .CurrentEntityAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current entity for inventory menu: {ex.Message}");
+            return false;
+        }
+
+        return currentEntity != null;
+    }
+
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    {
+        docking = null;
+
+        try
+        {
+            docking = ResolveClient()
+                .CurrentDockingAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for inventory menu: {ex.Message}");
+            return false;
+        }
+
+        return docking != null;
+    }
+
+    private bool TryResolveCargoBay(EquippedCargoBay cargoBay, out string entityKey, out int cargoIndex)
+    {
+        return TryResolveEquippedItem(cargoBay, out entityKey, out cargoIndex);
+    }
+
+    private bool TryResolveEquippedItem(EquippedItem item, out string entityKey, out int equipmentIndex)
+    {
+        entityKey = "";
+        equipmentIndex = -1;
+        var entity = item?.Entity;
+        if (entity?.Equipment == null ||
+            !TryResolveEntityRecordKey(entity, out entityKey))
+        {
+            return false;
+        }
+
+        equipmentIndex = entity.Equipment.IndexOf(item);
+        return equipmentIndex >= 0;
+    }
+
+    private bool TryResolveTypedInventoryRows(
+        string entityKey,
+        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> equipment,
+        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> cargo)
+    {
+        equipment = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        cargo = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        if (string.IsNullOrWhiteSpace(entityKey))
+            return false;
+
+        try
+        {
+            var current = ResolveClient()
+                .CurrentEntityAsync()
+                .GetAwaiter()
+                .GetResult();
+            if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
+            {
+                equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                cargo = current.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                return true;
+            }
+
+            var refit = ResolveClient()
+                .StationRefitAsync()
+                .GetAwaiter()
+                .GetResult();
+            var entityIndex = -1;
+            if (refit != null)
+            {
+                if (string.Equals(refit.DockParentEntityKey, entityKey, StringComparison.Ordinal))
+                    entityIndex = refit.DockParentEntityIndex;
+                else
+                    entityIndex = (refit.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
+                        .FirstOrDefault(option => string.Equals(option.EntityKey, entityKey, StringComparison.Ordinal))
+                        ?.EntityIndex ?? -1;
+            }
+
+            if (entityIndex < 0)
+                return false;
+
+            var inventory = ResolveClient()
+                .InventoryAsync(entityIndex)
+                .GetAwaiter()
+                .GetResult();
+            if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
+                return false;
+
+            equipment = inventory.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+            cargo = inventory.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to validate Aetheria inventory projection for {entityKey}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool TryValidateTypedCargoSlot(
+        string entityKey,
+        int cargoIndex,
+        ItemInstance item,
+        int2 originPosition,
+        bool hasOriginPosition)
+    {
+        if (item == null ||
+            string.IsNullOrWhiteSpace(item.ItemKey) ||
+            !TryResolveTypedInventoryRows(entityKey, out _, out var cargo))
+        {
+            return false;
+        }
+
+        return cargo.Any(row =>
+            string.Equals(row.Source, "cargo", StringComparison.Ordinal) &&
+            row.SourceIndex == cargoIndex &&
+            string.Equals(row.ItemKey, item.ItemKey, StringComparison.Ordinal) &&
+            (!hasOriginPosition || (row.X == originPosition.x && row.Y == originPosition.y)));
+    }
+
+    private bool TryValidateTypedEquipmentSlot(
+        string entityKey,
+        int equipmentIndex,
+        EquippedItem item)
+    {
+        if (item?.EquippableItem == null ||
+            string.IsNullOrWhiteSpace(item.EquippableItem.ItemKey) ||
+            !TryResolveTypedInventoryRows(entityKey, out var equipment, out _))
+        {
+            return false;
+        }
+
+        return equipment.Any(row =>
+            string.Equals(row.Source, "equipment", StringComparison.Ordinal) &&
+            row.SourceIndex == equipmentIndex &&
+            row.X == item.Position.x &&
+            row.Y == item.Position.y &&
+            string.Equals(row.ItemKey, item.EquippableItem.ItemKey, StringComparison.Ordinal));
+    }
+
+    private bool TrySubmitOperation(
+        Action<AetheriaControl> submit,
+        string label)
+    {
+        if (submit == null)
+            return false;
+
+        try
+        {
+            submit(ResolveClient().Control);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to send Aetheria daemon inventory menu {label} operation; operation not submitted: {ex.Message}");
+            return false;
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-inventory-menu",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
+        _catalog = null;
+        _playerSettings = null;
     }
 
     void Update()
@@ -623,9 +1032,85 @@ public class InventoryMenu : MonoBehaviour
         return Array.Empty<int2>();
     }
 
-    private static AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
+    private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ActionGameManager.RuntimeCatalog?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+    }
+
+    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    {
+        if (_catalog != null)
+            return _catalog;
+
+        try
+        {
+            _catalog = ResolveClient().OpenRuntimeCatalog();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for inventory menu: {ex.Message}");
+        }
+
+        return _catalog;
+    }
+
+    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    {
+        if (_playerSettings != null)
+            return _playerSettings;
+
+        try
+        {
+            _playerSettings = ResolveClient()
+                .PlayerSettingsAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for inventory menu: {ex.Message}");
+        }
+
+        return _playerSettings;
+    }
+
+    private float ResolveDefaultShutdownPerformance()
+    {
+        var value = ResolvePlayerSettings()?.DefaultShutdownPerformance ?? 0.25;
+        return (float)(value <= 0 ? 0.25 : value);
+    }
+
+    private string ResolveManufacturerName(AetheriaRuntimeCatalogItem item)
+    {
+        return ResolveCatalog()?.GetManufacturer(item)?.Name ?? "GameCult";
+    }
+
+    private string FormatValue(float value)
+    {
+        var settings = ResolvePlayerSettings();
+        var significantDigits = settings?.SignificantDigits ?? 3;
+        var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
+        var digits = significantDigits - magnitude;
+        if (digits < 0)
+            digits = 0;
+
+        var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        var decimalSeparator = Convert.ToChar(separator);
+        return formatted.Contains(separator)
+            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
+            : formatted;
+    }
+
+    private string FormatTemperature(float value)
+    {
+        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value)} K";
+        if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
+            return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
+
+        return $"{FormatValue(value - 273.15f)} C";
     }
 
     private static int2 RotateTypedShapeCell(
@@ -644,6 +1129,8 @@ public class InventoryMenu : MonoBehaviour
 
     private void OnDestroy()
     {
+        DisposeClient();
+
         if (_shipSettingsSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_shipSettingsSurfaceDocument);

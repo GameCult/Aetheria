@@ -10,6 +10,7 @@ namespace GameCult.Aetheria.State.Verse
             string targetKind,
             string targetTitle,
             string targetVerseId,
+            string targetRuntimeId,
             string targetCultMeshAddress,
             string targetStateFilePath,
             string targetReplicaStateFilePath,
@@ -31,6 +32,7 @@ namespace GameCult.Aetheria.State.Verse
             TargetKind = targetKind ?? "";
             TargetTitle = targetTitle ?? "";
             TargetVerseId = targetVerseId ?? "";
+            TargetRuntimeId = targetRuntimeId ?? "";
             TargetCultMeshAddress = targetCultMeshAddress ?? "";
             TargetStateFilePath = targetStateFilePath ?? "";
             TargetReplicaStateFilePath = targetReplicaStateFilePath ?? "";
@@ -53,6 +55,7 @@ namespace GameCult.Aetheria.State.Verse
         public string TargetKind { get; }
         public string TargetTitle { get; }
         public string TargetVerseId { get; }
+        public string TargetRuntimeId { get; }
         public string TargetCultMeshAddress { get; }
         public string TargetStateFilePath { get; }
         public string TargetReplicaStateFilePath { get; }
@@ -96,6 +99,7 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeClientTargetKinds.StateFile,
                 "",
                 "",
+                "raven-unity",
                 "",
                 "",
                 "",
@@ -213,6 +217,11 @@ namespace GameCult.Aetheria.State.Verse
                                 state.TargetVerseId,
                                 AetheriaRuntimeClientTargetCommands.SetVerseId),
                             TextInput(
+                                "aetheria.clientTarget.target.runtimeId",
+                                "Runtime Id",
+                                state.TargetRuntimeId,
+                                AetheriaRuntimeClientTargetCommands.SetRuntimeId),
+                            TextInput(
                                 "aetheria.clientTarget.target.cultMeshAddress",
                                 "CultMesh Address",
                                 state.TargetCultMeshAddress,
@@ -296,6 +305,10 @@ namespace GameCult.Aetheria.State.Verse
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetVerseId,
                         "Set Verse Id",
+                        AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
+                    new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeClientTargetCommands.SetRuntimeId,
+                        "Set Runtime Id",
                         AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport),
                     new AetheriaRuntimeSurfaceCommandTemplate(
                         AetheriaRuntimeClientTargetCommands.SetCultMeshAddress,

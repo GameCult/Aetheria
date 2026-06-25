@@ -19,6 +19,13 @@ public static class AetheriaOperationsSurfaceProjector
             eveCommandStatus?.LastPollAtUtc,
             normalizedVerseHost.LastUpdatedAtUtc,
             runtimeSession?.LastSeenAtUtc);
+        var refreshCommand = GameCult.Mesh.CultMesh.OperationBindingRecord(
+            GameCult.Mesh.CultMesh.OperationBinding(
+                AetheriaRuntimeOperationsCommands.Refresh,
+                label: "Refresh",
+                routeHint: new GameCult.Mesh.CultMeshRouteHint(
+                    GameCult.Mesh.CultMeshLocalityKind.Automatic,
+                    "cultmesh")));
         return new EveSurfaceState
         {
             ProviderId = "aetheria",
@@ -85,9 +92,12 @@ public static class AetheriaOperationsSurfaceProjector
             [
                 new EveCommandTemplate
                 {
-                    Command = AetheriaRuntimeOperationsCommands.Refresh,
-                    Label = "Refresh",
-                    Transport = "cultmesh"
+                    Command = refreshCommand.OperationId,
+                    Label = refreshCommand.Label,
+                    Transport = refreshCommand.RouteDescription,
+                    SchemaId = refreshCommand.SchemaId,
+                    RouteKind = refreshCommand.RouteKind,
+                    RouteDescription = refreshCommand.RouteDescription
                 }
             ]
         };

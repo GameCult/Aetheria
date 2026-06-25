@@ -12,6 +12,7 @@ namespace GameCult.Aetheria.State.Verse
             string targetSource,
             string title,
             string verseId,
+            string runtimeId,
             string cultMeshAddress,
             string stateFilePath,
             string replicaStateFilePath,
@@ -30,6 +31,7 @@ namespace GameCult.Aetheria.State.Verse
             TargetSource = targetSource;
             Title = title;
             VerseId = verseId;
+            RuntimeId = runtimeId;
             CultMeshAddress = cultMeshAddress;
             StateFilePath = stateFilePath;
             ReplicaStateFilePath = replicaStateFilePath;
@@ -49,6 +51,7 @@ namespace GameCult.Aetheria.State.Verse
         public string TargetSource { get; }
         public string Title { get; }
         public string VerseId { get; }
+        public string RuntimeId { get; }
         public string CultMeshAddress { get; }
         public string StateFilePath { get; }
         public string ReplicaStateFilePath { get; }
@@ -92,6 +95,9 @@ namespace GameCult.Aetheria.State.Verse
             var targetKind = target.TargetKind ?? "";
             var targetTitle = target.Title ?? "";
             var targetVerseId = target.VerseId ?? "";
+            var targetRuntimeId = string.IsNullOrWhiteSpace(AetheriaRuntimeStateBoundary.ResolveRuntimeIdOverride())
+                ? target.RuntimeId ?? ""
+                : AetheriaRuntimeStateBoundary.ResolveRuntimeIdOverride();
             var targetCultMeshAddress = target.CultMeshAddress ?? "";
             var supportsLocalStateFileRead = true;
             var failureMessage = "";
@@ -131,6 +137,7 @@ namespace GameCult.Aetheria.State.Verse
                 targetSource,
                 targetTitle,
                 targetVerseId,
+                string.IsNullOrWhiteSpace(targetRuntimeId) ? "raven-unity" : targetRuntimeId,
                 targetCultMeshAddress,
                 stateFilePath,
                 replicaStateFilePath,

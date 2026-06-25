@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using EveSurfaceState = global::Aetheria.State.Documents.EveSurfaceState;
 
 #nullable enable
@@ -42,9 +43,7 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray()),
                 state.Commands
                     .Select(command => new GameCult.Eve.Surface.EveCommandTemplate(
-                        command.Command,
-                        command.Label,
-                        command.Transport))
+                        ToCultMeshOperationBinding(command)))
                     .ToArray());
 
             return ResolveStateRefs(surface, stateRefResolver);
@@ -71,7 +70,7 @@ namespace GameCult.Aetheria.State.Verse
                         .Select(style => new EveStyleToken(style.Name, style.Value))
                         .ToArray()),
                 document.Commands
-                    .Select(command => new EveCommandTemplate(command.Command, command.Label, command.Transport))
+                    .Select(command => new EveCommandTemplate(command.Operation))
                     .ToArray());
 
             return ResolveStateRefs(surface, stateRefResolver);
@@ -124,20 +123,66 @@ namespace GameCult.Aetheria.State.Verse
 
         private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
         {
+            var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+            AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
             return new EveSurfaceComponent(
                 component.Id,
                 component.Kind,
-                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-                component.Children.Select(ToEveSurfaceComponent).ToArray());
+                props,
+                component.Children.Select(ToEveSurfaceComponent).ToArray(),
+                component.StateBindings.Select(ToCultMeshStateBinding).ToArray());
         }
 
         private static EveSurfaceComponent ToEveSurfaceComponent(global::Aetheria.State.Documents.EveSurfaceComponent component)
         {
+            var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+            var stateBindings = (component.StateBindings ?? Array.Empty<global::Aetheria.State.Documents.EveSurfaceStateBinding>())
+                .Select(ToRuntimeStateBinding)
+                .ToArray();
+            AetheriaRuntimeSurfaceStateBindings.AddPointerProps(
+                props,
+                stateBindings);
             return new EveSurfaceComponent(
                 component.Id,
                 component.Kind,
-                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-                component.Children.Select(ToEveSurfaceComponent).ToArray());
+                props,
+                component.Children.Select(ToEveSurfaceComponent).ToArray(),
+                stateBindings.Select(ToCultMeshStateBinding).ToArray());
+        }
+
+        private static CultMeshStateBindingDescriptor ToCultMeshStateBinding(
+            CultMeshStateBindingDescriptor binding)
+        {
+            return binding;
+        }
+
+        private static CultMeshStateBindingDescriptor ToRuntimeStateBinding(
+            global::Aetheria.State.Documents.EveSurfaceStateBinding binding)
+        {
+            return CultMesh.StateBindingRecord(
+                binding.TargetProp,
+                binding.PointerId,
+                binding.SourceId,
+                binding.SchemaId,
+                binding.RouteKind,
+                binding.RouteDescription).ToBinding();
+        }
+
+        private static CultMeshOperationBindingDescriptor ToCultMeshOperationBinding(
+            global::Aetheria.State.Documents.EveCommandTemplate command)
+        {
+            var routeKind = string.IsNullOrWhiteSpace(command.RouteKind)
+                ? nameof(CultMeshLocalityKind.Automatic)
+                : command.RouteKind;
+            var routeDescription = string.IsNullOrWhiteSpace(command.RouteDescription)
+                ? command.Transport
+                : command.RouteDescription;
+            return CultMesh.OperationBindingRecord(
+                command.Command,
+                command.Label,
+                command.SchemaId,
+                routeKind,
+                routeDescription).ToBinding();
         }
 
         private static EveSurfaceComponent ResolveStateRefs(
@@ -151,7 +196,8 @@ namespace GameCult.Aetheria.State.Verse
                 component.Id,
                 component.Kind,
                 props,
-                ResolveStateRefs(component.Children, stateRefResolver));
+                ResolveStateRefs(component.Children, stateRefResolver),
+                component.StateBindings);
         }
 
         private static IReadOnlyList<EveSurfaceComponent> ResolveStateRefs(

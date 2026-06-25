@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
-    // Compatibility reader for file-backed tools and pure state-ref helpers; Unity shells should prefer AetheriaRuntimeVerseClient.
+    // Compatibility reader for file-backed tools and pure state-ref helpers; Unity shells should prefer AetheriaClient.
     public static class AetheriaRuntimeStateReader
     {
         public static AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog(string stateFilePath)
@@ -19,6 +20,11 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimePlayerSettingsSnapshot? ReadPlayerSettings(string stateFilePath)
         {
             return AetheriaRuntimeCatalogStore.ReadPlayerSettings(stateFilePath);
+        }
+
+        public static AetheriaRuntimeTradeValueSettings ReadTradeValuePolicy(string stateFilePath)
+        {
+            return AetheriaRuntimeCatalogStore.ReadTradeValuePolicy(stateFilePath);
         }
 
         public static AetheriaRuntimeVerseHostSettingsSnapshot? ReadVerseHostSettings(string stateFilePath)
@@ -321,9 +327,17 @@ namespace GameCult.Aetheria.State.Verse
 
         public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)
         {
-            return string.IsNullOrWhiteSpace(stateFilePath)
-                ? _ => ""
-                : CreateStateRefResolver(stateFilePath);
+            return CreateEveSurfaceCultMeshStateRefResolver(stateFilePath).AsFunc();
+        }
+
+        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
+            string stateFilePath,
+            string runtimeId = AetheriaRuntimeVerseClient.DefaultRuntimeId)
+        {
+            if (string.IsNullOrWhiteSpace(stateFilePath))
+                return CultMeshStateRefResolver.Empty;
+
+            return CreateStateRefResolver(stateFilePath, runtimeId);
         }
 
         private static EveSurfaceDocument ToResolvedEveSurfaceDocument(
@@ -344,22 +358,40 @@ namespace GameCult.Aetheria.State.Verse
                 CreateEveSurfaceStateRefResolver(stateFilePath));
         }
 
-        private static Func<string, string> CreateStateRefResolver(string stateFilePath)
+        private static CultMeshStateRefResolver CreateStateRefResolver(string stateFilePath, string runtimeId)
         {
             TryReadDaemonFrame(stateFilePath, out var frame);
             AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
             AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
 
-            return stateRef =>
-            {
-                if (TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value))
-                    return value;
-
-                return stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal) &&
-                       TryResolveDaemonItemStatRef(frame, OpenRuntimeCatalog(stateFilePath), stateRef, out value)
+            var daemonRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.refs",
+                (stateRef, _context) => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
                     ? value
-                    : "";
-            };
+                    : "",
+                new[]
+                {
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString())
+                },
+                new CultMeshRouteHint(CultMeshLocalityKind.InProcess, runtimeId));
+
+            var itemStatRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.item_stats.refs",
+                (stateRef, _context) =>
+                    stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal) &&
+                    TryResolveDaemonItemStatRef(frame, OpenRuntimeCatalog(stateFilePath), stateRef, out var value)
+                        ? value
+                        : "",
+                new[]
+                {
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime")
+                },
+                new CultMeshRouteHint(CultMeshLocalityKind.InProcess, runtimeId));
+
+            return daemonRefs.Or(itemStatRefs);
         }
 
         private static AetheriaRuntimeLoadoutItemCommit? FindDaemonItem(

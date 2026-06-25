@@ -55,11 +55,18 @@ public static class AetheriaPlayerSettingsSurfaceProjector
                     .ToArray()
             },
             Commands = surface.Commands
-                .Select(command => new EveCommandTemplate
+                .Select(command =>
                 {
-                    Command = command.Command,
-                    Label = command.Label,
-                    Transport = command.Transport
+                    var record = GameCult.Mesh.CultMesh.OperationBindingRecord(command.Operation);
+                    return new EveCommandTemplate
+                    {
+                        Command = record.OperationId,
+                        Label = record.Label,
+                        Transport = record.RouteDescription,
+                        SchemaId = record.SchemaId,
+                        RouteKind = record.RouteKind,
+                        RouteDescription = record.RouteDescription
+                    };
                 })
                 .ToArray()
         };

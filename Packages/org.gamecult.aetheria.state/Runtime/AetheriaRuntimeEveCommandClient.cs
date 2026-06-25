@@ -1,11 +1,12 @@
 using System;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeEveCommands
+    internal static class AetheriaRuntimeEveCommands
     {
         public static bool TryCreateKnownSurfaceCommand(
             string stateFilePath,
@@ -104,6 +105,15 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeEveCommandClient.CreateVerseHostCommand(command, clientId);
         }
 
+        public static AetheriaRuntimeEveCommandEnvelope SubmitTradeValuePolicyCommand(
+            string stateFilePath,
+            AetheriaRuntimeEveCommandKind command,
+            AetheriaRuntimeTradeValuePolicyCommandBody body,
+            string clientId)
+        {
+            return AetheriaRuntimeEveCommandClient.CreateTradeValuePolicyCommand(command, body, clientId);
+        }
+
         public static bool TrySendVerseHostCommand(
             string stateFilePath,
             AetheriaRuntimeEveCommandKind command,
@@ -176,18 +186,17 @@ namespace GameCult.Aetheria.State.Verse
 
             try
             {
-                using var client = AetheriaRuntimeVerseClient
+                using var client = AetheriaClient
                     .OpenAsync(
                         stateFilePath,
                         string.IsNullOrWhiteSpace(clientId) ? "aetheria-eve-client" : clientId,
+                        "local",
                         startServer: false,
                         pullOnOpen: true)
                     .GetAwaiter()
                     .GetResult();
                 envelope = client
-                    .SubmitEveCommandAsync(AetheriaRuntimeEveCommandClient.ToDocument(commandEnvelope))
-                    .GetAwaiter()
-                    .GetResult();
+                    .SubmitEveCommandDocument(AetheriaRuntimeEveCommandClient.ToDocument(commandEnvelope));
                 return true;
             }
             catch (Exception ex)
@@ -208,7 +217,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
 
-            var command = request.Command ?? "";
+            var command = OperationIdFor(request);
             var clientId = request.ClientId ?? "";
             switch (request.SurfaceId ?? "")
             {
@@ -231,6 +240,10 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeVerseHostCommands.SurfaceId
                     when AetheriaRuntimeVerseHostCommands.IsKnown(command):
                     envelope = CreateVerseHostCommand(CommandKindForSurface(request), clientId);
+                    return true;
+                case AetheriaRuntimeTradeValuePolicyCommands.SurfaceId
+                    when AetheriaRuntimeTradeValuePolicyCommands.IsKnown(command):
+                    envelope = CreateTradeValuePolicyCommand(CommandKindForSurface(request), request, clientId);
                     return true;
             }
 
@@ -271,10 +284,15 @@ namespace GameCult.Aetheria.State.Verse
             EveSurfaceCommandRequest request,
             string clientId)
         {
-            return CreatePlayerSettingsCommand(
+            return CreateTypedCommand(
+                AetheriaRuntimePlayerSettingsCommands.SurfaceId,
                 command,
-                ReadPlayerSettingsBody(request),
-                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId);
+                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId,
+                playerSettings: ReadPlayerSettingsBody(request),
+                inputSettings: new AetheriaRuntimeInputSettingsCommandBody(),
+                loadoutTemplate: null,
+                invocation: request.Operation,
+                payload: request.Payload);
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateInputSettingsCommand(
@@ -304,10 +322,15 @@ namespace GameCult.Aetheria.State.Verse
             EveSurfaceCommandRequest request,
             string clientId)
         {
-            return CreateInputSettingsCommand(
+            return CreateTypedCommand(
+                AetheriaRuntimeInputSettingsCommands.SurfaceId,
                 command,
-                ReadInputSettingsBody(request),
-                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId);
+                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId,
+                playerSettings: new AetheriaRuntimePlayerSettingsCommandBody(),
+                inputSettings: ReadInputSettingsBody(request),
+                loadoutTemplate: null,
+                invocation: request.Operation,
+                payload: request.Payload);
         }
 
         public static AetheriaRuntimeEveCommandEnvelope CreateCatalogCommand(
@@ -362,10 +385,48 @@ namespace GameCult.Aetheria.State.Verse
                 loadoutTemplate: loadoutTemplate);
         }
 
+        public static AetheriaRuntimeEveCommandEnvelope CreateTradeValuePolicyCommand(
+            AetheriaRuntimeEveCommandKind command,
+            AetheriaRuntimeTradeValuePolicyCommandBody body,
+            string clientId)
+        {
+            return CreateTypedCommand(
+                AetheriaRuntimeTradeValuePolicyCommands.SurfaceId,
+                command,
+                clientId,
+                playerSettings: new AetheriaRuntimePlayerSettingsCommandBody(),
+                inputSettings: new AetheriaRuntimeInputSettingsCommandBody(),
+                loadoutTemplate: null,
+                tradeValuePolicy: body ?? new AetheriaRuntimeTradeValuePolicyCommandBody());
+        }
+
+        private static AetheriaRuntimeEveCommandEnvelope CreateTradeValuePolicyCommand(
+            AetheriaRuntimeEveCommandKind command,
+            EveSurfaceCommandRequest request,
+            string clientId)
+        {
+            return CreateTypedCommand(
+                AetheriaRuntimeTradeValuePolicyCommands.SurfaceId,
+                command,
+                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId,
+                playerSettings: new AetheriaRuntimePlayerSettingsCommandBody(),
+                inputSettings: new AetheriaRuntimeInputSettingsCommandBody(),
+                loadoutTemplate: null,
+                tradeValuePolicy: ReadTradeValuePolicyBody(request),
+                invocation: request.Operation,
+                payload: request.Payload);
+        }
+
         public static AetheriaRuntimeEveCommandDocument ToDocument(AetheriaRuntimeEveCommandEnvelope envelope)
         {
             if (envelope == null) throw new ArgumentNullException(nameof(envelope));
 
+            var invocation = CultMesh.OperationInvocationRecord(
+                envelope.Invocation,
+                fallbackOperationId: envelope.Command,
+                fallbackSchemaId: CommandSchema,
+                fallbackRouteHint: envelope.Receipt.Route,
+                fallbackIdempotencyKey: envelope.CommandId);
             return NormalizeDocument(new AetheriaRuntimeEveCommandDocument
             {
                 Schema = string.IsNullOrWhiteSpace(envelope.Schema) ? CommandSchema : envelope.Schema,
@@ -378,7 +439,10 @@ namespace GameCult.Aetheria.State.Verse
                 ClientId = envelope.ClientId ?? "",
                 PlayerSettings = envelope.PlayerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody(),
                 InputSettings = envelope.InputSettings ?? new AetheriaRuntimeInputSettingsCommandBody(),
-                LoadoutTemplate = envelope.LoadoutTemplate
+                LoadoutTemplate = envelope.LoadoutTemplate,
+                TradeValuePolicy = envelope.TradeValuePolicy ?? new AetheriaRuntimeTradeValuePolicyCommandBody(),
+                Operation = invocation,
+                Payload = envelope.Payload.ToDictionary()
             });
         }
 
@@ -388,11 +452,21 @@ namespace GameCult.Aetheria.State.Verse
             string clientId,
             AetheriaRuntimePlayerSettingsCommandBody playerSettings,
             AetheriaRuntimeInputSettingsCommandBody inputSettings,
-            AetheriaRuntimeLoadoutTemplateCommit? loadoutTemplate)
+            AetheriaRuntimeLoadoutTemplateCommit? loadoutTemplate,
+            AetheriaRuntimeTradeValuePolicyCommandBody? tradeValuePolicy = null,
+            CultMeshOperationInvocationDescriptor? invocation = null,
+            CultMeshOperationPayload? payload = null)
         {
             var command = CommandText(kind);
             var commandId = Guid.NewGuid().ToString("N");
             var issuedAtUtc = DateTime.UtcNow.ToString("O");
+            var route = new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command");
+            var invocationRecord = CultMesh.OperationInvocationRecord(
+                invocation,
+                fallbackOperationId: command,
+                fallbackSchemaId: CommandSchema,
+                fallbackRouteHint: route,
+                fallbackIdempotencyKey: commandId);
             var document = new AetheriaRuntimeEveCommandDocument
             {
                 Schema = CommandSchema,
@@ -405,7 +479,10 @@ namespace GameCult.Aetheria.State.Verse
                 ClientId = clientId ?? "",
                 PlayerSettings = playerSettings,
                 InputSettings = inputSettings,
-                LoadoutTemplate = loadoutTemplate
+                LoadoutTemplate = loadoutTemplate,
+                TradeValuePolicy = tradeValuePolicy ?? new AetheriaRuntimeTradeValuePolicyCommandBody(),
+                Operation = invocationRecord,
+                Payload = (payload ?? CultMeshOperationPayload.Empty).ToDictionary()
             };
 
             return ToEnvelope(document);
@@ -426,7 +503,11 @@ namespace GameCult.Aetheria.State.Verse
                 document.PlayerSettings ?? new AetheriaRuntimePlayerSettingsCommandBody(),
                 document.InputSettings ?? new AetheriaRuntimeInputSettingsCommandBody(),
                 "",
-                document.LoadoutTemplate);
+                document.LoadoutTemplate,
+                document.TradeValuePolicy ?? new AetheriaRuntimeTradeValuePolicyCommandBody(),
+                receipt: null,
+                invocation: CreateInvocation(document),
+                payload: CultMesh.OperationPayload(document.Payload));
         }
 
         public static AetheriaRuntimeEveCommandDocument NormalizeDocument(AetheriaRuntimeEveCommandDocument document)
@@ -438,13 +519,73 @@ namespace GameCult.Aetheria.State.Verse
                 document.Kind = CommandKindForSurface(document.SurfaceId ?? "", document.Command ?? "");
             if (string.IsNullOrWhiteSpace(document.Command) && document.Kind != AetheriaRuntimeEveCommandKind.Unknown)
                 document.Command = CommandText(document.Kind);
+            document.Operation = NormalizeInvocationRecord(document);
+            ApplyInvocationCompatibilityFields(document, document.Operation);
+            if (document.Payload == null)
+                document.Payload = new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal);
             return document;
+        }
+
+        private static CultMeshOperationInvocationDescriptor CreateInvocation(AetheriaRuntimeEveCommandDocument document)
+        {
+            return document.Operation.ToInvocation(
+                fallbackOperationId: document.Command ?? "",
+                fallbackSchemaId: CommandSchema,
+                fallbackRouteHint: new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command"),
+                fallbackIdempotencyKey: document.CommandId);
+        }
+
+        private static CultMeshOperationInvocationRecord NormalizeInvocationRecord(
+            AetheriaRuntimeEveCommandDocument document)
+        {
+            var record = document.Operation;
+            var legacy = CultMesh.OperationInvocationRecord(
+                document.OperationId,
+                document.OperationSchemaId,
+                document.OperationRouteKind,
+                document.OperationRouteDescription,
+                document.OperationIdempotencyKey);
+
+            var recordOperationId = record?.OperationId ?? "";
+            var recordSchemaId = record?.SchemaId ?? "";
+            var recordRouteKind = record?.RouteKind ?? "";
+            var recordRouteDescription = record?.RouteDescription ?? "";
+            var recordIdempotencyKey = record?.IdempotencyKey ?? "";
+            var merged = CultMesh.OperationInvocationRecord(
+                string.IsNullOrWhiteSpace(recordOperationId) ? legacy.OperationId : recordOperationId,
+                string.IsNullOrWhiteSpace(recordSchemaId) ? legacy.SchemaId : recordSchemaId,
+                string.IsNullOrWhiteSpace(recordRouteKind) ? legacy.RouteKind : recordRouteKind,
+                string.IsNullOrWhiteSpace(recordRouteDescription) ? legacy.RouteDescription : recordRouteDescription,
+                string.IsNullOrWhiteSpace(recordIdempotencyKey) ? legacy.IdempotencyKey : recordIdempotencyKey);
+
+            var invocation = merged.ToInvocation(
+                fallbackOperationId: document.Command ?? "",
+                fallbackSchemaId: CommandSchema,
+                fallbackRouteHint: new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command"),
+                fallbackIdempotencyKey: document.CommandId);
+            return CultMesh.OperationInvocationRecord(invocation);
+        }
+
+        private static void ApplyInvocationCompatibilityFields(
+            AetheriaRuntimeEveCommandDocument document,
+            CultMeshOperationInvocationRecord record)
+        {
+            document.OperationId = record.OperationId;
+            document.OperationSchemaId = record.SchemaId;
+            document.OperationRouteKind = record.RouteKind;
+            document.OperationRouteDescription = record.RouteDescription;
+            document.OperationIdempotencyKey = record.IdempotencyKey;
         }
 
         public static AetheriaRuntimeEveCommandKind CommandKindForSurface(EveSurfaceCommandRequest request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
-            return CommandKindForSurface(request.SurfaceId ?? "", request.Command ?? "");
+            return CommandKindForSurface(request.SurfaceId ?? "", OperationIdFor(request));
+        }
+
+        private static string OperationIdFor(EveSurfaceCommandRequest request)
+        {
+            return request?.Operation?.OperationId ?? "";
         }
 
         public static AetheriaRuntimeEveCommandKind CommandKindForSurface(string surfaceId, string command)
@@ -473,6 +614,8 @@ namespace GameCult.Aetheria.State.Verse
                         : command == AetheriaRuntimeVerseHostCommands.CycleVisibility
                             ? AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility
                             : AetheriaRuntimeEveCommandKind.Unknown;
+                case AetheriaRuntimeTradeValuePolicyCommands.SurfaceId:
+                    return TradeValuePolicyKind(command);
                 default:
                     return AetheriaRuntimeEveCommandKind.Unknown;
             }
@@ -518,6 +661,16 @@ namespace GameCult.Aetheria.State.Verse
                     return AetheriaRuntimeVerseHostCommands.Refresh;
                 case AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility:
                     return AetheriaRuntimeVerseHostCommands.CycleVisibility;
+                case AetheriaRuntimeEveCommandKind.TradeValuePolicyRefresh:
+                    return AetheriaRuntimeTradeValuePolicyCommands.Refresh;
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMinimum:
+                    return AetheriaRuntimeTradeValuePolicyCommands.SetQualityMinimum;
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityMaximum:
+                    return AetheriaRuntimeTradeValuePolicyCommands.SetQualityMaximum;
+                case AetheriaRuntimeEveCommandKind.SetTradeValueQualityExponent:
+                    return AetheriaRuntimeTradeValuePolicyCommands.SetQualityExponent;
+                case AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality:
+                    return AetheriaRuntimeTradeValuePolicyCommands.SetTierQuality;
                 default:
                     return "";
             }
@@ -539,6 +692,21 @@ namespace GameCult.Aetheria.State.Verse
                 return AetheriaRuntimeEveCommandKind.CycleNebulaQuality;
             if (command == AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap)
                 return AetheriaRuntimeEveCommandKind.ToggleShowAsteroidsInMinimap;
+            return AetheriaRuntimeEveCommandKind.Unknown;
+        }
+
+        private static AetheriaRuntimeEveCommandKind TradeValuePolicyKind(string command)
+        {
+            if (command == AetheriaRuntimeTradeValuePolicyCommands.Refresh)
+                return AetheriaRuntimeEveCommandKind.TradeValuePolicyRefresh;
+            if (command == AetheriaRuntimeTradeValuePolicyCommands.SetQualityMinimum)
+                return AetheriaRuntimeEveCommandKind.SetTradeValueQualityMinimum;
+            if (command == AetheriaRuntimeTradeValuePolicyCommands.SetQualityMaximum)
+                return AetheriaRuntimeEveCommandKind.SetTradeValueQualityMaximum;
+            if (command == AetheriaRuntimeTradeValuePolicyCommands.SetQualityExponent)
+                return AetheriaRuntimeEveCommandKind.SetTradeValueQualityExponent;
+            if (command == AetheriaRuntimeTradeValuePolicyCommands.SetTierQuality)
+                return AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality;
             return AetheriaRuntimeEveCommandKind.Unknown;
         }
 
@@ -584,18 +752,31 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
+        private static AetheriaRuntimeTradeValuePolicyCommandBody ReadTradeValuePolicyBody(EveSurfaceCommandRequest request)
+        {
+            if (!string.Equals(request.SurfaceId, AetheriaRuntimeTradeValuePolicyCommands.SurfaceId, StringComparison.Ordinal))
+                return new AetheriaRuntimeTradeValuePolicyCommandBody();
+
+            return new AetheriaRuntimeTradeValuePolicyCommandBody
+            {
+                Value = ReadPayloadDouble(request, "value", 0),
+                TierIndex = ReadPayloadInt(request, "tierIndex", -1)
+            };
+        }
+
         private static string ReadPayload(EveSurfaceCommandRequest request, string key)
         {
-            return request.Payload != null && request.Payload.TryGetValue(key, out var value)
-                ? value ?? ""
-                : "";
+            return request.Payload.GetString(key);
         }
 
         private static int ReadPayloadInt(EveSurfaceCommandRequest request, string key, int defaultValue)
         {
-            return int.TryParse(ReadPayload(request, key), out var value)
-                ? value
-                : defaultValue;
+            return request.Payload.GetInt32(key, defaultValue);
+        }
+
+        private static double ReadPayloadDouble(EveSurfaceCommandRequest request, string key, double defaultValue)
+        {
+            return request.Payload.GetDouble(key, defaultValue);
         }
 
     }

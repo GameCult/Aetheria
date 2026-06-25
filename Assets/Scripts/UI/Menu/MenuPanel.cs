@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -22,7 +23,6 @@ public class MenuPanel : MonoBehaviour
         public bool RequireDock;
     }
 
-    public ActionGameManager GameManager;
     public RectTransform TabButtons;
     [SerializeField] private MenuTabBinding[] TabBindings = Array.Empty<MenuTabBinding>();
 
@@ -32,6 +32,8 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
+    private AetheriaClient _client;
+    private string _clientStatePath = "";
     
     public MenuTab CurrentTab { get; private set; }
 
@@ -89,6 +91,7 @@ public class MenuPanel : MonoBehaviour
 
     private void OnDestroy()
     {
+        DisposeClient();
         if (_tabSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_tabSurfaceDocument);
@@ -158,11 +161,56 @@ public class MenuPanel : MonoBehaviour
 
     private MenuTabBinding[] ResolveVisibleTabs()
     {
+        var isDocked = ResolveCurrentDocking()?.IsDocked == true;
         return _tabs.Values
-            .Where(tabBinding => !tabBinding.RequireDock || GameManager.IsObservedDocked)
-            .Where(tabBinding => tabBinding.Tab != MenuTab.Local || GameManager.TryGetObservedDockedLocalStory(out _))
+            .Where(tabBinding => !tabBinding.RequireDock || isDocked)
+            .Where(tabBinding => tabBinding.Tab != MenuTab.Local || isDocked)
             .OrderBy(tabBinding => (int)tabBinding.Tab)
             .ToArray();
+    }
+
+    private AetheriaRuntimeCurrentDockingDocument ResolveCurrentDocking()
+    {
+        try
+        {
+            return ResolveClient()
+                .CurrentDockingAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for runtime menu tabs: {ex.Message}");
+            return null;
+        }
+    }
+
+    private AetheriaClient ResolveClient()
+    {
+        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+
+        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+            return _client;
+
+        DisposeClient();
+        _client = AetheriaClient
+            .OpenLocalAsync(
+                gameDataDirectory,
+                "unity-runtime-menu-tabs",
+                "local",
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        _clientStatePath = stateBoot.StateFilePath;
+        return _client;
+    }
+
+    private void DisposeClient()
+    {
+        _client?.Dispose();
+        _client = null;
+        _clientStatePath = "";
     }
 
     private static string GetTabLabel(MenuTabBinding tabBinding)

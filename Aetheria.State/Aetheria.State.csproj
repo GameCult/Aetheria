@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\CultLib\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Mesh\GameCult.Mesh.csproj" />
     <ProjectReference Include="..\..\CultLib\src\GameCult.Networking\GameCult.Networking.csproj" />
+    <ProjectReference Include="..\..\CultMath\src\CultMath\CultMath.csproj" />
     <ProjectReference Include="..\GameCult.Eve.Surface.csproj" />
   </ItemGroup>
 </Project>

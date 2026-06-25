@@ -218,7 +218,7 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Collections.Specialized.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel.Annotations">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.ComponentModel.Annotations.dll</HintPath>
+      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.ComponentModel.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.ComponentModel.dll</HintPath>
@@ -482,7 +482,7 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.Extensions">
-      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.Extensions.dll</HintPath>
+      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Threading.Tasks.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.Parallel">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.Parallel.dll</HintPath>

@@ -134,10 +134,6 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyDestroyEntity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                     return ApplySetDockedCurrentShip(run, command.TargetEntityKey);
-                case AetheriaRuntimeDaemonCommandKinds.SetActionBarBinding:
-                    return ApplySetActionBarBinding(run, command);
-                case AetheriaRuntimeDaemonCommandKinds.ClearActionBarBinding:
-                    return ApplyClearActionBarBinding(run, command.TextValue);
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                     return ApplyTransferCargoItem(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
@@ -399,59 +395,6 @@ namespace GameCult.Aetheria.State.Verse
 
             run.CurrentZoneIndex = zoneIndex;
             run.CurrentEntityKey = BuildEntityKey(run.RunId, zoneIndex, entityIndex);
-            return true;
-        }
-
-        private static bool ApplySetActionBarBinding(
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
-        {
-            var controlPath = command.TextValue ?? "";
-            if (string.IsNullOrWhiteSpace(controlPath))
-                return false;
-
-            var bindingKind = command.ActionBarBinding.Kind ?? "";
-            if (string.Equals(bindingKind, "weapon_group", StringComparison.Ordinal))
-            {
-                var entityKey = string.IsNullOrWhiteSpace(command.ActorEntityKey)
-                    ? run.CurrentEntityKey
-                    : command.ActorEntityKey;
-                if (!TryResolveEntity(run, entityKey, out _, out _, out var entity))
-                    return false;
-
-                var weaponGroups = entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>();
-                if (command.WeaponGroup < 0 || command.WeaponGroup >= weaponGroups.Count)
-                    return false;
-            }
-
-            var binding = new AetheriaRuntimeActionBarBindingCommit
-            {
-                ControlPath = controlPath,
-                Kind = bindingKind,
-                ItemKey = command.ActionBarBinding.ItemKey ?? "",
-                EquipmentIndex = command.EquipmentIndex,
-                BehaviorIndex = command.BehaviorIndex,
-                WeaponGroup = command.WeaponGroup
-            };
-
-            var bindings = (run.ActionBarBindings ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>())
-                .Where(existing => !string.Equals(existing?.ControlPath ?? "", controlPath, StringComparison.Ordinal))
-                .Concat(new[] { binding })
-                .ToArray();
-            run.ActionBarBindings = bindings;
-            return true;
-        }
-
-        private static bool ApplyClearActionBarBinding(
-            AetheriaRuntimeRunCheckpointCommit run,
-            string controlPath)
-        {
-            if (string.IsNullOrWhiteSpace(controlPath))
-                return false;
-
-            run.ActionBarBindings = (run.ActionBarBindings ?? Array.Empty<AetheriaRuntimeActionBarBindingCommit>())
-                .Where(existing => !string.Equals(existing?.ControlPath ?? "", controlPath, StringComparison.Ordinal))
-                .ToArray();
             return true;
         }
 
@@ -1459,21 +1402,28 @@ namespace GameCult.Aetheria.State.Verse
             var actor = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actor) ||
                 string.IsNullOrWhiteSpace(command.TargetEntityKey) ||
-                command.TargetZoneIndex < 0)
+                !TryResolveEntity(
+                    run,
+                    command.TargetEntityKey,
+                    out var stationZoneIndex,
+                    out _,
+                    out var station))
             {
                 return false;
             }
 
-            if (!MoveEntityToZone(run, actor, command.TargetZoneIndex, command.PositionX, command.PositionY, out var movedEntityKey))
+            var destinationX = station.PositionX;
+            var destinationY = station.PositionZ;
+            if (!MoveEntityToZone(run, actor, stationZoneIndex, destinationX, destinationY, out var movedEntityKey))
                 return false;
 
             intents.Towing.Add(new AetheriaRuntimeDaemonTowIntent
             {
                 ActorEntityKey = movedEntityKey,
                 StationEntityKey = command.TargetEntityKey ?? "",
-                TargetZoneIndex = command.TargetZoneIndex,
-                PositionX = command.PositionX,
-                PositionY = command.PositionY
+                TargetZoneIndex = stationZoneIndex,
+                PositionX = destinationX,
+                PositionY = destinationY
             });
             return true;
         }

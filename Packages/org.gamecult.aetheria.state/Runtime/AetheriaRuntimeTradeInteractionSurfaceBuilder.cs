@@ -608,7 +608,7 @@ namespace GameCult.Aetheria.State.Verse
                 !string.Equals(request.SurfaceId, surfaceId, StringComparison.Ordinal))
                 return false;
 
-            var commandText = request.Command ?? "";
+            var commandText = request.Operation?.OperationId ?? "";
             if (string.Equals(commandText, closeCommand, StringComparison.Ordinal))
             {
                 command = new AetheriaRuntimeTradeInteractionCommand(

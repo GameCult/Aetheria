@@ -19,8 +19,17 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
         public IReadOnlyList<string> AccountedCommandIds { get; set; } =
             Array.Empty<string>();
+        public IReadOnlyList<string> PreRejectedCommandIds { get; set; } =
+            Array.Empty<string>();
+        public IReadOnlyList<string> CumulativeAppliedCommandIds { get; set; } =
+            Array.Empty<string>();
+        public IReadOnlyList<string> CumulativeRejectedCommandIds { get; set; } =
+            Array.Empty<string>();
         public AetheriaRuntimeDaemonOperationContext OperationContext { get; set; } =
             new AetheriaRuntimeDaemonOperationContext();
+        public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
+        public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
+        public bool PublishWitnesses { get; set; } = true;
     }
 
     public sealed class AetheriaRuntimeDaemonTickResult
@@ -96,6 +105,25 @@ namespace GameCult.Aetheria.State.Verse
                 run,
                 commands,
                 options.OperationContext);
+            var preRejectedCommandIds = (options.PreRejectedCommandIds ?? Array.Empty<string>())
+                .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (preRejectedCommandIds.Length > 0)
+            {
+                operationResult = new AetheriaRuntimeDaemonOperationResult(
+                    operationResult.Run,
+                    operationResult.AppliedCommandIds,
+                    preRejectedCommandIds
+                        .Concat(operationResult.RejectedCommandIds)
+                        .Distinct(StringComparer.Ordinal)
+                        .ToArray(),
+                    operationResult.Intents);
+            }
+            AetheriaRuntimeRtsSimulation.Step(
+                operationResult.Run,
+                operationResult.Intents,
+                options.FixedDeltaSeconds);
             StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -113,6 +141,16 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
+            frame.CumulativeAppliedCommandIds = (options.CumulativeAppliedCommandIds ?? Array.Empty<string>())
+                .Concat(operationResult.AppliedCommandIds)
+                .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            frame.CumulativeRejectedCommandIds = (options.CumulativeRejectedCommandIds ?? Array.Empty<string>())
+                .Concat(operationResult.RejectedCommandIds)
+                .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
             frame.Capabilities = new[]
             {
                 "aetheria.daemon.operation_execute.v1",
@@ -121,9 +159,26 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeDaemonSchemas.ProviderAdvertisement,
                 AetheriaRuntimeDaemonSchemas.Health,
                 AetheriaRuntimeDaemonSchemas.CommandBoundary,
+                AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
                 AetheriaRuntimeDaemonSchemas.GameSurface,
                 AetheriaRuntimeDaemonSchemas.EditorSurface
             };
+
+            if (!options.PublishWitnesses)
+            {
+                return new AetheriaRuntimeDaemonTickResult(
+                    operationResult.Run,
+                    operationResult,
+                    frame,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "");
+            }
 
             var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(stateFilePath, frame);
             AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame);
@@ -157,10 +212,18 @@ namespace GameCult.Aetheria.State.Verse
                     CommandBoundaryPath = commandBoundaryPath
                 });
             AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
+            var starbridgeSummary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+                frame,
+                options.StarbridgeScenario,
+                options.StarbridgeSession);
+            AetheriaRuntimeDaemonPublicationStore.PublishStarbridgeSessionSummary(
+                stateFilePath,
+                starbridgeSummary);
             var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
                 frame,
                 health,
-                commandBoundary);
+                commandBoundary,
+                starbridgeSummary);
             var gameSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishGameSurface(
                 stateFilePath,
                 gameSurface);
@@ -169,7 +232,8 @@ namespace GameCult.Aetheria.State.Verse
                 gameSurface);
             var designerSurfaces = new[]
             {
-                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)
+                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath),
+                AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)
             };
             var editorSurface = AetheriaRuntimeDaemonEditorSurfaceBuilder.Build(
                 providerAdvertisement,

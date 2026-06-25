@@ -32,6 +32,12 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonSoaViewLatest { get; } =
             new CultRecordKey("daemon:aetheria.soa_view.latest.v1");
 
+        public static CultRecordKey StarbridgeScenarioLatest { get; } =
+            new CultRecordKey("starbridge:aetheria.scenario.latest.v1");
+
+        public static CultRecordKey StarbridgeSessionLatest { get; } =
+            new CultRecordKey("starbridge:aetheria.session.latest.v1");
+
         public static CultRecordKey DaemonGameSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.daemon.game");
 
@@ -78,6 +84,21 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
+            typeof(AetheriaRuntimeObjectsViewportDocument),
+            typeof(AetheriaRuntimeGravityViewportDocument),
+            typeof(AetheriaRuntimeCurrentZoneDocument),
+            typeof(AetheriaRuntimeCurrentEntityDocument),
+            typeof(AetheriaRuntimeCurrentDockingDocument),
+            typeof(AetheriaRuntimeZoneContactsDocument),
+            typeof(AetheriaRuntimeStationRefitDocument),
+            typeof(AetheriaRuntimeSectorMapDocument),
+            typeof(AetheriaRuntimeZoneDetailsDocument),
+            typeof(AetheriaRuntimeZoneRenderDocument),
+            typeof(AetheriaRuntimeSelectedObjectDocument),
+            typeof(AetheriaRuntimeInventoryDocument),
+            typeof(AetheriaRuntimeStarbridgeScenarioDocument),
+            typeof(AetheriaRuntimeStarbridgeSessionDocument),
+            typeof(AetheriaRuntimeStarbridgeSessionSummaryDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(EveSurfaceState)
@@ -106,47 +127,25 @@ namespace GameCult.Aetheria.State.Verse
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeObjectsViewportDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeGravityViewportDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentZoneDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentEntityDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentDockingDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneContactsDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStationRefitDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeSectorMapDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneDetailsDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneRenderDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeSelectedObjectDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeInventoryDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeScenarioDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeSessionDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry),
                     CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)
                 });
-        }
-    }
-
-    public sealed class AetheriaRuntimeVerseDocument<T> where T : class
-    {
-        private readonly Func<Task<T?>> _read;
-        private readonly Func<T, Task> _replace;
-        private readonly Observable<T> _watch;
-
-        public AetheriaRuntimeVerseDocument(
-            CultRecordKey key,
-            Func<Task<T?>> read,
-            Func<T, Task> replace,
-            Observable<T> watch)
-        {
-            Key = key;
-            _read = read ?? throw new ArgumentNullException(nameof(read));
-            _replace = replace ?? throw new ArgumentNullException(nameof(replace));
-            _watch = watch ?? throw new ArgumentNullException(nameof(watch));
-        }
-
-        public CultRecordKey Key { get; }
-
-        public Task<T?> ReadAsync()
-        {
-            return _read();
-        }
-
-        public Task ReplaceAsync(T value)
-        {
-            if (value == null) throw new ArgumentNullException(nameof(value));
-            return _replace(value);
-        }
-
-        public Observable<T> Watch()
-        {
-            return _watch;
         }
     }
 
@@ -214,17 +213,16 @@ namespace GameCult.Aetheria.State.Verse
             string statePath,
             string runtimeId = DefaultRuntimeId)
         {
-            if (string.IsNullOrWhiteSpace(statePath))
-                return _ => "";
+            return CreateEveSurfaceCultMeshStateRefResolver(statePath, runtimeId).AsFunc();
+        }
 
-            using var client = OpenAsync(
-                    statePath,
-                    string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId,
-                    startServer: false,
-                    pullOnOpen: true)
-                .GetAwaiter()
-                .GetResult();
-            return client.CreateEveSurfaceStateRefResolver();
+        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
+            string statePath,
+            string runtimeId = DefaultRuntimeId)
+        {
+            return AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(
+                statePath,
+                string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId);
         }
 
         public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
@@ -260,6 +258,20 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Database.GetAsync<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+        }
+
+        public Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<AetheriaRuntimeStarbridgeScenarioDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+        }
+
+        public Task<AetheriaRuntimeStarbridgeSessionDocument?> GetStarbridgeSessionAsync()
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<AetheriaRuntimeStarbridgeSessionDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
         }
 
         public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
@@ -310,6 +322,11 @@ namespace GameCult.Aetheria.State.Verse
 
         public Func<string, string> CreateEveSurfaceStateRefResolver()
         {
+            return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
+        }
+
+        public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
+        {
             ThrowIfDisposed();
 
             var frame = GetLatestFrameAsync().GetAwaiter().GetResult();
@@ -317,31 +334,44 @@ namespace GameCult.Aetheria.State.Verse
             var commandBoundary = GetCommandBoundaryAsync().GetAwaiter().GetResult();
             AetheriaRuntimeCatalogSnapshot? catalog = null;
 
-            return stateRef =>
-            {
-                if (string.IsNullOrWhiteSpace(stateRef))
-                    return "";
-
-                if (stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal) &&
+            var daemonRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.refs",
+                stateRef =>
+                    stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal) &&
                     AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
                         frame,
                         health,
                         commandBoundary,
                         stateRef,
-                        out var daemonValue))
+                        out var daemonValue)
+                        ? daemonValue
+                        : "",
+                new[]
                 {
-                    return daemonValue;
-                }
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString())
+                });
 
-                if (stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
+            var itemStatRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.item_stats.refs",
+                stateRef =>
                 {
+                    if (!stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
+                        return "";
+
                     catalog ??= OpenRuntimeCatalog();
-                    if (AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var itemValue))
-                        return itemValue;
-                }
+                    return AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var itemValue)
+                        ? itemValue
+                        : "";
+                },
+                new[]
+                {
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime")
+                });
 
-                return "";
-            };
+            return daemonRefs.Or(itemStatRefs);
         }
 
         public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()
@@ -385,60 +415,74 @@ namespace GameCult.Aetheria.State.Verse
             return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
         }
 
-        public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
+        public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
         {
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
         }
 
-        public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonHealthDocument> Health()
+        public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()
         {
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonHealthDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonHealth);
         }
 
-        public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()
+        public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()
         {
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
         }
 
-        public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
+        public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
         {
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonFrameDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
         }
 
-        public AetheriaRuntimeVerseDocument<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()
+        public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()
         {
             ThrowIfDisposed();
             return Document<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
         }
 
-        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonGameSurface()
+        public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()
+        {
+            ThrowIfDisposed();
+            return Document<AetheriaRuntimeStarbridgeScenarioDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+        }
+
+        public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession()
+        {
+            ThrowIfDisposed();
+            return Document<AetheriaRuntimeStarbridgeSessionDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+        }
+
+        public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()
         {
             ThrowIfDisposed();
             return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
         }
 
-        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonGameTuiSurface()
+        public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()
         {
             ThrowIfDisposed();
             return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
         }
 
-        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonEditorSurface()
+        public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()
         {
             ThrowIfDisposed();
             return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
         }
 
-        public AetheriaRuntimeVerseDocument<EveSurfaceState> DaemonEditorTuiSurface()
+        public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()
         {
             ThrowIfDisposed();
             return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
@@ -481,6 +525,20 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
         }
 
+        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgeScenarioDocument>> WatchStarbridgeScenarios()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<AetheriaRuntimeStarbridgeScenarioDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+        }
+
+        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgeSessionDocument>> WatchStarbridgeSessions()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<AetheriaRuntimeStarbridgeSessionDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+        }
+
         public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameSurfaces()
         {
             ThrowIfDisposed();
@@ -505,7 +563,7 @@ namespace GameCult.Aetheria.State.Verse
             return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
         }
 
-        public async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(
+        internal async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(
             AetheriaRuntimeDaemonCommandDocument command,
             bool flush = true)
         {
@@ -528,7 +586,7 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeDaemonOperationClient.ToEnvelope(command);
         }
 
-        public async Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(
+        internal async Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(
             AetheriaRuntimeEveCommandDocument command,
             bool flush = true)
         {
@@ -550,7 +608,35 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeEveCommandClient.ToEnvelope(command);
         }
 
-        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitInputSettingsCommandAsync(
+        public async Task PutStarbridgeScenarioAsync(
+            AetheriaRuntimeStarbridgeScenarioDocument scenario,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            if (scenario == null) throw new ArgumentNullException(nameof(scenario));
+
+            scenario.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeScenario;
+            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest, scenario)
+                .ConfigureAwait(false);
+            if (flush)
+                await FlushAsync().ConfigureAwait(false);
+        }
+
+        public async Task PutStarbridgeSessionAsync(
+            AetheriaRuntimeStarbridgeSessionDocument session,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            if (session == null) throw new ArgumentNullException(nameof(session));
+
+            session.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeSession;
+            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest, session)
+                .ConfigureAwait(false);
+            if (flush)
+                await FlushAsync().ConfigureAwait(false);
+        }
+
+        internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitInputSettingsCommandAsync(
             AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
             string clientId,
@@ -563,7 +649,7 @@ namespace GameCult.Aetheria.State.Verse
                 flush);
         }
 
-        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitLoadoutTemplateCommandAsync(
+        internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitLoadoutTemplateCommandAsync(
             AetheriaRuntimeLoadoutTemplateCommit loadoutTemplate,
             string clientId,
             bool flush = true)
@@ -575,7 +661,7 @@ namespace GameCult.Aetheria.State.Verse
                 flush);
         }
 
-        public Task<AetheriaRuntimeEveCommandEnvelope> SubmitKnownSurfaceCommandAsync(
+        internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitKnownSurfaceCommandAsync(
             EveSurfaceCommandRequest request,
             string clientId,
             bool flush = true)
@@ -614,15 +700,19 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ObjectDisposedException(nameof(AetheriaRuntimeVerseClient));
         }
 
-        private AetheriaRuntimeVerseDocument<T> Document<T>(CultRecordKey key) where T : class
+        private CultMeshMutableStatePointer<T> Document<T>(CultRecordKey key) where T : class
         {
-            return new AetheriaRuntimeVerseDocument<T>(
-                key,
-                () => Database.GetAsync<T>(key),
-                async value => { await Database.PutAsync(key, value).ConfigureAwait(false); },
-                Database.WatchRecord<T>(key)
+            return CultMesh.MutableStatePointer(
+                key.ToString(),
+                _ => Database.GetAsync<T>(key),
+                _ => Database.WatchRecord<T>(key)
                     .Where(change => change.Document != null)
-                    .Select(change => change.Document!));
+                    .Select(change => change.Document!),
+                async (_, value) => { await Database.PutAsync(key, value).ConfigureAwait(false); },
+                sources: new[]
+                {
+                    CultMesh.ProjectionSource(key.ToString())
+                });
         }
     }
 }

@@ -181,9 +181,6 @@ namespace GameCult.Aetheria.State.Verse
         [Key(6)]
         public IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit> Zones { get; set; } = Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
 
-        [Key(7)]
-        public IReadOnlyList<AetheriaRuntimeActionBarBindingCommit> ActionBarBindings { get; set; } = Array.Empty<AetheriaRuntimeActionBarBindingCommit>();
-
         [Key(8)]
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit> FactionRelationships { get; set; } = Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
 
@@ -195,28 +192,6 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(11)]
         public int Credits { get; set; }
-    }
-
-    [MessagePackObject]
-    public sealed class AetheriaRuntimeActionBarBindingCommit
-    {
-        [Key(0)]
-        public string ControlPath { get; set; } = "";
-
-        [Key(1)]
-        public string Kind { get; set; } = "";
-
-        [Key(3)]
-        public int EquipmentIndex { get; set; } = -1;
-
-        [Key(4)]
-        public int BehaviorIndex { get; set; } = -1;
-
-        [Key(5)]
-        public int WeaponGroup { get; set; } = -1;
-
-        [Key(6)]
-        public string ItemKey { get; set; } = "";
     }
 
     [MessagePackObject]
