@@ -43,6 +43,11 @@ namespace GameCult.Aetheria.State.Verse
             return _handle.LatestAsync();
         }
 
+        public TDocument Latest()
+        {
+            return _handle.LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Observable<TDocument> Watch()
         {
             return _handle.Watch();
@@ -243,6 +248,12 @@ namespace GameCult.Aetheria.State.Verse
             where TDocument : class
         {
             return Document<TDocument>().LatestAsync();
+        }
+
+        public TDocument Latest<TDocument>()
+            where TDocument : class
+        {
+            return Document<TDocument>().Latest();
         }
 
         public Observable<TDocument> Watch<TDocument>()

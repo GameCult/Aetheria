@@ -1139,9 +1139,7 @@ private void Update()
                 .Aetheria()
                 .Current
                 .Entity
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult()
+                .Latest()
                 ?.EntityKey ?? "";
         }
         catch (Exception ex)
@@ -1194,9 +1192,7 @@ private void Update()
                 .Aetheria()
                 .Current
                 .Docking
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Latest();
         }
         catch (Exception ex)
         {
@@ -1214,9 +1210,7 @@ private void Update()
             return ResolveClient()
                 .Aetheria()
                 .StationRefit
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Latest();
         }
         catch (Exception ex)
         {

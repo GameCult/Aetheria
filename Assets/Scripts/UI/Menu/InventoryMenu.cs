@@ -787,9 +787,7 @@ public class InventoryMenu : MonoBehaviour
                 .Aetheria()
                 .Current
                 .Entity
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Latest();
         }
         catch (Exception ex)
         {
@@ -807,9 +805,7 @@ public class InventoryMenu : MonoBehaviour
             return ResolveClient()
                 .Aetheria()
                 .StationRefit
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Latest();
         }
         catch (Exception ex)
         {
@@ -828,9 +824,7 @@ public class InventoryMenu : MonoBehaviour
                 .Aetheria()
                 .Current
                 .Docking
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Latest();
         }
         catch (Exception ex)
         {
