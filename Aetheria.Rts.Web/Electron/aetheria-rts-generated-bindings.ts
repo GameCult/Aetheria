@@ -1743,14 +1743,18 @@ export type AetheriaRuntimeRtsSurfaceCatalogDiagnostic = CultMeshSurfaceCatalogD
 
 export type AetheriaRuntimeRtsOperationHandles = ReturnType<typeof createAetheriaRuntimeRtsOperationHandles>;
 
-export type AetheriaRuntimeRtsStatePointers = ReturnType<typeof createAetheriaRuntimeRtsStatePointers>;
+export type AetheriaRuntimeRtsDocuments = ReturnType<typeof createAetheriaRuntimeRtsDocuments>;
 
-export type AetheriaRuntimeRtsStatePointerResolvers = Partial<{
+export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeRtsDocuments;
+
+export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   daemonFrame: (context: CultMeshQueryContext) => Promise<unknown>;
   daemonHealth: (context: CultMeshQueryContext) => Promise<unknown>;
   authorityPolicy: (context: CultMeshQueryContext) => Promise<unknown>;
   starbridgeSession: (context: CultMeshQueryContext) => Promise<unknown>;
 }>;
+
+export type AetheriaRuntimeRtsStatePointerResolvers = AetheriaRuntimeRtsDocumentResolvers;
 
 export const AetheriaRuntimeRtsProjectionSources = {
   daemonFrame: CultMesh.projectionSource("daemon:aetheria.frame.latest.v1", {
@@ -1771,42 +1775,42 @@ export const AetheriaRuntimeRtsProjectionSources = {
   })
 } as const;
 
-export function createAetheriaRuntimeRtsStatePointers(
+export function createAetheriaRuntimeRtsDocuments(
   routeHint: CultMeshRouteHint = CultMesh.routeHint(),
-  resolvers: AetheriaRuntimeRtsStatePointerResolvers = {},
+  resolvers: AetheriaRuntimeRtsDocumentResolvers = {},
 ) {
   return {
-    daemonFrame: CultMesh.statePointer(
+    daemonFrame: CultMesh.document(
       AetheriaRuntimeRtsProjectionSources.daemonFrame.sourceId,
+      { schemaId: AetheriaRtsSchemas.daemonFrame },
       async (context) => resolvers.daemonFrame?.(context),
-      undefined,
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.daemonFrame],
       },
     ),
-    daemonHealth: CultMesh.statePointer(
+    daemonHealth: CultMesh.document(
       AetheriaRuntimeRtsProjectionSources.daemonHealth.sourceId,
+      { schemaId: AetheriaRtsSchemas.daemonHealth },
       async (context) => resolvers.daemonHealth?.(context),
-      undefined,
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.daemonHealth],
       },
     ),
-    authorityPolicy: CultMesh.statePointer(
+    authorityPolicy: CultMesh.document(
       AetheriaRuntimeRtsProjectionSources.authorityPolicy.sourceId,
+      { schemaId: AetheriaRtsSchemas.verseAuthorityPolicy },
       async (context) => resolvers.authorityPolicy?.(context),
-      undefined,
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.authorityPolicy],
       },
     ),
-    starbridgeSession: CultMesh.statePointer(
+    starbridgeSession: CultMesh.document(
       AetheriaRuntimeRtsProjectionSources.starbridgeSession.sourceId,
+      { schemaId: AetheriaRtsSchemas.starbridgeSessionSummary },
       async (context) => resolvers.starbridgeSession?.(context),
-      undefined,
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.starbridgeSession],
@@ -1814,6 +1818,8 @@ export function createAetheriaRuntimeRtsStatePointers(
     ),
   } as const;
 }
+
+export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeRtsDocuments;
 
 export function createAetheriaRuntimeRtsQueryHandles(
   executors: AetheriaRuntimeRtsQueryExecutors,
@@ -1890,15 +1896,27 @@ export function describeAetheriaRuntimeRtsQueryHandles(
 export function describeAetheriaRuntimeRtsSurfaceCatalog(
   handles: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations?: AetheriaRuntimeRtsOperationHandles,
-  statePointers: AetheriaRuntimeRtsStatePointers = createAetheriaRuntimeRtsStatePointers(),
+  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
 ): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
   return CultMesh.describeSurfaceCatalog(
     "gamecult.aetheria.rts.surfaces.v1",
     [
-      CultMesh.describeSurface(statePointers.daemonFrame),
-      CultMesh.describeSurface(statePointers.daemonHealth),
-      CultMesh.describeSurface(statePointers.authorityPolicy),
-      CultMesh.describeSurface(statePointers.starbridgeSession),
+      CultMesh.surfaceDiagnostic("state-pointer", documents.daemonFrame.documentId, {
+        routeHint: documents.daemonFrame.routeHint,
+        sources: documents.daemonFrame.sources,
+      }),
+      CultMesh.surfaceDiagnostic("state-pointer", documents.daemonHealth.documentId, {
+        routeHint: documents.daemonHealth.routeHint,
+        sources: documents.daemonHealth.sources,
+      }),
+      CultMesh.surfaceDiagnostic("state-pointer", documents.authorityPolicy.documentId, {
+        routeHint: documents.authorityPolicy.routeHint,
+        sources: documents.authorityPolicy.sources,
+      }),
+      CultMesh.surfaceDiagnostic("state-pointer", documents.starbridgeSession.documentId, {
+        routeHint: documents.starbridgeSession.routeHint,
+        sources: documents.starbridgeSession.sources,
+      }),
       CultMesh.describeSurface(handles.mapViewport),
       CultMesh.describeSurface(handles.objectsViewport),
       CultMesh.describeSurface(handles.gravityViewport),
@@ -1982,7 +2000,7 @@ export function createAetheriaRuntimeRtsVerseFacade(
   commandVerse: CultMeshVerseContext,
   queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations: AetheriaRuntimeRtsOperationHandles,
-  statePointers: AetheriaRuntimeRtsStatePointers = createAetheriaRuntimeRtsStatePointers(),
+  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
 ) {
   const mapViewport = CultMesh.bindQuery(queryVerse, queries.mapViewport);
   const objectsViewport = CultMesh.bindQuery(queryVerse, queries.objectsViewport);
@@ -1992,10 +2010,10 @@ export function createAetheriaRuntimeRtsVerseFacade(
   const daemonHealth = CultMesh.bindQuery(queryVerse, queries.daemonHealth);
   const authorityStatus = CultMesh.bindQuery(queryVerse, queries.authorityStatus);
   const starbridgeSession = CultMesh.bindQuery(queryVerse, queries.starbridgeSession);
-  const daemonFramePointer = CultMesh.bindStatePointer(queryVerse, statePointers.daemonFrame);
-  const daemonHealthPointer = CultMesh.bindStatePointer(queryVerse, statePointers.daemonHealth);
-  const authorityPolicyPointer = CultMesh.bindStatePointer(queryVerse, statePointers.authorityPolicy);
-  const starbridgeSessionPointer = CultMesh.bindStatePointer(queryVerse, statePointers.starbridgeSession);
+  const daemonFrameDocument = CultMesh.bindDocument(queryVerse, documents.daemonFrame);
+  const daemonHealthDocument = CultMesh.bindDocument(queryVerse, documents.daemonHealth);
+  const authorityPolicyDocument = CultMesh.bindDocument(queryVerse, documents.authorityPolicy);
+  const starbridgeSessionDocument = CultMesh.bindDocument(queryVerse, documents.starbridgeSession);
   const setMoveVector = CultMesh.bindOperation(commandVerse, operations.setMoveVector);
   const setTarget = CultMesh.bindOperation(commandVerse, operations.setTarget);
 
@@ -2054,10 +2072,10 @@ export function createAetheriaRuntimeRtsVerseFacade(
       inventory.execute({ entityIndex }),
     daemon: {
       state: {
-        frame: () => daemonFramePointer.resolve(),
-        health: () => daemonHealthPointer.resolve(),
-        authorityPolicy: () => authorityPolicyPointer.resolve(),
-        starbridgeSession: () => starbridgeSessionPointer.resolve(),
+        frame: () => daemonFrameDocument.latest(),
+        health: () => daemonHealthDocument.latest(),
+        authorityPolicy: () => authorityPolicyDocument.latest(),
+        starbridgeSession: () => starbridgeSessionDocument.latest(),
       },
       health: () => daemonHealth.execute(undefined),
       authorityStatus: () => authorityStatus.execute(undefined),

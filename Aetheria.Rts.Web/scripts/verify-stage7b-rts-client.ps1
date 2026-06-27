@@ -134,8 +134,8 @@ $requiredGeneratedBindingSymbols = @(
     'AetheriaRuntimeRtsProjectionDiagnostic',
     'AetheriaRuntimeRtsLiveFeedDiagnostic',
     'AetheriaRuntimeRtsSurfaceCatalogDiagnostic',
-    'AetheriaRuntimeRtsStatePointers',
-    'AetheriaRuntimeRtsStatePointerResolvers',
+    'AetheriaRuntimeRtsDocuments',
+    'AetheriaRuntimeRtsDocumentResolvers',
     'CultMeshSurfaceCatalogDiagnostic',
     'CultMeshSurfaceCatalogIndexDiagnostic',
     'CultMeshOperationReceipt',
@@ -151,10 +151,10 @@ $requiredGeneratedBindingSymbols = @(
     'routeHint: CultMeshRouteHint',
     'CultMeshQueryWatcher',
     'AetheriaRuntimeRtsQueryWatchers',
-    'createAetheriaRuntimeRtsStatePointers',
-    'CultMesh.statePointer',
-    'CultMesh.bindStatePointer',
-    'CultMesh.describeSurface(statePointers.daemonFrame)',
+    'createAetheriaRuntimeRtsDocuments',
+    'CultMesh.document',
+    'CultMesh.bindDocument',
+    'documents.daemonFrame.documentId',
     'routeHint, watchProjection',
     'watchProjection: watchers.objectsViewport',
     '.asQuerySurface()',
@@ -215,22 +215,23 @@ if ($LASTEXITCODE -ne 0) {
 
 $clientText = Get-Content Electron/aetheria-cultmesh.ts -Raw
 
-if (-not $clientText.Contains('this.statePointers = createAetheriaRuntimeRtsStatePointers(') -or
+if (-not $clientText.Contains('this.documents = createAetheriaRuntimeRtsDocuments(') -or
     -not $clientText.Contains('this.queryVerse.context.routeHint,')) {
-    Write-Error "Stage 7B verifier failed: RTS client is not creating generated state pointers with its shared Verse route."
+    Write-Error "Stage 7B verifier failed: RTS client is not creating generated document handles with its shared Verse route."
 }
 
 if (-not $clientText.Contains('daemonFrame: async () => this.fetchLatestFrameDocument()') -or
     -not $clientText.Contains('authorityPolicy: async () => this.fetchAuthorityPolicyDocument()')) {
-    Write-Error "Stage 7B verifier failed: RTS client state pointers are not resolving through daemon publication readers."
+    Write-Error "Stage 7B verifier failed: RTS client document handles are not resolving through daemon publication readers."
 }
 
 if (-not $clientText.Contains('this.verse = CultMesh.verse("aetheria.local", this.runtimeId)')) {
     Write-Error "Stage 7B verifier failed: RTS client should bind to the shared CultMesh Verse primitive instead of constructing local contexts directly."
 }
 
-if (-not $clientText.Contains('this.queryVerse = this.verse.withRoute("shared-memory"')) {
-    Write-Error "Stage 7B verifier failed: RTS client is not deriving a shared-memory Verse view for local projection reads."
+if (-not $clientText.Contains('? this.verse.withRoute("network", this.publications.statePathDescription)') -or
+    -not $clientText.Contains(': this.verse.withRoute("shared-memory", this.publications.statePathDescription)')) {
+    Write-Error "Stage 7B verifier failed: RTS client is not deriving publication-mode Verse views for projection reads."
 }
 
 if (-not $clientText.Contains('this.commandVerse = this.verse') -or
@@ -293,8 +294,8 @@ if (-not $clientText.Contains('CultMesh.surfaceCatalogIndex(this.surfaceCatalogD
     Write-Error "Stage 7B verifier failed: RTS grouped surface catalog should use the shared CultMesh catalog index primitive."
 }
 
-if (-not $clientText.Contains('describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.statePointers)')) {
-    Write-Error "Stage 7B verifier failed: RTS surface catalog should be read from generated query, operation, and state pointer metadata."
+if (-not $clientText.Contains('describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.documents)')) {
+    Write-Error "Stage 7B verifier failed: RTS surface catalog should be read from generated query, operation, and document metadata."
 }
 
 $forbiddenDirectClientOperationHits = & rg -n 'operations\.set(MoveVector|Target)\.invoke' Electron/aetheria-cultmesh.ts 2>$null

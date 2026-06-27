@@ -13,10 +13,10 @@ import type {
 } from "cultnet-ts";
 import {
   AetheriaRtsSchemas,
+  createAetheriaRuntimeRtsDocuments,
   createAetheriaRuntimeRtsOperationHandles,
   createAetheriaRuntimeRtsVerseFacade,
   createAetheriaRuntimeRtsQueryHandles,
-  createAetheriaRuntimeRtsStatePointers,
   describeAetheriaRuntimeRtsLiveFeedSurface,
   describeAetheriaRuntimeRtsQueryHandles,
   describeAetheriaRuntimeRtsSurfaceCatalog,
@@ -31,7 +31,7 @@ import {
   type AetheriaRuntimeRtsSurfaceCatalogDiagnostic,
   type AetheriaRuntimeRtsOperationHandles,
   type AetheriaRuntimeRtsVerseFacade,
-  type AetheriaRuntimeRtsStatePointers,
+  type AetheriaRuntimeRtsDocuments,
   type AetheriaRuntimeViewportFeedRequest,
   type AetheriaRuntimeViewportFeedSnapshot,
   type RtsSetMoveVectorRequest,
@@ -139,7 +139,7 @@ export class AetheriaCultMeshClient {
         starbridgeSession: CultMesh.pollingQueryWatcher(executors.starbridgeSession, { intervalMs: 250 }),
       },
     );
-    this.statePointers = createAetheriaRuntimeRtsStatePointers(
+    this.documents = createAetheriaRuntimeRtsDocuments(
       this.queryVerse.context.routeHint,
       {
         daemonFrame: async () => this.fetchLatestFrameDocument(),
@@ -157,13 +157,13 @@ export class AetheriaCultMeshClient {
       this.commandVerse.context,
       this.queries,
       this.operations,
-      this.statePointers,
+      this.documents,
     );
   }
 
   private readonly publications: AetheriaPublicationReader;
   private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
-  private readonly statePointers: AetheriaRuntimeRtsStatePointers;
+  private readonly documents: AetheriaRuntimeRtsDocuments;
   private readonly operations: AetheriaRuntimeRtsOperationHandles;
   private readonly aetheria: AetheriaRuntimeRtsVerseFacade;
 
@@ -232,7 +232,7 @@ export class AetheriaCultMeshClient {
   }
 
   public surfaceCatalogDiagnostics(): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
-    const catalog = describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.statePointers);
+    const catalog = describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.documents);
     return CultMesh.describeSurfaceCatalog(catalog.catalogId, [
       ...catalog.surfaces,
       CultMesh.describeSurface(this.createViewportFeed()),

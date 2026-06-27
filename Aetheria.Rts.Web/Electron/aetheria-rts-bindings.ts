@@ -4,6 +4,7 @@ export {
   AetheriaRtsIpcChannels,
   AetheriaRtsSchemas,
   AetheriaRuntimeDaemonCommandKinds,
+  createAetheriaRuntimeRtsDocuments,
   createAetheriaRuntimeRtsOperationHandles,
   createAetheriaRuntimeRtsQueryHandles,
   createAetheriaRuntimeRtsStatePointers,
@@ -16,6 +17,8 @@ export {
 export type {
   AetheriaRuntimeDaemonCommandReceipt,
   AetheriaRuntimeRtsLiveFeedDiagnostic,
+  AetheriaRuntimeRtsDocumentResolvers,
+  AetheriaRuntimeRtsDocuments,
   AetheriaRuntimeRtsOperationHandles,
   AetheriaRuntimeRtsProjectionDiagnostic,
   AetheriaRuntimeRtsStatePointerResolvers,
