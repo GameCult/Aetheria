@@ -485,9 +485,6 @@
     <Reference Include="Microsoft.Bcl.TimeProvider">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Microsoft.Bcl.TimeProvider.dll</HintPath>
     </Reference>
-    <Reference Include="Substance.Editor">
-      <HintPath>E:\Projects\Aetheria\Assets\Allegorithmic\Plugins\Substance\Substance Engine\Editor\Substance.Editor.dll</HintPath>
-    </Reference>
     <Reference Include="R3">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\R3.dll</HintPath>
     </Reference>
@@ -502,12 +499,6 @@
     </Reference>
     <Reference Include="System.Runtime.CompilerServices.Unsafe">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
-    <Reference Include="SourceUnityLib">
-      <HintPath>E:\Projects\Aetheria\Assets\Allegorithmic\Plugins\Substance\Substance Source\Editor\SourceUnityLib.dll</HintPath>
-    </Reference>
-    <Reference Include="Substance.Game">
-      <HintPath>E:\Projects\Aetheria\Assets\Allegorithmic\Plugins\Substance.Game.dll</HintPath>
     </Reference>
     <Reference Include="ConcurrentCollections">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\ConcurrentCollections.dll</HintPath>
