@@ -87,6 +87,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonEditorSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonOperationClient.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaClient.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaClientState.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaControl.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaUi.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseClient.cs" />

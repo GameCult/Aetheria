@@ -145,6 +145,43 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void AetheriaClientStateFacadeReadsProjectedDocumentsThroughCultMesh()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-client-state-facade-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            RunWithTwoEntities(),
+            "daemon",
+            "session-state",
+            7,
+            1.25,
+            0.02);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        var currentEntity = client.State.Current.Entity.LatestAsync().GetAwaiter().GetResult();
+        var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
+
+        Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
+        Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
+        Assert.AreEqual(0, currentEntity.EntityIndex);
+        Assert.AreEqual("Player", currentEntity.Entity?.Name);
+        Assert.AreEqual(legacyCurrentEntity.EntityKey, currentEntity.EntityKey);
+        Assert.IsTrue(client.State.Current.Entity.Sources.Any(source =>
+            source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
+        Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>
+            source.SourceId == "catalog:aetheria.runtime"));
+    }
+
+    [Test]
     public void TickRunnerAppliesObservedCommandsAndPublishesFrame()
     {
         var statePath = Path.Combine(

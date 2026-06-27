@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
+using R3;
 
 #nullable enable
 
@@ -17,6 +18,7 @@ namespace GameCult.Aetheria.State.Verse
         private readonly AetheriaRuntimeDaemonOperationsClient _operations;
         private readonly AetheriaControl _control;
         private readonly AetheriaUi _ui;
+        private readonly AetheriaClientState _state;
         private bool _disposed;
 
         private AetheriaClient(AetheriaRuntimeVerseClient verse, string clientId, string sessionId)
@@ -27,12 +29,14 @@ namespace GameCult.Aetheria.State.Verse
             _operations = new AetheriaRuntimeDaemonOperationsClient(SendOperation);
             _control = new AetheriaControl(_operations);
             _ui = new AetheriaUi(this);
+            _state = CreateStateFacade();
         }
 
         public string StatePath => _verse.StatePath;
         public string RuntimeId => _verse.RuntimeId;
         public AetheriaControl Control => _control;
         public AetheriaUi Ui => _ui;
+        public AetheriaClientState State => _state;
 
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 
@@ -144,45 +148,37 @@ namespace GameCult.Aetheria.State.Verse
         public async Task<AetheriaRuntimeCurrentZoneDocument> CurrentZoneAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame);
+            return await State.Current.Zone.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeCurrentEntityDocument> CurrentEntityAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectCurrentEntity(frame);
+            return await State.Current.Entity.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeCurrentDockingDocument> CurrentDockingAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectCurrentDocking(frame);
+            return await State.Current.Docking.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeZoneContactsDocument> ZoneContactsAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectZoneContacts(frame);
+            return await State.ZoneContacts.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeStationRefitDocument> StationRefitAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            var loadoutTemplates = await _verse.GetLoadoutTemplatesAsync().ConfigureAwait(false);
-            var catalog = _verse.OpenRuntimeCatalog();
-            return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates, catalog);
+            return await State.StationRefit.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeSectorMapDocument> SectorMapAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectSectorMap(frame);
+            return await State.SectorMap.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeZoneDetailsDocument> ZoneDetailsAsync(int zoneIndex)
@@ -195,8 +191,7 @@ namespace GameCult.Aetheria.State.Verse
         public async Task<AetheriaRuntimeZoneRenderDocument> ZoneRenderAsync()
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectZoneRender(frame);
+            return await State.ZoneRender.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummaryAsync(
@@ -388,6 +383,79 @@ namespace GameCult.Aetheria.State.Verse
             if (frame == null)
                 throw new InvalidOperationException("Aetheria local client has no daemon frame yet.");
             return frame;
+        }
+
+        private AetheriaClientState CreateStateFacade()
+        {
+            var frameChanges = _verse.WatchLatestFrames()
+                .Where(change => change.Document != null)
+                .Select(change => change.Document!);
+
+            return new AetheriaClientState(
+                ProjectedDocument(
+                    "aetheria.current.zone",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame)),
+                    AetheriaRuntimeDaemonSchemas.CurrentZone),
+                ProjectedDocument(
+                    "aetheria.current.entity",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentEntity(frame)),
+                    AetheriaRuntimeDaemonSchemas.CurrentEntity),
+                ProjectedDocument(
+                    "aetheria.current.docking",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentDocking(frame)),
+                    AetheriaRuntimeDaemonSchemas.CurrentDocking),
+                ProjectedDocument(
+                    "aetheria.zone.contacts",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneContacts(frame)),
+                    AetheriaRuntimeDaemonSchemas.ZoneContacts),
+                ProjectedDocument(
+                    "aetheria.station.refit",
+                    ProjectStationRefitAsync,
+                    AetheriaRuntimeDaemonSchemas.StationRefit,
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime"),
+                    CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
+                ProjectedDocument(
+                    "aetheria.sector.map",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectSectorMap(frame)),
+                    AetheriaRuntimeDaemonSchemas.SectorMap),
+                ProjectedDocument(
+                    "aetheria.zone.render",
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneRender(frame)),
+                    AetheriaRuntimeDaemonSchemas.ZoneRender));
+
+            AetheriaRuntimeProjectedDocument<TDocument> ProjectedDocument<TDocument>(
+                string documentId,
+                Func<AetheriaRuntimeDaemonFrameDocument, Task<TDocument>> project,
+                string schemaId,
+                params CultMeshProjectionSource[] additionalSources)
+            {
+                var sources = new[]
+                    {
+                        CultMesh.ProjectionSource(
+                            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                            AetheriaRuntimeDaemonSchemas.Frame,
+                            "latest authoritative daemon frame")
+                    }
+                    .Concat(additionalSources ?? Array.Empty<CultMeshProjectionSource>())
+                    .Append(CultMesh.ProjectionSource(documentId, schemaId, "projected Aetheria client document"))
+                    .ToArray();
+
+                return AetheriaRuntimeProjectedDocument<TDocument>.Create(
+                    documentId,
+                    RuntimeId,
+                    async () => await project(await RequireFrameAsync().ConfigureAwait(false)).ConfigureAwait(false),
+                    frameChanges,
+                    project,
+                    sources);
+            }
+
+            async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
+                AetheriaRuntimeDaemonFrameDocument frame)
+            {
+                var loadoutTemplates = await _verse.GetLoadoutTemplatesAsync().ConfigureAwait(false);
+                var catalog = _verse.OpenRuntimeCatalog();
+                return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates, catalog);
+            }
         }
 
         private void ThrowIfDisposed()
