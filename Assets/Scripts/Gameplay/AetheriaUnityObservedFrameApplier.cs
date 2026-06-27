@@ -74,7 +74,9 @@ public sealed class AetheriaUnityObservedFrameApplier
         try
         {
             return observer.Client
-                .ZoneRenderAsync()
+                .Aetheria()
+                .ZoneRender
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

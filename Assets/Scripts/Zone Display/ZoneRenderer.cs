@@ -923,7 +923,9 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             var contacts = ResolveClient()
-                .ZoneContactsAsync()
+                .Aetheria()
+                .ZoneContacts
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             foreach (var target in contacts?.Targets ?? Array.Empty<AetheriaRuntimeZoneTargetRow>())

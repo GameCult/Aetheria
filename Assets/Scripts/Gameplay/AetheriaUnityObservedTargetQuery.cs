@@ -93,7 +93,12 @@ public sealed class AetheriaUnityObservedTargetQuery
     {
         try
         {
-            return _resolveClient()?.ZoneContactsAsync().GetAwaiter().GetResult();
+            return _resolveClient()
+                ?.Aetheria()
+                .ZoneContacts
+                .LatestAsync()
+                .GetAwaiter()
+                .GetResult();
         }
         catch
         {
