@@ -1132,91 +1132,46 @@ private void Update()
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-
-        try
-        {
-            currentEntityKey = ResolveClient()
-                .Aetheria()
-                .Current
-                .Entity
-                .Latest()
-                ?.EntityKey ?? "";
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria current entity for inventory panel: {ex.Message}");
-            return false;
-        }
-
-        return !string.IsNullOrWhiteSpace(currentEntityKey);
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
     }
 
     private bool TryGetTypedCurrentDockingBayFacade(out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
-        var stationRefit = ResolveStationRefit();
-        var dockParentEntityKey = stationRefit?.DockParentEntityKey ?? "";
-        if (_observedFacadeIndex == null ||
-            !TryResolveCurrentDockingBayRow(out var dockingBayRow) ||
-            string.IsNullOrWhiteSpace(dockParentEntityKey) ||
-            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                dockParentEntityKey,
-                dockingBayRow.DockingBayIndex,
-                out dockingBay))
-        {
-            return false;
-        }
-
-        return dockingBay != null;
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDockingBay(out dockingBay);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        var stationRefit = ResolveStationRefit();
-        if (stationRefit?.IsDocked != true || stationRefit.DockingBayIndex < 0)
-            return false;
-
-        dockingBay = (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
-            .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex);
-        return dockingBay != null;
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
     }
 
     private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
-
-        try
-        {
-            docking = ResolveClient()
-                .Aetheria()
-                .Current
-                .Docking
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria current docking for inventory panel: {ex.Message}");
-            return false;
-        }
-
-        return docking != null;
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDocking(out docking);
     }
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        try
-        {
-            return ResolveClient()
-                .Aetheria()
-                .StationRefit
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria station refit projection for inventory panel: {ex.Message}");
-            return null;
-        }
+        return TryResolveObservedDockingIndex(out var dockingIndex)
+            ? dockingIndex.ResolveStationRefit()
+            : null;
+    }
+
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    {
+        dockingIndex = null;
+        if (_observedFacadeIndex == null)
+            return false;
+
+        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedFacadeIndex);
+        return true;
     }
 
     private bool TryResolveStationRefitEntity(string entityKey, int optionIndex, out Entity entity)
