@@ -260,8 +260,9 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay:
-                if (TryResolveCurrentDockingBayRow(out _) &&
-                    TryGetTypedCurrentDockingBayFacade(out var dockingBay))
+                if (TryResolveObservedDockingIndex(out var dockingIndex) &&
+                    dockingIndex.TryResolveCurrentDockingBayRow(out _) &&
+                    dockingIndex.TryResolveCurrentDockingBay(out var dockingBay))
                 {
                     Display(dockingBay);
                 }
@@ -1134,13 +1135,6 @@ private void Update()
         currentEntityKey = "";
         return TryResolveObservedDockingIndex(out var dockingIndex) &&
                dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
-    }
-
-    private bool TryGetTypedCurrentDockingBayFacade(out EquippedDockingBay dockingBay)
-    {
-        dockingBay = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDockingBay(out dockingBay);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)

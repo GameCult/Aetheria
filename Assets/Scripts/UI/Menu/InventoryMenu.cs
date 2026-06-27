@@ -89,8 +89,9 @@ public class InventoryMenu : MonoBehaviour
         // {
         //     _destroyItem = false;
         // });
-        var hasObservedCurrentEntity = TryGetTypedCurrentEntityFacade(out var currentEntity);
-        var cargo = TryGetTypedCurrentDockingBayFacade(out var dockingBay)
+        var hasDockingIndex = TryResolveObservedDockingIndex(out var dockingIndex);
+        var hasObservedCurrentEntity = hasDockingIndex && dockingIndex.TryResolveCurrentEntity(out var currentEntity);
+        var cargo = hasDockingIndex && dockingIndex.TryResolveCurrentDockingBay(out var dockingBay)
             ? dockingBay
             : currentEntity?.CargoBays.FirstOrDefault();
         if (cargo!=null)
@@ -721,20 +722,6 @@ public class InventoryMenu : MonoBehaviour
         }
 
         return string.Equals(entityKey, currentEntityKey, StringComparison.Ordinal);
-    }
-
-    private bool TryGetTypedCurrentEntityFacade(out Entity entity)
-    {
-        entity = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentEntity(out entity);
-    }
-
-    private bool TryGetTypedCurrentDockingBayFacade(out EquippedDockingBay dockingBay)
-    {
-        dockingBay = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDockingBay(out dockingBay);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
