@@ -6883,7 +6883,7 @@ static void RequireVerseHostSettingsAuthority(string root)
             string.Join(", ", missingVerseDiscoveryHostSymbols));
     }
 
-    if (!registry.Contains("CultNetDocumentBinding.ForDocument<AetheriaVerseHostSettings>", StringComparison.Ordinal) ||
+    if (!registry.Contains("CultMesh.CreateCultNetDocumentRegistry(DocumentTypes, registry)", StringComparison.Ordinal) ||
         !registry.Contains("typeof(AetheriaVerseHostSettings)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -8705,12 +8705,8 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredDaemonRegistrySymbols = new[]
     {
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(registry)",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonHealthDocument>(registry)",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry)",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry)",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry)",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry)",
+        "CultMesh.CreateCultCacheDocumentRegistry(DocumentTypes)",
+        "CultMesh.CreateCultNetDocumentRegistry(DocumentTypes, registry)",
         "typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument)",
         "typeof(AetheriaRuntimeDaemonHealthDocument)",
         "typeof(AetheriaRuntimeDaemonCommandBoundaryDocument)",
@@ -9235,7 +9231,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>",
         "CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument>",
         "CultMesh.MutableStatePointer(",
-        "CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)",
+        "CultMesh.CreateCultCacheDocumentRegistry(RuntimeDocumentTypes)",
+        "CultMesh.CreateCultNetDocumentRegistry(RuntimeDocumentTypes, registry)",
+        "typeof(EveSurfaceState)",
         "GetDaemonGameTuiSurfaceAsync()",
         "GetDaemonEditorTuiSurfaceAsync()",
         "WatchDaemonGameTuiSurfaces()",
@@ -9470,7 +9468,6 @@ static void RequireTypedEveCommandBodies(string root)
         "SubmitEveCommandAsync(",
         "ReadObservedEveCommands(",
         "EveCommandKey(",
-        "CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>",
         "typeof(AetheriaRuntimeEveCommandDocument)",
         "SubmitPlayerSettingsCommand(",
         "command.PlayerSettings.PlayerName",

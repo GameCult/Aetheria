@@ -107,47 +107,13 @@ namespace GameCult.Aetheria.State.Verse
 
         public static CultDocumentRegistry CreateCultCacheRegistry()
         {
-            var registry = new CultDocumentRegistry();
-            foreach (var documentType in RuntimeDocumentTypes)
-            {
-                registry.GetRequired(documentType);
-            }
-
-            return registry;
+            return CultMesh.CreateCultCacheDocumentRegistry(RuntimeDocumentTypes);
         }
 
         public static CultNetDocumentRegistry CreateCultNetRegistry(CultDocumentRegistry? cacheRegistry = null)
         {
             var registry = cacheRegistry ?? CreateCultCacheRegistry();
-            return new CultNetDocumentRegistry(
-                registry,
-                new[]
-                {
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonHealthDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeAssetManifestDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeObjectsViewportDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeGravityViewportDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentZoneDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentEntityDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentDockingDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneContactsDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStationRefitDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeSectorMapDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneDetailsDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeZoneRenderDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeSelectedObjectDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeInventoryDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeScenarioDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeSessionDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeEveCommandDocument>(registry),
-                    CultNetDocumentBinding.ForDocument<EveSurfaceState>(registry)
-                });
+            return CultMesh.CreateCultNetDocumentRegistry(RuntimeDocumentTypes, registry);
         }
     }
 
