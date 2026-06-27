@@ -1,5 +1,4 @@
-import { decode } from "@msgpack/msgpack";
-import { SingleFileMessagePackBackingStore } from "cultcache-ts";
+import { CultMesh } from "cultmesh-ts";
 
 export class AetheriaLocalPublicationReader {
   public constructor(private readonly statePath: string) {}
@@ -9,28 +8,41 @@ export class AetheriaLocalPublicationReader {
   }
 
   public readDaemonFrame(): Promise<unknown> {
-    return this.readSingleDocument(`${this.statePath}.daemon.frame.cc`, "gamecult.aetheria.daemon_frame.v1");
+    return this.readSingleDocument(
+      `${this.statePath}.daemon.frame.cc`,
+      "gamecult.aetheria.daemon_frame.v1",
+      "daemon:aetheria.frame.latest.v1");
   }
 
   public readDaemonHealth(): Promise<unknown> {
-    return this.readSingleDocument(`${this.statePath}.daemon.health.cc`, "gamecult.aetheria.daemon_health.v1");
+    return this.readSingleDocument(
+      `${this.statePath}.daemon.health.cc`,
+      "gamecult.aetheria.daemon_health.v1",
+      "daemon:aetheria.health.latest.v1");
   }
 
   public readAuthorityPolicy(): Promise<unknown> {
-    return this.readSingleDocument(`${this.statePath}.authority.policy.cc`, "gamecult.aetheria.verse_authority_policy.v1");
+    return this.readSingleDocument(
+      `${this.statePath}.authority.policy.cc`,
+      "gamecult.aetheria.verse_authority_policy.v1",
+      "daemon:aetheria.authority.policy.latest.v1");
   }
 
   public readStarbridgeSessionSummary(): Promise<unknown> {
     return this.readSingleDocument(
       `${this.statePath}.daemon.starbridge.session.cc`,
-      "gamecult.aetheria.starbridge_session_summary.v1");
+      "gamecult.aetheria.starbridge_session_summary.v1",
+      "daemon:aetheria.starbridge.session.latest.v1");
   }
 
-  private async readSingleDocument(path: string, schemaId: string): Promise<unknown> {
-    const records = await new SingleFileMessagePackBackingStore(path).pullAll();
-    const record = records.find(candidate => candidate.schemaId === schemaId);
-    if (!record)
-      throw new Error(`Aetheria local publication ${path} did not contain schema ${schemaId}.`);
-    return decode(record.payload);
+  private readSingleDocument(
+    path: string,
+    schemaId: string,
+    documentId: string,
+  ): Promise<unknown> {
+    return CultMesh.documentFromSingleFile(path, schemaId, {
+      documentId,
+      sourceId: documentId,
+    }).latest();
   }
 }

@@ -473,9 +473,17 @@ foreach ($symbol in $requiredProjectionSymbols) {
     }
 }
 
-& rg -q 'SingleFileMessagePackBackingStore' Electron/aetheria-local-publication-reader.ts
+& rg -q 'CultMesh.documentFromSingleFile' Electron/aetheria-local-publication-reader.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local CultCache publication reader was not found."
+    Write-Error "Stage 7B verifier failed: local publications should be read through CultMesh document handles."
+}
+
+$forbiddenLocalPublicationReaderPlumbing = & rg -n 'SingleFileMessagePackBackingStore|decode\(|pullAll\(' Electron/aetheria-local-publication-reader.ts 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: local publication reader still owns backing-store or MessagePack plumbing.`n$forbiddenLocalPublicationReaderPlumbing"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for local publication reader plumbing checks."
 }
 
 & rg -q 'readStarbridgeSessionSummary' Electron/aetheria-local-publication-reader.ts
