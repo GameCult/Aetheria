@@ -40,7 +40,10 @@ export class AetheriaLocalPublicationReader {
     schemaId: string,
     documentId: string,
   ): Promise<unknown> {
-    return CultMesh.documentFromSingleFile(path, schemaId, {
+    return CultMesh.documentFromPublication({
+      kind: "single-file",
+      path,
+    }, schemaId, documentId, {
       documentId,
       sourceId: documentId,
     }).latest();

@@ -46,8 +46,12 @@ export class AetheriaRemotePublicationReader {
   }
 
   private async readSingleDocument(schemaId: string, recordKey: string): Promise<unknown> {
-    return CultMesh.documentFromPeerSnapshot(
-      () => this.peer(),
+    return CultMesh.documentFromPublication(
+      {
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.endpoint,
+      },
       schemaId,
       recordKey,
       {

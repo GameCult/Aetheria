@@ -491,9 +491,9 @@ foreach ($symbol in $requiredProjectionSymbols) {
     }
 }
 
-& rg -q 'CultMesh.documentFromSingleFile' Electron/aetheria-local-publication-reader.ts
+& rg -q 'CultMesh.documentFromPublication' Electron/aetheria-local-publication-reader.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local publications should be read through CultMesh document handles."
+    Write-Error "Stage 7B verifier failed: local publications should be read through configured CultMesh document handles."
 }
 
 $forbiddenLocalPublicationReaderPlumbing = & rg -n 'SingleFileMessagePackBackingStore|decode\(|pullAll\(' Electron/aetheria-local-publication-reader.ts 2>$null
