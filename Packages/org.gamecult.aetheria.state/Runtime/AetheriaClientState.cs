@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Mesh;
 using R3;
@@ -25,6 +26,7 @@ namespace GameCult.Aetheria.State.Verse
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
             SectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
             ZoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
+            DockingState = new AetheriaClientDockingState(Current.Entity, Current.Docking, StationRefit);
             _documents = CultMesh.Documents(
                 Current.Zone,
                 Current.Entity,
@@ -36,6 +38,8 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public AetheriaClientCurrentState Current { get; }
+
+        public AetheriaClientDockingState DockingState { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContacts { get; }
 
@@ -121,5 +125,74 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> Entity { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }
+    }
+
+    public sealed class AetheriaClientDockingState
+    {
+        private readonly CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+        private readonly CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
+        private readonly CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> _stationRefit;
+
+        internal AetheriaClientDockingState(
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
+            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit)
+        {
+            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
+            _currentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
+            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
+        }
+
+        public Task<AetheriaClientDockingSnapshot> LatestAsync()
+        {
+            return LatestAsync(_currentEntity, _currentDocking, _stationRefit);
+        }
+
+        public AetheriaClientDockingSnapshot Latest()
+        {
+            return LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        private static async Task<AetheriaClientDockingSnapshot> LatestAsync(
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
+            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit)
+        {
+            var entity = await currentEntity.LatestAsync().ConfigureAwait(false);
+            var docking = await currentDocking.LatestAsync().ConfigureAwait(false);
+            var refit = await stationRefit.LatestAsync().ConfigureAwait(false);
+            var dockingBay = refit?.IsDocked == true && refit.DockingBayIndex >= 0
+                ? (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+                    .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex)
+                : null;
+            return new AetheriaClientDockingSnapshot(entity, docking, refit, dockingBay);
+        }
+    }
+
+    public sealed class AetheriaClientDockingSnapshot
+    {
+        internal AetheriaClientDockingSnapshot(
+            AetheriaRuntimeCurrentEntityDocument? currentEntity,
+            AetheriaRuntimeCurrentDockingDocument? currentDocking,
+            AetheriaRuntimeStationRefitDocument? stationRefit,
+            AetheriaRuntimeStationDockingBayRow? currentDockingBay)
+        {
+            CurrentEntity = currentEntity;
+            CurrentDocking = currentDocking;
+            StationRefit = stationRefit;
+            CurrentDockingBay = currentDockingBay;
+        }
+
+        public AetheriaRuntimeCurrentEntityDocument? CurrentEntity { get; }
+
+        public AetheriaRuntimeCurrentDockingDocument? CurrentDocking { get; }
+
+        public AetheriaRuntimeStationRefitDocument? StationRefit { get; }
+
+        public AetheriaRuntimeStationDockingBayRow? CurrentDockingBay { get; }
+
+        public string CurrentEntityKey => CurrentEntity?.EntityKey ?? CurrentDocking?.CurrentEntityKey ?? "";
+
+        public bool IsDocked => StationRefit?.IsDocked == true && CurrentDockingBay != null;
     }
 }
