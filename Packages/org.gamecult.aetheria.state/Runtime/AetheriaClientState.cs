@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
+using GameCult.Caching;
 using GameCult.Mesh;
 using R3;
 
@@ -13,10 +15,12 @@ namespace GameCult.Aetheria.State.Verse
         public static readonly AetheriaRuntimeStateQueryParameters Empty = new AetheriaRuntimeStateQueryParameters();
     }
 
-    public sealed class AetheriaRuntimeProjectedDocument<TDocument>
+    public sealed class AetheriaRuntimeProjectedDocument<TDocument> : IAetheriaRuntimeProjectedDocument
     {
         private static readonly CultMeshPollingWatchOptions<TDocument> DefaultWatchOptions =
             new CultMeshPollingWatchOptions<TDocument>(TimeSpan.FromMilliseconds(100));
+        private static readonly CultDocumentAttribute? DocumentAttribute =
+            typeof(TDocument).GetCustomAttribute<CultDocumentAttribute>();
 
         private readonly CultMeshBoundLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument> _feed;
 
@@ -27,6 +31,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public string DocumentId => _feed.FeedId;
+
+        public Type DocumentType => typeof(TDocument);
+
+        public string SchemaName => DocumentAttribute?.SchemaName ?? "";
+
+        public string SchemaVersion => DocumentAttribute?.SchemaVersion ?? "";
 
         public CultMeshRouteHint RouteHint => _feed.RouteHint;
 
@@ -80,9 +90,25 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    public interface IAetheriaRuntimeProjectedDocument
+    {
+        Type DocumentType { get; }
+
+        string DocumentId { get; }
+
+        string SchemaName { get; }
+
+        string SchemaVersion { get; }
+
+        CultMeshRouteHint RouteHint { get; }
+
+        System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources { get; }
+    }
+
     public sealed class AetheriaClientState
     {
         private readonly IReadOnlyDictionary<Type, object> _documentsByType;
+        private readonly IReadOnlyDictionary<string, IAetheriaRuntimeProjectedDocument> _documentsBySchema;
 
         internal AetheriaClientState(
             AetheriaRuntimeProjectedDocument<AetheriaRuntimeCurrentZoneDocument> currentZone,
@@ -108,6 +134,7 @@ namespace GameCult.Aetheria.State.Verse
                 [typeof(AetheriaRuntimeSectorMapDocument)] = SectorMap,
                 [typeof(AetheriaRuntimeZoneRenderDocument)] = ZoneRender
             };
+            _documentsBySchema = BuildSchemaIndex(_documentsByType.Values);
         }
 
         public AetheriaClientCurrentState Current { get; }
@@ -120,6 +147,29 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaRuntimeProjectedDocument<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
 
+        public bool TryGetDocumentBySchema(
+            string schemaVersion,
+            out IAetheriaRuntimeProjectedDocument document)
+        {
+            if (!string.IsNullOrWhiteSpace(schemaVersion) &&
+                _documentsBySchema.TryGetValue(schemaVersion, out document!))
+            {
+                return true;
+            }
+
+            document = null!;
+            return false;
+        }
+
+        public IAetheriaRuntimeProjectedDocument DocumentBySchema(string schemaVersion)
+        {
+            if (TryGetDocumentBySchema(schemaVersion, out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria typed state does not expose a projected document for schema '{schemaVersion}'.");
+        }
+
         public bool TryGetDocument<TDocument>(
             out AetheriaRuntimeProjectedDocument<TDocument> document)
         {
@@ -127,6 +177,15 @@ namespace GameCult.Aetheria.State.Verse
                 untypedDocument is AetheriaRuntimeProjectedDocument<TDocument> typedDocument)
             {
                 document = typedDocument;
+                return true;
+            }
+
+            var schemaVersion = SchemaVersionFor(typeof(TDocument));
+            if (!string.IsNullOrWhiteSpace(schemaVersion) &&
+                _documentsBySchema.TryGetValue(schemaVersion, out var schemaDocument) &&
+                schemaDocument is AetheriaRuntimeProjectedDocument<TDocument> schemaTypedDocument)
+            {
+                document = schemaTypedDocument;
                 return true;
             }
 
@@ -156,6 +215,29 @@ namespace GameCult.Aetheria.State.Verse
         public IDisposable Watch<TDocument>(Action<TDocument> onNext)
         {
             return Document<TDocument>().Watch(onNext);
+        }
+
+        private static IReadOnlyDictionary<string, IAetheriaRuntimeProjectedDocument> BuildSchemaIndex(
+            IEnumerable<object> documents)
+        {
+            var index = new Dictionary<string, IAetheriaRuntimeProjectedDocument>(StringComparer.Ordinal);
+            foreach (var document in documents)
+            {
+                if (document is not IAetheriaRuntimeProjectedDocument projectedDocument)
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(projectedDocument.SchemaVersion))
+                    index[projectedDocument.SchemaVersion] = projectedDocument;
+                if (!string.IsNullOrWhiteSpace(projectedDocument.SchemaName))
+                    index[projectedDocument.SchemaName] = projectedDocument;
+            }
+
+            return index;
+        }
+
+        private static string SchemaVersionFor(Type documentType)
+        {
+            return documentType.GetCustomAttribute<CultDocumentAttribute>()?.SchemaVersion ?? "";
         }
     }
 

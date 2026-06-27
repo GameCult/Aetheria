@@ -180,8 +180,21 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.ZoneRender, client.Document<AetheriaRuntimeZoneRenderDocument>());
+        Assert.AreSame(
+            client.State.Current.Entity,
+            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
+        Assert.AreSame(
+            client.State.ZoneContacts,
+            client.DocumentBySchema("gamecult.aetheria.zone_contacts"));
+        Assert.AreEqual(
+            typeof(AetheriaRuntimeCurrentEntityDocument),
+            client.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity).DocumentType);
         Assert.IsTrue(client.State.TryGetDocument<AetheriaRuntimeSectorMapDocument>(out var sectorMapDocument));
         Assert.AreSame(client.State.SectorMap, sectorMapDocument);
+        Assert.IsTrue(client.State.TryGetDocumentBySchema(
+            AetheriaRuntimeDaemonSchemas.SectorMap,
+            out var sectorMapBySchema));
+        Assert.AreSame(client.State.SectorMap, sectorMapBySchema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);

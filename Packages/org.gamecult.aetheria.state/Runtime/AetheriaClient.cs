@@ -46,6 +46,12 @@ namespace GameCult.Aetheria.State.Verse
             return State.Document<TDocument>();
         }
 
+        public IAetheriaRuntimeProjectedDocument DocumentBySchema(string schemaVersion)
+        {
+            ThrowIfDisposed();
+            return State.DocumentBySchema(schemaVersion);
+        }
+
         public Task<TDocument> LatestAsync<TDocument>()
         {
             ThrowIfDisposed();
