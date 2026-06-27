@@ -1,8 +1,7 @@
 using System;
 using System.Buffers;
 using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
+using GameCult.Caching;
 using GameCult.Mesh;
 using MessagePack;
 
@@ -12,12 +11,6 @@ namespace GameCult.Aetheria.State.Verse
 {
     internal static class AetheriaRuntimeCultCacheDocumentStore
     {
-        private const string FormatVersion = "cultcache.store.v1";
-        private const int StoreSnapshotFieldCount = 3;
-        private const int SchemaCatalogEntryFieldCount = 7;
-        private const int SchemaCatalogMemberFieldCount = 8;
-        private const int PersistedRecordFieldCount = 4;
-
         public static void WriteEveCommand(string path, AetheriaRuntimeEveCommandDocument document)
         {
             WriteDocument(
@@ -33,7 +26,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeEveCommandDocument ReadEveCommand(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeEveCommandDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeEveCommandDocument.SchemaId));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeEveCommandDocument.SchemaId));
         }
 
         public static void WriteDaemonCommand(string path, AetheriaRuntimeDaemonCommandDocument document)
@@ -51,7 +44,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonCommandDocument ReadDaemonCommand(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonCommandDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Command));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Command));
         }
 
         public static void WriteDaemonFrame(string path, AetheriaRuntimeDaemonFrameDocument document)
@@ -69,7 +62,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonFrameDocument ReadDaemonFrame(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonFrameDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Frame));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Frame));
         }
 
         public static void WriteDaemonSoaView(string path, AetheriaRuntimeDaemonSoaViewDocument document)
@@ -87,7 +80,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonSoaViewDocument ReadDaemonSoaView(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonSoaViewDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.SoaView));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.SoaView));
         }
 
         public static void WriteDaemonProviderAdvertisement(
@@ -107,7 +100,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonProviderAdvertisementDocument ReadDaemonProviderAdvertisement(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.ProviderAdvertisement));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.ProviderAdvertisement));
         }
 
         public static void WriteDaemonHealth(string path, AetheriaRuntimeDaemonHealthDocument document)
@@ -125,7 +118,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonHealthDocument ReadDaemonHealth(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonHealthDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Health));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.Health));
         }
 
         public static void WriteVerseAuthorityPolicy(
@@ -145,7 +138,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeVerseAuthorityPolicyDocument ReadVerseAuthorityPolicy(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeVerseAuthorityPolicyDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeVerseAuthoritySchemas.Policy));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeVerseAuthoritySchemas.Policy));
         }
 
         public static void WriteDaemonCommandBoundary(
@@ -165,7 +158,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeDaemonCommandBoundaryDocument ReadDaemonCommandBoundary(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonCommandBoundaryDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.CommandBoundary));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.CommandBoundary));
         }
 
         public static void WriteStarbridgeSessionSummary(
@@ -185,7 +178,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeStarbridgeSessionSummaryDocument ReadStarbridgeSessionSummary(string path)
         {
             return MessagePackSerializer.Deserialize<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
-                ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         }
 
         public static void WriteDaemonGameSurface(string path, AetheriaRuntimeSurfaceDocument document)
@@ -200,7 +193,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeSurfaceDocument ReadDaemonGameSurface(string path)
         {
-            return ReadRuntimeSurfaceDocument(ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.GameSurface));
+            return ReadRuntimeSurfaceDocument(CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.GameSurface));
         }
 
         public static void WriteDaemonEditorSurface(string path, AetheriaRuntimeSurfaceDocument document)
@@ -215,7 +208,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeSurfaceDocument ReadDaemonEditorSurface(string path)
         {
-            return ReadRuntimeSurfaceDocument(ReadDocumentPayload(path, AetheriaRuntimeDaemonSchemas.EditorSurface));
+            return ReadRuntimeSurfaceDocument(CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.EditorSurface));
         }
 
         private static void WriteDaemonSurface(
@@ -244,90 +237,12 @@ namespace GameCult.Aetheria.State.Verse
             string storedAt,
             byte[] payload)
         {
-            var buffer = new ArrayBufferWriter<byte>();
-            var writer = new MessagePackWriter(buffer);
-
-            writer.WriteArrayHeader(StoreSnapshotFieldCount);
-            writer.Write(FormatVersion);
-            writer.WriteArrayHeader(1);
-            WriteSchemaCatalogEntry(ref writer, schemaId, schemaName, schemaVersion, payload);
-            writer.WriteArrayHeader(1);
-            WritePersistedRecord(ref writer, key, schemaId, storedAt, payload);
-            writer.Flush();
-
-            WriteFileAtomically(path, buffer.WrittenSpan.ToArray());
-        }
-
-        private static byte[] ReadDocumentPayload(string path, string expectedSchemaId)
-        {
-            var reader = new MessagePackReader(File.ReadAllBytes(path));
-            var fieldCount = reader.ReadArrayHeader();
-            if (fieldCount < StoreSnapshotFieldCount)
-            {
-                throw new InvalidDataException($"CultCache document '{path}' is missing store fields.");
-            }
-
-            var formatVersion = reader.ReadString() ?? "";
-            if (!formatVersion.StartsWith("cultcache.store.v1", StringComparison.Ordinal))
-            {
-                throw new InvalidDataException($"Document '{path}' is not a CultCache store.");
-            }
-
-            var schemaIds = ReadSchemaCatalog(ref reader);
-            var recordCount = reader.ReadArrayHeader();
-            if (recordCount != 1)
-            {
-                throw new InvalidDataException($"CultCache document '{path}' must contain exactly one record.");
-            }
-
-            var recordFieldCount = reader.ReadArrayHeader();
-            if (recordFieldCount < PersistedRecordFieldCount)
-            {
-                throw new InvalidDataException($"CultCache record '{path}' is missing record fields.");
-            }
-
-            reader.Skip(); // key
-            var schemaId = reader.ReadString() ?? "";
-            reader.Skip(); // storedAt
-            var payload = reader.ReadBytes()?.ToArray() ?? Array.Empty<byte>();
-            for (var index = PersistedRecordFieldCount; index < recordFieldCount; index++)
-            {
-                reader.Skip();
-            }
-
-            for (var index = StoreSnapshotFieldCount; index < fieldCount; index++)
-            {
-                reader.Skip();
-            }
-
-            if (!string.Equals(schemaId, expectedSchemaId, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException($"Document '{path}' has schema '{schemaId}', expected '{expectedSchemaId}'.");
-            }
-
-            if (!schemaIds.Contains(schemaId, StringComparer.Ordinal))
-            {
-                throw new InvalidDataException($"Document '{path}' does not publish schema '{schemaId}' in its CultCache catalog.");
-            }
-
-            return payload;
-        }
-
-        private static string[] ReadSchemaCatalog(ref MessagePackReader reader)
-        {
-            var count = reader.ReadArrayHeader();
-            var schemaIds = new string[count];
-            for (var index = 0; index < count; index++)
-            {
-                var fieldCount = reader.ReadArrayHeader();
-                schemaIds[index] = fieldCount > 0 ? reader.ReadString() ?? "" : "";
-                for (var field = 1; field < fieldCount; field++)
-                {
-                    reader.Skip();
-                }
-            }
-
-            return schemaIds;
+            CultMesh.WriteSingleFileDocumentPayload(
+                path,
+                new CultRecordKey(key),
+                new CultMeshSingleFileDocumentSchema(schemaId, schemaName, schemaVersion),
+                storedAt,
+                payload);
         }
 
         private static byte[] WriteRuntimeSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
@@ -677,37 +592,6 @@ namespace GameCult.Aetheria.State.Verse
             return commands;
         }
 
-        private static void WriteSchemaCatalogEntry(
-            ref MessagePackWriter writer,
-            string schemaId,
-            string schemaName,
-            string schemaVersion,
-            byte[] payload)
-        {
-            writer.WriteArrayHeader(SchemaCatalogEntryFieldCount);
-            writer.Write(schemaId);
-            writer.Write(schemaName);
-            writer.Write(schemaVersion);
-            writer.Write(ContentHash(payload));
-            writer.Write("");
-            writer.WriteArrayHeader(0);
-            writer.WriteArrayHeader(0);
-        }
-
-        private static void WritePersistedRecord(
-            ref MessagePackWriter writer,
-            string key,
-            string schemaId,
-            string storedAt,
-            byte[] payload)
-        {
-            writer.WriteArrayHeader(PersistedRecordFieldCount);
-            writer.Write(key);
-            writer.Write(schemaId);
-            writer.Write(storedAt ?? "");
-            writer.Write(payload);
-        }
-
         private static string ReadFieldString(ref MessagePackReader reader, int fields, int index, string fallback)
         {
             return index >= fields ? fallback : reader.ReadString() ?? fallback;
@@ -743,30 +627,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return reader.ReadInt64();
-        }
-
-        private static string ContentHash(byte[] payload)
-        {
-            using var sha256 = SHA256.Create();
-            return BitConverter.ToString(sha256.ComputeHash(payload)).Replace("-", "").ToLowerInvariant();
-        }
-
-        private static void WriteFileAtomically(string path, byte[] payload)
-        {
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            var tempPath = path + ".tmp";
-            File.WriteAllBytes(tempPath, payload);
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-
-            File.Move(tempPath, path);
         }
     }
 }
