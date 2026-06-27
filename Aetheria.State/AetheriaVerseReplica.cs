@@ -22,7 +22,7 @@ public static class AetheriaVerseReplica
             endpoint,
             runtimeId,
             pullOnOpen: false).ConfigureAwait(false);
-        return await SyncRawSnapshotChunksAsync(node, endpoint).ConfigureAwait(false);
+        return await SyncRawSnapshotChunksAsync(node, endpoint, runtimeId).ConfigureAwait(false);
     }
 
     public static async Task<int> SyncScopedSnapshotAsync(
@@ -39,15 +39,10 @@ public static class AetheriaVerseReplica
             endpoint,
             runtimeId,
             pullOnOpen: false).ConfigureAwait(false);
-        using var client = await ConnectedSnapshotClient.ConnectAsync(
-            endpoint,
-            connectTimeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        var snapshot = await client.RequestAsync(
-            schemaIds,
-            recordKeys,
-            responseTimeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        var applied = await node.Database.Documents
-            .ApplyRawSnapshotResponseAsync(node.Cache, snapshot)
+        var applied = await CultMesh.ApplySnapshotAsync(
+                node,
+                endpoint,
+                CreateSnapshotOptions(runtimeId, schemaIds, recordKeys, connectTimeout, responseTimeout))
             .ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
         return applied.Count;
@@ -60,13 +55,10 @@ public static class AetheriaVerseReplica
         TimeSpan? connectTimeout = null,
         TimeSpan? responseTimeout = null)
     {
-        using var client = await ConnectedSnapshotClient.ConnectAsync(
-            endpoint,
-            connectTimeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        return await client.RequestAsync(
-            schemaIds,
-            recordKeys,
-            responseTimeout ?? TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        return await CultMesh.FetchSnapshotAsync(
+                endpoint,
+                CreateSnapshotOptions("aetheria-verse-replica", schemaIds, recordKeys, connectTimeout, responseTimeout))
+            .ConfigureAwait(false);
     }
 
     public static async Task<IReadOnlyList<T>> FetchScopedDocumentsAsync<T>(
@@ -77,30 +69,10 @@ public static class AetheriaVerseReplica
         TimeSpan? responseTimeout = null)
         where T : class
     {
-        var snapshot = await FetchScopedSnapshotAsync(
+        var documents = await CultMesh.FetchSnapshotDocumentsAsync<T>(
             endpoint,
-            schemaIds,
-            recordKeys,
-            connectTimeout,
-            responseTimeout).ConfigureAwait(false);
-        var registry = AetheriaDocumentRegistry.CreateCultNetRegistry();
-        var documents = new List<T>(snapshot.Documents.Length);
-        foreach (var record in snapshot.Documents)
-        {
-            if (record == null)
-                continue;
-
-            var binding = registry.GetBySchemaId(record.SchemaId);
-            if (binding == null || binding.DocumentType != typeof(T))
-                continue;
-
-            if (!string.Equals(record.PayloadEncoding, "messagepack", StringComparison.Ordinal))
-                throw new InvalidOperationException(
-                    $"CultNet raw document payloadEncoding must be \"messagepack\", not \"{record.PayloadEncoding}\".");
-
-            documents.Add((T)binding.PayloadDeserializer(record.Payload));
-        }
-
+            CreateSnapshotOptions("aetheria-verse-replica", schemaIds, recordKeys, connectTimeout, responseTimeout),
+            AetheriaDocumentRegistry.CreateCultNetRegistry()).ConfigureAwait(false);
         return documents;
     }
 
@@ -119,7 +91,7 @@ public static class AetheriaVerseReplica
         var snapshotFetcher = new CultNetSchemaShardSnapshotFetcher();
         var logFetcher = new CultNetSchemaShardLogFetcher();
 
-        await SyncRawSnapshotChunksAsync(node, endpoint).ConfigureAwait(false);
+        await SyncRawSnapshotChunksAsync(node, endpoint, runtimeId).ConfigureAwait(false);
 
         using var replicator = new CultNetShardReplicator(
             node.Database,
@@ -157,17 +129,20 @@ public static class AetheriaVerseReplica
             primaryEndpoints: new[] { endpoint.Trim() });
     }
 
-    private static async Task<long> SyncRawSnapshotChunksAsync(CultMeshNode node, string endpoint)
+    private static async Task<long> SyncRawSnapshotChunksAsync(
+        CultMeshNode node,
+        string endpoint,
+        string runtimeId)
     {
-        using var client = await ConnectedSnapshotClient.ConnectAsync(
-            endpoint,
-            TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        var hot = await SyncHotPublicationsAsync(node, client).ConfigureAwait(false);
+        var hot = await SyncHotPublicationsAsync(node, endpoint, runtimeId).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
         return hot;
     }
 
-    private static async Task<long> SyncHotPublicationsAsync(CultMeshNode node, ConnectedSnapshotClient client)
+    private static async Task<long> SyncHotPublicationsAsync(
+        CultMeshNode node,
+        string endpoint,
+        string runtimeId)
     {
         var recordKeys = new[]
         {
@@ -184,7 +159,8 @@ public static class AetheriaVerseReplica
         {
             var applied = await SyncScopedSnapshotAsync(
                 node,
-                client,
+                endpoint,
+                runtimeId,
                 schemaIds: null,
                 recordKeys: new[] { recordKey },
                 responseTimeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
@@ -196,12 +172,16 @@ public static class AetheriaVerseReplica
 
     private static async Task<CultNetSnapshotResponseRawMessage> SyncScopedSnapshotAsync(
         CultMeshNode node,
-        ConnectedSnapshotClient client,
+        string endpoint,
+        string runtimeId,
         IReadOnlyList<string>? schemaIds,
         IReadOnlyList<string>? recordKeys,
         TimeSpan responseTimeout)
     {
-        var snapshot = await client.RequestAsync(schemaIds, recordKeys, responseTimeout).ConfigureAwait(false);
+        var snapshot = await CultMesh.FetchSnapshotAsync(
+                endpoint,
+                CreateSnapshotOptions(runtimeId, schemaIds, recordKeys, null, responseTimeout))
+            .ConfigureAwait(false);
         await node.Database.Documents.ApplyRawSnapshotResponseAsync(node.Cache, snapshot).ConfigureAwait(false);
         return snapshot;
     }
@@ -211,176 +191,25 @@ public static class AetheriaVerseReplica
         return snapshot.ShardLogSequence ?? 0L;
     }
 
-    private sealed class ConnectedSnapshotClient : IDisposable
+    private static CultMeshSnapshotRequestOptions CreateSnapshotOptions(
+        string runtimeId,
+        IReadOnlyList<string>? schemaIds,
+        IReadOnlyList<string>? recordKeys,
+        TimeSpan? connectTimeout,
+        TimeSpan? responseTimeout)
     {
-        private const uint RtsConnectionId = 0x43554c54;
-        private readonly ICultNetSchemaClient _client;
-        private readonly string _endpoint;
-        private readonly Dictionary<string, TaskCompletionSource<CultNetSnapshotResponseRawMessage>> _pending =
-            new(StringComparer.Ordinal);
-        private readonly object _pendingLock = new();
-        private bool _disposed;
-
-        private ConnectedSnapshotClient(ICultNetSchemaClient client, string endpoint)
+        return new CultMeshSnapshotRequestOptions
         {
-            _client = client;
-            _endpoint = endpoint;
-            _client.OnCultNet<CultNetSnapshotResponseRawMessage>(OnSnapshotResponse);
-            _client.OnCultNet<CultNetErrorMessage>(OnError);
-        }
-
-        public static async Task<ConnectedSnapshotClient> ConnectAsync(string endpoint, TimeSpan connectTimeout)
-        {
-            var (host, port) = ParseEndpoint(endpoint);
-            var client = string.Equals(new Uri(endpoint).Scheme, "rudp", StringComparison.OrdinalIgnoreCase)
-                ? CultNetSchemaClients.CreateRudp(
-                    runtimeId: "aetheria-verse-replica",
-                    connectionId: RtsConnectionId,
-                    maxFragmentBytes: 1200)
-                : CultNetSchemaClients.CreateForEndpoint(endpoint);
-            client.Connect(host, port);
-            var connected = new ConnectedSnapshotClient(client, endpoint);
-            await connected.WaitForConnectionAsync(connectTimeout).ConfigureAwait(false);
-            return connected;
-        }
-
-        public async Task<CultNetSnapshotResponseRawMessage> RequestAsync(
-            IReadOnlyList<string>? schemaIds,
-            IReadOnlyList<string>? recordKeys,
-            TimeSpan responseTimeout)
-        {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(ConnectedSnapshotClient));
-
-            var messageId = $"aetheria-replica:{Guid.NewGuid():N}";
-            var completion = new TaskCompletionSource<CultNetSnapshotResponseRawMessage>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (_pendingLock)
-            {
-                _pending.Add(messageId, completion);
-            }
-
-            _client.SendCultNet(new CultNetSnapshotRequestMessage
-            {
-                MessageId = messageId,
-                SchemaIds = CleanFilter(schemaIds),
-                RecordKeys = CleanFilter(recordKeys),
-                ShardId = ReplicaShardId,
-                ShardEpoch = 1
-            });
-
-            var timeoutTask = Task.Delay(responseTimeout);
-            var completed = await Task.WhenAny(completion.Task, timeoutTask).ConfigureAwait(false);
-            if (completed != completion.Task)
-            {
-                lock (_pendingLock)
-                {
-                    _pending.Remove(messageId);
-                }
-
-                throw new TimeoutException(
-                    $"Timed out waiting for shard snapshot response from {_endpoint} " +
-                    $"for schemas [{string.Join(", ", CleanFilter(schemaIds) ?? Array.Empty<string>())}] " +
-                    $"and records [{string.Join(", ", CleanFilter(recordKeys) ?? Array.Empty<string>())}].");
-            }
-
-            return await completion.Task.ConfigureAwait(false);
-        }
-
-        public void Dispose()
-        {
-            _disposed = true;
-            _client.Dispose();
-            lock (_pendingLock)
-            {
-                foreach (var pending in _pending.Values)
-                {
-                    pending.TrySetCanceled();
-                }
-
-                _pending.Clear();
-            }
-        }
-
-        private async Task WaitForConnectionAsync(TimeSpan connectTimeout)
-        {
-            var deadline = DateTimeOffset.UtcNow + connectTimeout;
-            while (!_client.Connected)
-            {
-                if (DateTimeOffset.UtcNow >= deadline)
-                {
-                    throw new TimeoutException($"Timed out connecting to shard primary endpoint {_endpoint}.");
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(75)).ConfigureAwait(false);
-        }
-
-        private void OnSnapshotResponse(CultNetSnapshotResponseRawMessage response)
-        {
-            if (string.IsNullOrWhiteSpace(response.MessageId))
-                return;
-
-            TaskCompletionSource<CultNetSnapshotResponseRawMessage>? completion;
-            lock (_pendingLock)
-            {
-                if (!_pending.Remove(response.MessageId, out completion))
-                    return;
-            }
-
-            completion.TrySetResult(response);
-        }
-
-        private void OnError(CultNetErrorMessage error)
-        {
-            List<TaskCompletionSource<CultNetSnapshotResponseRawMessage>> pending;
-            lock (_pendingLock)
-            {
-                pending = _pending.Values.ToList();
-                _pending.Clear();
-            }
-
-            var exception = new InvalidOperationException(error.Error);
-            foreach (var completion in pending)
-            {
-                completion.TrySetException(exception);
-            }
-        }
-
-        private static string[]? CleanFilter(IReadOnlyList<string>? values)
-        {
-            if (values is not { Count: > 0 })
-                return null;
-
-            var filtered = values
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            return filtered.Length == 0 ? null : filtered;
-        }
-
-        private static (string Host, int Port) ParseEndpoint(string endpoint)
-        {
-            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
-            {
-                throw new FormatException($"CultNet endpoint '{endpoint}' must be an absolute URI.");
-            }
-
-            if (!string.Equals(uri.Scheme, "rudp", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(uri.Scheme, "cultnet", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new FormatException($"CultNet endpoint '{endpoint}' must use cultnet://host:port or rudp://host:port.");
-            }
-
-            if (uri.Port <= 0 || uri.Port > 65535)
-            {
-                throw new FormatException($"CultNet endpoint '{endpoint}' must include a valid port.");
-            }
-
-            return (uri.Host, uri.Port);
-        }
+            SchemaIds = schemaIds,
+            RecordKeys = recordKeys,
+            ShardId = ReplicaShardId,
+            ShardEpoch = 1,
+            ConnectTimeout = connectTimeout ?? TimeSpan.FromSeconds(5),
+            ResponseTimeout = responseTimeout ?? TimeSpan.FromSeconds(5),
+            MessageIdPrefix = "aetheria-replica",
+            RudpRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "aetheria-verse-replica" : runtimeId,
+            RudpMaxFragmentBytes = 1200
+        };
     }
 
     private static Task<CultMeshNode> OpenReplicaNodeAsync(
