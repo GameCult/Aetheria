@@ -784,7 +784,10 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             currentEntity = ResolveClient()
-                .CurrentEntityAsync()
+                .Aetheria()
+                .Current
+                .Entity
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -866,7 +869,10 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             var current = ResolveClient()
-                .CurrentEntityAsync()
+                .Aetheria()
+                .Current
+                .Entity
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))

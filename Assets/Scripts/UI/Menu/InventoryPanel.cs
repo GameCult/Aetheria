@@ -1136,7 +1136,10 @@ private void Update()
         try
         {
             currentEntityKey = ResolveClient()
-                .CurrentEntityAsync()
+                .Aetheria()
+                .Current
+                .Entity
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult()
                 ?.EntityKey ?? "";
@@ -1287,7 +1290,10 @@ private void Update()
         try
         {
             var current = ResolveClient()
-                .CurrentEntityAsync()
+                .Aetheria()
+                .Current
+                .Entity
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))

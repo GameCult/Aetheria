@@ -73,7 +73,7 @@ public class SchematicDisplay : MonoBehaviour
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
-    private AetheriaRuntimeDaemonRenderSettings _renderSettings;
+    private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
     private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;
     private float _currentEntityDocumentReadTime = float.NegativeInfinity;
     private const float CurrentEntityHudRefreshIntervalSeconds = 0.1f;
@@ -210,7 +210,7 @@ public class SchematicDisplay : MonoBehaviour
                     HeatstrokeMeterFill.anchorMax = new Vector2((float)hud.Heatstroke, 1);
                     HypothermiaMeterFill.anchorMax = new Vector2((float)hud.Hypothermia, 1);
                     HeatstrokeLimitFill.anchorMax = new Vector2(
-                        (float)(_renderSettings.NormalizeThermalRisk(_cockpit.Item.Temperature)),
+                        (float)(_renderSettings?.NormalizeThermalRisk(_cockpit.Item.Temperature) ?? 0.0),
                         1);
                 }
 
@@ -367,7 +367,10 @@ public class SchematicDisplay : MonoBehaviour
             try
             {
                 _currentEntityDocument = ResolveClient()
-                    .CurrentEntityAsync()
+                    .Aetheria()
+                    .Current
+                    .Entity
+                    .LatestAsync()
                     .GetAwaiter()
                     .GetResult();
             }
