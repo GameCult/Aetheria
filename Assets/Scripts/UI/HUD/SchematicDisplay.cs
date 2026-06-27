@@ -210,7 +210,7 @@ public class SchematicDisplay : MonoBehaviour
                     HeatstrokeMeterFill.anchorMax = new Vector2((float)hud.Heatstroke, 1);
                     HypothermiaMeterFill.anchorMax = new Vector2((float)hud.Hypothermia, 1);
                     HeatstrokeLimitFill.anchorMax = new Vector2(
-                        (float)(_renderSettings?.NormalizeThermalRisk(_cockpit.Item.Temperature) ?? 0),
+                        (float)(_renderSettings.NormalizeThermalRisk(_cockpit.Item.Temperature)),
                         1);
                 }
 
@@ -225,7 +225,7 @@ public class SchematicDisplay : MonoBehaviour
                 {
                     var charge = hud.CapacitorCharge;
                     var maxCharge = hud.CapacitorCapacity;
-                    EnergyFill.anchorMax = new Vector2(charge / maxCharge, 1);
+                    EnergyFill.anchorMax = new Vector2((float)(charge / maxCharge), 1);
                     EnergyLabel.text = $"{((int)charge).ToString()}/{((int)maxCharge).ToString()} + ({((int)hud.ReactorDraw).ToString()})";
                 }
 

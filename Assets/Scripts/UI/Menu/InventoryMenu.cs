@@ -797,6 +797,22 @@ public class InventoryMenu : MonoBehaviour
         return currentEntity != null;
     }
 
+    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
+    {
+        try
+        {
+            return ResolveClient()
+                .StationRefitAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria station refit projection for inventory menu: {ex.Message}");
+            return null;
+        }
+    }
+
     private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;

@@ -92,6 +92,31 @@ namespace GameCult.Aetheria.State.Verse
     {
         public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
             AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc)
+        {
+            return new AetheriaRuntimeMainMenuSurfaceState(
+                stateBoot.TargetLabel,
+                stateBoot.TargetKind,
+                stateBoot.TargetSource,
+                stateBoot.Title,
+                stateBoot.VerseId,
+                "unknown",
+                stateBoot.CultMeshAddress,
+                inGame,
+                false,
+                "",
+                -1,
+                playerSettings?.BindingOverrides?.Count ?? 0,
+                playerSettings?.ActionBarInputs?.Count ?? 0,
+                canOpenRuntimeInputScreen,
+                updatedAtUtc);
+        }
+
+        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeDaemonFrameDocument daemonFrame,
             AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
             AetheriaRuntimePlayerSettingsSnapshot playerSettings,

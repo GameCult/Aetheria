@@ -254,8 +254,6 @@ public class MainMenu : MonoBehaviour
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
                     stateBoot,
-                    null,
-                    null,
                     LatestPlayerSettings(stateBoot),
                     CanOpenRuntimeInputScreen(),
                     InGame,

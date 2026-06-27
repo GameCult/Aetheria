@@ -66,7 +66,7 @@ public sealed class AetheriaUnityTargetPresentation
         {
             var contacts = ResolveVisibleContacts?.Invoke(
                 currentEntity,
-                renderSettings.TargetDetectionInfoThreshold,
+                renderSettings.Value.TargetDetectionInfoThreshold,
                 true) ?? Array.Empty<AetheriaRuntimeZoneContactRow>();
 
             foreach (var contact in contacts)
@@ -168,9 +168,9 @@ public sealed class AetheriaUnityTargetPresentation
             }
 
             var infoGathered = ResolveInfoGathered?.Invoke(indicator.Key, currentEntity) ?? 0f;
-            indicator.Value.Fill.fillAmount = (float)renderSettings.NormalizeDetectionProgress(infoGathered);
+            indicator.Value.Fill.fillAmount = (float)renderSettings.Value.NormalizeDetectionProgress(infoGathered);
             indicator.Value.Fill.enabled = !blinkSpottedTargets ||
-                                           renderSettings.ResolveTargetSpottedFillEnabled(infoGathered, time);
+                                           renderSettings.Value.ResolveTargetSpottedFillEnabled(infoGathered, time);
         }
     }
 

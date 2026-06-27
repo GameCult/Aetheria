@@ -53,10 +53,10 @@ public sealed class AetheriaUnityPilotFrameAdapter
         if (renderSettings != null)
         {
             if (HeatstrokePost != null)
-                HeatstrokePost.weight = (float)renderSettings.NormalizeHeatstrokePost(currentEntity.Heatstroke);
+                HeatstrokePost.weight = (float)renderSettings.Value.NormalizeHeatstrokePost(currentEntity.Heatstroke);
             if (SevereHeatstrokePost != null)
                 SevereHeatstrokePost.weight =
-                    (float)renderSettings.ResolveSevereHeatstrokePostWeight(currentEntity.Heatstroke, timeSeconds);
+                    (float)renderSettings.Value.ResolveSevereHeatstrokePostWeight(currentEntity.Heatstroke, timeSeconds);
         }
 
         if (currentEntity is Ship)

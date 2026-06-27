@@ -243,8 +243,7 @@ public class SectorMap : MonoBehaviour
         foreach (var factionIndex in ResolveFactionIndices())
             AddFactionMaterials(factionIndex);
 
-        foreach (var zoneIndex in _sectorMap.DiscoveredZoneIndices)
-            QueueZoneReveal([zoneIndex]);
+        QueueZoneReveal(_sectorMap.DiscoveredZoneIndices);
 
         if (_queuedZoneReveals.Count == 0)
             QueueZoneReveal(_sectorMap.Zones.Select(zone => zone.ZoneIndex));

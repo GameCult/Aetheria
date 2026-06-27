@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Linq;
+using GameCult.Aetheria.State.Verse;
 
 public static class AetheriaUnityRenderSettingsBridge
 {
