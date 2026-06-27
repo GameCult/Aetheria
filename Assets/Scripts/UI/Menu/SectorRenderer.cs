@@ -172,7 +172,9 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             var sectorMap = ResolveClient()
-                .SectorMapAsync()
+                .Aetheria()
+                .SectorMap
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
@@ -317,7 +319,10 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             return ResolveClient()
-                .CurrentZoneAsync()
+                .Aetheria()
+                .Current
+                .Zone
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

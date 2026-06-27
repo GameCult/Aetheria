@@ -221,7 +221,9 @@ public class SectorMap : MonoBehaviour
     private void EnsureSectorMapLoaded()
     {
         _sectorMap = ResolveClient()
-            .SectorMapAsync()
+            .Aetheria()
+            .SectorMap
+            .LatestAsync()
             .GetAwaiter()
             .GetResult();
 

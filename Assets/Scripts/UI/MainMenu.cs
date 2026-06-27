@@ -163,7 +163,9 @@ public class MainMenu : MonoBehaviour
         try
         {
             return ResolveClient(stateBoot)
-                .SectorMapAsync()
+                .Aetheria()
+                .SectorMap
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
