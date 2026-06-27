@@ -340,7 +340,7 @@ const refit = await client.aetheria()
 
 Work:
 
-- Keep pushing shared CultMesh typed reactive document and collection handles down until type/schema lookup, including the current Aetheria facade shim for schema-compatible CLR aliases, is owned by CultMesh rather than by the Aetheria facade registry.
+- Keep pushing shared CultMesh typed reactive document and collection handles down. Typed document handles and schema-compatible CLR alias lookup now live in CultMesh through `CultMeshDocumentHandle<TDocument>` and `CultMeshDocumentCatalog`; remaining work should remove client-side joins and generated facade gaps rather than rebuilding schema dictionaries in Aetheria.
 - Generate Aetheria current/station/zone/catalog accessors from schema metadata.
 - Move derived-state joins, such as current docking bay from current docking plus station refit plus entity records, into generated/internal query executors.
 - Replace remaining Unity menu/HUD/render calls to `TryResolve*` and `_observedFacadeIndex` with typed handles or generated/internal render adapters.
@@ -351,7 +351,7 @@ Work:
 Gates:
 
 - `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `LocalMenu`, `SchematicDisplay`, `SectorRenderer`, `MapRenderer`, and `ZoneRenderer` do not manually join state projections to obtain domain values.
-- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, including same-schema CLR aliases, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Watch<TDocument>()` as the C# stepping stone toward CultMesh-native type/schema lookup.
+- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, including same-schema CLR aliases, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Watch<TDocument>()`; the underlying type/schema lookup is delegated to CultMesh rather than an Aetheria-owned schema registry.
 - Client-facing code contains no `_observedFacadeIndex.TryResolve*` outside Unity render adapter internals.
 - Client-facing code contains no `ResolveClient().Current*Async().GetAwaiter().GetResult()` or equivalent blocking state reads.
 - `TryGetTypedCurrentDockingBayFacade` and similar transitional helpers are deleted rather than renamed.

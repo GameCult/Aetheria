@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using GameCult.Caching;
 using GameCult.Mesh;
 using R3;
 
@@ -35,6 +35,8 @@ namespace GameCult.Aetheria.State.Verse
         public bool CanReplace => _handle.CanReplace;
 
         public CultMeshDocumentHandle<TDocument> Handle => _handle;
+
+        public ICultMeshDocumentHandle UntypedHandle => _handle;
 
         public Task<TDocument> LatestAsync()
         {
@@ -109,13 +111,46 @@ namespace GameCult.Aetheria.State.Verse
 
         bool CanReplace { get; }
 
+        ICultMeshDocumentHandle UntypedHandle { get; }
+
         AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>() where TAlias : class;
+    }
+
+    internal sealed class AetheriaRuntimeUntypedProjectedDocument : IAetheriaRuntimeProjectedDocument
+    {
+        private readonly ICultMeshDocumentHandle _handle;
+
+        public AetheriaRuntimeUntypedProjectedDocument(ICultMeshDocumentHandle handle)
+        {
+            _handle = handle ?? throw new ArgumentNullException(nameof(handle));
+        }
+
+        public Type DocumentType => _handle.DocumentType;
+
+        public string DocumentId => _handle.DocumentId;
+
+        public string SchemaName => _handle.SchemaName;
+
+        public string SchemaVersion => _handle.SchemaVersion;
+
+        public CultMeshRouteHint RouteHint => _handle.RouteHint;
+
+        public System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources => _handle.Sources;
+
+        public bool CanReplace => _handle.CanReplace;
+
+        public ICultMeshDocumentHandle UntypedHandle => _handle;
+
+        public AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>() where TAlias : class
+        {
+            return new AetheriaRuntimeProjectedDocument<TAlias>(_handle.AsSchemaAlias<TAlias>());
+        }
     }
 
     public sealed class AetheriaClientState
     {
         private readonly IReadOnlyDictionary<Type, object> _documentsByType;
-        private readonly IReadOnlyDictionary<string, IAetheriaRuntimeProjectedDocument> _documentsBySchema;
+        private readonly CultMeshDocumentCatalog _documents;
 
         internal AetheriaClientState(
             AetheriaRuntimeProjectedDocument<AetheriaRuntimeCurrentZoneDocument> currentZone,
@@ -141,7 +176,10 @@ namespace GameCult.Aetheria.State.Verse
                 [typeof(AetheriaRuntimeSectorMapDocument)] = SectorMap,
                 [typeof(AetheriaRuntimeZoneRenderDocument)] = ZoneRender
             };
-            _documentsBySchema = BuildSchemaIndex(_documentsByType.Values);
+            _documents = CultMesh.Documents(_documentsByType
+                .Values
+                .OfType<IAetheriaRuntimeProjectedDocument>()
+                .Select(document => document.UntypedHandle));
         }
 
         public AetheriaClientCurrentState Current { get; }
@@ -158,9 +196,9 @@ namespace GameCult.Aetheria.State.Verse
             string schemaVersion,
             out IAetheriaRuntimeProjectedDocument document)
         {
-            if (!string.IsNullOrWhiteSpace(schemaVersion) &&
-                _documentsBySchema.TryGetValue(schemaVersion, out document!))
+            if (_documents.TryGetDocumentBySchema(schemaVersion, out var handle))
             {
+                document = new AetheriaRuntimeUntypedProjectedDocument(handle);
                 return true;
             }
 
@@ -181,24 +219,9 @@ namespace GameCult.Aetheria.State.Verse
             out AetheriaRuntimeProjectedDocument<TDocument> document)
             where TDocument : class
         {
-            if (_documentsByType.TryGetValue(typeof(TDocument), out var untypedDocument) &&
-                untypedDocument is AetheriaRuntimeProjectedDocument<TDocument> typedDocument)
+            if (_documents.TryGetDocument<TDocument>(out var handle))
             {
-                document = typedDocument;
-                return true;
-            }
-
-            var schemaVersion = SchemaVersionFor(typeof(TDocument));
-            if (!string.IsNullOrWhiteSpace(schemaVersion) &&
-                _documentsBySchema.TryGetValue(schemaVersion, out var schemaDocument))
-            {
-                if (schemaDocument is AetheriaRuntimeProjectedDocument<TDocument> schemaTypedDocument)
-                {
-                    document = schemaTypedDocument;
-                    return true;
-                }
-
-                document = schemaDocument.AsSchemaAlias<TDocument>();
+                document = new AetheriaRuntimeProjectedDocument<TDocument>(handle);
                 return true;
             }
 
@@ -234,28 +257,6 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().Watch(onNext);
         }
 
-        private static IReadOnlyDictionary<string, IAetheriaRuntimeProjectedDocument> BuildSchemaIndex(
-            IEnumerable<object> documents)
-        {
-            var index = new Dictionary<string, IAetheriaRuntimeProjectedDocument>(StringComparer.Ordinal);
-            foreach (var document in documents)
-            {
-                if (document is not IAetheriaRuntimeProjectedDocument projectedDocument)
-                    continue;
-
-                if (!string.IsNullOrWhiteSpace(projectedDocument.SchemaVersion))
-                    index[projectedDocument.SchemaVersion] = projectedDocument;
-                if (!string.IsNullOrWhiteSpace(projectedDocument.SchemaName))
-                    index[projectedDocument.SchemaName] = projectedDocument;
-            }
-
-            return index;
-        }
-
-        private static string SchemaVersionFor(Type documentType)
-        {
-            return CultDocumentRegistry.Shared.GetRequired(documentType).SchemaVersion;
-        }
     }
 
     public sealed class AetheriaClientCurrentState
