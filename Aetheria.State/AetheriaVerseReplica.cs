@@ -39,13 +39,17 @@ public static class AetheriaVerseReplica
             endpoint,
             runtimeId,
             pullOnOpen: false).ConfigureAwait(false);
-        var applied = await CultMesh.ApplySnapshotAsync(
-                node,
+        var result = await CreateSnapshotEndpoint(
                 endpoint,
-                CreateSnapshotOptions(runtimeId, schemaIds, recordKeys, connectTimeout, responseTimeout))
+                runtimeId,
+                schemaIds,
+                recordKeys,
+                connectTimeout,
+                responseTimeout)
+            .SyncSnapshotAsync(node)
             .ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
-        return applied.Count;
+        return result.AppliedCount;
     }
 
     public static async Task<CultNetSnapshotResponseRawMessage> FetchScopedSnapshotAsync(
@@ -55,9 +59,14 @@ public static class AetheriaVerseReplica
         TimeSpan? connectTimeout = null,
         TimeSpan? responseTimeout = null)
     {
-        return await CultMesh.FetchSnapshotAsync(
+        return await CreateSnapshotEndpoint(
                 endpoint,
-                CreateSnapshotOptions("aetheria-verse-replica", schemaIds, recordKeys, connectTimeout, responseTimeout))
+                "aetheria-verse-replica",
+                schemaIds,
+                recordKeys,
+                connectTimeout,
+                responseTimeout)
+            .FetchSnapshotAsync()
             .ConfigureAwait(false);
     }
 
@@ -77,6 +86,32 @@ public static class AetheriaVerseReplica
             connectTimeout,
             responseTimeout);
         return await surface.FetchDocumentsAsync<T>(recordKeys, schemaIds).ConfigureAwait(false);
+    }
+
+    public static async Task<IReadOnlyList<T>> SyncScopedDocumentsAsync<T>(
+        string replicaStatePath,
+        string endpoint,
+        string runtimeId = "aetheria-verse-replica",
+        IReadOnlyList<string>? schemaIds = null,
+        IReadOnlyList<string>? recordKeys = null,
+        TimeSpan? connectTimeout = null,
+        TimeSpan? responseTimeout = null)
+        where T : class
+    {
+        using var node = await OpenReplicaNodeAsync(
+            replicaStatePath,
+            endpoint,
+            runtimeId,
+            pullOnOpen: false).ConfigureAwait(false);
+        return await CreateSnapshotEndpoint(
+                endpoint,
+                runtimeId,
+                schemaIds,
+                recordKeys,
+                connectTimeout,
+                responseTimeout)
+            .SyncDocumentsAsync<T>(node, recordKeys, schemaIds, flush: true)
+            .ConfigureAwait(false);
     }
 
     public static async Task RunReplicaAsync(
@@ -158,40 +193,23 @@ public static class AetheriaVerseReplica
         };
 
         var sequence = 0L;
+        var surface = CreateSnapshotEndpoint(
+            endpoint,
+            runtimeId,
+            schemaIds: null,
+            recordKeys: null,
+            connectTimeout: null,
+            responseTimeout: TimeSpan.FromSeconds(15));
         foreach (var recordKey in recordKeys)
         {
-            var applied = await SyncScopedSnapshotAsync(
+            var result = await surface.SyncSnapshotAsync(
                 node,
-                endpoint,
-                runtimeId,
                 schemaIds: null,
-                recordKeys: new[] { recordKey },
-                responseTimeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
-            sequence = Math.Max(sequence, SnapshotSequence(applied));
+                recordKeys: new[] { recordKey }).ConfigureAwait(false);
+            sequence = Math.Max(sequence, result.ShardLogSequence);
         }
 
         return sequence;
-    }
-
-    private static async Task<CultNetSnapshotResponseRawMessage> SyncScopedSnapshotAsync(
-        CultMeshNode node,
-        string endpoint,
-        string runtimeId,
-        IReadOnlyList<string>? schemaIds,
-        IReadOnlyList<string>? recordKeys,
-        TimeSpan responseTimeout)
-    {
-        var snapshot = await CultMesh.FetchSnapshotAsync(
-                endpoint,
-                CreateSnapshotOptions(runtimeId, schemaIds, recordKeys, null, responseTimeout))
-            .ConfigureAwait(false);
-        await node.Database.Documents.ApplyRawSnapshotResponseAsync(node.Cache, snapshot).ConfigureAwait(false);
-        return snapshot;
-    }
-
-    private static long SnapshotSequence(CultNetSnapshotResponseRawMessage snapshot)
-    {
-        return snapshot.ShardLogSequence ?? 0L;
     }
 
     private static CultMeshSnapshotRequestOptions CreateSnapshotOptions(
