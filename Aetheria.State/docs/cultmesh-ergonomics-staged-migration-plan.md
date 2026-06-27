@@ -11,6 +11,14 @@ C# clients should read like domain code:
 ```csharp
 var aetheria = verse.Aetheria();
 
+var currentDockingBay = await aetheria.Current
+    .DockingBay
+    .LatestAsync();
+
+using var inventorySubscription = aetheria.Current
+    .Inventory
+    .Watch(inventory => RenderInventory(inventory));
+
 await aetheria.Entity(actorEntityId)
     .Pilot
     .MoveAsync(CultMesh.Vec2(input.X, input.Y));
@@ -30,6 +38,14 @@ TypeScript clients should have the same semantic shape:
 
 ```ts
 const aetheria = verse.aetheria();
+
+const dockingBay = await aetheria.current()
+  .dockingBay()
+  .latest();
+
+const stopInventory = aetheria.current()
+  .inventory()
+  .watch(renderInventory);
 
 await aetheria.entity(actorEntityId)
   .pilot.move(CultMesh.vec2(input.x, input.y));
@@ -85,7 +101,18 @@ The project already has the first layer of primitive sugar:
 - Aetheria Eve surfaces persist CultMesh binding/invocation records and keep legacy fields as compatibility mirrors.
 - `AetheriaClient`, `AetheriaControl`, and `AetheriaUi` expose ergonomic C# entry points, but the domain facade is still incomplete.
 
-The remaining problem is that the sugar is not yet the only obvious path. There are still public or semi-public seams where clients can fall back into raw envelopes, record keys, ad hoc frame projection, manual state resolution, and locality-specific wiring.
+The remaining problem is that the sugar is not yet the only obvious path. There are still public or semi-public seams where clients can fall back into raw envelopes, record keys, ad hoc frame projection, manual state resolution, locality-specific wiring, and renderer-side facade adaptation.
+
+The worst current pattern is not one bad helper. It is a repeated protocol walk:
+
+1. read one projected document;
+2. extract a record key, index, schema-specific row, or state reference;
+3. read another projected document or local frame;
+4. resolve the key through a renderer-local facade index;
+5. adapt the result into a domain object;
+6. wire manual refresh or blocking reads around the whole path.
+
+That entire stack must collapse behind one typed CultMesh document, collection, query, or operation handle. If a client wants current docking, current inventory, current target, current stats, zone contacts, station refit state, or visible render objects, the caller should make one semantic CultMesh call and receive a typed reactive value. CultMesh owns cache hydration, routing, sync, invalidation, watch lifetimes, schema binding, derived-state execution, and locality choice.
 
 ## Migration Rules
 
@@ -96,6 +123,8 @@ The remaining problem is that the sugar is not yet the only obvious path. There 
 5. Compatibility mirrors are temporary scaffolding. They must have a named removal stage.
 6. Unity is a renderer/input client. It should not own gameplay state, zone hierarchy, simulation cadence, physics, or entity authority by accident.
 7. The browser/RTS client and Unity client must use the same semantic Verse facade, even when their locality/runtime routes differ.
+8. Client code must not manually compose state access from multiple protocol layers. A semantic state read is one CultMesh call from the caller's point of view.
+9. Renderer-local object facades are presentation caches. They are not the API for game state, inventory, docking, targeting, or station services.
 
 ## Stage 0: Freeze The Vocabulary
 
@@ -123,6 +152,7 @@ Gates:
 
 - No new public API may introduce `Apply(command, payload)` style call sites.
 - No new client API may require a caller to know transport record keys or raw schema slots.
+- No new client API may require a caller to join projected documents, frame rows, record keys, and renderer-local facades to obtain one domain value.
 - All new examples in docs must use the North Star shape.
 
 ## Stage 1: Harden Shared CultMesh Primitives
@@ -235,6 +265,75 @@ Gates:
 - Unity rendering asks for render/query views, not a mirrored zone hierarchy.
 - `ZoneRenderer.LoadZone` and ActionGameManager-owned zone state become vestigial or disappear.
 - Public client code has no direct dependency on current daemon frame layout except through generated/internal projection code.
+
+## Stage 3A: Collapse State Access To Typed Reactive Handles
+
+Status: not started; current Unity and RTS clients still perform byzantine protocol walks.
+
+Goal: every client-facing state access becomes a single CultMesh document, collection, query, or pointer call. The caller names the domain state it wants and gets a typed reactive value. It does not manually inspect daemon frames, current-state projections, station rows, record keys, local facade indexes, or transport route details.
+
+Targets:
+
+- Current entity.
+- Current docking.
+- Current docking bay.
+- Current inventory.
+- Current target and target details.
+- Current ship settings.
+- Station refit state.
+- Trade cargo targets.
+- Zone contacts.
+- Selected object.
+- Runtime catalog collections.
+- Player settings and input bindings.
+
+Desired C# shape:
+
+```csharp
+var current = client.Aetheria().Current;
+
+using var docking = current.Docking.Watch(RenderDocking);
+using var bay = current.DockingBay.Watch(RenderDockingBay);
+using var inventory = current.Inventory.Watch(RenderInventory);
+
+var refit = await client.Aetheria()
+    .Station
+    .Refit
+    .LatestAsync();
+```
+
+Desired TS shape:
+
+```ts
+const current = client.aetheria().current();
+
+const stopDocking = current.docking().watch(renderDocking);
+const stopBay = current.dockingBay().watch(renderDockingBay);
+const stopInventory = current.inventory().watch(renderInventory);
+
+const refit = await client.aetheria()
+  .station()
+  .refit()
+  .latest();
+```
+
+Work:
+
+- Add shared CultMesh typed reactive document and collection handles if the existing state-pointer/query primitives are not enough.
+- Generate Aetheria current/station/zone/catalog accessors from schema metadata.
+- Move derived-state joins, such as current docking bay from current docking plus station refit plus entity records, into generated/internal query executors.
+- Replace Unity menu/HUD/render calls to `Current*Async()`, `StationRefitAsync()`, `TryResolve*`, and `_observedFacadeIndex` with typed handles.
+- Replace blocking `GetAwaiter().GetResult()` reads in client presentation code with watch/latest handles that own lifetimes.
+- Keep renderer-local facade indexes only inside render adapter internals while native/query views are still being migrated.
+- Add verifiers that treat multi-hop state reads in client code as failures.
+
+Gates:
+
+- `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `LocalMenu`, `SchematicDisplay`, `SectorRenderer`, `MapRenderer`, and `ZoneRenderer` do not manually join state projections to obtain domain values.
+- Client-facing code contains no `_observedFacadeIndex.TryResolve*` outside Unity render adapter internals.
+- Client-facing code contains no `ResolveClient().Current*Async().GetAwaiter().GetResult()` or equivalent blocking state reads.
+- `TryGetTypedCurrentDockingBayFacade` and similar transitional helpers are deleted rather than renamed.
+- Verifiers assert the semantic API shape, not the transitional facade-adaptation scaffolding.
 
 ## Stage 4: Resolve Eve State Pointers Automatically
 
