@@ -84,6 +84,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
+            typeof(AetheriaRuntimeAssetManifestDocument),
             typeof(AetheriaRuntimeObjectsViewportDocument),
             typeof(AetheriaRuntimeGravityViewportDocument),
             typeof(AetheriaRuntimeCurrentZoneDocument),
@@ -127,6 +128,7 @@ namespace GameCult.Aetheria.State.Verse
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonFrameDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeDaemonSoaViewDocument>(registry),
+                    CultNetDocumentBinding.ForDocument<AetheriaRuntimeAssetManifestDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeObjectsViewportDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeGravityViewportDocument>(registry),
                     CultNetDocumentBinding.ForDocument<AetheriaRuntimeCurrentZoneDocument>(registry),
@@ -333,51 +335,24 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
+            return CreateEveSurfaceCultMeshStateRefResolverAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
+        {
             ThrowIfDisposed();
 
-            var frame = GetLatestFrameAsync().GetAwaiter().GetResult();
-            var health = GetHealthAsync().GetAwaiter().GetResult();
-            var commandBoundary = GetCommandBoundaryAsync().GetAwaiter().GetResult();
-            AetheriaRuntimeCatalogSnapshot? catalog = null;
+            var frameTask = GetLatestFrameAsync();
+            var healthTask = GetHealthAsync();
+            var commandBoundaryTask = GetCommandBoundaryAsync();
 
-            var daemonRefs = CultMesh.StateRefResolver(
-                "aetheria.daemon.refs",
-                stateRef =>
-                    stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal) &&
-                    AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
-                        frame,
-                        health,
-                        commandBoundary,
-                        stateRef,
-                        out var daemonValue)
-                        ? daemonValue
-                        : "",
-                new[]
-                {
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()),
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString())
-                });
+            await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
 
-            var itemStatRefs = CultMesh.StateRefResolver(
-                "aetheria.daemon.item_stats.refs",
-                stateRef =>
-                {
-                    if (!stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
-                        return "";
-
-                    catalog ??= OpenRuntimeCatalog();
-                    return AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var itemValue)
-                        ? itemValue
-                        : "";
-                },
-                new[]
-                {
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
-                    CultMesh.ProjectionSource("catalog:aetheria.runtime")
-                });
-
-            return daemonRefs.Or(itemStatRefs);
+            return AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(
+                frameTask.Result,
+                healthTask.Result,
+                commandBoundaryTask.Result,
+                OpenRuntimeCatalog);
         }
 
         public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()

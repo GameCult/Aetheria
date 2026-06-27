@@ -340,6 +340,50 @@ namespace GameCult.Aetheria.State.Verse
             return CreateStateRefResolver(stateFilePath, runtimeId);
         }
 
+        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            AetheriaRuntimeDaemonHealthDocument? health,
+            AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary,
+            Func<AetheriaRuntimeCatalogSnapshot?>? catalogProvider = null,
+            CultMeshRouteHint? routeHint = null)
+        {
+            AetheriaRuntimeCatalogSnapshot? catalog = null;
+
+            var daemonRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.refs",
+                (stateRef, _context) => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
+                    ? value
+                    : "",
+                new[]
+                {
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString())
+                },
+                routeHint);
+
+            var itemStatRefs = CultMesh.StateRefResolver(
+                "aetheria.daemon.item_stats.refs",
+                (stateRef, _context) =>
+                {
+                    if (!stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
+                        return "";
+
+                    catalog ??= catalogProvider?.Invoke();
+                    return TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var value)
+                        ? value
+                        : "";
+                },
+                new[]
+                {
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime")
+                },
+                routeHint);
+
+            return daemonRefs.Or(itemStatRefs);
+        }
+
         private static EveSurfaceDocument ToResolvedEveSurfaceDocument(
             string stateFilePath,
             AetheriaRuntimeSurfaceDocument surface)
@@ -364,34 +408,12 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
             AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
 
-            var daemonRefs = CultMesh.StateRefResolver(
-                "aetheria.daemon.refs",
-                (stateRef, _context) => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
-                    ? value
-                    : "",
-                new[]
-                {
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()),
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString())
-                },
+            return CreateEveSurfaceCultMeshStateRefResolver(
+                frame,
+                health,
+                commandBoundary,
+                () => OpenRuntimeCatalog(stateFilePath),
                 new CultMeshRouteHint(CultMeshLocalityKind.InProcess, runtimeId));
-
-            var itemStatRefs = CultMesh.StateRefResolver(
-                "aetheria.daemon.item_stats.refs",
-                (stateRef, _context) =>
-                    stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal) &&
-                    TryResolveDaemonItemStatRef(frame, OpenRuntimeCatalog(stateFilePath), stateRef, out var value)
-                        ? value
-                        : "",
-                new[]
-                {
-                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
-                    CultMesh.ProjectionSource("catalog:aetheria.runtime")
-                },
-                new CultMeshRouteHint(CultMeshLocalityKind.InProcess, runtimeId));
-
-            return daemonRefs.Or(itemStatRefs);
         }
 
         private static AetheriaRuntimeLoadoutItemCommit? FindDaemonItem(
