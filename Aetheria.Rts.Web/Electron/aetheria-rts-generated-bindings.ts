@@ -1901,22 +1901,10 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
   return CultMesh.describeSurfaceCatalog(
     "gamecult.aetheria.rts.surfaces.v1",
     [
-      CultMesh.surfaceDiagnostic("state-pointer", documents.daemonFrame.documentId, {
-        routeHint: documents.daemonFrame.routeHint,
-        sources: documents.daemonFrame.sources,
-      }),
-      CultMesh.surfaceDiagnostic("state-pointer", documents.daemonHealth.documentId, {
-        routeHint: documents.daemonHealth.routeHint,
-        sources: documents.daemonHealth.sources,
-      }),
-      CultMesh.surfaceDiagnostic("state-pointer", documents.authorityPolicy.documentId, {
-        routeHint: documents.authorityPolicy.routeHint,
-        sources: documents.authorityPolicy.sources,
-      }),
-      CultMesh.surfaceDiagnostic("state-pointer", documents.starbridgeSession.documentId, {
-        routeHint: documents.starbridgeSession.routeHint,
-        sources: documents.starbridgeSession.sources,
-      }),
+      CultMesh.describeSurface(documents.daemonFrame),
+      CultMesh.describeSurface(documents.daemonHealth),
+      CultMesh.describeSurface(documents.authorityPolicy),
+      CultMesh.describeSurface(documents.starbridgeSession),
       CultMesh.describeSurface(handles.mapViewport),
       CultMesh.describeSurface(handles.objectsViewport),
       CultMesh.describeSurface(handles.gravityViewport),

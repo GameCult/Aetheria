@@ -154,7 +154,7 @@ $requiredGeneratedBindingSymbols = @(
     'createAetheriaRuntimeRtsDocuments',
     'CultMesh.document',
     'CultMesh.bindDocument',
-    'documents.daemonFrame.documentId',
+    'CultMesh.describeSurface(documents.daemonFrame)',
     'routeHint, watchProjection',
     'watchProjection: watchers.objectsViewport',
     '.asQuerySurface()',

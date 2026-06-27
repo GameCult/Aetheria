@@ -103,10 +103,10 @@ if (!surfaceCatalog.surfaces.some(surface => surface.surfaceId === "gamecult.aet
   throw new Error("RTS surface catalog did not expose the move operation.");
 if (!surfaceCatalog.surfaces.some(surface =>
   surface.surfaceId === "daemon:aetheria.frame.latest.v1" &&
-  surface.kind === "state-pointer" &&
+  surface.kind === "document" &&
   surface.routeHint?.kind === "shared-memory" &&
   surface.sources?.some(source => source.schemaId === "gamecult.aetheria.daemon_frame.v1")))
-  throw new Error("RTS surface catalog did not expose the daemon frame state pointer with shared route/source metadata.");
+  throw new Error("RTS surface catalog did not expose the daemon frame document with shared route/source metadata.");
 
 const surfaceIndex = client.surfaceCatalogIndexDiagnostics();
 if (surfaceIndex.catalogId !== surfaceCatalog.catalogId)
@@ -117,8 +117,8 @@ if (!Array.isArray(surfaceIndex.liveFeeds) || !surfaceIndex.liveFeeds.some(surfa
   throw new Error("RTS surface catalog index did not group the viewport live feed.");
 if (!Array.isArray(surfaceIndex.queries) || !surfaceIndex.queries.some(surface => surface.surfaceId === "gamecult.aetheria.objects_viewport.v1"))
   throw new Error("RTS surface catalog index did not group generated query surfaces.");
-if (!Array.isArray(surfaceIndex.statePointers) || !surfaceIndex.statePointers.some(surface => surface.surfaceId === "daemon:aetheria.frame.latest.v1"))
-  throw new Error("RTS surface catalog index did not group generated state pointer surfaces.");
+if (!Array.isArray(surfaceIndex.documents) || !surfaceIndex.documents.some(surface => surface.surfaceId === "daemon:aetheria.frame.latest.v1"))
+  throw new Error("RTS surface catalog index did not group generated document surfaces.");
 
 console.log(JSON.stringify({
   frameId: viewport.frameId,
@@ -136,7 +136,7 @@ console.log(JSON.stringify({
     operations: surfaceIndex.operations.length,
     queries: surfaceIndex.queries.length,
     liveFeeds: surfaceIndex.liveFeeds.length,
-    statePointers: surfaceIndex.statePointers.length
+    documents: surfaceIndex.documents.length
   }
 }, null, 2));
 '@ | Set-Content -LiteralPath $smokeScript -Encoding UTF8
