@@ -69,11 +69,14 @@ public static class AetheriaVerseReplica
         TimeSpan? responseTimeout = null)
         where T : class
     {
-        var documents = await CultMesh.FetchSnapshotDocumentsAsync<T>(
+        var surface = CreateSnapshotEndpoint(
             endpoint,
-            CreateSnapshotOptions("aetheria-verse-replica", schemaIds, recordKeys, connectTimeout, responseTimeout),
-            AetheriaDocumentRegistry.CreateCultNetRegistry()).ConfigureAwait(false);
-        return documents;
+            "aetheria-verse-replica",
+            schemaIds,
+            recordKeys,
+            connectTimeout,
+            responseTimeout);
+        return await surface.FetchDocumentsAsync<T>(recordKeys, schemaIds).ConfigureAwait(false);
     }
 
     public static async Task RunReplicaAsync(
@@ -210,6 +213,30 @@ public static class AetheriaVerseReplica
             RudpRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "aetheria-verse-replica" : runtimeId,
             RudpMaxFragmentBytes = 1200
         };
+    }
+
+    private static CultMeshSnapshotEndpoint CreateSnapshotEndpoint(
+        string endpoint,
+        string runtimeId,
+        IReadOnlyList<string>? schemaIds,
+        IReadOnlyList<string>? recordKeys,
+        TimeSpan? connectTimeout,
+        TimeSpan? responseTimeout)
+    {
+        var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "aetheria-verse-replica" : runtimeId;
+        return CultMesh.SnapshotEndpoint(
+            endpoint,
+            new CultMeshSnapshotEndpointOptions
+            {
+                Context = CultMesh.Verse("aetheria.remote", effectiveRuntimeId).Context,
+                DocumentRegistry = AetheriaDocumentRegistry.CreateCultNetRegistry(),
+                Request = CreateSnapshotOptions(
+                    effectiveRuntimeId,
+                    schemaIds,
+                    recordKeys,
+                    connectTimeout,
+                    responseTimeout)
+            });
     }
 
     private static Task<CultMeshNode> OpenReplicaNodeAsync(
