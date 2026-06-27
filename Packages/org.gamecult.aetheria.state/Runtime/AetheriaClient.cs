@@ -74,6 +74,22 @@ namespace GameCult.Aetheria.State.Verse
             return State.Watch(onNext);
         }
 
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            ThrowIfDisposed();
+            return State.ReactiveAsync<TDocument>(options);
+        }
+
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            ThrowIfDisposed();
+            return State.Reactive<TDocument>(options);
+        }
+
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 
         public static async Task<AetheriaClient> OpenAsync(

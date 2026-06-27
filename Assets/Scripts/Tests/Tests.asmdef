@@ -8,6 +8,8 @@
         "CultMath",
         "Aetheria.Shared.Unity",
         "GameCult.Aetheria.State.Unity",
+        "GameCult.Caching",
+        "GameCult.Mesh",
         "GameCult.Eve.Surface"
     ],
     "includePlatforms": [

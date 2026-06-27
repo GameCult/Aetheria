@@ -106,6 +106,20 @@ namespace GameCult.Aetheria.State.Verse
             if (onNext == null) throw new ArgumentNullException(nameof(onNext));
             return Document<TDocument>().Watch(onNext);
         }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            return Document<TDocument>().ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            return Document<TDocument>().Reactive(options);
+        }
     }
 
     public sealed class AetheriaClientCurrentState

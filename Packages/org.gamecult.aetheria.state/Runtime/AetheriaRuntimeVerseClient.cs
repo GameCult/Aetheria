@@ -365,74 +365,104 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeDaemonHealthDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeDaemonHealthDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonHealth);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeDaemonCommandBoundaryDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeDaemonFrameDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeDaemonFrameDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeDaemonSoaViewDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeDaemonSoaViewDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeStarbridgeScenarioDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeStarbridgeScenarioDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession()
         {
             ThrowIfDisposed();
-            return Document<AetheriaRuntimeStarbridgeSessionDocument>(
+            return MutableDocumentPointer<AetheriaRuntimeStarbridgeSessionDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
         }
 
         public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()
         {
             ThrowIfDisposed();
-            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+            return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
         }
 
         public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()
         {
             ThrowIfDisposed();
-            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+            return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
         }
 
         public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()
         {
             ThrowIfDisposed();
-            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+            return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
         }
 
         public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()
         {
             ThrowIfDisposed();
-            return Document<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+            return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+        }
+
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(
+            CultRecordKey key,
+            string? documentId = null)
+            where TDocument : class
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrWhiteSpace(key.Value))
+                throw new ArgumentException("Value must be non-empty.", nameof(key));
+            var descriptor = CultDocumentRegistry.Shared.GetRequired<TDocument>();
+            return CultMesh.Document<TDocument>(
+                Database,
+                key,
+                CultMesh.Verse("aetheria.local", RuntimeId),
+                documentId,
+                new[]
+                {
+                    CultMesh.ProjectionSource(key.ToString(), descriptor.SchemaId, "Aetheria Verse database document")
+                },
+                new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria Verse database"));
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveDocumentAsync<TDocument>(
+            CultRecordKey key,
+            CultMeshReactiveDocumentOptions? options = null,
+            string? documentId = null)
+            where TDocument : class
+        {
+            return Document<TDocument>(key, documentId).ReactiveAsync(options);
         }
 
         public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonProviderAdvertisementDocument>>
@@ -732,7 +762,7 @@ namespace GameCult.Aetheria.State.Verse
             return frame;
         }
 
-        private CultMeshMutableStatePointer<T> Document<T>(CultRecordKey key) where T : class
+        private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key) where T : class
         {
             return CultMesh.MutableStatePointer(
                 key.ToString(),

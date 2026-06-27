@@ -175,6 +175,12 @@ public class DaemonRuntimeDocumentTests
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
             .GetResult();
+        using var currentEntityReactive = client
+            .ReactiveAsync<AetheriaRuntimeCurrentEntityDocument>()
+            .GetAwaiter()
+            .GetResult();
+        using var zoneRenderReactive = client.State
+            .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
@@ -198,7 +204,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);
-        Assert.AreEqual("Player", currentEntity.Entity?.Name);
+        Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);
+        Assert.AreEqual(currentEntity.EntityKey, currentEntityReactive.Current.EntityKey);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, zoneRenderReactive.Current.Schema);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
         Assert.AreEqual(legacyCurrentEntity.EntityKey, currentEntity.EntityKey);
@@ -232,10 +240,17 @@ public class DaemonRuntimeDocumentTests
 
         var aetheria = verse.Aetheria();
         var currentEntity = aetheria.Current.Entity.LatestAsync().GetAwaiter().GetResult();
+        var latestFrameDocument = verse.Document<AetheriaRuntimeDaemonFrameDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
+        using var latestFrameReactive = latestFrameDocument.Reactive();
 
         Assert.AreEqual("aetheria.current.entity", aetheria.Current.Entity.DocumentId);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
-        Assert.AreEqual("Player", currentEntity.Entity?.Name);
+        Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);
+        Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), latestFrameDocument.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrameReactive.Current.Schema);
+        Assert.AreEqual(8, latestFrameReactive.Current.FrameId);
+        Assert.IsTrue(latestFrameDocument.CanSet);
         Assert.IsTrue(aetheria.Current.Entity.Sources.Any(source =>
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
     }
