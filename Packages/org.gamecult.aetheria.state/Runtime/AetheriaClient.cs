@@ -41,6 +41,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientState Aetheria() => State;
 
         public AetheriaRuntimeProjectedDocument<TDocument> Document<TDocument>()
+            where TDocument : class
         {
             ThrowIfDisposed();
             return State.Document<TDocument>();
@@ -53,18 +54,21 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public Task<TDocument> LatestAsync<TDocument>()
+            where TDocument : class
         {
             ThrowIfDisposed();
             return State.LatestAsync<TDocument>();
         }
 
         public Observable<TDocument> Watch<TDocument>()
+            where TDocument : class
         {
             ThrowIfDisposed();
             return State.Watch<TDocument>();
         }
 
         public IDisposable Watch<TDocument>(Action<TDocument> onNext)
+            where TDocument : class
         {
             ThrowIfDisposed();
             return State.Watch(onNext);

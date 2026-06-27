@@ -749,6 +749,7 @@ namespace GameCult.Aetheria.State.Verse
                 Func<AetheriaRuntimeDaemonFrameDocument, Task<TDocument>> project,
                 string schemaId,
                 params CultMeshProjectionSource[] additionalSources)
+                where TDocument : class
             {
                 var sources = new[]
                     {

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using GameCult.Caching;
-using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
 using R3;
 
@@ -11,56 +9,52 @@ using R3;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public readonly struct AetheriaRuntimeStateQueryParameters
-    {
-        public static readonly AetheriaRuntimeStateQueryParameters Empty = new AetheriaRuntimeStateQueryParameters();
-    }
-
     public sealed class AetheriaRuntimeProjectedDocument<TDocument> : IAetheriaRuntimeProjectedDocument
+        where TDocument : class
     {
-        private static readonly CultMeshPollingWatchOptions<TDocument> DefaultWatchOptions =
-            new CultMeshPollingWatchOptions<TDocument>(TimeSpan.FromMilliseconds(100));
-        private static readonly CultDocumentAttribute? DocumentAttribute =
-            typeof(TDocument).GetCustomAttribute<CultDocumentAttribute>();
-
-        private readonly CultMeshBoundLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument> _feed;
+        private readonly CultMeshDocumentHandle<TDocument> _handle;
 
         internal AetheriaRuntimeProjectedDocument(
-            CultMeshBoundLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument> feed)
+            CultMeshDocumentHandle<TDocument> handle)
         {
-            _feed = feed ?? throw new ArgumentNullException(nameof(feed));
+            _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         }
 
-        public string DocumentId => _feed.FeedId;
+        public string DocumentId => _handle.DocumentId;
 
-        public Type DocumentType => typeof(TDocument);
+        public Type DocumentType => _handle.DocumentType;
 
-        public string SchemaName => DocumentAttribute?.SchemaName ?? "";
+        public string SchemaName => _handle.SchemaName;
 
-        public string SchemaVersion => DocumentAttribute?.SchemaVersion ?? "";
+        public string SchemaVersion => _handle.SchemaVersion;
 
-        public CultMeshRouteHint RouteHint => _feed.RouteHint;
+        public CultMeshRouteHint RouteHint => _handle.RouteHint;
 
-        public System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources => _feed.Sources;
+        public System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources => _handle.Sources;
 
-        public CultMeshLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument> Feed => _feed.Feed;
+        public bool CanReplace => _handle.CanReplace;
 
-        internal CultMeshVerseContext Context => _feed.Context;
+        public CultMeshDocumentHandle<TDocument> Handle => _handle;
 
         public Task<TDocument> LatestAsync()
         {
-            return _feed.SnapshotAsync(AetheriaRuntimeStateQueryParameters.Empty);
+            return _handle.LatestAsync();
         }
 
         public Observable<TDocument> Watch()
         {
-            return _feed.Watch(AetheriaRuntimeStateQueryParameters.Empty);
+            return _handle.Watch();
         }
 
         public IDisposable Watch(Action<TDocument> onNext)
         {
             if (onNext == null) throw new ArgumentNullException(nameof(onNext));
-            return Watch().Subscribe(onNext);
+            return _handle.Watch(onNext);
+        }
+
+        public Task ReplaceAsync(TDocument value)
+        {
+            return _handle.ReplaceAsync(value);
         }
 
         internal static AetheriaRuntimeProjectedDocument<TDocument> Create(
@@ -79,53 +73,23 @@ namespace GameCult.Aetheria.State.Verse
             if (frameChanges == null) throw new ArgumentNullException(nameof(frameChanges));
             if (projectFrame == null) throw new ArgumentNullException(nameof(projectFrame));
 
-            var feed = new CultMeshLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument>(
+            var verse = CultMesh.Verse("aetheria.local", runtimeId);
+            var handle = CultMesh.Document(
                 documentId,
-                (_parameters, _context) => latest(),
-                (_parameters, context) => frameChanges
+                verse,
+                _ => latest(),
+                _ => frameChanges
                     .SelectAwait(async (frame, cancellationToken) =>
                         await projectFrame(frame).ConfigureAwait(false)),
                 sources: sources,
                 routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
 
-            var verse = CultMesh.Verse("aetheria.local", runtimeId);
-            return new AetheriaRuntimeProjectedDocument<TDocument>(feed.Bind(verse));
+            return new AetheriaRuntimeProjectedDocument<TDocument>(handle);
         }
 
-        public AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>()
+        public AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>() where TAlias : class
         {
-            ValidateSchemaAlias(typeof(TDocument), typeof(TAlias));
-
-            TAlias Convert(TDocument document)
-            {
-                if (document is TAlias alreadyTyped)
-                    return alreadyTyped;
-
-                var payload = CultDocumentMessagePackSerialization.SerializeUntyped(document!, typeof(TDocument));
-                return (TAlias)CultDocumentMessagePackSerialization.DeserializeUntyped(typeof(TAlias), payload);
-            }
-
-            var feed = new CultMeshLiveFeed<AetheriaRuntimeStateQueryParameters, TAlias>(
-                DocumentId,
-                async (parameters, _context) => Convert(await _feed.SnapshotAsync(parameters).ConfigureAwait(false)),
-                (parameters, _context) => _feed.Watch(parameters).Select(Convert),
-                sources: Sources,
-                routeHint: RouteHint);
-
-            return new AetheriaRuntimeProjectedDocument<TAlias>(feed.Bind(Context));
-        }
-
-        private static void ValidateSchemaAlias(Type sourceType, Type aliasType)
-        {
-            var source = sourceType.GetCustomAttribute<CultDocumentAttribute>();
-            var alias = aliasType.GetCustomAttribute<CultDocumentAttribute>();
-            if (source == null || alias == null ||
-                !string.Equals(source.SchemaName, alias.SchemaName, StringComparison.Ordinal) ||
-                !string.Equals(source.SchemaVersion, alias.SchemaVersion, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"{aliasType.FullName} cannot alias {sourceType.FullName}; CultDocument schema name/version must match exactly.");
-            }
+            return new AetheriaRuntimeProjectedDocument<TAlias>(_handle.AsSchemaAlias<TAlias>());
         }
     }
 
@@ -143,7 +107,9 @@ namespace GameCult.Aetheria.State.Verse
 
         System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources { get; }
 
-        AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>();
+        bool CanReplace { get; }
+
+        AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>() where TAlias : class;
     }
 
     public sealed class AetheriaClientState
@@ -213,6 +179,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public bool TryGetDocument<TDocument>(
             out AetheriaRuntimeProjectedDocument<TDocument> document)
+            where TDocument : class
         {
             if (_documentsByType.TryGetValue(typeof(TDocument), out var untypedDocument) &&
                 untypedDocument is AetheriaRuntimeProjectedDocument<TDocument> typedDocument)
@@ -240,6 +207,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public AetheriaRuntimeProjectedDocument<TDocument> Document<TDocument>()
+            where TDocument : class
         {
             if (TryGetDocument<TDocument>(out var document))
                 return document;
@@ -249,16 +217,19 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public Task<TDocument> LatestAsync<TDocument>()
+            where TDocument : class
         {
             return Document<TDocument>().LatestAsync();
         }
 
         public Observable<TDocument> Watch<TDocument>()
+            where TDocument : class
         {
             return Document<TDocument>().Watch();
         }
 
         public IDisposable Watch<TDocument>(Action<TDocument> onNext)
+            where TDocument : class
         {
             return Document<TDocument>().Watch(onNext);
         }
@@ -283,7 +254,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string SchemaVersionFor(Type documentType)
         {
-            return documentType.GetCustomAttribute<CultDocumentAttribute>()?.SchemaVersion ?? "";
+            return CultDocumentRegistry.Shared.GetRequired(documentType).SchemaVersion;
         }
     }
 
