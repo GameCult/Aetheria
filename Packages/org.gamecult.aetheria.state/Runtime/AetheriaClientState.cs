@@ -145,7 +145,11 @@ namespace GameCult.Aetheria.State.Verse
 
         public Task<AetheriaClientDockingSnapshot> LatestAsync()
         {
-            return LatestAsync(_currentEntity, _currentDocking, _stationRefit);
+            return CultMesh.LatestAsync(
+                _currentEntity,
+                _currentDocking,
+                _stationRefit,
+                CreateSnapshot);
         }
 
         public AetheriaClientDockingSnapshot Latest()
@@ -153,14 +157,11 @@ namespace GameCult.Aetheria.State.Verse
             return LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        private static async Task<AetheriaClientDockingSnapshot> LatestAsync(
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
-            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit)
+        private static AetheriaClientDockingSnapshot CreateSnapshot(
+            AetheriaRuntimeCurrentEntityDocument? entity,
+            AetheriaRuntimeCurrentDockingDocument? docking,
+            AetheriaRuntimeStationRefitDocument? refit)
         {
-            var entity = await currentEntity.LatestAsync().ConfigureAwait(false);
-            var docking = await currentDocking.LatestAsync().ConfigureAwait(false);
-            var refit = await stationRefit.LatestAsync().ConfigureAwait(false);
             var dockingBay = refit?.IsDocked == true && refit.DockingBayIndex >= 0
                 ? (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
                     .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex)
