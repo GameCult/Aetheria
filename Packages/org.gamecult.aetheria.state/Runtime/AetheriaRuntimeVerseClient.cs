@@ -685,7 +685,7 @@ namespace GameCult.Aetheria.State.Verse
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneRender(frame)),
                     AetheriaRuntimeDaemonSchemas.ZoneRender));
 
-            AetheriaRuntimeProjectedDocument<TDocument> ProjectedDocument<TDocument>(
+            CultMeshDocumentHandle<TDocument> ProjectedDocument<TDocument>(
                 string documentId,
                 Func<AetheriaRuntimeDaemonFrameDocument, Task<TDocument>> project,
                 string schemaId,
@@ -703,13 +703,16 @@ namespace GameCult.Aetheria.State.Verse
                     .Append(CultMesh.ProjectionSource(documentId, schemaId, "projected Aetheria client document"))
                     .ToArray();
 
-                return AetheriaRuntimeProjectedDocument<TDocument>.Create(
+                var verse = CultMesh.Verse("aetheria.local", RuntimeId);
+                return CultMesh.Document(
                     documentId,
-                    RuntimeId,
-                    async () => await project(await RequireFrameAsync().ConfigureAwait(false)).ConfigureAwait(false),
-                    frameChanges,
-                    project,
-                    sources);
+                    verse,
+                    async _ => await project(await RequireFrameAsync().ConfigureAwait(false)).ConfigureAwait(false),
+                    _ => frameChanges
+                        .SelectAwait(async (frame, cancellationToken) =>
+                            await project(frame).ConfigureAwait(false)),
+                    sources: sources,
+                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
             }
 
             async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(

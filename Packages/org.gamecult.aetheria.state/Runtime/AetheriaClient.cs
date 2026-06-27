@@ -40,14 +40,14 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaClientState Aetheria() => State;
 
-        public AetheriaRuntimeProjectedDocument<TDocument> Document<TDocument>()
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>()
             where TDocument : class
         {
             ThrowIfDisposed();
             return State.Document<TDocument>();
         }
 
-        public IAetheriaRuntimeProjectedDocument DocumentBySchema(string schemaVersion)
+        public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)
         {
             ThrowIfDisposed();
             return State.DocumentBySchema(schemaVersion);
