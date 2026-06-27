@@ -102,6 +102,24 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for transport wrapper layout checks."
 }
 
+$remotePublicationReaderPatterns = @(
+    '@msgpack/msgpack',
+    'sendSnapshotRequest',
+    'snapshot_response_raw',
+    'CultNetSnapshotResponseRawMessage',
+    'recordKeys',
+    'decode\('
+)
+
+$remotePublicationReaderPattern = ($remotePublicationReaderPatterns -join '|')
+$remotePublicationReaderHits = & rg -n $remotePublicationReaderPattern Electron/aetheria-remote-publication-reader.ts 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: RTS remote publication reader still owns raw snapshot/codec details.`n$remotePublicationReaderHits"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for remote publication reader layout checks."
+}
+
 $requiredBindingSymbols = @(
     'createAetheriaRuntimeRtsOperationHandles',
     'createAetheriaRuntimeRtsQueryHandles',
