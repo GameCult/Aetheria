@@ -52,7 +52,8 @@ menus, HUDs, renderers, RTS panels, and tools should move toward semantic
 handles:
 
 ```csharp
-var aetheria = client.Aetheria();
+using var verse = await AetheriaRuntimeVerseClient.OpenAsync(statePath, "tool-client");
+var aetheria = verse.Aetheria();
 
 using var inventory = aetheria.Current.Inventory.Watch(RenderInventory);
 using var docking = aetheria.Current.Docking.Watch(RenderDocking);
@@ -96,8 +97,9 @@ The alternative idea of "Unity runs CultMesh using the same state assembly, but
 not the daemon assembly" is exactly what this contract supports. The Unity side
 references the runtime state package, opens `AetheriaRuntimeVerseClient`, and
 uses CultMesh reactive wrappers to observe daemon state as if it were native
-state. The client document handles now delegate to shared CultMesh mutable state
-pointers instead of a private Aetheria wrapper.
+state. `AetheriaRuntimeVerseClient.Aetheria()` now exposes the first shared C#
+domain facade for projected current/station/zone documents, and `AetheriaClient`
+delegates to that same facade instead of owning a private projection wrapper.
 
 ## Eve Surface Boundary
 

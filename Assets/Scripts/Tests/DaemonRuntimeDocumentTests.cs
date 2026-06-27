@@ -166,7 +166,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var currentEntity = client.State.Current.Entity.LatestAsync().GetAwaiter().GetResult();
+        var currentEntity = client.Aetheria().Current.Entity.LatestAsync().GetAwaiter().GetResult();
         var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
@@ -179,6 +179,38 @@ public class DaemonRuntimeDocumentTests
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
         Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>
             source.SourceId == "catalog:aetheria.runtime"));
+    }
+
+    [Test]
+    public void AetheriaRuntimeVerseClientExposesDomainStateFacade()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-verse-domain-state-facade-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            RunWithTwoEntities(),
+            "daemon",
+            "session-state",
+            8,
+            1.5,
+            0.02);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+
+        using var verse = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "tool-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        var aetheria = verse.Aetheria();
+        var currentEntity = aetheria.Current.Entity.LatestAsync().GetAwaiter().GetResult();
+
+        Assert.AreEqual("aetheria.current.entity", aetheria.Current.Entity.DocumentId);
+        Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
+        Assert.AreEqual("Player", currentEntity.Entity?.Name);
+        Assert.IsTrue(aetheria.Current.Entity.Sources.Any(source =>
+            source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
     }
 
     [Test]

@@ -268,7 +268,10 @@ Gates:
 
 ## Stage 3A: Collapse State Access To Typed Reactive Handles
 
-Status: not started; current Unity and RTS clients still perform byzantine protocol walks.
+Status: started; `AetheriaRuntimeVerseClient.Aetheria()` now exposes the first
+C# domain facade for current, station, and zone projected documents, and
+`AetheriaClient` delegates to that shared facade. Unity and RTS clients still
+perform byzantine protocol walks in several menus/renderers.
 
 Goal: every client-facing state access becomes a single CultMesh document, collection, query, or pointer call. The caller names the domain state it wants and gets a typed reactive value. It does not manually inspect daemon frames, current-state projections, station rows, record keys, local facade indexes, or transport route details.
 

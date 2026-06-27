@@ -534,6 +534,8 @@ $tickRunner = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaRu
 Assert-Contains $tickRunner "ProjectTradeValuePolicySurfaceDocument(stateFilePath)" "Daemon editor surface must publish the trade-value policy designer surface."
 
 $client = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaClient.cs"
+Assert-Contains $client "AetheriaClientState State" "AetheriaClient must expose the semantic typed state facade."
+Assert-Contains $client "Aetheria()" "AetheriaClient must expose the canonical domain facade entrypoint."
 Assert-Contains $client "ObjectsViewportAsync" "AetheriaClient must expose objects viewport facade."
 Assert-Contains $client "GravityViewportAsync" "AetheriaClient must expose gravity viewport facade."
 Assert-Contains $client "CurrentZoneAsync" "AetheriaClient must expose current-zone facade."
@@ -544,6 +546,15 @@ Assert-Contains $client "StationRefitAsync" "AetheriaClient must expose station-
 Assert-Contains $client "SectorMapAsync" "AetheriaClient must expose sector-map facade."
 Assert-Contains $client "ZoneDetailsAsync" "AetheriaClient must expose zone-details facade."
 Assert-Contains $client "ZoneRenderAsync" "AetheriaClient must expose zone-render facade."
+
+$verseClient = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseClient.cs"
+Assert-Contains $verseClient "AetheriaClientState Aetheria()" "AetheriaRuntimeVerseClient must expose the shared domain state facade."
+Assert-Contains $verseClient "CreateAetheriaStateFacade" "AetheriaRuntimeVerseClient must own projected state facade creation."
+
+$clientState = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaClientState.cs"
+Assert-Contains $clientState "CultMeshBoundLiveFeed" "Aetheria state documents must bind through CultMesh live feeds."
+Assert-Contains $clientState "LatestAsync()" "Aetheria state documents must support one-shot typed reads."
+Assert-Contains $clientState "Watch()" "Aetheria state documents must support reactive typed reads."
 
 $projection = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsProjection.cs"
 Assert-Contains $projection "ProjectZoneDetails" "Shared projection code must own the zone-details feed."

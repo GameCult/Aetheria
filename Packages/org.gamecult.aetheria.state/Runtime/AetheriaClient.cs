@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
-using R3;
 
 #nullable enable
 
@@ -29,7 +28,7 @@ namespace GameCult.Aetheria.State.Verse
             _operations = new AetheriaRuntimeDaemonOperationsClient(SendOperation);
             _control = new AetheriaControl(_operations);
             _ui = new AetheriaUi(this);
-            _state = CreateStateFacade();
+            _state = _verse.Aetheria();
         }
 
         public string StatePath => _verse.StatePath;
@@ -37,6 +36,8 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaControl Control => _control;
         public AetheriaUi Ui => _ui;
         public AetheriaClientState State => _state;
+
+        public AetheriaClientState Aetheria() => State;
 
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 
@@ -383,79 +384,6 @@ namespace GameCult.Aetheria.State.Verse
             if (frame == null)
                 throw new InvalidOperationException("Aetheria local client has no daemon frame yet.");
             return frame;
-        }
-
-        private AetheriaClientState CreateStateFacade()
-        {
-            var frameChanges = _verse.WatchLatestFrames()
-                .Where(change => change.Document != null)
-                .Select(change => change.Document!);
-
-            return new AetheriaClientState(
-                ProjectedDocument(
-                    "aetheria.current.zone",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame)),
-                    AetheriaRuntimeDaemonSchemas.CurrentZone),
-                ProjectedDocument(
-                    "aetheria.current.entity",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentEntity(frame)),
-                    AetheriaRuntimeDaemonSchemas.CurrentEntity),
-                ProjectedDocument(
-                    "aetheria.current.docking",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentDocking(frame)),
-                    AetheriaRuntimeDaemonSchemas.CurrentDocking),
-                ProjectedDocument(
-                    "aetheria.zone.contacts",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneContacts(frame)),
-                    AetheriaRuntimeDaemonSchemas.ZoneContacts),
-                ProjectedDocument(
-                    "aetheria.station.refit",
-                    ProjectStationRefitAsync,
-                    AetheriaRuntimeDaemonSchemas.StationRefit,
-                    CultMesh.ProjectionSource("catalog:aetheria.runtime"),
-                    CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
-                ProjectedDocument(
-                    "aetheria.sector.map",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectSectorMap(frame)),
-                    AetheriaRuntimeDaemonSchemas.SectorMap),
-                ProjectedDocument(
-                    "aetheria.zone.render",
-                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneRender(frame)),
-                    AetheriaRuntimeDaemonSchemas.ZoneRender));
-
-            AetheriaRuntimeProjectedDocument<TDocument> ProjectedDocument<TDocument>(
-                string documentId,
-                Func<AetheriaRuntimeDaemonFrameDocument, Task<TDocument>> project,
-                string schemaId,
-                params CultMeshProjectionSource[] additionalSources)
-            {
-                var sources = new[]
-                    {
-                        CultMesh.ProjectionSource(
-                            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
-                            AetheriaRuntimeDaemonSchemas.Frame,
-                            "latest authoritative daemon frame")
-                    }
-                    .Concat(additionalSources ?? Array.Empty<CultMeshProjectionSource>())
-                    .Append(CultMesh.ProjectionSource(documentId, schemaId, "projected Aetheria client document"))
-                    .ToArray();
-
-                return AetheriaRuntimeProjectedDocument<TDocument>.Create(
-                    documentId,
-                    RuntimeId,
-                    async () => await project(await RequireFrameAsync().ConfigureAwait(false)).ConfigureAwait(false),
-                    frameChanges,
-                    project,
-                    sources);
-            }
-
-            async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
-                AetheriaRuntimeDaemonFrameDocument frame)
-            {
-                var loadoutTemplates = await _verse.GetLoadoutTemplatesAsync().ConfigureAwait(false);
-                var catalog = _verse.OpenRuntimeCatalog();
-                return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates, catalog);
-            }
         }
 
         private void ThrowIfDisposed()
