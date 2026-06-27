@@ -1191,7 +1191,10 @@ private void Update()
         try
         {
             docking = ResolveClient()
-                .CurrentDockingAsync()
+                .Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -1209,7 +1212,9 @@ private void Update()
         try
         {
             return ResolveClient()
-                .StationRefitAsync()
+                .Aetheria()
+                .StationRefit
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

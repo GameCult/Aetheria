@@ -95,7 +95,13 @@ public sealed class AetheriaUnityObservedDockingIndex
     {
         try
         {
-            return _resolveClient()?.CurrentDockingAsync().GetAwaiter().GetResult();
+            return _resolveClient()
+                ?.Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
+                .GetAwaiter()
+                .GetResult();
         }
         catch
         {

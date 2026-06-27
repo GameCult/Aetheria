@@ -212,7 +212,10 @@ public class LocalMenu : MonoBehaviour
         try
         {
             docking = ResolveClient()
-                .CurrentDockingAsync()
+                .Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

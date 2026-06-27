@@ -805,7 +805,9 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             return ResolveClient()
-                .StationRefitAsync()
+                .Aetheria()
+                .StationRefit
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -823,7 +825,10 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             docking = ResolveClient()
-                .CurrentDockingAsync()
+                .Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -883,7 +888,9 @@ public class InventoryMenu : MonoBehaviour
             }
 
             var refit = ResolveClient()
-                .StationRefitAsync()
+                .Aetheria()
+                .StationRefit
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             var entityIndex = -1;

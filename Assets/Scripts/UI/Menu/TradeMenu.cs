@@ -532,7 +532,10 @@ public class TradeMenu : MonoBehaviour
         try
         {
             docking = ResolveClient()
-                .CurrentDockingAsync()
+                .Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
@@ -553,7 +556,9 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _stationRefit = ResolveClient()
-                .StationRefitAsync()
+                .Aetheria()
+                .StationRefit
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

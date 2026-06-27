@@ -174,7 +174,10 @@ public class MenuPanel : MonoBehaviour
         try
         {
             return ResolveClient()
-                .CurrentDockingAsync()
+                .Aetheria()
+                .Current
+                .Docking
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }
