@@ -285,10 +285,16 @@ if (check) {
 
 function readExisting(path) {
   try {
-    return readFileSync(path, "utf8");
+    return normalizeGeneratedText(readFileSync(path, "utf8"));
   } catch {
     return "";
   }
+}
+
+function normalizeGeneratedText(text) {
+  return text
+    .replace(/^\uFEFF/u, "")
+    .replace(/\r\n/gu, "\n");
 }
 
 function parseEnum(text, enumName) {

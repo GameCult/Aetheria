@@ -2,6 +2,9 @@ import { encode } from "@msgpack/msgpack";
 import { performance } from "node:perf_hooks";
 import { CultMesh } from "cultmesh-ts";
 import type {
+  CultMeshDocumentCatalog,
+  CultMeshDocumentPublicationSource,
+  CultMeshPublicationDocumentBinding,
   CultMeshOperationContext,
   CultMeshQueryContext,
   CultMeshSurfaceCatalogIndexDiagnostic,
@@ -42,8 +45,6 @@ import {
   type ViewportRequest,
   type ViewportResponse,
 } from "./aetheria-rts-bindings.js";
-import { AetheriaLocalPublicationReader } from "./aetheria-local-publication-reader.js";
-import { AetheriaRemotePublicationReader } from "./aetheria-remote-publication-reader.js";
 import {
   projectAuthorityStatus,
   projectDaemonHealth,
@@ -57,13 +58,9 @@ import {
 
 const connectionId = 0x43554c54;
 
-type AetheriaPublicationReader = {
-  readonly statePathDescription: string;
-  readDaemonFrame(): Promise<unknown>;
-  readDaemonHealth(): Promise<unknown>;
-  readAuthorityPolicy(): Promise<unknown>;
-  readStarbridgeSessionSummary(): Promise<unknown>;
-  close?(): Promise<void>;
+type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
+  readonly localPath: string;
+  readonly remoteRecordKey?: string;
 };
 
 export type AetheriaCultMeshClientOptions = {
@@ -103,19 +100,24 @@ export class AetheriaCultMeshClient {
     options: AetheriaCultMeshClientOptions = {},
   ) {
     const publicationMode = options.publicationMode ?? "local";
-    this.publications = publicationMode === "remote"
-      ? new AetheriaRemotePublicationReader(
-          this.endpoint,
-          `${this.runtimeId}-reader`,
-          options.snapshotTimeoutMs)
-      : new AetheriaLocalPublicationReader(statePath);
+    this.publicationDescription = publicationMode === "remote" ? this.endpoint : statePath;
     this.verse = CultMesh.verse("aetheria.local", this.runtimeId);
     this.queryVerse = publicationMode === "remote"
-      ? this.verse.withRoute("network", this.publications.statePathDescription)
-      : this.verse.withRoute("shared-memory", this.publications.statePathDescription);
+      ? this.verse.withRoute("network", this.publicationDescription)
+      : this.verse.withRoute("shared-memory", this.publicationDescription);
     this.commandVerse = this.verse
       .withRoute("network", this.endpoint)
       .withClaim("commander-control", { shardId: "aetheria.local" });
+    this.publications = CultMesh.documentsFromPublication(
+      this.createPublicationSource(publicationMode),
+      createAetheriaPublicationDocuments(statePath, publicationMode),
+      {
+        routeHint: this.queryVerse.context.routeHint,
+        timeoutMs: options.snapshotTimeoutMs,
+        pollMs: 50,
+        messageIdPrefix: `${this.runtimeId}:snapshot`,
+      },
+    );
     const executors = {
       mapViewport: async (request: ViewportRequest) => projectViewportFromFrame(await this.fetchLatestFrameDocument(), request),
       objectsViewport: async (request: ViewportRequest) => projectObjectsViewportFromFrame(await this.fetchLatestFrameDocument(), request),
@@ -161,14 +163,14 @@ export class AetheriaCultMeshClient {
     );
   }
 
-  private readonly publications: AetheriaPublicationReader;
+  private readonly publicationDescription: string;
+  private readonly publications: CultMeshDocumentCatalog;
   private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
   private readonly documents: AetheriaRuntimeRtsDocuments;
   private readonly operations: AetheriaRuntimeRtsOperationHandles;
   private readonly aetheria: AetheriaRuntimeRtsVerseFacade;
 
   public async close(): Promise<void> {
-    await this.publications.close?.();
     this.#peer?.close();
     this.#peer = null;
   }
@@ -221,6 +223,7 @@ export class AetheriaCultMeshClient {
     return this.aetheria.daemon.starbridgeSession();
   }
 
+
   public projectionDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsProjectionDiagnostic>> {
     return describeAetheriaRuntimeRtsQueryHandles(this.queries);
   }
@@ -267,19 +270,41 @@ export class AetheriaCultMeshClient {
   }
 
   private async fetchLatestFrameDocument(): Promise<unknown> {
-    return this.publications.readDaemonFrame();
+    return this.fetchPublicationDocument(AetheriaRtsSchemas.daemonFrame);
   }
 
   private async fetchDaemonHealthDocument(): Promise<unknown> {
-    return this.publications.readDaemonHealth();
+    return this.fetchPublicationDocument(AetheriaRtsSchemas.daemonHealth);
   }
 
   private async fetchAuthorityPolicyDocument(): Promise<unknown> {
-    return this.publications.readAuthorityPolicy();
+    return this.fetchPublicationDocument(AetheriaRtsSchemas.verseAuthorityPolicy);
   }
 
   private async fetchStarbridgeSessionSummaryDocument(): Promise<unknown> {
-    return this.publications.readStarbridgeSessionSummary();
+    return this.fetchPublicationDocument(AetheriaRtsSchemas.starbridgeSessionSummary);
+  }
+
+
+  private fetchPublicationDocument(schemaId: string): Promise<unknown> {
+    return this.publications.latest({ schemaId }, this.queryContext());
+  }
+
+  private createPublicationSource(
+    mode: "local" | "remote",
+  ): (binding: CultMeshPublicationDocumentBinding) => CultMeshDocumentPublicationSource {
+    if (mode === "remote") {
+      return () => ({
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.endpoint,
+      });
+    }
+
+    return binding => ({
+      kind: "single-file",
+      path: (binding as AetheriaPublicationDocumentSpec).localPath,
+    });
   }
 
   private createViewportFeed() {
@@ -436,6 +461,67 @@ function composeViewport(
     gravityInfluences: gravity.gravityInfluences,
     bodies: gravity.bodies,
   };
+}
+
+function createAetheriaPublicationDocuments(
+  statePath: string,
+  mode: "local" | "remote",
+): readonly AetheriaPublicationDocumentSpec[] {
+  const documents: readonly AetheriaPublicationDocumentSpec[] = [
+    {
+      ...CultMesh.publicationDocument(
+        AetheriaRtsSchemas.daemonFrame,
+        "daemon:aetheria.frame.latest.v1",
+        {
+          documentId: "daemon:aetheria.frame.latest.v1",
+          sourceId: "daemon:aetheria.frame.latest.v1",
+        },
+      ),
+      localPath: `${statePath}.daemon.frame.cc`,
+    },
+    {
+      ...CultMesh.publicationDocument(
+        AetheriaRtsSchemas.daemonHealth,
+        "daemon:aetheria.health.latest.v1",
+        {
+          documentId: "daemon:aetheria.health.latest.v1",
+          sourceId: "daemon:aetheria.health.latest.v1",
+        },
+      ),
+      localPath: `${statePath}.daemon.health.cc`,
+      remoteRecordKey: "daemon:aetheria.health.v1",
+    },
+    {
+      ...CultMesh.publicationDocument(
+        AetheriaRtsSchemas.verseAuthorityPolicy,
+        "daemon:aetheria.authority.policy.latest.v1",
+        {
+          documentId: "daemon:aetheria.authority.policy.latest.v1",
+          sourceId: "daemon:aetheria.authority.policy.latest.v1",
+        },
+      ),
+      localPath: `${statePath}.authority.policy.cc`,
+      remoteRecordKey: "global:aetheria.verse_authority_policy.v1",
+    },
+    {
+      ...CultMesh.publicationDocument(
+        AetheriaRtsSchemas.starbridgeSessionSummary,
+        "daemon:aetheria.starbridge.session.latest.v1",
+        {
+          documentId: "daemon:aetheria.starbridge.session.latest.v1",
+          sourceId: "daemon:aetheria.starbridge.session.latest.v1",
+        },
+      ),
+      localPath: `${statePath}.daemon.starbridge.session.cc`,
+    },
+  ];
+
+  return documents.map(document => mode === "remote" && document.remoteRecordKey
+    ? {
+        ...document,
+        recordKey: document.remoteRecordKey,
+      }
+    : document);
 }
 
 function delay(milliseconds: number): Promise<void> {

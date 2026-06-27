@@ -103,21 +103,19 @@ if ($LASTEXITCODE -gt 1) {
 }
 
 $remotePublicationReaderPatterns = @(
-    '@msgpack/msgpack',
     'sendSnapshotRequest',
     'snapshot_response_raw',
     'CultNetSnapshotResponseRawMessage',
-    'recordKeys',
     'decode\('
 )
 
 $remotePublicationReaderPattern = ($remotePublicationReaderPatterns -join '|')
-$remotePublicationReaderHits = & rg -n $remotePublicationReaderPattern Electron/aetheria-remote-publication-reader.ts 2>$null
+$remotePublicationReaderHits = & rg -n $remotePublicationReaderPattern Electron/aetheria-cultmesh.ts 2>$null
 if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: RTS remote publication reader still owns raw snapshot/codec details.`n$remotePublicationReaderHits"
+    Write-Error "Stage 7B verifier failed: RTS CultMesh client still owns raw snapshot/codec details.`n$remotePublicationReaderHits"
 }
 if ($LASTEXITCODE -gt 1) {
-    Write-Error "Stage 7B verifier could not run rg for remote publication reader layout checks."
+    Write-Error "Stage 7B verifier could not run rg for remote publication layout checks."
 }
 
 $requiredBindingSymbols = @(
@@ -240,15 +238,15 @@ if (-not $clientText.Contains('this.documents = createAetheriaRuntimeRtsDocument
 
 if (-not $clientText.Contains('daemonFrame: async () => this.fetchLatestFrameDocument()') -or
     -not $clientText.Contains('authorityPolicy: async () => this.fetchAuthorityPolicyDocument()')) {
-    Write-Error "Stage 7B verifier failed: RTS client document handles are not resolving through daemon publication readers."
+    Write-Error "Stage 7B verifier failed: RTS client document handles are not resolving through the daemon publication catalog."
 }
 
 if (-not $clientText.Contains('this.verse = CultMesh.verse("aetheria.local", this.runtimeId)')) {
     Write-Error "Stage 7B verifier failed: RTS client should bind to the shared CultMesh Verse primitive instead of constructing local contexts directly."
 }
 
-if (-not $clientText.Contains('? this.verse.withRoute("network", this.publications.statePathDescription)') -or
-    -not $clientText.Contains(': this.verse.withRoute("shared-memory", this.publications.statePathDescription)')) {
+if (-not $clientText.Contains('? this.verse.withRoute("network", this.publicationDescription)') -or
+    -not $clientText.Contains(': this.verse.withRoute("shared-memory", this.publicationDescription)')) {
     Write-Error "Stage 7B verifier failed: RTS client is not deriving publication-mode Verse views for projection reads."
 }
 
@@ -258,7 +256,7 @@ if (-not $clientText.Contains('this.commandVerse = this.verse') -or
     Write-Error "Stage 7B verifier failed: RTS client is not deriving a network Verse view with an explicit command authority claim."
 }
 
-if (-not $clientText.Contains('this.publications.statePathDescription')) {
+if (-not $clientText.Contains('this.publicationDescription = publicationMode === "remote" ? this.endpoint : statePath')) {
     Write-Error "Stage 7B verifier failed: RTS client projection route metadata does not include the local publication source description."
 }
 
@@ -491,25 +489,25 @@ foreach ($symbol in $requiredProjectionSymbols) {
     }
 }
 
-& rg -q 'CultMesh.documentFromPublication' Electron/aetheria-local-publication-reader.ts
+& rg -q 'CultMesh.documentsFromPublication' Electron/aetheria-cultmesh.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local publications should be read through configured CultMesh document handles."
+    Write-Error "Stage 7B verifier failed: RTS publications should be read through a configured CultMesh document catalog."
 }
 
-$forbiddenLocalPublicationReaderPlumbing = & rg -n 'SingleFileMessagePackBackingStore|decode\(|pullAll\(' Electron/aetheria-local-publication-reader.ts 2>$null
+$forbiddenPublicationReaderFiles = & rg -n 'AetheriaLocalPublicationReader|AetheriaRemotePublicationReader|aetheria-local-publication-reader|aetheria-remote-publication-reader' Electron 2>$null
 if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: local publication reader still owns backing-store or MessagePack plumbing.`n$forbiddenLocalPublicationReaderPlumbing"
+    Write-Error "Stage 7B verifier failed: RTS publication reader wrappers should be collapsed into the CultMesh document catalog.`n$forbiddenPublicationReaderFiles"
 }
 if ($LASTEXITCODE -gt 1) {
-    Write-Error "Stage 7B verifier could not run rg for local publication reader plumbing checks."
+    Write-Error "Stage 7B verifier could not run rg for stale publication reader checks."
 }
 
-& rg -q 'readStarbridgeSessionSummary' Electron/aetheria-local-publication-reader.ts
+& rg -q 'AetheriaRtsSchemas.starbridgeSessionSummary' Electron/aetheria-cultmesh.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local Starbridge summary publication reader was not found."
+    Write-Error "Stage 7B verifier failed: Starbridge summary publication binding was not found."
 }
 
-& rg -q '.daemon.starbridge.session.cc' Electron/aetheria-local-publication-reader.ts
+& rg -q '.daemon.starbridge.session.cc' Electron/aetheria-cultmesh.ts
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Stage 7B verifier failed: RTS client is not reading the daemon Starbridge sidecar publication."
 }
