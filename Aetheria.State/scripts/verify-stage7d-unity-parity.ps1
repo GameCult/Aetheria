@@ -576,6 +576,9 @@ Assert-Contains $tickRunner "ProjectTradeValuePolicySurfaceDocument(stateFilePat
 $client = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaClient.cs"
 Assert-Contains $client "AetheriaClientState State" "AetheriaClient must expose the semantic typed state facade."
 Assert-Contains $client "Aetheria()" "AetheriaClient must expose the canonical domain facade entrypoint."
+Assert-Contains $client "Document<TDocument>()" "AetheriaClient must allow callers to retrieve a projected state document by shared document type."
+Assert-Contains $client "LatestAsync<TDocument>()" "AetheriaClient must allow one-call typed state reads by shared document type."
+Assert-Contains $client "Watch<TDocument>()" "AetheriaClient must allow reactive typed state reads by shared document type."
 Assert-Contains $client "ObjectsViewportAsync" "AetheriaClient must expose objects viewport facade."
 Assert-Contains $client "GravityViewportAsync" "AetheriaClient must expose gravity viewport facade."
 Assert-Contains $client "CurrentZoneAsync" "AetheriaClient must expose current-zone facade."
@@ -593,6 +596,11 @@ Assert-Contains $verseClient "CreateAetheriaStateFacade" "AetheriaRuntimeVerseCl
 
 $clientState = Read-Text "Packages\org.gamecult.aetheria.state\Runtime\AetheriaClientState.cs"
 Assert-Contains $clientState "CultMeshBoundLiveFeed" "Aetheria state documents must bind through CultMesh live feeds."
+Assert-Contains $clientState "_documentsByType" "Aetheria state facade must index projected documents by shared document type."
+Assert-Contains $clientState "TryGetDocument<TDocument>" "Aetheria state facade must support safe typed document lookup."
+Assert-Contains $clientState "Document<TDocument>()" "Aetheria state facade must support direct typed document lookup."
+Assert-Contains $clientState "LatestAsync<TDocument>()" "Aetheria state facade must support one-call typed document reads."
+Assert-Contains $clientState "Watch<TDocument>()" "Aetheria state facade must support reactive typed document lookup."
 Assert-Contains $clientState "LatestAsync()" "Aetheria state documents must support one-shot typed reads."
 Assert-Contains $clientState "Watch()" "Aetheria state documents must support reactive typed reads."
 

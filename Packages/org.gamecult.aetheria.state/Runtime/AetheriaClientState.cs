@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using GameCult.Mesh;
 using R3;
@@ -81,6 +82,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaClientState
     {
+        private readonly IReadOnlyDictionary<Type, object> _documentsByType;
+
         internal AetheriaClientState(
             AetheriaRuntimeProjectedDocument<AetheriaRuntimeCurrentZoneDocument> currentZone,
             AetheriaRuntimeProjectedDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity,
@@ -95,6 +98,16 @@ namespace GameCult.Aetheria.State.Verse
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
             SectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
             ZoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
+            _documentsByType = new Dictionary<Type, object>
+            {
+                [typeof(AetheriaRuntimeCurrentZoneDocument)] = Current.Zone,
+                [typeof(AetheriaRuntimeCurrentEntityDocument)] = Current.Entity,
+                [typeof(AetheriaRuntimeCurrentDockingDocument)] = Current.Docking,
+                [typeof(AetheriaRuntimeZoneContactsDocument)] = ZoneContacts,
+                [typeof(AetheriaRuntimeStationRefitDocument)] = StationRefit,
+                [typeof(AetheriaRuntimeSectorMapDocument)] = SectorMap,
+                [typeof(AetheriaRuntimeZoneRenderDocument)] = ZoneRender
+            };
         }
 
         public AetheriaClientCurrentState Current { get; }
@@ -106,6 +119,44 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeProjectedDocument<AetheriaRuntimeSectorMapDocument> SectorMap { get; }
 
         public AetheriaRuntimeProjectedDocument<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
+
+        public bool TryGetDocument<TDocument>(
+            out AetheriaRuntimeProjectedDocument<TDocument> document)
+        {
+            if (_documentsByType.TryGetValue(typeof(TDocument), out var untypedDocument) &&
+                untypedDocument is AetheriaRuntimeProjectedDocument<TDocument> typedDocument)
+            {
+                document = typedDocument;
+                return true;
+            }
+
+            document = null!;
+            return false;
+        }
+
+        public AetheriaRuntimeProjectedDocument<TDocument> Document<TDocument>()
+        {
+            if (TryGetDocument<TDocument>(out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria typed state does not expose a projected document for {typeof(TDocument).FullName}.");
+        }
+
+        public Task<TDocument> LatestAsync<TDocument>()
+        {
+            return Document<TDocument>().LatestAsync();
+        }
+
+        public Observable<TDocument> Watch<TDocument>()
+        {
+            return Document<TDocument>().Watch();
+        }
+
+        public IDisposable Watch<TDocument>(Action<TDocument> onNext)
+        {
+            return Document<TDocument>().Watch(onNext);
+        }
     }
 
     public sealed class AetheriaClientCurrentState

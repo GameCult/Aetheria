@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
+using R3;
 
 #nullable enable
 
@@ -38,6 +39,30 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientState State => _state;
 
         public AetheriaClientState Aetheria() => State;
+
+        public AetheriaRuntimeProjectedDocument<TDocument> Document<TDocument>()
+        {
+            ThrowIfDisposed();
+            return State.Document<TDocument>();
+        }
+
+        public Task<TDocument> LatestAsync<TDocument>()
+        {
+            ThrowIfDisposed();
+            return State.LatestAsync<TDocument>();
+        }
+
+        public Observable<TDocument> Watch<TDocument>()
+        {
+            ThrowIfDisposed();
+            return State.Watch<TDocument>();
+        }
+
+        public IDisposable Watch<TDocument>(Action<TDocument> onNext)
+        {
+            ThrowIfDisposed();
+            return State.Watch(onNext);
+        }
 
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 
