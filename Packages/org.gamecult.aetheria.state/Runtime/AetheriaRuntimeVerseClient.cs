@@ -38,6 +38,11 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey StarbridgeSessionLatest { get; } =
             new CultRecordKey("starbridge:aetheria.session.latest.v1");
 
+        public static CultRecordKey StarbridgePlayerSeat(string seatId)
+        {
+            return new CultRecordKey(AetheriaRuntimeStarbridgePlayerSeatDocument.RecordKey(seatId));
+        }
+
         public static CultRecordKey DaemonGameSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.daemon.game");
 
@@ -84,7 +89,6 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
-            typeof(AetheriaRuntimeAssetManifestDocument),
             typeof(AetheriaRuntimeObjectsViewportDocument),
             typeof(AetheriaRuntimeGravityViewportDocument),
             typeof(AetheriaRuntimeCurrentZoneDocument),
@@ -100,6 +104,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeStarbridgeScenarioDocument),
             typeof(AetheriaRuntimeStarbridgeSessionDocument),
             typeof(AetheriaRuntimeStarbridgeSessionSummaryDocument),
+            typeof(AetheriaRuntimeStarbridgePlayerSeatDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(EveSurfaceState)
@@ -240,6 +245,13 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Database.GetAsync<AetheriaRuntimeStarbridgeSessionDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+        }
+
+        public Task<AetheriaRuntimeStarbridgePlayerSeatDocument?> GetStarbridgePlayerSeatAsync(string seatId)
+        {
+            ThrowIfDisposed();
+            return Database.GetAsync<AetheriaRuntimeStarbridgePlayerSeatDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId));
         }
 
         public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
@@ -411,6 +423,14 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
         }
 
+        public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgePlayerSeatDocument> StarbridgePlayerSeat(
+            string seatId)
+        {
+            ThrowIfDisposed();
+            return MutableDocumentPointer<AetheriaRuntimeStarbridgePlayerSeatDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId));
+        }
+
         public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()
         {
             ThrowIfDisposed();
@@ -516,6 +536,14 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
         }
 
+        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgePlayerSeatDocument>>
+            WatchStarbridgePlayerSeat(string seatId)
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<AetheriaRuntimeStarbridgePlayerSeatDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId));
+        }
+
         public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameSurfaces()
         {
             ThrowIfDisposed();
@@ -608,6 +636,20 @@ namespace GameCult.Aetheria.State.Verse
 
             session.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeSession;
             await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest, session)
+                .ConfigureAwait(false);
+            if (flush)
+                await FlushAsync().ConfigureAwait(false);
+        }
+
+        public async Task PutStarbridgePlayerSeatAsync(
+            AetheriaRuntimeStarbridgePlayerSeatDocument seat,
+            bool flush = true)
+        {
+            ThrowIfDisposed();
+            if (seat == null) throw new ArgumentNullException(nameof(seat));
+
+            seat.Schema = AetheriaRuntimeDaemonSchemas.StarbridgePlayerSeat;
+            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seat.SeatId), seat)
                 .ConfigureAwait(false);
             if (flush)
                 await FlushAsync().ConfigureAwait(false);

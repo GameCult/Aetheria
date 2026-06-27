@@ -78,6 +78,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string StarbridgeScenario = "gamecult.aetheria.starbridge_scenario.v1";
         public const string StarbridgeSession = "gamecult.aetheria.starbridge_session.v1";
         public const string StarbridgeSessionSummary = "gamecult.aetheria.starbridge_session_summary.v1";
+        public const string StarbridgePlayerSeat = "gamecult.aetheria.starbridge_player_seat.v1";
         public const string VerseAuthorityPolicy = AetheriaRuntimeVerseAuthoritySchemas.Policy;
         public const string AuthorityLease = AetheriaRuntimeVerseAuthoritySchemas.Lease;
         public const string SoaView = "gamecult.aetheria.daemon_soa_view.v1";
@@ -308,6 +309,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeDaemonSchemas.StarbridgeScenario,
                     AetheriaRuntimeDaemonSchemas.StarbridgeSession,
                     AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
+                    AetheriaRuntimeDaemonSchemas.StarbridgePlayerSeat,
                     AetheriaRuntimeDaemonSchemas.VerseAuthorityPolicy,
                     AetheriaRuntimeDaemonSchemas.AuthorityLease
                 },

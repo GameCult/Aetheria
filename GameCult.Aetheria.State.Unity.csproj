@@ -105,6 +105,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsSimulation.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsViewportDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStarbridgeDocuments.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStarbridgePlayerSeatDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateReader.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonObservationCursor.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseDiscovery.cs" />
