@@ -604,6 +604,8 @@ Assert-Contains $clientState "TryGetDocument<TDocument>" "Aetheria state facade 
 Assert-Contains $clientState "TryGetDocumentBySchema" "Aetheria state facade must support safe schema document lookup."
 Assert-Contains $clientState "Document<TDocument>()" "Aetheria state facade must support direct typed document lookup."
 Assert-Contains $clientState "DocumentBySchema(string schemaVersion)" "Aetheria state facade must support direct schema document lookup."
+Assert-Contains $clientState "AsSchemaAlias<TAlias>" "Aetheria state facade must adapt same-schema projected documents across CLR aliases until CultMesh owns alias conversion."
+Assert-Contains $clientState "CultDocumentMessagePackSerialization" "Aetheria projected document aliasing must use the canonical CultCache document serializer."
 Assert-Contains $clientState "LatestAsync<TDocument>()" "Aetheria state facade must support one-call typed document reads."
 Assert-Contains $clientState "Watch<TDocument>()" "Aetheria state facade must support reactive typed document lookup."
 Assert-Contains $clientState "LatestAsync()" "Aetheria state documents must support one-shot typed reads."

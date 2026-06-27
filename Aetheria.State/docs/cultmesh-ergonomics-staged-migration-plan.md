@@ -277,8 +277,10 @@ of transitional `Current*Async()`, `StationRefitAsync()`, `SectorMapAsync()`,
 also indexes projected state documents by shared document type so callers can
 retrieve or watch a known typed document with one call while CultMesh owns the
 bound live feed. The facade also indexes those handles by `CultDocument`
-schema name/version, so a caller can resolve the shared schema identity even
-when exact local CLR type identity is not the public contract.
+schema name/version and can adapt a handle to a different local CLR document
+type with the same schema identity, so caller code can start treating shared
+schema identity as the contract even before CultMesh owns alias conversion
+directly.
 
 Goal: every client-facing state access becomes a single CultMesh document, collection, query, or pointer call. The caller names the domain state it wants and gets a typed reactive value. It does not manually inspect daemon frames, current-state projections, station rows, record keys, local facade indexes, or transport route details.
 
@@ -338,7 +340,7 @@ const refit = await client.aetheria()
 
 Work:
 
-- Keep pushing shared CultMesh typed reactive document and collection handles down until type/schema lookup, including safe conversion for schema-compatible CLR aliases, is owned by CultMesh rather than by the Aetheria facade registry.
+- Keep pushing shared CultMesh typed reactive document and collection handles down until type/schema lookup, including the current Aetheria facade shim for schema-compatible CLR aliases, is owned by CultMesh rather than by the Aetheria facade registry.
 - Generate Aetheria current/station/zone/catalog accessors from schema metadata.
 - Move derived-state joins, such as current docking bay from current docking plus station refit plus entity records, into generated/internal query executors.
 - Replace remaining Unity menu/HUD/render calls to `TryResolve*` and `_observedFacadeIndex` with typed handles or generated/internal render adapters.
@@ -349,7 +351,7 @@ Work:
 Gates:
 
 - `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `LocalMenu`, `SchematicDisplay`, `SectorRenderer`, `MapRenderer`, and `ZoneRenderer` do not manually join state projections to obtain domain values.
-- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Watch<TDocument>()` as the C# stepping stone toward CultMesh-native type/schema lookup.
+- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, including same-schema CLR aliases, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Watch<TDocument>()` as the C# stepping stone toward CultMesh-native type/schema lookup.
 - Client-facing code contains no `_observedFacadeIndex.TryResolve*` outside Unity render adapter internals.
 - Client-facing code contains no `ResolveClient().Current*Async().GetAwaiter().GetResult()` or equivalent blocking state reads.
 - `TryGetTypedCurrentDockingBayFacade` and similar transitional helpers are deleted rather than renamed.

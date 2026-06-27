@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
 using R3;
 
@@ -43,6 +44,8 @@ namespace GameCult.Aetheria.State.Verse
         public System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources => _feed.Sources;
 
         public CultMeshLiveFeed<AetheriaRuntimeStateQueryParameters, TDocument> Feed => _feed.Feed;
+
+        internal CultMeshVerseContext Context => _feed.Context;
 
         public Task<TDocument> LatestAsync()
         {
@@ -88,6 +91,42 @@ namespace GameCult.Aetheria.State.Verse
             var verse = CultMesh.Verse("aetheria.local", runtimeId);
             return new AetheriaRuntimeProjectedDocument<TDocument>(feed.Bind(verse));
         }
+
+        public AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>()
+        {
+            ValidateSchemaAlias(typeof(TDocument), typeof(TAlias));
+
+            TAlias Convert(TDocument document)
+            {
+                if (document is TAlias alreadyTyped)
+                    return alreadyTyped;
+
+                var payload = CultDocumentMessagePackSerialization.SerializeUntyped(document!, typeof(TDocument));
+                return (TAlias)CultDocumentMessagePackSerialization.DeserializeUntyped(typeof(TAlias), payload);
+            }
+
+            var feed = new CultMeshLiveFeed<AetheriaRuntimeStateQueryParameters, TAlias>(
+                DocumentId,
+                async (parameters, _context) => Convert(await _feed.SnapshotAsync(parameters).ConfigureAwait(false)),
+                (parameters, _context) => _feed.Watch(parameters).Select(Convert),
+                sources: Sources,
+                routeHint: RouteHint);
+
+            return new AetheriaRuntimeProjectedDocument<TAlias>(feed.Bind(Context));
+        }
+
+        private static void ValidateSchemaAlias(Type sourceType, Type aliasType)
+        {
+            var source = sourceType.GetCustomAttribute<CultDocumentAttribute>();
+            var alias = aliasType.GetCustomAttribute<CultDocumentAttribute>();
+            if (source == null || alias == null ||
+                !string.Equals(source.SchemaName, alias.SchemaName, StringComparison.Ordinal) ||
+                !string.Equals(source.SchemaVersion, alias.SchemaVersion, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"{aliasType.FullName} cannot alias {sourceType.FullName}; CultDocument schema name/version must match exactly.");
+            }
+        }
     }
 
     public interface IAetheriaRuntimeProjectedDocument
@@ -103,6 +142,8 @@ namespace GameCult.Aetheria.State.Verse
         CultMeshRouteHint RouteHint { get; }
 
         System.Collections.Generic.IReadOnlyList<CultMeshProjectionSource> Sources { get; }
+
+        AetheriaRuntimeProjectedDocument<TAlias> AsSchemaAlias<TAlias>();
     }
 
     public sealed class AetheriaClientState
@@ -182,10 +223,15 @@ namespace GameCult.Aetheria.State.Verse
 
             var schemaVersion = SchemaVersionFor(typeof(TDocument));
             if (!string.IsNullOrWhiteSpace(schemaVersion) &&
-                _documentsBySchema.TryGetValue(schemaVersion, out var schemaDocument) &&
-                schemaDocument is AetheriaRuntimeProjectedDocument<TDocument> schemaTypedDocument)
+                _documentsBySchema.TryGetValue(schemaVersion, out var schemaDocument))
             {
-                document = schemaTypedDocument;
+                if (schemaDocument is AetheriaRuntimeProjectedDocument<TDocument> schemaTypedDocument)
+                {
+                    document = schemaTypedDocument;
+                    return true;
+                }
+
+                document = schemaDocument.AsSchemaAlias<TDocument>();
                 return true;
             }
 
