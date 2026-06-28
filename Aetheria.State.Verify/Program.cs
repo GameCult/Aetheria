@@ -5009,7 +5009,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        "AetheriaRuntimeCurrentEntitySession _currentEntity",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "ResolveCurrentEntity()",
         "currentEntity = ResolveCurrentEntity();"
     };
@@ -7025,12 +7025,12 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     }
 
     var clientState = File.ReadAllText(clientStatePath);
-    if (!clientState.Contains("public AetheriaRuntimeCurrentEntitySession ObserveEntity(", StringComparison.Ordinal) ||
-        !clientState.Contains("public AetheriaRuntimeStationRefitSession ObserveStationRefit(", StringComparison.Ordinal) ||
-        !clientState.Contains("public AetheriaRuntimeInventorySession ObserveInventory(", StringComparison.Ordinal))
+    if (!clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose managed session access for current entity, station refit, and indexed inventory documents.");
+            "AetheriaClientState must expose direct managed reactive typed access for current entity, station refit, and indexed inventory documents.");
     }
 
     var sources = new Dictionary<string, string>
@@ -7044,11 +7044,11 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var requiredSymbols = new[]
         {
             "ResolveCurrentEntity()",
-            ".ObserveEntity()",
+            ".ReactiveEntity()",
             "ResolveStationRefitDocument()",
-            ".ObserveStationRefit()",
+            ".ReactiveStationRefit()",
             "ResolveInventory(entityIndex)",
-            ".ObserveInventory(entityIndex)",
+            ".ReactiveInventory(entityIndex)",
             "_inventory?.Current"
         };
         var missingSymbols = requiredSymbols
@@ -7063,12 +7063,12 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
 
         var forbiddenCompactedSymbols = new[]
         {
-            "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
-            "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
-            "CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>",
-            ".ReactiveEntity()",
-            ".ReactiveStationRefit()",
-            ".ReactiveInventory(entityIndex)",
+            "AetheriaRuntimeCurrentEntitySession",
+            "AetheriaRuntimeStationRefitSession",
+            "AetheriaRuntimeInventorySession",
+            ".ObserveEntity()",
+            ".ObserveStationRefit()",
+            ".ObserveInventory(entityIndex)",
             ".Latest<AetheriaRuntimeCurrentEntityDocument>()",
             ".Latest<AetheriaRuntimeStationRefitDocument>()",
             ".Details.LatestInventory(entityIndex)",
@@ -7084,8 +7084,33 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         if (hits.Length > 0)
         {
             throw new InvalidOperationException(
-                $"{name} still walks CultMesh document handles manually instead of using managed typed client state.");
+                $"{name} still routes inventory validation through session wrappers instead of direct managed reactive typed documents.");
         }
+
+        RequireReactiveTypedDocumentAccess(
+            source,
+            name,
+            "AetheriaRuntimeCurrentEntityDocument",
+            "_currentEntity",
+            ".ReactiveEntity()",
+            "AetheriaRuntimeCurrentEntitySession",
+            ".ObserveEntity()");
+        RequireReactiveTypedDocumentAccess(
+            source,
+            name,
+            "AetheriaRuntimeStationRefitDocument",
+            "_stationRefit",
+            ".ReactiveStationRefit()",
+            "AetheriaRuntimeStationRefitSession",
+            ".ObserveStationRefit()");
+        RequireReactiveTypedDocumentAccess(
+            source,
+            name,
+            "AetheriaRuntimeInventoryDocument",
+            "_inventory",
+            ".ReactiveInventory(entityIndex)",
+            "AetheriaRuntimeInventorySession",
+            ".ObserveInventory(entityIndex)");
     }
 
     Console.WriteLine("Inventory validation: cargo/equipment checks read managed typed client documents instead of manual handle walks");
@@ -16768,7 +16793,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
         ".Details",
-        ".ObserveInventory(entityIndex)",
+        ".ReactiveInventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
@@ -17312,10 +17337,10 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        "AetheriaRuntimeDaemonFrameSession _loadoutFrame",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
         "ProjectLoadoutTemplate(targetEntityKey)",
         "AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(",
-        ".ObserveDaemonFrame()",
+        ".ReactiveDaemonFrame()",
         "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
@@ -17329,12 +17354,21 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
             string.Join(", ", missingInventoryPanelSymbols));
     }
 
-    if (inventoryPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame", StringComparison.Ordinal) ||
-        inventoryPanel.Contains(".ReactiveDaemonFrame()", StringComparison.Ordinal))
+    if (inventoryPanel.Contains("AetheriaRuntimeDaemonFrameSession _loadoutFrame", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still owns a raw daemon-frame CultMesh document instead of AetheriaRuntimeDaemonFrameSession.");
+            "InventoryPanel still routes loadout snapshots through AetheriaRuntimeDaemonFrameSession instead of a managed reactive typed daemon-frame document.");
     }
+
+    RequireReactiveTypedDocumentAccess(
+        inventoryPanel,
+        "InventoryPanel",
+        "AetheriaRuntimeDaemonFrameDocument",
+        "_loadoutFrame",
+        ".ReactiveDaemonFrame()",
+        "AetheriaRuntimeDaemonFrameSession",
+        ".ObserveDaemonFrame()");
 
     if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal) ||
         inventoryPanel.Contains(".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)", StringComparison.Ordinal) ||

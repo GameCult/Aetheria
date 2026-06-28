@@ -34,10 +34,10 @@ public class InventoryMenu : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private AetheriaRuntimeCurrentEntitySession _currentEntity;
-    private AetheriaRuntimeStationRefitSession _stationRefit;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
     private int _inventoryEntityIndex = -1;
-    private AetheriaRuntimeInventorySession _inventory;
+    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private AetheriaUnityObservedDockingIndex _observedDockingIndex;
@@ -967,7 +967,7 @@ public class InventoryMenu : MonoBehaviour
             _currentEntity = ResolveClient()
                 .State
                 .Current
-                .ObserveEntity();
+                .ReactiveEntity();
         }
         catch (Exception ex)
         {
@@ -986,7 +986,7 @@ public class InventoryMenu : MonoBehaviour
         {
             _stationRefit = ResolveClient()
                 .State
-                .ObserveStationRefit();
+                .ReactiveStationRefit();
         }
         catch (Exception ex)
         {
@@ -1006,7 +1006,7 @@ public class InventoryMenu : MonoBehaviour
             var nextInventory = ResolveClient()
                 .State
                 .Details
-                .ObserveInventory(entityIndex);
+                .ReactiveInventory(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;

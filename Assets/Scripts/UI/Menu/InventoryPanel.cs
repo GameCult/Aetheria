@@ -111,11 +111,11 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private AetheriaRuntimeCurrentEntitySession _currentEntity;
-    private AetheriaRuntimeStationRefitSession _stationRefit;
-    private AetheriaRuntimeDaemonFrameSession _loadoutFrame;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame;
     private int _inventoryEntityIndex = -1;
-    private AetheriaRuntimeInventorySession _inventory;
+    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
         Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
     private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
@@ -1506,7 +1506,7 @@ private void Update()
             _currentEntity = ResolveClient()
                 .State
                 .Current
-                .ObserveEntity();
+                .ReactiveEntity();
         }
         catch (Exception ex)
         {
@@ -1525,7 +1525,7 @@ private void Update()
         {
             _stationRefit = ResolveClient()
                 .State
-                .ObserveStationRefit();
+                .ReactiveStationRefit();
         }
         catch (Exception ex)
         {
@@ -1552,7 +1552,7 @@ private void Update()
         {
             _loadoutFrame = ResolveClient()
                 .State
-                .ObserveDaemonFrame();
+                .ReactiveDaemonFrame();
         }
         catch (Exception ex)
         {
@@ -1572,7 +1572,7 @@ private void Update()
             var nextInventory = ResolveClient()
                 .State
                 .Details
-                .ObserveInventory(entityIndex);
+                .ReactiveInventory(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
