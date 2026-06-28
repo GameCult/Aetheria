@@ -267,7 +267,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var frame = await state.Daemon.LatestFrame.ReactiveAsync(options).ConfigureAwait(false);
+            var frame = await state.ReactiveDaemonFrameAsync(options).ConfigureAwait(false);
             return new AetheriaRuntimeReactiveLoadoutSnapshotProjector(frame);
         }
 

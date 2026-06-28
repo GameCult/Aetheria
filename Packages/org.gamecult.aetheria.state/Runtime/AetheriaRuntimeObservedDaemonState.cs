@@ -56,7 +56,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var frame = await state.LatestFrame.ReactiveAsync(options).ConfigureAwait(false);
+            var frame = await state.ReactiveDaemonFrameAsync(options).ConfigureAwait(false);
             var soaView = await TryCreateSoaViewAsync(state, options).ConfigureAwait(false);
             return new AetheriaRuntimeReactiveObservedDaemonState(frame, soaView);
         }
@@ -106,7 +106,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             try
             {
-                return await state.LatestSoaView.ReactiveAsync(options).ConfigureAwait(false);
+                return await state.ReactiveDaemonSoaViewAsync(options).ConfigureAwait(false);
             }
             catch (KeyNotFoundException)
             {

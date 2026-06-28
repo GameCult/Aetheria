@@ -7594,7 +7594,9 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var requiredClientSymbols = new[]
     {
         "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
+        "public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(",
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
+        "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
         "public AetheriaClientDockingSnapshot LatestDockingState()",
         "public AetheriaClientReactiveDockingState ReactiveDockingState(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
@@ -7652,6 +7654,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         throw new InvalidOperationException(
             "Observed daemon state compatibility reads must delegate to named AetheriaClientState accessors: " +
             string.Join(", ", missingObservedSymbols));
+    }
+
+    if (observedDaemonState.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("state.LatestSoaView.ReactiveAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Observed daemon reactive state must delegate through named AetheriaClientState reactive accessors instead of walking raw CultMesh handles.");
     }
 
     if (observedDaemonState.Contains("state.LatestDaemonFrameAsync()", StringComparison.Ordinal) ||
@@ -14871,8 +14880,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
         "public sealed class AetheriaRuntimeReactiveObservedDaemonState",
         "public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(",
-        "state.LatestFrame.ReactiveAsync(options)",
-        "state.LatestSoaView.ReactiveAsync(options)",
+        "state.ReactiveDaemonFrameAsync(options)",
+        "state.ReactiveDaemonSoaViewAsync(options)",
         "public bool TryCurrent(out AetheriaRuntimeObservedDaemonState? observed)"
     };
     var missingObservedDaemonStateSymbols = requiredObservedDaemonStateSymbols
@@ -14891,7 +14900,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "FramePath",
         "SoaViewPath",
         "AetheriaRuntimeDaemonFrameStore.GetFramePath",
-        "SoaViewStore.GetViewPath"
+        "SoaViewStore.GetViewPath",
+        "state.LatestFrame.ReactiveAsync",
+        "state.LatestSoaView.ReactiveAsync"
     };
     var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
         .Where(symbol => observedDaemonState.Contains(symbol, StringComparison.Ordinal))
@@ -16472,7 +16483,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
         "public sealed class AetheriaRuntimeReactiveLoadoutSnapshotProjector",
-        "state.Daemon.LatestFrame.ReactiveAsync(options)",
+        "state.ReactiveDaemonFrameAsync(options)",
         "public AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string entityKey)",
         "ProjectLoadoutTemplate(",
         "frame.Run ?? new AetheriaRuntimeRunCheckpointCommit()",
@@ -16492,6 +16503,13 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         throw new InvalidOperationException(
             "Loadout template save payloads still perform one-shot daemon frame reads instead of using a reactive typed frame document.");
+    }
+
+    if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Loadout template save payloads must use named AetheriaClientState reactive daemon frame access instead of walking raw CultMesh handles.");
     }
 
     var forbiddenActionSymbols = new[]

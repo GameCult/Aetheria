@@ -211,6 +211,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestDaemonFrameAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>> ReactiveDaemonFrameAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LatestFrame.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LatestFrame.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestDaemonSoaViewAsync()
         {
             return LatestSoaView.LatestAsync();
@@ -219,6 +231,18 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()
         {
             return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>> ReactiveDaemonSoaViewAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LatestSoaView.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LatestSoaView.Reactive(options);
         }
 
         public Task<AetheriaClientDockingSnapshot> LatestDockingStateAsync()
