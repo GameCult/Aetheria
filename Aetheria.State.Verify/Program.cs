@@ -7327,8 +7327,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredActionBarSymbols = new[]
     {
         "public abstract class ActionBarBinding : IDisposable",
-        "AetheriaRuntimeCatalogSession _catalog",
-        "Client.State.ObserveCatalog()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "Client.State.ReactiveCatalog()",
         "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
         "binding?.Dispose()",
         "private void OnDestroy()"
@@ -7343,11 +7343,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingActionBarSymbols));
     }
 
-    if (actionBarSlot.Contains("CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog", StringComparison.Ordinal) ||
-        actionBarSlot.Contains("Client.State.ReactiveCatalog()", StringComparison.Ordinal))
+    if (actionBarSlot.Contains("AetheriaRuntimeCatalogSession _catalog", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("Client.State.ObserveCatalog()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionBarSlot still owns the raw catalog CultMesh document instead of AetheriaRuntimeCatalogSession.");
+            "ActionBarSlot still routes through AetheriaRuntimeCatalogSession instead of its managed reactive typed catalog document.");
     }
 
     var schematicDisplay = File.ReadAllText(Path.Combine(
