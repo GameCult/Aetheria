@@ -7022,15 +7022,11 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     var clientState = File.ReadAllText(clientStatePath);
     var requiredClientSymbols = new[]
     {
-        "public AetheriaClientDockingSnapshot LatestDockingState()",
-        "public AetheriaClientReactiveDockingState ReactiveDockingState(",
-        "public AetheriaClientReactiveDockingState Reactive(",
-        "public sealed class AetheriaClientReactiveDockingState : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
-        "public AetheriaClientDockingSnapshot Current =>",
-        "public bool TryCurrent(out AetheriaClientDockingSnapshot"
+        "public AetheriaClientCurrentState Current { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
+        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7038,8 +7034,26 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (missingClientSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientDockingState must expose a managed reactive typed docking snapshot for Unity menu surfaces: " +
+            "AetheriaClientState must expose managed typed docking documents directly for Unity menu surfaces: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    var forbiddenClientSymbols = new[]
+    {
+        "AetheriaClientDockingState",
+        "AetheriaClientDockingSnapshot",
+        "AetheriaClientReactiveDockingState",
+        "LatestDockingState",
+        "ReactiveDockingState"
+    };
+    var forbiddenClientHits = forbiddenClientSymbols
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenClientHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState still exposes aggregate docking snapshot wrappers instead of direct managed typed documents: " +
+            string.Join(", ", forbiddenClientHits));
     }
 
     var menuPaths = new[]
@@ -7703,8 +7717,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(",
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
-        "public AetheriaClientDockingSnapshot LatestDockingState()",
-        "public AetheriaClientReactiveDockingState ReactiveDockingState(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",

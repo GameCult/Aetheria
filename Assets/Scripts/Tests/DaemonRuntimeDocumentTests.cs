@@ -210,8 +210,13 @@ public class DaemonRuntimeDocumentTests
         var editorSurface = client.State.LatestEditorSurface();
         var editorTuiSurface = client.State.LatestEditorTuiSurface();
         var authorityStatus = client.State.LatestAuthorityPolicy();
-        var dockingState = client.State.LatestDockingState();
-        using var reactiveDockingState = client.State.ReactiveDockingState();
+        var currentDocking = client.State.Current.Docking
+            .LatestAsync()
+            .GetAwaiter()
+            .GetResult();
+        var stationRefit = client.State.LatestStationRefit();
+        using var reactiveCurrentDocking = client.State.Current.ReactiveDocking();
+        using var reactiveStationRefit = client.State.ReactiveStationRefit();
         using var reactiveGameSurface = client.State.ReactiveGameSurface();
         using var reactiveGameTuiSurface = client.State.ReactiveGameTuiSurface();
         using var reactiveEditorSurface = client.State.ReactiveEditorSurface();
@@ -287,10 +292,11 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, zoneRenderReactive.Current.Schema);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
-        Assert.AreEqual(currentEntity.EntityKey, dockingState.CurrentEntityKey);
-        Assert.AreEqual(currentEntity.EntityKey, reactiveDockingState.Current.CurrentEntityKey);
-        Assert.AreEqual("", dockingState.DockParentEntityKey);
-        Assert.AreEqual(-1, dockingState.DockingBayIndex);
+        Assert.AreEqual(currentEntity.EntityKey, currentDocking.CurrentEntityKey);
+        Assert.AreEqual(currentEntity.EntityKey, reactiveCurrentDocking.Current.CurrentEntityKey);
+        Assert.AreEqual("", stationRefit.DockParentEntityKey);
+        Assert.AreEqual("", reactiveStationRefit.Current.DockParentEntityKey);
+        Assert.AreEqual(-1, stationRefit.DockingBayIndex);
         Assert.IsTrue(client.State.Current.Entity.Sources.Any(source =>
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
         Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>

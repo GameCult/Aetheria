@@ -77,7 +77,6 @@ namespace GameCult.Aetheria.State.Verse
                 zoneDetails,
                 selectedObject,
                 inventory);
-            DockingState = new AetheriaClientDockingState(Current.Entity, Current.Docking, StationRefit);
             Starbridge = new AetheriaClientStarbridgeState(
                 starbridgeScenario,
                 starbridgeSession,
@@ -123,8 +122,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientSettingsState Settings { get; }
 
         public AetheriaClientCurrentState Current { get; }
-
-        public AetheriaClientDockingState DockingState { get; }
 
         public AetheriaClientViewportState Viewports { get; }
 
@@ -244,28 +241,6 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return LatestSoaView.Reactive(options);
-        }
-
-        public Task<AetheriaClientDockingSnapshot> LatestDockingStateAsync()
-        {
-            return DockingState.LatestAsync();
-        }
-
-        public AetheriaClientDockingSnapshot LatestDockingState()
-        {
-            return LatestDockingStateAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaClientReactiveDockingState> ReactiveDockingStateAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return DockingState.ReactiveAsync(options);
-        }
-
-        public AetheriaClientReactiveDockingState ReactiveDockingState(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return ReactiveDockingStateAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
@@ -914,178 +889,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             return VerseHost.Reactive(options);
         }
-    }
-
-    public sealed class AetheriaClientDockingState
-    {
-        private readonly CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-        private readonly CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
-        private readonly CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> _stationRefit;
-
-        internal AetheriaClientDockingState(
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
-            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit)
-        {
-            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
-            _currentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
-            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
-        }
-
-        public Task<AetheriaClientDockingSnapshot> LatestAsync()
-        {
-            return CultMesh.LatestAsync(
-                _currentEntity,
-                _currentDocking,
-                _stationRefit,
-                CreateSnapshot);
-        }
-
-        public AetheriaClientDockingSnapshot Latest()
-        {
-            return LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public bool TryLatest(out AetheriaClientDockingSnapshot? snapshot)
-        {
-            snapshot = null;
-            try
-            {
-                snapshot = Latest();
-                return snapshot != null;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public Task<AetheriaClientReactiveDockingState> ReactiveAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return AetheriaClientReactiveDockingState.CreateAsync(
-                _currentEntity,
-                _currentDocking,
-                _stationRefit,
-                options);
-        }
-
-        public AetheriaClientReactiveDockingState Reactive(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return ReactiveAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        private static AetheriaClientDockingSnapshot CreateSnapshot(
-            AetheriaRuntimeCurrentEntityDocument? entity,
-            AetheriaRuntimeCurrentDockingDocument? docking,
-            AetheriaRuntimeStationRefitDocument? refit)
-        {
-            var dockingBay = refit?.IsDocked == true && refit.DockingBayIndex >= 0
-                ? (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
-                    .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex)
-                : null;
-            return new AetheriaClientDockingSnapshot(entity, docking, refit, dockingBay);
-        }
-
-        internal static AetheriaClientDockingSnapshot SnapshotFromCurrent(
-            AetheriaRuntimeCurrentEntityDocument? entity,
-            AetheriaRuntimeCurrentDockingDocument? docking,
-            AetheriaRuntimeStationRefitDocument? refit)
-        {
-            return CreateSnapshot(entity, docking, refit);
-        }
-    }
-
-    public sealed class AetheriaClientReactiveDockingState : IDisposable
-    {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-
-        private AetheriaClientReactiveDockingState(
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity,
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> currentDocking,
-            CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> stationRefit)
-        {
-            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
-            _currentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
-            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
-        }
-
-        internal static async Task<AetheriaClientReactiveDockingState> CreateAsync(
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
-            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
-            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit,
-            CultMeshReactiveDocumentOptions? options)
-        {
-            var currentEntityTask = currentEntity.ReactiveAsync(options);
-            var currentDockingTask = currentDocking.ReactiveAsync(options);
-            var stationRefitTask = stationRefit.ReactiveAsync(options);
-            await Task.WhenAll(currentEntityTask, currentDockingTask, stationRefitTask).ConfigureAwait(false);
-            return new AetheriaClientReactiveDockingState(
-                currentEntityTask.Result,
-                currentDockingTask.Result,
-                stationRefitTask.Result);
-        }
-
-        public AetheriaClientDockingSnapshot Current =>
-            AetheriaClientDockingState.SnapshotFromCurrent(
-                _currentEntity.Current,
-                _currentDocking.Current,
-                _stationRefit.Current);
-
-        public bool TryCurrent(out AetheriaClientDockingSnapshot? snapshot)
-        {
-            snapshot = null;
-            try
-            {
-                snapshot = Current;
-                return snapshot != null;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public void Dispose()
-        {
-            _currentEntity.Dispose();
-            _currentDocking.Dispose();
-            _stationRefit.Dispose();
-        }
-    }
-
-    public sealed class AetheriaClientDockingSnapshot
-    {
-        internal AetheriaClientDockingSnapshot(
-            AetheriaRuntimeCurrentEntityDocument? currentEntity,
-            AetheriaRuntimeCurrentDockingDocument? currentDocking,
-            AetheriaRuntimeStationRefitDocument? stationRefit,
-            AetheriaRuntimeStationDockingBayRow? currentDockingBay)
-        {
-            CurrentEntity = currentEntity;
-            CurrentDocking = currentDocking;
-            StationRefit = stationRefit;
-            CurrentDockingBay = currentDockingBay;
-        }
-
-        public AetheriaRuntimeCurrentEntityDocument? CurrentEntity { get; }
-
-        public AetheriaRuntimeCurrentDockingDocument? CurrentDocking { get; }
-
-        public AetheriaRuntimeStationRefitDocument? StationRefit { get; }
-
-        public AetheriaRuntimeStationDockingBayRow? CurrentDockingBay { get; }
-
-        public string CurrentEntityKey => CurrentEntity?.EntityKey ?? CurrentDocking?.CurrentEntityKey ?? "";
-
-        public string DockParentEntityKey => StationRefit?.DockParentEntityKey ?? CurrentDocking?.DockParentEntityKey ?? "";
-
-        public int DockingBayIndex => CurrentDockingBay?.DockingBayIndex ?? StationRefit?.DockingBayIndex ?? CurrentDocking?.DockingBayIndex ?? -1;
-
-        public bool IsDocked => StationRefit?.IsDocked == true && CurrentDockingBay != null;
     }
 
     public sealed class AetheriaClientViewportState
