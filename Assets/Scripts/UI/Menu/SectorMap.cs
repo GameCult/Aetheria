@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -52,7 +53,7 @@ public class SectorMap : MonoBehaviour
     private readonly Queue<IEnumerable<int>> _queuedZoneReveals = new Queue<IEnumerable<int>>();
     private readonly Dictionary<int, AetheriaRuntimeSectorMapZone> _zonesByIndex =
         new Dictionary<int, AetheriaRuntimeSectorMapZone>();
-    private AetheriaRuntimeSectorMapSession _sectorMapDocument;
+    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMapDocument;
     private AetheriaRuntimeSectorMapDocument _sectorMap;
     private bool _sectorMapLoaded;
 
@@ -222,8 +223,8 @@ public class SectorMap : MonoBehaviour
     {
         _sectorMapDocument ??= ResolveClient()
             .State
-            .ObserveSectorMap();
-        _sectorMap = _sectorMapDocument.Current;
+            .ReactiveSectorMap();
+        _sectorMap = _sectorMapDocument?.Current;
 
         if (_sectorMapLoaded)
             return;

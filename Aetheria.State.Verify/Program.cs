@@ -13832,7 +13832,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".State", StringComparison.Ordinal) ||
-        !sectorMap.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13846,12 +13846,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Map and sector UI must not read the raw ObservedGalaxy projection directly.");
     }
 
-    if (sectorMap.Contains("CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMapDocument", StringComparison.Ordinal) ||
-        sectorMap.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "SectorMap still owns a raw sector-map CultMesh document instead of AetheriaRuntimeSectorMapSession.");
-    }
+    RequireReactiveTypedDocumentAccess(
+        sectorMap,
+        "SectorMap",
+        "AetheriaRuntimeSectorMapDocument",
+        "_sectorMapDocument",
+        ".ReactiveSectorMap()",
+        "AetheriaRuntimeSectorMapSession",
+        ".ObserveSectorMap()");
 
     var requiredDaemonControlValidationSymbols = new[]
     {
@@ -17298,7 +17300,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
-        ".ObserveDaemonFrame()",
+        ".ReactiveDaemonFrame()",
         "ProjectLoadoutTemplate(",
         "frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
     };
@@ -17319,7 +17321,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     }
 
     if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal))
+        loadoutSnapshotProjector.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Loadout template save payloads must use named AetheriaClientState reactive daemon frame access instead of walking raw CultMesh handles.");
