@@ -10795,13 +10795,14 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 static void RequireAetheriaRuntimeVerseClientContract(string root)
 {
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var managedClientInputsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeManagedClientInputs.cs");
     var clientStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClientState.cs");
     var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
     var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
     var stateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, clientStatePath, surfaceStatePath, stateRefResolverPath, docPath };
+    var requiredFiles = new[] { clientPath, managedClientInputsPath, clientStatePath, surfaceStatePath, stateRefResolverPath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -10814,6 +10815,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     var client = File.ReadAllText(clientPath);
+    var managedClientInputs = File.ReadAllText(managedClientInputsPath);
     var clientState = File.ReadAllText(clientStatePath);
     var surfaceState = File.ReadAllText(surfaceStatePath);
     var stateRefResolver = File.ReadAllText(stateRefResolverPath);
@@ -10857,23 +10859,22 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchDaemonEditorTuiSurfaces()",
         "CultMeshMutableStatePointer<EveSurfaceState>",
         "private AetheriaClientState? _aetheriaState",
-        "private AetheriaRuntimeReactiveProjectionInputs? _projectionInputs",
-        "_projectionInputs?.Dispose()",
+        "private AetheriaRuntimeManagedClientInputs? _managedClientInputs",
+        "_managedClientInputs?.Dispose()",
         "return _aetheriaState ??= CreateAetheriaState();",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
-        "new AetheriaRuntimeReactiveProjectionInputs(",
+        "new AetheriaRuntimeManagedClientInputs(",
         "catalogDocument.Reactive()",
         "loadoutTemplatesDocument.Reactive()",
         "starbridgeScenarioDocument.Reactive()",
         "starbridgeSessionDocument.Reactive()",
         "latestFrameDocument.Reactive()",
-        "projectionInputs.RequireFrame()",
-        "projectionInputs.Catalog",
-        "projectionInputs.LoadoutTemplates.Templates",
-        "projectionInputs.StarbridgeScenario",
-        "projectionInputs.StarbridgeSession",
-        "private sealed class AetheriaRuntimeReactiveProjectionInputs : IDisposable",
+        "managedInputs.RequireFrame()",
+        "managedInputs.Catalog",
+        "managedInputs.LoadoutTemplates.Templates",
+        "managedInputs.StarbridgeScenario",
+        "managedInputs.StarbridgeSession",
         "BootstrapCatalogDocument(",
         "CatalogBootstrapSource(",
         "BootstrapRuntimeCatalogSnapshot()",
@@ -10897,11 +10898,45 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             string.Join(", ", missingClientSymbols));
     }
 
+    var requiredManagedInputSymbols = new[]
+    {
+        "internal sealed class AetheriaRuntimeManagedClientInputs : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
+        "CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>",
+        "public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current",
+        "public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current",
+        "public AetheriaRuntimeDaemonFrameDocument RequireFrame()",
+        "_daemonFrame.Dispose();",
+        "_catalog.Dispose();",
+        "_loadoutTemplates.Dispose();"
+    };
+    var missingManagedInputSymbols = requiredManagedInputSymbols
+        .Where(symbol => !managedClientInputs.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingManagedInputSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria managed client input documents must live outside VerseClient as a named disposable typed context: " +
+            string.Join(", ", missingManagedInputSymbols));
+    }
+
+    if (client.Contains("AetheriaRuntimeReactiveProjectionInputs", StringComparison.Ordinal) ||
+        client.Contains("private sealed class AetheriaRuntimeManagedClientInputs", StringComparison.Ordinal) ||
+        client.Contains("_projectionInputs", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("ProjectionInputs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient reintroduced a nested projection-input helper instead of using managed typed client inputs.");
+    }
+
     if (client.Contains("ProjectStationRefitAsync", StringComparison.Ordinal) &&
         client.Contains("loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria runtime Verse client station-refit projection still polls loadout templates instead of sampling managed reactive projection inputs.");
+            "Aetheria runtime Verse client station-refit projection still polls loadout templates instead of sampling managed reactive client inputs.");
     }
 
     if (client.Contains("ProjectStarbridgeSummaryAsync", StringComparison.Ordinal) &&
@@ -10910,14 +10945,14 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             client.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal)))
     {
         throw new InvalidOperationException(
-            "Aetheria runtime Verse client Starbridge projection still polls sibling documents instead of sampling managed reactive projection inputs.");
+            "Aetheria runtime Verse client Starbridge projection still polls sibling documents instead of sampling managed reactive client inputs.");
     }
 
     if (client.Contains("RequireFrameAsync", StringComparison.Ordinal) ||
         client.Contains("Aetheria().Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria runtime Verse client projected documents still bootstrap through one-shot latest-frame reads instead of the managed reactive projection inputs.");
+            "Aetheria runtime Verse client projected documents still bootstrap through one-shot latest-frame reads instead of the managed reactive client inputs.");
     }
 
     if (client.Contains("_fallbackCatalog", StringComparison.Ordinal) ||
@@ -11030,7 +11065,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var starbridgeSummaryBlock = indexedDocumentStart > starbridgeSummaryStart
         ? client.Substring(starbridgeSummaryStart, indexedDocumentStart - starbridgeSummaryStart)
         : client.Substring(starbridgeSummaryStart);
-    if (!starbridgeSummaryBlock.Contains("projectionInputs.Catalog", StringComparison.Ordinal) ||
+    if (!starbridgeSummaryBlock.Contains("managedInputs.Catalog", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("BootstrapRuntimeCatalogSnapshot()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
@@ -16859,7 +16894,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
-        !verseClient.Contains("projectionInputs.LoadoutTemplates.Templates", StringComparison.Ordinal) ||
+        !verseClient.Contains("managedInputs.LoadoutTemplates.Templates", StringComparison.Ordinal) ||
         !verseClient.Contains("ProjectStationRefit(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

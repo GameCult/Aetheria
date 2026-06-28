@@ -144,7 +144,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly CultMeshNode _node;
         private AetheriaClientState? _aetheriaState;
-        private AetheriaRuntimeReactiveProjectionInputs? _projectionInputs;
+        private AetheriaRuntimeManagedClientInputs? _managedClientInputs;
         private bool _disposed;
 
         private AetheriaRuntimeVerseClient(string statePath, string runtimeId, CultMeshNode node)
@@ -515,7 +515,7 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
-            _projectionInputs?.Dispose();
+            _managedClientInputs?.Dispose();
             _node.Dispose();
         }
 
@@ -546,13 +546,13 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
             var latestFrameDocument = Document<AetheriaRuntimeDaemonFrameDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
-            var projectionInputs = new AetheriaRuntimeReactiveProjectionInputs(
+            var managedInputs = new AetheriaRuntimeManagedClientInputs(
                 latestFrameDocument.Reactive(),
                 catalogDocument.Reactive(),
                 loadoutTemplatesDocument.Reactive(),
                 starbridgeScenarioDocument.Reactive(),
                 starbridgeSessionDocument.Reactive());
-            _projectionInputs = projectionInputs;
+            _managedClientInputs = managedInputs;
 
             return new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
@@ -678,7 +678,7 @@ namespace GameCult.Aetheria.State.Verse
                 return CultMesh.Document(
                     documentId,
                     verse,
-                    async _ => await project(projectionInputs.RequireFrame()).ConfigureAwait(false),
+                    async _ => await project(managedInputs.RequireFrame()).ConfigureAwait(false),
                     _ => frameChanges
                         .SelectAwait(async (frame, cancellationToken) =>
                             await project(frame).ConfigureAwait(false)),
@@ -714,8 +714,8 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return Task.FromResult(AetheriaRuntimeRtsProjection.ProjectStationRefit(
                     frame,
-                    projectionInputs.LoadoutTemplates.Templates,
-                    projectionInputs.Catalog));
+                    managedInputs.LoadoutTemplates.Templates,
+                    managedInputs.Catalog));
             }
 
             Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
@@ -723,9 +723,9 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return Task.FromResult(AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
-                    projectionInputs.StarbridgeScenario,
-                    projectionInputs.StarbridgeSession,
-                    projectionInputs.Catalog));
+                    managedInputs.StarbridgeScenario,
+                    managedInputs.StarbridgeSession,
+                    managedInputs.Catalog));
             }
 
             static string IndexedDocumentId(string prefix, int index)
@@ -774,53 +774,6 @@ namespace GameCult.Aetheria.State.Verse
             return CultMesh.ProjectionSource(
                 sourceId,
                 description: "managed Aetheria document bootstrap seed");
-        }
-
-        private sealed class AetheriaRuntimeReactiveProjectionInputs : IDisposable
-        {
-            private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
-            private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-            private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
-            private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;
-            private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;
-
-            public AetheriaRuntimeReactiveProjectionInputs(
-                CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
-                CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog,
-                CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
-                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
-                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession)
-            {
-                _daemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
-                _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-                _loadoutTemplates = loadoutTemplates ?? throw new ArgumentNullException(nameof(loadoutTemplates));
-                _starbridgeScenario = starbridgeScenario ?? throw new ArgumentNullException(nameof(starbridgeScenario));
-                _starbridgeSession = starbridgeSession ?? throw new ArgumentNullException(nameof(starbridgeSession));
-            }
-
-            public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current
-                ?? throw new InvalidOperationException("Aetheria Verse client has no runtime catalog document yet.");
-
-            public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current
-                ?? throw new InvalidOperationException("Aetheria Verse client has no loadout templates document yet.");
-
-            public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario => _starbridgeScenario.Current;
-            public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession => _starbridgeSession.Current;
-
-            public AetheriaRuntimeDaemonFrameDocument RequireFrame()
-            {
-                return _daemonFrame.Current
-                    ?? throw new InvalidOperationException("Aetheria Verse client has no daemon frame yet.");
-            }
-
-            public void Dispose()
-            {
-                _daemonFrame.Dispose();
-                _catalog.Dispose();
-                _loadoutTemplates.Dispose();
-                _starbridgeScenario.Dispose();
-                _starbridgeSession.Dispose();
-            }
         }
 
         private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()
