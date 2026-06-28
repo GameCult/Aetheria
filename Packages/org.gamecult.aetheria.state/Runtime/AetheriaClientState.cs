@@ -797,28 +797,57 @@ namespace GameCult.Aetheria.State.Verse
             return _playerSeat(seatId);
         }
 
-        public Task<AetheriaRuntimeStarbridgePlayerSeatDocument> LatestPlayerSeatAsync(string seatId)
+        public bool TryGetDocument<TDocument>(
+            string seatId,
+            out CultMeshDocumentHandle<TDocument> document)
+            where TDocument : class
         {
-            return PlayerSeat(seatId).LatestAsync();
+            if (typeof(TDocument) == typeof(AetheriaRuntimeStarbridgePlayerSeatDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)PlayerSeat(seatId);
+                return true;
+            }
+
+            document = null!;
+            return false;
         }
 
-        public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)
+            where TDocument : class
         {
-            return LatestPlayerSeatAsync(seatId).ConfigureAwait(false).GetAwaiter().GetResult();
+            if (TryGetDocument<TDocument>(seatId, out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria Starbridge state does not expose a parameterized document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument>> ReactivePlayerSeatAsync(
+        public Task<TDocument> LatestAsync<TDocument>(string seatId)
+            where TDocument : class
+        {
+            return Document<TDocument>(seatId).LatestAsync();
+        }
+
+        public TDocument Latest<TDocument>(string seatId)
+            where TDocument : class
+        {
+            return LatestAsync<TDocument>(seatId).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
             string seatId,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return PlayerSeat(seatId).ReactiveAsync(options);
+            return Document<TDocument>(seatId).ReactiveAsync(options);
         }
 
-        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat(
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
             string seatId,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return PlayerSeat(seatId).Reactive(options);
+            return Document<TDocument>(seatId).Reactive(options);
         }
 
     }

@@ -1,6 +1,6 @@
 # Aetheria Verse Client Contract
 
-Aetheria clients should enter the runtime through CultMesh typed state, not through
+Aetheria clients should enter the runtime through CultMesh typed Verse records, not through
 daemon internals. The daemon owns simulation authority over canonical shared
 documents; it does not own a separate private truth that is then copied into
 client state. Unity, tools, test harnesses, and later non-Unity clients open the

@@ -8129,9 +8129,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
-        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat("
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8314,6 +8312,46 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             string.Join(", ", survivingCurrentConvenienceWrappers));
     }
 
+    var starbridgeState = clientState.Split(
+        "public sealed class AetheriaClientStarbridgeState",
+        StringSplitOptions.None).Last();
+    var compactStarbridgeState = CompactSource(starbridgeState);
+    var requiredStarbridgeParameterizedSymbols = new[]
+    {
+        "publicboolTryGetDocument<TDocument>(stringseatId,outCultMeshDocumentHandle<TDocument>document)",
+        "publicCultMeshDocumentHandle<TDocument>Document<TDocument>(stringseatId)",
+        "publicTask<TDocument>LatestAsync<TDocument>(stringseatId)",
+        "publicTDocumentLatest<TDocument>(stringseatId)",
+        "publicTask<CultMeshReactiveDocument<TDocument>>ReactiveAsync<TDocument>(stringseatId,",
+        "publicCultMeshReactiveDocument<TDocument>Reactive<TDocument>(stringseatId,"
+    };
+    var missingStarbridgeParameterizedSymbols = requiredStarbridgeParameterizedSymbols
+        .Where(symbol => !compactStarbridgeState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStarbridgeParameterizedSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientStarbridgeState must expose generic parameterized document access for player-seat state: " +
+            string.Join(", ", missingStarbridgeParameterizedSymbols));
+    }
+
+    var forbiddenStarbridgeConvenienceWrappers = new[]
+    {
+        "LatestPlayerSeat(",
+        "LatestPlayerSeatAsync(",
+        "ReactivePlayerSeat(",
+        "ReactivePlayerSeatAsync("
+    };
+    var survivingStarbridgeConvenienceWrappers = forbiddenStarbridgeConvenienceWrappers
+        .Where(symbol => starbridgeState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingStarbridgeConvenienceWrappers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientStarbridgeState must use generic parameterized document access instead of named player-seat latest/reactive wrappers: " +
+            string.Join(", ", survivingStarbridgeConvenienceWrappers));
+    }
+
     var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
     if (!observedDaemonState.Contains("public static bool TryCreateCurrent(", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender)", StringComparison.Ordinal))
@@ -8432,14 +8470,17 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
-            ".ReactivePlayerSeat(seat.SeatId)",
+            ".Reactive<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
+            StringComparison.Ordinal) ||
+        !checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
+            ".Latest<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
             StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Starbridge player-seat examples must use the named managed reactive accessor instead of fetching the raw document handle.");
+            "Starbridge player-seat examples must use generic parameterized managed document access instead of named wrappers or raw handle walks.");
     }
 
-    Console.WriteLine("Domain document accessors: managed Aetheria state uses generic fixed-document reads plus named parameterized viewport/detail/Starbridge handles");
+    Console.WriteLine("Domain document accessors: managed Aetheria state uses generic fixed-document reads plus generic parameterized viewport/detail/Starbridge access");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)
