@@ -17,7 +17,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaDaemonObserver _daemonObserver;
     private AetheriaUnityPilotCommandSender _pilotCommands;
     private AetheriaUnityObservedDockingIndex _observedDocking;
-    private AetheriaUnityObservedFacadeProjector _observedFacadeProjector;
+    private AetheriaUnityObservedEntityProjector _observedEntityProjector;
     private AetheriaUnityCurrentEntityBinder _currentEntityBinder;
     private AetheriaUnityObservedZoneContextProjector _observedZoneContextProjector;
     private AetheriaUnityPilotFrameAdapter _pilotFrameAdapter;
@@ -37,10 +37,10 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedDockingIndex ObservedDocking =>
         _observedDocking ??= new AetheriaUnityObservedDockingIndex(
             () => ResolveDaemonObserver()?.Client,
-            _observedFacadeIndex);
-    private AetheriaUnityObservedFacadeProjector ObservedFacadeProjector =>
-        _observedFacadeProjector ??= new AetheriaUnityObservedFacadeProjector(
-            _observedFacadeIndex,
+            _observedEntityIndex);
+    private AetheriaUnityObservedEntityProjector ObservedEntityProjector =>
+        _observedEntityProjector ??= new AetheriaUnityObservedEntityProjector(
+            _observedEntityIndex,
             ItemManager,
             EntityConstructionBlueprintProjector.ProjectObservedEntity,
             _loadoutItemProjector.CreateLoadoutItem,
@@ -92,21 +92,21 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityPilotOperationAdapter PilotOperationAdapter =>
         _pilotOperationAdapter ??= new AetheriaUnityPilotOperationAdapter(
             () => PilotCommands,
-            _observedFacadeIndex,
+            _observedEntityIndex,
             () => _viewDirection,
             () => CurrentEntity);
     private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>
         _observedTargetQuery ??= new AetheriaUnityObservedTargetQuery(
             () => ResolveDaemonObserver()?.Client,
-            _observedFacadeIndex);
+            _observedEntityIndex);
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
             AetheriaUnityObservedRunProjection.FindZone,
             () => Zone,
             zone => Zone = zone,
-            _observedFacadeIndex,
-            ObservedFacadeProjector,
+            _observedEntityIndex,
+            ObservedEntityProjector,
             ObservedZoneContextProjector,
             () => ZoneRenderer,
             () => CurrentEntity,
@@ -217,7 +217,7 @@ public class ActionGameManager : MonoBehaviour
             TargetShieldsFill = TargetShieldsFill,
             MainMenu = MainMenu
         };
-    private readonly AetheriaUnityObservedFacadeIndex _observedFacadeIndex = new AetheriaUnityObservedFacadeIndex();
+    private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex = new AetheriaUnityObservedEntityIndex();
     private static RuntimePlayerSettings RuntimePlayerSettings
         => AetheriaUnityRuntimeClientProvider.PlayerSettings;
 
@@ -329,7 +329,7 @@ public class ActionGameManager : MonoBehaviour
         SceneWiring.ConfigureTargetPresentation(
             _targetPresentation,
             boot.RuntimeCatalog,
-            _observedFacadeIndex,
+            _observedEntityIndex,
             ObservedTargetQuery,
             () => ResolveDaemonObserver()?.Client);
         SceneWiring.ConfigureInventoryDragSession(_dragSession);
@@ -341,7 +341,7 @@ public class ActionGameManager : MonoBehaviour
             () => CurrentEntity,
             ResolveActionBarClient);
         SceneWiring.ConfigureRuntimeInputScreenShell(MenuShell);
-        SceneWiring.ConfigureObservedFacadeIndex(_observedFacadeIndex);
+        SceneWiring.ConfigureObservedEntityIndex(_observedEntityIndex);
 
         // TODO: Process Stories
 

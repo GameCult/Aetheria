@@ -2312,7 +2312,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     if (zoneRenderer.Contains("foreach (var entity in legacyEntityFacadeZone.Entities)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer must use the daemon-indexed observed facade projection supplied by gameplay instead of enumerating Unity Zone.Entities.");
+            "ZoneRenderer must use the daemon-indexed observed entity projection supplied by gameplay instead of enumerating Unity Zone.Entities.");
     }
 
     if (zoneRenderer.Contains("_legacyEntityFacadeZone", StringComparison.Ordinal) ||
@@ -2322,7 +2322,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         zoneRenderer.Contains("gridObject.Zone = ", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer must not keep Unity Zone facade handles; daemon snapshots and observed facade projections own renderer input.");
+            "ZoneRenderer must not keep Unity Zone facade handles; daemon snapshots and observed entity projections own renderer input.");
     }
 
     if (zoneRenderer.Contains("PerspectiveEntity.EntityInfoGathered", StringComparison.Ordinal))
@@ -2360,7 +2360,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private readonly Dictionary<int, AetheriaRuntimeDaemonCompassMarker> _daemonCompassMarkersByEntityIndex",
         "private readonly Dictionary<int, AetheriaRuntimeZoneTargetRow> _daemonTargetRowsByEntityIndex",
         "private readonly List<AetheriaRuntimeZoneContactRow> _daemonContactRows",
-        "private IReadOnlyDictionary<int, Entity> _observedEntityFacadesByDaemonIndex",
+        "private IReadOnlyDictionary<int, Entity> _observedEntitySnapshotsByDaemonIndex",
         "private readonly List<int> _daemonPresentationEntityIndices",
         "private readonly HashSet<int> _daemonPresentationEntityIndicesSet",
         "private readonly List<int> _daemonVisibleEntityIndices",
@@ -2371,14 +2371,14 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "_daemonWormholeExits.Add(new AetheriaRuntimeDaemonWormholeExit(",
         "public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances",
         "public void LoadDaemonZoneView(",
-        "IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,",
+        "IReadOnlyDictionary<int, Entity> observedEntitySnapshotsByDaemonIndex,",
         "AetheriaRuntimeZoneRenderDocument render)",
         "public BodySettingsCollection[] BodySettingsCollections;",
         "public void ApplyZoneRender(AetheriaRuntimeZoneRenderDocument render)",
         "_daemonCurrentEntityKey = render?.CurrentEntityKey ?? \"\";",
         "_daemonSimulationTimeSeconds = render?.SimulationTimeSeconds ?? 0;",
         "_zoneRenderBodies = render?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();",
-        "_observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;",
+        "_observedEntitySnapshotsByDaemonIndex = observedEntitySnapshotsByDaemonIndex;",
         "render?.ZoneRenderRadius ?? 2000",
         "private readonly HashSet<string> _daemonVisibleBodyKeys",
         "private void SyncDaemonBodyViews()",
@@ -2399,7 +2399,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ".Viewports",
         ".Objects(ToViewportBounds(viewport))",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
-        "_observedEntityFacadesByDaemonIndex.TryGetValue(entityIndex, out var entity)",
+        "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
         "UnloadEntity(pair.Value.Entity)",
         "private readonly Dictionary<int, EntityInstance> _entityInstancesByDaemonIndex",
@@ -2999,7 +2999,7 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
 {
     var itemManagerPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "ItemManager.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
-    var observedFacadeProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFacadeProjector.cs");
+    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
 
     var itemManager = File.Exists(itemManagerPath)
         ? File.ReadAllText(itemManagerPath)
@@ -3007,10 +3007,10 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ActionGameManager.cs is missing.");
-    var observedFacadeProjector = File.Exists(observedFacadeProjectorPath)
-        ? File.ReadAllText(observedFacadeProjectorPath)
-        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; AetheriaUnityObservedFacadeProjector.cs is missing.");
-    var runtimeRestoreSource = actionGameManager + "\n" + observedFacadeProjector;
+    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
+        ? File.ReadAllText(observedEntityProjectorPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; AetheriaUnityObservedEntityProjector.cs is missing.");
+    var runtimeRestoreSource = actionGameManager + "\n" + observedEntityProjector;
 
     var requiredFactoryMappings = new[]
     {
@@ -4769,8 +4769,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "TryResolveDockedLocalStory(out _currentLocation)",
         "private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)",
         "private bool TryResolveDockedLocalStory(out LocationStory story)",
-        "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
-        "_observedFacadeIndex.TryResolveDockingBayByRecordKey(",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "_observedEntityIndex.TryResolveDockingBayByRecordKey(",
         "dockingState.DockParentEntityKey",
         "dockingState.DockingBayIndex",
         "dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory }",
@@ -4893,7 +4893,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "ResolveDefaultShutdownPerformance()",
         "ResolvePlayerSettings()?.DefaultShutdownPerformance",
         "TryResolveCurrentEntityDocument(out var currentEntity)",
-        "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;",
         "!TryResolveCurrentEntityDocument(out var latestCurrentEntity)",
         "RequestEntityShutdownPerformance(",
@@ -6166,8 +6166,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "_displayedEntityKey",
         "_displayedCargoEntityKey",
         "TryResolveStationRefitEntity(string entityKey",
-        "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
-        "_observedFacadeIndex.TryResolveEntityByRecordKey",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "_observedEntityIndex.TryResolveEntityByRecordKey",
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
         ".DockingState",
@@ -6250,7 +6250,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryResolveCurrentEntityFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
-        inventoryMenu.Contains("_observedFacadeIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("_observedEntityIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
     {
@@ -10061,10 +10061,10 @@ static void RequireMainMenuContinueRunState(string root)
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
         : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityDaemonEntitySnapshotProjector.cs is missing.");
-    var observedFacadeProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFacadeProjector.cs");
-    var observedFacadeProjector = File.Exists(observedFacadeProjectorPath)
-        ? File.ReadAllText(observedFacadeProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue facade projection; AetheriaUnityObservedFacadeProjector.cs is missing.");
+    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
+    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
+        ? File.ReadAllText(observedEntityProjectorPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityObservedEntityProjector.cs is missing.");
     var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
     var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
         ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
@@ -10119,7 +10119,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
         "ResolveObservedTarget = entity => ObservedTargetQuery.GetObservedTarget(entity)",
         "TargetPresentation = _targetPresentation",
-        "private readonly AetheriaUnityObservedFacadeIndex _observedFacadeIndex",
+        "private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
         "EntityConstructionBlueprintProjector.ProjectObservedEntity",
         "_loadoutItemProjector.CreateLoadoutItem",
@@ -10203,9 +10203,9 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerSnapshotProjectionHits));
     }
 
-    var requiredObservedFacadeProjectorSymbols = new[]
+    var requiredObservedEntityProjectorSymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedFacadeProjector",
+        "public sealed class AetheriaUnityObservedEntityProjector",
         "public bool TryApplyInPlace(",
         "public void Replace(",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)",
@@ -10213,28 +10213,28 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "RestoreActiveConsumables(entity, entitySnapshot)",
         "RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)",
-        "_facadeIndex.EntitiesByRecordKey",
+        "_entityIndex.EntitiesByRecordKey",
         "ResolveRuntimeBehavior(entity, weaponState.OwnerKind, weaponState.OwnerIndex, weaponState.BehaviorIndex)",
         "lockWeapon.RestoreRuntimeState(",
         "drive.RestoreRuntimeState(",
         "resourceScanner.RestoreRuntimeState(",
-        "_facadeIndex.RefreshDaemonIndex();"
+        "_entityIndex.RefreshDaemonIndex();"
     };
-    var missingObservedFacadeProjectorSymbols = requiredObservedFacadeProjectorSymbols
-        .Where(symbol => !observedFacadeProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingObservedEntityProjectorSymbols = requiredObservedEntityProjectorSymbols
+        .Where(symbol => !observedEntityProjector.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingObservedFacadeProjectorSymbols.Length > 0)
+    if (missingObservedEntityProjectorSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed Unity facade mutation/restoration must live in AetheriaUnityObservedFacadeProjector instead of ActionGameManager: " +
-            string.Join(", ", missingObservedFacadeProjectorSymbols));
+            "Observed Unity entity mutation/restoration must live in AetheriaUnityObservedEntityProjector instead of ActionGameManager: " +
+            string.Join(", ", missingObservedEntityProjectorSymbols));
     }
 
     var forbiddenManagerFacadeProjectionSymbols = new[]
     {
         "private bool CanApplyDaemonEntitySnapshotsInPlace(",
         "private void ApplyDaemonEntitySnapshotsInPlace(",
-        "private void ReplaceObservedEntityFacadesFromTypedSnapshots(",
+        "private void ReplaceObservedEntitySnapshotsFromTypedSnapshots(",
         "private void RestoreActiveConsumablesFromTypedEntitySnapshot(",
         "private void RestoreRuntimeBehaviorStateFromTypedSnapshot(",
         "private static Behavior ResolveRuntimeBehavior(",
@@ -10250,7 +10250,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (managerFacadeProjectionHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager still owns observed facade mutation/restoration internals: " +
+            "ActionGameManager still owns observed entity mutation/restoration internals: " +
             string.Join(", ", managerFacadeProjectionHits));
     }
 
@@ -10358,16 +10358,16 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntityFacades)",
+        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
-        "_facadeProjector.TryApplyInPlace(",
+        "_entityProjector.TryApplyInPlace(",
         "zoneRenderer?.ApplyZoneRender(render)",
         "_zoneContextProjector.ResolveContext(targetZone, render)",
-        "_facadeProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
+        "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
         "_restoreCurrentEntityBinding(currentEntity)",
-        "_facadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
-        "_facadeIndex.EntitiesByDaemonIndex",
-        "zoneRenderer?.LoadDaemonZoneView(_facadeIndex.EntitiesByDaemonIndex, render)",
+        "_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
+        "_entityIndex.EntitiesByDaemonIndex",
+        "zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render)",
         "zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render)"
     };
     var missingObservedFrameApplierSymbols = requiredObservedFrameApplierSymbols
@@ -10389,9 +10389,9 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
-        "ObservedFacadeProjector.TryApplyInPlace(",
-        "ObservedFacadeProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
-        "ZoneRenderer?.LoadDaemonZoneView(_observedFacadeIndex.EntitiesByDaemonIndex, render)",
+        "ObservedEntityProjector.TryApplyInPlace(",
+        "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
+        "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
         "ZoneRenderer?.RestoreDroppedPickupsFromDaemonZoneState(daemonZone)",
         "render.ActionBarBindings",
         "private static AetheriaRuntimeActionBarBindingSnapshot ToActionBarBindingSnapshot("
@@ -10420,7 +10420,7 @@ static void RequireMainMenuContinueRunState(string root)
         ".Aetheria()",
         ".ZoneContacts",
         ".LatestAsync()",
-        "_facadeIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
+        "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
         .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))
@@ -10461,7 +10461,7 @@ static void RequireMainMenuContinueRunState(string root)
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
-        "_observedFacadeIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey",
+        "_observedEntityIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey",
         "docking.DockingBayIndex"
     };
     var missingObservedDockingSymbols = requiredObservedDockingSymbols
@@ -10952,7 +10952,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var observedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
-    var observedFacadeProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFacadeProjector.cs");
+    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
     var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
     var observedZoneContextProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextProjector.cs");
     var currentEntityBinderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityCurrentEntityBinder.cs");
@@ -11001,9 +11001,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityDaemonEntitySnapshotProjector.cs is missing.");
-    var observedFacadeProjector = File.Exists(observedFacadeProjectorPath)
-        ? File.ReadAllText(observedFacadeProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedFacadeProjector.cs is missing.");
+    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
+        ? File.ReadAllText(observedEntityProjectorPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityProjector.cs is missing.");
     var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
         ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityEntityConstructionBlueprintProjector.cs is missing.");
@@ -11136,13 +11136,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity observer entity projection no longer flows through the dedicated daemon snapshot projector.");
     }
 
-    if (!observedFacadeProjector.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
-        !observedFacadeProjector.Contains("public void Replace(", StringComparison.Ordinal) ||
-        !observedFacadeProjector.Contains("EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
-        !observedFacadeProjector.Contains("RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)", StringComparison.Ordinal))
+    if (!observedEntityProjector.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
+        !observedEntityProjector.Contains("public void Replace(", StringComparison.Ordinal) ||
+        !observedEntityProjector.Contains("EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
+        !observedEntityProjector.Contains("RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer facade restoration no longer flows through the dedicated observed facade projector.");
+            "Unity observer facade restoration no longer flows through the dedicated observed entity projector.");
     }
 
     var requiredEntityConstructionBlueprintProjectorSymbols = new[]
@@ -11213,14 +11213,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         ".ZoneRender",
         ".LatestAsync()",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntityFacades)",
+        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
-        "_facadeProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
-        "_facadeProjector.TryApplyInPlace(",
-        "_facadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
-        "_facadeIndex.EntitiesByDaemonIndex",
+        "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
+        "_entityProjector.TryApplyInPlace(",
+        "_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
+        "_entityIndex.EntitiesByDaemonIndex",
         "_zoneContextProjector.ResolveContext(targetZone, render)",
-        "zoneRenderer?.LoadDaemonZoneView(_facadeIndex.EntitiesByDaemonIndex, render)",
+        "zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render)",
         "zoneRenderer?.ApplyZoneRender(render)",
         "zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render)",
         "_restoreCurrentEntityBinding(currentEntity)"
@@ -11244,9 +11244,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
-        "ObservedFacadeProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
-        "ObservedFacadeProjector.TryApplyInPlace(",
-        "ZoneRenderer?.LoadDaemonZoneView(_observedFacadeIndex.EntitiesByDaemonIndex, render)",
+        "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
+        "ObservedEntityProjector.TryApplyInPlace(",
+        "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
         "ZoneRenderer?.ApplyZoneRender(render)",
         "ZoneRenderer?.RestoreDroppedPickupsFromDaemonZoneState(daemonZone)",
         "render.ActionBarBindings",
@@ -11315,7 +11315,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "public void RequestTargetReticle()",
         "public void RequestDock()",
         "public void RequestUndock()",
-        "_observedFacadeIndex.TryResolveEntityRecordKey(target, out var targetEntityKey)",
+        "_observedEntityIndex.TryResolveEntityRecordKey(target, out var targetEntityKey)",
         "Submit(operations => operations.Interact(), \"interact\")",
         "Submit(operations => operations.ClearTarget(), \"target clear\")",
         "operations => operations.SetTarget(targetEntityKey)",
@@ -11382,7 +11382,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         ".Aetheria()",
         ".ZoneContacts",
         ".LatestAsync()",
-        "_facadeIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
+        "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
         .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))

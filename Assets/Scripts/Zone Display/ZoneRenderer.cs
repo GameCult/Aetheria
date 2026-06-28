@@ -103,7 +103,7 @@ public class ZoneRenderer : MonoBehaviour
         new Dictionary<int, AetheriaRuntimeZoneTargetRow>();
     private readonly List<AetheriaRuntimeZoneContactRow> _daemonContactRows =
         new List<AetheriaRuntimeZoneContactRow>();
-    private IReadOnlyDictionary<int, Entity> _observedEntityFacadesByDaemonIndex;
+    private IReadOnlyDictionary<int, Entity> _observedEntitySnapshotsByDaemonIndex;
     private readonly List<int> _daemonPresentationEntityIndices = new List<int>();
     private readonly HashSet<int> _daemonPresentationEntityIndicesSet = new HashSet<int>();
     private readonly List<int> _daemonVisibleEntityIndices = new List<int>();
@@ -245,11 +245,11 @@ public class ZoneRenderer : MonoBehaviour
     }
 
     public void LoadDaemonZoneView(
-        IReadOnlyDictionary<int, Entity> observedEntityFacadesByDaemonIndex,
+        IReadOnlyDictionary<int, Entity> observedEntitySnapshotsByDaemonIndex,
         AetheriaRuntimeZoneRenderDocument render)
     {
         ClearZone();
-        _observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;
+        _observedEntitySnapshotsByDaemonIndex = observedEntitySnapshotsByDaemonIndex;
         ApplyZoneRender(render);
         RefreshDaemonVisibleEntityInstances();
         SyncDaemonEntityInstances();
@@ -918,8 +918,8 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var entityIndex in _daemonPresentationEntityIndices)
         {
             if (_entityInstancesByDaemonIndex.ContainsKey(entityIndex) ||
-                _observedEntityFacadesByDaemonIndex == null ||
-                !_observedEntityFacadesByDaemonIndex.TryGetValue(entityIndex, out var entity))
+                _observedEntitySnapshotsByDaemonIndex == null ||
+                !_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity))
             {
                 continue;
             }

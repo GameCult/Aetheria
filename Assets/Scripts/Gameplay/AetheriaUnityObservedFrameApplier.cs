@@ -13,8 +13,8 @@ public sealed class AetheriaUnityObservedFrameApplier
     private readonly Func<int, GalaxyZone> _resolveObservedZone;
     private readonly Func<Zone> _getZone;
     private readonly Action<Zone> _setZone;
-    private readonly AetheriaUnityObservedFacadeIndex _facadeIndex;
-    private readonly AetheriaUnityObservedFacadeProjector _facadeProjector;
+    private readonly AetheriaUnityObservedEntityIndex _entityIndex;
+    private readonly AetheriaUnityObservedEntityProjector _entityProjector;
     private readonly AetheriaUnityObservedZoneContextProjector _zoneContextProjector;
     private readonly Func<ZoneRenderer> _resolveZoneRenderer;
     private readonly Func<Entity> _getCurrentEntity;
@@ -31,8 +31,8 @@ public sealed class AetheriaUnityObservedFrameApplier
         Func<int, GalaxyZone> resolveObservedZone,
         Func<Zone> getZone,
         Action<Zone> setZone,
-        AetheriaUnityObservedFacadeIndex facadeIndex,
-        AetheriaUnityObservedFacadeProjector facadeProjector,
+        AetheriaUnityObservedEntityIndex entityIndex,
+        AetheriaUnityObservedEntityProjector entityProjector,
         AetheriaUnityObservedZoneContextProjector zoneContextProjector,
         Func<ZoneRenderer> resolveZoneRenderer,
         Func<Entity> getCurrentEntity,
@@ -43,8 +43,8 @@ public sealed class AetheriaUnityObservedFrameApplier
         _resolveObservedZone = resolveObservedZone ?? (_ => null);
         _getZone = getZone ?? (() => null);
         _setZone = setZone ?? (_ => { });
-        _facadeIndex = facadeIndex ?? throw new ArgumentNullException(nameof(facadeIndex));
-        _facadeProjector = facadeProjector ?? throw new ArgumentNullException(nameof(facadeProjector));
+        _entityIndex = entityIndex ?? throw new ArgumentNullException(nameof(entityIndex));
+        _entityProjector = entityProjector ?? throw new ArgumentNullException(nameof(entityProjector));
         _zoneContextProjector = zoneContextProjector ?? throw new ArgumentNullException(nameof(zoneContextProjector));
         _resolveZoneRenderer = resolveZoneRenderer ?? (() => null);
         _getCurrentEntity = getCurrentEntity ?? (() => null);
@@ -108,13 +108,13 @@ public sealed class AetheriaUnityObservedFrameApplier
             return false;
         }
 
-        var entitySnapshots = AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntityFacades)
+        var entitySnapshots = AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)
             .OrderBy(entity => AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey))
             .ToArray();
 
         if (entitySnapshots.Length == 0)
         {
-            _logWarning($"Aetheria zone-render feed has no entity facades for zone {render.ZoneIndex}.");
+            _logWarning($"Aetheria zone-render feed has no entity snapshots for zone {render.ZoneIndex}.");
             return false;
         }
 
@@ -133,7 +133,7 @@ public sealed class AetheriaUnityObservedFrameApplier
         }
 
         var zoneRenderer = _resolveZoneRenderer();
-        if (_facadeProjector.TryApplyInPlace(
+        if (_entityProjector.TryApplyInPlace(
                 _lastAppliedZoneRenderRunId,
                 _lastAppliedZoneRenderZoneIndex,
                 runId,
@@ -161,9 +161,9 @@ public sealed class AetheriaUnityObservedFrameApplier
             _setZone(resolvedZone);
         }
 
-        _facadeProjector.Replace(entitySnapshots, currentEntityKey, _getZone());
-        zoneRenderer?.LoadDaemonZoneView(_facadeIndex.EntitiesByDaemonIndex, render);
-        if (_facadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity))
+        _entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone());
+        zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render);
+        if (_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity))
             _restoreCurrentEntityBinding(currentEntity);
         zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render);
         _lastAppliedZoneRenderFrameId = render.FrameId;

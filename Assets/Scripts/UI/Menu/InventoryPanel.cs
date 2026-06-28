@@ -73,7 +73,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private Texture2D _temperatureTexture;
     private RectTransform _firstRect;
     private AetheriaUnityDragSession _dragSession;
-    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
 
     public ItemInstance FakeItem;
     public Shape FakeOccupancy;
@@ -85,9 +85,9 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         _dragSession = dragSession;
     }
 
-    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        _observedFacadeIndex = observedFacadeIndex;
+        _observedEntityIndex = observedEntityIndex;
     }
 
     private AetheriaUnityDragSession DragSession => _dragSession ??= new AetheriaUnityDragSession();
@@ -1109,8 +1109,8 @@ private void Update()
     private bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
     {
         recordKey = "";
-        return _observedFacadeIndex != null &&
-               _observedFacadeIndex.TryResolveEntityRecordKey(entity, out recordKey);
+        return _observedEntityIndex != null &&
+               _observedEntityIndex.TryResolveEntityRecordKey(entity, out recordKey);
     }
 
     private bool IsCurrentEntity(Entity entity)
@@ -1178,10 +1178,10 @@ private void Update()
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
     {
         dockingIndex = null;
-        if (_observedFacadeIndex == null)
+        if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedFacadeIndex);
+        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
         return true;
     }
 
@@ -1201,10 +1201,10 @@ private void Update()
     private bool TryResolveObservedAvailableEntityByKey(string entityKey, out Entity entity)
     {
         entity = null;
-        if (_observedFacadeIndex == null || string.IsNullOrWhiteSpace(entityKey))
+        if (_observedEntityIndex == null || string.IsNullOrWhiteSpace(entityKey))
             return false;
 
-        return _observedFacadeIndex.TryResolveEntityByRecordKey(entityKey, out entity);
+        return _observedEntityIndex.TryResolveEntityByRecordKey(entityKey, out entity);
     }
 
     private bool IsDisplayedEntityKey(string entityKey)

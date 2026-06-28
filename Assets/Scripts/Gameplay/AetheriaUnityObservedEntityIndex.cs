@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-public sealed class AetheriaUnityObservedFacadeIndex
+public sealed class AetheriaUnityObservedEntityIndex
 {
     private readonly Dictionary<string, Entity> _entitiesByRecordKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
     private readonly Dictionary<int, Entity> _entitiesByDaemonIndex = new Dictionary<int, Entity>();

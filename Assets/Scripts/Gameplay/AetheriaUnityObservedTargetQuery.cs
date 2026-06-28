@@ -9,20 +9,20 @@ using GameCult.Aetheria.State.Verse;
 public sealed class AetheriaUnityObservedTargetQuery
 {
     private readonly Func<AetheriaClient> _resolveClient;
-    private readonly AetheriaUnityObservedFacadeIndex _facadeIndex;
+    private readonly AetheriaUnityObservedEntityIndex _entityIndex;
 
     public AetheriaUnityObservedTargetQuery(
         Func<AetheriaClient> resolveClient,
-        AetheriaUnityObservedFacadeIndex facadeIndex)
+        AetheriaUnityObservedEntityIndex entityIndex)
     {
         _resolveClient = resolveClient ?? (() => null);
-        _facadeIndex = facadeIndex ?? throw new ArgumentNullException(nameof(facadeIndex));
+        _entityIndex = entityIndex ?? throw new ArgumentNullException(nameof(entityIndex));
     }
 
     public Entity GetObservedTarget(Entity observer)
     {
         if (TryQueryEntityTarget(observer, out var targetEntityIndex) &&
-            _facadeIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity))
+            _entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity))
         {
             return targetEntity;
         }

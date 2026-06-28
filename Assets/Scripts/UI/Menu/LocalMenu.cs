@@ -26,11 +26,11 @@ public class LocalMenu : MonoBehaviour
     private readonly List<ActiveStoryChoice> _activeChoices = new List<ActiveStoryChoice>();
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
 
-    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        _observedFacadeIndex = observedFacadeIndex;
+        _observedEntityIndex = observedEntityIndex;
     }
 
     private sealed class ActiveStoryChoice
@@ -224,12 +224,12 @@ public class LocalMenu : MonoBehaviour
     private bool TryResolveDockedLocalStory(out LocationStory story)
     {
         story = null;
-        if (_observedFacadeIndex == null ||
+        if (_observedEntityIndex == null ||
             !TryResolveDockingState(out var dockingState) ||
             dockingState?.IsDocked != true ||
             string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey) ||
             dockingState.DockingBayIndex < 0 ||
-            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
+            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
                 dockingState.DockParentEntityKey,
                 dockingState.DockingBayIndex,
                 out var dockingBay) ||

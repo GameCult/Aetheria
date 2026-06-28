@@ -78,7 +78,7 @@ public sealed class AetheriaUnityGameplaySceneWiring
     public void ConfigureTargetPresentation(
         AetheriaUnityTargetPresentation presentation,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        AetheriaUnityObservedFacadeIndex observedFacadeIndex,
+        AetheriaUnityObservedEntityIndex observedEntityIndex,
         AetheriaUnityObservedTargetQuery observedTargetQuery,
         Func<AetheriaClient> resolveClient)
     {
@@ -97,8 +97,8 @@ public sealed class AetheriaUnityGameplaySceneWiring
         presentation.TargetShieldsFill = TargetShieldsFill;
         presentation.ResolveClient = resolveClient;
         presentation.ResolveEntity = daemonEntityIndex =>
-            observedFacadeIndex != null &&
-            observedFacadeIndex.TryResolveEntityByDaemonIndex(daemonEntityIndex, out var entity)
+            observedEntityIndex != null &&
+            observedEntityIndex.TryResolveEntityByDaemonIndex(daemonEntityIndex, out var entity)
                 ? entity
                 : null;
         presentation.ResolveTarget = observedTargetQuery.GetObservedTarget;
@@ -136,12 +136,12 @@ public sealed class AetheriaUnityGameplaySceneWiring
         MainMenu?.SetRuntimeInputScreenShell(menuShell.CanOpenRuntimeInputScreen, menuShell.ShowRuntimeInputScreen);
     }
 
-    public void ConfigureObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    public void ConfigureObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        Inventory?.SetObservedFacadeIndex(observedFacadeIndex);
-        ShipPanel?.SetObservedFacadeIndex(observedFacadeIndex);
-        TargetShipPanel?.SetObservedFacadeIndex(observedFacadeIndex);
+        Inventory?.SetObservedEntityIndex(observedEntityIndex);
+        ShipPanel?.SetObservedEntityIndex(observedEntityIndex);
+        TargetShipPanel?.SetObservedEntityIndex(observedEntityIndex);
         foreach (var localMenu in UnityEngine.Object.FindObjectsByType<LocalMenu>(FindObjectsSortMode.None))
-            localMenu.SetObservedFacadeIndex(observedFacadeIndex);
+            localMenu.SetObservedEntityIndex(observedEntityIndex);
     }
 }

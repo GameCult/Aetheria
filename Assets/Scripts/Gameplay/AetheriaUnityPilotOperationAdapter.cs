@@ -9,18 +9,18 @@ using Unity.Mathematics;
 public sealed class AetheriaUnityPilotOperationAdapter
 {
     private readonly Func<AetheriaUnityPilotCommandSender> _resolvePilotCommands;
-    private readonly AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+    private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private readonly Func<float3> _resolveViewDirection;
     private readonly Func<Entity> _resolveCurrentEntity;
 
     public AetheriaUnityPilotOperationAdapter(
         Func<AetheriaUnityPilotCommandSender> resolvePilotCommands,
-        AetheriaUnityObservedFacadeIndex observedFacadeIndex,
+        AetheriaUnityObservedEntityIndex observedEntityIndex,
         Func<float3> resolveViewDirection,
         Func<Entity> resolveCurrentEntity)
     {
         _resolvePilotCommands = resolvePilotCommands ?? throw new ArgumentNullException(nameof(resolvePilotCommands));
-        _observedFacadeIndex = observedFacadeIndex ?? throw new ArgumentNullException(nameof(observedFacadeIndex));
+        _observedEntityIndex = observedEntityIndex ?? throw new ArgumentNullException(nameof(observedEntityIndex));
         _resolveViewDirection = resolveViewDirection ?? (() => default);
         _resolveCurrentEntity = resolveCurrentEntity ?? (() => null);
     }
@@ -38,7 +38,7 @@ public sealed class AetheriaUnityPilotOperationAdapter
             return;
         }
 
-        if (!_observedFacadeIndex.TryResolveEntityRecordKey(target, out var targetEntityKey) ||
+        if (!_observedEntityIndex.TryResolveEntityRecordKey(target, out var targetEntityKey) ||
             string.IsNullOrWhiteSpace(targetEntityKey))
         {
             return;

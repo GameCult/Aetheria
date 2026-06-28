@@ -718,7 +718,7 @@ namespace GameCult.Aetheria.State.Verse
                     .Where(pickup => pickup != null)
                     .OrderBy(pickup => pickup.PickupIndex)
                     .ToArray(),
-                EntityFacades = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                EntitySnapshots = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                     .Where(entity => entity != null)
                     .OrderBy(entity => entity.EntityIndex)
                     .ToArray(),

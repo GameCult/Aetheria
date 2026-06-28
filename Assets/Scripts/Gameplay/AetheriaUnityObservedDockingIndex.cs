@@ -8,14 +8,14 @@ using GameCult.Aetheria.State.Verse;
 public sealed class AetheriaUnityObservedDockingIndex
 {
     private readonly Func<AetheriaClient> _resolveClient;
-    private readonly AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+    private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
 
     public AetheriaUnityObservedDockingIndex(
         Func<AetheriaClient> resolveClient,
-        AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+        AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
         _resolveClient = resolveClient ?? throw new ArgumentNullException(nameof(resolveClient));
-        _observedFacadeIndex = observedFacadeIndex ?? throw new ArgumentNullException(nameof(observedFacadeIndex));
+        _observedEntityIndex = observedEntityIndex ?? throw new ArgumentNullException(nameof(observedEntityIndex));
     }
 
     public int ResolveEntityZoneIndex(Entity entity)
@@ -36,7 +36,7 @@ public sealed class AetheriaUnityObservedDockingIndex
         entity = null;
         return TryResolveCurrentDockingSnapshot(out var snapshot) &&
                !string.IsNullOrWhiteSpace(snapshot.CurrentEntityKey) &&
-               _observedFacadeIndex.TryResolveEntityByRecordKey(snapshot.CurrentEntityKey, out entity);
+               _observedEntityIndex.TryResolveEntityByRecordKey(snapshot.CurrentEntityKey, out entity);
     }
 
     public bool TryResolveCurrentEntityKey(out string currentEntityKey)
@@ -77,7 +77,7 @@ public sealed class AetheriaUnityObservedDockingIndex
             snapshot.CurrentDockingBay == null ||
             string.IsNullOrWhiteSpace(snapshot.DockParentEntityKey) ||
             snapshot.DockingBayIndex < 0 ||
-            !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
+            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
                 snapshot.DockParentEntityKey,
                 snapshot.DockingBayIndex,
                 out dockingBay))
@@ -116,7 +116,7 @@ public sealed class AetheriaUnityObservedDockingIndex
         if (!TryResolveCurrentDocking(child, out docking) || !docking.IsDocked)
             return false;
 
-        if (!_observedFacadeIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey, out var parent) ||
+        if (!_observedEntityIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey, out var parent) ||
             !(parent is OrbitalEntity))
         {
             return false;
@@ -148,7 +148,7 @@ public sealed class AetheriaUnityObservedDockingIndex
             return false;
         }
 
-        if (_observedFacadeIndex.TryResolveEntityRecordKey(entity, out var entityKey) &&
+        if (_observedEntityIndex.TryResolveEntityRecordKey(entity, out var entityKey) &&
             !string.IsNullOrWhiteSpace(docking.CurrentEntityKey) &&
             !string.Equals(docking.CurrentEntityKey, entityKey, StringComparison.Ordinal))
         {

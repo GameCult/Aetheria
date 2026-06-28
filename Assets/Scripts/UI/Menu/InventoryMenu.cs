@@ -34,7 +34,7 @@ public class InventoryMenu : MonoBehaviour
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
-    private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
     private readonly AetheriaEveUnitySurfaceChrome _cargoItemDetailsSurfaceChrome = PanelChrome(420f, 520f);
     private readonly AetheriaEveUnitySurfaceChrome _equippedItemDetailsSurfaceChrome = PanelChrome(460f, 560f);
@@ -58,9 +58,9 @@ public class InventoryMenu : MonoBehaviour
         _actionBarPresentation = actionBarPresentation;
     }
 
-    public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
+    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        _observedFacadeIndex = observedFacadeIndex;
+        _observedEntityIndex = observedEntityIndex;
     }
     // private int2 _dragCellOffset;
     // private ItemRotation _originalRotation;
@@ -704,8 +704,8 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
     {
         recordKey = "";
-        return _observedFacadeIndex != null &&
-               _observedFacadeIndex.TryResolveEntityRecordKey(entity, out recordKey);
+        return _observedEntityIndex != null &&
+               _observedEntityIndex.TryResolveEntityRecordKey(entity, out recordKey);
     }
 
     private bool IsCurrentEntity(Entity entity)
@@ -799,10 +799,10 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
     {
         dockingIndex = null;
-        if (_observedFacadeIndex == null)
+        if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedFacadeIndex);
+        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
         return true;
     }
 

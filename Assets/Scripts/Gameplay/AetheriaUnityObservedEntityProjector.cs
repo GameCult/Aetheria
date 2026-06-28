@@ -6,22 +6,22 @@ using System;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaUnityObservedFacadeProjector
+public sealed class AetheriaUnityObservedEntityProjector
 {
-    private readonly AetheriaUnityObservedFacadeIndex _facadeIndex;
+    private readonly AetheriaUnityObservedEntityIndex _entityIndex;
     private readonly ItemManager _itemManager;
     private readonly Func<AetheriaRuntimeEntitySnapshot, bool, EntityConstructionBlueprint> _createBlueprint;
     private readonly Func<AetheriaRuntimeLoadoutItemSnapshot, ItemInstance> _createLoadoutItem;
     private readonly Action<string> _logWarning;
 
-    public AetheriaUnityObservedFacadeProjector(
-        AetheriaUnityObservedFacadeIndex facadeIndex,
+    public AetheriaUnityObservedEntityProjector(
+        AetheriaUnityObservedEntityIndex entityIndex,
         ItemManager itemManager,
         Func<AetheriaRuntimeEntitySnapshot, bool, EntityConstructionBlueprint> createBlueprint,
         Func<AetheriaRuntimeLoadoutItemSnapshot, ItemInstance> createLoadoutItem,
         Action<string> logWarning)
     {
-        _facadeIndex = facadeIndex ?? throw new ArgumentNullException(nameof(facadeIndex));
+        _entityIndex = entityIndex ?? throw new ArgumentNullException(nameof(entityIndex));
         _itemManager = itemManager ?? throw new ArgumentNullException(nameof(itemManager));
         _createBlueprint = createBlueprint ?? throw new ArgumentNullException(nameof(createBlueprint));
         _createLoadoutItem = createLoadoutItem ?? throw new ArgumentNullException(nameof(createLoadoutItem));
@@ -41,19 +41,19 @@ public sealed class AetheriaUnityObservedFacadeProjector
         reboundCurrentEntity = null;
         if (!string.Equals(lastRunId, runId, StringComparison.Ordinal) ||
             lastZoneIndex != zoneIndex ||
-            _facadeIndex.Count != entitySnapshots.Count)
+            _entityIndex.Count != entitySnapshots.Count)
         {
             return false;
         }
 
         foreach (var snapshot in entitySnapshots)
         {
-            if (!_facadeIndex.ContainsRecordKey(snapshot.RecordKey))
+            if (!_entityIndex.ContainsRecordKey(snapshot.RecordKey))
                 return false;
         }
 
         ApplyInPlace(entitySnapshots);
-        if (_facadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out var resolvedCurrentEntity) &&
+        if (_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var resolvedCurrentEntity) &&
             currentEntity != resolvedCurrentEntity)
         {
             reboundCurrentEntity = resolvedCurrentEntity;
@@ -100,14 +100,14 @@ public sealed class AetheriaUnityObservedFacadeProjector
             RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities);
         }
 
-        _facadeIndex.Replace(restoredEntities);
+        _entityIndex.Replace(restoredEntities);
     }
 
     private void ApplyInPlace(IReadOnlyList<AetheriaRuntimeEntitySnapshot> entitySnapshots)
     {
         foreach (var entitySnapshot in entitySnapshots)
         {
-            if (!_facadeIndex.TryResolveEntityByRecordKey(entitySnapshot.RecordKey, out var entity))
+            if (!_entityIndex.TryResolveEntityByRecordKey(entitySnapshot.RecordKey, out var entity))
                 continue;
 
             ApplyPoseAndSimpleRuntimeState(entity, entitySnapshot);
@@ -115,10 +115,10 @@ public sealed class AetheriaUnityObservedFacadeProjector
             if (entity.Settings != null)
                 entity.Settings.ShutdownPerformance = (float)entitySnapshot.ShutdownPerformance;
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
-            RestoreRuntimeBehaviorState(entity, entitySnapshot, _facadeIndex.EntitiesByRecordKey);
+            RestoreRuntimeBehaviorState(entity, entitySnapshot, _entityIndex.EntitiesByRecordKey);
         }
 
-        _facadeIndex.RefreshDaemonIndex();
+        _entityIndex.RefreshDaemonIndex();
     }
 
     private static void ApplyPoseAndSimpleRuntimeState(Entity entity, AetheriaRuntimeEntitySnapshot entitySnapshot)

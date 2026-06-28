@@ -868,7 +868,7 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeDroppedPickupCommit>();
 
         [Key(17)]
-        public IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> EntityFacades { get; set; } =
+        public IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> EntitySnapshots { get; set; } =
             Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
 
         [Key(18)]
