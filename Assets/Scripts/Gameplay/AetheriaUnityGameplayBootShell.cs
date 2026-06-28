@@ -4,6 +4,7 @@
 
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 
 public sealed class AetheriaUnityGameplayBootShell
 {
@@ -36,12 +37,12 @@ public sealed class AetheriaUnityGameplayBootShell
 
         var aetheria = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
             .State;
-        using var runtimeCatalogSession = aetheria.ObserveCatalog();
-        var runtimeCatalog = runtimeCatalogSession.Current;
+        using var runtimeCatalogDocument = aetheria.ReactiveCatalog();
+        var runtimeCatalog = runtimeCatalogDocument.Current;
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
-        using var sectorMapSession = aetheria.ObserveSectorMap();
-        var sectorMap = sectorMapSession.Current;
+        using var sectorMapDocument = aetheria.ReactiveSectorMap();
+        var sectorMap = sectorMapDocument.Current;
         if (sectorMap == null)
             throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");
 

@@ -6,13 +6,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 
 public static class AetheriaUnityRuntimeClientProvider
 {
     private static readonly Dictionary<string, AetheriaClient> RuntimeClients =
         new Dictionary<string, AetheriaClient>(StringComparer.Ordinal);
-    private static AetheriaRuntimePlayerSettingsSession _playerSettingsDocument;
+    private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument;
     private static RuntimePlayerSettings _runtimePlayerSettings;
     private static bool _playerSettingsLoaded;
 
@@ -96,7 +97,7 @@ public static class AetheriaUnityRuntimeClientProvider
             _playerSettingsDocument ??= ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
 
             var stored = _playerSettingsDocument.Current;
             if (stored == null)

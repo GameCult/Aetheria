@@ -8773,10 +8773,10 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".ObserveCatalog()",
-        "runtimeCatalogSession.Current",
-        ".ObserveSectorMap()",
-        "sectorMapSession.Current",
+        ".ReactiveCatalog()",
+        "runtimeCatalogDocument.Current",
+        ".ReactiveSectorMap()",
+        "sectorMapDocument.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -8796,11 +8796,11 @@ static void RequireClientTargetBootAuthority(string root)
             string.Join(", ", missingGameplayBootShellSymbols));
     }
 
-    if (gameplayBootShell.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
-        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
+    if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityGameplayBootShell still opens raw reactive catalog/sector map documents instead of managed sessions.");
+            "AetheriaUnityGameplayBootShell still routes boot catalog/sector-map reads through legacy session wrappers instead of reactive typed documents.");
     }
 
     var requiredPresenterSymbols = new[]
@@ -15402,10 +15402,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".ObserveCatalog()",
-        "runtimeCatalogSession.Current",
-        ".ObserveSectorMap()",
-        "sectorMapSession.Current",
+        ".ReactiveCatalog()",
+        "runtimeCatalogDocument.Current",
+        ".ReactiveSectorMap()",
+        "sectorMapDocument.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -15427,17 +15427,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingGameplayBootShellSymbols));
     }
 
-    if (gameplayBootShell.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
-        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
+    if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityGameplayBootShell still opens raw reactive catalog/sector map documents instead of managed sessions.");
+            "AetheriaUnityGameplayBootShell still routes boot catalog/sector-map reads through legacy session wrappers instead of reactive typed documents.");
     }
 
     var requiredRuntimeClientProviderSymbols = new[]
     {
         "public static class AetheriaUnityRuntimeClientProvider",
-        "private static AetheriaRuntimePlayerSettingsSession _playerSettingsDocument",
+        "private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument",
         "public static RuntimePlayerSettings PlayerSettings",
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
@@ -15448,7 +15448,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClient",
         ".State",
         ".Settings",
-        ".ObservePlayer()",
+        ".ReactivePlayer()",
         "_playerSettingsDocument.Current",
         "_playerSettingsDocument?.Dispose()",
         "OpenAsync(",
@@ -15465,11 +15465,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingRuntimeClientProviderSymbols));
     }
 
-    if (runtimeClientProvider.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument", StringComparison.Ordinal) ||
-        runtimeClientProvider.Contains(".ReactivePlayer()", StringComparison.Ordinal))
+    if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains(".ObservePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRuntimeClientProvider still owns the raw player-settings CultMesh document instead of AetheriaRuntimePlayerSettingsSession.");
+            "AetheriaUnityRuntimeClientProvider still routes player settings through a legacy session wrapper instead of the reactive typed document.");
     }
 
     var providerOwnedClientAccessSources = new Dictionary<string, string>
@@ -15906,10 +15906,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredGameplayBootSymbols = new[]
     {
-        ".ObserveCatalog()",
-        "runtimeCatalogSession.Current",
-        ".ObserveSectorMap()",
-        "sectorMapSession.Current",
+        ".ReactiveCatalog()",
+        "runtimeCatalogDocument.Current",
+        ".ReactiveSectorMap()",
+        "sectorMapDocument.Current",
         "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
         "sectorMap.GenerationSeed",
