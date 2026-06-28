@@ -3214,10 +3214,10 @@ static void RequireEveRuntimeBootstrap(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
-        "client.State.ReactiveGameSurface()",
-        "client.State.ReactiveGameTuiSurface()",
-        "client.State.ReactiveEditorSurface()",
-        "client.State.ReactiveEditorTuiSurface()",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui)",
         "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
@@ -8114,14 +8114,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()",
-        "public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()",
-        "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()",
-        "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()",
-        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameSurface(",
-        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameTuiSurface(",
-        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorSurface(",
-        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorTuiSurface(",
+        "public enum AetheriaClientEveSurface",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
+        "public TDocument Latest<TDocument>(AetheriaClientEveSurface surface)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
@@ -8206,7 +8202,23 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "LatestSummary(",
         "LatestSummaryAsync(",
         "ReactiveSummary(",
-        "ReactiveSummaryAsync("
+        "ReactiveSummaryAsync(",
+        "LatestGameSurface(",
+        "LatestGameSurfaceAsync(",
+        "ReactiveGameSurface(",
+        "ReactiveGameSurfaceAsync(",
+        "LatestGameTuiSurface(",
+        "LatestGameTuiSurfaceAsync(",
+        "ReactiveGameTuiSurface(",
+        "ReactiveGameTuiSurfaceAsync(",
+        "LatestEditorSurface(",
+        "LatestEditorSurfaceAsync(",
+        "ReactiveEditorSurface(",
+        "ReactiveEditorSurfaceAsync(",
+        "LatestEditorTuiSurface(",
+        "LatestEditorTuiSurfaceAsync(",
+        "ReactiveEditorTuiSurface(",
+        "ReactiveEditorTuiSurfaceAsync("
     };
     var survivingFixedReactiveWrappers = forbiddenFixedReactiveWrappers
         .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8428,6 +8440,14 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "client.State.Daemon.LatestGameTuiSurface()",
         "client.State.Daemon.LatestEditorSurface()",
         "client.State.Daemon.LatestEditorTuiSurface()",
+        "client.State.LatestGameSurface()",
+        "client.State.LatestGameTuiSurface()",
+        "client.State.LatestEditorSurface()",
+        "client.State.LatestEditorTuiSurface()",
+        "client.State.ReactiveGameSurface()",
+        "client.State.ReactiveGameTuiSurface()",
+        "client.State.ReactiveEditorSurface()",
+        "client.State.ReactiveEditorTuiSurface()",
         "client.State.ObserveCatalog()",
         "client.State.ObserveDaemonFrame()",
         "client.State.ObserveLoadoutTemplates()",
@@ -8480,7 +8500,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             "Starbridge player-seat examples must use generic parameterized managed document access instead of named wrappers or raw handle walks.");
     }
 
-    Console.WriteLine("Domain document accessors: managed Aetheria state uses generic fixed-document reads plus generic parameterized viewport/detail/Starbridge access");
+    Console.WriteLine("Domain document accessors: managed Aetheria state uses generic fixed-document reads plus generic parameterized viewport/detail/Starbridge/Eve-surface access");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)

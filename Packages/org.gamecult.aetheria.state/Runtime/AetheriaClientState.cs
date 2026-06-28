@@ -9,6 +9,14 @@ using R3;
 
 namespace GameCult.Aetheria.State.Verse
 {
+    public enum AetheriaClientEveSurface
+    {
+        Game,
+        GameTui,
+        Editor,
+        EditorTui
+    }
+
     public sealed class AetheriaClientState
     {
         private readonly CultMeshDocumentCatalog _documents;
@@ -217,6 +225,40 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return Daemon.Document<TDocument>(surface);
+        }
+
+        public Task<TDocument> LatestAsync<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return Document<TDocument>(surface).LatestAsync();
+        }
+
+        public TDocument Latest<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return LatestAsync<TDocument>(surface).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
+            AetheriaClientEveSurface surface,
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            return Document<TDocument>(surface).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+            AetheriaClientEveSurface surface,
+            CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
+        {
+            return Document<TDocument>(surface).Reactive(options);
+        }
+
         private CultMeshReactiveDocument<TDocument>? TryReactive<TDocument>(
             CultMeshReactiveDocumentOptions? options)
             where TDocument : class
@@ -244,94 +286,6 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return null;
             }
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameSurfaceAsync()
-        {
-            return Daemon.LatestGameSurfaceAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()
-        {
-            return LatestGameSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveGameSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveGameSurfaceAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveGameSurface(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameTuiSurfaceAsync()
-        {
-            return Daemon.LatestGameTuiSurfaceAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()
-        {
-            return LatestGameTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveGameTuiSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveGameTuiSurfaceAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameTuiSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveGameTuiSurface(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorSurfaceAsync()
-        {
-            return Daemon.LatestEditorSurfaceAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()
-        {
-            return LatestEditorSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveEditorSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveEditorSurfaceAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveEditorSurface(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorTuiSurfaceAsync()
-        {
-            return Daemon.LatestEditorTuiSurfaceAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()
-        {
-            return LatestEditorTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveEditorTuiSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveEditorTuiSurfaceAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorTuiSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Daemon.ReactiveEditorTuiSurface(options);
         }
 
         public Observable<TDocument> Watch<TDocument>()
@@ -433,92 +387,66 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }
 
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameSurfaceAsync()
+        public bool TryGetDocument<TDocument>(
+            AetheriaClientEveSurface surface,
+            out CultMeshDocumentHandle<TDocument> document)
+            where TDocument : class
         {
-            return GameSurface.LatestAsync();
+            if (typeof(TDocument) == typeof(global::Aetheria.State.Documents.EveSurfaceState))
+            {
+                var eveSurface = surface switch
+                {
+                    AetheriaClientEveSurface.Game => GameSurface,
+                    AetheriaClientEveSurface.GameTui => GameTuiSurface,
+                    AetheriaClientEveSurface.Editor => EditorSurface,
+                    AetheriaClientEveSurface.EditorTui => EditorTuiSurface,
+                    _ => throw new ArgumentOutOfRangeException(nameof(surface), surface, null)
+                };
+
+                document = (CultMeshDocumentHandle<TDocument>)(object)eveSurface;
+                return true;
+            }
+
+            document = null!;
+            return false;
         }
 
-        public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
         {
-            return LatestGameSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            if (TryGetDocument<TDocument>(surface, out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria daemon state does not expose an Eve surface document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveGameSurfaceAsync(
+        public Task<TDocument> LatestAsync<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return Document<TDocument>(surface).LatestAsync();
+        }
+
+        public TDocument Latest<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return LatestAsync<TDocument>(surface).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
+            AetheriaClientEveSurface surface,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return GameSurface.ReactiveAsync(options);
+            return Document<TDocument>(surface).ReactiveAsync(options);
         }
 
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameSurface(
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+            AetheriaClientEveSurface surface,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return GameSurface.Reactive(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameTuiSurfaceAsync()
-        {
-            return GameTuiSurface.LatestAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()
-        {
-            return LatestGameTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveGameTuiSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return GameTuiSurface.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameTuiSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return GameTuiSurface.Reactive(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorSurfaceAsync()
-        {
-            return EditorSurface.LatestAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()
-        {
-            return LatestEditorSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveEditorSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return EditorSurface.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return EditorSurface.Reactive(options);
-        }
-
-        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorTuiSurfaceAsync()
-        {
-            return EditorTuiSurface.LatestAsync();
-        }
-
-        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()
-        {
-            return LatestEditorTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>> ReactiveEditorTuiSurfaceAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return EditorTuiSurface.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorTuiSurface(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return EditorTuiSurface.Reactive(options);
+            return Document<TDocument>(surface).Reactive(options);
         }
     }
 
