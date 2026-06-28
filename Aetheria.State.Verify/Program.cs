@@ -2419,7 +2419,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private AetheriaDaemonObserver ResolveDaemonObserver()",
         "FindAnyObjectByType<AetheriaDaemonObserver>()",
         ".Viewports",
-        ".LatestObjects(ToViewportBounds(viewport))",
+        "ResolveObjectsViewport(viewport)",
+        "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
+        ".ReactiveObjects(viewportBounds)",
+        "_objectsViewport?.Current",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
@@ -7464,6 +7467,30 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         throw new InvalidOperationException(
             "AetheriaUnityRenderSplatViewportSource must keep a managed reactive render-splats viewport document instead of polling latest snapshots: " +
             string.Join(", ", missingRenderSplatViewportSourceSymbols));
+    }
+
+    var zoneRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Zone Display",
+        "ZoneRenderer.cs"));
+    var requiredZoneRendererViewportSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
+        ".ReactiveObjects(viewportBounds)",
+        "_objectsViewport?.Current",
+        "_objectsViewport?.Dispose()"
+    };
+    var missingZoneRendererViewportSymbols = requiredZoneRendererViewportSymbols
+        .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneRendererViewportSymbols.Length > 0 ||
+        zoneRenderer.Contains(".LatestObjects(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer fallback presentation queries must keep a managed reactive objects viewport document instead of polling latest snapshots: " +
+            string.Join(", ", missingZoneRendererViewportSymbols));
     }
 
     Console.WriteLine("Viewport and map document accessors: Unity reads map, contact, viewport, and current-entity state through named managed accessors");

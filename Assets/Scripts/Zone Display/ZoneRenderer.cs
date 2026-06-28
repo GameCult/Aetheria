@@ -122,6 +122,8 @@ public class ZoneRenderer : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
+    private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
+    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -896,21 +898,11 @@ public class ZoneRenderer : MonoBehaviour
         var viewport = ResolveDaemonRenderViewport();
         if (!TryCollectDaemonPresentationEntityIndicesFromSoa(viewport))
         {
-            try
+            var objects = ResolveObjectsViewport(viewport);
+            foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
             {
-                var objects = ResolveClient()
-                    .Aetheria()
-                    .Viewports
-                    .LatestObjects(ToViewportBounds(viewport));
-                foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
-                {
-                    if (entity != null && entity.EntityIndex >= 0)
-                        _daemonPresentationEntityIndices.Add(entity.EntityIndex);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to read Aetheria objects viewport for zone renderer presentation: {ex.Message}");
+                if (entity != null && entity.EntityIndex >= 0)
+                    _daemonPresentationEntityIndices.Add(entity.EntityIndex);
             }
         }
 
@@ -1246,6 +1238,30 @@ public class ZoneRenderer : MonoBehaviour
         return _zoneContacts?.Current;
     }
 
+    private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)
+    {
+        var viewportBounds = ToViewportBounds(viewport);
+        if (_objectsViewport != null && SameViewport(_objectsViewportBounds, viewportBounds))
+            return _objectsViewport.Current;
+
+        try
+        {
+            var nextObjectsViewport = ResolveClient()
+                .Aetheria()
+                .Viewports
+                .ReactiveObjects(viewportBounds);
+            _objectsViewport?.Dispose();
+            _objectsViewportBounds = viewportBounds;
+            _objectsViewport = nextObjectsViewport;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria objects viewport for zone renderer presentation: {ex.Message}");
+        }
+
+        return _objectsViewport?.Current;
+    }
+
     private AetheriaClient ResolveClient()
     {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
@@ -1264,8 +1280,23 @@ public class ZoneRenderer : MonoBehaviour
     {
         _catalog?.Dispose();
         _zoneContacts?.Dispose();
+        _objectsViewport?.Dispose();
         _catalog = null;
         _zoneContacts = null;
+        _objectsViewport = null;
+    }
+
+    private static bool SameViewport(
+        AetheriaRuntimeRtsViewportBounds left,
+        AetheriaRuntimeRtsViewportBounds right)
+    {
+        if (left == null || right == null)
+            return false;
+
+        return Mathf.Approximately(left.MinX, right.MinX) &&
+            Mathf.Approximately(left.MinY, right.MinY) &&
+            Mathf.Approximately(left.MaxX, right.MaxX) &&
+            Mathf.Approximately(left.MaxY, right.MaxY);
     }
 }
 
