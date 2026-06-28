@@ -7663,19 +7663,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "InventoryMenu.cs"));
-    var requiredInventoryMenuSharedDocumentSymbols = new[]
-    {
-        "AetheriaRuntimeCatalogSession _catalog",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        "ResolveClient().State.ObserveCatalog()",
-        ".Settings",
-        ".ObservePlayer()",
-        "_catalog?.Dispose()",
-        "_playerSettings?.Dispose()",
-        "_catalog?.Current",
-        "_playerSettings?.Current",
-        "private void OnDestroy()"
-    };
+    var requiredInventoryMenuSharedDocumentSymbols = new[] { "private void OnDestroy()" };
     var missingInventoryMenuSharedDocumentSymbols = requiredInventoryMenuSharedDocumentSymbols
         .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -7686,22 +7674,22 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingInventoryMenuSharedDocumentSymbols));
     }
 
-    var forbiddenInventoryMenuSharedDocumentSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+    RequireReactiveTypedDocumentAccess(
+        inventoryMenu,
+        "InventoryMenu",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
         "ResolveClient().State.ReactiveCatalog()",
-        ".ReactivePlayer()"
-    };
-    var inventoryMenuRawDocumentHits = forbiddenInventoryMenuSharedDocumentSymbols
-        .Where(symbol => inventoryMenu.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (inventoryMenuRawDocumentHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "InventoryMenu still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
-            string.Join(", ", inventoryMenuRawDocumentHits));
-    }
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+    RequireReactiveTypedDocumentAccess(
+        inventoryMenu,
+        "InventoryMenu",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
 
     var inventoryPanel = File.ReadAllText(Path.Combine(
         root,

@@ -9,6 +9,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
@@ -31,8 +32,8 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSession _catalog;
-    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private AetheriaRuntimeCurrentEntitySession _currentEntity;
     private AetheriaRuntimeStationRefitSession _stationRefit;
     private int _inventoryEntityIndex = -1;
@@ -1077,7 +1078,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ObserveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -1097,7 +1098,7 @@ public class InventoryMenu : MonoBehaviour
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {
