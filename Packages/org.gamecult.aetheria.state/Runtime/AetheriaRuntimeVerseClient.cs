@@ -204,60 +204,52 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeCatalogStore.OpenReadOnly);
         }
 
-        public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
+        public async Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
+            return await Aetheria().Daemon.ProviderAdvertisement.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeDaemonHealthDocument?> GetHealthAsync()
+        public async Task<AetheriaRuntimeDaemonHealthDocument?> GetHealthAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeDaemonHealthDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonHealth);
+            return await Aetheria().Daemon.Health.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeDaemonCommandBoundaryDocument?> GetCommandBoundaryAsync()
+        public async Task<AetheriaRuntimeDaemonCommandBoundaryDocument?> GetCommandBoundaryAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
+            return await Aetheria().Daemon.CommandBoundary.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestFrameAsync()
+        public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestFrameAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeDaemonFrameDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
+            return await Aetheria().Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeDaemonSoaViewDocument?> GetLatestSoaViewAsync()
+        public async Task<AetheriaRuntimeDaemonSoaViewDocument?> GetLatestSoaViewAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeDaemonSoaViewDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+            return await Aetheria().Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync()
+        public async Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeStarbridgeScenarioDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+            return await Aetheria().Starbridge.Scenario.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeStarbridgeSessionDocument?> GetStarbridgeSessionAsync()
+        public async Task<AetheriaRuntimeStarbridgeSessionDocument?> GetStarbridgeSessionAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeStarbridgeSessionDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+            return await Aetheria().Starbridge.Session.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeStarbridgePlayerSeatDocument?> GetStarbridgePlayerSeatAsync(string seatId)
+        public async Task<AetheriaRuntimeStarbridgePlayerSeatDocument?> GetStarbridgePlayerSeatAsync(string seatId)
         {
             ThrowIfDisposed();
-            return Database.GetAsync<AetheriaRuntimeStarbridgePlayerSeatDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId));
+            return await Aetheria().Starbridge.PlayerSeat(seatId).LatestAsync().ConfigureAwait(false);
         }
 
         public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
