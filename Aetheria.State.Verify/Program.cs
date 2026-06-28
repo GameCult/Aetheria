@@ -12992,11 +12992,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/InventoryMenu.cs"] = inventoryMenu,
         ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = inventoryPanel,
         ["Assets/Scripts/UI/MainMenu.cs"] = mainMenu,
-        ["Assets/Scripts/UI/InputScreen/InputDisplayLayout.cs"] = inputDisplayLayout
+        ["Assets/Scripts/UI/InputScreen/InputDisplayLayout.cs"] = inputDisplayLayout,
+        ["Assets/Scripts/Gameplay/AetheriaDaemonObserver.cs"] = daemonObserver
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>
-            pair.Value.Contains("AetheriaClient.OpenAsync(", StringComparison.Ordinal) ||
+            pair.Value.Contains(".OpenAsync(", StringComparison.Ordinal) ||
             pair.Value.Contains(".OpenLocalAsync(", StringComparison.Ordinal))
         .Select(pair => pair.Key)
         .ToArray();
@@ -13129,8 +13130,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (!daemonObserver.Contains("AetheriaClient", StringComparison.Ordinal) ||
-        !daemonObserver.Contains(".OpenAsync(", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("statePath", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("ObserveAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

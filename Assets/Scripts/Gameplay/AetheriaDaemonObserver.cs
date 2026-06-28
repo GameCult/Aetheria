@@ -18,8 +18,6 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private readonly AetheriaRuntimeDaemonObservationCursor _cursor = new AetheriaRuntimeDaemonObservationCursor();
     private float _nextPollTime;
-    private AetheriaClient _client;
-    private string _clientStatePath;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
 
@@ -92,7 +90,6 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void OnDisable()
     {
-        DisposeClient();
         DisposeSoaMemoryMap();
     }
 
@@ -103,31 +100,14 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var statePath = AetheriaUnityRuntimePaths.RuntimeStateFilePath;
-        if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
-            return _client;
+            throw new InvalidOperationException(
+                $"Aetheria daemon observer requires a readable local Verse state file: {stateBoot.FailureMessage}");
         }
 
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenAsync(
-                statePath,
-                clientId,
-                LastObservedState?.Frame.SessionId ?? "local",
-                startServer: false,
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = statePath;
-        return _client;
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = null;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, clientId);
     }
 
     private void RemapSoaView(AetheriaRuntimeObservedDaemonState observed)
