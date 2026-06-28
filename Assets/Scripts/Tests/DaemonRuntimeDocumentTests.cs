@@ -4214,10 +4214,16 @@ public class DaemonRuntimeDocumentTests
             soaGeneration,
             new[] { new AetheriaRuntimeDaemonSoaBufferDocument { BufferId = "hot" } },
             new[] { new AetheriaRuntimeDaemonSoaColumnDocument { ColumnId = "position", BufferId = "hot" } });
+        var zoneRender = new AetheriaRuntimeZoneRenderDocument
+        {
+            RunId = frame.Run.RunId,
+            FrameId = frame.FrameId
+        };
 
         return new AetheriaRuntimeObservedDaemonState(
             frame,
-            soaView);
+            soaView,
+            zoneRender);
     }
 
     private static void PublishLatestFrameThroughVerseClient(

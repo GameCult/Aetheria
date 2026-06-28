@@ -12,12 +12,12 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObservedDaemonState(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonSoaViewDocument? soaView,
-            AetheriaRuntimeZoneRenderDocument? zoneRender = null)
+            AetheriaRuntimeZoneRenderDocument zoneRender)
         {
             Frame = frame ?? throw new ArgumentNullException(nameof(frame));
             SoaView = soaView;
             SoaIndex = AetheriaRuntimeDaemonSoaViewIndex.Build(soaView);
-            ZoneRender = zoneRender ?? AetheriaRuntimeRtsProjection.ProjectZoneRender(Frame);
+            ZoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
         }
 
         public AetheriaRuntimeDaemonFrameDocument Frame { get; }
@@ -80,7 +80,11 @@ namespace GameCult.Aetheria.State.Verse
                     soaView = null;
                 }
 
-                return new AetheriaRuntimeObservedDaemonState(frame, soaView, _zoneRender.Current);
+                var zoneRender = _zoneRender.Current;
+                if (zoneRender == null)
+                    return null;
+
+                return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);
             }
         }
 
