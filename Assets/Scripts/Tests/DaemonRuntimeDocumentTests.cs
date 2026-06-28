@@ -204,14 +204,18 @@ public class DaemonRuntimeDocumentTests
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observed = client.State.LatestObservedDaemon();
-        var observedAuthoritativeFrame = client.State.Daemon.LatestFrameDocument();
-        var gameSurface = client.State.Daemon.LatestGameSurface();
-        var gameTuiSurface = client.State.Daemon.LatestGameTuiSurface();
-        var editorSurface = client.State.Daemon.LatestEditorSurface();
-        var editorTuiSurface = client.State.Daemon.LatestEditorTuiSurface();
-        var authorityStatus = client.State.Daemon.LatestAuthorityPolicy();
+        var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
+        var gameSurface = client.State.LatestGameSurface();
+        var gameTuiSurface = client.State.LatestGameTuiSurface();
+        var editorSurface = client.State.LatestEditorSurface();
+        var editorTuiSurface = client.State.LatestEditorTuiSurface();
+        var authorityStatus = client.State.LatestAuthorityPolicy();
         var dockingState = client.State.LatestDockingState();
         using var reactiveDockingState = client.State.ReactiveDockingState();
+        using var reactiveGameSurface = client.State.ReactiveGameSurface();
+        using var reactiveGameTuiSurface = client.State.ReactiveGameTuiSurface();
+        using var reactiveEditorSurface = client.State.ReactiveEditorSurface();
+        using var reactiveEditorTuiSurface = client.State.ReactiveEditorTuiSurface();
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
@@ -224,25 +228,17 @@ public class DaemonRuntimeDocumentTests
             client.State.Starbridge.Summary,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
-        Assert.AreSame(client.State.Daemon.LatestFrame, client.State.LatestFrame);
-        Assert.AreSame(client.State.Daemon.LatestSoaView, client.State.LatestSoaView);
+        Assert.AreSame(client.State.LatestSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
+        Assert.IsNotNull(client.State.LatestProviderAdvertisement());
+        Assert.IsNotNull(client.State.LatestHealth());
+        Assert.IsNotNull(client.State.LatestCommandBoundary());
         Assert.AreSame(
-            client.State.Daemon.ProviderAdvertisement,
-            client.State.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>());
-        Assert.AreSame(client.State.Daemon.Health, client.State.Document<AetheriaRuntimeDaemonHealthDocument>());
-        Assert.AreSame(
-            client.State.Daemon.CommandBoundary,
-            client.State.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
-        Assert.AreSame(
-            client.State.Daemon.AuthorityPolicy,
-            client.State.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>());
-        Assert.AreSame(
-            client.State.Daemon.AuthorityPolicy,
+            client.State.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(),
             client.State.DocumentBySchema(AetheriaRuntimeVerseAuthoritySchemas.Policy));
-        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, client.State.Daemon.GameSurface.DocumentId);
-        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, client.State.Daemon.GameTuiSurface.DocumentId);
-        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, client.State.Daemon.EditorSurface.DocumentId);
-        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, client.State.Daemon.EditorTuiSurface.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, reactiveGameSurface.Current.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, reactiveGameTuiSurface.Current.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, reactiveEditorSurface.Current.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, reactiveEditorTuiSurface.Current.Surface.Id);
         Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
         Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
@@ -551,10 +547,10 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-surface-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var unityGameSurfaceState = client.State.Daemon.LatestGameSurface();
-        var unityGameTuiSurfaceState = client.State.Daemon.LatestGameTuiSurface();
-        var unityEditorSurfaceState = client.State.Daemon.LatestEditorSurface();
-        var unityEditorTuiSurfaceState = client.State.Daemon.LatestEditorTuiSurface();
+        var unityGameSurfaceState = client.State.LatestGameSurface();
+        var unityGameTuiSurfaceState = client.State.LatestGameTuiSurface();
+        var unityEditorSurfaceState = client.State.LatestEditorSurface();
+        var unityEditorTuiSurfaceState = client.State.LatestEditorTuiSurface();
         var surfaceResolver = client.State.CreateEveSurfaceStateRefResolver();
         var unityGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
             unityGameSurfaceState,
@@ -586,7 +582,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, unityEditorTuiSurface.Surface.Id);
         Assert.AreEqual("editor.daemon", unityEditorTuiSurface.ProviderKind);
         var genericGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-            client.State.Daemon.LatestGameSurface(),
+            client.State.LatestGameSurface(),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, genericGameSurface.Surface.Id);
         Assert.AreEqual(unityGameSurface.ProviderId, genericGameSurface.ProviderId);
@@ -609,11 +605,11 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
             AetheriaRuntimeDaemonSchemas.Frame));
         var genericGameTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-            client.State.Daemon.LatestGameTuiSurface(),
+            client.State.LatestGameTuiSurface(),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, genericGameTuiSurface.Surface.Id);
         var genericEditorTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-            client.State.Daemon.LatestEditorTuiSurface(),
+            client.State.LatestEditorTuiSurface(),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, genericEditorTuiSurface.Surface.Id);
     }

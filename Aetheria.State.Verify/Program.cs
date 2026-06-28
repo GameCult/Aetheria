@@ -3197,10 +3197,10 @@ static void RequireEveRuntimeBootstrap(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
-        "client.State.Daemon.ReactiveGameSurface()",
-        "client.State.Daemon.ReactiveGameTuiSurface()",
-        "client.State.Daemon.ReactiveEditorSurface()",
-        "client.State.Daemon.ReactiveEditorTuiSurface()",
+        "client.State.ReactiveGameSurface()",
+        "client.State.ReactiveGameTuiSurface()",
+        "client.State.ReactiveEditorSurface()",
+        "client.State.ReactiveEditorTuiSurface()",
         "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
@@ -3232,6 +3232,10 @@ static void RequireEveRuntimeBootstrap(string root)
         presenter.Contains(".DaemonGameTuiSurfaceAsync()", StringComparison.Ordinal) ||
         presenter.Contains(".DaemonEditorSurfaceAsync()", StringComparison.Ordinal) ||
         presenter.Contains(".DaemonEditorTuiSurfaceAsync()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.ReactiveGameSurface()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.ReactiveGameTuiSurface()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.ReactiveEditorSurface()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.ReactiveEditorTuiSurface()", StringComparison.Ordinal) ||
         presenter.Contains("client.State.Daemon.GameSurface.LatestAsync()", StringComparison.Ordinal) ||
         presenter.Contains("client.State.Daemon.GameTuiSurface.LatestAsync()", StringComparison.Ordinal) ||
         presenter.Contains("client.State.Daemon.EditorSurface.LatestAsync()", StringComparison.Ordinal) ||
@@ -7591,6 +7595,9 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     var clientState = File.ReadAllText(clientStatePath);
+    var topLevelClientState = clientState.Split(
+        "public sealed class AetheriaClientDaemonState",
+        StringSplitOptions.None)[0];
     var requiredClientSymbols = new[]
     {
         "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
@@ -7696,7 +7703,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         ".State.Daemon.GameSurface.LatestAsync()",
         ".State.Daemon.GameTuiSurface.LatestAsync()",
         ".State.Daemon.EditorSurface.LatestAsync()",
-        ".State.Daemon.EditorTuiSurface.LatestAsync()"
+        ".State.Daemon.EditorTuiSurface.LatestAsync()",
+        "client.State.Daemon.LatestFrameDocument()",
+        "client.State.Daemon.LatestGameSurface()",
+        "client.State.Daemon.LatestGameTuiSurface()",
+        "client.State.Daemon.LatestEditorSurface()",
+        "client.State.Daemon.LatestEditorTuiSurface()",
+        "client.State.Daemon.LatestAuthorityPolicy()"
     }
         .Select(CompactSource)
         .ToArray();
@@ -10866,9 +10879,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()",
-        "Daemon.LatestFrameDocumentAsync()",
-        "Daemon.LatestHealthAsync()",
-        "Daemon.LatestCommandBoundaryAsync()",
+        "LatestDaemonFrameAsync()",
+        "LatestHealthAsync()",
+        "LatestCommandBoundaryAsync()",
         "LatestCatalog",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
     };
@@ -10880,6 +10893,14 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "AetheriaClientState must own Eve state-ref resolver creation through managed typed documents: " +
             string.Join(", ", missingClientStateSymbols));
+    }
+
+    if (clientState.Contains("var frameTask = Daemon.LatestFrameDocumentAsync()", StringComparison.Ordinal) ||
+        clientState.Contains("var healthTask = Daemon.LatestHealthAsync()", StringComparison.Ordinal) ||
+        clientState.Contains("var commandBoundaryTask = Daemon.LatestCommandBoundaryAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState Eve state-ref resolver must use top-level managed accessors instead of walking through the nested daemon state.");
     }
 
     var requiredStateRefResolverSymbols = new[]

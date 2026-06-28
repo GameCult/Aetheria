@@ -169,16 +169,16 @@ namespace GameCult.Aetheria.EveRuntime
             AetheriaClient client)
         {
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.ReactiveGameSurface();
+                return client.State.ReactiveGameSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.ReactiveGameTuiSurface();
+                return client.State.ReactiveGameTuiSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.ReactiveEditorSurface();
+                return client.State.ReactiveEditorSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.ReactiveEditorTuiSurface();
+                return client.State.ReactiveEditorTuiSurface();
 
             return null;
         }
