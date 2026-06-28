@@ -9618,7 +9618,9 @@ static void RequireDaemonVersePublication(string root)
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
+    var statRecipeSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStatRecipeSurfaceBuilder.cs");
     var tradeValuePolicySurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeTradeValuePolicySurfaceBuilder.cs");
+    var runtimeCatalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
     var daemonSurfaceCommandCatalogPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommandCatalog.cs");
     var committedFactImporterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommittedFactImporter.cs");
     var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
@@ -9642,7 +9644,9 @@ static void RequireDaemonVersePublication(string root)
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
+        statRecipeSurfaceBuilderPath,
         tradeValuePolicySurfaceBuilderPath,
+        runtimeCatalogStorePath,
         daemonSurfaceCommandCatalogPath,
         committedFactImporterPath,
         daemonHostProjectPath,
@@ -9675,7 +9679,9 @@ static void RequireDaemonVersePublication(string root)
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
+    var statRecipeSurfaceBuilder = File.ReadAllText(statRecipeSurfaceBuilderPath);
     var tradeValuePolicySurfaceBuilder = File.ReadAllText(tradeValuePolicySurfaceBuilderPath);
+    var runtimeCatalogStore = File.ReadAllText(runtimeCatalogStorePath);
     var daemonSurfaceCommandCatalog = File.ReadAllText(daemonSurfaceCommandCatalogPath);
     var committedFactImporter = File.ReadAllText(committedFactImporterPath);
     var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
@@ -10048,8 +10054,8 @@ static void RequireDaemonVersePublication(string root)
         "StarbridgeSession",
         "var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.Build",
-        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(catalog)",
-        "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(catalog)",
+        "AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog)",
+        "AetheriaRuntimeTradeValuePolicySurfaceBuilder.BuildFromCatalog(catalog)",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
         "SoaView = soaView",
         "ProviderAdvertisement = providerAdvertisement",
@@ -10087,6 +10093,8 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface(",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface(",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface(",
+        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(catalog)",
+        "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(catalog)",
         "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)",
         "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)"
     };
@@ -10302,6 +10310,8 @@ static void RequireDaemonVersePublication(string root)
     var requiredTradeValuePolicySurfaceSymbols = new[]
     {
         "public static class AetheriaRuntimeTradeValuePolicySurfaceBuilder",
+        "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
+        "public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(",
         "SurfaceId = \"aetheria.tradeValuePolicy\"",
         "AetheriaRuntimeTradeValuePolicySurfaceState",
         "Quality Price Modifier",
@@ -10322,6 +10332,44 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Trade value policy is no longer exposed as a designer-owned Eve surface: " +
             string.Join(", ", missingTradeValuePolicySurfaceSymbols));
+    }
+
+    var requiredStatRecipeSurfaceProjectionSymbols = new[]
+    {
+        "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
+        "public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(",
+        "SelectMany(ProjectRows)",
+        "AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind)",
+        "AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat",
+        "new AetheriaRuntimeStatRecipeState(",
+        "new AetheriaRuntimeStatInfluenceState("
+    };
+    var missingStatRecipeSurfaceProjectionSymbols = requiredStatRecipeSurfaceProjectionSymbols
+        .Where(symbol => !statRecipeSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStatRecipeSurfaceProjectionSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Stat recipe designer surface projection must live on AetheriaRuntimeStatRecipeSurfaceBuilder: " +
+            string.Join(", ", missingStatRecipeSurfaceProjectionSymbols));
+    }
+
+    var forbiddenCatalogStoreSurfaceProjectionSymbols = new[]
+    {
+        "ProjectStatRecipeSurfaceState(",
+        "ProjectTradeValuePolicySurfaceState(",
+        "ProjectStatRecipeRows(",
+        "ProjectStatRecipeRow(",
+        "ProjectStatInfluence("
+    };
+    var catalogStoreSurfaceProjectionHits = forbiddenCatalogStoreSurfaceProjectionSymbols
+        .Where(symbol => runtimeCatalogStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (catalogStoreSurfaceProjectionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime catalog store still owns designer surface projection helpers that belong on typed surface builders: " +
+            string.Join(", ", catalogStoreSurfaceProjectionHits));
     }
 
     if (stateNode.Contains("DeleteDaemonCommandAsync(", StringComparison.Ordinal) ||

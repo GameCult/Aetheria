@@ -203,6 +203,28 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeStatRecipeSurfaceBuilder
     {
+        public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long version = 1)
+        {
+            return Build(ProjectState(catalog), version);
+        }
+
+        public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            var recipes = (catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
+                .SelectMany(ProjectRows)
+                .OrderBy(recipe => recipe.StatName, StringComparer.Ordinal)
+                .ToArray();
+
+            return new AetheriaRuntimeStatRecipeSurfaceState(
+                recipes,
+                recipes.FirstOrDefault()?.StatName ?? "",
+                AetheriaRuntimeStatRecipePreviewState.Default,
+                DateTime.UtcNow.ToString("O"));
+        }
+
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeStatRecipeSurfaceState state,
             long version = 1)
@@ -688,6 +710,190 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return Node(id, "control.text", props);
+        }
+
+        private static IEnumerable<AetheriaRuntimeStatRecipeState> ProjectRows(
+            AetheriaRuntimeCatalogItem item)
+        {
+            foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
+            {
+                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
+                foreach (var field in behavior.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                {
+                    var fieldMetadata = metadata?.DisplayFields.FirstOrDefault(candidate => candidate.Key == field.Key);
+                    if (fieldMetadata?.ValueKind != AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
+                        continue;
+
+                    yield return ProjectRow(item, behavior, field, fieldMetadata.Name);
+                }
+            }
+        }
+
+        private static AetheriaRuntimeStatRecipeState ProjectRow(
+            AetheriaRuntimeCatalogItem item,
+            AetheriaRuntimeBehaviorPayload behavior,
+            AetheriaRuntimeBehaviorField field,
+            string fieldName)
+        {
+            var value = field.Value;
+            var recipe = ReadRecipe(value);
+            var statName = string.Join(
+                " / ",
+                new[] { item.Name, behavior.Kind, fieldName }
+                    .Where(part => !string.IsNullOrWhiteSpace(part)));
+            var recipeKey = $"{item.ItemKey}|{behavior.Kind}|{behavior.Group}|{field.Key}";
+            var baseValue = recipe?.BaseValue ?? ReadBaseValue(value);
+            return new AetheriaRuntimeStatRecipeState(
+                recipeKey,
+                statName,
+                baseValue,
+                (recipe?.Modifiers ?? Array.Empty<AetheriaRuntimeStatRecipeModifier>())
+                    .Select(ProjectInfluence)
+                    .ToArray());
+        }
+
+        private static double ReadBaseValue(AetheriaRuntimeBehaviorValue value)
+        {
+            if (value?.Children == null || value.Children.Count < 2)
+                return 0;
+
+            return value.Children[1].NumberValue;
+        }
+
+        private static AetheriaRuntimeStatRecipe? ReadRecipe(AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null || value.Children.Count <= 5)
+                return null;
+
+            var recipeValue = value.Children[5];
+            if (recipeValue?.Children == null || recipeValue.Children.Count == 0)
+                return null;
+
+            var baseValue = recipeValue.Children[0].NumberValue;
+            var modifierValues = recipeValue.Children.Count > 1
+                ? recipeValue.Children[1].Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>()
+                : Array.Empty<AetheriaRuntimeBehaviorValue>();
+            var modifiers = modifierValues
+                .Select(ReadModifier)
+                .OfType<AetheriaRuntimeStatRecipeModifier>()
+                .ToArray();
+            return new AetheriaRuntimeStatRecipe(baseValue, modifiers);
+        }
+
+        private static AetheriaRuntimeStatRecipeModifier? ReadModifier(
+            AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null)
+                return null;
+
+            return new AetheriaRuntimeStatRecipeModifier(
+                ReadChildString(value, 0),
+                ReadChildString(value, 1),
+                ReadChildNumber(value, 2),
+                ReadCurveKeys(ReadChildValue(value, 3)),
+                value.Children.Count <= 4 || ReadChildValue(value, 4)?.BoolValue != false);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey> ReadCurveKeys(
+            AetheriaRuntimeBehaviorValue? value)
+        {
+            if (value?.Children == null || value.Children.Count == 0)
+                return Array.Empty<AetheriaRuntimeCurveKey>();
+
+            return value.Children
+                .Where(key => key.Children != null && key.Children.Count >= 4)
+                .Select(key => new AetheriaRuntimeCurveKey(
+                    ReadChildNumber(key, 0),
+                    ReadChildNumber(key, 1),
+                    ReadChildNumber(key, 2),
+                    ReadChildNumber(key, 3)))
+                .ToArray();
+        }
+
+        private static AetheriaRuntimeStatInfluenceState ProjectInfluence(
+            AetheriaRuntimeStatRecipeModifier modifier)
+        {
+            return new AetheriaRuntimeStatInfluenceState(
+                modifier.Condition,
+                string.IsNullOrWhiteSpace(modifier.Operation) ? AetheriaRuntimeStatRecipeOperations.Add : modifier.Operation,
+                modifier.Amount,
+                CurveLabel(modifier.CurveKeys),
+                SampleCurve(modifier.CurveKeys, AetheriaRuntimeStatRecipePreviewState.Default.GetConditionValue(modifier.Condition)),
+                modifier.Enabled);
+        }
+
+        private static string CurvePresetLabel(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+        {
+            if (keys == null || keys.Count == 0)
+                return "";
+
+            var ordered = keys.OrderBy(key => key.Time).ToArray();
+            if (ordered.Length == 2 &&
+                Math.Abs(ordered[0].Time) < 0.0001 &&
+                Math.Abs(ordered[0].Value) < 0.0001 &&
+                Math.Abs(ordered[1].Time - 1) < 0.0001 &&
+                Math.Abs(ordered[1].Value - 1) < 0.0001)
+                return "linear";
+
+            return "";
+        }
+
+        private static string CurveLabel(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
+        {
+            if (keys == null || keys.Count == 0)
+                return "linear";
+
+            var preset = CurvePresetLabel(keys);
+            return string.IsNullOrWhiteSpace(preset) ? $"{keys.Count} keys" : preset;
+        }
+
+        private static double SampleCurve(
+            IReadOnlyList<AetheriaRuntimeCurveKey> keys,
+            double value)
+        {
+            if (keys == null || keys.Count == 0)
+                return ClampCurveSample(value);
+
+            var ordered = keys.OrderBy(key => key.Time).ToArray();
+            if (value <= ordered[0].Time)
+                return ClampCurveSample(ordered[0].Value);
+            for (var index = 1; index < ordered.Length; index++)
+            {
+                var next = ordered[index];
+                var previous = ordered[index - 1];
+                if (value > next.Time)
+                    continue;
+
+                var span = next.Time - previous.Time;
+                var t = span <= double.Epsilon ? 1 : ClampCurveSample((value - previous.Time) / span);
+                return ClampCurveSample(previous.Value + ((next.Value - previous.Value) * t));
+            }
+
+            return ClampCurveSample(ordered[ordered.Length - 1].Value);
+        }
+
+        private static double ClampCurveSample(double value)
+        {
+            if (value < 0)
+                return 0;
+            return value > 1 ? 1 : value;
+        }
+
+        private static string ReadChildString(AetheriaRuntimeBehaviorValue? value, int index)
+        {
+            return ReadChildValue(value, index)?.StringValue ?? "";
+        }
+
+        private static double ReadChildNumber(AetheriaRuntimeBehaviorValue? value, int index)
+        {
+            return ReadChildValue(value, index)?.NumberValue ?? 0;
+        }
+
+        private static AetheriaRuntimeBehaviorValue? ReadChildValue(
+            AetheriaRuntimeBehaviorValue? value,
+            int index)
+        {
+            return value?.Children != null && value.Children.Count > index ? value.Children[index] : null;
         }
 
         private static AetheriaRuntimeSurfaceComponent ButtonRow(

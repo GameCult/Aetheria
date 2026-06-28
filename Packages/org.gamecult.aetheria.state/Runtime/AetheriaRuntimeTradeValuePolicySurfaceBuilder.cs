@@ -26,6 +26,21 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string SurfaceId = "aetheria.tradeValuePolicy";
 
+        public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long version = 1)
+        {
+            return Build(ProjectState(catalog), version);
+        }
+
+        public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            return new AetheriaRuntimeTradeValuePolicySurfaceState(
+                catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default,
+                DateTime.UtcNow.ToString("O"));
+        }
+
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeTradeValuePolicySurfaceState state,
             long version = 1)

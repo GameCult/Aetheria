@@ -89,7 +89,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            return AetheriaRuntimeStatRecipeSurfaceBuilder.Build(ProjectStatRecipeSurfaceState(catalog));
+            return AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog);
         }
 
         public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(string stateFilePath)
@@ -100,79 +100,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.Build(ProjectTradeValuePolicySurfaceState(catalog));
-        }
-
-        private static AetheriaRuntimeTradeValuePolicySurfaceState ProjectTradeValuePolicySurfaceState(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            return new AetheriaRuntimeTradeValuePolicySurfaceState(
-                catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default,
-                DateTime.UtcNow.ToString("O"));
-        }
-
-        private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            var recipes = (catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
-                .SelectMany(ProjectStatRecipeRows)
-                .OrderBy(recipe => recipe.StatName, StringComparer.Ordinal)
-                .ToArray();
-
-            var state = new AetheriaRuntimeStatRecipeSurfaceState(
-                recipes,
-                recipes.FirstOrDefault()?.StatName ?? "",
-                AetheriaRuntimeStatRecipePreviewState.Default,
-                DateTime.UtcNow.ToString("O"));
-
-            return state;
-        }
-
-        private static IEnumerable<AetheriaRuntimeStatRecipeState> ProjectStatRecipeRows(AetheriaRuntimeCatalogItem item)
-        {
-            foreach (var behavior in item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
-            {
-                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind);
-                foreach (var field in behavior.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
-                {
-                    var fieldMetadata = metadata?.DisplayFields.FirstOrDefault(candidate => candidate.Key == field.Key);
-                    if (fieldMetadata?.ValueKind != AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
-                        continue;
-
-                    yield return ProjectStatRecipeRow(item, behavior, field, fieldMetadata.Name);
-                }
-            }
-        }
-
-        private static AetheriaRuntimeStatRecipeState ProjectStatRecipeRow(
-            AetheriaRuntimeCatalogItem item,
-            AetheriaRuntimeBehaviorPayload behavior,
-            AetheriaRuntimeBehaviorField field,
-            string fieldName)
-        {
-            var value = field.Value;
-            var recipe = ReadBehaviorStatRecipe(value);
-            var statName = string.Join(
-                " / ",
-                new[] { item.Name, behavior.Kind, fieldName }
-                    .Where(part => !string.IsNullOrWhiteSpace(part)));
-            var recipeKey = $"{item.ItemKey}|{behavior.Kind}|{behavior.Group}|{field.Key}";
-            var baseValue = recipe?.BaseValue ?? ReadBehaviorStatBaseValue(value);
-            return new AetheriaRuntimeStatRecipeState(
-                recipeKey,
-                statName,
-                baseValue,
-                (recipe?.Modifiers ?? Array.Empty<AetheriaRuntimeStatRecipeModifier>())
-                    .Select(ProjectStatInfluence)
-                    .ToArray());
-        }
-
-        private static double ReadBehaviorStatBaseValue(AetheriaRuntimeBehaviorValue value)
-        {
-            if (value?.Children == null || value.Children.Count < 2)
-                return 0;
-
-            return value.Children[1].NumberValue;
+            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.BuildFromCatalog(catalog);
         }
 
         private static AetheriaRuntimeStatRecipe? ReadBehaviorStatRecipe(AetheriaRuntimeBehaviorValue? value)
@@ -221,56 +149,6 @@ namespace GameCult.Aetheria.State.Verse
                     ReadChildNumber(key, 2),
                     ReadChildNumber(key, 3)))
                 .ToArray();
-        }
-
-        private static AetheriaRuntimeStatInfluenceState ProjectStatInfluence(AetheriaRuntimeStatRecipeModifier modifier)
-        {
-            return new AetheriaRuntimeStatInfluenceState(
-                modifier.Condition,
-                string.IsNullOrWhiteSpace(modifier.Operation) ? AetheriaRuntimeStatRecipeOperations.Add : modifier.Operation,
-                modifier.Amount,
-                CurveLabel(modifier.CurveKeys),
-                SampleCurve(modifier.CurveKeys, AetheriaRuntimeStatRecipePreviewState.Default.GetConditionValue(modifier.Condition)),
-                modifier.Enabled);
-        }
-
-        private static string CurveLabel(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
-        {
-            if (keys == null || keys.Count == 0)
-                return "linear";
-
-            var preset = CurvePresetLabel(keys);
-            return string.IsNullOrWhiteSpace(preset) ? $"{keys.Count} keys" : preset;
-        }
-
-        private static double SampleCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys, double value)
-        {
-            if (keys == null || keys.Count == 0)
-                return Clamp01(value);
-
-            var ordered = keys.OrderBy(key => key.Time).ToArray();
-            if (value <= ordered[0].Time)
-                return Clamp01(ordered[0].Value);
-            for (var index = 1; index < ordered.Length; index++)
-            {
-                var next = ordered[index];
-                var previous = ordered[index - 1];
-                if (value > next.Time)
-                    continue;
-
-                var span = next.Time - previous.Time;
-                var t = span <= double.Epsilon ? 1 : Clamp01((value - previous.Time) / span);
-                return Clamp01(previous.Value + ((next.Value - previous.Value) * t));
-            }
-
-            return Clamp01(ordered[ordered.Length - 1].Value);
-        }
-
-        private static double Clamp01(double value)
-        {
-            if (value < 0)
-                return 0;
-            return value > 1 ? 1 : value;
         }
 
         private static string ReadChildString(AetheriaRuntimeBehaviorValue? value, int index)

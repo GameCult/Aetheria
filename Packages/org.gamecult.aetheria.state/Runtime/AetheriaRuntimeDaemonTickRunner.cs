@@ -215,8 +215,8 @@ namespace GameCult.Aetheria.State.Verse
                 starbridgeSummary);
             var designerSurfaces = new[]
             {
-                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(catalog),
-                AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(catalog)
+                AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog),
+                AetheriaRuntimeTradeValuePolicySurfaceBuilder.BuildFromCatalog(catalog)
             };
             var editorSurface = AetheriaRuntimeDaemonEditorSurfaceBuilder.Build(
                 providerAdvertisement,
