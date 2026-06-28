@@ -119,7 +119,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
     private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
         Array.Empty<AetheriaRuntimeStationLoadoutRestoreOption>();
-    private AetheriaRuntimeInventoryDropdownSurfaceProjection _dropdownSurfaceProjection;
+    private AetheriaRuntimeInventoryDropdownSurfaceModel _dropdownSurfaceModel;
     private readonly AetheriaEveUnitySurfaceChrome _dropdownSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = UIE.Align.FlexStart,
@@ -214,13 +214,13 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private void RenderDropdownSurface()
     {
-        _dropdownSurfaceProjection = ProjectDropdownSurface();
+        _dropdownSurfaceModel = ComposeDropdownSurface();
 
         _dropdownSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _dropdownSurfaceDocument,
             "Aetheria Inventory Dropdown Surface",
-            AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceProjection.State),
+            AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceModel.State),
             HandleDropdownSurfaceCommand,
             _dropdownSurfaceChrome);
     }
@@ -240,7 +240,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         }
 
         if (command.Kind == AetheriaRuntimeInventoryDropdownCommandKind.Select &&
-            _dropdownSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
+            _dropdownSurfaceModel?.TryResolve(command.Command, out var selection) == true)
         {
             ExecuteDropdownSelection(selection);
             HideDropdownSurface();
@@ -298,7 +298,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument);
     }
 
-    private AetheriaRuntimeInventoryDropdownSurfaceProjection ProjectDropdownSurface()
+    private AetheriaRuntimeInventoryDropdownSurfaceModel ComposeDropdownSurface()
     {
         var stationRefit = ResolveStationRefit();
         _dropdownStationRefitEntities = (stationRefit?.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
@@ -327,7 +327,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             .ToArray();
         var hasDockingBay = TryResolveCurrentDockingBayRow(out var currentDockingBay);
 
-        return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Project(
+        return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Compose(
             Title?.text ?? "None",
             entityOptions,
             hasDockingBay,

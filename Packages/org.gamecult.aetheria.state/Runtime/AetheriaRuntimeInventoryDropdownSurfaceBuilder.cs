@@ -148,9 +148,9 @@ namespace GameCult.Aetheria.State.Verse
         public int TemplateIndex { get; }
     }
 
-    public sealed class AetheriaRuntimeInventoryDropdownSurfaceProjection
+    public sealed class AetheriaRuntimeInventoryDropdownSurfaceModel
     {
-        public AetheriaRuntimeInventoryDropdownSurfaceProjection(
+        public AetheriaRuntimeInventoryDropdownSurfaceModel(
             AetheriaRuntimeInventoryDropdownSurfaceState state,
             IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> selections)
         {
@@ -199,7 +199,7 @@ namespace GameCult.Aetheria.State.Verse
             return $"{SurfaceId}.loadout_{templateIndex}";
         }
 
-        public static AetheriaRuntimeInventoryDropdownSurfaceProjection Project(
+        public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(
             string currentView,
             IEnumerable<AetheriaRuntimeInventoryDropdownEntityOption> entities,
             bool hasDockingBay,
@@ -334,7 +334,7 @@ namespace GameCult.Aetheria.State.Verse
                     loadoutOptions));
             }
 
-            return new AetheriaRuntimeInventoryDropdownSurfaceProjection(
+            return new AetheriaRuntimeInventoryDropdownSurfaceModel(
                 new AetheriaRuntimeInventoryDropdownSurfaceState(
                     currentView,
                     groups,
@@ -362,7 +362,7 @@ namespace GameCult.Aetheria.State.Verse
                         string.IsNullOrWhiteSpace(state.CurrentView) ? "None" : state.CurrentView),
                     Text(
                         $"{SurfaceId}.note",
-                        "The observing client projects available inventory navigation; the shared runtime surface owns the dropdown contract."))
+                        "The observing client lists available inventory navigation; the shared runtime surface owns the dropdown contract."))
             };
 
             foreach (var group in state.Groups)

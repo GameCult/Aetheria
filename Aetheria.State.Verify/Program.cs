@@ -6262,18 +6262,18 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     var requiredSymbols = new[]
     {
         "RenderDropdownSurface(",
-        "ProjectDropdownSurface(",
-        "_dropdownSurfaceProjection = ProjectDropdownSurface();",
+        "ComposeDropdownSurface(",
+        "_dropdownSurfaceModel = ComposeDropdownSurface();",
         "HandleDropdownSurfaceCommand(",
         "ExecuteDropdownSelection(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument)",
-        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceProjection.State)",
-        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Project(",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceModel.State)",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Compose(",
         "AetheriaRuntimeInventoryDropdownSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeInventoryDropdownCommandKind.Close",
         "AetheriaRuntimeInventoryDropdownCommandKind.Select",
-        "_dropdownSurfaceProjection?.TryResolve(command.Command, out var selection) == true",
+        "_dropdownSurfaceModel?.TryResolve(command.Command, out var selection) == true",
         "AetheriaRuntimeInventoryDropdownSelectionKind.EntityBay",
         "AetheriaRuntimeInventoryDropdownSelectionKind.Loadout",
         "new AetheriaRuntimeInventoryDropdownEntityOption(",
@@ -6324,6 +6324,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "private readonly Dictionary<string, Action> _dropdownCommands",
         "BuildDropdownCommands(",
         "ProjectDropdownSurfaceState(",
+        "ProjectDropdownSurface(",
+        "_dropdownSurfaceProjection",
         "GameManager.DockingBay",
         "GameManager.AvailableEntities()",
         "GameManager.LoadoutTemplates"
@@ -6397,10 +6399,10 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "AetheriaRuntimeInventoryDropdownBayOption",
         "AetheriaRuntimeInventoryDropdownLoadoutOption",
         "AetheriaRuntimeInventoryDropdownSelectionKind",
-        "AetheriaRuntimeInventoryDropdownSurfaceProjection",
+        "AetheriaRuntimeInventoryDropdownSurfaceModel",
         "public string EntityKey { get; }",
         "entityKey: entity.EntityKey",
-        "public static AetheriaRuntimeInventoryDropdownSurfaceProjection Project(",
+        "public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(",
         "public bool TryResolve(",
         "public static string EntityEquipmentCommand(",
         "public static string EntityBayCommand(",
@@ -6408,7 +6410,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "public static string LoadoutCommand(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"inventory.panel\"",
-        "The observing client projects available inventory navigation; the shared runtime surface owns the dropdown contract."
+        "The observing client lists available inventory navigation; the shared runtime surface owns the dropdown contract."
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !inventoryDropdownSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
