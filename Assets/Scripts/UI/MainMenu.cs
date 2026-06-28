@@ -1,5 +1,4 @@
 using System;
-using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -19,9 +18,9 @@ public class MainMenu : MonoBehaviour
 
     private UIDocument _menuSurfaceDocument;
     private string _clientStatePath;
-    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings;
+    private AetheriaRuntimeSectorMapSession _sectorMap;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private AetheriaRuntimeVerseHostSettingsSession _verseHostSettings;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
@@ -152,7 +151,7 @@ public class MainMenu : MonoBehaviour
         {
             _sectorMap ??= ResolveClient(stateBoot)
                 .State
-                .ReactiveSectorMap();
+                .ObserveSectorMap();
             return _sectorMap?.Current;
         }
         catch (Exception ex)
@@ -172,7 +171,7 @@ public class MainMenu : MonoBehaviour
             _playerSettings ??= ResolveClient(stateBoot)
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
             return _playerSettings?.Current;
         }
         catch (Exception ex)
@@ -192,7 +191,7 @@ public class MainMenu : MonoBehaviour
             _verseHostSettings ??= ResolveClient(stateBoot)
                 .State
                 .Settings
-                .ReactiveVerseHost();
+                .ObserveVerseHost();
             return _verseHostSettings?.Current;
         }
         catch (Exception ex)

@@ -206,7 +206,9 @@ public class DaemonRuntimeDocumentTests
         var observed = client.State.LatestObservedDaemon();
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
         using var catalogSession = client.State.ObserveCatalog();
+        using var sectorMapSession = client.State.ObserveSectorMap();
         using var playerSettingsSession = client.State.Settings.ObservePlayer();
+        using var verseHostSettingsSession = client.State.Settings.ObserveVerseHost();
         using var zoneContactsSession = client.State.ObserveZoneContacts();
         using var playerHud = client.State.ObservePlayerHud();
         var gameSurface = client.State.LatestGameSurface();
@@ -284,8 +286,10 @@ public class DaemonRuntimeDocumentTests
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);
         Assert.AreSame(catalog, catalogSession.Current);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMapSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettingsSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettings.Schema);
+        Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettingsSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneContacts, zoneContactsSession.Current.Schema);
         Assert.AreEqual("Player", objectsViewport.Objects.FirstOrDefault()?.DisplayName);

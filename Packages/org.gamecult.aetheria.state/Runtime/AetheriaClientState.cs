@@ -526,6 +526,12 @@ namespace GameCult.Aetheria.State.Verse
             return SectorMap.Reactive(options);
         }
 
+        public AetheriaRuntimeSectorMapSession ObserveSectorMap(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeSectorMapSession(ReactiveSectorMap(options));
+        }
+
         public Task<AetheriaRuntimeZoneContactsDocument> LatestZoneContactsAsync()
         {
             return ZoneContacts.LatestAsync();
@@ -983,6 +989,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return VerseHost.Reactive(options);
+        }
+
+        public AetheriaRuntimeVerseHostSettingsSession ObserveVerseHost(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeVerseHostSettingsSession(ReactiveVerseHost(options));
         }
     }
 
