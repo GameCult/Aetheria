@@ -6,16 +6,26 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 
 public static class AetheriaUnityRuntimeClientProvider
 {
     private static readonly Dictionary<string, AetheriaClient> RuntimeClients =
         new Dictionary<string, AetheriaClient>(StringComparer.Ordinal);
+    private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument;
     private static RuntimePlayerSettings _runtimePlayerSettings;
+    private static bool _playerSettingsLoaded;
 
-    public static RuntimePlayerSettings PlayerSettings =>
-        _runtimePlayerSettings ??= LoadPlayerSettings();
+    public static RuntimePlayerSettings PlayerSettings
+    {
+        get
+        {
+            _runtimePlayerSettings ??= CreateDefaultPlayerSettings();
+            RefreshPlayerSettings(_runtimePlayerSettings);
+            return _runtimePlayerSettings;
+        }
+    }
 
     public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = "")
     {
@@ -60,6 +70,11 @@ public static class AetheriaUnityRuntimeClientProvider
 
     public static void Dispose()
     {
+        _playerSettingsDocument?.Dispose();
+        _playerSettingsDocument = null;
+        _runtimePlayerSettings = null;
+        _playerSettingsLoaded = false;
+
         foreach (var client in RuntimeClients.Values)
             client.Dispose();
         RuntimeClients.Clear();
@@ -75,20 +90,25 @@ public static class AetheriaUnityRuntimeClientProvider
         return (stateFilePath ?? "") + "\n";
     }
 
-    private static RuntimePlayerSettings LoadPlayerSettings()
+    private static void RefreshPlayerSettings(RuntimePlayerSettings settings)
     {
-        var settings = CreateDefaultPlayerSettings();
         try
         {
-            var stored = ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
+            _playerSettingsDocument ??= ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
                 .Aetheria()
                 .Settings
-                .LatestPlayer();
+                .ReactivePlayer();
+
+            var stored = _playerSettingsDocument.Current;
             if (stored == null)
-                return settings;
+                return;
 
             ApplyPlayerSettings(settings, stored);
-            Debug.Log("Loaded Aetheria Verse player settings from typed state.");
+            if (!_playerSettingsLoaded)
+            {
+                Debug.Log("Loaded Aetheria Verse player settings from reactive typed state.");
+                _playerSettingsLoaded = true;
+            }
         }
         catch (FileNotFoundException)
         {
@@ -97,8 +117,6 @@ public static class AetheriaUnityRuntimeClientProvider
         {
             Debug.LogWarning($"Failed to load Aetheria Verse player settings from typed state; using defaults: {ex}");
         }
-
-        return settings;
     }
 
     private static RuntimePlayerSettings CreateDefaultPlayerSettings()

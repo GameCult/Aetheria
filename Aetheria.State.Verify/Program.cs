@@ -14567,7 +14567,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredRuntimeClientProviderSymbols = new[]
     {
         "public static class AetheriaUnityRuntimeClientProvider",
-        "public static RuntimePlayerSettings PlayerSettings =>",
+        "private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument",
+        "public static RuntimePlayerSettings PlayerSettings",
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
         "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
@@ -14577,7 +14578,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClient",
         ".Aetheria()",
         ".Settings",
-        ".LatestPlayer()",
+        ".ReactivePlayer()",
+        "_playerSettingsDocument.Current",
+        "_playerSettingsDocument?.Dispose()",
         "OpenAsync(",
         "pullOnOpen: true",
         "ApplyPlayerSettings(settings, stored)"
