@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -14,7 +13,6 @@ public class InputDisplayLayout : MonoBehaviour
 {
     private UIDocument _surfaceDocument;
     private AetheriaInput _ownedInput;
-    private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private InputAction _captureAction;
@@ -95,8 +93,6 @@ public class InputDisplayLayout : MonoBehaviour
 
         _ownedInput?.Dispose();
         _ownedInput = null;
-
-        DisposeClient();
 
         if (_surfaceDocument != null)
         {
@@ -364,38 +360,24 @@ public class InputDisplayLayout : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             throw new InvalidOperationException(
                 $"Input settings require a readable local Aetheria Verse state file: {stateBoot.FailureMessage}");
         }
 
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
         {
-            return _client;
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
         }
 
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenAsync(
-                stateBoot.StateFilePath,
-                "unity-input-screen",
-                "local",
-                startServer: false,
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-input-screen");
     }
 
-    private void DisposeClient()
+    private void ClearClientCaches()
     {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
         _playerSettings = null;
     }
 

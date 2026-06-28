@@ -4153,13 +4153,12 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument)",
         "UIDocument",
-        "private AetheriaClient _client",
         ".Ui.InputSettingsAsync(command, body, \"unity-input-screen\")",
         "AetheriaRuntimeInputSettingsCommandBody",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
         "AetheriaClient",
-        ".OpenAsync(",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Aetheria()",
         ".Settings",
         ".Player",
@@ -12876,6 +12875,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var inventoryPanel = File.Exists(inventoryPanelPath)
         ? File.ReadAllText(inventoryPanelPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; InventoryPanel.cs is missing.");
+    var inputDisplayLayoutPath = Path.Combine(root, "Assets", "Scripts", "UI", "InputScreen", "InputDisplayLayout.cs");
+    var inputDisplayLayout = File.Exists(inputDisplayLayoutPath)
+        ? File.ReadAllText(inputDisplayLayoutPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; InputDisplayLayout.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12988,7 +12991,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/TradeMenu.cs"] = tradeMenu,
         ["Assets/Scripts/UI/Menu/InventoryMenu.cs"] = inventoryMenu,
         ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = inventoryPanel,
-        ["Assets/Scripts/UI/MainMenu.cs"] = mainMenu
+        ["Assets/Scripts/UI/MainMenu.cs"] = mainMenu,
+        ["Assets/Scripts/UI/InputScreen/InputDisplayLayout.cs"] = inputDisplayLayout
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>
