@@ -24,7 +24,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityPilotOperationAdapter _pilotOperationAdapter;
     private AetheriaUnityObservedTargetQuery _observedTargetQuery;
     private AetheriaUnityObservedFrameApplier _observedFrameApplier;
-    private AetheriaUnityEntityConstructionBlueprintProjector _entityConstructionBlueprintProjector;
+    private AetheriaUnityEntityBlueprintMaterializer _entityBlueprintMaterializer;
     private AetheriaUnityActionBarBindingAdapter _actionBarBindingAdapter;
     private AetheriaUnityMenuShell _menuShell;
     private AetheriaUnityGameplayInputShell _gameplayInputShell;
@@ -42,7 +42,7 @@ public class ActionGameManager : MonoBehaviour
         _observedEntityRestorer ??= new AetheriaUnityObservedEntityRestorer(
             _observedEntityIndex,
             ItemManager,
-            EntityConstructionBlueprintProjector.ProjectObservedEntity,
+            EntityBlueprintMaterializer.MaterializeObservedEntity,
             _loadoutItemFactory.CreateLoadoutItem,
             Debug.LogWarning);
     private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>
@@ -106,8 +106,8 @@ public class ActionGameManager : MonoBehaviour
             () => CurrentEntity,
             entity => CurrentEntityBinder.RestoreBinding(entity),
             Debug.LogWarning);
-    private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>
-        _entityConstructionBlueprintProjector ??= new AetheriaUnityEntityConstructionBlueprintProjector(_loadoutItemFactory);
+    private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>
+        _entityBlueprintMaterializer ??= new AetheriaUnityEntityBlueprintMaterializer(_loadoutItemFactory);
     private AetheriaUnityActionBarBindingAdapter ActionBarBindings =>
         _actionBarBindingAdapter ??= new AetheriaUnityActionBarBindingAdapter(_actionBarPresentation);
     private AetheriaUnityMenuShell MenuShell =>

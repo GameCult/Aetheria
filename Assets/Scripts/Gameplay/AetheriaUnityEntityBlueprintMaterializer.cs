@@ -8,28 +8,28 @@ using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using Unity.Mathematics;
 
-public sealed class AetheriaUnityEntityConstructionBlueprintProjector
+public sealed class AetheriaUnityEntityBlueprintMaterializer
 {
     private readonly AetheriaUnityLoadoutItemFactory _loadoutItemFactory;
 
-    public AetheriaUnityEntityConstructionBlueprintProjector(
+    public AetheriaUnityEntityBlueprintMaterializer(
         AetheriaUnityLoadoutItemFactory loadoutItemFactory)
     {
         _loadoutItemFactory = loadoutItemFactory ?? throw new ArgumentNullException(nameof(loadoutItemFactory));
     }
 
-    public EntityConstructionBlueprint ProjectTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)
+    public EntityConstructionBlueprint MaterializeTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)
     {
         if (template == null)
             return null;
 
-        var blueprint = ProjectLoadoutEntity(template.RootEntity);
+        var blueprint = MaterializeLoadoutEntity(template.RootEntity);
         if (blueprint != null && string.IsNullOrWhiteSpace(blueprint.Name))
             blueprint.Name = template.Name;
         return blueprint;
     }
 
-    public EntityConstructionBlueprint ProjectLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)
+    public EntityConstructionBlueprint MaterializeLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)
     {
         if (entity == null)
             return null;
@@ -55,13 +55,13 @@ public sealed class AetheriaUnityEntityConstructionBlueprintProjector
         blueprint.DockingBayAssignments = entity.DockingBayAssignments.ToArray();
         blueprint.WeaponGroups = entity.WeaponGroups.Select(group => group.ToArray()).ToArray();
         blueprint.Children = entity.Children
-            .Select(ProjectLoadoutEntity)
+            .Select(MaterializeLoadoutEntity)
             .Where(child => child != null)
             .ToArray();
         return blueprint;
     }
 
-    public EntityConstructionBlueprint ProjectObservedEntity(
+    public EntityConstructionBlueprint MaterializeObservedEntity(
         AetheriaRuntimeEntitySnapshot entity,
         bool isCurrentEntity)
     {

@@ -12292,10 +12292,10 @@ static void RequireMainMenuContinueRunState(string root)
     var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
         ? File.ReadAllText(observedEntityRestorerPath)
         : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityObservedEntityRestorer.cs is missing.");
-    var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
-    var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
-        ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity construction projection; AetheriaUnityEntityConstructionBlueprintProjector.cs is missing.");
+    var entityBlueprintMaterializerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityBlueprintMaterializer.cs");
+    var entityBlueprintMaterializer = File.Exists(entityBlueprintMaterializerPath)
+        ? File.ReadAllText(entityBlueprintMaterializerPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity construction materialization; AetheriaUnityEntityBlueprintMaterializer.cs is missing.");
     var observedZoneContextFactoryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextFactory.cs");
     var observedZoneContextFactory = File.Exists(observedZoneContextFactoryPath)
         ? File.ReadAllText(observedZoneContextFactoryPath)
@@ -12348,8 +12348,8 @@ static void RequireMainMenuContinueRunState(string root)
         "ResolveObservedTarget = entity => ObservedTargetQuery.GetObservedTarget(entity)",
         "TargetPresentation = _targetPresentation",
         "private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex",
-        "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
-        "EntityConstructionBlueprintProjector.ProjectObservedEntity",
+        "private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>",
+        "EntityBlueprintMaterializer.MaterializeObservedEntity",
         "_loadoutItemFactory.CreateLoadoutItem",
         "private AetheriaUnityObservedDockingIndex ObservedDocking =>",
         "ObservedDocking.IsEntityUndocked(CurrentEntity)",
@@ -12482,12 +12482,12 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerFacadeProjectionHits));
     }
 
-    var requiredEntityConstructionBlueprintProjectorSymbols = new[]
+    var requiredEntityBlueprintMaterializerSymbols = new[]
     {
-        "public sealed class AetheriaUnityEntityConstructionBlueprintProjector",
-        "public EntityConstructionBlueprint ProjectTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)",
-        "public EntityConstructionBlueprint ProjectLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)",
-        "public EntityConstructionBlueprint ProjectObservedEntity(",
+        "public sealed class AetheriaUnityEntityBlueprintMaterializer",
+        "public EntityConstructionBlueprint MaterializeTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)",
+        "public EntityConstructionBlueprint MaterializeLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)",
+        "public EntityConstructionBlueprint MaterializeObservedEntity(",
         "private static EntityConstructionBlueprint CreateBlueprint(string kind)",
         "new OrbitalEntityConstructionBlueprint()",
         "new ShipConstructionBlueprint()",
@@ -12499,14 +12499,14 @@ static void RequireMainMenuContinueRunState(string root)
         "_loadoutItemFactory.CreateLoadoutItem(slot.Item)",
         "_loadoutItemFactory.CreateLoadoutItem(item) as EquippableItem"
     };
-    var missingEntityConstructionBlueprintProjectorSymbols = requiredEntityConstructionBlueprintProjectorSymbols
-        .Where(symbol => !entityConstructionBlueprintProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingEntityBlueprintMaterializerSymbols = requiredEntityBlueprintMaterializerSymbols
+        .Where(symbol => !entityBlueprintMaterializer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingEntityConstructionBlueprintProjectorSymbols.Length > 0)
+    if (missingEntityBlueprintMaterializerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity entity construction blueprint lowering must live in AetheriaUnityEntityConstructionBlueprintProjector instead of ActionGameManager: " +
-            string.Join(", ", missingEntityConstructionBlueprintProjectorSymbols));
+            "Unity entity construction blueprint materialization must live in AetheriaUnityEntityBlueprintMaterializer instead of ActionGameManager: " +
+            string.Join(", ", missingEntityBlueprintMaterializerSymbols));
     }
 
     var forbiddenManagerEntityConstructionSymbols = new[]
@@ -13206,7 +13206,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
     var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
-    var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
+    var entityBlueprintMaterializerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityBlueprintMaterializer.cs");
     var observedZoneContextFactoryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextFactory.cs");
     var currentEntityBinderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityCurrentEntityBinder.cs");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
@@ -13263,9 +13263,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
         ? File.ReadAllText(observedEntityRestorerPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityRestorer.cs is missing.");
-    var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
-        ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityEntityConstructionBlueprintProjector.cs is missing.");
+    var entityBlueprintMaterializer = File.Exists(entityBlueprintMaterializerPath)
+        ? File.ReadAllText(entityBlueprintMaterializerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityEntityBlueprintMaterializer.cs is missing.");
     var observedZoneContextFactory = File.Exists(observedZoneContextFactoryPath)
         ? File.ReadAllText(observedZoneContextFactoryPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedZoneContextFactory.cs is missing.");
@@ -13350,8 +13350,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ResolveObservedGalaxyZone",
         "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
-        "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
-        "EntityConstructionBlueprintProjector.ProjectObservedEntity",
+        "private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>",
+        "EntityBlueprintMaterializer.MaterializeObservedEntity",
         "_loadoutItemFactory.CreateLoadoutItem",
         "private AetheriaUnityPilotCommandSender PilotCommands =>",
         "private AetheriaUnityPilotFrameAdapter PilotFrameAdapter =>",
@@ -13415,12 +13415,12 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity observer facade restoration no longer flows through the dedicated observed entity restorer.");
     }
 
-    var requiredEntityConstructionBlueprintProjectorSymbols = new[]
+    var requiredEntityBlueprintMaterializerSymbols = new[]
     {
-        "public sealed class AetheriaUnityEntityConstructionBlueprintProjector",
-        "public EntityConstructionBlueprint ProjectTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)",
-        "public EntityConstructionBlueprint ProjectLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)",
-        "public EntityConstructionBlueprint ProjectObservedEntity(",
+        "public sealed class AetheriaUnityEntityBlueprintMaterializer",
+        "public EntityConstructionBlueprint MaterializeTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)",
+        "public EntityConstructionBlueprint MaterializeLoadoutEntity(AetheriaRuntimeEntityLoadoutSnapshot entity)",
+        "public EntityConstructionBlueprint MaterializeObservedEntity(",
         "private static EntityConstructionBlueprint CreateBlueprint(string kind)",
         "new OrbitalEntityConstructionBlueprint()",
         "new ShipConstructionBlueprint()",
@@ -13433,14 +13433,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "_loadoutItemFactory.CreateLoadoutItem(slot.Item)",
         "_loadoutItemFactory.CreateLoadoutItem(item) as EquippableItem"
     };
-    var missingEntityConstructionBlueprintProjectorSymbols = requiredEntityConstructionBlueprintProjectorSymbols
-        .Where(symbol => !entityConstructionBlueprintProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingEntityBlueprintMaterializerSymbols = requiredEntityBlueprintMaterializerSymbols
+        .Where(symbol => !entityBlueprintMaterializer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingEntityConstructionBlueprintProjectorSymbols.Length > 0)
+    if (missingEntityBlueprintMaterializerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity observer entity construction lowering must live in AetheriaUnityEntityConstructionBlueprintProjector instead of ActionGameManager: " +
-            string.Join(", ", missingEntityConstructionBlueprintProjectorSymbols));
+            "Unity observer entity construction materialization must live in AetheriaUnityEntityBlueprintMaterializer instead of ActionGameManager: " +
+            string.Join(", ", missingEntityBlueprintMaterializerSymbols));
     }
 
     var forbiddenManagerEntityConstructionSymbols = new[]
