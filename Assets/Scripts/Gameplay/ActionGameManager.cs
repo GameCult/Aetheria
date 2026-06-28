@@ -49,7 +49,7 @@ public class ActionGameManager : MonoBehaviour
         _observedZoneContextProjector ??= new AetheriaUnityObservedZoneContextProjector(
             ItemManager,
             Settings.PlanetSettings,
-            () => AetheriaUnityObservedRunProjection.Galaxy,
+            () => ObservedGalaxy,
             Debug.LogWarning,
             PlayMusic);
     private AetheriaUnityCurrentEntityBinder CurrentEntityBinder =>
@@ -96,7 +96,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
-            AetheriaUnityObservedRunProjection.FindZone,
+            zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex),
             () => Zone,
             zone => Zone = zone,
             _observedEntityIndex,
@@ -292,6 +292,7 @@ public class ActionGameManager : MonoBehaviour
 
     private ItemManager ItemManager { get; set; }
     private AetheriaUnityLoadoutItemProjector _loadoutItemProjector;
+    private Galaxy ObservedGalaxy { get; set; }
     private Zone Zone { get; set; }
 
     private readonly AetheriaUnityDragSession _dragSession = new AetheriaUnityDragSession();
@@ -319,6 +320,7 @@ public class ActionGameManager : MonoBehaviour
         var boot = GameplayBootShell.Boot();
         ItemManager = boot.ItemManager;
         _loadoutItemProjector = boot.LoadoutItemProjector;
+        ObservedGalaxy = boot.ObservedGalaxy;
         SceneWiring.ConfigureCurrentEntityPresentation(_currentEntityPresentation, boot.RuntimeCatalog);
         SceneWiring.ConfigureTargetPresentation(
             _targetPresentation,

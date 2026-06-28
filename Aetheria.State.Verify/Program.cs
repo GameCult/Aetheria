@@ -11145,7 +11145,6 @@ static void RequireMainMenuContinueRunState(string root)
         ".Aetheria()",
         ".LatestSectorMap()",
         "ContinueGame()",
-        "AetheriaUnityObservedRunProjection.Project(",
         "SceneManager.LoadScene(\"ARPG\")"
     };
 
@@ -11173,6 +11172,9 @@ static void RequireMainMenuContinueRunState(string root)
         "GameplayLoopShell.LateTick()",
         "ApplyLatestZoneRender = () => ObservedFrameApplier.ApplyLatestZoneRender()",
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
+        "private Galaxy ObservedGalaxy { get; set; }",
+        "ObservedGalaxy = boot.ObservedGalaxy",
+        "zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex)",
         "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
@@ -12141,6 +12143,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ApplyLatestZoneRender = () => ObservedFrameApplier.ApplyLatestZoneRender()",
         "ResolveDaemonObserver()",
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
+        "private Galaxy ObservedGalaxy { get; set; }",
+        "ObservedGalaxy = boot.ObservedGalaxy",
+        "zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex)",
         "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
@@ -13220,10 +13225,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "LatestSectorMap(stateBoot)",
         ".Aetheria()",
         ".LatestSectorMap()",
-        "AetheriaUnityObservedRunProjection.Project(",
         "sectorMap.FrameId",
-        "sectorMap.IsTutorial",
-        "sectorMap.GenerationSeed",
         "SceneManager.LoadScene(\"ARPG\")"
     };
 
@@ -13822,6 +13824,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var runtimeEveSurfaceAdapterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceAdapter.cs");
     var unityPackageProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
+    var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var eveSurfacePresenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
     var eveUnitySurfaceHostPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveUnitySurfaceHost.cs");
@@ -13832,6 +13835,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         runtimeEveSurfaceAdapterPath,
         unityPackageProjectPath,
         actionGameManagerPath,
+        gameplayBootShellPath,
         mainMenuPath,
         eveSurfacePresenterPath,
         eveUnitySurfaceHostPath
@@ -13853,6 +13857,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var runtimeEveSurfaceAdapter = File.ReadAllText(runtimeEveSurfaceAdapterPath);
     var unityPackageProject = File.ReadAllText(unityPackageProjectPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
+    var gameplayBootShell = File.ReadAllText(gameplayBootShellPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var eveSurfacePresenter = File.ReadAllText(eveSurfacePresenterPath);
     var eveUnitySurfaceHost = File.ReadAllText(eveUnitySurfaceHostPath);
@@ -14055,10 +14060,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var inputDisplayLayout = File.Exists(inputDisplayLayoutPath)
         ? File.ReadAllText(inputDisplayLayoutPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; InputDisplayLayout.cs is missing.");
-    var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
-    var gameplayBootShell = File.Exists(gameplayBootShellPath)
-        ? File.ReadAllText(gameplayBootShellPath)
-        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityGameplayBootShell.cs is missing.");
     var aetheriaClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClient.cs");
     var aetheriaClient = File.Exists(aetheriaClientPath)
         ? File.ReadAllText(aetheriaClientPath)
@@ -14426,10 +14427,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
         !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains("LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestPlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -14446,6 +14445,44 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "MainMenu still names runtime catalog access as a raw catalog open instead of a managed latest document read.");
+    }
+
+    if (mainMenu.Contains("LatestRuntimeCatalog(", StringComparison.Ordinal) ||
+        mainMenu.Contains("AetheriaUnityObservedRunProjection.Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu still owns gameplay catalog/sector projection instead of leaving observed-scene boot to AetheriaUnityGameplayBootShell.");
+    }
+
+    var requiredGameplayBootSymbols = new[]
+    {
+        ".LatestCatalog()",
+        ".LatestSectorMap()",
+        "AetheriaUnityObservedRunProjection.Project(",
+        "sectorMap.IsTutorial",
+        "sectorMap.GenerationSeed",
+        "new AetheriaUnityGameplayBootResult(",
+        "ObservedGalaxy"
+    };
+    var missingGameplayBootSymbols = requiredGameplayBootSymbols
+        .Where(symbol => !gameplayBootShell.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingGameplayBootSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityGameplayBootShell must own managed catalog/sector-map projection for the observed gameplay scene: " +
+            string.Join(", ", missingGameplayBootSymbols));
+    }
+
+    var observedRunProjectionPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedRunProjection.cs");
+    var observedRunProjection = File.Exists(observedRunProjectionPath)
+        ? File.ReadAllText(observedRunProjectionPath)
+        : throw new InvalidOperationException("Cannot verify observed run projection ownership; AetheriaUnityObservedRunProjection.cs is missing.");
+    if (observedRunProjection.Contains("public static Galaxy Galaxy", StringComparison.Ordinal) ||
+        observedRunProjection.Contains("private set;", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedRunProjection must be a pure projector; observed galaxy ownership belongs to gameplay boot state.");
     }
 
     var forbiddenMainMenuReaderSymbols = new[]

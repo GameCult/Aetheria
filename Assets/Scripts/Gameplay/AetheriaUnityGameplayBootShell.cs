@@ -34,13 +34,27 @@ public sealed class AetheriaUnityGameplayBootShell
                 $"Aetheria runtime state file is missing at {stateBoot.StateFilePath}; gameplay requires an authoritative daemon mirror.");
         }
 
-        var runtimeCatalog = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
-            .Aetheria()
-            .LatestCatalog();
+        var aetheria = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
+            .Aetheria();
+        var runtimeCatalog = aetheria.LatestCatalog();
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
+        var sectorMap = aetheria.LatestSectorMap();
+        if (sectorMap == null)
+            throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");
 
         Log?.Invoke($"Aetheria runtime catalog: {runtimeCatalog.Items.Count} items, {runtimeCatalog.Corporations.Count} corporations, {runtimeCatalog.NameFiles.Count} name files");
+        Log?.Invoke($"Aetheria observed sector-map frame: {sectorMap.FrameId}");
+
+        var backgroundSettings = sectorMap.IsTutorial
+            ? Settings.TutorialBackgroundSettings
+            : Settings.SectorBackgroundSettings;
+        backgroundSettings.NoisePosition = sectorMap.GenerationSeed == 0 ? 1 : sectorMap.GenerationSeed;
+        var observedGalaxy = AetheriaUnityObservedRunProjection.Project(
+            sectorMap,
+            backgroundSettings,
+            runtimeCatalog,
+            Log);
 
         var itemManager = new ItemManager(
             runtimeCatalog,
@@ -60,6 +74,7 @@ public sealed class AetheriaUnityGameplayBootShell
 
         return new AetheriaUnityGameplayBootResult(
             runtimeCatalog,
+            observedGalaxy,
             itemManager,
             loadoutItemProjector);
     }
@@ -104,15 +119,18 @@ public readonly struct AetheriaUnityGameplayBootResult
 {
     public AetheriaUnityGameplayBootResult(
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
+        Galaxy observedGalaxy,
         ItemManager itemManager,
         AetheriaUnityLoadoutItemProjector loadoutItemProjector)
     {
         RuntimeCatalog = runtimeCatalog;
+        ObservedGalaxy = observedGalaxy;
         ItemManager = itemManager;
         LoadoutItemProjector = loadoutItemProjector;
     }
 
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; }
+    public Galaxy ObservedGalaxy { get; }
     public ItemManager ItemManager { get; }
     public AetheriaUnityLoadoutItemProjector LoadoutItemProjector { get; }
 }

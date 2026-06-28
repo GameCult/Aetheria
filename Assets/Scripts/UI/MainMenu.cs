@@ -18,7 +18,6 @@ public class MainMenu : MonoBehaviour
 
     private UIDocument _menuSurfaceDocument;
     private string _clientStatePath;
-    private AetheriaRuntimeCatalogSnapshot _catalog;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
@@ -119,7 +118,7 @@ public class MainMenu : MonoBehaviour
             return false;
         }
 
-        var generatorState = "Loading runtime catalog";
+        var generatorState = "Loading daemon sector";
         Action<string> setState = s => generatorState = s;
 
         HideMenuSurface();
@@ -129,20 +128,6 @@ public class MainMenu : MonoBehaviour
         Dialog.Show();
 
         setState($"Observing sector-map frame {sectorMap.FrameId}");
-        var backgroundSettings = sectorMap.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
-        backgroundSettings.NoisePosition = sectorMap.GenerationSeed == 0 ? 1 : sectorMap.GenerationSeed;
-        var runtimeCatalog = LatestRuntimeCatalog(stateBoot);
-        if (runtimeCatalog == null)
-        {
-            Debug.LogWarning($"Cannot start Aetheria observer scene without a runtime catalog in {stateBoot.StateFilePath}.");
-            return false;
-        }
-
-        AetheriaUnityObservedRunProjection.Project(
-            sectorMap,
-            backgroundSettings,
-            runtimeCatalog,
-            Debug.Log);
         SceneManager.LoadScene("ARPG");
         return true;
     }
@@ -206,26 +191,6 @@ public class MainMenu : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"Failed to read typed Aetheria Verse host settings for the main menu: {ex}");
-            return null;
-        }
-    }
-
-    private AetheriaRuntimeCatalogSnapshot LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)
-    {
-        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
-            return null;
-
-        if (_catalog != null)
-            return _catalog;
-
-        try
-        {
-            _catalog = ResolveClient(stateBoot).Aetheria().LatestCatalog();
-            return _catalog;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to read typed Aetheria runtime catalog for the main menu: {ex}");
             return null;
         }
     }
@@ -493,15 +458,9 @@ public class MainMenu : MonoBehaviour
         if (!string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
         {
             _clientStatePath = statePath;
-            ClearClientCaches();
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-main-menu");
-    }
-
-    private void ClearClientCaches()
-    {
-        _catalog = null;
     }
 
     private void OnDestroy()
