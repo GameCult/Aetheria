@@ -11235,17 +11235,14 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "return _aetheriaState ??= CreateAetheriaState();",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
-        "new AetheriaRuntimeManagedClientInputs(",
-        "catalogDocument.Reactive()",
-        "loadoutTemplatesDocument.Reactive()",
-        "starbridgeScenarioDocument.Reactive()",
-        "starbridgeSessionDocument.Reactive()",
-        "latestFrameDocument.Reactive()",
-        "managedInputs.RequireFrame()",
-        "managedInputs.Catalog",
-        "managedInputs.LoadoutTemplates.Templates",
-        "managedInputs.StarbridgeScenario",
-        "managedInputs.StarbridgeSession",
+        "AetheriaRuntimeManagedClientInputs? managedInputs = null;",
+        "managedInputs = new AetheriaRuntimeManagedClientInputs(state);",
+        "AetheriaRuntimeManagedClientInputs RequireManagedInputs()",
+        "RequireManagedInputs().RequireFrame()",
+        "inputs.Catalog",
+        "inputs.LoadoutTemplates.Templates",
+        "inputs.StarbridgeScenario",
+        "inputs.StarbridgeSession",
         "BootstrapCatalogDocument(",
         "CatalogBootstrapSource(",
         "BootstrapRuntimeCatalogSnapshot()",
@@ -11272,11 +11269,17 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var requiredManagedInputSymbols = new[]
     {
         "internal sealed class AetheriaRuntimeManagedClientInputs : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
-        "CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>",
+        "private readonly AetheriaRuntimeDaemonFrameSession _daemonFrame;",
+        "private readonly AetheriaRuntimeCatalogSession _catalog;",
+        "private readonly AetheriaRuntimeLoadoutTemplatesSession _loadoutTemplates;",
+        "private readonly AetheriaRuntimeStarbridgeScenarioSession _starbridgeScenario;",
+        "private readonly AetheriaRuntimeStarbridgeRunSession _starbridgeSession;",
+        "public AetheriaRuntimeManagedClientInputs(AetheriaClientState state)",
+        "_daemonFrame = state.ObserveDaemonFrame();",
+        "_catalog = state.ObserveCatalog();",
+        "_loadoutTemplates = state.ObserveLoadoutTemplates();",
+        "_starbridgeScenario = state.Starbridge.ObserveScenario();",
+        "_starbridgeSession = state.Starbridge.ObserveSession();",
         "public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current",
         "public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current",
         "public AetheriaRuntimeDaemonFrameDocument RequireFrame()",
@@ -11292,6 +11295,18 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria managed client input documents must live outside VerseClient as a named disposable typed context: " +
             string.Join(", ", missingManagedInputSymbols));
+    }
+
+    if (managedClientInputs.Contains("CultMeshReactiveDocument<", StringComparison.Ordinal) ||
+        managedClientInputs.Contains(".Reactive()", StringComparison.Ordinal) ||
+        client.Contains("catalogDocument.Reactive()", StringComparison.Ordinal) ||
+        client.Contains("loadoutTemplatesDocument.Reactive()", StringComparison.Ordinal) ||
+        client.Contains("starbridgeScenarioDocument.Reactive()", StringComparison.Ordinal) ||
+        client.Contains("starbridgeSessionDocument.Reactive()", StringComparison.Ordinal) ||
+        client.Contains("latestFrameDocument.Reactive()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria managed client inputs must sample named managed state sessions instead of owning raw reactive CultMesh documents.");
     }
 
     if (client.Contains("AetheriaRuntimeReactiveProjectionInputs", StringComparison.Ordinal) ||
@@ -11436,7 +11451,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var starbridgeSummaryBlock = indexedDocumentStart > starbridgeSummaryStart
         ? client.Substring(starbridgeSummaryStart, indexedDocumentStart - starbridgeSummaryStart)
         : client.Substring(starbridgeSummaryStart);
-    if (!starbridgeSummaryBlock.Contains("managedInputs.Catalog", StringComparison.Ordinal) ||
+    if (!starbridgeSummaryBlock.Contains("inputs.Catalog", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("BootstrapRuntimeCatalogSnapshot()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
@@ -17442,7 +17457,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
-        !verseClient.Contains("managedInputs.LoadoutTemplates.Templates", StringComparison.Ordinal) ||
+        !verseClient.Contains("inputs.LoadoutTemplates.Templates", StringComparison.Ordinal) ||
         !verseClient.Contains("ProjectStationRefit(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

@@ -1,5 +1,4 @@
 using System;
-using GameCult.Mesh;
 
 #nullable enable
 
@@ -7,24 +6,22 @@ namespace GameCult.Aetheria.State.Verse
 {
     internal sealed class AetheriaRuntimeManagedClientInputs : IDisposable
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;
+        private readonly AetheriaRuntimeDaemonFrameSession _daemonFrame;
+        private readonly AetheriaRuntimeCatalogSession _catalog;
+        private readonly AetheriaRuntimeLoadoutTemplatesSession _loadoutTemplates;
+        private readonly AetheriaRuntimeStarbridgeScenarioSession _starbridgeScenario;
+        private readonly AetheriaRuntimeStarbridgeRunSession _starbridgeSession;
 
-        public AetheriaRuntimeManagedClientInputs(
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
-            CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog,
-            CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession)
+        public AetheriaRuntimeManagedClientInputs(AetheriaClientState state)
         {
-            _daemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            _loadoutTemplates = loadoutTemplates ?? throw new ArgumentNullException(nameof(loadoutTemplates));
-            _starbridgeScenario = starbridgeScenario ?? throw new ArgumentNullException(nameof(starbridgeScenario));
-            _starbridgeSession = starbridgeSession ?? throw new ArgumentNullException(nameof(starbridgeSession));
+            if (state == null)
+                throw new ArgumentNullException(nameof(state));
+
+            _daemonFrame = state.ObserveDaemonFrame();
+            _catalog = state.ObserveCatalog();
+            _loadoutTemplates = state.ObserveLoadoutTemplates();
+            _starbridgeScenario = state.Starbridge.ObserveScenario();
+            _starbridgeSession = state.Starbridge.ObserveSession();
         }
 
         public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current

@@ -546,15 +546,9 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
             var latestFrameDocument = Document<AetheriaRuntimeDaemonFrameDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
-            var managedInputs = new AetheriaRuntimeManagedClientInputs(
-                latestFrameDocument.Reactive(),
-                catalogDocument.Reactive(),
-                loadoutTemplatesDocument.Reactive(),
-                starbridgeScenarioDocument.Reactive(),
-                starbridgeSessionDocument.Reactive());
-            _managedClientInputs = managedInputs;
+            AetheriaRuntimeManagedClientInputs? managedInputs = null;
 
-            return new AetheriaClientState(
+            var state = new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement),
                 Document<AetheriaRuntimeDaemonHealthDocument>(
@@ -656,6 +650,10 @@ namespace GameCult.Aetheria.State.Verse
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
+            managedInputs = new AetheriaRuntimeManagedClientInputs(state);
+            _managedClientInputs = managedInputs;
+            return state;
+
             CultMeshDocumentHandle<TDocument> ProjectedDocument<TDocument>(
                 string documentId,
                 Func<AetheriaRuntimeDaemonFrameDocument, Task<TDocument>> project,
@@ -678,12 +676,18 @@ namespace GameCult.Aetheria.State.Verse
                 return CultMesh.Document(
                     documentId,
                     verse,
-                    async _ => await project(managedInputs.RequireFrame()).ConfigureAwait(false),
+                    async _ => await project(RequireManagedInputs().RequireFrame()).ConfigureAwait(false),
                     _ => frameChanges
                         .SelectAwait(async (frame, cancellationToken) =>
                             await project(frame).ConfigureAwait(false)),
                     sources: sources,
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
+            }
+
+            AetheriaRuntimeManagedClientInputs RequireManagedInputs()
+            {
+                return managedInputs
+                    ?? throw new InvalidOperationException("Aetheria Verse client managed inputs were sampled before client state was initialized.");
             }
 
             CultMeshDocumentHandle<TDocument> BootstrapCatalogDocument<TDocument>(
@@ -712,20 +716,22 @@ namespace GameCult.Aetheria.State.Verse
             Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
+                var inputs = RequireManagedInputs();
                 return Task.FromResult(AetheriaRuntimeRtsProjection.ProjectStationRefit(
                     frame,
-                    managedInputs.LoadoutTemplates.Templates,
-                    managedInputs.Catalog));
+                    inputs.LoadoutTemplates.Templates,
+                    inputs.Catalog));
             }
 
             Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
+                var inputs = RequireManagedInputs();
                 return Task.FromResult(AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
-                    managedInputs.StarbridgeScenario,
-                    managedInputs.StarbridgeSession,
-                    managedInputs.Catalog));
+                    inputs.StarbridgeScenario,
+                    inputs.StarbridgeSession,
+                    inputs.Catalog));
             }
 
             static string IndexedDocumentId(string prefix, int index)
