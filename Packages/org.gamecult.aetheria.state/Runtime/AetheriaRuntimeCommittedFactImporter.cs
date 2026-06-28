@@ -112,7 +112,7 @@ namespace GameCult.Aetheria.State.Verse
                     AccountedCommandIds = currentFrame.AccountedCommandIds,
                     CumulativeAppliedCommandIds = currentFrame.CumulativeAppliedCommandIds,
                     CumulativeRejectedCommandIds = currentFrame.CumulativeRejectedCommandIds,
-                    Catalog = catalog ?? AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath),
+                    Catalog = catalog ?? EmptyCatalog(),
                     BuildPublications = false
                 });
 
@@ -155,6 +155,14 @@ namespace GameCult.Aetheria.State.Verse
                 command.ClaimKind = fact.ClaimKind;
 
             return command;
+        }
+
+        private static AetheriaRuntimeCatalogSnapshot EmptyCatalog()
+        {
+            return new AetheriaRuntimeCatalogSnapshot(
+                Array.Empty<AetheriaRuntimeCatalogItem>(),
+                Array.Empty<AetheriaRuntimeCorporation>(),
+                Array.Empty<AetheriaRuntimeNameFile>());
         }
 
         private sealed class AcceptedCommandFact

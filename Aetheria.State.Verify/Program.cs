@@ -9570,6 +9570,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
     var tradeValuePolicySurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeTradeValuePolicySurfaceBuilder.cs");
     var daemonSurfaceCommandCatalogPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommandCatalog.cs");
+    var committedFactImporterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommittedFactImporter.cs");
     var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
@@ -9593,6 +9594,7 @@ static void RequireDaemonVersePublication(string root)
         daemonEditorSurfaceBuilderPath,
         tradeValuePolicySurfaceBuilderPath,
         daemonSurfaceCommandCatalogPath,
+        committedFactImporterPath,
         daemonHostProjectPath,
         daemonHostProgramPath,
         documentRegistryPath,
@@ -9625,6 +9627,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
     var tradeValuePolicySurfaceBuilder = File.ReadAllText(tradeValuePolicySurfaceBuilderPath);
     var daemonSurfaceCommandCatalog = File.ReadAllText(daemonSurfaceCommandCatalogPath);
+    var committedFactImporter = File.ReadAllText(committedFactImporterPath);
     var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
     var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
@@ -10129,6 +10132,12 @@ static void RequireDaemonVersePublication(string root)
     {
         throw new InvalidOperationException(
             "Remote committed fact import must pass the managed runtime catalog document into the tick importer instead of reopening catalog storage.");
+    }
+
+    if (committedFactImporter.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Committed fact import must use managed catalog input or an explicit empty typed catalog; it must not reopen catalog storage from the state path.");
     }
 
     var apiPublicationStart = daemonHostSource.IndexOf(
