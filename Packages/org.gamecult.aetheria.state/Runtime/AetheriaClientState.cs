@@ -227,6 +227,12 @@ namespace GameCult.Aetheria.State.Verse
             return LatestFrame.Reactive(options);
         }
 
+        public AetheriaRuntimeDaemonFrameSession ObserveDaemonFrame(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeDaemonFrameSession(ReactiveDaemonFrame(options));
+        }
+
         public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestDaemonSoaViewAsync()
         {
             return LatestSoaView.LatestAsync();
@@ -582,6 +588,12 @@ namespace GameCult.Aetheria.State.Verse
             return StationRefit.Reactive(options);
         }
 
+        public AetheriaRuntimeStationRefitSession ObserveStationRefit(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeStationRefitSession(ReactiveStationRefit(options));
+        }
+
         public Task<AetheriaRuntimeZoneRenderDocument> LatestZoneRenderAsync()
         {
             return ZoneRender.LatestAsync();
@@ -918,6 +930,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Entity.Reactive(options);
+        }
+
+        public AetheriaRuntimeCurrentEntitySession ObserveEntity(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeCurrentEntitySession(ReactiveEntity(options));
         }
 
         public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(
@@ -1262,6 +1280,13 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Inventory(entityIndex).Reactive(options);
+        }
+
+        public AetheriaRuntimeInventorySession ObserveInventory(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeInventorySession(ReactiveInventory(entityIndex, options));
         }
     }
 

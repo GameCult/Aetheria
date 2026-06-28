@@ -6951,11 +6951,12 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     }
 
     var clientState = File.ReadAllText(clientStatePath);
-    if (!clientState.Contains("public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(", StringComparison.Ordinal) ||
-        !clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(", StringComparison.Ordinal))
+    if (!clientState.Contains("public AetheriaRuntimeCurrentEntitySession ObserveEntity(", StringComparison.Ordinal) ||
+        !clientState.Contains("public AetheriaRuntimeStationRefitSession ObserveStationRefit(", StringComparison.Ordinal) ||
+        !clientState.Contains("public AetheriaRuntimeInventorySession ObserveInventory(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientDetailState must expose managed reactive typed access for indexed inventory documents.");
+            "AetheriaClientState must expose managed session access for current entity, station refit, and indexed inventory documents.");
     }
 
     var sources = new Dictionary<string, string>
@@ -6969,11 +6970,11 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var requiredSymbols = new[]
         {
             "ResolveCurrentEntity()",
-            ".ReactiveEntity()",
-            "ResolveReactiveStationRefit()",
-            ".ReactiveStationRefit()",
+            ".ObserveEntity()",
+            "ResolveStationRefitDocument()",
+            ".ObserveStationRefit()",
             "ResolveInventory(entityIndex)",
-            ".ReactiveInventory(entityIndex)",
+            ".ObserveInventory(entityIndex)",
             "_inventory?.Current"
         };
         var missingSymbols = requiredSymbols
@@ -6988,6 +6989,12 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
 
         var forbiddenCompactedSymbols = new[]
         {
+            "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
+            "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
+            "CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>",
+            ".ReactiveEntity()",
+            ".ReactiveStationRefit()",
+            ".ReactiveInventory(entityIndex)",
             ".Latest<AetheriaRuntimeCurrentEntityDocument>()",
             ".Latest<AetheriaRuntimeStationRefitDocument>()",
             ".Details.LatestInventory(entityIndex)",
@@ -7028,7 +7035,8 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit("
+        "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
+        "public AetheriaRuntimeStationRefitSession ObserveStationRefit("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7534,11 +7542,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryMenu.cs"));
     var requiredInventoryMenuSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        "ResolveClient().State.ObserveCatalog()",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_catalog?.Current",
@@ -7555,6 +7563,23 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingInventoryMenuSharedDocumentSymbols));
     }
 
+    var forbiddenInventoryMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().State.ReactiveCatalog()",
+        ".ReactivePlayer()"
+    };
+    var inventoryMenuRawDocumentHits = forbiddenInventoryMenuSharedDocumentSymbols
+        .Where(symbol => inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (inventoryMenuRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
+            string.Join(", ", inventoryMenuRawDocumentHits));
+    }
+
     var inventoryPanel = File.ReadAllText(Path.Combine(
         root,
         "Assets",
@@ -7564,11 +7589,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryPanel.cs"));
     var requiredInventoryPanelSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        "ResolveClient().State.ObserveCatalog()",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_catalog?.Current",
@@ -7583,6 +7608,23 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "InventoryPanel should bind shared catalog/settings through managed reactive Aetheria documents with panel lifetime disposal: " +
             string.Join(", ", missingInventoryPanelSharedDocumentSymbols));
+    }
+
+    var forbiddenInventoryPanelSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().State.ReactiveCatalog()",
+        ".ReactivePlayer()"
+    };
+    var inventoryPanelRawDocumentHits = forbiddenInventoryPanelSharedDocumentSymbols
+        .Where(symbol => inventoryPanel.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (inventoryPanelRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
+            string.Join(", ", inventoryPanelRawDocumentHits));
     }
 
     var sectorRenderer = File.ReadAllText(Path.Combine(
@@ -16475,7 +16517,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
         ".Details",
-        ".ReactiveInventory(entityIndex)",
+        ".ObserveInventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
@@ -17030,10 +17072,10 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
+        "AetheriaRuntimeDaemonFrameSession _loadoutFrame",
         "ProjectLoadoutTemplate(targetEntityKey)",
         "AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(",
-        ".ReactiveDaemonFrame()",
+        ".ObserveDaemonFrame()",
         "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
@@ -17045,6 +17087,13 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         throw new InvalidOperationException(
             "InventoryPanel no longer sends a typed Eve loadout-template command from the managed reactive daemon frame: " +
             string.Join(", ", missingInventoryPanelSymbols));
+    }
+
+    if (inventoryPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".ReactiveDaemonFrame()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still owns a raw daemon-frame CultMesh document instead of AetheriaRuntimeDaemonFrameSession.");
     }
 
     if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal) ||

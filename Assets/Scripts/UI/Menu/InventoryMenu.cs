@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -32,12 +31,12 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private AetheriaRuntimeCatalogSession _catalog;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private AetheriaRuntimeCurrentEntitySession _currentEntity;
+    private AetheriaRuntimeStationRefitSession _stationRefit;
     private int _inventoryEntityIndex = -1;
-    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
+    private AetheriaRuntimeInventorySession _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private AetheriaUnityObservedDockingIndex _observedDockingIndex;
@@ -831,7 +830,7 @@ public class InventoryMenu : MonoBehaviour
                 return true;
             }
 
-            var refit = ResolveReactiveStationRefit();
+            var refit = ResolveStationRefitDocument();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -960,7 +959,7 @@ public class InventoryMenu : MonoBehaviour
             _currentEntity = ResolveClient()
                 .State
                 .Current
-                .ReactiveEntity();
+                .ObserveEntity();
         }
         catch (Exception ex)
         {
@@ -970,7 +969,7 @@ public class InventoryMenu : MonoBehaviour
         return _currentEntity?.Current;
     }
 
-    private AetheriaRuntimeStationRefitDocument ResolveReactiveStationRefit()
+    private AetheriaRuntimeStationRefitDocument ResolveStationRefitDocument()
     {
         if (_stationRefit != null)
             return _stationRefit.Current;
@@ -979,7 +978,7 @@ public class InventoryMenu : MonoBehaviour
         {
             _stationRefit = ResolveClient()
                 .State
-                .ReactiveStationRefit();
+                .ObserveStationRefit();
         }
         catch (Exception ex)
         {
@@ -999,7 +998,7 @@ public class InventoryMenu : MonoBehaviour
             var nextInventory = ResolveClient()
                 .State
                 .Details
-                .ReactiveInventory(entityIndex);
+                .ObserveInventory(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1071,7 +1070,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.ObserveCatalog();
         }
         catch (Exception ex)
         {
@@ -1091,7 +1090,7 @@ public class InventoryMenu : MonoBehaviour
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
         }
         catch (Exception ex)
         {

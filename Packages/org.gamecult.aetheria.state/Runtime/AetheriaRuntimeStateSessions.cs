@@ -77,6 +77,24 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    public sealed class AetheriaRuntimeDaemonFrameSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
+
+        public AetheriaRuntimeDaemonFrameSession(
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame)
+        {
+            _daemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
+        }
+
+        public AetheriaRuntimeDaemonFrameDocument? Current => _daemonFrame.Current;
+
+        public void Dispose()
+        {
+            _daemonFrame.Dispose();
+        }
+    }
+
     public sealed class AetheriaRuntimeZoneContactsSession : IDisposable
     {
         private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
@@ -92,6 +110,24 @@ namespace GameCult.Aetheria.State.Verse
         public void Dispose()
         {
             _zoneContacts.Dispose();
+        }
+    }
+
+    public sealed class AetheriaRuntimeStationRefitSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+
+        public AetheriaRuntimeStationRefitSession(
+            CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> stationRefit)
+        {
+            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
+        }
+
+        public AetheriaRuntimeStationRefitDocument? Current => _stationRefit.Current;
+
+        public void Dispose()
+        {
+            _stationRefit.Dispose();
         }
     }
 
@@ -113,6 +149,24 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    public sealed class AetheriaRuntimeCurrentEntitySession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+
+        public AetheriaRuntimeCurrentEntitySession(
+            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity)
+        {
+            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
+        }
+
+        public AetheriaRuntimeCurrentEntityDocument? Current => _currentEntity.Current;
+
+        public void Dispose()
+        {
+            _currentEntity.Dispose();
+        }
+    }
+
     public sealed class AetheriaRuntimeZoneDetailsSession : IDisposable
     {
         private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
@@ -128,6 +182,24 @@ namespace GameCult.Aetheria.State.Verse
         public void Dispose()
         {
             _zoneDetails.Dispose();
+        }
+    }
+
+    public sealed class AetheriaRuntimeInventorySession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
+
+        public AetheriaRuntimeInventorySession(
+            CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> inventory)
+        {
+            _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        }
+
+        public AetheriaRuntimeInventoryDocument? Current => _inventory.Current;
+
+        public void Dispose()
+        {
+            _inventory.Dispose();
         }
     }
 

@@ -206,12 +206,16 @@ public class DaemonRuntimeDocumentTests
         var observed = client.State.LatestObservedDaemon();
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
         using var catalogSession = client.State.ObserveCatalog();
+        using var daemonFrameSession = client.State.ObserveDaemonFrame();
         using var sectorMapSession = client.State.ObserveSectorMap();
         using var playerSettingsSession = client.State.Settings.ObservePlayer();
         using var verseHostSettingsSession = client.State.Settings.ObserveVerseHost();
         using var zoneContactsSession = client.State.ObserveZoneContacts();
         using var currentZoneSession = client.State.Current.ObserveZone();
+        using var currentEntitySession = client.State.Current.ObserveEntity();
+        using var stationRefitSession = client.State.ObserveStationRefit();
         using var zoneDetailsSession = client.State.Details.ObserveZone(0);
+        using var inventorySession = client.State.Details.ObserveInventory(0);
         using var objectsViewportSession = client.State.Viewports.ObserveObjects(viewport);
         using var renderSplatsViewportSession = client.State.Viewports.ObserveRenderSplats(viewport);
         using var playerHud = client.State.ObservePlayerHud();
