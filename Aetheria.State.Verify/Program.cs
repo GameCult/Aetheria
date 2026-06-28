@@ -7620,9 +7620,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)",
         "public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)",
         "public AetheriaRuntimeStarbridgeScenarioDocument LatestScenario()",
+        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveScenario(",
         "public AetheriaRuntimeStarbridgeSessionDocument LatestSession()",
+        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveSession(",
         "public AetheriaRuntimeStarbridgeSessionSummaryDocument LatestSummary()",
-        "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)"
+        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveSummary(",
+        "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)",
+        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7700,7 +7704,27 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             string.Join(", ", offenders));
     }
 
-    Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest reads for daemon, viewport, detail, and Starbridge documents");
+    if (!clientState.Contains("Starbridge.Summary", StringComparison.Ordinal) ||
+        !checkedSources["DaemonRuntimeDocumentTests.cs"].Contains(
+            "client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>()",
+            StringComparison.Ordinal) ||
+        !checkedSources["DaemonRuntimeDocumentTests.cs"].Contains(
+            "client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary)",
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Starbridge summary must be registered in the managed Aetheria document catalog for typed and schema lookups.");
+    }
+
+    if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
+            ".ReactivePlayerSeat(seat.SeatId)",
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Starbridge player-seat examples must use the named managed reactive accessor instead of fetching the raw document handle.");
+    }
+
+    Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest/reactive reads for daemon, viewport, detail, and Starbridge documents");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)

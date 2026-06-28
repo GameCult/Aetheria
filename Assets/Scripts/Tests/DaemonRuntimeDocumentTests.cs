@@ -221,6 +221,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.Catalog, client.State.Document<AetheriaRuntimeCatalogSnapshot>());
         Assert.AreSame(client.State.ZoneRender, client.State.Document<AetheriaRuntimeZoneRenderDocument>());
+        Assert.AreSame(
+            client.State.Starbridge.Summary,
+            client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>());
+        Assert.AreSame(
+            client.State.Starbridge.Summary,
+            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(client.State.Daemon.LatestFrame, client.State.LatestFrame);
         Assert.AreSame(client.State.Daemon.LatestSoaView, client.State.LatestSoaView);

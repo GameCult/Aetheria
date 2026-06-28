@@ -105,7 +105,8 @@ namespace GameCult.Aetheria.State.Verse
                 SectorMap,
                 ZoneRender,
                 Starbridge.Scenario,
-                Starbridge.Session);
+                Starbridge.Session,
+                Starbridge.Summary);
         }
 
         public AetheriaClientDaemonState Daemon { get; }
@@ -1187,6 +1188,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestScenarioAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>> ReactiveScenarioAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Scenario.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveScenario(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Scenario.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeStarbridgeSessionDocument> LatestSessionAsync()
         {
             return Session.LatestAsync();
@@ -1195,6 +1208,18 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeStarbridgeSessionDocument LatestSession()
         {
             return LatestSessionAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>> ReactiveSessionAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Session.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveSession(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Session.Reactive(options);
         }
 
         public Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> LatestSummaryAsync()
@@ -1207,6 +1232,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestSummaryAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>> ReactiveSummaryAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Summary.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveSummary(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Summary.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeStarbridgePlayerSeatDocument> LatestPlayerSeatAsync(string seatId)
         {
             return PlayerSeat(seatId).LatestAsync();
@@ -1215,6 +1252,20 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)
         {
             return LatestPlayerSeatAsync(seatId).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument>> ReactivePlayerSeatAsync(
+            string seatId,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return PlayerSeat(seatId).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat(
+            string seatId,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return PlayerSeat(seatId).Reactive(options);
         }
     }
 }
