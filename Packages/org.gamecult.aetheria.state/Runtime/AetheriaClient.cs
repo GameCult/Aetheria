@@ -149,33 +149,6 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
         }
 
-        public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
-        {
-            ThrowIfDisposed();
-            return State.Catalog.Latest();
-        }
-
-        public async Task<AetheriaRuntimePlayerSettingsSnapshot?> PlayerSettingsAsync()
-        {
-            ThrowIfDisposed();
-            var document = await State.Settings.Player.LatestAsync().ConfigureAwait(false);
-            return document.ToSnapshot();
-        }
-
-        public async Task<AetheriaRuntimeVerseHostSettingsSnapshot?> VerseHostSettingsAsync()
-        {
-            ThrowIfDisposed();
-            var document = await State.Settings.VerseHost.LatestAsync().ConfigureAwait(false);
-            return document.ToSnapshot();
-        }
-
-        public async Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()
-        {
-            ThrowIfDisposed();
-            var document = await State.LoadoutTemplates.LatestAsync().ConfigureAwait(false);
-            return document.Templates;
-        }
-
         public async Task<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplateAsync(string entityKey)
         {
             ThrowIfDisposed();

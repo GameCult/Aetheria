@@ -9263,7 +9263,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "CultMeshMutableStatePointer<EveSurfaceState>",
         "GetLatestAuthoritativeRunFrameAsync()",
         "GetObservedDaemonStateAsync()",
-        "OpenRuntimeCatalog()",
         "private AetheriaClientState? _aetheriaState",
         "return Aetheria().Catalog.Latest()",
         "return _aetheriaState ??= CreateAetheriaStateFacade();",
@@ -9285,10 +9284,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "Aetheria().Starbridge.Scenario.LatestAsync()",
         "Aetheria().Starbridge.Session.LatestAsync()",
         "Aetheria().Starbridge.PlayerSeat(seatId).LatestAsync()",
-        "GetPlayerSettingsAsync()",
         "Aetheria().Settings.Player.LatestAsync()",
         "Aetheria().Settings.VerseHost.LatestAsync()",
-        "VerseHostSettingsAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ReadRuntimeCatalogSnapshot()",
         "ReadLoadoutTemplatesDocument()",
@@ -13131,7 +13128,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface",
         "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface",
         "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface",
-        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface"
+        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface",
+        "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates { get; }",
+        "public AetheriaClientSettingsState Settings { get; }",
+        "public sealed class AetheriaClientSettingsState",
+        "CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> Player",
+        "CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHost"
     };
     var missingDaemonStateFacadeSymbols = requiredDaemonStateFacadeSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
@@ -13178,6 +13181,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "return _verse.GetDaemonGameTuiSurfaceAsync();",
         "return _verse.GetDaemonEditorSurfaceAsync();",
         "return _verse.GetDaemonEditorTuiSurfaceAsync();",
+        "public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()",
+        "public async Task<AetheriaRuntimePlayerSettingsSnapshot?> PlayerSettingsAsync()",
+        "public async Task<AetheriaRuntimeVerseHostSettingsSnapshot?> VerseHostSettingsAsync()",
+        "public async Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()",
         "scenario ??= await _verse.GetStarbridgeScenarioAsync()",
         "session ??= await _verse.GetStarbridgeSessionAsync()",
         "var frame = await _verse.GetLatestFrameAsync()"
@@ -14710,6 +14717,10 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var client = File.Exists(clientPath)
         ? File.ReadAllText(clientPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; AetheriaClient.cs is missing.");
+    var clientStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClientState.cs");
+    var clientState = File.Exists(clientStatePath)
+        ? File.ReadAllText(clientStatePath)
+        : throw new InvalidOperationException("Cannot verify loadout restore authority; AetheriaClientState.cs is missing.");
     var verseClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
     var verseClient = File.Exists(verseClientPath)
         ? File.ReadAllText(verseClientPath)
@@ -14860,7 +14871,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("ProjectLoadoutRestoreOptions(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
-        !client.Contains("State.LoadoutTemplates.LatestAsync()", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
         !verseClient.Contains("var loadoutTemplates = await loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal) ||
         !verseClient.Contains("ProjectStationRefit(frame, loadoutTemplates.Templates, catalog)", StringComparison.Ordinal))
     {
