@@ -22,7 +22,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             var observed = AetheriaRuntimeObservedDaemonState
-                .ReadAsync(client.State, client.StatePath)
+                .ReadAsync(client.State)
                 .GetAwaiter()
                 .GetResult();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(

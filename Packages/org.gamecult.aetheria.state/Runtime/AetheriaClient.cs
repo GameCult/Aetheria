@@ -162,7 +162,7 @@ namespace GameCult.Aetheria.State.Verse
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
             var observed = AetheriaRuntimeObservedDaemonState
-                .ReadAsync(State, StatePath)
+                .ReadAsync(State)
                 .GetAwaiter()
                 .GetResult();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(

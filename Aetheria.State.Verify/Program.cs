@@ -3238,7 +3238,7 @@ static void RequireEveRuntimeBootstrap(string root)
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaClient",
         "AetheriaRuntimeObservedDaemonState",
-        ".ReadAsync(client.State, client.StatePath)",
+        ".ReadAsync(client.State)",
         "new AetheriaRuntimeDaemonOperationClient(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
@@ -13760,9 +13760,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClientState state",
         "state.Daemon.LatestFrame.LatestAsync()",
         "state.Daemon.LatestSoaView.LatestAsync()",
-        "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
-        "AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath)",
-        "AetheriaRuntimeDaemonSoaViewStore.GetViewPath(statePath)"
+        "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)"
     };
     var missingObservedDaemonStateSymbols = requiredObservedDaemonStateSymbols
         .Where(symbol => !observedDaemonState.Contains(symbol, StringComparison.Ordinal))
@@ -13772,6 +13770,24 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Observed daemon state must be composed from managed typed daemon documents: " +
             string.Join(", ", missingObservedDaemonStateSymbols));
+    }
+
+    var forbiddenObservedDaemonStateSymbols = new[]
+    {
+        "string statePath",
+        "FramePath",
+        "SoaViewPath",
+        "AetheriaRuntimeDaemonFrameStore.GetFramePath",
+        "AetheriaRuntimeDaemonSoaViewStore.GetViewPath"
+    };
+    var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
+        .Where(symbol => observedDaemonState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (observedDaemonStateBypassHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Observed daemon state still projects managed daemon documents back into witness file paths: " +
+            string.Join(", ", observedDaemonStateBypassHits));
     }
 
     var forbiddenDaemonClientBypassSymbols = new[]
@@ -13872,7 +13888,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeObservedDaemonState", StringComparison.Ordinal) ||
-        !daemonObserver.Contains(".ReadAsync(client.State, client.StatePath)", StringComparison.Ordinal))
+        !daemonObserver.Contains(".ReadAsync(client.State)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "AetheriaDaemonObserver no longer composes observed daemon state from managed Aetheria client documents.");

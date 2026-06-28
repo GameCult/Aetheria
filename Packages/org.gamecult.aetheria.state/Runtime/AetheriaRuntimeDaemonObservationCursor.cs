@@ -37,8 +37,6 @@ namespace GameCult.Aetheria.State.Verse
         public long LastSoaGeneration { get; private set; } = -1;
         public string LastDaemonId { get; private set; } = "";
         public string LastSessionId { get; private set; } = "";
-        public string LastFramePath { get; private set; } = "";
-        public string LastSoaViewPath { get; private set; } = "";
 
         public AetheriaRuntimeDaemonObservationResult Observe(AetheriaRuntimeObservedDaemonState? observed)
         {
@@ -64,8 +62,6 @@ namespace GameCult.Aetheria.State.Verse
             LastSoaGeneration = soaGeneration;
             LastDaemonId = frame.DaemonId ?? "";
             LastSessionId = frame.SessionId ?? "";
-            LastFramePath = observed.FramePath ?? "";
-            LastSoaViewPath = observed.SoaViewPath ?? "";
 
             return new AetheriaRuntimeDaemonObservationResult(
                 true,
@@ -82,8 +78,6 @@ namespace GameCult.Aetheria.State.Verse
             LastSoaGeneration = -1;
             LastDaemonId = "";
             LastSessionId = "";
-            LastFramePath = "";
-            LastSoaViewPath = "";
         }
     }
 }

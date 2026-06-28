@@ -10,29 +10,22 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeObservedDaemonState(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeDaemonSoaViewDocument? soaView,
-            string framePath,
-            string soaViewPath)
+            AetheriaRuntimeDaemonSoaViewDocument? soaView)
         {
             Frame = frame ?? throw new ArgumentNullException(nameof(frame));
             SoaView = soaView;
             SoaIndex = AetheriaRuntimeDaemonSoaViewIndex.Build(soaView);
-            FramePath = framePath ?? "";
-            SoaViewPath = soaViewPath ?? "";
         }
 
         public AetheriaRuntimeDaemonFrameDocument Frame { get; }
         public AetheriaRuntimeDaemonSoaViewDocument? SoaView { get; }
         public AetheriaRuntimeDaemonSoaViewIndex SoaIndex { get; }
-        public string FramePath { get; }
-        public string SoaViewPath { get; }
         public bool HasSoaView => SoaView != null && SoaIndex.IsValid;
         public bool IsAuthoritative => Frame.IsAuthoritative;
         public AetheriaRuntimeRunCheckpointCommit Run => Frame.Run;
 
         public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(
-            AetheriaClientState state,
-            string statePath)
+            AetheriaClientState state)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
@@ -49,9 +42,7 @@ namespace GameCult.Aetheria.State.Verse
 
             return new AetheriaRuntimeObservedDaemonState(
                 frame,
-                soaView,
-                AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath),
-                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(statePath));
+                soaView);
         }
 
         private static async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryReadLatestSoaViewAsync(

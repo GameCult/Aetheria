@@ -205,7 +205,7 @@ public class DaemonRuntimeDocumentTests
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State, client.StatePath)
+            .ReadAsync(client.State)
             .GetAwaiter()
             .GetResult();
         var observedAuthoritativeFrame = client.State.Daemon.LatestFrame.LatestAsync().GetAwaiter().GetResult();
@@ -2158,7 +2158,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State, client.StatePath)
+            .ReadAsync(client.State)
             .GetAwaiter()
             .GetResult();
 
@@ -2169,8 +2169,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("entity:observer-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(300, observed.Frame.FrameId);
         Assert.AreEqual(301, observed.SoaView.Generation);
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), observed.SoaViewPath);
         Assert.IsFalse(observed.SoaView.Buffers[0].ObserverWritable);
     }
 
@@ -2202,7 +2200,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State, client.StatePath)
+            .ReadAsync(client.State)
             .GetAwaiter()
             .GetResult();
 
@@ -2213,8 +2211,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("daemon-frame-only-run", observed.Run.RunId);
         Assert.AreEqual("entity:frame-only-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(301, observed.Frame.FrameId);
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), observed.SoaViewPath);
     }
 
     [Test]
@@ -4172,9 +4168,7 @@ public class DaemonRuntimeDocumentTests
 
         return new AetheriaRuntimeObservedDaemonState(
             frame,
-            soaView,
-            "state.cc.daemon.frame.cc",
-            "state.cc.daemon.soa.cc");
+            soaView);
     }
 
     private static void PublishLatestFrameThroughVerseClient(
