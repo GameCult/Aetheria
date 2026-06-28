@@ -15150,6 +15150,23 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "AetheriaUnityObservedRunProjection must be a pure projector; observed galaxy ownership belongs to gameplay boot state.");
     }
 
+    var forbiddenObservedRunProjectionSymbols = new[]
+    {
+        "AetheriaRuntimeDaemonFrameDocument",
+        "AetheriaRuntimeRunCheckpointCommit",
+        "ProjectObservedDaemonRun",
+        "FindZoneSnapshot"
+    };
+    var observedRunProjectionHits = forbiddenObservedRunProjectionSymbols
+        .Where(symbol => observedRunProjection.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (observedRunProjectionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedRunProjection still accepts daemon-frame/run-checkpoint inputs; gameplay boot must use the managed sector-map document: " +
+            string.Join(", ", observedRunProjectionHits));
+    }
+
     var forbiddenMainMenuReaderSymbols = new[]
     {
         "AetheriaRuntimeStateReader.ReadPlayerSettings",
