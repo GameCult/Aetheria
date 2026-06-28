@@ -123,6 +123,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCommittedFactImporter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInputSettingsCommands.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsSimulation.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEntitySnapshotProjector.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaState.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaClientState.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaClient.cs" />

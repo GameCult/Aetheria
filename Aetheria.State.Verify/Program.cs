@@ -11722,10 +11722,17 @@ static void RequireMainMenuContinueRunState(string root)
     var pilotFrameAdapter = File.Exists(pilotFrameAdapterPath)
         ? File.ReadAllText(pilotFrameAdapterPath)
         : throw new InvalidOperationException("Cannot verify Continue pilot frame adapter; AetheriaUnityPilotFrameAdapter.cs is missing.");
-    var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
+    var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
+    if (File.Exists(legacyUnityDaemonEntitySnapshotProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "Unity still owns daemon entity snapshot projection; package runtime should lower typed daemon entity snapshots.");
+    }
+
+    var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityDaemonEntitySnapshotProjector.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
     var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
     var observedEntityProjector = File.Exists(observedEntityProjectorPath)
         ? File.ReadAllText(observedEntityProjectorPath)
@@ -11827,7 +11834,7 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredEntitySnapshotProjectorSymbols = new[]
     {
-        "public static class AetheriaUnityDaemonEntitySnapshotProjector",
+        "public static class AetheriaRuntimeEntitySnapshotProjector",
         "public static AetheriaRuntimeEntitySnapshot[] CreateSnapshots(",
         "public static string DaemonEntityRecordKey(string runId, int zoneIndex, int entityIndex)",
         "new AetheriaRuntimeEntitySnapshot(",
@@ -11844,7 +11851,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (missingEntitySnapshotProjectorSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon entity snapshot projection must live outside ActionGameManager: " +
+            "Daemon entity snapshot projection must live in the runtime package outside ActionGameManager and Unity Assets: " +
             string.Join(", ", missingEntitySnapshotProjectorSymbols));
     }
 
@@ -12022,7 +12029,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
+        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         ".OrderBy(entity => entity.EntityIndex)",
         "_entityProjector.TryApplyInPlace(",
         "zoneRenderer?.ApplyZoneRender(render)",
@@ -12052,7 +12059,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
+        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityProjector.TryApplyInPlace(",
         "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
         "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
@@ -12616,7 +12623,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var pilotOperationAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationAdapter.cs");
     var observedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
-    var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
+    var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
+    var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
     var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
     var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
     var observedZoneContextProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextProjector.cs");
@@ -12663,9 +12671,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var observedFrameApplier = File.Exists(observedFrameApplierPath)
         ? File.ReadAllText(observedFrameApplierPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedFrameApplier.cs is missing.");
+    if (File.Exists(legacyUnityDaemonEntitySnapshotProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "Unity still owns daemon entity snapshot projection; package runtime should lower typed daemon entity snapshots.");
+    }
+
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityDaemonEntitySnapshotProjector.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
     var observedEntityProjector = File.Exists(observedEntityProjectorPath)
         ? File.ReadAllText(observedEntityProjectorPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityProjector.cs is missing.");
@@ -12887,7 +12901,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "public bool ApplyLatestZoneRender()",
         "observer.LastObservedState?.ZoneRender",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
+        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         ".OrderBy(entity => entity.EntityIndex)",
         "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
         "_entityProjector.TryApplyInPlace(",
@@ -12917,7 +12931,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
-        "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
+        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
         "ObservedEntityProjector.TryApplyInPlace(",
         "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
