@@ -324,95 +324,14 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>(key, documentId).ReactiveAsync(options);
         }
 
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonProviderAdvertisementDocument>>
-            WatchProviderAdvertisements()
+        public Observable<CultNetDatabaseChange<TDocument>> WatchRecord<TDocument>(
+            CultRecordKey key)
+            where TDocument : class
         {
             ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonHealthDocument>> WatchHealth()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeDaemonHealthDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonHealth);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonCommandBoundaryDocument>>
-            WatchCommandBoundary()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeDaemonCommandBoundaryDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeVerseAuthorityPolicyDocument>>
-            WatchVerseAuthorityPolicies()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeVerseAuthorityPolicyDocument>(
-                AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonFrameDocument>> WatchLatestFrames()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonSoaViewDocument>> WatchLatestSoaViews()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>(
-                AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgeScenarioDocument>> WatchStarbridgeScenarios()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeStarbridgeScenarioDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgeSessionDocument>> WatchStarbridgeSessions()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeStarbridgeSessionDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
-        }
-
-        public Observable<CultNetDatabaseChange<AetheriaRuntimeStarbridgePlayerSeatDocument>>
-            WatchStarbridgePlayerSeat(string seatId)
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<AetheriaRuntimeStarbridgePlayerSeatDocument>(
-                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId));
-        }
-
-        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameSurfaces()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
-        }
-
-        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonGameTuiSurfaces()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
-        }
-
-        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonEditorSurfaces()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
-        }
-
-        public Observable<CultNetDatabaseChange<EveSurfaceState>> WatchDaemonEditorTuiSurfaces()
-        {
-            ThrowIfDisposed();
-            return Database.WatchRecord<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+            if (string.IsNullOrWhiteSpace(key.Value))
+                throw new ArgumentException("Value must be non-empty.", nameof(key));
+            return Database.WatchRecord<TDocument>(key);
         }
 
         internal async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(
@@ -527,7 +446,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private AetheriaClientState CreateAetheriaState()
         {
-            var frameChanges = WatchLatestFrames()
+            var frameChanges = WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
                 .Where(change => change.Document != null)
                 .Select(change => change.Document!);
             var catalogDocument = BootstrapCatalogDocument(

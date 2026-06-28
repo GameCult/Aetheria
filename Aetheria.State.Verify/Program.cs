@@ -11594,11 +11594,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "public static class AetheriaRuntimeVerseContractRegistry",
         "AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry()",
         "AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)",
-        "WatchLatestFrames()",
-        "WatchLatestSoaViews()",
+        "public Observable<CultNetDatabaseChange<TDocument>> WatchRecord<TDocument>(",
         "WatchRecord<AetheriaRuntimeDaemonFrameDocument>",
-        "WatchRecord<AetheriaRuntimeDaemonSoaViewDocument>",
-        "WatchVerseAuthorityPolicies()",
         "CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument>",
         "CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument>",
         "CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument>",
@@ -11615,8 +11612,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "new CultRecordKey(\"daemon:aetheria.starbridge.session.latest.v1\")",
         "Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(",
         "typeof(EveSurfaceState)",
-        "WatchDaemonGameTuiSurfaces()",
-        "WatchDaemonEditorTuiSurfaces()",
         "CultMeshMutableStatePointer<EveSurfaceState>",
         "private AetheriaClientState? _aetheriaState",
         "private AetheriaRuntimeManagedClientInputs? _managedClientInputs",
@@ -11653,6 +11648,32 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    var forbiddenNamedWatchHelpers = new[]
+    {
+        "WatchProviderAdvertisements(",
+        "WatchHealth(",
+        "WatchCommandBoundary(",
+        "WatchVerseAuthorityPolicies(",
+        "WatchLatestFrames(",
+        "WatchLatestSoaViews(",
+        "WatchStarbridgeScenarios(",
+        "WatchStarbridgeSessions(",
+        "WatchStarbridgePlayerSeat(",
+        "WatchDaemonGameSurfaces(",
+        "WatchDaemonGameTuiSurfaces(",
+        "WatchDaemonEditorSurfaces(",
+        "WatchDaemonEditorTuiSurfaces("
+    };
+    var survivingNamedWatchHelpers = forbiddenNamedWatchHelpers
+        .Where(symbol => client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingNamedWatchHelpers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient must expose generic WatchRecord<TDocument>(CultRecordKey) instead of named record-watch wrappers: " +
+            string.Join(", ", survivingNamedWatchHelpers));
     }
 
     var requiredManagedInputSymbols = new[]
@@ -11994,7 +12015,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var requiredDocSymbols = new[]
     {
         "AetheriaRuntimeVerseClient",
-        "WatchRecord<T>()",
+        "WatchRecord<T>(CultRecordKey)",
         "CultMeshMutableStatePointer<T>",
         "Unity",
         "Verse records",

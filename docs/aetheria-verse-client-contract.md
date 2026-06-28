@@ -29,8 +29,8 @@ registry and exposes:
 
 - current typed reads for provider advertisement, health, command boundary,
   latest daemon frame, latest SoA view, and daemon game/editor Eve surfaces;
-- reactive watches via `WatchRecord<T>()`, including `WatchLatestFrames()` and
-  `WatchLatestSoaViews()`, plus daemon GUI/TUI surface watches;
+- reactive watches via `WatchRecord<T>(CultRecordKey)`, with record identity
+  passed as data instead of one watch helper per document lane;
 - `CultMeshMutableStatePointer<T>` handles for transparent reactive POCO
   presentation, including read, watch, and replace through shared CultMesh
   Verse context semantics;
@@ -44,7 +44,10 @@ using var client = await AetheriaRuntimeVerseClient.OpenAsync(
     statePath,
     runtimeId: "unity-render-client");
 
-using var frames = client.WatchLatestFrames().Subscribe(change =>
+using var frames = client
+    .WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
+        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+    .Subscribe(change =>
 {
     var frame = change.Document;
     if (frame == null)
@@ -53,7 +56,10 @@ using var frames = client.WatchLatestFrames().Subscribe(change =>
     // Feed presentation jobs from the authoritative daemon frame.
 });
 
-var soa = await client.GetLatestSoaViewAsync();
+var soa = await client
+    .Document<AetheriaRuntimeDaemonSoaViewDocument>(
+        AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
+    .LatestAsync();
 ```
 
 That baseline is not the desired presentation API for gameplay state. Unity
@@ -128,7 +134,7 @@ The daemon already publishes game and editor Eve surface records at these keys:
 
 `AetheriaRuntimeVerseRecordKeys` exposes those keys and
 `AetheriaRuntimeVerseClient` exposes typed reads, mutable state pointers, and
-`WatchRecord<EveSurfaceState>()` subscriptions for all four. The
+`WatchRecord<EveSurfaceState>(CultRecordKey)` subscriptions for all four. The
 `EveSurfaceState` document contract lives in the shared runtime package so a
 Unity client, terminal client, daemon inspector, or later non-C# runtime binding
 can lower the same published UI surface. The existing Eve Unity runtime host can
