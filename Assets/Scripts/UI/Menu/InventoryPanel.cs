@@ -1076,14 +1076,15 @@ private void Update()
 
         try
         {
-            var loadout = ResolveClient()
-                .LoadoutTemplateAsync(targetEntityKey)
+            var client = ResolveClient();
+            var loadout = AetheriaRuntimeLoadoutSnapshotProjector
+                .ProjectLoadoutTemplateAsync(client.State, targetEntityKey)
                 .GetAwaiter()
                 .GetResult();
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
 
-            var submitted = ResolveClient()
+            var submitted = client
                 .Ui.SaveLoadoutTemplateAsync(loadout, "unity-inventory")
                 .GetAwaiter()
                 .GetResult();

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
@@ -128,15 +127,6 @@ namespace GameCult.Aetheria.State.Verse
                 pullOnOpen: pullOnOpen);
         }
 
-        public async Task<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplateAsync(string entityKey)
-        {
-            ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(
-                frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
-                entityKey ?? "");
-        }
-
         public Func<string, string> CreateEveSurfaceStateRefResolver()
         {
             ThrowIfDisposed();
@@ -249,14 +239,6 @@ namespace GameCult.Aetheria.State.Verse
                     .GetResult());
 
             return submit(operationClient, observed);
-        }
-
-        private async Task<AetheriaRuntimeDaemonFrameDocument> RequireFrameAsync()
-        {
-            var frame = await State.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-            if (frame == null)
-                throw new InvalidOperationException("Aetheria local client has no daemon frame yet.");
-            return frame;
         }
 
         private void ThrowIfDisposed()

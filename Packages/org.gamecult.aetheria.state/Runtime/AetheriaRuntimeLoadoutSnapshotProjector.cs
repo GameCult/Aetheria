@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 #nullable enable
 
@@ -8,6 +9,21 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeLoadoutSnapshotProjector
     {
+        public static async Task<AetheriaRuntimeLoadoutTemplateCommit> ProjectLoadoutTemplateAsync(
+            AetheriaClientState state,
+            string entityKey)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+
+            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
+            if (frame == null)
+                return new AetheriaRuntimeLoadoutTemplateCommit();
+
+            return ProjectLoadoutTemplate(
+                frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
+                entityKey ?? "");
+        }
+
         public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(
             AetheriaRuntimeRunCheckpointCommit run,
             string entityKey)

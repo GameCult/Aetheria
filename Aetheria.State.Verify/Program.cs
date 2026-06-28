@@ -13475,8 +13475,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public Observable<TDocument> Watch<TDocument>()",
-        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "State.Daemon.LatestFrame.LatestAsync()"
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingManagedClientAccessSymbols = requiredManagedClientAccessSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -13525,6 +13524,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<AetheriaRuntimeVerseHostSettingsSnapshot?> VerseHostSettingsAsync()",
         "public async Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()",
         "public async Task<AetheriaRuntimeObservedDaemonState?> ObserveAsync()",
+        "public async Task<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplateAsync(",
         "scenario ??= await _verse.GetStarbridgeScenarioAsync()",
         "session ??= await _verse.GetStarbridgeSessionAsync()",
         "var frame = await _verse.GetLatestFrameAsync()",
@@ -14902,11 +14902,17 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var runtimeStateMapperPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeStateMapper.cs");
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
     var loadoutProjectorPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "AetheriaRuntimeLoadoutProjector.cs");
+    var loadoutSnapshotProjectorPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeLoadoutSnapshotProjector.cs");
     var dragSessionPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDragSession.cs");
     var dragObjectsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDragObjects.cs");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutProjectorPath, dragSessionPath, gameplaySceneWiringPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutProjectorPath, loadoutSnapshotProjectorPath, dragSessionPath, gameplaySceneWiringPath };
     var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
     if (missingFiles.Length > 0)
     {
@@ -14921,6 +14927,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var runtimeStateMapper = File.ReadAllText(runtimeStateMapperPath);
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
     var loadoutProjector = File.ReadAllText(loadoutProjectorPath);
+    var loadoutSnapshotProjector = File.ReadAllText(loadoutSnapshotProjectorPath);
     var dragSession = File.ReadAllText(dragSessionPath);
     var gameplaySceneWiring = File.ReadAllText(gameplaySceneWiringPath);
     var dragObjects = File.Exists(dragObjectsPath)
@@ -14995,7 +15002,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        ".LoadoutTemplateAsync(targetEntityKey)",
+        "AetheriaRuntimeLoadoutSnapshotProjector",
+        ".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
@@ -15006,6 +15014,30 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         throw new InvalidOperationException(
             "InventoryPanel no longer sends a typed Eve loadout-template command: " +
             string.Join(", ", missingInventoryPanelSymbols));
+    }
+
+    if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still asks AetheriaClient for a document-specific loadout template helper instead of composing from managed typed state.");
+    }
+
+    var requiredLoadoutSnapshotProjectorSymbols = new[]
+    {
+        "ProjectLoadoutTemplateAsync(",
+        "AetheriaClientState state",
+        "state.Daemon.LatestFrame.LatestAsync()",
+        "ProjectLoadoutTemplate(",
+        "frame.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
+    };
+    var missingLoadoutSnapshotProjectorSymbols = requiredLoadoutSnapshotProjectorSymbols
+        .Where(symbol => !loadoutSnapshotProjector.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingLoadoutSnapshotProjectorSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Loadout template save payloads must be composed from managed typed daemon frame documents: " +
+            string.Join(", ", missingLoadoutSnapshotProjectorSymbols));
     }
 
     var forbiddenActionSymbols = new[]
