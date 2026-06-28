@@ -128,27 +128,6 @@ namespace GameCult.Aetheria.State.Verse
                 pullOnOpen: pullOnOpen);
         }
 
-        public async Task<AetheriaRuntimeObservedDaemonState?> ObserveAsync()
-        {
-            ThrowIfDisposed();
-            var frame = await State.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-            if (frame == null)
-                return null;
-
-            var soaView = await State.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
-            if (soaView == null ||
-                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
-            {
-                soaView = null;
-            }
-
-            return new AetheriaRuntimeObservedDaemonState(
-                frame,
-                soaView,
-                AetheriaRuntimeDaemonFrameStore.GetFramePath(StatePath),
-                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
-        }
-
         public async Task<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplateAsync(string entityKey)
         {
             ThrowIfDisposed();
@@ -256,7 +235,10 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
-            var observed = ObserveAsync().GetAwaiter().GetResult();
+            var observed = AetheriaRuntimeObservedDaemonState
+                .ReadAsync(State, StatePath)
+                .GetAwaiter()
+                .GetResult();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 StatePath,
                 _clientId,

@@ -95,7 +95,11 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private AetheriaRuntimeObservedDaemonState ReadObservedDaemonState()
     {
-        return ResolveClient().ObserveAsync().GetAwaiter().GetResult();
+        var client = ResolveClient();
+        return AetheriaRuntimeObservedDaemonState
+            .ReadAsync(client.State, client.StatePath)
+            .GetAwaiter()
+            .GetResult();
     }
 
     private AetheriaClient ResolveClient()

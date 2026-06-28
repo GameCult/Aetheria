@@ -204,7 +204,10 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
-        var legacyObserved = client.ObserveAsync().GetAwaiter().GetResult();
+        var observed = AetheriaRuntimeObservedDaemonState
+            .ReadAsync(client.State, client.StatePath)
+            .GetAwaiter()
+            .GetResult();
         var observedAuthoritativeFrame = client.State.Daemon.LatestFrame.LatestAsync().GetAwaiter().GetResult();
         var gameSurface = client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult();
         var gameTuiSurface = client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
@@ -262,7 +265,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
-        Assert.AreEqual(frame.FrameId, legacyObserved.Frame.FrameId);
+        Assert.AreEqual(frame.FrameId, observed.Frame.FrameId);
         Assert.AreEqual(frame.FrameId, observedAuthoritativeFrame.FrameId);
         Assert.IsTrue(observedAuthoritativeFrame.IsAuthoritative);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, gameSurface.Surface.Id);
@@ -2097,7 +2100,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void AetheriaClientObservesManagedDaemonStateWithSoaView()
+    public void ObservedDaemonStateReadsManagedFrameAndSoaDocuments()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -2154,7 +2157,10 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = client.ObserveAsync().GetAwaiter().GetResult();
+        var observed = AetheriaRuntimeObservedDaemonState
+            .ReadAsync(client.State, client.StatePath)
+            .GetAwaiter()
+            .GetResult();
 
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);

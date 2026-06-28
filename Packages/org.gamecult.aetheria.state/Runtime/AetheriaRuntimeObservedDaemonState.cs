@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 #nullable enable
 
@@ -27,5 +28,29 @@ namespace GameCult.Aetheria.State.Verse
         public bool HasSoaView => SoaView != null && SoaIndex.IsValid;
         public bool IsAuthoritative => Frame.IsAuthoritative;
         public AetheriaRuntimeRunCheckpointCommit Run => Frame.Run;
+
+        public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(
+            AetheriaClientState state,
+            string statePath)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+
+            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
+            if (frame == null)
+                return null;
+
+            var soaView = await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
+            if (soaView == null ||
+                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+            {
+                soaView = null;
+            }
+
+            return new AetheriaRuntimeObservedDaemonState(
+                frame,
+                soaView,
+                AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath),
+                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(statePath));
+        }
     }
 }
