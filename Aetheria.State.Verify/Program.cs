@@ -7442,6 +7442,30 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
             string.Join(", ", offenders));
     }
 
+    var renderSplatViewportSource = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Gameplay",
+        "AetheriaUnityRenderSplatViewportSource.cs"));
+    var requiredRenderSplatViewportSourceSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
+        ".ReactiveRenderSplats(viewport)",
+        "_renderSplatsViewport?.Current",
+        "ClearViewportDocument()"
+    };
+    var missingRenderSplatViewportSourceSymbols = requiredRenderSplatViewportSourceSymbols
+        .Where(symbol => !renderSplatViewportSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingRenderSplatViewportSourceSymbols.Length > 0 ||
+        renderSplatViewportSource.Contains(".LatestRenderSplats(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityRenderSplatViewportSource must keep a managed reactive render-splats viewport document instead of polling latest snapshots: " +
+            string.Join(", ", missingRenderSplatViewportSourceSymbols));
+    }
+
     Console.WriteLine("Viewport and map document accessors: Unity reads map, contact, viewport, and current-entity state through named managed accessors");
 }
 

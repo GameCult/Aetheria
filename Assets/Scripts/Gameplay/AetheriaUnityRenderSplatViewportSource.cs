@@ -1,4 +1,5 @@
 using System;
+using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
@@ -26,7 +27,8 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     private bool renderInLateUpdate = true;
 
     private float _nextRefreshTime;
-    private AetheriaRuntimeRenderSplatsViewportDocument _document;
+    private AetheriaRuntimeRtsViewportBounds _viewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
 
     public RenderTexture TargetTexture
     {
@@ -51,6 +53,11 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             RenderLatest();
     }
 
+    private void OnDisable()
+    {
+        ClearViewportDocument();
+    }
+
     public bool RenderLatest()
     {
         ResolveRenderers();
@@ -58,16 +65,17 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             return false;
 
         RefreshDocument(false);
-        if (_document == null)
+        var document = _renderSplatsViewport?.Current;
+        if (document == null)
             return false;
 
         if (layerRenderer != null)
         {
-            layerRenderer.Render(_document, Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y));
+            layerRenderer.Render(document, Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y));
             return true;
         }
 
-        rasterizer.Render(_document, Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y));
+        rasterizer.Render(document, Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y));
         return true;
     }
 
@@ -98,16 +106,23 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
     private void RefreshDocument(bool force)
     {
+        var viewport = ResolveViewportBounds();
+        if (!force && _renderSplatsViewport != null && SameViewport(_viewport, viewport))
+            return;
+
         if (!force && Time.unscaledTime < _nextRefreshTime)
             return;
 
         _nextRefreshTime = Time.unscaledTime + Mathf.Max(0.02f, refreshIntervalSeconds);
         try
         {
-            _document = ResolveClient()
+            var nextRenderSplatsViewport = ResolveClient()
                 .Aetheria()
                 .Viewports
-                .LatestRenderSplats(ResolveViewportBounds());
+                .ReactiveRenderSplats(viewport);
+            ClearViewportDocument();
+            _viewport = viewport;
+            _renderSplatsViewport = nextRenderSplatsViewport;
         }
         catch (Exception ex)
         {
@@ -125,6 +140,25 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             MaxX = position.x + halfSize.x,
             MaxY = position.y + halfSize.y
         };
+    }
+
+    private void ClearViewportDocument()
+    {
+        _renderSplatsViewport?.Dispose();
+        _renderSplatsViewport = null;
+    }
+
+    private static bool SameViewport(
+        AetheriaRuntimeRtsViewportBounds left,
+        AetheriaRuntimeRtsViewportBounds right)
+    {
+        if (left == null || right == null)
+            return false;
+
+        return Mathf.Approximately(left.MinX, right.MinX) &&
+            Mathf.Approximately(left.MinY, right.MinY) &&
+            Mathf.Approximately(left.MaxX, right.MaxX) &&
+            Mathf.Approximately(left.MaxY, right.MaxY);
     }
 
     private AetheriaClient ResolveClient()
