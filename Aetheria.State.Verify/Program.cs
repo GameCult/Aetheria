@@ -94,6 +94,7 @@ RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
 RequireAuthoritySmokeUsesManagedPointers(root);
+RequireAetheriaStateNodeUsesManagedPointers(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(
     statePath,
@@ -8579,6 +8580,90 @@ static void RequireAuthoritySmokeUsesManagedPointers(string root)
     {
         throw new InvalidOperationException(
             "Authority smoke still teaches compatibility helper access instead of managed Verse pointers: " +
+            string.Join(", ", survivingSymbols));
+    }
+}
+
+static void RequireAetheriaStateNodeUsesManagedPointers(string root)
+{
+    var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
+    if (!File.Exists(stateNodePath))
+    {
+        throw new InvalidOperationException("AetheriaStateNode source is missing.");
+    }
+
+    var stateNode = File.ReadAllText(stateNodePath);
+    var requiredSymbols = new[]
+    {
+        "public CultMeshMutableStatePointer<AetheriaWorldState> World()",
+        "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
+        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()",
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()",
+        "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
+        "CultMesh.MutableStatePointer("
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !stateNode.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaStateNode no longer exposes managed typed state pointers: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "public Task<CultRecordHandle<AetheriaWorldState>> PutWorldAsync(",
+        "public Task<AetheriaWorldState?> GetWorldAsync(",
+        "public Task<CultRecordHandle<AetheriaMigrationLedger>> PutMigrationLedgerAsync(",
+        "public Task<AetheriaMigrationLedger?> GetMigrationLedgerAsync(",
+        "public Task<CultRecordHandle<AetheriaItemDefinition>> PutItemDefinitionAsync(",
+        "public Task<AetheriaItemDefinition?> GetItemDefinitionAsync(",
+        "public Task<AetheriaItemDefinition?> GetItemDefinitionByLegacyIdAsync(",
+        "public Task<CultRecordHandle<AetheriaCorporation>> PutCorporationAsync(",
+        "public Task<AetheriaCorporation?> GetCorporationAsync(",
+        "public Task<CultRecordHandle<AetheriaNameFile>> PutNameFileAsync(",
+        "public Task<AetheriaNameFile?> GetNameFileAsync(",
+        "public Task<CultRecordHandle<AetheriaTradeValuePolicy>> PutTradeValuePolicyAsync(",
+        "public Task<AetheriaTradeValuePolicy?> GetTradeValuePolicyAsync(",
+        "public Task<CultRecordHandle<EveSurfaceState>> PutCatalogSurfaceAsync(",
+        "public Task<EveSurfaceState?> GetCatalogSurfaceAsync(",
+        "public Task<CultRecordHandle<EveProviderAdvertisementState>> PutProviderAdvertisementAsync(",
+        "public Task<EveProviderAdvertisementState?> GetProviderAdvertisementAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument>> PutDaemonProviderAdvertisementAsync(",
+        "public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetDaemonProviderAdvertisementAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeVerseAuthorityPolicyDocument>> PutVerseAuthorityPolicyAsync(",
+        "public Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> GetVerseAuthorityPolicyAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeDaemonFrameDocument>> PutDaemonFrameAsync(",
+        "public Task<AetheriaRuntimeDaemonFrameDocument?> GetDaemonFrameAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeDaemonSoaViewDocument>> PutDaemonSoaViewAsync(",
+        "public Task<AetheriaRuntimeDaemonSoaViewDocument?> GetDaemonSoaViewAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeStarbridgeScenarioDocument>> PutStarbridgeScenarioAsync(",
+        "public Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync(",
+        "public Task<CultRecordHandle<EveSurfaceState>> PutDaemonGameSurfaceAsync(",
+        "public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync(",
+        "public Task<CultRecordHandle<AetheriaRuntimeSession>> PutRuntimeSessionAsync(",
+        "public Task<AetheriaRuntimeSession?> GetRuntimeSessionAsync(",
+        "public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(",
+        "public Task<AetheriaPlayerSettings?> GetPlayerSettingsAsync(",
+        "public Task<CultRecordHandle<AetheriaRunState>> PutRunStateAsync(",
+        "public Task<AetheriaRunState?> GetRunStateAsync(",
+        "public Task<CultRecordHandle<AetheriaEntitySnapshot>> PutEntitySnapshotAsync(",
+        "public Task<AetheriaEntitySnapshot?> GetEntitySnapshotAsync(",
+        "public Task<CultRecordHandle<AetheriaVerseHostSettings>> PutVerseHostSettingsAsync(",
+        "public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync("
+    };
+    var survivingSymbols = forbiddenSymbols
+        .Where(symbol => stateNode.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaStateNode still exposes compatibility document Get/Put helpers instead of managed typed pointers: " +
             string.Join(", ", survivingSymbols));
     }
 }
