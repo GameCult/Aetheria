@@ -1,4 +1,5 @@
 using System;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -6,22 +7,22 @@ namespace GameCult.Aetheria.State.Verse
 {
     internal sealed class AetheriaRuntimeManagedClientInputs : IDisposable
     {
-        private readonly AetheriaRuntimeDaemonFrameSession _daemonFrame;
-        private readonly AetheriaRuntimeCatalogSession _catalog;
-        private readonly AetheriaRuntimeLoadoutTemplatesSession _loadoutTemplates;
-        private readonly AetheriaRuntimeStarbridgeScenarioSession _starbridgeScenario;
-        private readonly AetheriaRuntimeStarbridgeRunSession _starbridgeSession;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;
 
         public AetheriaRuntimeManagedClientInputs(AetheriaClientState state)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
 
-            _daemonFrame = state.ObserveDaemonFrame();
-            _catalog = state.ObserveCatalog();
-            _loadoutTemplates = state.ObserveLoadoutTemplates();
-            _starbridgeScenario = state.Starbridge.ObserveScenario();
-            _starbridgeSession = state.Starbridge.ObserveSession();
+            _daemonFrame = state.ReactiveDaemonFrame();
+            _catalog = state.ReactiveCatalog();
+            _loadoutTemplates = state.ReactiveLoadoutTemplates();
+            _starbridgeScenario = state.Starbridge.ReactiveScenario();
+            _starbridgeSession = state.Starbridge.ReactiveSession();
         }
 
         public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current

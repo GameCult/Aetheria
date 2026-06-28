@@ -11357,17 +11357,17 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var requiredManagedInputSymbols = new[]
     {
         "internal sealed class AetheriaRuntimeManagedClientInputs : IDisposable",
-        "private readonly AetheriaRuntimeDaemonFrameSession _daemonFrame;",
-        "private readonly AetheriaRuntimeCatalogSession _catalog;",
-        "private readonly AetheriaRuntimeLoadoutTemplatesSession _loadoutTemplates;",
-        "private readonly AetheriaRuntimeStarbridgeScenarioSession _starbridgeScenario;",
-        "private readonly AetheriaRuntimeStarbridgeRunSession _starbridgeSession;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;",
         "public AetheriaRuntimeManagedClientInputs(AetheriaClientState state)",
-        "_daemonFrame = state.ObserveDaemonFrame();",
-        "_catalog = state.ObserveCatalog();",
-        "_loadoutTemplates = state.ObserveLoadoutTemplates();",
-        "_starbridgeScenario = state.Starbridge.ObserveScenario();",
-        "_starbridgeSession = state.Starbridge.ObserveSession();",
+        "_daemonFrame = state.ReactiveDaemonFrame();",
+        "_catalog = state.ReactiveCatalog();",
+        "_loadoutTemplates = state.ReactiveLoadoutTemplates();",
+        "_starbridgeScenario = state.Starbridge.ReactiveScenario();",
+        "_starbridgeSession = state.Starbridge.ReactiveSession();",
         "public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current",
         "public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current",
         "public AetheriaRuntimeDaemonFrameDocument RequireFrame()",
@@ -11385,7 +11385,16 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             string.Join(", ", missingManagedInputSymbols));
     }
 
-    if (managedClientInputs.Contains("CultMeshReactiveDocument<", StringComparison.Ordinal) ||
+    if (managedClientInputs.Contains("AetheriaRuntimeDaemonFrameSession _daemonFrame", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("AetheriaRuntimeCatalogSession _catalog", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("AetheriaRuntimeLoadoutTemplatesSession _loadoutTemplates", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("AetheriaRuntimeStarbridgeScenarioSession _starbridgeScenario", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("AetheriaRuntimeStarbridgeRunSession _starbridgeSession", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("state.ObserveDaemonFrame()", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("state.ObserveCatalog()", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("state.ObserveLoadoutTemplates()", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("state.Starbridge.ObserveScenario()", StringComparison.Ordinal) ||
+        managedClientInputs.Contains("state.Starbridge.ObserveSession()", StringComparison.Ordinal) ||
         managedClientInputs.Contains(".Reactive()", StringComparison.Ordinal) ||
         client.Contains("catalogDocument.Reactive()", StringComparison.Ordinal) ||
         client.Contains("loadoutTemplatesDocument.Reactive()", StringComparison.Ordinal) ||
@@ -11394,7 +11403,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         client.Contains("latestFrameDocument.Reactive()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria managed client inputs must sample named managed state sessions instead of owning raw reactive CultMesh documents.");
+            "Aetheria managed client inputs must own named reactive typed documents instead of legacy session wrappers or raw handle reactive calls.");
     }
 
     if (client.Contains("AetheriaRuntimeReactiveProjectionInputs", StringComparison.Ordinal) ||
