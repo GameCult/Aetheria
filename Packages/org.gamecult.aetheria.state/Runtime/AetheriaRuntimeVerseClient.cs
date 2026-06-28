@@ -89,6 +89,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
+            typeof(AetheriaRuntimeAssetManifestDocument),
             typeof(AetheriaRuntimeObjectsViewportDocument),
             typeof(AetheriaRuntimeGravityViewportDocument),
             typeof(AetheriaRuntimeCurrentZoneDocument),

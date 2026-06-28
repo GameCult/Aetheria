@@ -65,6 +65,8 @@ namespace GameCult.Aetheria.State.Verse
         public const string RtsViewport = "gamecult.aetheria.rts_viewport.v1";
         public const string ObjectsViewport = "gamecult.aetheria.objects_viewport.v1";
         public const string GravityViewport = "gamecult.aetheria.gravity_viewport.v1";
+        public const string RenderSplatsViewport = "gamecult.aetheria.render_splats_viewport.v1";
+        public const string AssetManifest = "gamecult.aetheria.asset_manifest.v1";
         public const string CurrentZone = "gamecult.aetheria.current_zone.v1";
         public const string CurrentEntity = "gamecult.aetheria.current_entity.v1";
         public const string CurrentDocking = "gamecult.aetheria.current_docking.v1";
@@ -258,6 +260,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(20)]
         public string CultMeshAddress { get; set; } = "cultmesh://aetheria.local/eve/providers/aetheria.daemon";
 
+        [Key(21)]
+        public string AssetManifestWitnessPath { get; set; } = "";
+
         public static AetheriaRuntimeDaemonProviderAdvertisementDocument Create(
             string stateFilePath,
             string daemonId,
@@ -273,6 +278,7 @@ namespace GameCult.Aetheria.State.Verse
                 FrameWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonFramePath(stateFilePath ?? ""),
                 SoaWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(stateFilePath ?? ""),
                 HealthWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonHealthPath(stateFilePath ?? ""),
+                AssetManifestWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonAssetManifestPath(stateFilePath ?? ""),
                 CommandBoundaryWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(stateFilePath ?? ""),
                 EveGuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(stateFilePath ?? ""),
                 EveTuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(stateFilePath ?? ""),
@@ -293,6 +299,8 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeDaemonSchemas.CommandBoundary,
                     AetheriaRuntimeDaemonSchemas.ObjectsViewport,
                     AetheriaRuntimeDaemonSchemas.GravityViewport,
+                    AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
+                    AetheriaRuntimeDaemonSchemas.AssetManifest,
                     AetheriaRuntimeDaemonSchemas.CurrentZone,
                     AetheriaRuntimeDaemonSchemas.CurrentEntity,
                     AetheriaRuntimeDaemonSchemas.CurrentDocking,

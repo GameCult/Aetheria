@@ -36,7 +36,6 @@ public sealed class AetheriaUnityPilotFrameAdapter
             return;
         }
 
-        var renderSettings = ZoneRenderer?.RenderSettings;
         TargetPresentation?.Tick(currentEntity, timeSeconds);
 
         var look = Input.Player.Look.ReadValue<Vector2>();
@@ -50,13 +49,14 @@ public sealed class AetheriaUnityPilotFrameAdapter
         _setViewDirection(viewDirection);
         PilotCommands.RequestLookDirection(viewDirection);
 
-        if (renderSettings != null)
+        if (ZoneRenderer != null)
         {
+            var renderSettings = ZoneRenderer.RenderSettings;
             if (HeatstrokePost != null)
-                HeatstrokePost.weight = (float)renderSettings.Value.NormalizeHeatstrokePost(currentEntity.Heatstroke);
+                HeatstrokePost.weight = (float)renderSettings.NormalizeHeatstrokePost(currentEntity.Heatstroke);
             if (SevereHeatstrokePost != null)
                 SevereHeatstrokePost.weight =
-                    (float)renderSettings.Value.ResolveSevereHeatstrokePostWeight(currentEntity.Heatstroke, timeSeconds);
+                    (float)renderSettings.ResolveSevereHeatstrokePostWeight(currentEntity.Heatstroke, timeSeconds);
         }
 
         if (currentEntity is Ship)

@@ -83,6 +83,24 @@ namespace GameCult.Aetheria.State.Verse
                 CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.SoaView));
         }
 
+        public static void WriteAssetManifest(string path, AetheriaRuntimeAssetManifestDocument document)
+        {
+            WriteDocument(
+                path,
+                $"latest:gamecult.aetheria.asset_manifest.{document.RunId}.v1",
+                AetheriaRuntimeDaemonSchemas.AssetManifest,
+                "gamecult.aetheria.asset_manifest",
+                "gamecult.aetheria.asset_manifest.v1",
+                document.PublishedAtUtc,
+                MessagePackSerializer.Serialize(document));
+        }
+
+        public static AetheriaRuntimeAssetManifestDocument ReadAssetManifest(string path)
+        {
+            return MessagePackSerializer.Deserialize<AetheriaRuntimeAssetManifestDocument>(
+                CultMesh.ReadSingleFileDocumentPayload(path, AetheriaRuntimeDaemonSchemas.AssetManifest));
+        }
+
         public static void WriteDaemonProviderAdvertisement(
             string path,
             AetheriaRuntimeDaemonProviderAdvertisementDocument document)

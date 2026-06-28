@@ -75,6 +75,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(2)] public double Quality { get; set; }
         [Key(3)] public double Durability { get; set; }
         [Key(4)] public string Source { get; set; } = "station";
+        [Key(5)] public AetheriaRuntimeAssetRef IconAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Texture);
     }
 
     [MessagePackObject]
@@ -122,7 +124,8 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeStarbridgeSessionSummaryDocument ProjectSessionSummary(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeStarbridgeScenarioDocument? scenario = null,
-            AetheriaRuntimeStarbridgeSessionDocument? session = null)
+            AetheriaRuntimeStarbridgeSessionDocument? session = null,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
@@ -145,7 +148,7 @@ namespace GameCult.Aetheria.State.Verse
                 Phase = FirstNonEmpty(session?.Phase, "setup"),
                 CurrentWaveIndex = Math.Max(0, session?.CurrentWaveIndex ?? 0),
                 BaseStatus = ToBaseStatus(baseEntity, runId, zone.ZoneIndex),
-                StationStock = ResolveStationStock(scenario, session, baseEntity),
+                StationStock = ResolveStationStock(scenario, session, baseEntity, catalog),
                 WaveForecast = ResolveWaveForecast(scenario, session),
                 RuntimeRoles = ResolveRuntimeRoles(scenario, session)
             };
@@ -215,10 +218,11 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeStarbridgeStationStockItem[] ResolveStationStock(
             AetheriaRuntimeStarbridgeScenarioDocument? scenario,
             AetheriaRuntimeStarbridgeSessionDocument? session,
-            AetheriaRuntimeEntitySnapshotCommit? baseEntity)
+            AetheriaRuntimeEntitySnapshotCommit? baseEntity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if (scenario?.StationStock?.Length > 0)
-                return scenario.StationStock;
+                return scenario.StationStock.Select(item => WithIconAsset(item, catalog)).ToArray();
 
             if (baseEntity == null)
                 return Array.Empty<AetheriaRuntimeStarbridgeStationStockItem>();
@@ -233,9 +237,38 @@ namespace GameCult.Aetheria.State.Verse
                     Quantity = item.Quantity,
                     Quality = item.Quality,
                     Durability = item.Durability,
-                    Source = string.IsNullOrWhiteSpace(session?.StationEntityKey) ? "base-cargo" : session!.StationEntityKey
+                    Source = string.IsNullOrWhiteSpace(session?.StationEntityKey) ? "base-cargo" : session!.StationEntityKey,
+                    IconAsset = ResolveItemIconAsset(item.ItemKey, catalog)
                 })
                 .ToArray();
+        }
+
+        private static AetheriaRuntimeStarbridgeStationStockItem WithIconAsset(
+            AetheriaRuntimeStarbridgeStationStockItem item,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (item == null)
+                return new AetheriaRuntimeStarbridgeStationStockItem();
+
+            item.IconAsset = ResolveItemIconAsset(item.ItemKey, catalog);
+            return item;
+        }
+
+        private static AetheriaRuntimeAssetRef ResolveItemIconAsset(
+            string? itemKey,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            itemKey ??= "";
+            var typedItem = catalog?.FindItem(itemKey);
+            var icon = AetheriaRuntimeAssets.AssetRefFromCatalogIcon(
+                typedItem?.ActionBarIcon,
+                $"item.{itemKey}.icon");
+            return string.IsNullOrWhiteSpace(icon.AssetKey)
+                ? AetheriaRuntimeAssetRef.FromKey(
+                    $"item.{itemKey}.icon",
+                    AetheriaRuntimeAssetKinds.Texture,
+                    $"item.{itemKey}.icon")
+                : icon;
         }
 
         private static AetheriaRuntimeStarbridgeWaveForecast[] ResolveWaveForecast(

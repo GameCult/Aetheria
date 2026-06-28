@@ -10,6 +10,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string RuntimeReplicaDirectoryName = "Verses";
         public const string RuntimeDaemonFrameFileSuffix = ".daemon.frame.cc";
         public const string RuntimeDaemonSoaViewFileSuffix = ".daemon.soa.cc";
+        public const string RuntimeDaemonAssetManifestFileSuffix = ".daemon.assets.cc";
         public const string RuntimeDaemonProviderFileSuffix = ".daemon.provider.cc";
         public const string RuntimeDaemonHealthFileSuffix = ".daemon.health.cc";
         public const string RuntimeVerseAuthorityPolicyFileSuffix = ".authority.policy.cc";
@@ -42,6 +43,11 @@ namespace GameCult.Aetheria.State.Verse
         public static string GetDaemonSoaViewPath(string stateFilePath)
         {
             return stateFilePath + RuntimeDaemonSoaViewFileSuffix;
+        }
+
+        public static string GetDaemonAssetManifestPath(string stateFilePath)
+        {
+            return stateFilePath + RuntimeDaemonAssetManifestFileSuffix;
         }
 
         public static string GetDaemonProviderPath(string stateFilePath)

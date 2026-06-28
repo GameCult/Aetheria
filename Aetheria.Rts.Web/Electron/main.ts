@@ -147,6 +147,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const health = api ? await api.daemonHealth() : null;
         const authority = api ? await api.authorityStatus() : null;
         const starbridge = api ? await api.starbridgeSession() : null;
+        const assetManifest = api ? await api.assetManifest() : null;
         const surfaceCatalog = api ? await api.surfaceCatalog() : null;
         const surfaceCatalogIndex = api ? await api.surfaceCatalogIndex() : null;
         const viewport = api ? await api.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }) : null;
@@ -168,6 +169,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.daemonHealth === "function" &&
             typeof api.authorityStatus === "function" &&
             typeof api.starbridgeSession === "function" &&
+            typeof api.assetManifest === "function" &&
             typeof api.surfaceCatalog === "function" &&
             typeof api.surfaceCatalogIndex === "function",
           status,
@@ -183,6 +185,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           health,
           authority,
           starbridge,
+          assetManifest,
           surfaceCatalog,
           surfaceCatalogIndex,
           moveReceipt

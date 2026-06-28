@@ -1,4 +1,5 @@
 using System;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
 [CreateAssetMenu(
@@ -33,6 +34,11 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
         return mesh != null;
     }
 
+    public bool TryResolveMesh(AetheriaRuntimeAssetRef asset, out Mesh mesh)
+    {
+        return TryResolveMesh(ResolveLocalKey(asset), out mesh);
+    }
+
     public bool TryResolveMaterial(string key, out Material material)
     {
         material = null;
@@ -54,6 +60,22 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
         return material != null;
     }
 
+    public bool TryResolveMaterial(AetheriaRuntimeAssetRef asset, out Material material)
+    {
+        return TryResolveMaterial(ResolveLocalKey(asset), out material);
+    }
+
+    public bool TryResolveTexture(AetheriaRuntimeAssetRef asset, out Texture2D texture)
+    {
+        texture = null;
+        var key = ResolveLocalKey(asset);
+        if (string.IsNullOrWhiteSpace(key))
+            return false;
+
+        texture = Resources.Load<Texture2D>(NormalizeResourceKey(key));
+        return texture != null;
+    }
+
     private static string NormalizeResourceKey(string key)
     {
         const string resourcesPrefix = "resources://";
@@ -63,6 +85,17 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
         }
 
         return key;
+    }
+
+    private static string ResolveLocalKey(AetheriaRuntimeAssetRef asset)
+    {
+        if (asset == null)
+            return "";
+
+        if (string.Equals(asset.Transport, AetheriaRuntimeAssetTransports.Resources, StringComparison.OrdinalIgnoreCase))
+            return asset.Uri;
+
+        return string.IsNullOrWhiteSpace(asset.Uri) ? asset.AssetKey : asset.Uri;
     }
 
     [Serializable]

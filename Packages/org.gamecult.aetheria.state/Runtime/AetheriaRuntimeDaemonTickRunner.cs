@@ -29,6 +29,7 @@ namespace GameCult.Aetheria.State.Verse
             new AetheriaRuntimeDaemonOperationContext();
         public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
         public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
+        public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
         public bool PublishWitnesses { get; set; } = true;
     }
 
@@ -156,6 +157,7 @@ namespace GameCult.Aetheria.State.Verse
                 "aetheria.daemon.operation_execute.v1",
                 "aetheria.daemon.intent_state.v1",
                 "aetheria.daemon.authoritative_frame.v1",
+                AetheriaRuntimeDaemonSchemas.AssetManifest,
                 AetheriaRuntimeDaemonSchemas.ProviderAdvertisement,
                 AetheriaRuntimeDaemonSchemas.Health,
                 AetheriaRuntimeDaemonSchemas.CommandBoundary,
@@ -212,10 +214,17 @@ namespace GameCult.Aetheria.State.Verse
                     CommandBoundaryPath = commandBoundaryPath
                 });
             AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
+            AetheriaRuntimeDaemonPublicationStore.PublishAssetManifest(
+                stateFilePath,
+                AetheriaRuntimeAssets.ProjectManifest(
+                    options.Catalog,
+                    frame.Run?.RunId ?? "",
+                    $"cultmesh://{options.VerseId}/assets"));
             var starbridgeSummary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                 frame,
                 options.StarbridgeScenario,
-                options.StarbridgeSession);
+                options.StarbridgeSession,
+                options.Catalog);
             AetheriaRuntimeDaemonPublicationStore.PublishStarbridgeSessionSummary(
                 stateFilePath,
                 starbridgeSummary);

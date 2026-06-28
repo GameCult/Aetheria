@@ -57,11 +57,11 @@
     <Compile Include="E:\Projects\CultMath\src\CultMath\double3.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\float4.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\math.cs" />
-    <Compile Include="E:\Projects\CultMath\src\CultMath\rect.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\float2.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\float3.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\IsExternalInit.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\double2.cs" />
+    <Compile Include="E:\Projects\CultMath\src\CultMath\rect.cs" />
     <Compile Include="E:\Projects\CultMath\src\CultMath\quaternion.cs" />
     <None Include="E:\Projects\CultMath\src\CultMath\CultMath.asmdef" />
     <Reference Include="Unity.Cecil.Awesome">
@@ -224,7 +224,7 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Collections.Specialized.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel.Annotations">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.ComponentModel.Annotations.dll</HintPath>
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.ComponentModel.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="System.ComponentModel">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.ComponentModel.dll</HintPath>
@@ -488,7 +488,7 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.Extensions">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Threading.Tasks.Extensions.dll</HintPath>
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.Parallel">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Threading.Tasks.Parallel.dll</HintPath>

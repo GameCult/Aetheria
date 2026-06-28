@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using Unity.Mathematics;
 using UnityEngine.Experimental.Rendering;
@@ -26,6 +27,8 @@ public class VolumeSampling : MonoBehaviour
     public RenderTexture NebulaPatchHeight;
     public RenderTexture NebulaPatch;
     public RenderTexture NebulaTint;
+    public AetheriaUnityRenderSplatViewportSource SplatViewportSource;
+    public AetheriaRenderSplatLayerRenderer SplatLayerRenderer;
 
     private MeshRenderer _gridMeshRenderer;
     private float _flowScroll;
@@ -42,6 +45,8 @@ public class VolumeSampling : MonoBehaviour
 
         if (GridMesh != null)
             _gridMeshRenderer = GridMesh.GetComponent<MeshRenderer>();
+
+        ResolveSplatRenderers();
     }
 
     void Update()
@@ -51,6 +56,8 @@ public class VolumeSampling : MonoBehaviour
         // Shader needs to know the position and scale of cameras used to render input textures
         if(GridCamera != null)
             Shader.SetGlobalVector("_GridTransform", new Vector4(_gridTransform.position.x,_gridTransform.position.z,GridCamera.orthographicSize*2));
+
+        RenderSplatTextures();
 
         var environment = Settings.DefaultEnvironment;
 
@@ -105,5 +112,49 @@ public class VolumeSampling : MonoBehaviour
         Shader.SetKeyword(_keywordFlowGlobal, environment.Flow.GlobalAmplitude != 0);
         Shader.SetKeyword(_keywordFlowSlope, environment.Flow.SlopeAmplitude != 0 || environment.Flow.SwirlAmplitude != 0);
         Shader.SetKeyword(_keywordNoiseSlope, environment.Noise.SlopeExponent != 0);
+    }
+
+    private void RenderSplatTextures()
+    {
+        ResolveSplatRenderers();
+        if (SplatViewportSource == null)
+            return;
+
+        var size = GridCamera != null
+            ? new Vector2(GridCamera.orthographicSize * 2, GridCamera.orthographicSize * 2)
+            : new Vector2(1024, 1024);
+        var center = _gridTransform != null
+            ? new Vector2(_gridTransform.position.x, _gridTransform.position.z)
+            : Vector2.zero;
+        SplatViewportSource.SetViewport(center, size);
+        SplatViewportSource.RenderLatest();
+
+        if (SplatLayerRenderer == null)
+            return;
+
+        NebulaSurfaceHeight = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight, NebulaSurfaceHeight);
+        NebulaPatchHeight = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight, NebulaPatchHeight);
+        NebulaPatch = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogPatch, NebulaPatch);
+        NebulaTint = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogTint, NebulaTint);
+    }
+
+    private RenderTexture ResolveLayerTexture(string layerKey, RenderTexture fallback)
+    {
+        return SplatLayerRenderer.TryGetTexture(layerKey, out var texture) && texture != null
+            ? texture
+            : fallback;
+    }
+
+    private void ResolveSplatRenderers()
+    {
+        if (SplatLayerRenderer == null)
+            SplatLayerRenderer = GetComponent<AetheriaRenderSplatLayerRenderer>();
+        if (SplatLayerRenderer == null)
+            SplatLayerRenderer = gameObject.AddComponent<AetheriaRenderSplatLayerRenderer>();
+
+        if (SplatViewportSource == null)
+            SplatViewportSource = GetComponent<AetheriaUnityRenderSplatViewportSource>();
+        if (SplatViewportSource == null)
+            SplatViewportSource = gameObject.AddComponent<AetheriaUnityRenderSplatViewportSource>();
     }
 }

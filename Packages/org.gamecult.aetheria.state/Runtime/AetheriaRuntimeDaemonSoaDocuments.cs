@@ -186,6 +186,14 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(17)]
         public int Lod { get; set; } = -1;
+
+        [Key(18)]
+        public AetheriaRuntimeAssetRef MeshAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Mesh);
+
+        [Key(19)]
+        public AetheriaRuntimeAssetRef MaterialAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Material);
     }
 
     [MessagePackObject]

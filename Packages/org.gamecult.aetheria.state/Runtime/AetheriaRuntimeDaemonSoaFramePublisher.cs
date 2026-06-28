@@ -99,6 +99,16 @@ namespace GameCult.Aetheria.State.Verse
                     GroupId = EntityRenderGroupId,
                     MeshKey = "resources://Aetheria/Daemon/EntityProxy",
                     MaterialKey = "resources://Aetheria/Daemon/EntityProxy",
+                    MeshAsset = AetheriaRuntimeAssetRef.FromKey(
+                        "daemon.entity_proxy.mesh",
+                        AetheriaRuntimeAssetKinds.Mesh,
+                        "resources://Aetheria/Daemon/EntityProxy",
+                        AetheriaRuntimeAssetTransports.Resources),
+                    MaterialAsset = AetheriaRuntimeAssetRef.FromKey(
+                        "daemon.entity_proxy.material",
+                        AetheriaRuntimeAssetKinds.Material,
+                        "resources://Aetheria/Daemon/EntityProxy",
+                        AetheriaRuntimeAssetTransports.Resources),
                     SubMeshIndex = 0,
                     Layer = 0,
                     ShaderKey = "aetheria.daemon.entity-proxy",

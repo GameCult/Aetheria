@@ -44,6 +44,7 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   daemonHealth: DaemonHealthProjection;
   authorityStatus: AuthorityStatusProjection;
   starbridgeSession: StarbridgeSessionProjection;
+  assetManifest: AssetManifestProjection;
   receivedAtUtc: string;
   sampleMs: number;
 };
@@ -108,6 +109,7 @@ export type ViewObject = {
   targetEntityIndex: number;
   isActive: boolean;
   visibility: number;
+  iconAsset: AssetRef;
   status: EntityStatus;
   inventory: InventoryItem[];
 };
@@ -125,6 +127,7 @@ export type InventoryItem = {
   quality: number;
   durability: number;
   enabled: boolean;
+  iconAsset: AssetRef;
 };
 
 export type SelectedObjectProjection = {
@@ -218,6 +221,33 @@ export type StarbridgeStationStockItemProjection = {
   quality: number;
   durability: number;
   source: string;
+  iconAsset: AssetRef;
+};
+
+export type AssetManifestProjection = {
+  schema: string;
+  publishedAtUtc: string;
+  runId: string;
+  baseUri: string;
+  assets: AssetManifestEntry[];
+};
+
+export type AssetManifestEntry = {
+  ref: AssetRef;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  tags: string[];
+};
+
+export type AssetRef = {
+  assetKey: string;
+  kind: string;
+  uri: string;
+  transport: string;
+  contentHash: string;
+  mimeType: string;
+  metadata: Record<string, string>;
 };
 
 export type StarbridgeWaveForecastProjection = {
@@ -269,6 +299,7 @@ export type AetheriaRtsApi = {
   daemonHealth(): Promise<DaemonHealthProjection>;
   authorityStatus(): Promise<AuthorityStatusProjection>;
   starbridgeSession(): Promise<StarbridgeSessionProjection>;
+  assetManifest(): Promise<AssetManifestProjection>;
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): () => void;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;

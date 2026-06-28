@@ -10,6 +10,7 @@ export const AetheriaRtsSchemas = {
   eveCommand: "gamecult.eve.command.v1",
   daemonFrame: "gamecult.aetheria.daemon_frame.v1",
   daemonHealth: "gamecult.aetheria.daemon_health.v1",
+  assetManifest: "gamecult.aetheria.asset_manifest.v1",
   rtsViewport: "gamecult.aetheria.rts_viewport.v1",
   objectsViewport: "gamecult.aetheria.objects_viewport.v1",
   gravityViewport: "gamecult.aetheria.gravity_viewport.v1",
@@ -110,6 +111,7 @@ export const AetheriaRtsIpcChannels = {
   daemonHealth: "aetheria-rts:daemon-health",
   authorityStatus: "aetheria-rts:authority-status",
   starbridgeSession: "aetheria-rts:starbridge-session",
+  assetManifest: "aetheria-rts:asset-manifest",
   setMoveVector: "aetheria-rts:set-move-vector",
   setTarget: "aetheria-rts:set-target",
   surfaceCatalog: "aetheria-rts:surface-catalog",
@@ -297,6 +299,55 @@ export const aetheriaRuntimeDaemonHealthDocumentSlots: Record<AetheriaRuntimeDae
   publicationSource: 10,
   transport: 11,
   commandBoundaryPath: 12,
+};
+
+export type AetheriaRuntimeAssetRefSlot =
+  | "assetKey"
+  | "kind"
+  | "uri"
+  | "transport"
+  | "contentHash"
+  | "mimeType"
+  | "metadata";
+
+export const aetheriaRuntimeAssetRefSlots: Record<AetheriaRuntimeAssetRefSlot, number> = {
+  assetKey: 0,
+  kind: 1,
+  uri: 2,
+  transport: 3,
+  contentHash: 4,
+  mimeType: 5,
+  metadata: 6,
+};
+
+export type AetheriaRuntimeAssetManifestDocumentSlot =
+  | "schema"
+  | "publishedAtUtc"
+  | "runId"
+  | "baseUri"
+  | "assets";
+
+export const aetheriaRuntimeAssetManifestDocumentSlots: Record<AetheriaRuntimeAssetManifestDocumentSlot, number> = {
+  schema: 0,
+  publishedAtUtc: 1,
+  runId: 2,
+  baseUri: 3,
+  assets: 4,
+};
+
+export type AetheriaRuntimeAssetManifestEntrySlot =
+  | "ref"
+  | "sizeBytes"
+  | "width"
+  | "height"
+  | "tags";
+
+export const aetheriaRuntimeAssetManifestEntrySlots: Record<AetheriaRuntimeAssetManifestEntrySlot, number> = {
+  ref: 0,
+  sizeBytes: 1,
+  width: 2,
+  height: 3,
+  tags: 4,
 };
 
 export type AetheriaRuntimeRtsViewportDocumentSlot =
@@ -1045,7 +1096,8 @@ export type AetheriaRuntimeRtsViewportObjectSlot =
   | "isActive"
   | "visibility"
   | "status"
-  | "inventory";
+  | "inventory"
+  | "iconAsset";
 
 export const aetheriaRuntimeRtsViewportObjectSlots: Record<AetheriaRuntimeRtsViewportObjectSlot, number> = {
   entityIndex: 0,
@@ -1066,6 +1118,7 @@ export const aetheriaRuntimeRtsViewportObjectSlots: Record<AetheriaRuntimeRtsVie
   visibility: 15,
   status: 16,
   inventory: 17,
+  iconAsset: 18,
 };
 
 export type AetheriaRuntimeRtsEntityStatusSlot =
@@ -1088,7 +1141,8 @@ export type AetheriaRuntimeRtsInventoryItemSlot =
   | "enabled"
   | "sourceIndex"
   | "x"
-  | "y";
+  | "y"
+  | "iconAsset";
 
 export const aetheriaRuntimeRtsInventoryItemSlots: Record<AetheriaRuntimeRtsInventoryItemSlot, number> = {
   source: 0,
@@ -1100,6 +1154,7 @@ export const aetheriaRuntimeRtsInventoryItemSlots: Record<AetheriaRuntimeRtsInve
   sourceIndex: 6,
   x: 7,
   y: 8,
+  iconAsset: 9,
 };
 
 export type AetheriaRuntimeRtsGravityInfluenceSlot =
@@ -1240,7 +1295,8 @@ export type AetheriaRuntimeStarbridgeStationStockItemSlot =
   | "quantity"
   | "quality"
   | "durability"
-  | "source";
+  | "source"
+  | "iconAsset";
 
 export const aetheriaRuntimeStarbridgeStationStockItemSlots: Record<AetheriaRuntimeStarbridgeStationStockItemSlot, number> = {
   itemKey: 0,
@@ -1248,6 +1304,7 @@ export const aetheriaRuntimeStarbridgeStationStockItemSlots: Record<AetheriaRunt
   quality: 2,
   durability: 3,
   source: 4,
+  iconAsset: 5,
 };
 
 export type AetheriaRuntimeStarbridgeWaveDefinitionSlot =
@@ -1446,6 +1503,7 @@ export type ViewObject = {
   targetEntityIndex: number;
   isActive: boolean;
   visibility: number;
+  iconAsset: AssetRef;
   status: EntityStatus;
   inventory: InventoryItem[];
 };
@@ -1463,6 +1521,7 @@ export type InventoryItem = {
   quality: number;
   durability: number;
   enabled: boolean;
+  iconAsset: AssetRef;
 };
 
 export type SelectedObjectProjection = {
@@ -1556,6 +1615,33 @@ export type StarbridgeStationStockItemProjection = {
   quality: number;
   durability: number;
   source: string;
+  iconAsset: AssetRef;
+};
+
+export type AssetManifestProjection = {
+  schema: string;
+  publishedAtUtc: string;
+  runId: string;
+  baseUri: string;
+  assets: AssetManifestEntry[];
+};
+
+export type AssetManifestEntry = {
+  ref: AssetRef;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  tags: string[];
+};
+
+export type AssetRef = {
+  assetKey: string;
+  kind: string;
+  uri: string;
+  transport: string;
+  contentHash: string;
+  mimeType: string;
+  metadata: Record<string, string>;
 };
 
 export type StarbridgeWaveForecastProjection = {
@@ -1632,6 +1718,7 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   daemonHealth: DaemonHealthProjection;
   authorityStatus: AuthorityStatusProjection;
   starbridgeSession: StarbridgeSessionProjection;
+  assetManifest: AssetManifestProjection;
   receivedAtUtc: string;
   sampleMs: number;
 };
@@ -1645,6 +1732,7 @@ export type AetheriaRtsMainClient = {
   daemonHealth(): Promise<DaemonHealthProjection>;
   authorityStatus(): Promise<AuthorityStatusProjection>;
   starbridgeSession(): Promise<StarbridgeSessionProjection>;
+  assetManifest(): Promise<AssetManifestProjection>;
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): CultMeshUnsubscribe;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
@@ -1673,6 +1761,7 @@ export function registerAetheriaRtsIpcHandlers(
   ipcMain.handle(AetheriaRtsIpcChannels.daemonHealth, async () => getClient().daemonHealth());
   ipcMain.handle(AetheriaRtsIpcChannels.authorityStatus, async () => getClient().authorityStatus());
   ipcMain.handle(AetheriaRtsIpcChannels.starbridgeSession, async () => getClient().starbridgeSession());
+  ipcMain.handle(AetheriaRtsIpcChannels.assetManifest, async () => getClient().assetManifest());
   ipcMain.handle(AetheriaRtsIpcChannels.viewportFeed, async (event, request: { subscriptionId: string; feed: AetheriaRuntimeViewportFeedRequest }) => {
     viewportFeedSubscriptions.get(request.subscriptionId)?.();
     const unsubscribe = getClient().watchViewportFeed(request.feed, snapshot => {
@@ -1722,6 +1811,7 @@ export type AetheriaRuntimeRtsQueryExecutors = {
   daemonHealth: AetheriaRuntimeQueryExecutor<void, DaemonHealthProjection>;
   authorityStatus: AetheriaRuntimeQueryExecutor<void, AuthorityStatusProjection>;
   starbridgeSession: AetheriaRuntimeQueryExecutor<void, StarbridgeSessionProjection>;
+  assetManifest: AetheriaRuntimeQueryExecutor<void, AssetManifestProjection>;
 };
 
 export type AetheriaRuntimeRtsQueryWatchers = Partial<{
@@ -1733,6 +1823,7 @@ export type AetheriaRuntimeRtsQueryWatchers = Partial<{
   daemonHealth: CultMeshQueryWatcher<void, DaemonHealthProjection>;
   authorityStatus: CultMeshQueryWatcher<void, AuthorityStatusProjection>;
   starbridgeSession: CultMeshQueryWatcher<void, StarbridgeSessionProjection>;
+  assetManifest: CultMeshQueryWatcher<void, AssetManifestProjection>;
 }>;
 
 export type AetheriaRuntimeRtsProjectionDiagnostic = CultMeshQuerySurfaceDiagnostic;
@@ -1752,6 +1843,7 @@ export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   daemonHealth: (context: CultMeshQueryContext) => Promise<unknown>;
   authorityPolicy: (context: CultMeshQueryContext) => Promise<unknown>;
   starbridgeSession: (context: CultMeshQueryContext) => Promise<unknown>;
+  assetManifest: (context: CultMeshQueryContext) => Promise<unknown>;
 }>;
 
 export type AetheriaRuntimeRtsStatePointerResolvers = AetheriaRuntimeRtsDocumentResolvers;
@@ -1772,6 +1864,10 @@ export const AetheriaRuntimeRtsProjectionSources = {
   starbridgeSession: CultMesh.projectionSource("daemon:aetheria.starbridge.session.latest.v1", {
     schemaId: AetheriaRtsSchemas.starbridgeSessionSummary,
     description: "latest Starbridge session summary"
+  }),
+  assetManifest: CultMesh.projectionSource("daemon:aetheria.asset_manifest.latest.v1", {
+    schemaId: AetheriaRtsSchemas.assetManifest,
+    description: "latest daemon asset manifest"
   })
 } as const;
 
@@ -1814,6 +1910,15 @@ export function createAetheriaRuntimeRtsDocuments(
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.starbridgeSession],
+      },
+    ),
+    assetManifest: CultMesh.document(
+      AetheriaRuntimeRtsProjectionSources.assetManifest.sourceId,
+      { schemaId: AetheriaRtsSchemas.assetManifest },
+      async (context) => resolvers.assetManifest?.(context),
+      {
+        routeHint,
+        sources: [AetheriaRuntimeRtsProjectionSources.assetManifest],
       },
     ),
   } as const;
@@ -1875,6 +1980,12 @@ export function createAetheriaRuntimeRtsQueryHandles(
       executors.starbridgeSession,
       { routeHint, watchProjection: watchers.starbridgeSession },
     ).asQuerySurface(),
+    assetManifest: CultMesh.projectionRecipe<void, AssetManifestProjection>(
+      AetheriaRtsSchemas.assetManifest,
+      [AetheriaRuntimeRtsProjectionSources.assetManifest],
+      executors.assetManifest,
+      { routeHint, watchProjection: watchers.assetManifest },
+    ).asQuerySurface(),
   } as const;
 }
 
@@ -1890,6 +2001,7 @@ export function describeAetheriaRuntimeRtsQueryHandles(
     daemonHealth: describeAetheriaRuntimeRtsQuerySurface(handles.daemonHealth),
     authorityStatus: describeAetheriaRuntimeRtsQuerySurface(handles.authorityStatus),
     starbridgeSession: describeAetheriaRuntimeRtsQuerySurface(handles.starbridgeSession),
+    assetManifest: describeAetheriaRuntimeRtsQuerySurface(handles.assetManifest),
   } as const;
 }
 
@@ -1905,6 +2017,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
       CultMesh.describeSurface(documents.daemonHealth),
       CultMesh.describeSurface(documents.authorityPolicy),
       CultMesh.describeSurface(documents.starbridgeSession),
+      CultMesh.describeSurface(documents.assetManifest),
       CultMesh.describeSurface(handles.mapViewport),
       CultMesh.describeSurface(handles.objectsViewport),
       CultMesh.describeSurface(handles.gravityViewport),
@@ -1913,6 +2026,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
       CultMesh.describeSurface(handles.daemonHealth),
       CultMesh.describeSurface(handles.authorityStatus),
       CultMesh.describeSurface(handles.starbridgeSession),
+      CultMesh.describeSurface(handles.assetManifest),
       ...(operations
         ? [
             CultMesh.describeSurface(operations.setMoveVector),
@@ -1998,10 +2112,12 @@ export function createAetheriaRuntimeRtsVerseFacade(
   const daemonHealth = CultMesh.bindQuery(queryVerse, queries.daemonHealth);
   const authorityStatus = CultMesh.bindQuery(queryVerse, queries.authorityStatus);
   const starbridgeSession = CultMesh.bindQuery(queryVerse, queries.starbridgeSession);
+  const assetManifest = CultMesh.bindQuery(queryVerse, queries.assetManifest);
   const daemonFrameDocument = CultMesh.bindDocument(queryVerse, documents.daemonFrame);
   const daemonHealthDocument = CultMesh.bindDocument(queryVerse, documents.daemonHealth);
   const authorityPolicyDocument = CultMesh.bindDocument(queryVerse, documents.authorityPolicy);
   const starbridgeSessionDocument = CultMesh.bindDocument(queryVerse, documents.starbridgeSession);
+  const assetManifestDocument = CultMesh.bindDocument(queryVerse, documents.assetManifest);
   const setMoveVector = CultMesh.bindOperation(commandVerse, operations.setMoveVector);
   const setTarget = CultMesh.bindOperation(commandVerse, operations.setTarget);
 
@@ -2064,10 +2180,12 @@ export function createAetheriaRuntimeRtsVerseFacade(
         health: () => daemonHealthDocument.latest(),
         authorityPolicy: () => authorityPolicyDocument.latest(),
         starbridgeSession: () => starbridgeSessionDocument.latest(),
+        assetManifest: () => assetManifestDocument.latest(),
       },
       health: () => daemonHealth.execute(undefined),
       authorityStatus: () => authorityStatus.execute(undefined),
       starbridgeSession: () => starbridgeSession.execute(undefined),
+      assetManifest: () => assetManifest.execute(undefined),
     },
   } as const;
 }

@@ -67,8 +67,8 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
         foreach (var renderGroup in renderGroups)
         {
             _seenGroupIds.Add(renderGroup.GroupId);
-            if (!assetCatalog.TryResolveMesh(renderGroup.MeshKey, out var mesh) ||
-                !assetCatalog.TryResolveMaterial(renderGroup.MaterialKey, out var material))
+            if (!TryResolveMesh(renderGroup, out var mesh) ||
+                !TryResolveMaterial(renderGroup, out var material))
             {
                 if (logMissingAssets)
                 {
@@ -236,5 +236,29 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
         }
 
         _staleGroupIds.Clear();
+    }
+
+    private bool TryResolveMesh(AetheriaRuntimeDaemonRenderGroupDocument renderGroup, out Mesh mesh)
+    {
+        if (renderGroup?.MeshAsset != null &&
+            !string.IsNullOrWhiteSpace(renderGroup.MeshAsset.AssetKey) &&
+            assetCatalog.TryResolveMesh(renderGroup.MeshAsset, out mesh))
+        {
+            return true;
+        }
+
+        return assetCatalog.TryResolveMesh(renderGroup?.MeshKey, out mesh);
+    }
+
+    private bool TryResolveMaterial(AetheriaRuntimeDaemonRenderGroupDocument renderGroup, out Material material)
+    {
+        if (renderGroup?.MaterialAsset != null &&
+            !string.IsNullOrWhiteSpace(renderGroup.MaterialAsset.AssetKey) &&
+            assetCatalog.TryResolveMaterial(renderGroup.MaterialAsset, out material))
+        {
+            return true;
+        }
+
+        return assetCatalog.TryResolveMaterial(renderGroup?.MaterialKey, out material);
     }
 }

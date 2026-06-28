@@ -70,6 +70,25 @@ public static class AetheriaVerseReplica
             .ConfigureAwait(false);
     }
 
+    public static async Task<int> ApplyRawSnapshotResponseAsync(
+        CultMeshNode node,
+        CultNetSnapshotResponseRawMessage response,
+        bool flush = true)
+    {
+        if (node == null)
+            throw new ArgumentNullException(nameof(node));
+        if (response == null)
+            throw new ArgumentNullException(nameof(response));
+
+        var applied = await node.Database.Documents
+            .ApplyRawSnapshotResponseAsync(node.Cache, response)
+            .ConfigureAwait(false);
+        if (flush)
+            await node.FlushAsync().ConfigureAwait(false);
+
+        return applied.Count;
+    }
+
     public static async Task<IReadOnlyList<T>> FetchScopedDocumentsAsync<T>(
         string endpoint,
         IReadOnlyList<string>? schemaIds = null,

@@ -1123,6 +1123,10 @@ namespace GameCult.Aetheria.State.Verse
         [Key(17)]
         public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Inventory { get; set; } =
             Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+
+        [Key(18)]
+        public AetheriaRuntimeAssetRef IconAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Sprite);
     }
 
     [MessagePackObject]
@@ -1167,6 +1171,10 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(8)]
         public int Y { get; set; } = -1;
+
+        [Key(9)]
+        public AetheriaRuntimeAssetRef IconAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Texture);
     }
 
     [MessagePackObject]

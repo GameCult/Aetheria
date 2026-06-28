@@ -9,6 +9,7 @@ const repoRoot = resolve(root, "..");
 const sources = [
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveCommandDocument.cs"),
+  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeAssetDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsViewportDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeStarbridgeDocuments.cs"),
@@ -31,6 +32,7 @@ const ipcChannels = [
   ["daemonHealth", "aetheria-rts:daemon-health"],
   ["authorityStatus", "aetheria-rts:authority-status"],
   ["starbridgeSession", "aetheria-rts:starbridge-session"],
+  ["assetManifest", "aetheria-rts:asset-manifest"],
   ["setMoveVector", "aetheria-rts:set-move-vector"],
   ["setTarget", "aetheria-rts:set-target"],
   ["surfaceCatalog", "aetheria-rts:surface-catalog"],
@@ -70,6 +72,19 @@ const documents = [
     exportName: "aetheriaRuntimeDaemonHealthDocument",
     className: "AetheriaRuntimeDaemonHealthDocument",
     schemaName: "daemonHealth",
+  },
+  {
+    exportName: "aetheriaRuntimeAssetRef",
+    className: "AetheriaRuntimeAssetRef",
+  },
+  {
+    exportName: "aetheriaRuntimeAssetManifestDocument",
+    className: "AetheriaRuntimeAssetManifestDocument",
+    schemaName: "assetManifest",
+  },
+  {
+    exportName: "aetheriaRuntimeAssetManifestEntry",
+    className: "AetheriaRuntimeAssetManifestEntry",
   },
   {
     exportName: "aetheriaRuntimeRtsViewportDocument",
@@ -285,16 +300,10 @@ if (check) {
 
 function readExisting(path) {
   try {
-    return normalizeGeneratedText(readFileSync(path, "utf8"));
+    return readFileSync(path, "utf8");
   } catch {
     return "";
   }
-}
-
-function normalizeGeneratedText(text) {
-  return text
-    .replace(/^\uFEFF/u, "")
-    .replace(/\r\n/gu, "\n");
 }
 
 function parseEnum(text, enumName) {
@@ -438,6 +447,7 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   daemonHealth: DaemonHealthProjection;
   authorityStatus: AuthorityStatusProjection;
   starbridgeSession: StarbridgeSessionProjection;
+  assetManifest: AssetManifestProjection;
   receivedAtUtc: string;
   sampleMs: number;
 };
@@ -451,6 +461,7 @@ export type AetheriaRtsMainClient = {
   daemonHealth(): Promise<DaemonHealthProjection>;
   authorityStatus(): Promise<AuthorityStatusProjection>;
   starbridgeSession(): Promise<StarbridgeSessionProjection>;
+  assetManifest(): Promise<AssetManifestProjection>;
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): CultMeshUnsubscribe;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
@@ -479,6 +490,7 @@ export function registerAetheriaRtsIpcHandlers(
   ipcMain.handle(AetheriaRtsIpcChannels.daemonHealth, async () => getClient().daemonHealth());
   ipcMain.handle(AetheriaRtsIpcChannels.authorityStatus, async () => getClient().authorityStatus());
   ipcMain.handle(AetheriaRtsIpcChannels.starbridgeSession, async () => getClient().starbridgeSession());
+  ipcMain.handle(AetheriaRtsIpcChannels.assetManifest, async () => getClient().assetManifest());
   ipcMain.handle(AetheriaRtsIpcChannels.viewportFeed, async (event, request: { subscriptionId: string; feed: AetheriaRuntimeViewportFeedRequest }) => {
     viewportFeedSubscriptions.get(request.subscriptionId)?.();
     const unsubscribe = getClient().watchViewportFeed(request.feed, snapshot => {
@@ -528,6 +540,7 @@ export type AetheriaRuntimeRtsQueryExecutors = {
   daemonHealth: AetheriaRuntimeQueryExecutor<void, DaemonHealthProjection>;
   authorityStatus: AetheriaRuntimeQueryExecutor<void, AuthorityStatusProjection>;
   starbridgeSession: AetheriaRuntimeQueryExecutor<void, StarbridgeSessionProjection>;
+  assetManifest: AetheriaRuntimeQueryExecutor<void, AssetManifestProjection>;
 };
 
 export type AetheriaRuntimeRtsQueryWatchers = Partial<{
@@ -539,6 +552,7 @@ export type AetheriaRuntimeRtsQueryWatchers = Partial<{
   daemonHealth: CultMeshQueryWatcher<void, DaemonHealthProjection>;
   authorityStatus: CultMeshQueryWatcher<void, AuthorityStatusProjection>;
   starbridgeSession: CultMeshQueryWatcher<void, StarbridgeSessionProjection>;
+  assetManifest: CultMeshQueryWatcher<void, AssetManifestProjection>;
 }>;
 
 export type AetheriaRuntimeRtsProjectionDiagnostic = CultMeshQuerySurfaceDiagnostic;
@@ -558,6 +572,7 @@ export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   daemonHealth: (context: CultMeshQueryContext) => Promise<unknown>;
   authorityPolicy: (context: CultMeshQueryContext) => Promise<unknown>;
   starbridgeSession: (context: CultMeshQueryContext) => Promise<unknown>;
+  assetManifest: (context: CultMeshQueryContext) => Promise<unknown>;
 }>;
 
 export type AetheriaRuntimeRtsStatePointerResolvers = AetheriaRuntimeRtsDocumentResolvers;
@@ -578,6 +593,10 @@ export const AetheriaRuntimeRtsProjectionSources = {
   starbridgeSession: CultMesh.projectionSource("daemon:aetheria.starbridge.session.latest.v1", {
     schemaId: AetheriaRtsSchemas.starbridgeSessionSummary,
     description: "latest Starbridge session summary"
+  }),
+  assetManifest: CultMesh.projectionSource("daemon:aetheria.asset_manifest.latest.v1", {
+    schemaId: AetheriaRtsSchemas.assetManifest,
+    description: "latest daemon asset manifest"
   })
 } as const;
 
@@ -620,6 +639,15 @@ export function createAetheriaRuntimeRtsDocuments(
       {
         routeHint,
         sources: [AetheriaRuntimeRtsProjectionSources.starbridgeSession],
+      },
+    ),
+    assetManifest: CultMesh.document(
+      AetheriaRuntimeRtsProjectionSources.assetManifest.sourceId,
+      { schemaId: AetheriaRtsSchemas.assetManifest },
+      async (context) => resolvers.assetManifest?.(context),
+      {
+        routeHint,
+        sources: [AetheriaRuntimeRtsProjectionSources.assetManifest],
       },
     ),
   } as const;
@@ -681,6 +709,12 @@ export function createAetheriaRuntimeRtsQueryHandles(
       executors.starbridgeSession,
       { routeHint, watchProjection: watchers.starbridgeSession },
     ).asQuerySurface(),
+    assetManifest: CultMesh.projectionRecipe<void, AssetManifestProjection>(
+      AetheriaRtsSchemas.assetManifest,
+      [AetheriaRuntimeRtsProjectionSources.assetManifest],
+      executors.assetManifest,
+      { routeHint, watchProjection: watchers.assetManifest },
+    ).asQuerySurface(),
   } as const;
 }
 
@@ -696,6 +730,7 @@ export function describeAetheriaRuntimeRtsQueryHandles(
     daemonHealth: describeAetheriaRuntimeRtsQuerySurface(handles.daemonHealth),
     authorityStatus: describeAetheriaRuntimeRtsQuerySurface(handles.authorityStatus),
     starbridgeSession: describeAetheriaRuntimeRtsQuerySurface(handles.starbridgeSession),
+    assetManifest: describeAetheriaRuntimeRtsQuerySurface(handles.assetManifest),
   } as const;
 }
 
@@ -711,6 +746,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
       CultMesh.describeSurface(documents.daemonHealth),
       CultMesh.describeSurface(documents.authorityPolicy),
       CultMesh.describeSurface(documents.starbridgeSession),
+      CultMesh.describeSurface(documents.assetManifest),
       CultMesh.describeSurface(handles.mapViewport),
       CultMesh.describeSurface(handles.objectsViewport),
       CultMesh.describeSurface(handles.gravityViewport),
@@ -719,6 +755,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
       CultMesh.describeSurface(handles.daemonHealth),
       CultMesh.describeSurface(handles.authorityStatus),
       CultMesh.describeSurface(handles.starbridgeSession),
+      CultMesh.describeSurface(handles.assetManifest),
       ...(operations
         ? [
             CultMesh.describeSurface(operations.setMoveVector),
@@ -804,10 +841,12 @@ export function createAetheriaRuntimeRtsVerseFacade(
   const daemonHealth = CultMesh.bindQuery(queryVerse, queries.daemonHealth);
   const authorityStatus = CultMesh.bindQuery(queryVerse, queries.authorityStatus);
   const starbridgeSession = CultMesh.bindQuery(queryVerse, queries.starbridgeSession);
+  const assetManifest = CultMesh.bindQuery(queryVerse, queries.assetManifest);
   const daemonFrameDocument = CultMesh.bindDocument(queryVerse, documents.daemonFrame);
   const daemonHealthDocument = CultMesh.bindDocument(queryVerse, documents.daemonHealth);
   const authorityPolicyDocument = CultMesh.bindDocument(queryVerse, documents.authorityPolicy);
   const starbridgeSessionDocument = CultMesh.bindDocument(queryVerse, documents.starbridgeSession);
+  const assetManifestDocument = CultMesh.bindDocument(queryVerse, documents.assetManifest);
   const setMoveVector = CultMesh.bindOperation(commandVerse, operations.setMoveVector);
   const setTarget = CultMesh.bindOperation(commandVerse, operations.setTarget);
 
@@ -870,10 +909,12 @@ export function createAetheriaRuntimeRtsVerseFacade(
         health: () => daemonHealthDocument.latest(),
         authorityPolicy: () => authorityPolicyDocument.latest(),
         starbridgeSession: () => starbridgeSessionDocument.latest(),
+        assetManifest: () => assetManifestDocument.latest(),
       },
       health: () => daemonHealth.execute(undefined),
       authorityStatus: () => authorityStatus.execute(undefined),
       starbridgeSession: () => starbridgeSession.execute(undefined),
+      assetManifest: () => assetManifest.execute(undefined),
     },
   } as const;
 }
@@ -991,6 +1032,7 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   daemonHealth: DaemonHealthProjection;
   authorityStatus: AuthorityStatusProjection;
   starbridgeSession: StarbridgeSessionProjection;
+  assetManifest: AssetManifestProjection;
   receivedAtUtc: string;
   sampleMs: number;
 };
@@ -1006,6 +1048,7 @@ export type AetheriaRtsApi = {
   daemonHealth(): Promise<DaemonHealthProjection>;
   authorityStatus(): Promise<AuthorityStatusProjection>;
   starbridgeSession(): Promise<StarbridgeSessionProjection>;
+  assetManifest(): Promise<AssetManifestProjection>;
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): () => void;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
@@ -1077,6 +1120,7 @@ export type ViewObject = {
   targetEntityIndex: number;
   isActive: boolean;
   visibility: number;
+  iconAsset: AssetRef;
   status: EntityStatus;
   inventory: InventoryItem[];
 };
@@ -1094,6 +1138,7 @@ export type InventoryItem = {
   quality: number;
   durability: number;
   enabled: boolean;
+  iconAsset: AssetRef;
 };
 
 export type SelectedObjectProjection = {
@@ -1187,6 +1232,33 @@ export type StarbridgeStationStockItemProjection = {
   quality: number;
   durability: number;
   source: string;
+  iconAsset: AssetRef;
+};
+
+export type AssetManifestProjection = {
+  schema: string;
+  publishedAtUtc: string;
+  runId: string;
+  baseUri: string;
+  assets: AssetManifestEntry[];
+};
+
+export type AssetManifestEntry = {
+  ref: AssetRef;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  tags: string[];
+};
+
+export type AssetRef = {
+  assetKey: string;
+  kind: string;
+  uri: string;
+  transport: string;
+  contentHash: string;
+  mimeType: string;
+  metadata: Record<string, string>;
 };
 
 export type StarbridgeWaveForecastProjection = {
@@ -1261,6 +1333,7 @@ function renderPreload() {
         name === "daemonHealth" ||
         name === "authorityStatus" ||
         name === "starbridgeSession" ||
+        name === "assetManifest" ||
         name === "surfaceCatalog" ||
         name === "surfaceCatalogIndex";
       const parameters = hasNoArguments ? "()" : "request";

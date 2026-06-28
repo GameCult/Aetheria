@@ -27,6 +27,11 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(stateFilePath);
         }
 
+        public static string GetAssetManifestPath(string stateFilePath)
+        {
+            return AetheriaRuntimeStateBoundary.GetDaemonAssetManifestPath(stateFilePath);
+        }
+
         public static string GetStarbridgeSessionSummaryPath(string stateFilePath)
         {
             return AetheriaRuntimeStateBoundary.GetDaemonStarbridgeSessionSummaryPath(stateFilePath);
@@ -111,6 +116,22 @@ namespace GameCult.Aetheria.State.Verse
             var path = GetCommandBoundaryPath(stateFilePath);
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
             AetheriaRuntimeCultCacheDocumentStore.WriteDaemonCommandBoundary(path, document);
+            return path;
+        }
+
+        public static string PublishAssetManifest(
+            string stateFilePath,
+            AetheriaRuntimeAssetManifestDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            document.Schema = AetheriaRuntimeDaemonSchemas.AssetManifest;
+            if (string.IsNullOrWhiteSpace(document.PublishedAtUtc))
+                document.PublishedAtUtc = DateTime.UtcNow.ToString("O");
+
+            var path = GetAssetManifestPath(stateFilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            AetheriaRuntimeCultCacheDocumentStore.WriteAssetManifest(path, document);
             return path;
         }
 
@@ -225,6 +246,21 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             document = AetheriaRuntimeCultCacheDocumentStore.ReadDaemonCommandBoundary(path);
+            return true;
+        }
+
+        public static bool TryReadAssetManifest(
+            string stateFilePath,
+            out AetheriaRuntimeAssetManifestDocument document)
+        {
+            var path = GetAssetManifestPath(stateFilePath);
+            if (!File.Exists(path))
+            {
+                document = new AetheriaRuntimeAssetManifestDocument();
+                return false;
+            }
+
+            document = AetheriaRuntimeCultCacheDocumentStore.ReadAssetManifest(path);
             return true;
         }
 

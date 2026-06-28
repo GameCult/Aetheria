@@ -197,6 +197,23 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeRtsProjection.ProjectGravityViewport(frame, viewport);
         }
 
+        public async Task<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewportAsync(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            ThrowIfDisposed();
+            var frame = await RequireFrameAsync().ConfigureAwait(false);
+            return AetheriaRuntimeRtsProjection.ProjectRenderSplatsViewport(frame, viewport);
+        }
+
+        public async Task<AetheriaRuntimeAssetManifestDocument> AssetManifestAsync()
+        {
+            ThrowIfDisposed();
+            var frame = await RequireFrameAsync().ConfigureAwait(false);
+            return AetheriaRuntimeAssets.ProjectManifest(
+                _verse.OpenRuntimeCatalog(),
+                frame.Run?.RunId ?? "");
+        }
+
         public async Task<AetheriaRuntimeCurrentZoneDocument> CurrentZoneAsync()
         {
             ThrowIfDisposed();
@@ -254,7 +271,11 @@ namespace GameCult.Aetheria.State.Verse
             var frame = await RequireFrameAsync().ConfigureAwait(false);
             scenario ??= await _verse.GetStarbridgeScenarioAsync().ConfigureAwait(false);
             session ??= await _verse.GetStarbridgeSessionAsync().ConfigureAwait(false);
-            return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(frame, scenario, session);
+            return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+                frame,
+                scenario,
+                session,
+                _verse.OpenRuntimeCatalog());
         }
 
         public async Task<AetheriaRuntimeSelectedObjectDocument> SelectedObjectAsync(int entityIndex)

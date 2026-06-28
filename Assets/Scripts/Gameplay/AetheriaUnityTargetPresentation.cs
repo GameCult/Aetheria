@@ -61,12 +61,12 @@ public sealed class AetheriaUnityTargetPresentation
         _observedHostileIndicatorTargets.Clear();
         _observedFriendlyIndicatorTargets.Clear();
 
-        var renderSettings = ZoneRenderer?.RenderSettings;
-        if (currentEntity != null && renderSettings != null)
+        if (currentEntity != null && ZoneRenderer != null)
         {
+            var renderSettings = ZoneRenderer.RenderSettings;
             var contacts = ResolveVisibleContacts?.Invoke(
                 currentEntity,
-                renderSettings.Value.TargetDetectionInfoThreshold,
+                renderSettings.TargetDetectionInfoThreshold,
                 true) ?? Array.Empty<AetheriaRuntimeZoneContactRow>();
 
             foreach (var contact in contacts)
@@ -153,10 +153,10 @@ public sealed class AetheriaUnityTargetPresentation
         float time,
         bool blinkSpottedTargets)
     {
-        var renderSettings = ZoneRenderer?.RenderSettings;
-        if (renderSettings == null)
+        if (ZoneRenderer == null)
             return;
 
+        var renderSettings = ZoneRenderer.RenderSettings;
         foreach (var indicator in indicators)
         {
             indicator.Value.gameObject.SetActive(indicator.Key != observedTarget);
@@ -168,9 +168,9 @@ public sealed class AetheriaUnityTargetPresentation
             }
 
             var infoGathered = ResolveInfoGathered?.Invoke(indicator.Key, currentEntity) ?? 0f;
-            indicator.Value.Fill.fillAmount = (float)renderSettings.Value.NormalizeDetectionProgress(infoGathered);
+            indicator.Value.Fill.fillAmount = (float)renderSettings.NormalizeDetectionProgress(infoGathered);
             indicator.Value.Fill.enabled = !blinkSpottedTargets ||
-                                           renderSettings.Value.ResolveTargetSpottedFillEnabled(infoGathered, time);
+                                           renderSettings.ResolveTargetSpottedFillEnabled(infoGathered, time);
         }
     }
 

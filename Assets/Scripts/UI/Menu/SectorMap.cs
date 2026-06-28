@@ -15,6 +15,7 @@ using float2 = Unity.Mathematics.float2;
 public class SectorMap : MonoBehaviour
 {
     public Camera InfluenceCamera;
+    public AetheriaRenderSplatRasterizer InfluenceSplatRasterizer;
     public Prototype InfluenceRendererPrototype;
     public MeshRenderer SectorRenderer;
     public Prototype ZonePrototype;
@@ -216,6 +217,7 @@ public class SectorMap : MonoBehaviour
     public void Start()
     {
         EnsureSectorMapLoaded();
+        DisableLegacyInfluenceCamera();
     }
 
     private void EnsureSectorMapLoaded()
@@ -341,31 +343,160 @@ public class SectorMap : MonoBehaviour
 
     private void RenderInfluence()
     {
+        DisableLegacyInfluenceCamera();
         foreach (var pair in _factionMaterials)
         {
-            foreach (var zone in _sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-            {
-                if (!_zoneInstances.TryGetValue(zone.ZoneIndex, out var instance))
-                    continue;
-
-                var influence = 0f;
-                if (zone.FactionIndices?.Count > 0)
-                {
-                    if (zone.FactionIndices.Contains(pair.Key))
-                    {
-                        influence = 10;
-                        if (zone.OwnerFactionIndex != pair.Key)
-                            influence *= .5f;
-                    }
-                    else influence = -10;
-                }
-
-                instance.Influence.material.SetFloat("_Depth", influence);
-            }
-
-            InfluenceCamera.targetTexture = pair.Value.influence;
-            InfluenceCamera.Render();
+            var document = BuildInfluenceSplatDocument(pair.Key);
+            ResolveInfluenceSplatRasterizer().RenderLayerToTarget(
+                document,
+                pair.Value.influence,
+                0,
+                0,
+                Color.clear);
         }
+    }
+
+    private AetheriaRenderSplatRasterizer ResolveInfluenceSplatRasterizer()
+    {
+        if (InfluenceSplatRasterizer != null)
+            return InfluenceSplatRasterizer;
+
+        InfluenceSplatRasterizer = GetComponent<AetheriaRenderSplatRasterizer>();
+        if (InfluenceSplatRasterizer == null)
+            InfluenceSplatRasterizer = gameObject.AddComponent<AetheriaRenderSplatRasterizer>();
+        return InfluenceSplatRasterizer;
+    }
+
+    private AetheriaRuntimeRenderSplatsViewportDocument BuildInfluenceSplatDocument(int factionIndex)
+    {
+        var zones = (_sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>()).ToArray();
+        var minX = zones.Length > 0 ? zones.Min(zone => zone.X) : -1;
+        var maxX = zones.Length > 0 ? zones.Max(zone => zone.X) : 1;
+        var minY = zones.Length > 0 ? zones.Min(zone => zone.Y) : -1;
+        var maxY = zones.Length > 0 ? zones.Max(zone => zone.Y) : 1;
+        var padding = Math.Max(IconBackgroundSize * 2, 4);
+
+        var centerX = new List<double>();
+        var centerY = new List<double>();
+        var halfExtentX = new List<double>();
+        var halfExtentY = new List<double>();
+        var rotationCos = new List<double>();
+        var rotationSin = new List<double>();
+        var channel = new List<int>();
+        var falloff = new List<int>();
+        var valueR = new List<double>();
+        var valueG = new List<double>();
+        var valueB = new List<double>();
+        var valueA = new List<double>();
+        var sourceKey = new List<string>();
+        var layerIndex = new List<int>();
+        var sourceKind = new List<int>();
+        var frequencyX = new List<double>();
+        var frequencyY = new List<double>();
+        var phaseX = new List<double>();
+        var phaseY = new List<double>();
+        var animationSpeed = new List<double>();
+        var sourceFlags = new List<double>();
+
+        foreach (var zone in zones)
+        {
+            if (!_zoneInstances.ContainsKey(zone.ZoneIndex))
+                continue;
+
+            var influence = ResolveZoneInfluence(zone, factionIndex);
+            if (Math.Abs(influence) <= 0.0001f)
+                continue;
+
+            centerX.Add(zone.X);
+            centerY.Add(zone.Y);
+            halfExtentX.Add(Math.Max(IconBackgroundSize, 1));
+            halfExtentY.Add(Math.Max(IconBackgroundSize, 1));
+            rotationCos.Add(1);
+            rotationSin.Add(0);
+            channel.Add(AetheriaRuntimeRenderSplatChannels.Influence);
+            falloff.Add(AetheriaRuntimeRenderSplatFalloffs.Smooth);
+            valueR.Add(influence);
+            valueG.Add(influence);
+            valueB.Add(influence);
+            valueA.Add(1);
+            sourceKey.Add($"sector-zone:{zone.ZoneIndex}:faction:{factionIndex}");
+            layerIndex.Add(0);
+            sourceKind.Add(AetheriaRuntimeRenderSplatSourceKinds.Constant);
+            frequencyX.Add(0);
+            frequencyY.Add(0);
+            phaseX.Add(0);
+            phaseY.Add(0);
+            animationSpeed.Add(0);
+            sourceFlags.Add(0);
+        }
+
+        return new AetheriaRuntimeRenderSplatsViewportDocument
+        {
+            Schema = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
+            Viewport = new AetheriaRuntimeRtsViewportBounds
+            {
+                MinX = minX - padding,
+                MinY = minY - padding,
+                MaxX = maxX + padding,
+                MaxY = maxY + padding
+            },
+            Layers = new[]
+            {
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Influence,
+                    DisplayName = "Sector Influence",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Influence,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                }
+            },
+            Splats = new AetheriaRuntimeRenderSplatSoa
+            {
+                Count = centerX.Count,
+                CenterX = centerX,
+                CenterY = centerY,
+                HalfExtentX = halfExtentX,
+                HalfExtentY = halfExtentY,
+                RotationCos = rotationCos,
+                RotationSin = rotationSin,
+                Channel = channel,
+                Falloff = falloff,
+                ValueR = valueR,
+                ValueG = valueG,
+                ValueB = valueB,
+                ValueA = valueA,
+                SourceKey = sourceKey,
+                LayerIndex = layerIndex,
+                SourceKind = sourceKind,
+                FrequencyX = frequencyX,
+                FrequencyY = frequencyY,
+                PhaseX = phaseX,
+                PhaseY = phaseY,
+                AnimationSpeed = animationSpeed,
+                SourceFlags = sourceFlags
+            }
+        };
+    }
+
+    private static float ResolveZoneInfluence(AetheriaRuntimeSectorMapZone zone, int factionIndex)
+    {
+        if (zone.FactionIndices?.Count <= 0)
+            return 0f;
+
+        if (!zone.FactionIndices.Contains(factionIndex))
+            return -10f;
+
+        return zone.OwnerFactionIndex == factionIndex ? 10f : 5f;
+    }
+
+    private void DisableLegacyInfluenceCamera()
+    {
+        if (InfluenceCamera == null)
+            return;
+
+        InfluenceCamera.targetTexture = null;
+        InfluenceCamera.gameObject.SetActive(false);
     }
 
     private AetheriaClient ResolveClient()

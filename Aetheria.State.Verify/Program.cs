@@ -983,7 +983,10 @@ static void RequirePackageSerializerBoundary(string root)
         "AetheriaRuntimeDaemonDocuments.cs",
         "AetheriaRuntimeDaemonSoaDocuments.cs",
         "AetheriaRuntimeRtsViewportDocuments.cs",
+        "AetheriaRuntimeAssetDocuments.cs",
+        "AetheriaRuntimeRenderSplatDocuments.cs",
         "AetheriaRuntimeStarbridgeDocuments.cs",
+        "AetheriaRuntimeStarbridgePlayerSeatDocuments.cs",
         "AetheriaRuntimeVerseAuthorityPolicy.cs"
     };
 
@@ -1688,9 +1691,9 @@ static void RequireTypedOrbitConsumerKeys(string root)
         {
             "private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews",
             "private void SyncDaemonBodyViews()",
-            "private AetheriaRuntimeGravityViewportDocument _daemonGravityViewport;",
-            "GravityViewportAsync(viewport)",
-            "foreach (var bodyView in _daemonGravityViewport?.Bodies ?? Array.Empty<AetheriaRuntimeRtsBodyView>())",
+            "private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies",
+            "_zoneRenderBodies = render?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();",
+            "foreach (var bodyPose in _zoneRenderBodyPoses ?? Array.Empty<AetheriaRuntimeZoneRenderBodyPose>())",
             "ResolveDaemonRenderViewport()",
             "private AetheriaRuntimeXzRect ResolveDaemonRenderViewport()",
             "private void UnloadBodyView(string bodyKey)",
@@ -2345,7 +2348,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private string _daemonCurrentEntityKey = \"\";",
         "private double _daemonSimulationTimeSeconds;",
         "private readonly List<AetheriaRuntimeDaemonBodyView> _daemonBodyViews",
-        "private AetheriaRuntimeGravityViewportDocument _daemonGravityViewport;",
+        "private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies",
         "private readonly List<AetheriaRuntimeZoneRenderBodyPose> _daemonBodyPoses",
         "private readonly Dictionary<string, AetheriaRuntimeZoneRenderBodyPose> _daemonBodyPosesByBodyKey",
         "private readonly Dictionary<string, PlanetObject> _bodyViewsByBodyKey",
@@ -2373,14 +2376,14 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public void ApplyZoneRender(AetheriaRuntimeZoneRenderDocument render)",
         "_daemonCurrentEntityKey = render?.CurrentEntityKey ?? \"\";",
         "_daemonSimulationTimeSeconds = render?.SimulationTimeSeconds ?? 0;",
+        "_zoneRenderBodies = render?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();",
         "_observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;",
         "render?.ZoneRenderRadius ?? 2000",
         "private readonly HashSet<string> _daemonVisibleBodyKeys",
         "private void SyncDaemonBodyViews()",
-        "GravityViewportAsync(viewport)",
         "foreach (var bodyView in _daemonBodyViews)",
         "if (bodyView.IsAsteroidBelt)",
-        "foreach (var bodyView in _daemonGravityViewport?.Bodies ?? Array.Empty<AetheriaRuntimeRtsBodyView>())",
+        "foreach (var bodyPose in _zoneRenderBodyPoses ?? Array.Empty<AetheriaRuntimeZoneRenderBodyPose>())",
         "ResolveDaemonRenderViewport()",
         "private AetheriaRuntimeXzRect ResolveDaemonRenderViewport()",
         "private static AetheriaRuntimeRtsViewportBounds ToViewportBounds(AetheriaRuntimeXzRect viewport)",
@@ -2409,7 +2412,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var beltPose in _daemonAsteroidBeltPoses)",
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
-        "ZoneContactsAsync()",
+        ".Aetheria()",
+        ".ZoneContacts",
+        ".LatestAsync()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -2514,7 +2519,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         "private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;",
         "ResolveCurrentEntityHudStatus()",
-        ".CurrentEntityAsync()",
+        ".Current",
+        ".Entity",
+        ".LatestAsync()",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
         "hud.Heatstroke",
@@ -4472,7 +4479,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
         "ProjectZoneDetailsSurfaceState(",
         "private AetheriaClient _client",
-        "SectorMapAsync()",
+        ".Aetheria()",
+        ".SectorMap",
+        ".LatestAsync()",
         "ZoneDetailsAsync(zoneIndex)",
         "OpenRuntimeCatalog()",
         "PlayerSettingsAsync()",
@@ -4646,7 +4655,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
-        "CurrentDockingAsync()",
+        ".DockingState",
+        ".Latest()",
         "ResolveCurrentDocking()?.IsDocked == true",
         "AetheriaClient",
         "OpenLocalAsync(",
@@ -4748,12 +4758,12 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     var requiredDockedStoryObserverSymbols = new[]
     {
         "TryResolveDockedLocalStory(out _currentLocation)",
-        "private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)",
+        "private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)",
         "private bool TryResolveDockedLocalStory(out LocationStory story)",
         "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
         "_observedFacadeIndex.TryResolveDockingBayByRecordKey(",
-        "docking.DockParentEntityKey",
-        "docking.DockingBayIndex",
+        "dockingState.CurrentDocking.DockParentEntityKey",
+        "dockingState.CurrentDocking.DockingBayIndex",
         "dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory }",
         "AetheriaRuntimeLocalStorySurfaceBuilder.Build(ProjectStorySurface())",
         "AetheriaRuntimeLocalStorySurfaceBuilder.Project(",
@@ -4761,7 +4771,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeLocalStoryCommandKind.Continue",
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
         "new AetheriaRuntimeLocalStoryChoiceState(",
-        "CurrentDockingAsync()",
+        ".DockingState",
+        ".Latest()",
         "unity-runtime-local-story"
     };
     var dockedStoryObserverCorpus = localMenu;
@@ -4873,15 +4884,15 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "ResolveDefaultShutdownPerformance()",
         "ResolvePlayerSettings()?.DefaultShutdownPerformance",
         "TryResolveCurrentEntityDocument(out var currentEntity)",
-        "TryGetTypedCurrentEntityFacade(out var currentEntity)",
         "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
-        "_observedFacadeIndex.TryResolveEntityByRecordKey",
         "private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;",
         "!TryResolveCurrentEntityDocument(out var latestCurrentEntity)",
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        "CurrentEntityAsync()"
+        ".DockingState",
+        ".Latest()",
+        "?.CurrentEntity"
     };
 
     var missingSymbols = requiredSymbols
@@ -5589,8 +5600,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
-        "CurrentDockingAsync()",
-        "StationRefitAsync()",
+        ".DockingState",
+        ".Latest()",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -6148,7 +6159,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
         "_observedFacadeIndex.TryResolveEntityByRecordKey",
         "_observedFacadeIndex.TryResolveDockingBayByRecordKey",
-        "CurrentDockingAsync",
+        ".DockingState",
+        ".Latest()",
         "LoadoutRestoreOptions"
     };
 
@@ -6214,7 +6226,9 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     }
 
     if (!inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade(out var dockingBay)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("CurrentDockingAsync()", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".Latest()", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("_observedFacadeIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
@@ -6373,12 +6387,11 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
 
     var requiredPanelSymbols = new[]
     {
-        "TryResolveCurrentDockingBayRow(out _)",
         "TryResolveCurrentDockingBayRow(out var currentDockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
         "stationRefit.DockingBays",
         "row.DockingBayIndex == stationRefit.DockingBayIndex",
-        "dockingBayRow.DockingBayIndex"
+        "currentDockingBay.DockingBayIndex"
     };
     var missingPanelSymbols = requiredPanelSymbols
         .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
@@ -6393,11 +6406,10 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
 
     var requiredMenuSymbols = new[]
     {
-        "TryResolveCurrentDockingBayRow(out var dockingBayRow)",
+        "TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
         "stationRefit.DockingBays",
-        "row.DockingBayIndex == stationRefit.DockingBayIndex",
-        "dockingBayRow.DockingBayIndex"
+        "row.DockingBayIndex == stationRefit.DockingBayIndex"
     };
     var missingMenuSymbols = requiredMenuSymbols
         .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
@@ -7354,7 +7366,9 @@ static void RequireClientTargetBootAuthority(string root)
         "CurrentStateBoot()",
         "LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaClient",
-        ".SectorMapAsync()",
+        ".Aetheria()",
+        ".SectorMap",
+        ".LatestAsync()",
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
@@ -9194,9 +9208,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
     var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
     var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
+    var stateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, surfaceStatePath, docPath };
+    var requiredFiles = new[] { clientPath, surfaceStatePath, stateReaderPath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -9210,6 +9225,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     var client = File.ReadAllText(clientPath);
     var surfaceState = File.ReadAllText(surfaceStatePath);
+    var stateReader = File.ReadAllText(stateReaderPath);
     var doc = File.ReadAllText(docPath);
 
     if (File.Exists(oldSurfaceStatePath))
@@ -9246,8 +9262,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "VerseHostSettingsAsync()",
         "GetLoadoutTemplatesAsync()",
         "CreateEveSurfaceStateRefResolver(",
-        "AetheriaRuntimeStateReader.TryResolveDaemonStateRef(",
-        "AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(",
+        "AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
@@ -9263,6 +9278,21 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    var requiredStateReaderSymbols = new[]
+    {
+        "TryResolveDaemonStateRef(",
+        "TryResolveDaemonItemStatRef("
+    };
+    var missingStateReaderSymbols = requiredStateReaderSymbols
+        .Where(symbol => !stateReader.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStateReaderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime state reader is missing typed Eve state-ref resolver symbols: " +
+            string.Join(", ", missingStateReaderSymbols));
     }
 
     if (client.Contains("public async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(", StringComparison.Ordinal) ||
@@ -9950,7 +9980,9 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "LatestSectorMap",
         "AetheriaClient",
-        ".SectorMapAsync()",
+        ".Aetheria()",
+        ".SectorMap",
+        ".LatestAsync()",
         "ContinueGame()",
         "AetheriaUnityObservedRunProjection.Project(",
         "SceneManager.LoadScene(\"ARPG\")"
@@ -10218,7 +10250,9 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public sealed class AetheriaUnityObservedFrameApplier",
         "public bool ApplyLatestZoneRender()",
-        "ZoneRenderAsync()",
+        ".Aetheria()",
+        ".ZoneRender",
+        ".LatestAsync()",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
@@ -10281,7 +10315,9 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        "ZoneContactsAsync()",
+        ".Aetheria()",
+        ".ZoneContacts",
+        ".LatestAsync()",
         "_facadeIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
@@ -10317,7 +10353,9 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedDockingSymbols = new[]
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
-        "CurrentDockingAsync()",
+        ".Aetheria()",
+        ".DockingState",
+        ".Latest()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -11069,7 +11107,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "public sealed class AetheriaUnityObservedFrameApplier",
         "public bool ApplyLatestZoneRender()",
-        "ZoneRenderAsync()",
+        ".Aetheria()",
+        ".ZoneRender",
+        ".LatestAsync()",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntityFacades)",
         "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
@@ -11237,7 +11277,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        "ZoneContactsAsync()",
+        ".Aetheria()",
+        ".ZoneContacts",
+        ".LatestAsync()",
         "_facadeIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
@@ -11365,15 +11407,18 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!mapRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
         !mapRenderer.Contains("ObjectsViewportAsync", StringComparison.Ordinal) ||
-        !mapRenderer.Contains("GravityViewportAsync", StringComparison.Ordinal) ||
         !mapRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("SectorMapAsync()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("ZoneDetailsAsync(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("OpenRuntimeCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
         !sectorMap.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
-        !sectorMap.Contains("SectorMapAsync()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".SectorMap", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".LatestAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -12016,7 +12061,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "TryStartDaemonObservedGame",
         "LatestSectorMap(stateBoot)",
-        ".SectorMapAsync()",
+        ".Aetheria()",
+        ".SectorMap",
+        ".LatestAsync()",
         "AetheriaUnityObservedRunProjection.Project(",
         "sectorMap.FrameId",
         "sectorMap.IsTutorial",
@@ -12835,7 +12882,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!observedFrameApplier.Contains("private AetheriaRuntimeZoneRenderDocument _lastZoneRender;", StringComparison.Ordinal) ||
         !observedFrameApplier.Contains("ApplyLatestZoneRender()", StringComparison.Ordinal) ||
-        !observedFrameApplier.Contains("ZoneRenderAsync()", StringComparison.Ordinal))
+        !observedFrameApplier.Contains(".Aetheria()", StringComparison.Ordinal) ||
+        !observedFrameApplier.Contains(".ZoneRender", StringComparison.Ordinal) ||
+        !observedFrameApplier.Contains(".LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed zone-render state acquisition must live behind AetheriaUnityObservedFrameApplier.");
@@ -12888,7 +12937,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
         !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".SectorMapAsync()", StringComparison.Ordinal))
+        !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".SectorMap", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");
@@ -14579,7 +14630,8 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     }
 
     if (!inventoryPanel.Contains("TryResolveCurrentEntityKey(out var currentEntityKey)", StringComparison.Ordinal) ||
-        !inventoryPanel.Contains("CurrentEntityAsync()", StringComparison.Ordinal) ||
+        !inventoryPanel.Contains(".DockingState", StringComparison.Ordinal) ||
+        !inventoryPanel.Contains("snapshot?.CurrentEntityKey", StringComparison.Ordinal) ||
         inventoryPanel.Contains("GameManager.CurrentEntity", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

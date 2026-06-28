@@ -205,38 +205,36 @@ public class LocalMenu : MonoBehaviour
         return "Local";
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)
     {
-        docking = null;
+        dockingState = null;
 
         try
         {
-            docking = ResolveClient()
+            dockingState = ResolveClient()
                 .Aetheria()
-                .Current
-                .Docking
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .DockingState
+                .Latest();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria current docking for local story surface: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria docking state for local story surface: {ex.Message}");
             return false;
         }
 
-        return docking != null;
+        return dockingState != null;
     }
 
     private bool TryResolveDockedLocalStory(out LocationStory story)
     {
         story = null;
         if (_observedFacadeIndex == null ||
-            !TryResolveCurrentDocking(out var docking) ||
-            !docking.IsDocked ||
+            !TryResolveDockingState(out var dockingState) ||
+            dockingState?.IsDocked != true ||
+            dockingState.CurrentDocking == null ||
             !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                docking.DockParentEntityKey,
-                docking.DockingBayIndex,
+                dockingState.CurrentDocking.DockParentEntityKey,
+                dockingState.CurrentDocking.DockingBayIndex,
                 out var dockingBay) ||
             dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory })
         {

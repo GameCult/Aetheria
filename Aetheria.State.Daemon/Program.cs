@@ -167,6 +167,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             PreRejectedCommandIds = policyRejectedCommandIds,
             CumulativeAppliedCommandIds = currentFrame?.CumulativeAppliedCommandIds ?? currentFrame?.AppliedCommandIds ?? Array.Empty<string>(),
             CumulativeRejectedCommandIds = currentFrame?.CumulativeRejectedCommandIds ?? currentFrame?.RejectedCommandIds ?? Array.Empty<string>(),
+            Catalog = node.OpenRuntimeCatalog(),
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             PublishWitnesses = publishWitnesses,

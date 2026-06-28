@@ -24,6 +24,7 @@ import {
   describeAetheriaRuntimeRtsQueryHandles,
   describeAetheriaRuntimeRtsSurfaceCatalog,
   type AetheriaRuntimeDaemonCommandReceipt,
+  type AssetManifestProjection,
   type AuthorityStatusProjection,
   type DaemonHealthProjection,
   type GravityViewportResponse,
@@ -47,6 +48,7 @@ import {
 } from "./aetheria-rts-bindings.js";
 import {
   projectAuthorityStatus,
+  projectAssetManifest,
   projectDaemonHealth,
   projectGravityViewportFromFrame,
   projectInventoryFromFrame,
@@ -127,6 +129,7 @@ export class AetheriaCultMeshClient {
       daemonHealth: async () => projectDaemonHealth(await this.fetchDaemonHealthDocument()),
       authorityStatus: async () => projectAuthorityStatus(await this.fetchAuthorityPolicyDocument()),
       starbridgeSession: async () => projectStarbridgeSessionSummary(await this.fetchStarbridgeSessionSummaryDocument()),
+      assetManifest: async () => projectAssetManifest(await this.fetchAssetManifestDocument()),
     };
     this.queries = createAetheriaRuntimeRtsQueryHandles(
       executors,
@@ -139,6 +142,7 @@ export class AetheriaCultMeshClient {
         daemonHealth: CultMesh.pollingQueryWatcher(executors.daemonHealth, { intervalMs: 250 }),
         authorityStatus: CultMesh.pollingQueryWatcher(executors.authorityStatus, { intervalMs: 250 }),
         starbridgeSession: CultMesh.pollingQueryWatcher(executors.starbridgeSession, { intervalMs: 250 }),
+        assetManifest: CultMesh.pollingQueryWatcher(executors.assetManifest, { intervalMs: 1000 }),
       },
     );
     this.documents = createAetheriaRuntimeRtsDocuments(
@@ -148,6 +152,7 @@ export class AetheriaCultMeshClient {
         daemonHealth: async () => this.fetchDaemonHealthDocument(),
         authorityPolicy: async () => this.fetchAuthorityPolicyDocument(),
         starbridgeSession: async () => this.fetchStarbridgeSessionSummaryDocument(),
+        assetManifest: async () => this.fetchAssetManifestDocument(),
       },
     );
     this.operations = createAetheriaRuntimeRtsOperationHandles(
@@ -223,6 +228,9 @@ export class AetheriaCultMeshClient {
     return this.aetheria.daemon.starbridgeSession();
   }
 
+  public async assetManifest(): Promise<AssetManifestProjection> {
+    return this.aetheria.daemon.assetManifest();
+  }
 
   public projectionDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsProjectionDiagnostic>> {
     return describeAetheriaRuntimeRtsQueryHandles(this.queries);
@@ -285,6 +293,9 @@ export class AetheriaCultMeshClient {
     return this.fetchPublicationDocument(AetheriaRtsSchemas.starbridgeSessionSummary);
   }
 
+  private async fetchAssetManifestDocument(): Promise<unknown> {
+    return this.fetchPublicationDocument(AetheriaRtsSchemas.assetManifest);
+  }
 
   private fetchPublicationDocument(schemaId: string): Promise<unknown> {
     return this.publications.latest({ schemaId }, this.queryContext());
@@ -321,6 +332,7 @@ export class AetheriaCultMeshClient {
           ...this.queries.daemonHealth.sources,
           ...this.queries.authorityStatus.sources,
           ...this.queries.starbridgeSession.sources,
+          ...this.queries.assetManifest.sources,
         ],
         routeHint: this.queryVerse.context.routeHint,
         watchFeed: (request, context, callback) => {
@@ -363,6 +375,7 @@ export class AetheriaCultMeshClient {
       daemonHealth,
       authorityStatus,
       starbridgeSession,
+      assetManifest,
       selectedObject,
       inventory,
     ] = await Promise.all([
@@ -370,6 +383,7 @@ export class AetheriaCultMeshClient {
       this.aetheria.daemon.health(),
       this.aetheria.daemon.authorityStatus(),
       this.aetheria.daemon.starbridgeSession(),
+      this.aetheria.daemon.assetManifest(),
       selectedEntityIndex >= 0
         ? this.aetheria.selectedObject(selectedEntityIndex)
         : Promise.resolve(null),
@@ -385,6 +399,7 @@ export class AetheriaCultMeshClient {
       daemonHealth,
       authorityStatus,
       starbridgeSession,
+      assetManifest,
       receivedAtUtc: new Date().toISOString(),
       sampleMs: performance.now() - startedAt,
     };
@@ -513,6 +528,17 @@ function createAetheriaPublicationDocuments(
         },
       ),
       localPath: `${statePath}.daemon.starbridge.session.cc`,
+    },
+    {
+      ...CultMesh.publicationDocument(
+        AetheriaRtsSchemas.assetManifest,
+        "daemon:aetheria.asset_manifest.latest.v1",
+        {
+          documentId: "daemon:aetheria.asset_manifest.latest.v1",
+          sourceId: "daemon:aetheria.asset_manifest.latest.v1",
+        },
+      ),
+      localPath: `${statePath}.daemon.assets.cc`,
     },
   ];
 

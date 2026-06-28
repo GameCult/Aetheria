@@ -169,17 +169,14 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private AetheriaRuntimeCurrentDockingDocument ResolveCurrentDocking()
+    private AetheriaClientDockingSnapshot ResolveCurrentDocking()
     {
         try
         {
             return ResolveClient()
                 .Aetheria()
-                .Current
-                .Docking
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .DockingState
+                .Latest();
         }
         catch (Exception ex)
         {

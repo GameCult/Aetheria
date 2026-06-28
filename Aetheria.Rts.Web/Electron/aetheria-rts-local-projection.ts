@@ -1,5 +1,8 @@
 import {
   AetheriaRtsSchemas,
+  aetheriaRuntimeAssetManifestDocumentSlots as assetManifestSlots,
+  aetheriaRuntimeAssetManifestEntrySlots as assetManifestEntrySlots,
+  aetheriaRuntimeAssetRefSlots as assetRefSlots,
   aetheriaRuntimeAuthorityRuleSlots as authorityRuleSlots,
   aetheriaRuntimeBodySnapshotCommitSlots as bodySlots,
   aetheriaRuntimeCargoBayLoadoutCommitSlots as cargoBaySlots,
@@ -20,6 +23,8 @@ import {
 } from "./aetheria-rts-generated-bindings.js";
 import { cultMeshRectFromBounds, cultMeshViewportRequest } from "cultmesh-ts";
 import type {
+  AssetManifestProjection,
+  AssetRef,
   AuthorityStatusProjection,
   BodyView,
   DaemonHealthProjection,
@@ -222,6 +227,17 @@ export function projectStarbridgeSessionSummary(summaryDocument: unknown): Starb
   };
 }
 
+export function projectAssetManifest(assetManifestDocument: unknown): AssetManifestProjection {
+  const manifest = arr(assetManifestDocument);
+  return {
+    schema: str(manifest[assetManifestSlots.schema]) || AetheriaRtsSchemas.assetManifest,
+    publishedAtUtc: str(manifest[assetManifestSlots.publishedAtUtc]),
+    runId: str(manifest[assetManifestSlots.runId]),
+    baseUri: str(manifest[assetManifestSlots.baseUri]),
+    assets: list<unknown[]>(manifest[assetManifestSlots.assets]).map(toAssetManifestEntry),
+  };
+}
+
 function frameContext(frameDocument: unknown): {
   frameId: number;
   runId: string;
@@ -251,11 +267,13 @@ function normalizeViewport(request: ViewportRequest): ViewportRequest {
 }
 
 function toViewObject(entity: unknown[], runId: string, zoneIndex: number): ViewObject {
+  const kind = str(entity[entitySlots.kind]);
+  const controlled = isPlayerControlled(entity);
   return {
     entityIndex: num(entity[entitySlots.entityIndex], -1),
     entityKey: entityKey(runId, zoneIndex, num(entity[entitySlots.entityIndex], -1)),
     displayName: str(entity[entitySlots.name]),
-    kind: str(entity[entitySlots.kind]),
+    kind,
     factionKey: str(entity[entitySlots.factionKey]),
     x: num(entity[entitySlots.positionX]),
     y: num(entity[entitySlots.positionZ]),
@@ -264,10 +282,11 @@ function toViewObject(entity: unknown[], runId: string, zoneIndex: number): View
     directionY: num(entity[entitySlots.directionY]),
     velocityX: num(entity[entitySlots.velocityX]),
     velocityY: num(entity[entitySlots.velocityY]),
-    controlled: isPlayerControlled(entity),
+    controlled,
     targetEntityIndex: num(entity[entitySlots.targetEntityIndex], -1),
     isActive: bool(entity[entitySlots.isActive]),
     visibility: num(entity[entitySlots.visibility]),
+    iconAsset: entityIconAsset(kind, controlled),
     status: {
       hull: stat(entity, "hull"),
       shield: stat(entity, "shield"),
@@ -289,12 +308,14 @@ function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionProjection[
 }
 
 function toStarbridgeStationStockItem(item: unknown[]): StarbridgeSessionProjection["stationStock"][number] {
+  const itemKey = str(item[starbridgeStockSlots.itemKey]);
   return {
-    itemKey: str(item[starbridgeStockSlots.itemKey]),
+    itemKey,
     quantity: num(item[starbridgeStockSlots.quantity]),
     quality: num(item[starbridgeStockSlots.quality]),
     durability: num(item[starbridgeStockSlots.durability]),
     source: str(item[starbridgeStockSlots.source]) || "station",
+    iconAsset: assetRef(arr(item[starbridgeStockSlots.iconAsset]), itemIconAsset(itemKey)),
   };
 }
 
@@ -359,13 +380,15 @@ function inventory(entity: unknown[]): InventoryItem[] {
 
 function addSlot(items: InventoryItem[], source: string, slot: unknown[]): void {
   const item = arr(slot[itemSlotSlots.item]);
+  const itemKey = str(item[itemSlots.itemKey]);
   items.push({
     source,
-    itemKey: str(item[itemSlots.itemKey]),
+    itemKey,
     quantity: num(item[itemSlots.quantity]),
     quality: num(item[itemSlots.quality]),
     durability: num(item[itemSlots.durability]),
     enabled: bool(item[itemSlots.enabled]),
+    iconAsset: itemIconAsset(itemKey),
   });
 }
 
@@ -416,6 +439,84 @@ function entityKey(runId: string, zoneIndex: number, entityIndex: number): strin
   return `global:aetheria.run_state.${runId}.zone.${zoneIndex}.entity.${entityIndex}.v1`;
 }
 
+function toAssetManifestEntry(entry: unknown[]): AssetManifestProjection["assets"][number] {
+  return {
+    ref: assetRef(arr(entry[assetManifestEntrySlots.ref])),
+    sizeBytes: num(entry[assetManifestEntrySlots.sizeBytes]),
+    width: num(entry[assetManifestEntrySlots.width]),
+    height: num(entry[assetManifestEntrySlots.height]),
+    tags: stringList(entry[assetManifestEntrySlots.tags]),
+  };
+}
+
+function entityIconAsset(kind: string, controlled: boolean): AssetRef {
+  if (controlled)
+    return spriteAsset("map.entity.player", "Sprites/Map/player");
+
+  const normalized = kind.trim().toLowerCase();
+  if (normalized.includes("station"))
+    return spriteAsset("map.entity.station", "Sprites/Map/station");
+  if (normalized.includes("orbital"))
+    return spriteAsset("map.entity.orbital", "Sprites/Map/orbital");
+
+  return spriteAsset("map.entity.ship", "Sprites/Map/ship");
+}
+
+function itemIconAsset(itemKey: string): AssetRef {
+  const key = itemKey.trim();
+  return key.length > 0
+    ? textureAsset(`item.${key}.icon`, `item.${key}.icon`)
+    : emptyAsset("texture");
+}
+
+function spriteAsset(assetKey: string, resourcePath: string): AssetRef {
+  return asset(assetKey, "sprite", `resources://${resourcePath}`, "resources", "image/*");
+}
+
+function textureAsset(assetKey: string, resourcePath: string): AssetRef {
+  return asset(assetKey, "texture", resourcePath.startsWith("resources://") ? resourcePath : `resources://${resourcePath}`, "resources", "image/*");
+}
+
+function assetRef(value: unknown[], fallback: AssetRef = emptyAsset()): AssetRef {
+  const assetKey = str(value[assetRefSlots.assetKey]);
+  if (assetKey.length === 0)
+    return fallback;
+
+  return asset(
+    assetKey,
+    str(value[assetRefSlots.kind]),
+    str(value[assetRefSlots.uri]),
+    str(value[assetRefSlots.transport]),
+    str(value[assetRefSlots.mimeType]),
+    str(value[assetRefSlots.contentHash]),
+    stringRecord(value[assetRefSlots.metadata]),
+  );
+}
+
+function asset(
+  assetKey: string,
+  kind: string,
+  uri: string,
+  transport: string,
+  mimeType: string,
+  contentHash = "",
+  metadata: Record<string, string> = {},
+): AssetRef {
+  return {
+    assetKey,
+    kind,
+    uri,
+    transport,
+    contentHash,
+    mimeType,
+    metadata,
+  };
+}
+
+function emptyAsset(kind = ""): AssetRef {
+  return asset("", kind, "", "", "");
+}
+
 function arr(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -430,6 +531,17 @@ function numberList(value: unknown): number[] {
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(candidate => str(candidate)).filter(candidate => candidate.length > 0) : [];
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, candidate]) => [key, str(candidate)])
+      .filter(([, candidate]) => candidate.length > 0),
+  );
 }
 
 function str(value: unknown): string {

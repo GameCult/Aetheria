@@ -30,6 +30,7 @@ public class ZoneRenderer : MonoBehaviour
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
+    public bool UseRenderSplatTextureLayers = true;
     public Material FogMaterial;
     public float FogFarFadeFraction = .125f;
     public float FarPlaneDistanceMultiplier = 2;
@@ -115,7 +116,8 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderBodyPose>();
     private IReadOnlyList<AetheriaRuntimeZoneRenderAsteroidBeltPose> _zoneRenderAsteroidBeltPoses =
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
-    private AetheriaRuntimeGravityViewportDocument _daemonGravityViewport;
+    private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
+        Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
@@ -146,11 +148,16 @@ public class ZoneRenderer : MonoBehaviour
         set
         {
             _viewDistance = value;
-            foreach (var camera in FogCameras)
-                camera.orthographicSize = value;
-            SceneCamera.m_Lens.FarClipPlane = value * FarPlaneDistanceMultiplier;
-            FogMaterial.SetFloat("_DepthCeiling", value);
-            FogMaterial.SetFloat("_DepthBlend", FogFarFadeFraction * value);
+            foreach (var camera in FogCameras ?? Array.Empty<Camera>())
+                if (camera != null)
+                    camera.orthographicSize = value;
+            if (SceneCamera != null)
+                SceneCamera.m_Lens.FarClipPlane = value * FarPlaneDistanceMultiplier;
+            if (FogMaterial != null)
+            {
+                FogMaterial.SetFloat("_DepthCeiling", value);
+                FogMaterial.SetFloat("_DepthBlend", FogFarFadeFraction * value);
+            }
         }
     }
 
@@ -159,9 +166,11 @@ public class ZoneRenderer : MonoBehaviour
         set
         {
             _minimapDistance = value;
-            foreach (var camera in MinimapCameras)
-                camera.orthographicSize = value;
-            SetIconSize((float)RenderSettings.ResolveMinimapIconSize(value));
+            foreach (var camera in MinimapCameras ?? Array.Empty<Camera>())
+                if (camera != null)
+                    camera.orthographicSize = value;
+            if (RenderSettings != null)
+                SetIconSize((float)RenderSettings.ResolveMinimapIconSize(value));
             // MinimapGravityQuad.transform.localScale = value * 2 * Vector3.one;
         }
     }
@@ -235,6 +244,7 @@ public class ZoneRenderer : MonoBehaviour
 
         _tourTimer = TourSwitchTime;
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
+        DisableLegacyTextureCameras();
     }
 
     public void LoadDaemonZoneView(
@@ -244,9 +254,6 @@ public class ZoneRenderer : MonoBehaviour
         ClearZone();
         _observedEntityFacadesByDaemonIndex = observedEntityFacadesByDaemonIndex;
         ApplyZoneRender(render);
-        RefreshDaemonBodyPoses();
-        RefreshDaemonAsteroidBeltPoses();
-        SyncDaemonBodyViews();
         RefreshDaemonVisibleEntityInstances();
         SyncDaemonEntityInstances();
 
@@ -260,11 +267,17 @@ public class ZoneRenderer : MonoBehaviour
         _daemonSimulationTimeSeconds = render?.SimulationTimeSeconds ?? 0;
         _zoneRenderBodyPoses = render?.BodyPoses ?? Array.Empty<AetheriaRuntimeZoneRenderBodyPose>();
         _zoneRenderAsteroidBeltPoses = render?.AsteroidBeltPoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
+        _zoneRenderBodies = render?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
         RefreshDaemonContactRows();
         var zoneRenderRadius = (float)Math.Max(0, render?.ZoneRenderRadius ?? 2000);
         SectorBrushes.localScale = zoneRenderRadius * 2 * Vector3.one;
-        SlimeGravityCamera.orthographicSize = zoneRenderRadius;
+        if (SlimeGravityCamera != null)
+            SlimeGravityCamera.orthographicSize = zoneRenderRadius;
         SlimeRenderer.ZoneRadius = zoneRenderRadius;
+        DisableLegacyTextureCameras();
+        RefreshDaemonBodyPoses();
+        RefreshDaemonAsteroidBeltPoses();
+        SyncDaemonBodyViews();
         _daemonWormholeExits.Clear();
         foreach (var exit in render?.WormholeExits ?? Array.Empty<AetheriaRuntimeZoneRenderWormholeExit>())
         {
@@ -673,30 +686,23 @@ public class ZoneRenderer : MonoBehaviour
 
     private void SyncDaemonBodyViews()
     {
-        try
-        {
-            var viewport = ToViewportBounds(ResolveDaemonRenderViewport());
-            var gravity = ResolveClient()
-                .GravityViewportAsync(viewport)
-                .GetAwaiter()
-                .GetResult();
-            _daemonGravityViewport = gravity;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria gravity viewport for zone renderer terrain: {ex.Message}");
-        }
-
         _daemonBodyViews.Clear();
-        foreach (var bodyView in _daemonGravityViewport?.Bodies ?? Array.Empty<AetheriaRuntimeRtsBodyView>())
+        var bodySnapshotsByBodyKey = _zoneRenderBodies
+            .Where(body => body != null && !string.IsNullOrWhiteSpace(body.BodyKey))
+            .ToDictionary(body => body.BodyKey, StringComparer.Ordinal);
+        foreach (var bodyPose in _zoneRenderBodyPoses ?? Array.Empty<AetheriaRuntimeZoneRenderBodyPose>())
         {
-            if (bodyView?.Body == null || string.IsNullOrWhiteSpace(bodyView.BodyKey))
+            if (bodyPose == null ||
+                string.IsNullOrWhiteSpace(bodyPose.BodyKey) ||
+                !bodySnapshotsByBodyKey.TryGetValue(bodyPose.BodyKey, out var body))
+            {
                 continue;
+            }
 
             _daemonBodyViews.Add(new AetheriaRuntimeDaemonBodyView(
-                bodyView.Body,
-                ToDaemonBodyPose(bodyView),
-                bodyView.IsAsteroidBelt));
+                body,
+                ToDaemonBodyPose(bodyPose),
+                IsAsteroidBelt(body)));
         }
         var beltPosesByBodyKey = _daemonAsteroidBeltPoses
             .Where(pose => !string.IsNullOrWhiteSpace(pose.BodyKey))
@@ -737,6 +743,19 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         _suns = _bodyViewsByBodyKey.Values.Where(p => p is SunObject).ToArray();
+    }
+
+    private void DisableLegacyTextureCameras()
+    {
+        if (!UseRenderSplatTextureLayers)
+            return;
+
+        foreach (var camera in FogCameras ?? Array.Empty<Camera>())
+            if (camera != null)
+                camera.gameObject.SetActive(false);
+
+        if (SlimeGravityCamera != null)
+            SlimeGravityCamera.gameObject.SetActive(false);
     }
 
     private AetheriaRuntimeXzRect ResolveDaemonRenderViewport()
@@ -960,42 +979,31 @@ public class ZoneRenderer : MonoBehaviour
 
     private double EvaluateGravityTerrainHeight(double positionX, double positionZ)
     {
-        var gravity = _daemonGravityViewport;
-        if (gravity == null)
-            return 0;
-
         var height = 0.0;
-        if (gravity.TerrainRadius > 0 && gravity.TerrainDepth != 0)
+        foreach (var body in _zoneRenderBodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
         {
-            var distance = Math.Sqrt(positionX * positionX + positionZ * positionZ);
-            height -= PowerPulse(
-                distance / (gravity.TerrainRadius * 2.0),
-                Math.Max(0.0001, gravity.TerrainDepthExponent)) * gravity.TerrainDepth;
-        }
-
-        foreach (var brush in gravity.GravityInfluences ?? Array.Empty<AetheriaRuntimeRtsGravityInfluence>())
-        {
-            if (brush == null)
+            if (body == null)
                 continue;
 
-            var dx = positionX - brush.X;
-            var dz = positionZ - brush.Y;
+            var dx = positionX - body.GravityInfluenceCenterX;
+            var dz = positionZ - body.GravityInfluenceCenterZ;
             var distance = Math.Sqrt(dx * dx + dz * dz);
-            if (brush.Radius > 0 && distance < brush.Radius && brush.GravityDepth != 0)
+            var radius = ResolveGravityRadius(body);
+            if (radius > 0 && distance < radius && body.GravityWellDepth != 0)
             {
                 height -= PowerPulse(
-                    distance / brush.Radius,
-                    Math.Max(0.0001, brush.GravityDepthExponent)) * brush.GravityDepth;
+                    distance / radius,
+                    Math.Max(0.0001, body.GravityDepthExponent)) * body.GravityWellDepth;
             }
 
-            if (brush.WaveRadius > 0 && distance < brush.WaveRadius && brush.WaveDepth != 0)
+            if (body.GravityWaveRadius > 0 && distance < body.GravityWaveRadius && body.GravityWaveDepth != 0)
             {
                 height -= RadialWaves(
-                    distance / brush.WaveRadius,
+                    distance / body.GravityWaveRadius,
                     8.0,
                     1.25,
-                    gravity.TerrainWaveFrequency,
-                    DaemonSimulationTimeSeconds * brush.WaveSpeed) * brush.WaveDepth;
+                    1.0,
+                    DaemonSimulationTimeSeconds * body.GravityWaveSpeed) * body.GravityWaveDepth;
             }
         }
 
@@ -1006,33 +1014,45 @@ public class ZoneRenderer : MonoBehaviour
         double minimapGravityRange,
         double maxDepth)
     {
-        var gravity = _daemonGravityViewport;
-        if (gravity == null)
-            return new AetheriaRuntimeGravityTerrainBand(0, Math.Max(0, maxDepth));
-
-        var startDepth = PowerPulse(
-            minimapGravityRange,
-            Math.Max(0.0001, gravity.TerrainDepthExponent)) * gravity.TerrainDepth;
+        var terrainDepth = (_zoneRenderBodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            .Where(body => body != null)
+            .Select(body => Math.Max(0, body.GravityWellDepth))
+            .DefaultIfEmpty(0)
+            .Max();
+        var startDepth = Math.Min(terrainDepth, Math.Max(0, minimapGravityRange));
         return new AetheriaRuntimeGravityTerrainBand(
             startDepth,
-            gravity.TerrainDepth - startDepth + maxDepth);
+            Math.Max(0, terrainDepth - startDepth) + maxDepth);
     }
 
-    private static AetheriaRuntimeDaemonBodyPose ToDaemonBodyPose(AetheriaRuntimeRtsBodyView bodyView)
+    private static AetheriaRuntimeDaemonBodyPose ToDaemonBodyPose(AetheriaRuntimeZoneRenderBodyPose bodyPose)
     {
-        if (bodyView == null)
+        if (bodyPose == null)
             return default;
 
         return new AetheriaRuntimeDaemonBodyPose(
-            bodyView.BodyKey,
-            bodyView.OrbitKey,
-            "",
-            bodyView.Kind,
-            bodyView.X,
-            bodyView.Y,
-            0,
-            0,
-            bodyView.Body?.GravityWaveSpeed ?? 0);
+            bodyPose.BodyKey,
+            bodyPose.OrbitKey,
+            bodyPose.ParentOrbitKey,
+            bodyPose.Kind,
+            bodyPose.CenterX,
+            bodyPose.CenterZ,
+            bodyPose.ParentCenterX,
+            bodyPose.ParentCenterZ,
+            bodyPose.GravityWaveSpeed);
+    }
+
+    private static bool IsAsteroidBelt(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        return (body?.Kind ?? "").IndexOf("asteroid", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static double ResolveGravityRadius(AetheriaRuntimeBodySnapshotCommit body)
+    {
+        if (body != null && double.IsFinite(body.GravityInfluenceRadius) && body.GravityInfluenceRadius > 0)
+            return body.GravityInfluenceRadius;
+
+        return Math.Max(32, (body?.BodyRadiusMultiplier ?? 1) * 70);
     }
 
     private static double PowerPulse(double x, double exponent)

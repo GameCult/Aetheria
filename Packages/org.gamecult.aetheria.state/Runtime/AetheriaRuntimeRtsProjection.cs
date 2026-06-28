@@ -107,6 +107,273 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
+        public static AetheriaRuntimeRenderSplatsViewportDocument ProjectRenderSplatsViewport(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            frame ??= new AetheriaRuntimeDaemonFrameDocument();
+            viewport ??= new AetheriaRuntimeRtsViewportBounds();
+
+            var normalizedViewport = Normalize(viewport);
+            var context = Context(frame);
+            var zone = context.Zone;
+            var layers = BuildDefaultRenderSplatLayers();
+            var layerIndices = layers
+                .Select((layer, index) => (layer.LayerKey, index))
+                .ToDictionary(pair => pair.LayerKey, pair => pair.index, StringComparer.Ordinal);
+            var splats = new RenderSplatBuilder();
+            var viewportCenterX = (normalizedViewport.MinX + normalizedViewport.MaxX) * 0.5;
+            var viewportCenterY = (normalizedViewport.MinY + normalizedViewport.MaxY) * 0.5;
+            var viewportHalfX = Math.Max(0.0001, (normalizedViewport.MaxX - normalizedViewport.MinX) * 0.5);
+            var viewportHalfY = Math.Max(0.0001, (normalizedViewport.MaxY - normalizedViewport.MinY) * 0.5);
+            if (zone.GravityTerrainDepth != 0)
+            {
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityHeight],
+                    viewportCenterX,
+                    viewportCenterY,
+                    viewportHalfX,
+                    viewportHalfY,
+                    AetheriaRuntimeRenderSplatChannels.Gravity,
+                    AetheriaRuntimeRenderSplatFalloffs.Solid,
+                    -zone.GravityTerrainDepth,
+                    0,
+                    0,
+                    1,
+                    "environment.gravity_terrain",
+                    sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
+                    frequencyX: 3.0,
+                    frequencyY: 3.0,
+                    animationSpeed: zone.GravityTerrainWaveFrequency * 0.025,
+                    sourceFlags: 1);
+            }
+
+            splats.Add(
+                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
+                viewportCenterX,
+                viewportCenterY,
+                viewportHalfX,
+                viewportHalfY,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                AetheriaRuntimeRenderSplatFalloffs.Solid,
+                1,
+                0,
+                0,
+                1,
+                "environment.fog_surface_height",
+                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
+                frequencyX: 4.0,
+                frequencyY: 4.0,
+                animationSpeed: 0.015,
+                sourceFlags: 1);
+            splats.Add(
+                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
+                viewportCenterX,
+                viewportCenterY,
+                viewportHalfX,
+                viewportHalfY,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                AetheriaRuntimeRenderSplatFalloffs.Solid,
+                1,
+                0,
+                0,
+                1,
+                "environment.fog_patch_height",
+                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
+                frequencyX: 9.0,
+                frequencyY: 9.0,
+                animationSpeed: 0.02,
+                sourceFlags: 1);
+            splats.Add(
+                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatch],
+                viewportCenterX,
+                viewportCenterY,
+                viewportHalfX,
+                viewportHalfY,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                AetheriaRuntimeRenderSplatFalloffs.Solid,
+                1,
+                0,
+                0,
+                1,
+                "environment.fog_patch",
+                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
+                frequencyX: 6.0,
+                frequencyY: 6.0,
+                animationSpeed: 0.01,
+                sourceFlags: 1);
+
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (!GravityInfluenceIntersectsViewport(body, normalizedViewport))
+                    continue;
+
+                var radius = ResolveGravityRadius(body);
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityHeight],
+                    body.GravityInfluenceCenterX,
+                    body.GravityInfluenceCenterZ,
+                    radius,
+                    radius,
+                    AetheriaRuntimeRenderSplatChannels.Gravity,
+                    AetheriaRuntimeRenderSplatFalloffs.InverseSmooth,
+                    body.GravityWellDepth,
+                    0,
+                    0,
+                    1,
+                    body.BodyKey ?? "");
+
+                if (body.GravityWaveRadius > 0 && body.GravityWaveDepth != 0)
+                {
+                    splats.Add(
+                        layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityWave],
+                        body.GravityInfluenceCenterX,
+                        body.GravityInfluenceCenterZ,
+                        body.GravityWaveRadius,
+                        body.GravityWaveRadius,
+                        AetheriaRuntimeRenderSplatChannels.GravityWave,
+                        AetheriaRuntimeRenderSplatFalloffs.Smooth,
+                        body.GravityWaveDepth,
+                        body.GravityWaveSpeed,
+                        0,
+                        1,
+                        body.BodyKey ?? "");
+                }
+
+                if (IsBodyKind(body, "sun"))
+                {
+                    var tintRadius = Math.Max(radius, Math.Max(32, body.BodyRadiusMultiplier * 70) *
+                        Math.Max(0.01, body.SunVisual?.LightRadiusMultiplier ?? 1.0));
+                    splats.Add(
+                        layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogTint],
+                        body.GravityInfluenceCenterX,
+                        body.GravityInfluenceCenterZ,
+                        tintRadius,
+                        tintRadius,
+                        AetheriaRuntimeRenderSplatChannels.Tint,
+                        AetheriaRuntimeRenderSplatFalloffs.Smooth,
+                        body.SunVisual?.FogTintColorX ?? 0,
+                        body.SunVisual?.FogTintColorY ?? 0,
+                        body.SunVisual?.FogTintColorZ ?? 0,
+                        1,
+                        body.BodyKey ?? "");
+                }
+            }
+
+            foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (!IsPlayerControlled(entity))
+                    continue;
+
+                var visibility = Math.Max(180, entity.Visibility);
+                if (entity.PositionX + visibility < normalizedViewport.MinX ||
+                    entity.PositionX - visibility > normalizedViewport.MaxX ||
+                    entity.PositionZ + visibility < normalizedViewport.MinY ||
+                    entity.PositionZ - visibility > normalizedViewport.MaxY)
+                {
+                    continue;
+                }
+
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.Visibility],
+                    entity.PositionX,
+                    entity.PositionZ,
+                    visibility,
+                    visibility,
+                    AetheriaRuntimeRenderSplatChannels.Visibility,
+                    AetheriaRuntimeRenderSplatFalloffs.Smooth,
+                    1,
+                    1,
+                    1,
+                    1,
+                    BuildEntityKey(context.RunId, zone.ZoneIndex, entity.EntityIndex));
+            }
+
+            return new AetheriaRuntimeRenderSplatsViewportDocument
+            {
+                FrameId = frame.FrameId,
+                PublishedAtUtc = frame.PublishedAtUtc ?? "",
+                SimulationTimeSeconds = frame.SimulationTimeSeconds,
+                RunId = context.RunId,
+                ZoneIndex = zone.ZoneIndex,
+                ZoneName = string.IsNullOrWhiteSpace(zone.Name) ? $"Zone {zone.ZoneIndex}" : zone.Name,
+                Viewport = normalizedViewport,
+                Layers = layers,
+                Splats = splats.Build()
+            };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeRenderSplatLayerDefinition> BuildDefaultRenderSplatLayers()
+        {
+            return new[]
+            {
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.GravityHeight,
+                    DisplayName = "Gravity Height",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Gravity,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.GravityWave,
+                    DisplayName = "Gravity Wave",
+                    Channel = AetheriaRuntimeRenderSplatChannels.GravityWave,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Visibility,
+                    DisplayName = "Visibility Mask",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Visibility,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Max,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight,
+                    DisplayName = "Fog Surface Height",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Tint,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight,
+                    DisplayName = "Fog Patch Height",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Tint,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatch,
+                    DisplayName = "Fog Patch",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Tint,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Max,
+                    GraphicsFormat = "R16_SFloat"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogTint,
+                    DisplayName = "Fog Tint",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Tint,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "B10G11R11_UFloatPack32"
+                },
+                new AetheriaRuntimeRenderSplatLayerDefinition
+                {
+                    LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Influence,
+                    DisplayName = "Influence",
+                    Channel = AetheriaRuntimeRenderSplatChannels.Influence,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
+                    GraphicsFormat = "R16_SFloat"
+                }
+            };
+        }
+
         public static AetheriaRuntimeCurrentZoneDocument ProjectCurrentZone(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
@@ -553,7 +820,7 @@ namespace GameCult.Aetheria.State.Verse
             string runId,
             int zoneIndex)
         {
-            return new AetheriaRuntimeRtsViewportObject
+            var obj = new AetheriaRuntimeRtsViewportObject
             {
                 EntityIndex = entity.EntityIndex,
                 EntityKey = BuildEntityKey(runId, zoneIndex, entity.EntityIndex),
@@ -579,6 +846,8 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Inventory = Inventory(entity)
             };
+            obj.IconAsset = AetheriaRuntimeAssets.ResolveEntityIcon(obj);
+            return obj;
         }
 
         private static AetheriaRuntimeRtsBodyView ToBodyView(AetheriaRuntimeBodySnapshotCommit body)
@@ -1101,7 +1370,11 @@ namespace GameCult.Aetheria.State.Verse
                 Enabled = item.Enabled,
                 SourceIndex = sourceIndex,
                 X = slot.X,
-                Y = slot.Y
+                Y = slot.Y,
+                IconAsset = AetheriaRuntimeAssetRef.FromKey(
+                    $"item.{item.ItemKey ?? ""}.icon",
+                    AetheriaRuntimeAssetKinds.Texture,
+                    $"item.{item.ItemKey ?? ""}.icon")
             });
         }
 
@@ -1121,6 +1394,111 @@ namespace GameCult.Aetheria.State.Verse
         private static bool IsPlayerControlled(AetheriaRuntimeEntitySnapshotCommit entity)
         {
             return string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsBodyKind(AetheriaRuntimeBodySnapshotCommit body, string kind)
+        {
+            return body != null &&
+                   string.Equals(body.Kind ?? "", kind ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private sealed class RenderSplatBuilder
+        {
+            private readonly List<double> _centerX = new List<double>();
+            private readonly List<double> _centerY = new List<double>();
+            private readonly List<double> _halfExtentX = new List<double>();
+            private readonly List<double> _halfExtentY = new List<double>();
+            private readonly List<double> _rotationCos = new List<double>();
+            private readonly List<double> _rotationSin = new List<double>();
+            private readonly List<int> _channel = new List<int>();
+            private readonly List<int> _falloff = new List<int>();
+            private readonly List<double> _valueR = new List<double>();
+            private readonly List<double> _valueG = new List<double>();
+            private readonly List<double> _valueB = new List<double>();
+            private readonly List<double> _valueA = new List<double>();
+            private readonly List<string> _sourceKey = new List<string>();
+            private readonly List<int> _layerIndex = new List<int>();
+            private readonly List<int> _sourceKind = new List<int>();
+            private readonly List<double> _frequencyX = new List<double>();
+            private readonly List<double> _frequencyY = new List<double>();
+            private readonly List<double> _phaseX = new List<double>();
+            private readonly List<double> _phaseY = new List<double>();
+            private readonly List<double> _animationSpeed = new List<double>();
+            private readonly List<double> _sourceFlags = new List<double>();
+
+            public void Add(
+                int layerIndex,
+                double centerX,
+                double centerY,
+                double halfExtentX,
+                double halfExtentY,
+                int channel,
+                int falloff,
+                double valueR,
+                double valueG,
+                double valueB,
+                double valueA,
+                string sourceKey,
+                double rotationRadians = 0,
+                int sourceKind = AetheriaRuntimeRenderSplatSourceKinds.Constant,
+                double frequencyX = 1,
+                double frequencyY = 1,
+                double phaseX = 0,
+                double phaseY = 0,
+                double animationSpeed = 0,
+                double sourceFlags = 0)
+            {
+                _layerIndex.Add(Math.Max(0, layerIndex));
+                _centerX.Add(centerX);
+                _centerY.Add(centerY);
+                _halfExtentX.Add(Math.Max(0, halfExtentX));
+                _halfExtentY.Add(Math.Max(0, halfExtentY));
+                _rotationCos.Add(Math.Cos(rotationRadians));
+                _rotationSin.Add(Math.Sin(rotationRadians));
+                _channel.Add(channel);
+                _falloff.Add(falloff);
+                _valueR.Add(valueR);
+                _valueG.Add(valueG);
+                _valueB.Add(valueB);
+                _valueA.Add(valueA);
+                _sourceKey.Add(sourceKey ?? "");
+                _sourceKind.Add(sourceKind);
+                _frequencyX.Add(frequencyX);
+                _frequencyY.Add(frequencyY);
+                _phaseX.Add(phaseX);
+                _phaseY.Add(phaseY);
+                _animationSpeed.Add(animationSpeed);
+                _sourceFlags.Add(sourceFlags);
+            }
+
+            public AetheriaRuntimeRenderSplatSoa Build()
+            {
+                return new AetheriaRuntimeRenderSplatSoa
+                {
+                    Count = _centerX.Count,
+                    CenterX = _centerX.ToArray(),
+                    CenterY = _centerY.ToArray(),
+                    HalfExtentX = _halfExtentX.ToArray(),
+                    HalfExtentY = _halfExtentY.ToArray(),
+                    RotationCos = _rotationCos.ToArray(),
+                    RotationSin = _rotationSin.ToArray(),
+                    Channel = _channel.ToArray(),
+                    Falloff = _falloff.ToArray(),
+                    ValueR = _valueR.ToArray(),
+                    ValueG = _valueG.ToArray(),
+                    ValueB = _valueB.ToArray(),
+                    ValueA = _valueA.ToArray(),
+                    SourceKey = _sourceKey.ToArray(),
+                    LayerIndex = _layerIndex.ToArray(),
+                    SourceKind = _sourceKind.ToArray(),
+                    FrequencyX = _frequencyX.ToArray(),
+                    FrequencyY = _frequencyY.ToArray(),
+                    PhaseX = _phaseX.ToArray(),
+                    PhaseY = _phaseY.ToArray(),
+                    AnimationSpeed = _animationSpeed.ToArray(),
+                    SourceFlags = _sourceFlags.ToArray()
+                };
+            }
         }
 
         private static ProjectionContext Context(AetheriaRuntimeDaemonFrameDocument frame)

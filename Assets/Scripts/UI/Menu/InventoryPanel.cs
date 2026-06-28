@@ -260,9 +260,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay:
-                if (TryResolveObservedDockingIndex(out var dockingIndex) &&
-                    dockingIndex.TryResolveCurrentDockingBayRow(out _) &&
-                    dockingIndex.TryResolveCurrentDockingBay(out var dockingBay))
+                if (TryResolveCurrentDockingBayFacade(out var dockingBay))
                 {
                     Display(dockingBay);
                 }
@@ -1133,29 +1131,53 @@ private void Update()
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
+        var snapshot = ResolveDockingState();
+        currentEntityKey = snapshot?.CurrentEntityKey ?? "";
+        return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
+        var stationRefit = ResolveStationRefit();
+        dockingBay = stationRefit?.IsDocked == true && stationRefit.DockingBayIndex >= 0
+            ? (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+                .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex)
+            : null;
+        return dockingBay != null;
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveCurrentDockingBayFacade(out EquippedCargoBay dockingBay)
     {
-        docking = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDocking(out docking);
+        dockingBay = null;
+        var docking = ResolveDockingState()?.CurrentDocking;
+        return _observedFacadeIndex != null &&
+               docking?.IsDocked == true &&
+               _observedFacadeIndex.TryResolveDockingBayByRecordKey(
+                   docking.DockParentEntityKey,
+                   docking.DockingBayIndex,
+                   out dockingBay);
     }
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return TryResolveObservedDockingIndex(out var dockingIndex)
-            ? dockingIndex.ResolveStationRefit()
-            : null;
+        return ResolveDockingState()?.StationRefit;
+    }
+
+    private AetheriaClientDockingSnapshot ResolveDockingState()
+    {
+        try
+        {
+            return ResolveClient()
+                .Aetheria()
+                .DockingState
+                .Latest();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria docking state for inventory panel: {ex.Message}");
+            return null;
+        }
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)

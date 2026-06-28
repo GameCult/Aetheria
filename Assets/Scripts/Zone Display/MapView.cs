@@ -5,6 +5,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
@@ -15,6 +16,7 @@ public class MapView : MonoBehaviour
     public Camera MinimapGravity;
     public Camera Minimap;
     public MeshRenderer GravityRenderer;
+    public AetheriaUnityRenderSplatViewportSource GravitySplatSource;
     public float ZoomSpeed;
     [FormerlySerializedAs("SectorRenderer")] public ZoneRenderer ZoneRenderer;
 
@@ -26,7 +28,6 @@ public class MapView : MonoBehaviour
     private RenderTexture _minimapGravityTexture;
     private Transform _gravityRendererTransform;
     private CopyTransform _gravityRendererCopyTransform;
-    private RenderTexture _fullscreenGravityTexture;
     private AetheriaInput.UIActions _input;
     private float _viewDistance = 1024;
     private float _aspectRatio;
@@ -49,9 +50,14 @@ public class MapView : MonoBehaviour
         _gravityRendererCopyTransform.enabled = false;
         _previousGravityRendererScale = _gravityRendererTransform.localScale;
 
-        _fullscreenGravityTexture = new RenderTexture(Screen.width / 2, Screen.height / 2, 1, RenderTextureFormat.RFloat);
-        GravityRenderer.material.mainTexture = _fullscreenGravityTexture;
-        MinimapGravity.targetTexture = _fullscreenGravityTexture;
+        GravitySplatSource = ResolveGravitySplatSource();
+        GravitySplatSource.SetLayerKey(AetheriaRuntimeRenderSplatLayerKeys.GravityHeight);
+        GravitySplatSource.SetViewport(
+            new Vector2(_minimapTransform.position.x, _minimapTransform.position.z),
+            new Vector2(_viewDistance * _aspectRatio * 2, _viewDistance * 2));
+        GravitySplatSource.RenderLatest();
+        GravityRenderer.material.mainTexture = GravitySplatSource.TargetTexture;
+        MinimapGravity.targetTexture = null;
         Minimap.targetTexture = null;
         SetZoom();
     }
@@ -61,6 +67,14 @@ public class MapView : MonoBehaviour
         //ZoneRenderer.ViewDistance = _viewDistance * _aspectRatio;
         Minimap.orthographicSize = MinimapGravity.orthographicSize = _viewDistance;
         _gravityRendererTransform.localScale = new Vector3(_viewDistance*_aspectRatio*2, _viewDistance*2, 1);
+        if (GravitySplatSource != null && _minimapTransform != null)
+        {
+            GravitySplatSource.SetViewport(
+                new Vector2(_minimapTransform.position.x, _minimapTransform.position.z),
+                new Vector2(_viewDistance * _aspectRatio * 2, _viewDistance * 2));
+            GravitySplatSource.RenderLatest();
+            GravityRenderer.material.mainTexture = GravitySplatSource.TargetTexture;
+        }
     }
 
     // public void BindInput(AetheriaInput.UIActions input)
@@ -91,6 +105,7 @@ public class MapView : MonoBehaviour
 
             _gravityRendererTransform.position = gravPos;
             Main.transform.position = _minimapTransform.position = _minimapGravityTransform.position = pos;
+            SetZoom();
         }
     }
 
@@ -106,6 +121,20 @@ public class MapView : MonoBehaviour
         Minimap.targetTexture = _minimapTexture;
         MinimapGravity.targetTexture = _minimapGravityTexture;
         GravityRenderer.material.mainTexture = _minimapGravityTexture;
-        _fullscreenGravityTexture.Release();
+    }
+
+    private AetheriaUnityRenderSplatViewportSource ResolveGravitySplatSource()
+    {
+        if (GravitySplatSource != null)
+            return GravitySplatSource;
+
+        GravitySplatSource = GetComponent<AetheriaUnityRenderSplatViewportSource>();
+        if (GravitySplatSource == null)
+            GravitySplatSource = gameObject.AddComponent<AetheriaUnityRenderSplatViewportSource>();
+
+        if (GetComponent<AetheriaRenderSplatLayerRenderer>() == null)
+            gameObject.AddComponent<AetheriaRenderSplatLayerRenderer>();
+
+        return GravitySplatSource;
     }
 }

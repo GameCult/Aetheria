@@ -106,9 +106,9 @@ public class Slime : MonoBehaviour
         _trailKernel = SlimeCompute.FindKernel("UpdateTrailPoints");
         _geometryKernel = SlimeCompute.FindKernel("CreateTrailGeometry");
 
-        _accumulationTexture = new RenderTexture(TextureSize, TextureSize, 1, RenderTextureFormat.RFloat);
+        _accumulationTexture = new RenderTexture(TextureSize, TextureSize, 0, RenderTextureFormat.RFloat);
         _accumulationTexture.enableRandomWrite = true;
-        _previousAccumulationTexture = new RenderTexture(TextureSize, TextureSize, 1, RenderTextureFormat.RFloat);
+        _previousAccumulationTexture = new RenderTexture(TextureSize, TextureSize, 0, RenderTextureFormat.RFloat);
         _previousAccumulationTexture.enableRandomWrite = true;
         AccumulationMaterial.SetTexture("_MainTex", _accumulationTexture);
 
