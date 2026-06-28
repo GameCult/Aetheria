@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 #nullable enable
@@ -39,7 +40,7 @@ namespace GameCult.Aetheria.State.Verse
             if (frame == null)
                 return null;
 
-            var soaView = await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
+            var soaView = await TryReadLatestSoaViewAsync(state).ConfigureAwait(false);
             if (soaView == null ||
                 !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
             {
@@ -51,6 +52,19 @@ namespace GameCult.Aetheria.State.Verse
                 soaView,
                 AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath),
                 AetheriaRuntimeDaemonSoaViewStore.GetViewPath(statePath));
+        }
+
+        private static async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryReadLatestSoaViewAsync(
+            AetheriaClientState state)
+        {
+            try
+            {
+                return await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
         }
     }
 }

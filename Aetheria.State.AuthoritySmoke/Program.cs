@@ -27,7 +27,7 @@ internal sealed class AuthoritySmokeChecks
         TwoLocalRuntimeDelegatedPolicyHarness();
         RtsProjectionProjectsLocalViewportFromFrame();
         StarbridgeSessionSummaryProjectsScenarioFacts();
-        await AetheriaClientFacadeProjectsAndSubmitsAsync().ConfigureAwait(false);
+        await AetheriaClientStateDocumentsProjectAndSubmitAsync().ConfigureAwait(false);
         await DaemonOncePublishesStarbridgeSessionFactsAsync().ConfigureAwait(false);
         await SamePolicyDocumentCanBeLoadedByTwoNodesAsync().ConfigureAwait(false);
         await TwoDaemonProcessesApplyDelegatedPolicyAsync().ConfigureAwait(false);
@@ -561,56 +561,56 @@ internal sealed class AuthoritySmokeChecks
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.role.0.runtime", "starfire-rts", "daemon game surface starbridge runtime role");
     }
 
-    private static async Task AetheriaClientFacadeProjectsAndSubmitsAsync()
+    private static async Task AetheriaClientStateDocumentsProjectAndSubmitAsync()
     {
         var smokeId = Guid.NewGuid().ToString("N");
-        var statePath = Path.Combine(Path.GetTempPath(), $"aetheria-client-facade-{smokeId}.cc");
+        var statePath = Path.Combine(Path.GetTempPath(), $"aetheria-client-state-documents-{smokeId}.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
             new AetheriaRuntimeRunCheckpointCommit
             {
-                RunId = "client-facade-smoke",
+                RunId = "client-state-documents-smoke",
                 CurrentZoneIndex = 0,
-                CurrentEntityKey = EntityKey("client-facade-smoke", 0, 0),
+                CurrentEntityKey = EntityKey("client-state-documents-smoke", 0, 0),
                 Zones =
                 [
                     new AetheriaRuntimeZoneSnapshotCommit
                     {
                         ZoneIndex = 0,
-                        Name = "Client Facade Zone",
+                        Name = "Client State Documents Zone",
                         Entities =
                         [
-                            ProjectionEntity(0, "Facade Raven", "player", 0, 0, 600, 140, "facade-cargo"),
-                            ProjectionEntity(1, "Facade Raider", "raider", 100, 0, 120, 80, "raider-cargo")
+                            ProjectionEntity(0, "Document Raven", "player", 0, 0, 600, 140, "document-cargo"),
+                            ProjectionEntity(1, "Document Raider", "raider", 100, 0, 120, 80, "raider-cargo")
                         ]
                     }
                 ]
             },
-            "facade-daemon",
-            "facade-session",
+            "state-documents-daemon",
+            "state-documents-session",
             7,
             0.14,
             0.02);
         var health = new AetheriaRuntimeDaemonHealthDocument
         {
-            DaemonId = "facade-daemon",
-            VerseId = "aetheria.facade-smoke",
+            DaemonId = "state-documents-daemon",
+            VerseId = "aetheria.state-documents-smoke",
             FrameId = frame.FrameId,
             Status = "healthy",
             Transport = "cultcache-witness"
         };
         var policy = AetheriaRuntimeVerseAuthorityPolicyDocument.TrustedCoop(
-            "aetheria.facade-smoke",
-            "facade-daemon");
+            "aetheria.state-documents-smoke",
+            "state-documents-daemon");
         var scenario = new AetheriaRuntimeStarbridgeScenarioDocument
         {
-            ScenarioId = "starbridge.facade",
-            DisplayName = "Facade Starbridge",
-            StartingBaseKey = EntityKey("client-facade-smoke", 0, 0),
+            ScenarioId = "starbridge.state-documents",
+            DisplayName = "Document Starbridge",
+            StartingBaseKey = EntityKey("client-state-documents-smoke", 0, 0),
             StationStock =
             [
                 new AetheriaRuntimeStarbridgeStationStockItem
                 {
-                    ItemKey = "facade-cargo",
+                    ItemKey = "document-cargo",
                     Quantity = 3,
                     Quality = 1,
                     Durability = 1
@@ -621,22 +621,22 @@ internal sealed class AuthoritySmokeChecks
                 new AetheriaRuntimeStarbridgeWaveDefinition
                 {
                     WaveIndex = 0,
-                    DisplayName = "Facade Wave",
+                    DisplayName = "Document Wave",
                     AttackerKeys = ["raider"],
-                    BossKey = "facade-boss"
+                    BossKey = "document-boss"
                 }
             ]
         };
         var session = new AetheriaRuntimeStarbridgeSessionDocument
         {
-            SessionId = "facade-session",
-            ScenarioId = "starbridge.facade",
-            BaseEntityKey = EntityKey("client-facade-smoke", 0, 0),
+            SessionId = "state-documents-session",
+            ScenarioId = "starbridge.state-documents",
+            BaseEntityKey = EntityKey("client-state-documents-smoke", 0, 0),
             Phase = "pre-wave"
         };
 
         using (var writer = await AetheriaRuntimeVerseClient
-            .OpenAsync(statePath, "facade-writer", startServer: false, pullOnOpen: false)
+            .OpenAsync(statePath, "state-documents-writer", startServer: false, pullOnOpen: false)
             .ConfigureAwait(false))
         {
             await writer.Database
@@ -645,73 +645,84 @@ internal sealed class AuthoritySmokeChecks
             await writer.Database
                 .PutAsync(AetheriaRuntimeVerseRecordKeys.DaemonHealth, health)
                 .ConfigureAwait(false);
+            await writer.VerseAuthorityPolicy()
+                .ReplaceAsync(policy)
+                .ConfigureAwait(false);
             await writer.PutStarbridgeScenarioAsync(scenario, flush: false).ConfigureAwait(false);
             await writer.PutStarbridgeSessionAsync(session, flush: false).ConfigureAwait(false);
             await writer.FlushAsync().ConfigureAwait(false);
         }
 
-        AetheriaRuntimeDaemonPublicationStore.PublishVerseAuthorityPolicy(statePath, policy);
-
         using var client = await AetheriaClient
-            .OpenAsync(statePath, "raven-unity", sessionId: "facade-session", pullOnOpen: true)
+            .OpenAsync(statePath, "raven-unity", sessionId: "state-documents-session", pullOnOpen: true)
             .ConfigureAwait(false);
+        var aetheria = client.Aetheria();
         var viewport = await client
-            .MapViewportAsync(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .Aetheria()
+            .Viewports
+            .Map(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .LatestAsync()
             .ConfigureAwait(false);
-        Require(viewport.Objects.Any(item => item.DisplayName == "Facade Raven"), "facade map projection should include controlled object");
-        Require(viewport.Objects.Any(item => item.DisplayName == "Facade Raider"), "facade map projection should include visible hostile object");
+        Require(viewport.Objects.Any(item => item.DisplayName == "Document Raven"), "managed map document should include controlled object");
+        Require(viewport.Objects.Any(item => item.DisplayName == "Document Raider"), "managed map document should include visible hostile object");
         var objectsViewport = await client
-            .ObjectsViewportAsync(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .Aetheria()
+            .Viewports
+            .Objects(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .LatestAsync()
             .ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema, "facade objects viewport schema");
-        Require(objectsViewport.Objects.Any(item => item.DisplayName == "Facade Raven"), "facade objects viewport should include controlled object");
-        Require(objectsViewport.Objects.Any(item => item.DisplayName == "Facade Raider"), "facade objects viewport should include visible hostile object");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema, "managed objects viewport document schema");
+        Require(objectsViewport.Objects.Any(item => item.DisplayName == "Document Raven"), "managed objects viewport document should include controlled object");
+        Require(objectsViewport.Objects.Any(item => item.DisplayName == "Document Raider"), "managed objects viewport document should include visible hostile object");
         var gravityViewport = await client
-            .GravityViewportAsync(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .Aetheria()
+            .Viewports
+            .Gravity(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+            .LatestAsync()
             .ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewport.Schema, "facade gravity viewport schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewport.Schema, "managed gravity viewport document schema");
 
-        var currentZone = await client.CurrentZoneAsync().ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "facade current-zone projection schema");
-        RequireEqual("Client Facade Zone", currentZone.ZoneName, "facade current-zone projection name");
+        var currentZone = await aetheria.Current.Zone.LatestAsync().ConfigureAwait(false);
+        RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "managed current-zone document schema");
+        RequireEqual("Client State Documents Zone", currentZone.ZoneName, "managed current-zone document name");
 
-        var sectorMap = await client.SectorMapAsync().ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMap.Schema, "facade sector-map projection schema");
-        Require(sectorMap.Zones.Any(zone => zone.ZoneIndex == currentZone.ZoneIndex && zone.Current), "facade sector-map should include current zone marker");
+        var sectorMap = await aetheria.SectorMap.LatestAsync().ConfigureAwait(false);
+        RequireEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMap.Schema, "managed sector-map document schema");
+        Require(sectorMap.Zones.Any(zone => zone.ZoneIndex == currentZone.ZoneIndex && zone.Current), "managed sector-map document should include current zone marker");
 
-        var selected = await client.SelectedObjectAsync(0).ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.SelectedObject, selected.Schema, "facade selected-object projection schema");
-        Require(selected.Selected?.DisplayName == "Facade Raven", "facade selected-object projection should resolve entity");
+        var selected = await aetheria.Details.SelectedObject(0).LatestAsync().ConfigureAwait(false);
+        RequireEqual(AetheriaRuntimeDaemonSchemas.SelectedObject, selected.Schema, "managed selected-object document schema");
+        Require(selected.Selected?.DisplayName == "Document Raven", "managed selected-object document should resolve entity");
 
-        var inventory = await client.InventoryAsync(0).ConfigureAwait(false);
-        RequireEqual(AetheriaRuntimeDaemonSchemas.Inventory, inventory.Schema, "facade inventory projection schema");
-        Require(inventory.Cargo.Any(item => item.ItemKey == "facade-cargo"), "facade inventory projection should expose cargo");
+        var inventory = await aetheria.Details.Inventory(0).LatestAsync().ConfigureAwait(false);
+        RequireEqual(AetheriaRuntimeDaemonSchemas.Inventory, inventory.Schema, "managed inventory document schema");
+        Require(inventory.Cargo.Any(item => item.ItemKey == "document-cargo"), "managed inventory document should expose cargo");
 
-        var starbridgeSummary = await client.StarbridgeSessionSummaryAsync().ConfigureAwait(false);
-        RequireEqual("Facade Starbridge", starbridgeSummary.ScenarioName, "facade starbridge summary should project scenario name");
-        RequireEqual("pre-wave", starbridgeSummary.Phase, "facade starbridge summary should project session phase");
-        Require(starbridgeSummary.StationStock.Any(item => item.ItemKey == "facade-cargo"), "facade starbridge summary should expose station stock");
+        var starbridgeSummary = await aetheria.Starbridge.Summary.LatestAsync().ConfigureAwait(false);
+        RequireEqual("Document Starbridge", starbridgeSummary.ScenarioName, "managed starbridge summary document should project scenario name");
+        RequireEqual("pre-wave", starbridgeSummary.Phase, "managed starbridge summary document should project session phase");
+        Require(starbridgeSummary.StationStock.Any(item => item.ItemKey == "document-cargo"), "managed starbridge summary document should expose station stock");
 
-        var projectedHealth = await client.DaemonHealthAsync().ConfigureAwait(false);
-        Require(projectedHealth?.Status == "healthy", "facade daemon health projection should read local health");
+        var projectedHealth = await aetheria.Daemon.Health.LatestAsync().ConfigureAwait(false);
+        Require(projectedHealth?.Status == "healthy", "managed daemon health document should read local health");
 
-        var projectedPolicy = await client.AuthorityStatusAsync().ConfigureAwait(false);
-        RequireEqual("aetheria.trusted-coop.v1", projectedPolicy?.PolicyId, "facade authority status policy id");
+        var projectedPolicy = await aetheria.Daemon.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
+        RequireEqual("aetheria.trusted-coop.v1", projectedPolicy?.PolicyId, "managed authority policy document id");
 
         var command = client.SetMoveVector(1, 0, 0.5);
-        RequireEqual(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, command.Kind, "facade command kind");
-        RequireEqual("raven-unity", command.ClientId, "facade command client id");
-        RequireEqual(frame.FrameId, command.ObservedFrameId, "facade command observed frame id");
+        RequireEqual(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, command.Kind, "managed client command kind");
+        RequireEqual("raven-unity", command.ClientId, "managed client command client id");
+        RequireEqual(frame.FrameId, command.ObservedFrameId, "managed client command observed frame id");
 
         using var reader = await AetheriaRuntimeVerseClient
-            .OpenAsync(statePath, "facade-reader", startServer: false, pullOnOpen: true)
+            .OpenAsync(statePath, "state-documents-reader", startServer: false, pullOnOpen: true)
             .ConfigureAwait(false);
         var stored = await reader.Database
             .GetAsync<AetheriaRuntimeDaemonCommandDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId))
             .ConfigureAwait(false);
-        Require(stored != null, "facade command should be stored as typed daemon command document");
-        RequireEqual(AetheriaRuntimeClaimKinds.Movement, stored!.ClaimKind, "facade command claim kind");
+        Require(stored != null, "managed client command should be stored as typed daemon command document");
+        RequireEqual(AetheriaRuntimeClaimKinds.Movement, stored!.ClaimKind, "managed client command claim kind");
     }
 
     private static async Task DaemonOncePublishesStarbridgeSessionFactsAsync()
@@ -726,7 +737,7 @@ internal sealed class AuthoritySmokeChecks
         using var client = await AetheriaClient
             .OpenAsync(statePath, "starbridge-smoke-client", sessionId: "authority-smoke", pullOnOpen: true)
             .ConfigureAwait(false);
-        var summary = await client.StarbridgeSessionSummaryAsync().ConfigureAwait(false);
+        var summary = await client.Aetheria().Starbridge.Summary.LatestAsync().ConfigureAwait(false);
 
         RequireEqual(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary, summary.Schema, "daemon starbridge summary schema");
         RequireEqual("starbridge.frontier-fabricator", summary.ScenarioId, "daemon starbridge scenario id");
@@ -788,7 +799,7 @@ internal sealed class AuthoritySmokeChecks
             policy,
             [ravenByRaven, hostileByRaven]).ConfigureAwait(false);
         await RunDaemonOnceAsync(ravenStatePath, "raven-local", rtsPort: 41076).ConfigureAwait(false);
-        var ravenFrame = AetheriaRuntimeDaemonFrameStore.ReadFrame(ravenStatePath);
+        var ravenFrame = ReadPublishedFrame(ravenStatePath);
 
         Require(ravenFrame.AppliedCommandIds.Contains(ravenByRaven.CommandId), "raven daemon should apply Raven-authored Raven movement");
         Require(ravenFrame.RejectedCommandIds.Contains(hostileByRaven.CommandId), "raven daemon should reject Raven-authored hostile movement");
@@ -804,7 +815,7 @@ internal sealed class AuthoritySmokeChecks
             policy,
             [ravenByStarfire, hostileByStarfire]).ConfigureAwait(false);
         await RunDaemonOnceAsync(starfireStatePath, "starfire-local", rtsPort: 41077).ConfigureAwait(false);
-        var starfireFrame = AetheriaRuntimeDaemonFrameStore.ReadFrame(starfireStatePath);
+        var starfireFrame = ReadPublishedFrame(starfireStatePath);
 
         Require(starfireFrame.RejectedCommandIds.Contains(ravenByStarfire.CommandId), "starfire daemon should reject Starfire-authored Raven movement");
         Require(starfireFrame.AppliedCommandIds.Contains(hostileByStarfire.CommandId), "starfire daemon should apply Starfire-authored hostile movement");
@@ -1394,7 +1405,7 @@ internal sealed class AuthoritySmokeChecks
         {
             try
             {
-                if (AetheriaRuntimeDaemonFrameStore.TryReadFrame(statePath, out var frame))
+                if (TryReadPublishedFrame(statePath, out var frame))
                 {
                     lastFrame = frame;
                     if (isReady(frame))
@@ -1414,6 +1425,18 @@ internal sealed class AuthoritySmokeChecks
             (lastFrame == null ? "" : $" Last frame: daemon={lastFrame.DaemonId}, frame={lastFrame.FrameId}, imported=[{string.Join(",", lastFrame.ImportedFactIds)}], cumulativeImported=[{string.Join(",", lastFrame.CumulativeImportedFactIds)}], rejectedImported=[{string.Join(",", lastFrame.CumulativeRejectedImportedFactIds)}].") +
             ProcessDiagnostics(childProcesses) +
             (lastError == null ? "" : $" Last error: {lastError.GetType().Name}: {lastError.Message}"));
+    }
+
+    private static AetheriaRuntimeDaemonFrameDocument ReadPublishedFrame(string statePath)
+    {
+        return AetheriaRuntimeDaemonFrameStore.ReadPublishedFrame(statePath);
+    }
+
+    private static bool TryReadPublishedFrame(
+        string statePath,
+        out AetheriaRuntimeDaemonFrameDocument frame)
+    {
+        return AetheriaRuntimeDaemonFrameStore.TryReadPublishedFrame(statePath, out frame);
     }
 
     private static string ProcessDiagnostics(IReadOnlyList<Process> childProcesses)

@@ -97,6 +97,8 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeVerseAuthorityPolicyDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
+            typeof(AetheriaRuntimeCatalogSnapshot),
+            typeof(AetheriaRuntimeLoadoutTemplatesDocument),
             typeof(AetheriaRuntimeAssetManifestDocument),
             typeof(AetheriaRuntimeObjectsViewportDocument),
             typeof(AetheriaRuntimeGravityViewportDocument),
@@ -197,7 +199,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientState Aetheria()
         {
             ThrowIfDisposed();
-            return _aetheriaState ??= CreateAetheriaStateFacade();
+            return _aetheriaState ??= CreateAetheriaState();
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
@@ -560,7 +562,7 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ObjectDisposedException(nameof(AetheriaRuntimeVerseClient));
         }
 
-        private AetheriaClientState CreateAetheriaStateFacade()
+        private AetheriaClientState CreateAetheriaState()
         {
             var frameChanges = WatchLatestFrames()
                 .Where(change => change.Document != null)

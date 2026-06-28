@@ -131,11 +131,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void AetheriaClientStateFacadeReadsProjectedDocumentsThroughCultMesh()
+    public void AetheriaClientStateReadsProjectedDocumentsThroughCultMesh()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-client-state-facade-tests",
+            "aetheria-client-state-document-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -330,11 +330,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void AetheriaRuntimeVerseClientExposesDomainStateFacade()
+    public void AetheriaRuntimeVerseClientExposesDomainStateDocuments()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-verse-domain-state-facade-tests",
+            "aetheria-verse-domain-state-document-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -2172,6 +2172,49 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), observed.SoaViewPath);
         Assert.IsFalse(observed.SoaView.Buffers[0].ObserverWritable);
+    }
+
+    [Test]
+    public void ObservedDaemonStateReadsManagedFrameWithoutSoaDocument()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-observed-daemon-frame-only-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "daemon-frame-only-run",
+                CurrentZoneIndex = 1,
+                CurrentEntityKey = "entity:frame-only-target"
+            },
+            "aetheria-daemon",
+            "session-frame-only",
+            301,
+            12.5,
+            0.02);
+
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var observed = AetheriaRuntimeObservedDaemonState
+            .ReadAsync(client.State, client.StatePath)
+            .GetAwaiter()
+            .GetResult();
+
+        Assert.IsNotNull(observed);
+        Assert.IsTrue(observed.IsAuthoritative);
+        Assert.IsFalse(observed.HasSoaView);
+        Assert.IsNull(observed.SoaView);
+        Assert.AreEqual("daemon-frame-only-run", observed.Run.RunId);
+        Assert.AreEqual("entity:frame-only-target", observed.Run.CurrentEntityKey);
+        Assert.AreEqual(301, observed.Frame.FrameId);
+        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
+        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), observed.SoaViewPath);
     }
 
     [Test]
