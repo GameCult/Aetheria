@@ -5129,7 +5129,8 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("prop.Key.EndsWith(\"Ref\", StringComparison.Ordinal)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains(".CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, stateRefResolver)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
@@ -7359,7 +7360,8 @@ static void RequireClientTargetBootAuthority(string root)
 
     var requiredPresenterSymbols = new[]
     {
-        "AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, stateFilePathOverride)",
+        "AetheriaRuntimeStateBoot.Inspect(",
+        "AetheriaUnityRuntimePaths.GameDataDirectory",
         "!stateBoot.SupportsLocalStateFileRead",
         "stateBoot.StateFileExists"
     };
@@ -13193,6 +13195,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Unity Eve surface lowering still resolves state refs through the file reader instead of the shared AetheriaClient facade.");
+    }
+
+    if (eveUnitySurfaceHost.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity Eve surface host still resolves default state refs through the file reader instead of the managed runtime client provider.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>

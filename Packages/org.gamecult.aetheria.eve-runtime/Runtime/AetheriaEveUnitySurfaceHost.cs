@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -222,12 +221,13 @@ namespace GameCult.Aetheria.EveRuntime
 
         private static Func<string, string> CreateDefaultStateRefResolver()
         {
-            var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-            var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, "");
+            var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory, "");
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
                 return _ => "";
 
-            return AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver(stateBoot.StateFilePath);
+            return AetheriaUnityRuntimeClientProvider
+                .ResolveClient(stateBoot, "unity-eve-surface-host")
+                .CreateEveSurfaceStateRefResolver();
         }
 
     }

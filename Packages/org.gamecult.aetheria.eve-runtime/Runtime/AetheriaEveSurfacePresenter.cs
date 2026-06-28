@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using UnityEngine;
@@ -163,8 +162,9 @@ namespace GameCult.Aetheria.EveRuntime
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
         {
-            var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-            return AetheriaRuntimeStateBoot.Inspect(gameDataDirectory, stateFilePathOverride);
+            return AetheriaRuntimeStateBoot.Inspect(
+                AetheriaUnityRuntimePaths.GameDataDirectory,
+                stateFilePathOverride);
         }
 
         private static VisualElement BuildError(string message)
