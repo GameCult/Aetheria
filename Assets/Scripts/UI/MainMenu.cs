@@ -1,4 +1,5 @@
 using System;
+using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -18,6 +19,7 @@ public class MainMenu : MonoBehaviour
 
     private UIDocument _menuSurfaceDocument;
     private string _clientStatePath;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
@@ -164,14 +166,15 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            return ResolveClient(stateBoot)
+            _playerSettings ??= ResolveClient(stateBoot)
                 .Aetheria()
                 .Settings
-                .LatestPlayer();
+                .ReactivePlayer();
+            return _playerSettings?.Current;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to read typed Aetheria player settings for the main menu: {ex}");
+            Debug.LogError($"Failed to bind typed Aetheria player settings for the main menu: {ex}");
             return null;
         }
     }
@@ -458,13 +461,22 @@ public class MainMenu : MonoBehaviour
         if (!string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
         {
             _clientStatePath = statePath;
+            ClearClientCaches();
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-main-menu");
     }
 
+    private void ClearClientCaches()
+    {
+        _playerSettings?.Dispose();
+        _playerSettings = null;
+    }
+
     private void OnDestroy()
     {
+        ClearClientCaches();
+
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);

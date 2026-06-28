@@ -7133,6 +7133,31 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
     }
 
+    var mainMenu = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "MainMenu.cs"));
+    var requiredMainMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_playerSettings?.Dispose()",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingMainMenuSharedDocumentSymbols = requiredMainMenuSharedDocumentSymbols
+        .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMainMenuSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu should bind player settings through the managed reactive Aetheria settings document: " +
+            string.Join(", ", missingMainMenuSharedDocumentSymbols));
+    }
+
     var tradeMenu = File.ReadAllText(Path.Combine(
         root,
         "Assets",
@@ -14705,7 +14730,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".LatestPlayer()", StringComparison.Ordinal))
+        !mainMenu.Contains(".ReactivePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");
