@@ -2556,13 +2556,17 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var requiredSchematicHudSymbols = new[]
     {
-        "private AetheriaRuntimePlayerHudSession _playerHud;",
-        "ResolvePlayerHud()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        "ResolveCatalog()",
         "ResolveCurrentEntityHudStatus()",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        "ResolveClient().State.ObservePlayerHud()",
-        "return ResolvePlayerHud()?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
-        "_playerHud?.Dispose()",
+        "ResolveClient().State.ReactiveCatalog()",
+        "ResolveClient().State.Settings.ReactivePlayer()",
+        "ResolveClient().State.Current.ReactiveEntity()",
+        "return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
+        "_currentEntity?.Dispose()",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
         "hud.Heatstroke",
@@ -7361,11 +7365,17 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "AetheriaRuntimePlayerHudState.cs"));
     var requiredSchematicDisplaySymbols = new[]
     {
-        "AetheriaRuntimePlayerHudSession _playerHud",
-        "ResolveClient().State.ObservePlayerHud()",
-        "_playerHud?.Dispose()",
-        "ResolvePlayerHud()?.Catalog?.FindItem(item, x => x.ItemKey)",
-        "ResolvePlayerHud()?.PlayerSettings",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        "ResolveClient().State.ReactiveCatalog()",
+        "ResolveClient().State.Settings.ReactivePlayer()",
+        "ResolveClient().State.Current.ReactiveEntity()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_currentEntity?.Dispose()",
+        "ResolveCatalog()?.Current?.FindItem(item, x => x.ItemKey)",
+        "return _playerSettings?.Current;",
         "private void OnDestroy()"
     };
     var missingSchematicDisplaySymbols = requiredSchematicDisplaySymbols
@@ -7374,18 +7384,18 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingSchematicDisplaySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "SchematicDisplay should bind shared catalog/settings/current-entity HUD through one managed Aetheria player HUD session: " +
+            "SchematicDisplay should bind shared catalog/settings/current-entity HUD through managed reactive typed documents: " +
             string.Join(", ", missingSchematicDisplaySymbols));
     }
 
     var forbiddenSchematicDisplaySymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        ".State.ReactiveCatalog()",
-        ".ReactivePlayer()",
-        ".ReactiveEntity()"
+        "AetheriaRuntimePlayerHudSession _playerHud",
+        "ResolvePlayerHud()",
+        "ResolveClient().State.ObservePlayerHud()",
+        "ResolvePlayerHud()?.Catalog",
+        "ResolvePlayerHud()?.PlayerSettings",
+        "ResolvePlayerHud()?.Hud"
     };
     var schematicDisplayHits = forbiddenSchematicDisplaySymbols
         .Where(symbol => schematicDisplay.Contains(symbol, StringComparison.Ordinal))
@@ -7393,7 +7403,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (schematicDisplayHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "SchematicDisplay still owns raw player HUD CultMesh documents instead of AetheriaRuntimePlayerHudSession: " +
+            "SchematicDisplay still routes through AetheriaRuntimePlayerHudSession instead of direct managed reactive typed documents: " +
             string.Join(", ", schematicDisplayHits));
     }
 
