@@ -92,7 +92,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
             AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
             bool inGame,
             string updatedAtUtc)
@@ -109,8 +109,8 @@ namespace GameCult.Aetheria.State.Verse
                 false,
                 "",
                 -1,
-                playerSettings?.BindingOverrides?.Count ?? 0,
-                playerSettings?.ActionBarInputs?.Count ?? 0,
+                playerSettings?.BindingOverrides?.Length ?? 0,
+                playerSettings?.ActionBarInputs?.Length ?? 0,
                 canOpenRuntimeInputScreen,
                 updatedAtUtc);
         }
@@ -118,8 +118,8 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeDaemonFrameDocument daemonFrame,
-            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
-            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
             bool inGame,
             string updatedAtUtc)
@@ -136,8 +136,8 @@ namespace GameCult.Aetheria.State.Verse
                 daemonFrame != null,
                 daemonFrame?.Run?.RunId ?? "",
                 daemonFrame?.FrameId ?? -1,
-                playerSettings?.BindingOverrides?.Count ?? 0,
-                playerSettings?.ActionBarInputs?.Count ?? 0,
+                playerSettings?.BindingOverrides?.Length ?? 0,
+                playerSettings?.ActionBarInputs?.Length ?? 0,
                 canOpenRuntimeInputScreen,
                 updatedAtUtc);
         }
@@ -145,8 +145,8 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeSectorMapDocument sectorMap,
-            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
-            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
             bool inGame,
             string updatedAtUtc)
@@ -163,14 +163,14 @@ namespace GameCult.Aetheria.State.Verse
                 sectorMap != null,
                 sectorMap?.RunId ?? "",
                 sectorMap?.FrameId ?? -1,
-                playerSettings?.BindingOverrides?.Count ?? 0,
-                playerSettings?.ActionBarInputs?.Count ?? 0,
+                playerSettings?.BindingOverrides?.Length ?? 0,
+                playerSettings?.ActionBarInputs?.Length ?? 0,
                 canOpenRuntimeInputScreen,
                 updatedAtUtc);
         }
 
         public static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettings(
-            AetheriaRuntimePlayerSettingsSnapshot playerSettings,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
             string updatedAtUtc)
         {
             return new AetheriaRuntimePlayerSettingsSurfaceState(
@@ -186,7 +186,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeClientTargetSurfaceState ProjectVerseSettings(
             AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimeVerseHostSettingsSnapshot verseHost,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
             string updatedAtUtc)
         {
             return new AetheriaRuntimeClientTargetSurfaceState(

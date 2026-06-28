@@ -39,7 +39,7 @@ public class TradeMenu : MonoBehaviour
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -660,7 +660,7 @@ public class TradeMenu : MonoBehaviour
         return _catalog;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -668,9 +668,10 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

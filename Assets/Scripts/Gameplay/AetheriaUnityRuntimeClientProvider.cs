@@ -64,9 +64,10 @@ public static class AetheriaUnityRuntimeClientProvider
         try
         {
             var stored = ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
             if (stored == null)
                 return settings;
 
@@ -99,7 +100,7 @@ public static class AetheriaUnityRuntimeClientProvider
 
     private static void ApplyPlayerSettings(
         RuntimePlayerSettings settings,
-        AetheriaRuntimePlayerSettingsSnapshot stored)
+        AetheriaRuntimePlayerSettingsDocument stored)
     {
         if (!string.IsNullOrWhiteSpace(stored.PlayerName))
             settings.Name = stored.PlayerName;

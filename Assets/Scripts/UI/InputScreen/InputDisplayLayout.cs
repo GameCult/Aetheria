@@ -16,7 +16,7 @@ public class InputDisplayLayout : MonoBehaviour
     private AetheriaInput _ownedInput;
     private AetheriaClient _client;
     private string _clientStatePath = "";
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private InputAction _captureAction;
     private InputActionAsset _input;
     private string _captureActionName = "";
@@ -399,7 +399,7 @@ public class InputDisplayLayout : MonoBehaviour
         _playerSettings = null;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -407,9 +407,10 @@ public class InputDisplayLayout : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

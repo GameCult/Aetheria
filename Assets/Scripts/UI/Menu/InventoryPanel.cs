@@ -104,7 +104,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
         Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
     private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
@@ -1540,7 +1540,7 @@ private void Update()
         return _catalog;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -1548,9 +1548,10 @@ private void Update()
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

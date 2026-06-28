@@ -4160,7 +4160,10 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
         "AetheriaClient",
         ".OpenAsync(",
-        "PlayerSettingsAsync()",
+        ".Aetheria()",
+        ".Settings",
+        ".Player",
+        ".Latest()",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -4194,6 +4197,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "new EveUiToolkitSurfaceLowerer()",
         "host.AddComponent<UIDocument>",
         "AetheriaRuntimeStateCommitLog.QueuePlayerSettings",
+        "PlayerSettingsAsync()",
+        "VerseHostSettingsAsync()",
         "ActionGameManager.CommitRuntimeInputBindingOverride",
         "ActionGameManager.CommitRuntimeActionBarInput",
         "BeginCapture(request.Payload)",
@@ -4487,7 +4492,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".Details",
         ".Zone(zoneIndex)",
         "OpenRuntimeCatalog()",
-        "PlayerSettingsAsync()",
+        ".Settings",
+        ".Player",
+        ".Latest()",
         "AetheriaClient",
         ".OpenLocalAsync(",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
@@ -9858,7 +9865,9 @@ static void RequireMainMenuVerseHostProjection(string root)
     var requiredMainMenuSymbols = new[]
     {
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        "VerseHostSettingsAsync()",
+        ".Settings",
+        ".VerseHost",
+        ".Latest()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -11412,7 +11421,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Objects(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
-        !mapRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".Player", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
@@ -11420,7 +11430,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Zone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("OpenRuntimeCatalog()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Player", StringComparison.Ordinal) ||
         !sectorMap.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorMap.Contains(".SectorMap", StringComparison.Ordinal) ||
@@ -12871,7 +12882,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
         "AetheriaClient",
-        "PlayerSettingsAsync()",
+        ".Aetheria()",
+        ".Settings",
+        ".Player",
+        ".Latest()",
         "OpenAsync(",
         "pullOnOpen: true",
         "ApplyPlayerSettings(settings, stored)"

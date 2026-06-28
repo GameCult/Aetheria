@@ -56,7 +56,7 @@ public class VolumeCloudRenderer : EffectBase
     private bool firstFrame = true;
     private AetheriaClient _client;
     private string _clientStatePath = "";
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
 
     [SerializeField]
     private Shader cloudShader;
@@ -95,7 +95,7 @@ public class VolumeCloudRenderer : EffectBase
             : fallback;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -103,9 +103,10 @@ public class VolumeCloudRenderer : EffectBase
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

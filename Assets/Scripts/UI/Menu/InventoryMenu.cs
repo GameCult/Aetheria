@@ -34,7 +34,7 @@ public class InventoryMenu : MonoBehaviour
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
@@ -1048,7 +1048,7 @@ public class InventoryMenu : MonoBehaviour
         return _catalog;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -1056,9 +1056,10 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

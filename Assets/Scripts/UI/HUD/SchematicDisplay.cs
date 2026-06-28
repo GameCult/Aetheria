@@ -72,7 +72,7 @@ public class SchematicDisplay : MonoBehaviour
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
     private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;
     private float _currentEntityDocumentReadTime = float.NegativeInfinity;
@@ -339,7 +339,7 @@ public class SchematicDisplay : MonoBehaviour
         return _catalog;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -347,9 +347,10 @@ public class SchematicDisplay : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

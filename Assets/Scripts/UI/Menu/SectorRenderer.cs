@@ -49,7 +49,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsSnapshot _playerSettings;
+    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -237,7 +237,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         return _catalog;
     }
 
-    private AetheriaRuntimePlayerSettingsSnapshot ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
             return _playerSettings;
@@ -245,9 +245,10 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _playerSettings = ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult();
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest();
         }
         catch (Exception ex)
         {

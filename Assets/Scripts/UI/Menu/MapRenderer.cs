@@ -326,9 +326,10 @@ public class MapRenderer : MonoBehaviour
         try
         {
             return ResolveClient()
-                .PlayerSettingsAsync()
-                .GetAwaiter()
-                .GetResult()
+                .Aetheria()
+                .Settings
+                .Player
+                .Latest()
                 ?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
