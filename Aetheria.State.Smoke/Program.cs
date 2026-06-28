@@ -89,8 +89,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         SampleNames = ["Ada", "Grace"]
     });
 
+    var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
     await node.PutCatalogSurfaceAsync(
-        AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), now));
+        AetheriaCatalogSurfaceProjector.Build(runtimeCatalog, now));
 
     var verseHostSettings = AetheriaVerseHostSettingsNormalizer.Normalize(new AetheriaVerseHostSettings
     {

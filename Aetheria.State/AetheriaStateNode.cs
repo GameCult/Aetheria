@@ -204,15 +204,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return GetNameFileAsync(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
     }
 
-    public AetheriaCatalogSnapshot ReadCatalogSnapshot()
-    {
-        return new AetheriaCatalogSnapshot(
-            Cache.GetAll<AetheriaItemDefinition>(),
-            Cache.GetAll<AetheriaCorporation>(),
-            Cache.GetAll<AetheriaNameFile>(),
-            Cache.GetAll<AetheriaTradeValuePolicy>().FirstOrDefault());
-    }
-
     public Task<CultRecordHandle<AetheriaTradeValuePolicy>> PutTradeValuePolicyAsync(
         AetheriaTradeValuePolicy policy)
     {

@@ -10,11 +10,11 @@ public static class AetheriaCatalogSurfaceProjector
     public const string SurfaceKey = "eve:surface:aetheria.catalog.operator";
     public const string SurfaceId = AetheriaRuntimeCatalogCommands.SurfaceId;
 
-    public static EveSurfaceState Build(AetheriaCatalogSnapshot catalog, string updatedAtUtc, long version = 1)
+    public static EveSurfaceState Build(AetheriaRuntimeCatalogSnapshot catalog, string updatedAtUtc, long version = 1)
     {
         var tradeItems = catalog.TradeItems.Take(12).Select(item =>
             Row(
-                $"item.{SafeId(item.LegacyId)}",
+                $"item.{SafeId(item.ItemKey)}",
                 ("name", item.Name),
                 ("manufacturer", catalog.GetManufacturer(item)?.Name ?? "GameCult"),
                 ("price", item.Price.ToString("N0")),
@@ -23,7 +23,7 @@ public static class AetheriaCatalogSurfaceProjector
 
         var corporations = catalog.Corporations.Take(12).Select(corporation =>
             Row(
-                $"corporation.{SafeId(corporation.LegacyId)}",
+                $"corporation.{SafeId(corporation.CorporationKey)}",
                 ("name", corporation.Name),
                 ("short", corporation.ShortName),
                 ("names", catalog.GetNameFile(corporation)?.Name ?? ""),

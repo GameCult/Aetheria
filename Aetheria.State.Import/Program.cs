@@ -124,7 +124,8 @@ foreach (var nameFile in parsedNameFiles)
     await node.PutLegacyNameFileAsync(nameFile);
 }
 
-await node.PutCatalogSurfaceAsync(AetheriaCatalogSurfaceProjector.Build(node.ReadCatalogSnapshot(), capturedAtUtc));
+var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+await node.PutCatalogSurfaceAsync(AetheriaCatalogSurfaceProjector.Build(runtimeCatalog, capturedAtUtc));
 
 await node.FlushAsync();
 

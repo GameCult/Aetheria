@@ -62,6 +62,7 @@ RequireVerseSettingsShellAndBridge(root);
 RequireTypedStatRecipeOperations(root);
 RequireTypedDaemonCommandPayloads(root);
 RequireUnityPublicRequestVocabulary(root);
+RequireCatalogSurfaceUsesManagedRuntimeCatalog(root);
 RequireDaemonVersePublication(root);
 RequireUnityRuntimeCatalogClientUsesManagedDocument(root);
 RequireAetheriaRuntimeVerseClientContract(root);
@@ -108,12 +109,12 @@ var publishedSurface = await node.GetCatalogSurfaceAsync()
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
 var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
-var catalog = node.ReadCatalogSnapshot();
+var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
 var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
 var tradeValuePolicy = await node.GetTradeValuePolicyAsync()
     ?? throw new InvalidOperationException("Missing authored trade value policy document.");
 await RequireTradeValuePolicyEveCommandPersistsAsync();
-var runtimeCatalog = AetheriaRuntimeStateReader.OpenRuntimeCatalog(statePath);
+var runtimeCatalog = catalog;
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
 RequireCount(ledger, "aetheria.corporation.v2", corporations.Length);
@@ -458,21 +459,21 @@ if (equipmentItems.Length != hardpointItems)
         $"Typed catalog equipment item query mismatch: query={equipmentItems.Length}, hardpoint={hardpointItems}.");
 }
 
-var behaviorKind = items.SelectMany(item => item.BehaviorKinds).FirstOrDefault()
+var behaviorKind = catalog.Items.SelectMany(item => item.BehaviorKinds).FirstOrDefault()
     ?? throw new InvalidOperationException("Cannot verify typed catalog behavior query: no behavior kinds.");
 if (!catalog.FindItemsByBehavior(behaviorKind).Any())
 {
     throw new InvalidOperationException($"Typed catalog behavior query failed for {behaviorKind}.");
 }
 
-var hardpointType = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.HardpointType))?.HardpointType
+var hardpointType = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.HardpointType))?.HardpointType
     ?? throw new InvalidOperationException("Cannot verify typed catalog hardpoint query: no hardpoint types.");
 if (!catalog.FindItemsByHardpoint(hardpointType).Any())
 {
     throw new InvalidOperationException($"Typed catalog hardpoint query failed for {hardpointType}.");
 }
 
-var manufacturedItem = items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerLegacyId))
+var manufacturedItem = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerKey))
     ?? throw new InvalidOperationException("Cannot verify typed catalog manufacturer lookup: no manufactured item.");
 if (string.IsNullOrWhiteSpace(manufacturedItem.ManufacturerKey) ||
     catalog.FindCorporation(manufacturedItem.ManufacturerKey) == null ||
@@ -482,8 +483,8 @@ if (string.IsNullOrWhiteSpace(manufacturedItem.ManufacturerKey) ||
         $"Typed catalog manufacturer-key lookup failed for item {manufacturedItem.Name}.");
 }
 
-var corporationWithNames = corporations.FirstOrDefault(corporation =>
-    !string.IsNullOrWhiteSpace(corporation.GeonameFileLegacyId))
+var corporationWithNames = catalog.Corporations.FirstOrDefault(corporation =>
+    !string.IsNullOrWhiteSpace(corporation.GeonameFileKey))
     ?? throw new InvalidOperationException("Cannot verify typed catalog name-file lookup: no linked corporation.");
 if (string.IsNullOrWhiteSpace(corporationWithNames.GeonameFileKey) ||
     catalog.FindNameFile(corporationWithNames.GeonameFileKey) == null ||
@@ -9270,6 +9271,72 @@ static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
     }
 
     Console.WriteLine("Unity runtime catalog client: catalog reads use the managed typed runtime document");
+}
+
+static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
+{
+    var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSurfaceProjector.cs");
+    var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var legacySnapshotPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSnapshot.cs");
+    var projector = File.Exists(projectorPath)
+        ? File.ReadAllText(projectorPath)
+        : throw new InvalidOperationException("Cannot verify catalog surface projector; AetheriaCatalogSurfaceProjector.cs is missing.");
+    var bridge = File.Exists(bridgePath)
+        ? File.ReadAllText(bridgePath)
+        : throw new InvalidOperationException("Cannot verify Eve command bridge catalog refresh; AetheriaEveCommandBridge.cs is missing.");
+
+    var requiredProjectorSymbols = new[]
+    {
+        "Build(AetheriaRuntimeCatalogSnapshot catalog",
+        "item.ItemKey",
+        "corporation.CorporationKey",
+        "catalog.GetManufacturer(item)",
+        "catalog.GetNameFile(corporation)"
+    };
+    var missingProjectorSymbols = requiredProjectorSymbols
+        .Where(symbol => !projector.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingProjectorSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Catalog Eve surface must project from the managed runtime catalog document: " +
+            string.Join(", ", missingProjectorSymbols));
+    }
+
+    if (projector.Contains("Build(AetheriaCatalogSnapshot catalog", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Catalog Eve surface still depends on the legacy authored catalog snapshot instead of the managed runtime catalog document.");
+    }
+
+    if (File.Exists(legacySnapshotPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaCatalogSnapshot is dead projection chaff; AetheriaRuntimeCatalogSnapshot is the managed typed catalog document.");
+    }
+
+    var requiredBridgeSymbols = new[]
+    {
+        "var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);",
+        "AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc)"
+    };
+    var missingBridgeSymbols = requiredBridgeSymbols
+        .Where(symbol => !bridge.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingBridgeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve catalog refresh must read the managed runtime catalog document: " +
+            string.Join(", ", missingBridgeSymbols));
+    }
+
+    if (bridge.Contains("ReadCatalogSnapshot()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve catalog refresh still rebuilds the legacy catalog snapshot instead of using AetheriaStateNode.RuntimeCatalog().");
+    }
+
+    Console.WriteLine("Catalog Eve surface: refresh path uses the managed runtime catalog document");
 }
 
 static void RequireAetheriaRuntimeVerseClientContract(string root)
