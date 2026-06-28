@@ -217,6 +217,10 @@ public class DaemonRuntimeDocumentTests
         var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
         var legacyObserved = client.ObserveAsync().GetAwaiter().GetResult();
         var legacyAuthoritativeFrame = client.LatestAuthoritativeRunFrameAsync().GetAwaiter().GetResult();
+        var legacyGameSurface = client.DaemonGameSurfaceAsync().GetAwaiter().GetResult();
+        var legacyGameTuiSurface = client.DaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
+        var legacyEditorSurface = client.DaemonEditorSurfaceAsync().GetAwaiter().GetResult();
+        var legacyEditorTuiSurface = client.DaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
         var dockingState = client.Aetheria()
             .DockingState
             .LatestAsync()
@@ -237,6 +241,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(
             client.State.Daemon.CommandBoundary,
             client.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, client.State.Daemon.GameSurface.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, client.State.Daemon.GameTuiSurface.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, client.State.Daemon.EditorSurface.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, client.State.Daemon.EditorTuiSurface.DocumentId);
         Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
         Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
@@ -260,6 +268,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
         Assert.AreEqual(frame.FrameId, legacyObserved.Frame.FrameId);
         Assert.AreEqual(frame.FrameId, legacyAuthoritativeFrame.FrameId);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, legacyGameSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, legacyGameTuiSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, legacyEditorSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, legacyEditorTuiSurface.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);

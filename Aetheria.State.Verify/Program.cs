@@ -12940,7 +12940,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health",
         "CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary",
         "CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView"
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView",
+        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface",
+        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface",
+        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface",
+        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface"
     };
     var missingDaemonStateFacadeSymbols = requiredDaemonStateFacadeSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
@@ -12956,7 +12960,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "State.Daemon.LatestFrame.LatestAsync()",
         "State.Daemon.LatestSoaView.LatestAsync()",
-        "State.Daemon.Health.LatestAsync()"
+        "State.Daemon.Health.LatestAsync()",
+        "State.Daemon.GameSurface.LatestAsync()",
+        "State.Daemon.GameTuiSurface.LatestAsync()",
+        "State.Daemon.EditorSurface.LatestAsync()",
+        "State.Daemon.EditorTuiSurface.LatestAsync()",
+        "State.Starbridge.Scenario.LatestAsync()",
+        "State.Starbridge.Session.LatestAsync()"
     };
     var missingDaemonClientFacadeSymbols = requiredDaemonClientFacadeSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -12974,6 +12984,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "return _verse.GetLatestAuthoritativeRunFrameAsync();",
         "return _verse.GetHealthAsync();",
         "return _verse.GetLatestSoaViewAsync();",
+        "return _verse.GetDaemonGameSurfaceAsync();",
+        "return _verse.GetDaemonGameTuiSurfaceAsync();",
+        "return _verse.GetDaemonEditorSurfaceAsync();",
+        "return _verse.GetDaemonEditorTuiSurfaceAsync();",
+        "scenario ??= await _verse.GetStarbridgeScenarioAsync()",
+        "session ??= await _verse.GetStarbridgeSessionAsync()",
         "var frame = await _verse.GetLatestFrameAsync()"
     };
     var daemonClientBypassHits = forbiddenDaemonClientBypassSymbols

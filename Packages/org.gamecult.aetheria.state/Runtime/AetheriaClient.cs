@@ -295,8 +295,8 @@ namespace GameCult.Aetheria.State.Verse
                 return await State.Starbridge.Summary.LatestAsync().ConfigureAwait(false);
 
             var frame = await RequireFrameAsync().ConfigureAwait(false);
-            scenario ??= await _verse.GetStarbridgeScenarioAsync().ConfigureAwait(false);
-            session ??= await _verse.GetStarbridgeSessionAsync().ConfigureAwait(false);
+            scenario ??= await State.Starbridge.Scenario.LatestAsync().ConfigureAwait(false);
+            session ??= await State.Starbridge.Session.LatestAsync().ConfigureAwait(false);
             return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                 frame,
                 scenario,
@@ -339,28 +339,28 @@ namespace GameCult.Aetheria.State.Verse
             return await State.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameSurfaceAsync()
+        public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameSurfaceAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetDaemonGameSurfaceAsync();
+            return await State.Daemon.GameSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameTuiSurfaceAsync()
+        public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameTuiSurfaceAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetDaemonGameTuiSurfaceAsync();
+            return await State.Daemon.GameTuiSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()
+        public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetDaemonEditorSurfaceAsync();
+            return await State.Daemon.EditorSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()
+        public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetDaemonEditorTuiSurfaceAsync();
+            return await State.Daemon.EditorTuiSurface.LatestAsync().ConfigureAwait(false);
         }
 
         public Func<string, string> CreateEveSurfaceStateRefResolver()

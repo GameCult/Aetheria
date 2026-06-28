@@ -18,6 +18,10 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameTuiSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorTuiSurface,
             CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> catalog,
             CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
             CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> playerSettings,
@@ -46,7 +50,11 @@ namespace GameCult.Aetheria.State.Verse
                 health,
                 commandBoundary,
                 latestFrame,
-                latestSoaView);
+                latestSoaView,
+                gameSurface,
+                gameTuiSurface,
+                editorSurface,
+                editorTuiSurface);
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
             Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -76,6 +84,10 @@ namespace GameCult.Aetheria.State.Verse
                 Daemon.ProviderAdvertisement,
                 Daemon.Health,
                 Daemon.CommandBoundary,
+                Daemon.GameSurface,
+                Daemon.GameTuiSurface,
+                Daemon.EditorSurface,
+                Daemon.EditorTuiSurface,
                 LatestFrame,
                 LatestSoaView,
                 Catalog,
@@ -203,13 +215,21 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
-            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView)
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameTuiSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorSurface,
+            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorTuiSurface)
         {
             ProviderAdvertisement = providerAdvertisement ?? throw new ArgumentNullException(nameof(providerAdvertisement));
             Health = health ?? throw new ArgumentNullException(nameof(health));
             CommandBoundary = commandBoundary ?? throw new ArgumentNullException(nameof(commandBoundary));
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
+            GameSurface = gameSurface ?? throw new ArgumentNullException(nameof(gameSurface));
+            GameTuiSurface = gameTuiSurface ?? throw new ArgumentNullException(nameof(gameTuiSurface));
+            EditorSurface = editorSurface ?? throw new ArgumentNullException(nameof(editorSurface));
+            EditorTuiSurface = editorTuiSurface ?? throw new ArgumentNullException(nameof(editorTuiSurface));
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement { get; }
@@ -221,6 +241,14 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
+
+        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface { get; }
+
+        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface { get; }
+
+        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }
+
+        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }
     }
 
     public sealed class AetheriaClientCurrentState

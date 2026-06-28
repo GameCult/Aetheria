@@ -733,6 +733,10 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath))),
                 AetheriaRuntimeLoadoutTemplatesDocument.SchemaId,
                 CultMesh.ProjectionSource("catalog:aetheria.loadout_templates"));
+            var starbridgeScenarioDocument = Document<AetheriaRuntimeStarbridgeScenarioDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+            var starbridgeSessionDocument = Document<AetheriaRuntimeStarbridgeSessionDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
 
             return new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
@@ -745,6 +749,14 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
+                Document<EveSurfaceState>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonGameSurface),
+                Document<EveSurfaceState>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface),
+                Document<EveSurfaceState>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface),
+                Document<EveSurfaceState>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
                 catalogDocument,
                 loadoutTemplatesDocument,
                 CatalogDocument(
@@ -817,10 +829,8 @@ namespace GameCult.Aetheria.State.Verse
                     IndexedDocumentId("aetheria.inventory", entityIndex),
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectInventory(frame, entityIndex)),
                     AetheriaRuntimeDaemonSchemas.Inventory),
-                Document<AetheriaRuntimeStarbridgeScenarioDocument>(
-                    AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest),
-                Document<AetheriaRuntimeStarbridgeSessionDocument>(
-                    AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest),
+                starbridgeScenarioDocument,
+                starbridgeSessionDocument,
                 ProjectedDocument(
                     "aetheria.starbridge.summary",
                     ProjectStarbridgeSummaryAsync,
@@ -895,8 +905,8 @@ namespace GameCult.Aetheria.State.Verse
             async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var scenario = await GetStarbridgeScenarioAsync().ConfigureAwait(false);
-                var session = await GetStarbridgeSessionAsync().ConfigureAwait(false);
+                var scenario = await starbridgeScenarioDocument.LatestAsync().ConfigureAwait(false);
+                var session = await starbridgeSessionDocument.LatestAsync().ConfigureAwait(false);
                 return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
                     scenario,
