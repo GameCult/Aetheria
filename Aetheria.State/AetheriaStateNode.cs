@@ -110,6 +110,80 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
+    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeDaemonHealthDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonHealth);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeDaemonCommandBoundaryDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument> VerseAuthorityPolicy()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+            AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeDaemonFrameDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeDaemonSoaViewDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeStarbridgeScenarioDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeStarbridgeSessionDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummary()
+    {
+        return MutableDocumentPointer<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary);
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+    }
+
     public Task<CultRecordHandle<AetheriaWorldState>> PutWorldAsync(AetheriaWorldState world)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.world_state.v1"), world);
@@ -603,6 +677,21 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         while (token.Contains("--", StringComparison.Ordinal))
             token = token.Replace("--", "-", StringComparison.Ordinal);
         return string.IsNullOrWhiteSpace(token) ? "empty" : token;
+    }
+
+    private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key) where T : class
+    {
+        return CultMesh.MutableStatePointer(
+            key.ToString(),
+            _ => Database.GetAsync<T>(key),
+            _ => Database.WatchRecord<T>(key)
+                .Where(change => change.Document != null)
+                .Select(change => change.Document!),
+            async (_, value) => { await Database.PutAsync(key, value).ConfigureAwait(false); },
+            sources:
+            [
+                CultMesh.ProjectionSource(key.ToString())
+            ]);
     }
 
     public void Dispose()
