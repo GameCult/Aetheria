@@ -215,6 +215,11 @@ public class DaemonRuntimeDocumentTests
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
+        var dockingState = client.Aetheria()
+            .DockingState
+            .LatestAsync()
+            .GetAwaiter()
+            .GetResult();
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
@@ -260,6 +265,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
         Assert.AreEqual(legacyCurrentEntity.EntityKey, currentEntity.EntityKey);
+        Assert.AreEqual(currentEntity.EntityKey, dockingState.CurrentEntityKey);
+        Assert.AreEqual("", dockingState.DockParentEntityKey);
+        Assert.AreEqual(-1, dockingState.DockingBayIndex);
         Assert.IsTrue(client.State.Current.Entity.Sources.Any(source =>
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
         Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>

@@ -58,16 +58,14 @@ public class TradeMenu : MonoBehaviour
     private void OnEnable()
     {
         var dockingState = ResolveDockingState();
-        var docking = dockingState?.CurrentDocking;
         if (dockingState?.IsDocked != true ||
-            docking == null ||
-            string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
-            docking.DockingBayIndex < 0)
+            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey) ||
+            dockingState.DockingBayIndex < 0)
         {
             return;
         }
 
-        SetTargetCargo(docking.DockParentEntityKey, docking.DockingBayIndex, "Docking Bay");
+        SetTargetCargo(dockingState.DockParentEntityKey, dockingState.DockingBayIndex, "Docking Bay");
         HideCargoSelectorSurface();
         HideFilterSurface();
         HideRowActionSurface();
@@ -517,15 +515,14 @@ public class TradeMenu : MonoBehaviour
     private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
     {
         targetEntityKey = "";
-        var docking = ResolveDockingState()?.CurrentDocking;
-        if (docking == null ||
-            !docking.IsDocked ||
-            string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
+        var dockingState = ResolveDockingState();
+        if (dockingState?.IsDocked != true ||
+            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey))
         {
             return false;
         }
 
-        targetEntityKey = docking.DockParentEntityKey;
+        targetEntityKey = dockingState.DockParentEntityKey;
         return true;
     }
 

@@ -75,11 +75,11 @@ public sealed class AetheriaUnityObservedDockingIndex
         dockingBay = null;
         if (!TryResolveCurrentDockingSnapshot(out var snapshot) ||
             snapshot.CurrentDockingBay == null ||
-            snapshot.StationRefit == null ||
-            string.IsNullOrWhiteSpace(snapshot.StationRefit.DockParentEntityKey) ||
+            string.IsNullOrWhiteSpace(snapshot.DockParentEntityKey) ||
+            snapshot.DockingBayIndex < 0 ||
             !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                snapshot.StationRefit.DockParentEntityKey,
-                snapshot.CurrentDockingBay.DockingBayIndex,
+                snapshot.DockParentEntityKey,
+                snapshot.DockingBayIndex,
                 out dockingBay))
         {
             return false;

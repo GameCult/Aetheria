@@ -231,10 +231,11 @@ public class LocalMenu : MonoBehaviour
         if (_observedFacadeIndex == null ||
             !TryResolveDockingState(out var dockingState) ||
             dockingState?.IsDocked != true ||
-            dockingState.CurrentDocking == null ||
+            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey) ||
+            dockingState.DockingBayIndex < 0 ||
             !_observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                dockingState.CurrentDocking.DockParentEntityKey,
-                dockingState.CurrentDocking.DockingBayIndex,
+                dockingState.DockParentEntityKey,
+                dockingState.DockingBayIndex,
                 out var dockingBay) ||
             dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory })
         {

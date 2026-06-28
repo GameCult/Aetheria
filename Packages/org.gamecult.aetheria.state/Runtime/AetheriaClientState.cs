@@ -278,6 +278,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public string CurrentEntityKey => CurrentEntity?.EntityKey ?? CurrentDocking?.CurrentEntityKey ?? "";
 
+        public string DockParentEntityKey => StationRefit?.DockParentEntityKey ?? CurrentDocking?.DockParentEntityKey ?? "";
+
+        public int DockingBayIndex => CurrentDockingBay?.DockingBayIndex ?? StationRefit?.DockingBayIndex ?? CurrentDocking?.DockingBayIndex ?? -1;
+
         public bool IsDocked => StationRefit?.IsDocked == true && CurrentDockingBay != null;
     }
 
