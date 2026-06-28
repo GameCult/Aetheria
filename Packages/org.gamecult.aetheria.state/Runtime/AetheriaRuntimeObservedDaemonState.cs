@@ -33,33 +33,10 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var frame = await state.LatestDaemonFrameAsync().ConfigureAwait(false);
-            if (frame == null)
-                return null;
-
-            var soaView = await TryReadLatestSoaViewAsync(state).ConfigureAwait(false);
-            if (soaView == null ||
-                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
-            {
-                soaView = null;
-            }
-
-            return new AetheriaRuntimeObservedDaemonState(
-                frame,
-                soaView);
-        }
-
-        private static async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryReadLatestSoaViewAsync(
-            AetheriaClientState state)
-        {
-            try
-            {
-                return await state.LatestDaemonSoaViewAsync().ConfigureAwait(false);
-            }
-            catch (KeyNotFoundException)
-            {
-                return null;
-            }
+            using var observed = await state
+                .ReactiveObservedDaemonAsync()
+                .ConfigureAwait(false);
+            return observed.Current;
         }
     }
 

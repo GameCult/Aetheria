@@ -7631,8 +7631,8 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
     var requiredObservedSymbols = new[]
     {
-        "state.LatestDaemonFrameAsync()",
-        "state.LatestDaemonSoaViewAsync()"
+        ".ReactiveObservedDaemonAsync()",
+        "return observed.Current;"
     };
     var missingObservedSymbols = requiredObservedSymbols
         .Where(symbol => !observedDaemonState.Contains(symbol, StringComparison.Ordinal))
@@ -7642,6 +7642,14 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         throw new InvalidOperationException(
             "Observed daemon state must read managed typed daemon documents through named AetheriaClientState accessors: " +
             string.Join(", ", missingObservedSymbols));
+    }
+
+    if (observedDaemonState.Contains("state.LatestDaemonFrameAsync()", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("state.LatestDaemonSoaViewAsync()", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("TryReadLatestSoaViewAsync", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Observed daemon state ReadAsync still performs one-shot daemon reads instead of sampling the managed reactive observed document.");
     }
 
     var checkedSources = new Dictionary<string, string>
@@ -14787,8 +14795,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(",
         "AetheriaClientState state",
-        "state.LatestDaemonFrameAsync()",
-        "state.LatestDaemonSoaViewAsync()",
+        ".ReactiveObservedDaemonAsync()",
+        "return observed.Current;",
         "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
         "public sealed class AetheriaRuntimeReactiveObservedDaemonState",
         "public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(",
