@@ -737,22 +737,14 @@ public class InventoryMenu : MonoBehaviour
 
     private bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        currentEntity = null;
-        try
+        currentEntity = ResolveDockingState()?.CurrentEntity;
+        if (currentEntity == null)
         {
-            currentEntity = ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest()
-                ?.CurrentEntity;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria current entity for inventory ship settings: {ex.Message}");
+            Debug.LogWarning("Failed to read Aetheria current entity for inventory ship settings.");
             return false;
         }
 
-        return currentEntity != null;
+        return true;
     }
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
@@ -782,18 +774,11 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
     {
-        try
-        {
-            return ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria docking state for inventory menu: {ex.Message}");
-            return null;
-        }
+        if (ResolveClient().Aetheria().DockingState.TryLatest(out var docking))
+            return docking;
+
+        Debug.LogWarning("Failed to read Aetheria docking state for inventory menu.");
+        return null;
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)

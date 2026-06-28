@@ -203,22 +203,10 @@ public class LocalMenu : MonoBehaviour
 
     private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)
     {
-        dockingState = null;
-
-        try
-        {
-            dockingState = ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria docking state for local story surface: {ex.Message}");
-            return false;
-        }
-
-        return dockingState != null;
+        var resolved = ResolveClient().Aetheria().DockingState.TryLatest(out dockingState);
+        if (!resolved)
+            Debug.LogWarning("Failed to read Aetheria docking state for local story surface.");
+        return resolved;
     }
 
     private bool TryResolveDockedLocalStory(out LocationStory story)

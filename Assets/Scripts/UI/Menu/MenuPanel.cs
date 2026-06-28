@@ -167,18 +167,11 @@ public class MenuPanel : MonoBehaviour
 
     private AetheriaClientDockingSnapshot ResolveCurrentDocking()
     {
-        try
-        {
-            return ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria current docking for runtime menu tabs: {ex.Message}");
-            return null;
-        }
+        if (ResolveClient().Aetheria().DockingState.TryLatest(out var docking))
+            return docking;
+
+        Debug.LogWarning("Failed to read Aetheria current docking for runtime menu tabs.");
+        return null;
     }
 
     private AetheriaClient ResolveClient()

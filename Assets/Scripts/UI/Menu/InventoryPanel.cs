@@ -1162,18 +1162,11 @@ private void Update()
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
     {
-        try
-        {
-            return ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria docking state for inventory panel: {ex.Message}");
-            return null;
-        }
+        if (ResolveClient().Aetheria().DockingState.TryLatest(out var docking))
+            return docking;
+
+        Debug.LogWarning("Failed to read Aetheria docking state for inventory panel.");
+        return null;
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)

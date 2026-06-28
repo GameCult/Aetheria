@@ -91,6 +91,7 @@ RequireDroppedPickupCheckpointState(root);
 RequireTradePurchaseRequestAuthority(root);
 RequireInventoryProjectionSlotIdentity(root);
 RequireInventoryValidationUsesManagedTypedDocuments(root);
+RequireMenuDockingUsesManagedTypedSnapshot(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
@@ -4670,7 +4671,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "ResolveCurrentDocking()?.IsDocked == true",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
@@ -4786,7 +4787,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
         "new AetheriaRuntimeLocalStoryChoiceState(",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "unity-runtime-local-story"
     };
     var dockedStoryObserverCorpus = localMenu;
@@ -4905,7 +4906,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "?.CurrentEntity"
     };
 
@@ -5616,7 +5617,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -6249,7 +6250,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".Latest()", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".TryLatest(", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
@@ -6887,6 +6888,70 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     }
 
     Console.WriteLine("Inventory validation: cargo/equipment checks read managed typed client documents instead of manual handle walks");
+}
+
+static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
+{
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
+    if (!File.Exists(clientStatePath))
+        throw new InvalidOperationException("Cannot verify managed docking snapshot access; AetheriaClientState.cs is missing.");
+
+    var clientState = File.ReadAllText(clientStatePath);
+    if (!clientState.Contains("public bool TryLatest(out AetheriaClientDockingSnapshot", StringComparison.Ordinal) ||
+        !clientState.Contains("snapshot = Latest();", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientDockingState must expose a managed typed safe latest snapshot read for Unity menu surfaces.");
+    }
+
+    var menuPaths = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs")
+    };
+
+    var missingPaths = menuPaths.Where(path => !File.Exists(path)).ToArray();
+    if (missingPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Cannot verify managed docking snapshot menu access; missing sources: " +
+            string.Join(", ", missingPaths.Select(path => Path.GetRelativePath(root, path))));
+    }
+
+    var offenders = menuPaths
+        .Select(path => new
+        {
+            Path = path,
+            Source = File.ReadAllText(path)
+        })
+        .Select(entry => new
+        {
+            entry.Path,
+            entry.Source,
+            Compact = CompactSource(entry.Source)
+        })
+        .Where(entry =>
+            !entry.Source.Contains(".DockingState.TryLatest(", StringComparison.Ordinal) ||
+            entry.Compact.Contains(CompactSource(".DockingState.Latest()"), StringComparison.Ordinal))
+        .Select(entry => Path.GetRelativePath(root, entry.Path))
+        .ToArray();
+
+    if (offenders.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity menu docking state must read through AetheriaClientDockingState.TryLatest instead of local latest wrappers: " +
+            string.Join(", ", offenders));
+    }
+
+    Console.WriteLine("Menu docking state: Unity menus read managed typed docking snapshots through AetheriaClientDockingState.TryLatest");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)

@@ -539,20 +539,13 @@ public class TradeMenu : MonoBehaviour
         if (_dockingState != null)
             return _dockingState;
 
-        try
+        if (!ResolveClient().Aetheria().DockingState.TryLatest(out _dockingState))
         {
-            _dockingState = ResolveClient()
-                .Aetheria()
-                .DockingState
-                .Latest();
-            _stationRefit = _dockingState?.StationRefit;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria docking state for trade menu: {ex.Message}");
+            Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");
             return null;
         }
 
+        _stationRefit = _dockingState?.StationRefit;
         return _dockingState;
     }
 

@@ -347,6 +347,20 @@ namespace GameCult.Aetheria.State.Verse
             return LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public bool TryLatest(out AetheriaClientDockingSnapshot? snapshot)
+        {
+            snapshot = null;
+            try
+            {
+                snapshot = Latest();
+                return snapshot != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static AetheriaClientDockingSnapshot CreateSnapshot(
             AetheriaRuntimeCurrentEntityDocument? entity,
             AetheriaRuntimeCurrentDockingDocument? docking,
