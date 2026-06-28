@@ -89,7 +89,7 @@ public class Zone
 
         foreach (var entityBlueprint in blueprint.Entities)
         {
-            var entity = EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint);
+            var entity = EntityConstructionBlueprintMaterializer.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint);
             Entities.Add(entity);
             entity.Activate();
             if (entity is Ship {IsPlayerShip: false} ship)

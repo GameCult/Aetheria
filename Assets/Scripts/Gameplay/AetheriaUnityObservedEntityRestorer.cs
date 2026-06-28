@@ -79,7 +79,7 @@ public sealed class AetheriaUnityObservedEntityRestorer
                 continue;
             }
 
-            var entity = EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint);
+            var entity = EntityConstructionBlueprintMaterializer.MaterializeObservedFromBlueprint(_itemManager, zone, blueprint);
             if (entity == null)
                 continue;
 

@@ -67,7 +67,7 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity);
+        return EntityConstructionBlueprintCapture.Capture(entity);
     }
 
     public OrbitalEntityConstructionBlueprint GenerateTurretLoadout()
@@ -82,7 +82,7 @@ public class LoadoutGenerator
         var entity = new OrbitalEntity(ItemManager, null, hull, "", ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
-        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity) as OrbitalEntityConstructionBlueprint;
+        return EntityConstructionBlueprintCapture.Capture(entity) as OrbitalEntityConstructionBlueprint;
     }
 
     public OrbitalEntityConstructionBlueprint GenerateStationLoadout()
@@ -128,7 +128,7 @@ public class LoadoutGenerator
 
         entity.CanTow = hullRow.HullCanTow;
         
-        return EntityConstructionBlueprintProjector.CaptureBlueprint(entity) as OrbitalEntityConstructionBlueprint;
+        return EntityConstructionBlueprintCapture.Capture(entity) as OrbitalEntityConstructionBlueprint;
     }
 
     public AetheriaRuntimeCatalogItem RandomHull(HullType type, Predicate<AetheriaRuntimeCatalogItem> hullFilter = null)

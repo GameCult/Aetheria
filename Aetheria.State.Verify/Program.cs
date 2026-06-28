@@ -1083,7 +1083,7 @@ static void RequireTypedRuntimeFactionKeys(string root)
 {
     var checkedFiles = new[]
     {
-        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintMaterializer.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")
     };
 
@@ -1585,7 +1585,7 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
     var checkedFiles = new[]
     {
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "OrbitalEntity.cs"),
-        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintMaterializer.cs"),
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "LoadoutGenerator.cs"),
         Path.Combine(root, "Assets", "Scripts", "ServerShared", "ZoneGenerator.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
@@ -1628,7 +1628,7 @@ static void RequireTypedOrbitalEntityOrbitKeys(string root)
             "Zone.GetOrbitPosition(OrbitKey)",
             "Zone.GetOrbitVelocity(OrbitKey)"
         },
-        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs")] = new[]
+        [Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintMaterializer.cs")] = new[]
         {
             "OrbitKey = orbital.OrbitKey,",
             "blueprint.OrbitKey",
@@ -12436,7 +12436,7 @@ static void RequireMainMenuContinueRunState(string root)
         "public sealed class AetheriaUnityObservedEntityRestorer",
         "public bool TryApplyInPlace(",
         "public void Replace(",
-        "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)",
+        "EntityConstructionBlueprintMaterializer.MaterializeObservedFromBlueprint(_itemManager, zone, blueprint)",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "RestoreActiveConsumables(entity, entitySnapshot)",
@@ -12467,7 +12467,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private void RestoreRuntimeBehaviorStateFromTypedSnapshot(",
         "private static Behavior ResolveRuntimeBehavior(",
         "private static IReadOnlyList<Behavior> ResolveRuntimeBehaviorList(",
-        "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(ItemManager, Zone, blueprint)",
+        "EntityConstructionBlueprintMaterializer.MaterializeObservedFromBlueprint(ItemManager, Zone, blueprint)",
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "RestoreActiveConsumablesFromTypedEntitySnapshot(entity, entitySnapshot)",
         "RestoreRuntimeBehaviorStateFromTypedSnapshot(entity, entitySnapshot, restoredEntities)"
@@ -13408,7 +13408,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!observedEntityRestorer.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
         !observedEntityRestorer.Contains("public void Replace(", StringComparison.Ordinal) ||
-        !observedEntityRestorer.Contains("EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
+        !observedEntityRestorer.Contains("EntityConstructionBlueprintMaterializer.MaterializeObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
         !observedEntityRestorer.Contains("RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13840,7 +13840,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", missingDaemonControlValidationSymbols));
     }
 
-    if (actionGameManager.Contains("EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint", StringComparison.Ordinal) ||
+    if (actionGameManager.Contains("EntityConstructionBlueprintMaterializer.InstantiateAuthoritativeFromBlueprint", StringComparison.Ordinal) ||
+        actionGameManager.Contains("EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint", StringComparison.Ordinal) ||
         actionGameManager.Contains("EntityConstructionBlueprintProjector.InstantiateFromBlueprint", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13917,22 +13918,25 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var zoneSource = File.Exists(zonePath)
         ? File.ReadAllText(zonePath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; Zone.cs is missing.");
-    var projectorPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintProjector.cs");
-    var projectorSource = File.Exists(projectorPath)
-        ? File.ReadAllText(projectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; EntityConstructionBlueprintProjector.cs is missing.");
+    var materializerPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "EntityConstructionBlueprintMaterializer.cs");
+    var materializerSource = File.Exists(materializerPath)
+        ? File.ReadAllText(materializerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; EntityConstructionBlueprintMaterializer.cs is missing.");
 
     var requiredProjectionBoundarySymbols = new[]
     {
         "public static Galaxy ProjectObservedDaemonRun",
         "private Galaxy(",
         "AetheriaRuntimeRunCheckpointCommit run,",
+        "public static class EntityConstructionBlueprintCapture",
+        "public static EntityConstructionBlueprint Capture(Entity entity)",
+        "public static class EntityConstructionBlueprintMaterializer",
         "public static Entity InstantiateAuthoritativeFromBlueprint",
-        "public static Entity ProjectObservedFromBlueprint",
+        "public static Entity MaterializeObservedFromBlueprint",
         "private static Entity BuildFromBlueprint",
-        "EntityConstructionBlueprintProjector.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint)"
+        "EntityConstructionBlueprintMaterializer.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint)"
     };
-    var projectionBoundaryCorpus = projectorSource + "\n" + zoneSource + "\n" + galaxy;
+    var projectionBoundaryCorpus = materializerSource + "\n" + zoneSource + "\n" + galaxy;
     var missingProjectionBoundarySymbols = requiredProjectionBoundarySymbols
         .Where(symbol => !projectionBoundaryCorpus.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -17328,6 +17332,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
 
     if (!inventoryPanel.Contains("RequestLoadoutTemplateSave(_displayedEntity)", StringComparison.Ordinal) ||
         inventoryPanel.Contains("GameManager.RequestLoadoutTemplateSave(_displayedEntity)", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("EntityConstructionBlueprintCapture.Capture(_displayedEntity)", StringComparison.Ordinal) ||
         inventoryPanel.Contains("EntityConstructionBlueprintProjector.CaptureBlueprint(_displayedEntity)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

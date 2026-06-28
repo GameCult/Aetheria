@@ -4,9 +4,9 @@ using float2 = Unity.Mathematics.float2;
 using float3 = Unity.Mathematics.float3;
 using int2 = Unity.Mathematics.int2;
 
-public static class EntityConstructionBlueprintProjector
+public static class EntityConstructionBlueprintCapture
 {
-    public static EntityConstructionBlueprint CaptureBlueprint(Entity entity)
+    public static EntityConstructionBlueprint Capture(Entity entity)
     {
         EntityConstructionBlueprint blueprint;
         if (entity is OrbitalEntity orbital)
@@ -36,17 +36,20 @@ public static class EntityConstructionBlueprintProjector
         blueprint.DockingBayAssignments = entity.DockingBays.Select(x => entity.Children.IndexOf(x.DockedShip)).ToArray();
         blueprint.CargoContents = entity.CargoBays.Select(b => b.Cargo.Select(i => (i.Value, i.Key)).ToArray()).ToArray();
         blueprint.DockingBayContents = entity.DockingBays.Select(b => b.Cargo.Select(i => (i.Value, i.Key)).ToArray()).ToArray();
-        blueprint.Children = entity.Children.Select(CaptureBlueprint).ToArray();
+        blueprint.Children = entity.Children.Select(Capture).ToArray();
         blueprint.WeaponGroups = entity.WeaponGroups.Select(wg => wg.items.Select(item => entity.Equipment.IndexOf(item)).ToArray()).ToArray();
         return blueprint;
     }
+}
 
+public static class EntityConstructionBlueprintMaterializer
+{
     public static Entity InstantiateAuthoritativeFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint)
     {
         return BuildFromBlueprint(itemManager, zone, blueprint, false);
     }
 
-    public static Entity ProjectObservedFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint)
+    public static Entity MaterializeObservedFromBlueprint(ItemManager itemManager, Zone zone, EntityConstructionBlueprint blueprint)
     {
         return BuildFromBlueprint(itemManager, zone, blueprint, true);
     }
