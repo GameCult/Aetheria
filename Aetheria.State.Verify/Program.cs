@@ -7248,15 +7248,18 @@ static bool HasManagedDockingSnapshotAccess(string source)
 
     return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
            source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
-           source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
-           source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
-           source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-           source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
+           source.Contains("AetheriaRuntimeObservedDockingState.TryCreateCurrent(", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
            !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
            !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
+           !source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
+           !source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
+           !source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
            !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
            !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal);
 }
@@ -13015,10 +13018,13 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
         "AetheriaRuntimeObservedDockingState",
-        "var state = _resolveClient()?.State;",
-        "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
-        "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
-        "state.Latest<AetheriaRuntimeStationRefitDocument>()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        "AetheriaRuntimeObservedDockingState.TryCreateCurrent(",
+        "state.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+        "state.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
+        "state.Reactive<AetheriaRuntimeStationRefitDocument>()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -13037,14 +13043,14 @@ static void RequireMainMenuContinueRunState(string root)
 
     var forbiddenObservedDockingSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
+        "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
+        "state.Latest<AetheriaRuntimeStationRefitDocument>()",
+        "new AetheriaRuntimeObservedDockingState(",
         "State?.CurrentDocking()",
         ".State.CurrentDocking()",
         "ReactiveEntity()",
-        "ReactiveDocking()",
-        "state.Reactive<AetheriaRuntimeStationRefitDocument>()"
+        "ReactiveDocking()"
     };
     var observedDockingHits = forbiddenObservedDockingSymbols
         .Where(symbol => observedDockingIndex.Contains(symbol, StringComparison.Ordinal))

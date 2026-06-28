@@ -4,11 +4,15 @@
 
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 
 public sealed class AetheriaUnityObservedDockingIndex : IDisposable
 {
     private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
+    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
 
     public AetheriaUnityObservedDockingIndex(
         Func<AetheriaClient> resolveClient,
@@ -167,21 +171,12 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         docking = null;
         try
         {
-            var state = _resolveClient()?.State;
-            if (state == null)
-                return false;
-
-            var currentEntity = state.Latest<AetheriaRuntimeCurrentEntityDocument>();
-            var currentDocking = state.Latest<AetheriaRuntimeCurrentDockingDocument>();
-            var stationRefit = state.Latest<AetheriaRuntimeStationRefitDocument>();
-            if (currentDocking == null || stationRefit == null)
-                return false;
-
-            docking = new AetheriaRuntimeObservedDockingState(
-                currentEntity,
-                currentDocking,
-                stationRefit);
-            return docking != null;
+            EnsureDockingDocuments();
+            return AetheriaRuntimeObservedDockingState.TryCreateCurrent(
+                _currentEntity,
+                _currentDocking,
+                _stationRefit,
+                out docking);
         }
         catch
         {
@@ -189,7 +184,27 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         }
     }
 
+    private void EnsureDockingDocuments()
+    {
+        if (_currentEntity != null && _currentDocking != null && _stationRefit != null)
+            return;
+
+        var state = _resolveClient()?.State;
+        if (state == null)
+            return;
+
+        _currentEntity ??= state.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        _currentDocking ??= state.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+        _stationRefit ??= state.Reactive<AetheriaRuntimeStationRefitDocument>();
+    }
+
     public void Dispose()
     {
+        _currentEntity?.Dispose();
+        _currentEntity = null;
+        _currentDocking?.Dispose();
+        _currentDocking = null;
+        _stationRefit?.Dispose();
+        _stationRefit = null;
     }
 }
