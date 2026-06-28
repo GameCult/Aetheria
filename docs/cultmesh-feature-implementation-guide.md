@@ -2,140 +2,178 @@
 
 Date: 2026-06-28
 
-This guide explains the preferred path for adding a new daemon-owned simulation
-state feature and consuming it from Unity. It is written for the post-Stage-7
-Aetheria shape: the daemon owns simulation truth, CultMesh owns typed state
-access and sync, and Unity is a renderer/input client.
+This guide describes the target developer experience for adding Aetheria state
+with CultMesh. If the workflow grows into a chain of facades, sessions,
+projectors, adapters, and surface builders, stop and simplify the state API.
 
-The ergonomic rule is simple:
-
-```text
-daemon simulation -> typed document -> AetheriaClientState -> Unity reactive typed document
-Unity input -> typed operation -> daemon command apply -> next typed document
-```
-
-Callers should not walk record keys, schemas, frame rows, local facade indexes,
-or protocol layers to get one gameplay fact. If a gameplay/UI caller needs a
-state value, it should hold a managed reactive typed document or a named typed
-client handle. If a renderer needs hot entity data, it should use the daemon
-SoA/native view path.
-
-## Vocabulary
-
-`CultMeshDocumentHandle<TDocument>`
-
-The named typed document handle exposed by the Aetheria client facade. Handles
-own the document identity, schema identity, routing, projection source metadata,
-and latest/reactive access.
-
-`CultMeshReactiveDocument<TDocument>`
-
-The managed reactive typed document a client holds while it needs live state.
-Use this directly in Unity callers for single-document state. Dispose it with
-the component or binding lifetime.
-
-`LatestAsync()`
-
-One-shot read. Use in async bootstrap, tests, and non-frame-blocking setup.
-
-`Reactive()`
-
-Live read. Use for Unity presentation state, HUDs, panels, render settings, and
-anything that should update as the daemon publishes.
-
-`AetheriaRuntimeDaemonFrameDocument`
-
-The broad authoritative frame publication. It is a source for projected client
-documents, not the normal public client API.
-
-`AetheriaRuntimeDaemonSoaViewDocument`
-
-The high-performance current-zone slab descriptor. Use this for render/physics
-hot paths, not for ordinary UI.
-
-`AetheriaRuntimeDaemonCommandDocument`
-
-The typed daemon command envelope. Unity should submit through `AetheriaControl`
-or `AetheriaRuntimeDaemonOperationClient`, not manually construct raw command
-documents in presentation code.
-
-## Choosing The Shape
-
-Before adding a feature, choose one of these shapes.
-
-Use a direct typed document when:
-
-- the value is moderate size;
-- clients need latest/watch semantics;
-- the data is useful across Unity, RTS, Eve, tests, or tooling;
-- the data changes at daemon tick or command-application cadence.
-
-Use a viewport/query document when:
-
-- the data depends on a camera, zone, entity, selection, or other request key;
-- clients should not receive the whole world;
-- the result is still ordinary structured data.
-
-Use SoA/native view when:
-
-- the data is hot per-frame render/physics data;
-- Unity jobs/Burst/Ymir need columnar access;
-- row count is large enough that object graphs are the wrong shape.
-
-Use a daemon command operation when:
-
-- Unity/RTS input asks the daemon to mutate simulation truth;
-- the operation needs authority, idempotency, acceptance, rejection, or frame
-  accounting.
-
-Do not add:
-
-- Unity-local gameplay truth;
-- new `AetheriaRuntime*Session` wrappers for single-document access;
-- public string command names plus payload dictionaries;
-- UI code that reads daemon frames and joins rows by hand;
-- helper names that hide multi-hop state access behind "facade" or "projector"
-  unless the class is a temporary render adapter fenced by the verifier.
-
-## Example Feature
-
-This guide uses a concrete example: `ZoneDefenseStatus`.
-
-The daemon computes a per-current-zone defense status:
-
-- current zone index;
-- base shield ratio;
-- incoming hostile count;
-- active turret count;
-- current alert level.
-
-Unity reads this document to show HUD/UI state. Unity can also submit a typed
-operation to set the desired alert level. The daemon applies that operation and
-publishes a new status on the next tick.
-
-The same pattern applies to heat support state, station service state, mission
-wave status, scenario progression, commander infrastructure state, or any other
-simulation feature.
-
-## Step 1: Define The Typed Document
-
-Add the document to the runtime package, because Unity, daemon, tests, and RTS
-all need the same type:
+The rule is blunt:
 
 ```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs
+small UI-only value: derive it inline from already accessible typed state
+named UI-only projection: define the projected document, then read it
+simulation feature: define simulation state, publish typed state, consume it
+hot rendering/physics: use SoA, not object-graph UI documents
 ```
 
-For larger features, create a dedicated file in the same package and keep the
-schema constant in `AetheriaRuntimeDaemonSchemas`.
+CultMesh owns document identity, sync, prediction, reconciliation, and reactive
+access. Aetheria code should read like it is using game state, not walking
+protocol layers.
+
+## The Ergonomic Bar
+
+UI-only state should take one or two steps.
+
+Use one step when the value is small and already derivable from state the caller
+has:
 
 ```csharp
-public static class AetheriaRuntimeDaemonSchemas
-{
-    public const string ZoneDefenseStatus =
-        "gamecult.aetheria.zone_defense_status.v1";
-}
+var currentDocking = client.State.Current.ReactiveDocking();
+var bayName = currentDocking.Current?.DockingBayName ?? "";
+```
 
+Use two steps when the projection is shared, non-trivial, or should have a
+stable schema:
+
+```text
+1. Define the daemon-projected typed document.
+2. Read it from Unity as a managed reactive typed document.
+```
+
+Simulation state should take two or three steps:
+
+```text
+1. Put the simulation data and rules in the daemon-owned domain model.
+2. Publish the useful client-facing shape as typed CultMesh state.
+3. Read that state from Unity and send typed operations back when input mutates truth.
+```
+
+Anything beyond that needs a clear reason. Performance-sensitive entity
+rendering uses SoA because it is a different data shape, not because ordinary UI
+state should become ceremonial.
+
+## What CultMesh Should Hide
+
+Feature authors should not manually handle:
+
+- document routing keys;
+- protocol envelopes;
+- schema lookup;
+- cache hydration;
+- sync subscriptions;
+- prediction dispatch;
+- reconciliation smoothing;
+- session wrapper lifetime around a single document;
+- joins against raw daemon frame rows in UI code.
+
+Those are CultMesh/runtime concerns. Unity callers should hold either a
+`CultMeshReactiveDocument<TDocument>` or a named typed handle that returns one.
+
+## What Not To Add
+
+Do not add new single-document wrappers such as:
+
+```csharp
+AetheriaRuntimeSomeStateSession
+```
+
+when the wrapper only stores a document, exposes `Current`, and calls
+`Dispose()`. That is a managed reactive document with a worse name.
+
+Do not add feature-specific access paths like this:
+
+```text
+daemon document -> session -> facade -> projector -> adapter -> surface builder -> caller
+```
+
+That shape preserves reconstruction-era scaffolding. It does not express the
+game.
+
+## Choosing The State Shape
+
+Use inline derivation when:
+
+- the value is UI-only;
+- the derivation is local and obvious;
+- the source typed document is already available to the caller;
+- no other system needs the result as a named state surface.
+
+Use a projected typed document when:
+
+- multiple callers need the same derived state;
+- the state is useful to Unity, RTS, tests, tooling, or the website simulator;
+- the derivation joins multiple source documents;
+- the result needs a stable schema or cross-runtime binding;
+- the projection should update reactively as daemon state changes.
+
+Use daemon-owned simulation state when:
+
+- the value affects game rules;
+- input can mutate it;
+- it needs authority, replay, persistence, or reconciliation;
+- the daemon must validate operations before publishing the next state.
+
+Use SoA/native views when:
+
+- Unity jobs, Burst, Ymir, or rendering need large columnar data;
+- row count and per-frame access make object graphs the wrong format;
+- the data is a hot view over daemon truth rather than a UI document.
+
+## One-Step UI Derivation
+
+For a small UI-only value, read existing typed state directly.
+
+```csharp
+using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
+
+public sealed class DockingBadge : IDisposable
+{
+    private readonly AetheriaClient _client;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _docking;
+
+    public DockingBadge(AetheriaClient client)
+    {
+        _client = client;
+    }
+
+    public string Text
+    {
+        get
+        {
+            _docking ??= _client.State.Current.ReactiveDocking();
+            var current = _docking.Current;
+            return current?.IsDocked == true ? current.DockingBayName : "";
+        }
+    }
+
+    public void Dispose()
+    {
+        _docking?.Dispose();
+    }
+}
+```
+
+The caller does not need a custom facade, session, projector, or adapter. If the
+inline derivation becomes shared or hard to read, promote it to a projected
+document.
+
+## Two-Step UI Projection
+
+Use this for shared presentation state such as player HUD, docking summary,
+commander wave status, station service summary, or Starbridge support alerts.
+
+### Step 1: Define The Projected Document
+
+Put the document type in the shared runtime package so every runtime sees the
+same schema:
+
+```text
+Packages/org.gamecult.aetheria.state/Runtime
+```
+
+Example:
+
+```csharp
 [MessagePackObject]
 [CultDocument(AetheriaRuntimeDaemonSchemas.ZoneDefenseStatus)]
 public sealed class AetheriaRuntimeZoneDefenseStatusDocument
@@ -157,699 +195,240 @@ public sealed class AetheriaRuntimeZoneDefenseStatusDocument
 }
 ```
 
-Rules:
-
-- Give every document a stable `gamecult.aetheria.*.v1` schema.
-- Use explicit `[Key]` slots. Never renumber existing slots.
-- Add new fields at the end.
-- Default values must produce a safe empty document.
-- Prefer primitive/string/array/document-row types that cross runtimes cleanly.
-- If RTS/Electron consumes it, regenerate bindings after changing slots.
-
-## Step 2: Register The Document Type
-
-Add the document to the registry:
-
-```text
-Aetheria.State/AetheriaDocumentRegistry.cs
-```
+Then expose it as a named projection from `AetheriaClientState`:
 
 ```csharp
-typeof(AetheriaRuntimeZoneDefenseStatusDocument),
-```
-
-This lets CultCache/CultNet/CultMesh know how to serialize, deserialize, and
-bind the type across the local state node and network-facing surfaces.
-
-## Step 3: Decide Whether It Is Source State Or Projected State
-
-Most Unity-consumed simulation state is projected from daemon-owned run/frame
-state. That is the right default: the daemon tick owns the authoritative
-simulation, and CultMesh exposes a typed document derived from it.
-
-Use a projected document when the state can be derived from the latest frame:
-
-```text
-latest daemon frame -> ZoneDefenseStatus document
-```
-
-Use a direct mutable/source document when the state is an independent domain
-object such as settings, scenario config, player seat state, or a durable
-session record.
-
-For the example, `ZoneDefenseStatus` is projected from the frame.
-
-## Step 4: Add The Projection Function
-
-Projection code should live in the runtime package near related runtime
-projection code:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs
-```
-
-Example:
-
-```csharp
-public static AetheriaRuntimeZoneDefenseStatusDocument ProjectZoneDefenseStatus(
-    AetheriaRuntimeDaemonFrameDocument frame)
-{
-    var zone = frame?.Zones?
-        .FirstOrDefault(candidate => candidate != null &&
-            candidate.ZoneIndex == frame.CurrentZoneIndex);
-
-    if (zone == null)
-        return new AetheriaRuntimeZoneDefenseStatusDocument();
-
-    return new AetheriaRuntimeZoneDefenseStatusDocument
-    {
-        ZoneIndex = zone.ZoneIndex,
-        BaseShieldRatio = ComputeBaseShieldRatio(zone),
-        IncomingHostileCount = CountIncomingHostiles(zone),
-        ActiveTurretCount = CountActiveTurrets(zone),
-        AlertLevel = ResolveAlertLevel(zone)
-    };
-}
-```
-
-Guidelines:
-
-- Keep projection deterministic.
-- Do not read Unity objects.
-- Do not mutate the frame.
-- Keep heavy per-frame render data out of this path; publish SoA columns
-  instead.
-- If projection needs catalog/loadout/session input, pass it explicitly from
-  `AetheriaRuntimeManagedClientInputs`, as station refit and Starbridge summary
-  already do.
-
-## Step 5: Publish The Document Through The Verse Client
-
-Expose the projected document in:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs
-```
-
-In the `CreateClientState` document list, add a `ProjectedDocument`:
-
-```csharp
-ProjectedDocument(
-    "aetheria.zone.defense_status",
-    frame => Task.FromResult(
-        AetheriaRuntimeRtsProjection.ProjectZoneDefenseStatus(frame)),
-    AetheriaRuntimeDaemonSchemas.ZoneDefenseStatus),
-```
-
-This is where CultMesh gets the important metadata:
-
-- document id;
-- Verse/runtime identity;
-- schema id;
-- projection sources;
-- latest read;
-- watch stream;
-- route hint.
-
-Do not make Unity call `ProjectZoneDefenseStatus` directly. Unity asks
-CultMesh for the typed document. CultMesh owns the managed sync path.
-
-## Step 6: Add The Handle To `AetheriaClientState`
-
-Add a `CultMeshDocumentHandle<AetheriaRuntimeZoneDefenseStatusDocument>` to:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaClientState.cs
-```
-
-Constructor parameter:
-
-```csharp
-CultMeshDocumentHandle<AetheriaRuntimeZoneDefenseStatusDocument> zoneDefenseStatus,
-```
-
-Property:
-
-```csharp
-public CultMeshDocumentHandle<AetheriaRuntimeZoneDefenseStatusDocument>
-    ZoneDefenseStatus { get; }
-```
-
-Assignment:
-
-```csharp
-ZoneDefenseStatus = zoneDefenseStatus
-    ?? throw new ArgumentNullException(nameof(zoneDefenseStatus));
-```
-
-Register it in the document catalog:
-
-```csharp
-_documents = CultMesh.Documents(
-    ...
-    ZoneDefenseStatus,
-    ...
-);
-```
-
-Convenience methods are fine when they preserve the typed shape:
-
-```csharp
-public Task<AetheriaRuntimeZoneDefenseStatusDocument>
-    LatestZoneDefenseStatusAsync()
-{
-    return ZoneDefenseStatus.LatestAsync();
-}
-
 public CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument>
-    ReactiveZoneDefenseStatus(CultMeshReactiveDocumentOptions? options = null)
+    ReactiveZoneDefenseStatus()
 {
-    return ZoneDefenseStatus.Reactive(options);
+    return Mesh.Reactive<AetheriaRuntimeZoneDefenseStatusDocument>(
+        AetheriaRuntimeDaemonDocuments.ZoneDefenseStatus);
 }
 ```
 
-Avoid introducing a `AetheriaRuntimeZoneDefenseStatusSession` unless it composes
-multiple documents and genuinely owns aggregate behavior. A single reactive
-document should remain a single reactive document.
+The exact registration/publishing code belongs in the runtime plumbing. It
+should be generated or centralized. The feature author should not have to write
+five separate access classes for one projected state shape.
 
-## Step 7: Add A Typed Unity Read
+### Step 2: Read It From Unity
 
-In Unity, hold the reactive typed document for the component lifetime.
+Unity holds the typed reactive document and reads `Current`.
 
 ```csharp
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
-using UnityEngine;
 
-public sealed class ZoneDefenseHud : MonoBehaviour
+public sealed class ZoneDefenseHud : IDisposable
 {
-    private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument>
-        _zoneDefenseStatus;
+    private readonly AetheriaClient _client;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument> _status;
 
-    private void Update()
+    public ZoneDefenseHud(AetheriaClient client)
     {
-        var status = ResolveZoneDefenseStatus()?.Current;
+        _client = client;
+    }
+
+    public void Refresh()
+    {
+        _status ??= _client.State.ReactiveZoneDefenseStatus();
+        var status = _status.Current;
         if (status == null)
             return;
 
-        RenderAlertLevel(status.AlertLevel);
-        RenderHostiles(status.IncomingHostileCount);
-        RenderShield(status.BaseShieldRatio);
+        DrawShield(status.BaseShieldRatio);
+        DrawIncoming(status.IncomingHostileCount);
+        DrawAlert(status.AlertLevel);
     }
 
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument>
-        ResolveZoneDefenseStatus()
+    public void Dispose()
     {
-        if (_zoneDefenseStatus != null)
-            return _zoneDefenseStatus;
-
-        try
-        {
-            _zoneDefenseStatus = ResolveClient()
-                .State
-                .ReactiveZoneDefenseStatus();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning(
-                $"Failed to bind Aetheria zone defense status: {ex.Message}");
-        }
-
-        return _zoneDefenseStatus;
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(
-            AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath,
-                StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearStateDocuments();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            stateBoot,
-            "unity-zone-defense-hud");
-    }
-
-    private void ClearStateDocuments()
-    {
-        _zoneDefenseStatus?.Dispose();
-        _zoneDefenseStatus = null;
-    }
-
-    private void OnDestroy()
-    {
-        ClearStateDocuments();
+        _status?.Dispose();
     }
 }
 ```
 
-Unity rules:
+That is the whole UI projection workflow. If more steps are required, they
+belong in CultMesh/runtime infrastructure, not in every feature.
 
-- Store `CultMeshReactiveDocument<T>` fields, not sessions, for single docs.
-- Dispose reactive documents.
-- Recreate them when the client state path changes.
-- Use `.Current` in `Update()` or render methods.
-- Prefer `LatestAsync()` during async setup; avoid blocking reads on hot paths.
-- Do not read `AetheriaRuntimeDaemonFrameDocument` unless the class is an
-  internal render adapter or diagnostic.
-- Do not project daemon state in Unity UI code.
+## Two Or Three-Step Simulation Feature
 
-## Step 8: Add A Typed Operation For Interaction
+Use this when the feature changes gameplay: heat support, repair drones,
+station construction, scenario progression, commander infrastructure, or wave
+director state.
 
-If Unity needs to interact with the state, add a typed daemon command path.
+### Step 1: Put Truth In The Daemon
 
-First extend command kinds and operation ids:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs
-```
+Simulation truth lives with the daemon domain model and tick/apply logic.
 
 ```csharp
-public enum AetheriaRuntimeDaemonCommandKinds
+public sealed class StationSupportState
 {
-    ...
-    SetZoneAlertLevel = 42
+    public double CoolingReserve { get; set; }
+    public double RepairNaniteReserve { get; set; }
+    public int ActiveSupportDrones { get; set; }
 }
 ```
 
-Add payload slots to `AetheriaRuntimeDaemonCommandDocument`:
+The daemon mutates this state during ticks and command application. Unity does
+not own gameplay truth.
+
+### Step 2: Publish Typed CultMesh State
+
+Expose the client-facing shape as a typed document.
 
 ```csharp
-[Key(N)]
-public string ZoneAlertLevel { get; set; } = "";
-```
-
-Then add a typed operation method:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationClient.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaControl.cs
-```
-
-Example public shape:
-
-```csharp
-public AetheriaRuntimeDaemonCommandEnvelope SetZoneAlertLevel(
-    string alertLevel)
+[MessagePackObject]
+[CultDocument(AetheriaRuntimeDaemonSchemas.StationSupport)]
+public sealed class AetheriaRuntimeStationSupportDocument
 {
-    return Submit(command =>
-    {
-        command.Kind = AetheriaRuntimeDaemonCommandKinds.SetZoneAlertLevel;
-        command.ZoneAlertLevel = alertLevel ?? "";
-    });
+    [Key(0)]
+    public double CoolingReserve { get; set; }
+
+    [Key(1)]
+    public double RepairNaniteReserve { get; set; }
+
+    [Key(2)]
+    public int ActiveSupportDrones { get; set; }
 }
 ```
 
-Unity should call the typed operation:
+The daemon publishes this document from its current truth. CultMesh handles sync.
+If the client has prediction authority, local changes to the managed document
+are predictions; reconciliation corrects them without requiring feature code to
+manually shuttle deltas.
+
+### Step 3: Read State And Submit Typed Operations
+
+Unity reads state through the managed typed document:
 
 ```csharp
-Client.Control.SetZoneAlertLevel("red");
+var support = client.State.ReactiveStationSupport();
+var cooling = support.Current?.CoolingReserve ?? 0;
 ```
 
-Unity should not call:
+Unity asks the daemon to mutate truth through a typed operation:
 
 ```csharp
-Submit("set_zone_alert_level", new Dictionary<string, object> { ... });
-```
-
-## Step 9: Apply The Operation In The Daemon
-
-Apply commands in:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs
-```
-
-The apply path should:
-
-- validate authority/session/frame assumptions;
-- validate command payload;
-- mutate the run/checkpoint/intents;
-- return applied or rejected command ids;
-- leave the next tick to publish the derived document.
-
-Sketch:
-
-```csharp
-case AetheriaRuntimeDaemonCommandKinds.SetZoneAlertLevel:
-    if (!TrySetZoneAlertLevel(run, command.ZoneAlertLevel, out var diagnostic))
-    {
-        Reject(command, diagnostic);
-        break;
-    }
-
-    Accept(command);
-    break;
-```
-
-Prefer command effects that update daemon-owned run state or intent state. Do
-not mutate Unity objects. Do not make the Unity caller update its own UI state
-optimistically unless that optimism goes through the managed reactive document
-prediction/reconciliation path.
-
-## Step 10: Publish Hot Render Data Through SoA When Needed
-
-If the new feature is needed for thousands of entities every frame, do not add
-large arrays to a HUD-style document. Publish columns in:
-
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSoaDocuments.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSoaFramePublisher.cs
-```
-
-Then consume through:
-
-```text
-Assets/Scripts/Gameplay/AetheriaDaemonObserver.cs
-Assets/Scripts/Gameplay/AetheriaDaemonRenderNativeView.cs
-Assets/Scripts/Zone Display/ZoneRenderer.cs
-```
-
-Use SoA for data like:
-
-- entity transforms;
-- render group;
-- visibility;
-- physics body columns;
-- LOD;
-- mass/radius/inverse mass;
-- per-entity heat or shield values if the renderer needs them in bulk.
-
-Use ordinary typed documents for data like:
-
-- selected object;
-- current docking;
-- station services;
-- HUD summary;
-- scenario state;
-- command boundary;
-- player settings.
-
-## Step 11: Add Tests
-
-At minimum, add or extend tests in:
-
-```text
-Assets/Scripts/Tests/DaemonRuntimeDocumentTests.cs
-```
-
-Cover:
-
-- schema document construction;
-- projection from a representative daemon frame;
-- `AetheriaClientState.Document<T>()` or named handle access;
-- `Reactive()` current value behavior;
-- command creation;
-- command application;
-- rejected command behavior if validation matters.
-
-For a projected document, a test should prove:
-
-```csharp
-var status = client.State.Latest<AetheriaRuntimeZoneDefenseStatusDocument>();
-Assert.AreEqual(expected, status.AlertLevel);
-```
-
-If the document is TS-visible, regenerate and verify RTS bindings:
-
-```powershell
-cd .\Aetheria.Rts.Web
-npm run generate:rts-bindings
-npm run check:rts-bindings
-```
-
-## Step 12: Add Verifier Coverage
-
-Add migration fences to:
-
-```text
-Aetheria.State.Verify/Program.cs
-```
-
-Verifier coverage should assert the desired ergonomic shape and forbid the old
-path:
-
-```csharp
-if (!zoneDefenseHud.Contains(
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument>",
-        StringComparison.Ordinal) ||
-    !zoneDefenseHud.Contains(".ReactiveZoneDefenseStatus()",
-        StringComparison.Ordinal))
+client.Operations.Submit(new AetheriaRuntimeDeploySupportDroneOperation
 {
-    throw new InvalidOperationException(
-        "ZoneDefenseHud must read zone defense through a managed reactive typed document.");
-}
-
-if (zoneDefenseHud.Contains("AetheriaRuntimeZoneDefenseStatusSession",
-        StringComparison.Ordinal) ||
-    zoneDefenseHud.Contains("AetheriaRuntimeRtsProjection.ProjectZoneDefenseStatus",
-        StringComparison.Ordinal) ||
-    zoneDefenseHud.Contains("AetheriaRuntimeDaemonFrameDocument",
-        StringComparison.Ordinal))
-{
-    throw new InvalidOperationException(
-        "ZoneDefenseHud still reconstructs zone defense state instead of reading the typed CultMesh document.");
-}
-```
-
-The verifier should remember architecture, not implementation trivia. Guard
-against:
-
-- Unity reading raw frames for ordinary state;
-- Unity calling projection helpers;
-- new single-document session wrappers;
-- public string command/payload APIs;
-- reintroduced local save files for daemon-owned state;
-- renderer-local facade indexes outside render adapter internals.
-
-## Step 13: Run The Gates
-
-Minimum lane for a C# runtime/Unity state feature:
-
-```powershell
-dotnet build .\Aetheria.Shared.Unity.csproj --no-restore --nologo -v:quiet
-dotnet run --project .\Aetheria.State.Verify\Aetheria.State.Verify.csproj --no-restore
-```
-
-If daemon authority or command behavior changed:
-
-```powershell
-dotnet run --project .\Aetheria.State.AuthoritySmoke\Aetheria.State.AuthoritySmoke.csproj --no-restore
-```
-
-If document slots consumed by RTS changed:
-
-```powershell
-cd .\Aetheria.Rts.Web
-npm run generate:rts-bindings
-npm run check:rts-bindings
-```
-
-If SoA/native view changed:
-
-```powershell
-dotnet build .\GameCult.Aetheria.State.Unity.csproj --no-restore -v:minimal
-dotnet build .\Aetheria.State.Unity.Smoke\Aetheria.State.Unity.Smoke.csproj --no-restore -v:minimal
-```
-
-The verifier often updates `GameData/aetheria-world.cc`. Restore it unless the
-state seed was intentionally regenerated:
-
-```powershell
-git restore -- GameData/aetheria-world.cc
-```
-
-## Ergonomic CultMesh Checklist
-
-Use this checklist before opening a PR.
-
-- The feature has a typed document or typed operation.
-- The document has a stable schema id.
-- The document type is registered.
-- The daemon owns mutation.
-- Projection is daemon/runtime code, not Unity UI code.
-- Unity reads with `CultMeshReactiveDocument<T>` for single-document state.
-- Unity uses SoA/native views for hot render/physics state.
-- Unity submits interaction through typed `AetheriaControl` or operation client
-  methods.
-- No Unity caller manually joins daemon frame rows, record keys, schema slots,
-  and facade indexes to get one value.
-- No new public string command names or payload dictionaries.
-- No new `AetheriaRuntime*Session` wrapper exists just to expose `.Current`.
-- Tests cover projection/read/write behavior.
-- Verifier blocks the old path.
-- Generated bindings are refreshed when public document slots change.
-
-## Anti-Patterns
-
-Do not do this:
-
-```csharp
-var frame = client.State.LatestDaemonFrame();
-var row = frame.Zones[0].Entities.First(entity => entity.EntityKey == key);
-var unityEntity = observedIndex.TryResolveEntityByRecordKey(row.EntityKey, out var e)
-    ? e
-    : null;
-```
-
-Do this:
-
-```csharp
-using var selected = client.State
-    .Details
-    .ReactiveSelectedObject(entityIndex);
-Render(selected.Current);
-```
-
-Do not do this:
-
-```csharp
-using var session = client.State.ObserveCatalog();
-var item = session.Current.FindItem(itemKey);
-```
-
-For a single document, do this:
-
-```csharp
-using var catalog = client.State.ReactiveCatalog();
-var item = catalog.Current?.FindItem(itemKey);
-```
-
-Do not do this:
-
-```csharp
-Submit("set-alert-level", new Dictionary<string, object>
-{
-    ["level"] = "red"
+    ZoneIndex = currentZone,
+    TargetEntityIndex = targetEntity,
+    DroneLoadoutId = selectedLoadout
 });
 ```
 
-Do this:
+The daemon validates and applies the operation. The next published document is
+the authoritative result.
 
-```csharp
-client.Control.SetZoneAlertLevel("red");
-```
+## SoA For Hot Paths
 
-Do not do this:
+Use SoA when Unity needs fast columnar access, not when a UI needs a label.
 
-```csharp
-var status = AetheriaRuntimeRtsProjection.ProjectZoneDefenseStatus(frame);
-```
+Good SoA candidates:
 
-in Unity presentation code.
+- visible entity transforms;
+- render splats;
+- physics bodies;
+- sensor/contact rows for thousands of entities;
+- Ymir/Burst job inputs.
 
-Do this:
+Bad SoA candidates:
 
-```csharp
-using var status = client.State.ReactiveZoneDefenseStatus();
-```
+- current docking bay;
+- selected object details;
+- HUD status;
+- player settings;
+- station service summary.
 
-## Where To Put Things
+SoA should be a named high-performance view over daemon truth. It should not
+force ordinary presentation code to understand frame slabs, column handles, or
+native buffer ownership.
 
-Typed documents and schema constants:
+## Reconnection
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/
-```
+State needed to reconstruct a player after a client crash must be in daemon or
+scenario/session CultMesh documents, not Unity locals.
 
-Registry:
+Persist or republish:
 
-```text
-Aetheria.State/AetheriaDocumentRegistry.cs
-```
+- player identity and seat;
+- current entity or cockpit module;
+- docked station and bay;
+- inventory/loadout references;
+- scenario progress;
+- commander infrastructure state;
+- active operations that survive reconnect;
+- escape pod/proxy ship state when ejected.
 
-Projection functions:
+On reconnect, Unity should reacquire typed documents and rebuild presentation
+from `Current`. Reconnection should not require replaying UI actions.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs
-```
+## Tests
 
-CultMesh document publication:
+For inline UI derivation, test the source document and the small consuming
+component when behavior is non-trivial.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs
-```
+For projected UI documents, test:
 
-Client accessors:
+- projection from representative daemon state;
+- empty/default state;
+- reactive update after source state changes;
+- Unity caller reads the projected document directly.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaClientState.cs
-```
+For simulation features, test:
 
-Operations:
+- daemon tick/application mutates truth;
+- typed operation validation accepts and rejects correctly;
+- published document reflects daemon truth;
+- prediction/reconciliation behavior when the runtime supports local authority;
+- reconnect can reconstruct the required player state.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationClient.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaControl.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs
-```
+For SoA, test:
 
-Daemon tick/publications:
+- row identity and generation;
+- bounds/ownership;
+- empty views;
+- large views;
+- native buffer lifetime.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTickRunner.cs
-```
+## Verifier Rules
 
-SoA/native render state:
+Verifier rules should guard the desired ergonomic shape. They should forbid
+reconstruction-era detours.
 
-```text
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSoaDocuments.cs
-Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSoaFramePublisher.cs
-Assets/Scripts/Gameplay/AetheriaDaemonRenderNativeView.cs
-```
-
-Unity callers:
-
-```text
-Assets/Scripts/
-```
-
-Tests:
+Good verifier expectations:
 
 ```text
-Assets/Scripts/Tests/DaemonRuntimeDocumentTests.cs
-Aetheria.State.AuthoritySmoke/
-Aetheria.State.Unity.Smoke/
+Unity caller owns CultMeshReactiveDocument<TDocument>
+Unity caller reads .Current
+Unity caller uses client.State.ReactiveFeatureName()
+Unity caller submits typed operations for mutations
+hot renderer uses named SoA view
 ```
 
-Verifier:
+Bad verifier expectations:
 
 ```text
-Aetheria.State.Verify/Program.cs
+Unity caller owns AetheriaRuntime*Session for one document
+Unity caller calls ObserveFeatureName() wrapper only to read Current
+UI caller reads raw daemon frames and joins rows
+feature adds facade/projector/adapter/surface-builder chain
 ```
 
-## Final Mental Model
+The verifier should make the codebase harder to regress into ceremony, not
+freeze the ceremony in place.
 
-CultMesh should make remote/stateful gameplay feel local without making clients
-pretend they own authority they do not have.
+## Final Check
 
-For reads, the caller names the state and receives a typed value:
+Before calling a CultMesh feature ergonomic, answer these questions:
 
-```csharp
-using var status = client.State.ReactiveZoneDefenseStatus();
-Render(status.Current);
-```
+- Can a UI-only inline value be implemented in one local derivation?
+- Can a shared UI projection be implemented by defining the document and reading
+  it from Unity?
+- Can a simulation feature be explained as daemon truth, typed state, typed
+  operation?
+- Does Unity code read domain state instead of protocol plumbing?
+- Is SoA reserved for hot paths?
+- Did the verifier protect the clean path instead of the old wrappers?
 
-For writes, the caller names the domain action and receives an operation
-receipt/command envelope:
-
-```csharp
-var receipt = client.Control.SetZoneAlertLevel("red");
-```
-
-For hot rendering, the caller asks for a native view:
-
-```csharp
-var view = observer.LastObservedState?.SoaIndex;
-```
-
-Everything between those calls and the daemon is CultMesh's job: routing,
-replication, cache hydration, projection updates, schema identity, local versus
-network access, and eventually prediction/reconciliation. Aetheria code should
-read like Aetheria, not like a protocol walk.
+If the answer is no, fix the access shape before adding more feature code.

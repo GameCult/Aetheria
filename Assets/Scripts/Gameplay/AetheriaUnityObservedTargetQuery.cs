@@ -5,12 +5,13 @@
 using System;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 
 public sealed class AetheriaUnityObservedTargetQuery : IDisposable
 {
     private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _entityIndex;
-    private AetheriaRuntimeZoneContactsSession _zoneContacts;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
 
     public AetheriaUnityObservedTargetQuery(
         Func<AetheriaClient> resolveClient,
@@ -99,7 +100,7 @@ public sealed class AetheriaUnityObservedTargetQuery : IDisposable
         {
             _zoneContacts = _resolveClient()
                 ?.State
-                .ObserveZoneContacts();
+                .ReactiveZoneContacts();
             return _zoneContacts?.Current;
         }
         catch

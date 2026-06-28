@@ -7487,8 +7487,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "AetheriaUnityObservedTargetQuery.cs"));
     var requiredObservedTargetSymbols = new[]
     {
-        "AetheriaRuntimeZoneContactsSession _zoneContacts",
-        ".ObserveZoneContacts()",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        ".ReactiveZoneContacts()",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current"
     };
@@ -7498,15 +7498,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingObservedTargetSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaUnityObservedTargetQuery should read contacts through AetheriaRuntimeZoneContactsSession: " +
+            "AetheriaUnityObservedTargetQuery should read contacts through the managed reactive typed zone-contacts document: " +
             string.Join(", ", missingObservedTargetSymbols));
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    if (observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityObservedTargetQuery still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
+            "AetheriaUnityObservedTargetQuery still routes zone contacts through AetheriaRuntimeZoneContactsSession instead of the managed reactive typed document.");
     }
 
     var mapRenderer = File.ReadAllText(Path.Combine(
@@ -12693,7 +12693,7 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedTargetQuerySymbols = new[]
     {
         "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
-        "AetheriaRuntimeZoneContactsSession _zoneContacts",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -12703,7 +12703,7 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".ObserveZoneContacts()",
+        ".ReactiveZoneContacts()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -12718,11 +12718,11 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", missingObservedTargetQuerySymbols));
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    if (observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Observed Unity target/contact query still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
+            "Observed Unity target/contact query still routes zone contacts through AetheriaRuntimeZoneContactsSession instead of the managed reactive typed document.");
     }
 
     var forbiddenManagerTargetQuerySymbols = new[]
@@ -13702,7 +13702,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredObservedTargetQuerySymbols = new[]
     {
         "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
-        "AetheriaRuntimeZoneContactsSession _zoneContacts",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -13712,7 +13712,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".ObserveZoneContacts()",
+        ".ReactiveZoneContacts()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -13727,11 +13727,11 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", missingObservedTargetQuerySymbols));
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    if (observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer target/contact projection still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
+            "Unity observer target/contact projection still routes zone contacts through AetheriaRuntimeZoneContactsSession instead of the managed reactive typed document.");
     }
 
     var forbiddenManagerTargetQuerySymbols = new[]
