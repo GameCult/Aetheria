@@ -86,7 +86,7 @@ while (!stopped.Task.IsCompleted)
     if (publishWitnesses)
     {
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-        discoveryHost.Update(await node.GetVerseHostSettingsAsync().ConfigureAwait(false));
+        discoveryHost.Update(await node.VerseHostSettings().ReadAsync().ConfigureAwait(false));
         await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
     }
     if (tick.Frame.FrameId % 120 == 0)
@@ -839,48 +839,52 @@ static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonH
     var now = DateTimeOffset.UtcNow.ToString("O");
     try
     {
-        var existingStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false);
+        var existingStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
         var report = await AetheriaEveCommandBridge.AcceptObservedAsync(
                 node,
                 existingStatus?.AccountedCommandIds)
             .ConfigureAwait(false);
-        await node.PutEveCommandAcceptanceStatusAsync(new AetheriaEveCommandAcceptanceStatus
-        {
-            RuntimeId = options.DaemonId,
-            StatePath = node.StatePath,
-            LastPollAtUtc = now,
-            LastAcceptedAtUtc = report.AcceptedCommandIds.Length > 0 ? now : "",
-            ObservedBeforeAccept = commandCountBefore,
-            CommandsAccepted = report.AcceptedCommandIds.Length,
-            CommandsRejected = report.RejectedCommands,
-            AppliedCatalogRefreshes = report.AcceptedCatalogRefreshes,
-            AppliedOperationsRefreshes = report.AcceptedOperationsRefreshes,
-            AppliedPlayerSettingsCommands = report.AcceptedPlayerSettingsCommands,
-            AppliedInputSettingsCommands = report.AcceptedInputSettingsCommands,
-            AppliedLoadoutTemplateCommands = report.AcceptedLoadoutTemplateCommands,
-            AppliedVerseHostCommands = report.AcceptedVerseHostCommands,
-            AccountedCommandIds = report.AccountedCommandIds,
-            LastRejectedCommand = report.LastRejectedCommand,
-            LastRejectedReason = report.LastRejectedReason,
-            ConsecutiveFailures = 0,
-            Status = report.RejectedCommands > 0 ? "rejected" : "ok"
-        }).ConfigureAwait(false);
+        await node.EveCommandAcceptanceStatus()
+            .ReplaceAsync(new AetheriaEveCommandAcceptanceStatus
+            {
+                RuntimeId = options.DaemonId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAcceptedAtUtc = report.AcceptedCommandIds.Length > 0 ? now : "",
+                ObservedBeforeAccept = commandCountBefore,
+                CommandsAccepted = report.AcceptedCommandIds.Length,
+                CommandsRejected = report.RejectedCommands,
+                AppliedCatalogRefreshes = report.AcceptedCatalogRefreshes,
+                AppliedOperationsRefreshes = report.AcceptedOperationsRefreshes,
+                AppliedPlayerSettingsCommands = report.AcceptedPlayerSettingsCommands,
+                AppliedInputSettingsCommands = report.AcceptedInputSettingsCommands,
+                AppliedLoadoutTemplateCommands = report.AcceptedLoadoutTemplateCommands,
+                AppliedVerseHostCommands = report.AcceptedVerseHostCommands,
+                AccountedCommandIds = report.AccountedCommandIds,
+                LastRejectedCommand = report.LastRejectedCommand,
+                LastRejectedReason = report.LastRejectedReason,
+                ConsecutiveFailures = 0,
+                Status = report.RejectedCommands > 0 ? "rejected" : "ok"
+            })
+            .ConfigureAwait(false);
     }
     catch (Exception ex)
     {
-        var existing = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false);
-        await node.PutEveCommandAcceptanceStatusAsync(new AetheriaEveCommandAcceptanceStatus
-        {
-            RuntimeId = options.DaemonId,
-            StatePath = node.StatePath,
-            LastPollAtUtc = now,
-            LastAcceptedAtUtc = existing?.LastAcceptedAtUtc ?? "",
-            ObservedBeforeAccept = commandCountBefore,
-            AccountedCommandIds = existing?.AccountedCommandIds ?? [],
-            ConsecutiveFailures = (existing?.ConsecutiveFailures ?? 0) + 1,
-            LastError = ex.ToString(),
-            Status = "error"
-        }).ConfigureAwait(false);
+        var existing = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
+        await node.EveCommandAcceptanceStatus()
+            .ReplaceAsync(new AetheriaEveCommandAcceptanceStatus
+            {
+                RuntimeId = options.DaemonId,
+                StatePath = node.StatePath,
+                LastPollAtUtc = now,
+                LastAcceptedAtUtc = existing?.LastAcceptedAtUtc ?? "",
+                ObservedBeforeAccept = commandCountBefore,
+                AccountedCommandIds = existing?.AccountedCommandIds ?? [],
+                ConsecutiveFailures = (existing?.ConsecutiveFailures ?? 0) + 1,
+                LastError = ex.ToString(),
+                Status = "error"
+            })
+            .ConfigureAwait(false);
         throw;
     }
 }
@@ -891,19 +895,22 @@ static async Task PublishStateSurfacesAsync(
     string updatedAtUtc)
 {
     var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc).ConfigureAwait(false);
-    var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false);
-    var runtimeSession = await node.GetRuntimeSessionAsync(options.DaemonId).ConfigureAwait(false);
-    var playerSettings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+    var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
+    var runtimeSession = await node.RuntimeSession(options.DaemonId).ReadAsync().ConfigureAwait(false);
+    var playerSettings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
     var playerSettingsUpdatedAt = string.IsNullOrWhiteSpace(playerSettings.LastUpdatedAtUtc)
         ? updatedAtUtc
         : playerSettings.LastUpdatedAtUtc;
 
-    await node.PutOperationsSurfaceAsync(
-        AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)).ConfigureAwait(false);
-    await node.PutPlayerSettingsSurfaceAsync(
-        AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt)).ConfigureAwait(false);
-    await node.PutProviderAdvertisementAsync(
-        AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)).ConfigureAwait(false);
+    await node.OperationsSurface()
+        .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession))
+        .ConfigureAwait(false);
+    await node.PlayerSettingsSurface()
+        .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt))
+        .ConfigureAwait(false);
+    await node.ProviderAdvertisementSurface()
+        .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc))
+        .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
 }
 
@@ -914,14 +921,16 @@ static async Task PublishRuntimeSessionAsync(
     string status)
 {
     var now = DateTimeOffset.UtcNow.ToString("O");
-    await node.PutRuntimeSessionAsync(new AetheriaRuntimeSession
-    {
-        RuntimeId = options.DaemonId,
-        Role = "verse-daemon",
-        StartedAtUtc = startedAtUtc,
-        LastSeenAtUtc = now,
-        Status = status
-    }).ConfigureAwait(false);
+    await node.RuntimeSession(options.DaemonId)
+        .ReplaceAsync(new AetheriaRuntimeSession
+        {
+            RuntimeId = options.DaemonId,
+            Role = "verse-daemon",
+            StartedAtUtc = startedAtUtc,
+            LastSeenAtUtc = now,
+            Status = status
+        })
+        .ConfigureAwait(false);
     await PublishStateSurfacesAsync(node, options, now).ConfigureAwait(false);
 }
 
@@ -960,7 +969,7 @@ static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now
 
 static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string now)
 {
-    var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false);
+    var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node).ConfigureAwait(false);
@@ -980,7 +989,9 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
     settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Codex RTS" : settings.PlayerName;
     settings.TutorialPassed = true;
     settings.LastUpdatedAtUtc = now;
-    await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+    await node.PlayerSettings()
+        .ReplaceAsync(settings)
+        .ConfigureAwait(false);
 
     await node.PutRunStateAsync(runKey, new AetheriaRunState
     {
@@ -1363,7 +1374,7 @@ static async Task EnsureVerseAuthorityPolicyAsync(
 
 static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointAsync(AetheriaStateNode node)
 {
-    var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false);
+    var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false);
     if (string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
         return null;
 
@@ -1790,7 +1801,7 @@ static async Task<AetheriaVerseHostSettings> EnsureVerseHostSettingsAsync(
     AetheriaDaemonHostOptions options,
     string now)
 {
-    var existing = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
+    var existing = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false);
     var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(existing);
     normalized.ServiceId = options.DaemonId;
     normalized.VerseId = options.VerseId;
@@ -1801,7 +1812,9 @@ static async Task<AetheriaVerseHostSettings> EnsureVerseHostSettingsAsync(
         !AetheriaVerseHostSettingsNormalizer.Equivalent(existing, normalized))
     {
         normalized.LastUpdatedAtUtc = now;
-        await node.PutVerseHostSettingsAsync(normalized).ConfigureAwait(false);
+        await node.VerseHostSettings()
+            .ReplaceAsync(normalized)
+            .ConfigureAwait(false);
     }
 
     return normalized;

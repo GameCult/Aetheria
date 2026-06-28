@@ -49,20 +49,22 @@ public static class AetheriaEveCommandBridge
             {
                 case AetheriaRuntimeEveCommandKind.CatalogRefresh:
                     var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-                    await node.PutCatalogSurfaceAsync(
-                        AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc)).ConfigureAwait(false);
+                    await node.CatalogSurface()
+                        .ReplaceAsync(AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc))
+                        .ConfigureAwait(false);
                     report.AcceptedCatalogRefreshes++;
                     break;
                 case AetheriaRuntimeEveCommandKind.OperationsRefresh:
-                    var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false) ??
+                    var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false) ??
                         EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
-                    var verseHostSettings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false);
-                    var runtimeSession = await node.GetRuntimeSessionAsync(eveStatus.RuntimeId).ConfigureAwait(false);
-                    await node.PutOperationsSurfaceAsync(
-                        AetheriaOperationsSurfaceProjector.Build(
+                    var verseHostSettings = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false);
+                    var runtimeSession = await node.RuntimeSession(eveStatus.RuntimeId).ReadAsync().ConfigureAwait(false);
+                    await node.OperationsSurface()
+                        .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
                             eveStatus,
                             verseHostSettings,
-                            runtimeSession)).ConfigureAwait(false);
+                            runtimeSession))
+                        .ConfigureAwait(false);
                     report.AcceptedOperationsRefreshes++;
                     break;
                 case AetheriaRuntimeEveCommandKind.PlayerSettingsRefresh:
@@ -133,7 +135,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.Gameplay ??= new AetheriaPlayerGameplaySettings();
         settings.Graphics ??= new AetheriaPlayerGraphicsSettings();
         var persistSettings = false;
@@ -179,11 +181,13 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             settings.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+            await node.PlayerSettings()
+                .ReplaceAsync(settings)
+                .ConfigureAwait(false);
         }
 
-        await node.PutPlayerSettingsSurfaceAsync(
-            AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
+        await node.PlayerSettingsSurface()
+            .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
 
@@ -191,7 +195,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.GetPlayerSettingsAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.Input ??= new AetheriaPlayerInputSettings();
         var persistSettings = false;
 
@@ -242,7 +246,9 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             settings.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.PutPlayerSettingsAsync(settings).ConfigureAwait(false);
+            await node.PlayerSettings()
+                .ReplaceAsync(settings)
+                .ConfigureAwait(false);
         }
     }
 
@@ -250,7 +256,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.GetVerseHostSettingsAsync().ConfigureAwait(false) ?? new AetheriaVerseHostSettings();
+        var settings = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaVerseHostSettings();
         var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
         var persistSettings = false;
 
@@ -265,20 +271,24 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             normalized.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.PutVerseHostSettingsAsync(normalized).ConfigureAwait(false);
+            await node.VerseHostSettings()
+                .ReplaceAsync(normalized)
+                .ConfigureAwait(false);
         }
 
-        var eveStatus = await node.GetEveCommandAcceptanceStatusAsync().ConfigureAwait(false) ??
+        var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false) ??
             EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
-        var runtimeSession = await node.GetRuntimeSessionAsync(eveStatus.RuntimeId).ConfigureAwait(false);
+        var runtimeSession = await node.RuntimeSession(eveStatus.RuntimeId).ReadAsync().ConfigureAwait(false);
 
-        await node.PutOperationsSurfaceAsync(
-            AetheriaOperationsSurfaceProjector.Build(
+        await node.OperationsSurface()
+            .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
                 eveStatus,
                 normalized,
-                runtimeSession)).ConfigureAwait(false);
-        await node.PutProviderAdvertisementAsync(
-            AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc)).ConfigureAwait(false);
+                runtimeSession))
+            .ConfigureAwait(false);
+        await node.ProviderAdvertisementSurface()
+            .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc))
+            .ConfigureAwait(false);
     }
 
     private static async Task ExecuteLoadoutTemplateCommandAsync(

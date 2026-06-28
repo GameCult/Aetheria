@@ -6615,7 +6615,8 @@ static void RequirePlayerSettingsEveSurface(string root)
 
     if (!bridge.Contains("AcceptedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ExecutePlayerSettingsCommandAsync", StringComparison.Ordinal) ||
-        !bridge.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
+        !bridge.Contains("PlayerSettingsSurface()", StringComparison.Ordinal) ||
+        !bridge.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
         !bridge.Contains("SetPlayerName", StringComparison.Ordinal) ||
         !bridge.Contains("command.PlayerSettings.PlayerName", StringComparison.Ordinal))
     {
@@ -6630,7 +6631,8 @@ static void RequirePlayerSettingsEveSurface(string root)
             "Provider advertisement no longer publishes the player-settings Eve surface and commands.");
     }
 
-    if (!daemonHost.Contains("PutPlayerSettingsSurfaceAsync", StringComparison.Ordinal) ||
+    if (!daemonHost.Contains("PlayerSettingsSurface()", StringComparison.Ordinal) ||
+        !daemonHost.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
         !daemonHost.Contains("AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -6922,13 +6924,14 @@ static void RequireVerseHostSettingsAuthority(string root)
             "Aetheria document registry does not register typed verse-host settings.");
     }
 
-    if (!node.Contains("PutVerseHostSettingsAsync", StringComparison.Ordinal) ||
-        !node.Contains("GetVerseHostSettingsAsync", StringComparison.Ordinal) ||
+    if (!node.Contains("public CultMeshMutableStatePointer<AetheriaVerseHostSettings> VerseHostSettings()", StringComparison.Ordinal) ||
+        !node.Contains("public CultMeshMutableStatePointer<AetheriaPlayerSettings> PlayerSettings()", StringComparison.Ordinal) ||
+        !node.Contains("public CultMeshMutableStatePointer<AetheriaEveCommandAcceptanceStatus> EveCommandAcceptanceStatus()", StringComparison.Ordinal) ||
         !node.Contains("public CultMeshNode MeshNode => _node;", StringComparison.Ordinal) ||
         !node.Contains("global:aetheria.verse_host_settings.v1", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria state node does not expose typed verse-host settings get/put ports.");
+            "Aetheria state node does not expose typed verse-host/settings managed state pointers.");
     }
 
     var forbiddenHardcodedProviderSymbols = new[]
@@ -6972,8 +6975,9 @@ static void RequireVerseHostSettingsAuthority(string root)
         "discoveryHost.Update",
         "ReadOption(args, \"--verse-id\")",
         "ReadOption(args, \"--cultmesh-address\")",
-        "GetVerseHostSettingsAsync",
-        "PutVerseHostSettingsAsync",
+        "node.VerseHostSettings().ReadAsync()",
+        "node.VerseHostSettings()",
+        ".ReplaceAsync(normalized)",
         "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)"
     };
     var missingDaemonHostSymbols = requiredDaemonHostSymbols
@@ -7961,8 +7965,9 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeEveCommandKind.VerseHostRefresh",
         "AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility",
         "ExecuteVerseHostCommandAsync",
-        "PutVerseHostSettingsAsync",
-        "PutProviderAdvertisementAsync",
+        "node.VerseHostSettings()",
+        ".ReplaceAsync(normalized)",
+        "node.ProviderAdvertisementSurface()",
         "AetheriaOperationsSurfaceProjector.Build(",
         "switch (command.Kind)"
     };
@@ -9002,6 +9007,13 @@ static void RequireDaemonVersePublication(string root)
         "ReadObservedDaemonCommands()",
         "currentFrame?.AccountedCommandIds ?? Array.Empty<string>()",
         "AetheriaRuntimeDaemonTickRunner.Tick(",
+        "node.EveCommandAcceptanceStatus().ReadAsync()",
+        "node.EveCommandAcceptanceStatus()",
+        "node.RuntimeSession(options.DaemonId)",
+        "node.PlayerSettings().ReadAsync()",
+        "node.OperationsSurface()",
+        "node.PlayerSettingsSurface()",
+        "node.ProviderAdvertisementSurface()",
         "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)",
         "AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)",
         "AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt)",

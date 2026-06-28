@@ -184,6 +184,47 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
     }
 
+    public CultMeshMutableStatePointer<EveSurfaceState> CatalogSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaCatalogSurfaceProjector.SurfaceKey));
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> OperationsSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaOperationsSurfaceProjector.SurfaceKey));
+    }
+
+    public CultMeshMutableStatePointer<EveSurfaceState> PlayerSettingsSurface()
+    {
+        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey));
+    }
+
+    public CultMeshMutableStatePointer<EveProviderAdvertisementState> ProviderAdvertisementSurface()
+    {
+        return MutableDocumentPointer<EveProviderAdvertisementState>(
+            new CultRecordKey(AetheriaProviderAdvertisementProjector.AdvertisementKey));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRuntimeSession> RuntimeSession(string runtimeId)
+    {
+        return MutableDocumentPointer<AetheriaRuntimeSession>(RuntimeSessionKey(runtimeId));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaPlayerSettings> PlayerSettings()
+    {
+        return MutableDocumentPointer<AetheriaPlayerSettings>(PlayerSettingsKey);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaVerseHostSettings> VerseHostSettings()
+    {
+        return MutableDocumentPointer<AetheriaVerseHostSettings>(VerseHostSettingsKey);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaEveCommandAcceptanceStatus> EveCommandAcceptanceStatus()
+    {
+        return MutableDocumentPointer<AetheriaEveCommandAcceptanceStatus>(EveCommandAcceptanceStatusKey);
+    }
+
     public Task<CultRecordHandle<AetheriaWorldState>> PutWorldAsync(AetheriaWorldState world)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.world_state.v1"), world);
@@ -573,23 +614,22 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
     public Task<CultRecordHandle<AetheriaRuntimeSession>> PutRuntimeSessionAsync(AetheriaRuntimeSession session)
     {
-        return Database.PutAsync(new CultRecordKey($"runtime:{session.RuntimeId}:aetheria.runtime_session.v1"), session);
+        return Database.PutAsync(RuntimeSessionKey(session.RuntimeId), session);
     }
 
     public Task<AetheriaRuntimeSession?> GetRuntimeSessionAsync(string runtimeId)
     {
-        return Database.GetAsync<AetheriaRuntimeSession>(
-            new CultRecordKey($"runtime:{runtimeId}:aetheria.runtime_session.v1"));
+        return Database.GetAsync<AetheriaRuntimeSession>(RuntimeSessionKey(runtimeId));
     }
 
     public Task<CultRecordHandle<AetheriaPlayerSettings>> PutPlayerSettingsAsync(AetheriaPlayerSettings settings)
     {
-        return Database.PutAsync(new CultRecordKey("global:aetheria.player_settings.v1"), settings);
+        return Database.PutAsync(PlayerSettingsKey, settings);
     }
 
     public Task<AetheriaPlayerSettings?> GetPlayerSettingsAsync()
     {
-        return Database.GetAsync<AetheriaPlayerSettings>(new CultRecordKey("global:aetheria.player_settings.v1"));
+        return Database.GetAsync<AetheriaPlayerSettings>(PlayerSettingsKey);
     }
 
     public Task<CultRecordHandle<AetheriaLoadoutTemplate>> PutLoadoutTemplateAsync(
@@ -639,25 +679,23 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public Task<CultRecordHandle<AetheriaVerseHostSettings>> PutVerseHostSettingsAsync(
         AetheriaVerseHostSettings settings)
     {
-        return Database.PutAsync(new CultRecordKey("global:aetheria.verse_host_settings.v1"), settings);
+        return Database.PutAsync(VerseHostSettingsKey, settings);
     }
 
     public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync()
     {
-        return Database.GetAsync<AetheriaVerseHostSettings>(
-            new CultRecordKey("global:aetheria.verse_host_settings.v1"));
+        return Database.GetAsync<AetheriaVerseHostSettings>(VerseHostSettingsKey);
     }
 
     public Task<CultRecordHandle<AetheriaEveCommandAcceptanceStatus>> PutEveCommandAcceptanceStatusAsync(
         AetheriaEveCommandAcceptanceStatus status)
     {
-        return Database.PutAsync(new CultRecordKey("global:aetheria.eve_command_acceptance_status.v1"), status);
+        return Database.PutAsync(EveCommandAcceptanceStatusKey, status);
     }
 
     public Task<AetheriaEveCommandAcceptanceStatus?> GetEveCommandAcceptanceStatusAsync()
     {
-        return Database.GetAsync<AetheriaEveCommandAcceptanceStatus>(
-            new CultRecordKey("global:aetheria.eve_command_acceptance_status.v1"));
+        return Database.GetAsync<AetheriaEveCommandAcceptanceStatus>(EveCommandAcceptanceStatusKey);
     }
 
     public Task FlushAsync(bool soft = false)
@@ -678,6 +716,20 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             token = token.Replace("--", "-", StringComparison.Ordinal);
         return string.IsNullOrWhiteSpace(token) ? "empty" : token;
     }
+
+    private static CultRecordKey RuntimeSessionKey(string runtimeId)
+    {
+        return new CultRecordKey($"runtime:{runtimeId}:aetheria.runtime_session.v1");
+    }
+
+    private static CultRecordKey PlayerSettingsKey { get; } =
+        new("global:aetheria.player_settings.v1");
+
+    private static CultRecordKey VerseHostSettingsKey { get; } =
+        new("global:aetheria.verse_host_settings.v1");
+
+    private static CultRecordKey EveCommandAcceptanceStatusKey { get; } =
+        new("global:aetheria.eve_command_acceptance_status.v1");
 
     private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key) where T : class
     {
