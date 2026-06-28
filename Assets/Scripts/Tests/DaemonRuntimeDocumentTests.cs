@@ -2220,10 +2220,14 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = client.State.CurrentObservedDaemon();
+        using var observedSession = client.State.ObserveDaemon();
+        var observed = observedSession.Current;
+        var sampledObserved = client.State.CurrentObservedDaemon();
         Assert.IsNotNull(observed);
+        Assert.IsNotNull(sampledObserved);
         Assert.IsTrue(observed.IsAuthoritative);
         Assert.AreEqual("reactive-daemon-run", observed.Run.RunId);
+        Assert.AreEqual(observed.Run.RunId, sampledObserved.Run.RunId);
         Assert.AreEqual("entity:reactive-observer-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(330, observed.Frame.FrameId);
         Assert.AreEqual(331, observed.SoaView.Generation);

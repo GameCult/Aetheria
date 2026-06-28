@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
@@ -22,10 +20,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private float _nextPollTime;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
-    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _reactiveFrame;
-    private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _reactiveSoaView;
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _reactiveZoneRender;
-    private bool _triedReactiveSoaView;
+    private AetheriaRuntimeObservedDaemonSession _observedDaemon;
 
     public AetheriaRuntimeObservedDaemonState LastObservedState { get; private set; }
     public AetheriaRuntimeDaemonObservationResult LastObservation { get; private set; }
@@ -89,7 +84,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public void ResetObservation()
     {
         _cursor.Reset();
-        DisposeReactiveObservedDaemonDocuments();
+        DisposeObservedDaemonSession();
         DisposeSoaMemoryMap();
         LastObservedState = null;
         LastObservation = null;
@@ -97,7 +92,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void OnDisable()
     {
-        DisposeReactiveObservedDaemonDocuments();
+        DisposeObservedDaemonSession();
         DisposeSoaMemoryMap();
     }
 
@@ -105,22 +100,8 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     {
         try
         {
-            if (!TryResolveReactiveObservedDaemonDocuments())
-                return null;
-
-            var frame = _reactiveFrame?.Current;
-            var zoneRender = _reactiveZoneRender?.Current;
-            if (frame == null || zoneRender == null)
-                return null;
-
-            var soaView = _reactiveSoaView?.Current;
-            if (soaView == null ||
-                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
-            {
-                soaView = null;
-            }
-
-            return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);
+            _observedDaemon ??= ResolveClient()?.State?.ObserveDaemon();
+            return _observedDaemon?.Current;
         }
         catch
         {
@@ -138,30 +119,6 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, clientId);
-    }
-
-    private bool TryResolveReactiveObservedDaemonDocuments()
-    {
-        var state = ResolveClient()?.State;
-        if (state == null)
-            return false;
-
-        _reactiveFrame ??= state.ReactiveDaemonFrame();
-        _reactiveZoneRender ??= state.ReactiveZoneRender();
-        if (_reactiveSoaView == null && !_triedReactiveSoaView)
-        {
-            _triedReactiveSoaView = true;
-            try
-            {
-                _reactiveSoaView = state.ReactiveDaemonSoaView();
-            }
-            catch (KeyNotFoundException)
-            {
-                _reactiveSoaView = null;
-            }
-        }
-
-        return _reactiveFrame != null && _reactiveZoneRender != null;
     }
 
     private void RemapSoaView(AetheriaRuntimeObservedDaemonState observed)
@@ -200,14 +157,9 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         _soaMemoryMap = null;
     }
 
-    private void DisposeReactiveObservedDaemonDocuments()
+    private void DisposeObservedDaemonSession()
     {
-        _reactiveFrame?.Dispose();
-        _reactiveSoaView?.Dispose();
-        _reactiveZoneRender?.Dispose();
-        _reactiveFrame = null;
-        _reactiveSoaView = null;
-        _reactiveZoneRender = null;
-        _triedReactiveSoaView = false;
+        _observedDaemon?.Dispose();
+        _observedDaemon = null;
     }
 }

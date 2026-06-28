@@ -267,6 +267,27 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
+        public AetheriaRuntimeObservedDaemonSession ObserveDaemon(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            var frame = ReactiveDaemonFrame(options);
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView = null;
+            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>? zoneRender = null;
+            try
+            {
+                soaView = TryReactiveDaemonSoaView(options);
+                zoneRender = ReactiveZoneRender(options);
+                return new AetheriaRuntimeObservedDaemonSession(frame, soaView, zoneRender);
+            }
+            catch
+            {
+                frame.Dispose();
+                soaView?.Dispose();
+                zoneRender?.Dispose();
+                throw;
+            }
+        }
+
         public AetheriaRuntimeObservedDockingState? CurrentDocking(
             CultMeshReactiveDocumentOptions? options = null)
         {
