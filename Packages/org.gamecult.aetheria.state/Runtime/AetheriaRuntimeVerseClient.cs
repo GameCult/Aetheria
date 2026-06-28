@@ -735,6 +735,11 @@ namespace GameCult.Aetheria.State.Verse
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
                 CatalogDocument(
+                    "aetheria.catalog.runtime",
+                    () => Task.FromResult(OpenRuntimeCatalog()),
+                    AetheriaRuntimeCatalogSnapshot.SchemaId,
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime")),
+                CatalogDocument(
                     "aetheria.settings.player",
                     () => Task.FromResult(AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
                         AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath))),

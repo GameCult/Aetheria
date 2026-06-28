@@ -226,7 +226,7 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient(stateBoot).OpenRuntimeCatalog();
+            _catalog = ResolveClient(stateBoot).Aetheria().Catalog.Latest();
             return _catalog;
         }
         catch (Exception ex)

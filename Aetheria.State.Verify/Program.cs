@@ -4491,7 +4491,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".LatestAsync()",
         ".Details",
         ".Zone(zoneIndex)",
-        "OpenRuntimeCatalog()",
+        ".Catalog",
         ".Settings",
         ".Player",
         ".Latest()",
@@ -4534,6 +4534,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "Properties.AddProperty(\"Ships\"",
         "GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(",
         "GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(",
+        "OpenRuntimeCatalog()",
         "ProjectZoneBodies(",
         "ProjectZoneEntities(",
         "new AetheriaRuntimeZoneDetailsBodyProjection(",
@@ -7305,7 +7306,8 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.StateFileExists",
         "private static AetheriaRuntimeCatalogSnapshot _runtimeCatalog",
         "FindTypedRuntimeItem(",
-        "_runtimeCatalog?.FindItem("
+        "_runtimeCatalog?.FindItem(",
+        ".OpenRuntimeCatalog()"
     };
     var actionGameManagerBootHits = forbiddenActionGameManagerBootSymbols
         .Where(symbol => actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -7328,7 +7330,9 @@ static void RequireClientTargetBootAuthority(string root)
         "!stateBoot.SupportsLocalStateFileRead",
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
-        ".OpenRuntimeCatalog()",
+        ".Aetheria()",
+        ".Catalog",
+        ".Latest()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
@@ -11429,7 +11433,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Zone(zoneIndex)", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("OpenRuntimeCatalog()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Catalog", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Latest()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Player", StringComparison.Ordinal) ||
         !sectorMap.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
@@ -12853,7 +12858,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaUnityGameplayBootResult Boot()",
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
-        "OpenRuntimeCatalog()",
+        ".Aetheria()",
+        ".Catalog",
+        ".Latest()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",

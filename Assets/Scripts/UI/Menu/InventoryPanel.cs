@@ -1530,7 +1530,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().OpenRuntimeCatalog();
+            _catalog = ResolveClient().Aetheria().Catalog.Latest();
         }
         catch (Exception ex)
         {

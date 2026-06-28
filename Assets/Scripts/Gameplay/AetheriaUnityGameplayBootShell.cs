@@ -35,7 +35,9 @@ public sealed class AetheriaUnityGameplayBootShell
         }
 
         var runtimeCatalog = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
-            .OpenRuntimeCatalog();
+            .Aetheria()
+            .Catalog
+            .Latest();
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
 

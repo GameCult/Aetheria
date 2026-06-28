@@ -137,7 +137,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
         {
             ThrowIfDisposed();
-            return _verse.OpenRuntimeCatalog();
+            return State.Catalog.Latest();
         }
 
         public async Task<AetheriaRuntimePlayerSettingsSnapshot?> PlayerSettingsAsync()

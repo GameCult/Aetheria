@@ -227,7 +227,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().OpenRuntimeCatalog();
+            _catalog = ResolveClient().Aetheria().Catalog.Latest();
         }
         catch (Exception ex)
         {

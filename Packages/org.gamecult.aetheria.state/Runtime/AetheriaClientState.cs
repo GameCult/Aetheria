@@ -15,6 +15,7 @@ namespace GameCult.Aetheria.State.Verse
         internal AetheriaClientState(
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
+            CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> catalog,
             CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> playerSettings,
             CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> verseHostSettings,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> currentZone,
@@ -38,6 +39,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
+            Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             Settings = new AetheriaClientSettingsState(playerSettings, verseHostSettings);
             Current = new AetheriaClientCurrentState(currentZone, currentEntity, currentDocking);
             ZoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
@@ -62,6 +64,7 @@ namespace GameCult.Aetheria.State.Verse
             _documents = CultMesh.Documents(
                 LatestFrame,
                 LatestSoaView,
+                Catalog,
                 Settings.Player,
                 Settings.VerseHost,
                 Current.Zone,
@@ -78,6 +81,8 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }
 
         public AetheriaClientSettingsState Settings { get; }
 

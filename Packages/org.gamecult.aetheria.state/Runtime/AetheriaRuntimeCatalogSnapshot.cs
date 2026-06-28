@@ -8,6 +8,8 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeCatalogSnapshot
     {
+        public const string SchemaId = "gamecult.aetheria.runtime_catalog.v1";
+
         private readonly Dictionary<string, AetheriaRuntimeCatalogItem> _itemsByKey;
         private readonly Dictionary<string, AetheriaRuntimeCorporation> _corporationsByKey;
         private readonly Dictionary<string, AetheriaRuntimeNameFile> _nameFilesByKey;
