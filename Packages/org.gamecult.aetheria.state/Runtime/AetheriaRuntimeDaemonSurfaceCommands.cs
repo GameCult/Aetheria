@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 
 #nullable enable
 
@@ -23,12 +21,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            using var frame = client.State.ReactiveDaemonFrame();
-            using var soaView = TryReactiveDaemonSoaView(client);
-            using var zoneRender = client.State.ReactiveZoneRender();
-            var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
-                ? current
-                : null;
+            var observed = client.State.CurrentObservedDaemon();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 client.StatePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,
@@ -39,19 +32,6 @@ namespace GameCult.Aetheria.State.Verse
                 observed,
                 kind,
                 out envelope);
-        }
-
-        private static CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView(
-            AetheriaClient client)
-        {
-            try
-            {
-                return client.State.ReactiveDaemonSoaView();
-            }
-            catch (KeyNotFoundException)
-            {
-                return null;
-            }
         }
 
         private static bool TryResolveKind(EveSurfaceCommandRequest request, out AetheriaRuntimeDaemonCommandKinds kind)

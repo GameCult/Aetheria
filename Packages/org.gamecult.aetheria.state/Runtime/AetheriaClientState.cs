@@ -256,6 +256,30 @@ namespace GameCult.Aetheria.State.Verse
             return LatestObservedDaemonAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            using var frame = ReactiveDaemonFrame(options);
+            using var soaView = TryReactiveDaemonSoaView(options);
+            using var zoneRender = ReactiveZoneRender(options);
+            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
+                ? current
+                : null;
+        }
+
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView(
+            CultMeshReactiveDocumentOptions? options)
+        {
+            try
+            {
+                return ReactiveDaemonSoaView(options);
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
+        }
+
         private async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryLatestDaemonSoaViewAsync()
         {
             try
