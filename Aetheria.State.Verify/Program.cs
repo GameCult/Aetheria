@@ -13216,8 +13216,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
         !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
+        !mainMenu.Contains("LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".SectorMap", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".Catalog.Latest()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13228,6 +13230,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "MainMenu still reads daemon frames through the runtime file reader instead of the shared Aetheria client facade.");
+    }
+
+    if (mainMenu.Contains("OpenRuntimeCatalog(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu still names runtime catalog access as a raw catalog open instead of a managed latest document read.");
     }
 
     var forbiddenMainMenuReaderSymbols = new[]

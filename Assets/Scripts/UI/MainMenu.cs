@@ -131,7 +131,7 @@ public class MainMenu : MonoBehaviour
         setState($"Observing sector-map frame {sectorMap.FrameId}");
         var backgroundSettings = sectorMap.IsTutorial ? Settings.TutorialBackgroundSettings : Settings.SectorBackgroundSettings;
         backgroundSettings.NoisePosition = sectorMap.GenerationSeed == 0 ? 1 : sectorMap.GenerationSeed;
-        var runtimeCatalog = OpenRuntimeCatalog(stateBoot);
+        var runtimeCatalog = LatestRuntimeCatalog(stateBoot);
         if (runtimeCatalog == null)
         {
             Debug.LogWarning($"Cannot start Aetheria observer scene without a runtime catalog in {stateBoot.StateFilePath}.");
@@ -215,7 +215,7 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeCatalogSnapshot LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             return null;
