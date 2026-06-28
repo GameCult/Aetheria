@@ -7523,18 +7523,14 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     {
         "AetheriaRuntimeObjectsViewportSession _objectsViewport",
         "AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
         ".ObserveObjects(viewport)",
         ".ObserveRenderSplats(viewport)",
         ".Settings",
-        ".ObservePlayer()",
         "ClearViewportCaches()",
         "_objectsViewport?.Dispose()",
         "_renderSplatsViewport?.Dispose()",
         "_objectsViewport?.Current",
         "_renderSplatsViewport?.Current",
-        "_playerSettings?.Dispose()",
-        "_playerSettings?.Current",
         "private void OnDestroy()"
     };
     var missingMapRendererSharedDocumentSymbols = requiredMapRendererSharedDocumentSymbols
@@ -7547,14 +7543,21 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        mapRenderer,
+        "MapRenderer",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
+
     var forbiddenMapRendererSharedDocumentSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
         "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         ".ReactiveObjects(viewport)",
-        ".ReactiveRenderSplats(viewport)",
-        ".ReactivePlayer()"
+        ".ReactiveRenderSplats(viewport)"
     };
     var mapRendererRawDocumentHits = forbiddenMapRendererSharedDocumentSymbols
         .Where(symbol => mapRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -13855,7 +13858,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".ObserveObjects(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".ObserveRenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".State", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||

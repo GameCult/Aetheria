@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using Unity.Mathematics;
@@ -44,7 +45,7 @@ public class MapRenderer : MonoBehaviour
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     private string _clientStatePath = "";
-    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     
     void Start()
     {
@@ -320,7 +321,7 @@ public class MapRenderer : MonoBehaviour
             _playerSettings ??= ResolveClient()
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
