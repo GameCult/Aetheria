@@ -1,6 +1,7 @@
 using System;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -33,6 +34,9 @@ namespace GameCult.Aetheria.EveRuntime
         private string _mountedSurfaceId = "";
         private long _mountedSurfaceVersion = -1;
         private string _mountedSurfaceUpdatedAtUtc = "";
+        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? _reactiveSurfaceState;
+        private string _reactiveSurfaceStatePath = "";
+        private string _reactiveSurfaceId = "";
         private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome = new AetheriaEveUnitySurfaceChrome
         {
             UseShell = false,
@@ -96,6 +100,11 @@ namespace GameCult.Aetheria.EveRuntime
                 Mount();
         }
 
+        private void OnDisable()
+        {
+            DisposeReactiveSurfaceState();
+        }
+
         private void Update()
         {
             if (!refreshInUpdate || Time.unscaledTime < _nextRefreshTime)
@@ -131,17 +140,45 @@ namespace GameCult.Aetheria.EveRuntime
 
         private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaClient client)
         {
+            var reactive = ResolveReactiveDaemonSurfaceState(client);
+            return reactive?.Current;
+        }
+
+        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ResolveReactiveDaemonSurfaceState(
+            AetheriaClient client)
+        {
+            if (_reactiveSurfaceState != null &&
+                string.Equals(_reactiveSurfaceStatePath, client.StatePath, StringComparison.Ordinal) &&
+                string.Equals(_reactiveSurfaceId, surfaceId, StringComparison.Ordinal))
+            {
+                return _reactiveSurfaceState;
+            }
+
+            DisposeReactiveSurfaceState();
+            _reactiveSurfaceState = CreateReactiveDaemonSurfaceState(client);
+            if (_reactiveSurfaceState != null)
+            {
+                _reactiveSurfaceStatePath = client.StatePath;
+                _reactiveSurfaceId = surfaceId ?? "";
+            }
+
+            return _reactiveSurfaceState;
+        }
+
+        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
+            AetheriaClient client)
+        {
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.ReactiveGameSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.ReactiveGameTuiSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.EditorSurface.LatestAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.ReactiveEditorSurface();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.ReactiveEditorTuiSurface();
 
             return null;
         }
@@ -229,5 +266,12 @@ namespace GameCult.Aetheria.EveRuntime
             }
         }
 
+        private void DisposeReactiveSurfaceState()
+        {
+            _reactiveSurfaceState?.Dispose();
+            _reactiveSurfaceState = null;
+            _reactiveSurfaceStatePath = "";
+            _reactiveSurfaceId = "";
+        }
     }
 }

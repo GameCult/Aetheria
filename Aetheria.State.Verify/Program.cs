@@ -3195,10 +3195,13 @@ static void RequireEveRuntimeBootstrap(string root)
         "ReadDaemonSurface(statePath)",
         "ReadDaemonSurface(stateBoot.StateFilePath)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        "client.State.Daemon.GameSurface.LatestAsync()",
-        "client.State.Daemon.GameTuiSurface.LatestAsync()",
-        "client.State.Daemon.EditorSurface.LatestAsync()",
-        "client.State.Daemon.EditorTuiSurface.LatestAsync()",
+        "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
+        "ResolveReactiveDaemonSurfaceState(",
+        "client.State.Daemon.ReactiveGameSurface()",
+        "client.State.Daemon.ReactiveGameTuiSurface()",
+        "client.State.Daemon.ReactiveEditorSurface()",
+        "client.State.Daemon.ReactiveEditorTuiSurface()",
+        "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
         "_mountedSurfaceVersion != surface.Version",
@@ -3228,10 +3231,14 @@ static void RequireEveRuntimeBootstrap(string root)
     if (presenter.Contains(".DaemonGameSurfaceAsync()", StringComparison.Ordinal) ||
         presenter.Contains(".DaemonGameTuiSurfaceAsync()", StringComparison.Ordinal) ||
         presenter.Contains(".DaemonEditorSurfaceAsync()", StringComparison.Ordinal) ||
-        presenter.Contains(".DaemonEditorTuiSurfaceAsync()", StringComparison.Ordinal))
+        presenter.Contains(".DaemonEditorTuiSurfaceAsync()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.GameSurface.LatestAsync()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.GameTuiSurface.LatestAsync()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.EditorSurface.LatestAsync()", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.Daemon.EditorTuiSurface.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve presenter still reads daemon surfaces through AetheriaClient compatibility helpers instead of managed document handles.");
+            "Aetheria Eve presenter still reads daemon surfaces through one-shot compatibility helpers instead of managed reactive document handles.");
     }
 
     if (presenter.Contains("new EveUiToolkitSurfaceLowerer", StringComparison.Ordinal))
@@ -7598,6 +7605,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()",
         "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()",
         "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()",
+        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameSurface(",
+        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveGameTuiSurface(",
+        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorSurface(",
+        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEditorTuiSurface(",
         "public AetheriaRuntimeRtsViewportDocument LatestMap(AetheriaRuntimeRtsViewportBounds viewport)",
         "public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)",
         "public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)",
