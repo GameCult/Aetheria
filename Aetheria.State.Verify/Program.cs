@@ -4717,9 +4717,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
-        "ResolveCurrentDocking()?.IsDocked == true",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentDocking(out docking)",
+        "docking.IsDocked",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "GetTabLabel(",
@@ -4791,10 +4792,12 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     }
 
     if (source.Contains("GameManager.IsObservedDocked", StringComparison.Ordinal) ||
-        source.Contains("GameManager.TryGetObservedDockedLocalStory", StringComparison.Ordinal))
+        source.Contains("GameManager.TryGetObservedDockedLocalStory", StringComparison.Ordinal) ||
+        source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) ||
+        source.Contains("private AetheriaClientDockingSnapshot ResolveCurrentDocking()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MenuPanel tab visibility must read typed current-docking state through AetheriaClient instead of ActionGameManager observed adapters.");
+            "MenuPanel tab visibility must read typed current-docking state through AetheriaUnityObservedDockingIndex instead of direct docking caches or ActionGameManager observed adapters.");
     }
 
     var requiredProjectionBuilderSymbols = new[]
@@ -5660,8 +5663,10 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentDocking(out docking)",
+        "dockingIndex.ResolveStationRefit()",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -5702,6 +5707,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "GameManager.CurrentEntity.Parent.Children",
         "GameManager.DockingBay",
         "GameManager.AvailableEntities()",
+        "AetheriaClientReactiveDockingState _reactiveDockingState",
+        "AetheriaClientDockingSnapshot _dockingState",
+        "private AetheriaClientDockingSnapshot ResolveDockingState()",
         "_cargoSelectorStationRefitEntities",
         "stationRefit.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>()",
         "stationRefit.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>()"

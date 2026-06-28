@@ -40,6 +40,8 @@ public class TradeMenu : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -47,26 +49,36 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeCargoSelectorSurfaceProjection _cargoSelectorSurfaceProjection;
     private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
         Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
-    private AetheriaClientReactiveDockingState _reactiveDockingState;
-    private AetheriaClientDockingSnapshot _dockingState;
     private AetheriaRuntimeStationRefitDocument _stationRefit;
     private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
     
     public EquippedCargoBay Inventory { get; set; }
+
+    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
+    {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+            InvalidateStationRefit();
+        }
+
+        _observedEntityIndex = observedEntityIndex;
+    }
     
     private void OnEnable()
     {
-        var dockingState = ResolveDockingState();
-        if (dockingState?.IsDocked != true ||
-            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey) ||
-            dockingState.DockingBayIndex < 0)
+        if (!TryResolveCurrentDocking(out var docking) ||
+            docking.IsDocked != true ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
+            docking.DockingBayIndex < 0)
         {
             return;
         }
 
-        SetTargetCargo(dockingState.DockParentEntityKey, dockingState.DockingBayIndex, "Docking Bay");
+        SetTargetCargo(docking.DockParentEntityKey, docking.DockingBayIndex, "Docking Bay");
         HideCargoSelectorSurface();
         HideFilterSurface();
         HideRowActionSurface();
@@ -496,14 +508,14 @@ public class TradeMenu : MonoBehaviour
     private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
     {
         targetEntityKey = "";
-        var dockingState = ResolveDockingState();
-        if (dockingState?.IsDocked != true ||
-            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey))
+        if (!TryResolveCurrentDocking(out var docking) ||
+            docking.IsDocked != true ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
         {
             return false;
         }
 
-        targetEntityKey = dockingState.DockParentEntityKey;
+        targetEntityKey = docking.DockParentEntityKey;
         return true;
     }
 
@@ -512,29 +524,37 @@ public class TradeMenu : MonoBehaviour
         if (_stationRefit != null)
             return _stationRefit;
 
-        _stationRefit = ResolveDockingState()?.StationRefit;
+        _stationRefit = TryResolveObservedDockingIndex(out var dockingIndex)
+            ? dockingIndex.ResolveStationRefit()
+            : null;
         return _stationRefit;
     }
 
-    private AetheriaClientDockingSnapshot ResolveDockingState()
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
-        if (_dockingState != null)
-            return _dockingState;
-
-        _reactiveDockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
-        if (!_reactiveDockingState.TryCurrent(out _dockingState))
+        docking = null;
+        if (TryResolveObservedDockingIndex(out var dockingIndex) &&
+            dockingIndex.TryResolveCurrentDocking(out docking))
         {
-            Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");
-            return null;
+            return true;
         }
 
-        _stationRefit = _dockingState?.StationRefit;
-        return _dockingState;
+        Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");
+        return false;
+    }
+
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    {
+        dockingIndex = null;
+        if (_observedEntityIndex == null)
+            return false;
+
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        return true;
     }
 
     private void InvalidateStationRefit()
     {
-        _dockingState = null;
         _stationRefit = null;
     }
 
@@ -600,11 +620,10 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
-        _reactiveDockingState?.Dispose();
+        _observedDockingIndex?.Dispose();
         _catalog = null;
         _playerSettings = null;
-        _reactiveDockingState = null;
-        _dockingState = null;
+        _observedDockingIndex = null;
         _stationRefit = null;
     }
 

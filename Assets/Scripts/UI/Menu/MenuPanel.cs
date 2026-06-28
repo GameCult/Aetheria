@@ -31,10 +31,22 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private string _clientStatePath = "";
-    private AetheriaClientReactiveDockingState _dockingState;
     
     public MenuTab CurrentTab { get; private set; }
+
+    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
+    {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
+        _observedEntityIndex = observedEntityIndex;
+    }
 
     public void ShowTab(MenuTab tab)
     {
@@ -95,8 +107,8 @@ public class MenuPanel : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_tabSurfaceDocument);
             _tabSurfaceDocument = null;
         }
-        _dockingState?.Dispose();
-        _dockingState = null;
+        _observedDockingIndex?.Dispose();
+        _observedDockingIndex = null;
     }
 
     private void RenderTabSurface()
@@ -161,7 +173,7 @@ public class MenuPanel : MonoBehaviour
 
     private MenuTabBinding[] ResolveVisibleTabs()
     {
-        var isDocked = ResolveCurrentDocking()?.IsDocked == true;
+        var isDocked = TryResolveCurrentDocking(out var docking) && docking.IsDocked;
         return _tabs.Values
             .Where(tabBinding => !tabBinding.RequireDock || isDocked)
             .Where(tabBinding => tabBinding.Tab != MenuTab.Local || isDocked)
@@ -169,14 +181,27 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private AetheriaClientDockingSnapshot ResolveCurrentDocking()
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
-        _dockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
-        if (_dockingState.TryCurrent(out var docking))
-            return docking;
+        docking = null;
+        if (TryResolveObservedDockingIndex(out var dockingIndex) &&
+            dockingIndex.TryResolveCurrentDocking(out docking))
+        {
+            return true;
+        }
 
         Debug.LogWarning("Failed to read Aetheria current docking for runtime menu tabs.");
-        return null;
+        return false;
+    }
+
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    {
+        dockingIndex = null;
+        if (_observedEntityIndex == null)
+            return false;
+
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        return true;
     }
 
     private AetheriaClient ResolveClient()
@@ -185,8 +210,8 @@ public class MenuPanel : MonoBehaviour
         if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
         {
             _clientStatePath = stateBoot.StateFilePath;
-            _dockingState?.Dispose();
-            _dockingState = null;
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-menu-tabs");
