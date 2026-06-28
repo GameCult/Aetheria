@@ -188,6 +188,36 @@ namespace GameCult.Aetheria.State.Verse
             return Latest<AetheriaRuntimeCatalogSnapshot>();
         }
 
+        public Task<AetheriaRuntimeDaemonFrameDocument> LatestDaemonFrameAsync()
+        {
+            return LatestFrame.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()
+        {
+            return LatestDaemonFrameAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestDaemonSoaViewAsync()
+        {
+            return LatestSoaView.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()
+        {
+            return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeLoadoutTemplatesDocument> LatestLoadoutTemplatesAsync()
+        {
+            return LoadoutTemplates.LatestAsync();
+        }
+
+        public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()
+        {
+            return LatestLoadoutTemplatesAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Task<AetheriaRuntimeSectorMapDocument> LatestSectorMapAsync()
         {
             return SectorMap.LatestAsync();
@@ -206,6 +236,26 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()
         {
             return LatestZoneContactsAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeStationRefitDocument> LatestStationRefitAsync()
+        {
+            return StationRefit.LatestAsync();
+        }
+
+        public AetheriaRuntimeStationRefitDocument LatestStationRefit()
+        {
+            return LatestStationRefitAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeZoneRenderDocument> LatestZoneRenderAsync()
+        {
+            return ZoneRender.LatestAsync();
+        }
+
+        public AetheriaRuntimeZoneRenderDocument LatestZoneRender()
+        {
+            return LatestZoneRenderAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public Observable<TDocument> Watch<TDocument>()
@@ -247,9 +297,9 @@ namespace GameCult.Aetheria.State.Verse
 
         public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
         {
-            var frameTask = Daemon.LatestFrame.LatestAsync();
-            var healthTask = Daemon.Health.LatestAsync();
-            var commandBoundaryTask = Daemon.CommandBoundary.LatestAsync();
+            var frameTask = Daemon.LatestFrameDocumentAsync();
+            var healthTask = Daemon.LatestHealthAsync();
+            var commandBoundaryTask = Daemon.LatestCommandBoundaryAsync();
 
             await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
 
@@ -306,6 +356,106 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }
 
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }
+
+        public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument> LatestProviderAdvertisementAsync()
+        {
+            return ProviderAdvertisement.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonProviderAdvertisementDocument LatestProviderAdvertisement()
+        {
+            return LatestProviderAdvertisementAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeDaemonHealthDocument> LatestHealthAsync()
+        {
+            return Health.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonHealthDocument LatestHealth()
+        {
+            return LatestHealthAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeDaemonCommandBoundaryDocument> LatestCommandBoundaryAsync()
+        {
+            return CommandBoundary.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonCommandBoundaryDocument LatestCommandBoundary()
+        {
+            return LatestCommandBoundaryAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeVerseAuthorityPolicyDocument> LatestAuthorityPolicyAsync()
+        {
+            return AuthorityPolicy.LatestAsync();
+        }
+
+        public AetheriaRuntimeVerseAuthorityPolicyDocument LatestAuthorityPolicy()
+        {
+            return LatestAuthorityPolicyAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeDaemonFrameDocument> LatestFrameDocumentAsync()
+        {
+            return LatestFrame.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonFrameDocument LatestFrameDocument()
+        {
+            return LatestFrameDocumentAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaViewDocumentAsync()
+        {
+            return LatestSoaView.LatestAsync();
+        }
+
+        public AetheriaRuntimeDaemonSoaViewDocument LatestSoaViewDocument()
+        {
+            return LatestSoaViewDocumentAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameSurfaceAsync()
+        {
+            return GameSurface.LatestAsync();
+        }
+
+        public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()
+        {
+            return LatestGameSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameTuiSurfaceAsync()
+        {
+            return GameTuiSurface.LatestAsync();
+        }
+
+        public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()
+        {
+            return LatestGameTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorSurfaceAsync()
+        {
+            return EditorSurface.LatestAsync();
+        }
+
+        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()
+        {
+            return LatestEditorSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestEditorTuiSurfaceAsync()
+        {
+            return EditorTuiSurface.LatestAsync();
+        }
+
+        public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()
+        {
+            return LatestEditorTuiSurfaceAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
     }
 
     public sealed class AetheriaClientCurrentState
@@ -494,6 +644,16 @@ namespace GameCult.Aetheria.State.Verse
             return _map(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
+        public Task<AetheriaRuntimeRtsViewportDocument> LatestMapAsync(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return Map(viewport).LatestAsync();
+        }
+
+        public AetheriaRuntimeRtsViewportDocument LatestMap(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return LatestMapAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> Objects(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -512,6 +672,16 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _gravity(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public Task<AetheriaRuntimeGravityViewportDocument> LatestGravityAsync(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return Gravity(viewport).LatestAsync();
+        }
+
+        public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return LatestGravityAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
@@ -566,6 +736,16 @@ namespace GameCult.Aetheria.State.Verse
             return _selectedObject(entityIndex);
         }
 
+        public Task<AetheriaRuntimeSelectedObjectDocument> LatestSelectedObjectAsync(int entityIndex)
+        {
+            return SelectedObject(entityIndex).LatestAsync();
+        }
+
+        public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)
+        {
+            return LatestSelectedObjectAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
         {
             return _inventory(entityIndex);
@@ -609,6 +789,46 @@ namespace GameCult.Aetheria.State.Verse
             if (string.IsNullOrWhiteSpace(seatId))
                 throw new ArgumentException("Seat id must be non-empty.", nameof(seatId));
             return _playerSeat(seatId);
+        }
+
+        public Task<AetheriaRuntimeStarbridgeScenarioDocument> LatestScenarioAsync()
+        {
+            return Scenario.LatestAsync();
+        }
+
+        public AetheriaRuntimeStarbridgeScenarioDocument LatestScenario()
+        {
+            return LatestScenarioAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeStarbridgeSessionDocument> LatestSessionAsync()
+        {
+            return Session.LatestAsync();
+        }
+
+        public AetheriaRuntimeStarbridgeSessionDocument LatestSession()
+        {
+            return LatestSessionAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> LatestSummaryAsync()
+        {
+            return Summary.LatestAsync();
+        }
+
+        public AetheriaRuntimeStarbridgeSessionSummaryDocument LatestSummary()
+        {
+            return LatestSummaryAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeStarbridgePlayerSeatDocument> LatestPlayerSeatAsync(string seatId)
+        {
+            return PlayerSeat(seatId).LatestAsync();
+        }
+
+        public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)
+        {
+            return LatestPlayerSeatAsync(seatId).ConfigureAwait(false).GetAwaiter().GetResult();
         }
     }
 }

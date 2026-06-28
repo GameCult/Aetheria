@@ -94,6 +94,7 @@ RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireMenuDockingUsesManagedTypedSnapshot(root);
 RequireUnitySharedDocumentAccessorErgonomics(root);
 RequireUnityViewportAndMapReadsUseManagedAccessors(root);
+RequireAetheriaManagedStateAccessorsCoverDomainDocuments(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
@@ -7118,6 +7119,145 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     Console.WriteLine("Viewport and map document accessors: Unity reads map, contact, viewport, and current-entity state through named managed accessors");
 }
 
+static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root)
+{
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
+    var observedDaemonStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeObservedDaemonState.cs");
+    var daemonRuntimeDocumentTestsPath = Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Tests",
+        "DaemonRuntimeDocumentTests.cs");
+    var starbridgePlayerSeatTestsPath = Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Tests",
+        "StarbridgePlayerSeatDocumentTests.cs");
+
+    var requiredPaths = new[]
+    {
+        clientStatePath,
+        observedDaemonStatePath,
+        daemonRuntimeDocumentTestsPath,
+        starbridgePlayerSeatTestsPath
+    };
+    var missingPaths = requiredPaths.Where(path => !File.Exists(path)).ToArray();
+    if (missingPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Cannot verify Aetheria managed state accessor coverage; missing sources: " +
+            string.Join(", ", missingPaths.Select(path => Path.GetRelativePath(root, path))));
+    }
+
+    var clientState = File.ReadAllText(clientStatePath);
+    var requiredClientSymbols = new[]
+    {
+        "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
+        "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
+        "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
+        "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
+        "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
+        "public AetheriaRuntimeDaemonProviderAdvertisementDocument LatestProviderAdvertisement()",
+        "public AetheriaRuntimeDaemonHealthDocument LatestHealth()",
+        "public AetheriaRuntimeDaemonCommandBoundaryDocument LatestCommandBoundary()",
+        "public AetheriaRuntimeVerseAuthorityPolicyDocument LatestAuthorityPolicy()",
+        "public AetheriaRuntimeDaemonFrameDocument LatestFrameDocument()",
+        "public AetheriaRuntimeDaemonSoaViewDocument LatestSoaViewDocument()",
+        "public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()",
+        "public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()",
+        "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()",
+        "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorTuiSurface()",
+        "public AetheriaRuntimeRtsViewportDocument LatestMap(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)",
+        "public AetheriaRuntimeStarbridgeScenarioDocument LatestScenario()",
+        "public AetheriaRuntimeStarbridgeSessionDocument LatestSession()",
+        "public AetheriaRuntimeStarbridgeSessionSummaryDocument LatestSummary()",
+        "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)"
+    };
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must expose named managed latest accessors for the remaining domain documents: " +
+            string.Join(", ", missingClientSymbols));
+    }
+
+    var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
+    var requiredObservedSymbols = new[]
+    {
+        "state.LatestDaemonFrameAsync()",
+        "state.LatestDaemonSoaViewAsync()"
+    };
+    var missingObservedSymbols = requiredObservedSymbols
+        .Where(symbol => !observedDaemonState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingObservedSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Observed daemon state must read managed typed daemon documents through named AetheriaClientState accessors: " +
+            string.Join(", ", missingObservedSymbols));
+    }
+
+    var checkedSources = new Dictionary<string, string>
+    {
+        ["DaemonRuntimeDocumentTests.cs"] = File.ReadAllText(daemonRuntimeDocumentTestsPath),
+        ["StarbridgePlayerSeatDocumentTests.cs"] = File.ReadAllText(starbridgePlayerSeatTestsPath)
+    };
+    var forbiddenCompactedSymbols = new[]
+    {
+        ".Aetheria().Catalog.LatestAsync()",
+        ".Aetheria().Settings.Player.LatestAsync()",
+        ".Aetheria().Settings.VerseHost.LatestAsync()",
+        ".Aetheria().Current.Entity.LatestAsync()",
+        ".Aetheria().Viewports.Objects(",
+        ".Aetheria().Details.Zone(",
+        ".Aetheria().Details.Inventory(",
+        ".Aetheria().Starbridge.PlayerSeat(",
+        ".State.Daemon.LatestFrame.LatestAsync()",
+        ".State.Daemon.LatestSoaView.LatestAsync()",
+        ".State.Daemon.AuthorityPolicy.LatestAsync()",
+        ".State.Daemon.GameSurface.LatestAsync()",
+        ".State.Daemon.GameTuiSurface.LatestAsync()",
+        ".State.Daemon.EditorSurface.LatestAsync()",
+        ".State.Daemon.EditorTuiSurface.LatestAsync()"
+    }
+        .Select(CompactSource)
+        .ToArray();
+    var offenders = checkedSources
+        .Select(entry => new
+        {
+            entry.Key,
+            Compact = CompactSource(entry.Value)
+        })
+        .Where(entry => forbiddenCompactedSymbols.Any(symbol => entry.Compact.Contains(symbol, StringComparison.Ordinal)))
+        .Select(entry => entry.Key)
+        .ToArray();
+
+    if (offenders.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Managed state examples still teach raw CultMesh handle walks for ordinary latest reads: " +
+            string.Join(", ", offenders));
+    }
+
+    Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest reads for daemon, viewport, detail, and Starbridge documents");
+}
+
 static void RequireVerseHostSettingsAuthority(string root)
 {
     var settingsPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaVerseHostSettings.cs");
@@ -10173,9 +10313,9 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()",
-        "Daemon.LatestFrame.LatestAsync()",
-        "Daemon.Health.LatestAsync()",
-        "Daemon.CommandBoundary.LatestAsync()",
+        "Daemon.LatestFrameDocumentAsync()",
+        "Daemon.LatestHealthAsync()",
+        "Daemon.LatestCommandBoundaryAsync()",
         "LatestCatalog",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
     };
@@ -14136,8 +14276,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(",
         "AetheriaClientState state",
-        "state.Daemon.LatestFrame.LatestAsync()",
-        "state.Daemon.LatestSoaView.LatestAsync()",
+        "state.LatestDaemonFrameAsync()",
+        "state.LatestDaemonSoaViewAsync()",
         "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)"
     };
     var missingObservedDaemonStateSymbols = requiredObservedDaemonStateSymbols

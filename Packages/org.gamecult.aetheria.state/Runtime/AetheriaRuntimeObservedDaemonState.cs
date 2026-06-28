@@ -32,7 +32,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
+            var frame = await state.LatestDaemonFrameAsync().ConfigureAwait(false);
             if (frame == null)
                 return null;
 
@@ -53,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             try
             {
-                return await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
+                return await state.LatestDaemonSoaViewAsync().ConfigureAwait(false);
             }
             catch (KeyNotFoundException)
             {
