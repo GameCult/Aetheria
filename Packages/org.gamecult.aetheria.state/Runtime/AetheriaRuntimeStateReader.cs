@@ -22,34 +22,6 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out frame);
         }
 
-        public static bool TryReadDaemonSoaView(string stateFilePath, out AetheriaRuntimeDaemonSoaViewDocument view)
-        {
-            return AetheriaRuntimeDaemonSoaViewStore.TryReadView(stateFilePath, out view);
-        }
-
-        public static bool TryReadObservedDaemonState(
-            string stateFilePath,
-            out AetheriaRuntimeObservedDaemonState observed)
-        {
-            if (!AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out var frame))
-            {
-                observed = new AetheriaRuntimeObservedDaemonState(
-                    new AetheriaRuntimeDaemonFrameDocument { IsAuthoritative = false, StateSource = "missing" },
-                    null,
-                    AetheriaRuntimeDaemonFrameStore.GetFramePath(stateFilePath),
-                    AetheriaRuntimeDaemonSoaViewStore.GetViewPath(stateFilePath));
-                return false;
-            }
-
-            AetheriaRuntimeDaemonSoaViewStore.TryReadView(stateFilePath, out var soaView);
-            observed = new AetheriaRuntimeObservedDaemonState(
-                frame,
-                string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal) ? soaView : null,
-                AetheriaRuntimeDaemonFrameStore.GetFramePath(stateFilePath),
-                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(stateFilePath));
-            return true;
-        }
-
         public static EveSurfaceDocument? ReadEveSurface(string stateFilePath, string surfaceId)
         {
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal) &&

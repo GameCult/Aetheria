@@ -2123,7 +2123,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void StateReaderReadsObservedDaemonStateWithSoaView()
+    public void AetheriaClientObservesManagedDaemonStateWithSoaView()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -2174,11 +2174,15 @@ public class DaemonRuntimeDocumentTests
             });
 
         PublishLatestFrameThroughVerseClient(statePath, frame);
-        AetheriaRuntimeDaemonSoaViewStore.PublishView(statePath, soaView);
+        PublishLatestSoaViewThroughVerseClient(statePath, soaView);
 
-        var read = AetheriaRuntimeStateReader.TryReadObservedDaemonState(statePath, out var observed);
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var observed = client.ObserveAsync().GetAwaiter().GetResult();
 
-        Assert.IsTrue(read);
+        Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);
         Assert.IsTrue(observed.HasSoaView);
         Assert.AreEqual("daemon-run", observed.Run.RunId);
@@ -2188,24 +2192,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), observed.SoaViewPath);
         Assert.IsFalse(observed.SoaView.Buffers[0].ObserverWritable);
-    }
-
-    [Test]
-    public void StateReaderReportsMissingObservedDaemonState()
-    {
-        var statePath = Path.Combine(
-            Path.GetTempPath(),
-            "aetheria-observed-daemon-state-tests",
-            Path.GetRandomFileName(),
-            "missing-state.cc");
-
-        var read = AetheriaRuntimeStateReader.TryReadObservedDaemonState(statePath, out var observed);
-
-        Assert.IsFalse(read);
-        Assert.IsFalse(observed.IsAuthoritative);
-        Assert.IsFalse(observed.HasSoaView);
-        Assert.AreEqual("missing", observed.Frame.StateSource);
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), observed.FramePath);
     }
 
     [Test]
@@ -4159,6 +4145,23 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         client.LatestFrame()
             .ReplaceAsync(frame)
+            .GetAwaiter()
+            .GetResult();
+        client.FlushAsync()
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private static void PublishLatestSoaViewThroughVerseClient(
+        string statePath,
+        AetheriaRuntimeDaemonSoaViewDocument soaView)
+    {
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-soa-view-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        client.LatestSoaView()
+            .ReplaceAsync(soaView)
             .GetAwaiter()
             .GetResult();
         client.FlushAsync()

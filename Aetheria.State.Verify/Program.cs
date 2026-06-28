@@ -9536,6 +9536,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
     }
 
+    if (stateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        stateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeStateReader still exposes observed daemon frame/SoA acquisition that belongs on managed AetheriaClient documents.");
+    }
+
     var starbridgeSummaryStart = client.IndexOf(
         "async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync",
         StringComparison.Ordinal);
@@ -13059,6 +13066,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Shared runtime state reader still exposes file-backed entity snapshot reads; use daemon zone-render EntitySnapshots documents.");
+    }
+
+    if (runtimeStateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader still exposes observed daemon frame/SoA file reads; use AetheriaClient.ObserveAsync and managed typed documents.");
     }
 
     if (runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal) ||
