@@ -7167,6 +7167,36 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingInventoryMenuSharedDocumentSymbols));
     }
 
+    var inventoryPanel = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "Menu",
+        "InventoryPanel.cs"));
+    var requiredInventoryPanelSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_catalog?.Current",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingInventoryPanelSharedDocumentSymbols = requiredInventoryPanelSharedDocumentSymbols
+        .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingInventoryPanelSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel should bind shared catalog/settings through managed reactive Aetheria documents with panel lifetime disposal: " +
+            string.Join(", ", missingInventoryPanelSharedDocumentSymbols));
+    }
+
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",

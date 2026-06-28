@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -101,8 +102,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private InventoryCell _clickCell;
     private float _clickTime;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
         Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
     private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
@@ -1485,6 +1486,8 @@ private void Update()
 
     private void ClearClientCaches()
     {
+        _catalog?.Dispose();
+        _playerSettings?.Dispose();
         _catalog = null;
         _playerSettings = null;
     }
@@ -1492,38 +1495,38 @@ private void Update()
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
     {
         if (_catalog != null)
-            return _catalog;
+            return _catalog.Current;
 
         try
         {
-            _catalog = ResolveClient().Aetheria().LatestCatalog();
+            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria runtime catalog for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for inventory panel: {ex.Message}");
         }
 
-        return _catalog;
+        return _catalog?.Current;
     }
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
-            return _playerSettings;
+            return _playerSettings.Current;
 
         try
         {
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .LatestPlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria player settings for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria player settings for inventory panel: {ex.Message}");
         }
 
-        return _playerSettings;
+        return _playerSettings?.Current;
     }
 
     private string FormatValue(float value)
@@ -1599,6 +1602,8 @@ private void Update()
 
     private void OnDestroy()
     {
+        ClearClientCaches();
+
         if (_dropdownSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_dropdownSurfaceDocument);
