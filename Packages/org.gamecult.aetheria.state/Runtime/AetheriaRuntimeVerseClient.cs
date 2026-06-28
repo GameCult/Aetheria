@@ -282,12 +282,6 @@ namespace GameCult.Aetheria.State.Verse
             return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));
         }
 
-        public Task<IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> GetLoadoutTemplatesAsync()
-        {
-            ThrowIfDisposed();
-            return Task.FromResult(AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath));
-        }
-
         public async Task<AetheriaRuntimeObservedDaemonState?> GetObservedDaemonStateAsync()
         {
             ThrowIfDisposed();
@@ -728,17 +722,25 @@ namespace GameCult.Aetheria.State.Verse
             var frameChanges = WatchLatestFrames()
                 .Where(change => change.Document != null)
                 .Select(change => change.Document!);
+            var catalogDocument = CatalogDocument(
+                "aetheria.catalog.runtime",
+                () => Task.FromResult(OpenRuntimeCatalog()),
+                AetheriaRuntimeCatalogSnapshot.SchemaId,
+                CultMesh.ProjectionSource("catalog:aetheria.runtime"));
+            var loadoutTemplatesDocument = CatalogDocument(
+                "aetheria.catalog.loadout_templates",
+                () => Task.FromResult(new AetheriaRuntimeLoadoutTemplatesDocument(
+                    AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath))),
+                AetheriaRuntimeLoadoutTemplatesDocument.SchemaId,
+                CultMesh.ProjectionSource("catalog:aetheria.loadout_templates"));
 
             return new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonFrameDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
-                CatalogDocument(
-                    "aetheria.catalog.runtime",
-                    () => Task.FromResult(OpenRuntimeCatalog()),
-                    AetheriaRuntimeCatalogSnapshot.SchemaId,
-                    CultMesh.ProjectionSource("catalog:aetheria.runtime")),
+                catalogDocument,
+                loadoutTemplatesDocument,
                 CatalogDocument(
                     "aetheria.settings.player",
                     () => Task.FromResult(AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
@@ -879,9 +881,9 @@ namespace GameCult.Aetheria.State.Verse
             async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var loadoutTemplates = await GetLoadoutTemplatesAsync().ConfigureAwait(false);
-                var catalog = OpenRuntimeCatalog();
-                return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates, catalog);
+                var loadoutTemplates = await loadoutTemplatesDocument.LatestAsync().ConfigureAwait(false);
+                var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);
+                return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates.Templates, catalog);
             }
 
             async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(

@@ -9281,7 +9281,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "OpenRuntimeCatalog()",
         "GetPlayerSettingsAsync()",
         "VerseHostSettingsAsync()",
-        "GetLoadoutTemplatesAsync()",
+        "AetheriaRuntimeLoadoutTemplatesDocument",
         "CreateEveSurfaceStateRefResolver(",
         "AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
@@ -14568,8 +14568,9 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("ProjectLoadoutRestoreOptions(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
-        !client.Contains("GetLoadoutTemplatesAsync()", StringComparison.Ordinal) ||
-        !verseClient.Contains("ProjectStationRefit(frame, loadoutTemplates, catalog)", StringComparison.Ordinal))
+        !client.Contains("State.LoadoutTemplates.LatestAsync()", StringComparison.Ordinal) ||
+        !verseClient.Contains("var loadoutTemplates = await loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal) ||
+        !verseClient.Contains("ProjectStationRefit(frame, loadoutTemplates.Templates, catalog)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "StationRefitAsync must publish typed loadout restore options with shared runtime pricing and daemon-target identity.");

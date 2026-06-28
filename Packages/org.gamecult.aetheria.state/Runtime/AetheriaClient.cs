@@ -154,10 +154,11 @@ namespace GameCult.Aetheria.State.Verse
             return document.ToSnapshot();
         }
 
-        public Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()
+        public async Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetLoadoutTemplatesAsync();
+            var document = await State.LoadoutTemplates.LatestAsync().ConfigureAwait(false);
+            return document.Templates;
         }
 
         public async Task<AetheriaRuntimeLoadoutTemplateCommit> LoadoutTemplateAsync(string entityKey)

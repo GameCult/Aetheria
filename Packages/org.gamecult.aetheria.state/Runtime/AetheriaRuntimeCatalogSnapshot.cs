@@ -95,6 +95,19 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    public sealed class AetheriaRuntimeLoadoutTemplatesDocument
+    {
+        public const string SchemaId = "gamecult.aetheria.loadout_templates.v1";
+
+        public AetheriaRuntimeLoadoutTemplatesDocument(
+            IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>? templates = null)
+        {
+            Templates = templates ?? Array.Empty<AetheriaRuntimeLoadoutTemplateSnapshot>();
+        }
+
+        public IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot> Templates { get; }
+    }
+
     public sealed class AetheriaRuntimeCatalogItem
     {
         public AetheriaRuntimeCatalogItem(
