@@ -10,6 +10,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
@@ -108,8 +109,8 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private InventoryCell _clickCell;
     private float _clickTime;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSession _catalog;
-    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private AetheriaRuntimeCurrentEntitySession _currentEntity;
     private AetheriaRuntimeStationRefitSession _stationRefit;
     private AetheriaRuntimeDaemonFrameSession _loadoutFrame;
@@ -1591,7 +1592,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().State.ObserveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -1611,7 +1612,7 @@ private void Update()
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {

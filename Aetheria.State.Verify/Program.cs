@@ -7714,15 +7714,6 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryPanel.cs"));
     var requiredInventoryPanelSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeCatalogSession _catalog",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        "ResolveClient().State.ObserveCatalog()",
-        ".Settings",
-        ".ObservePlayer()",
-        "_catalog?.Dispose()",
-        "_playerSettings?.Dispose()",
-        "_catalog?.Current",
-        "_playerSettings?.Current",
         "private void OnDestroy()"
     };
     var missingInventoryPanelSharedDocumentSymbols = requiredInventoryPanelSharedDocumentSymbols
@@ -7735,22 +7726,22 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingInventoryPanelSharedDocumentSymbols));
     }
 
-    var forbiddenInventoryPanelSharedDocumentSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+    RequireReactiveTypedDocumentAccess(
+        inventoryPanel,
+        "InventoryPanel",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
         "ResolveClient().State.ReactiveCatalog()",
-        ".ReactivePlayer()"
-    };
-    var inventoryPanelRawDocumentHits = forbiddenInventoryPanelSharedDocumentSymbols
-        .Where(symbol => inventoryPanel.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (inventoryPanelRawDocumentHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "InventoryPanel still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
-            string.Join(", ", inventoryPanelRawDocumentHits));
-    }
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+    RequireReactiveTypedDocumentAccess(
+        inventoryPanel,
+        "InventoryPanel",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
 
     var sectorRenderer = File.ReadAllText(Path.Combine(
         root,
