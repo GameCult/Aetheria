@@ -102,8 +102,7 @@ public class VolumeCloudRenderer : EffectBase
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {

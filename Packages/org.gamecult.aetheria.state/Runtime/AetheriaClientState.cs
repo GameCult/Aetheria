@@ -188,6 +188,26 @@ namespace GameCult.Aetheria.State.Verse
             return Latest<AetheriaRuntimeCatalogSnapshot>();
         }
 
+        public Task<AetheriaRuntimeSectorMapDocument> LatestSectorMapAsync()
+        {
+            return SectorMap.LatestAsync();
+        }
+
+        public AetheriaRuntimeSectorMapDocument LatestSectorMap()
+        {
+            return LatestSectorMapAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeZoneContactsDocument> LatestZoneContactsAsync()
+        {
+            return ZoneContacts.LatestAsync();
+        }
+
+        public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()
+        {
+            return LatestZoneContactsAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Observable<TDocument> Watch<TDocument>()
             where TDocument : class
         {
@@ -237,7 +257,7 @@ namespace GameCult.Aetheria.State.Verse
                 frameTask.Result,
                 healthTask.Result,
                 commandBoundaryTask.Result,
-                () => Catalog.Latest());
+                LatestCatalog);
         }
     }
 
@@ -305,6 +325,26 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> Entity { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }
+
+        public Task<AetheriaRuntimeCurrentZoneDocument> LatestZoneAsync()
+        {
+            return Zone.LatestAsync();
+        }
+
+        public AetheriaRuntimeCurrentZoneDocument LatestZone()
+        {
+            return LatestZoneAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeCurrentEntityDocument> LatestEntityAsync()
+        {
+            return Entity.LatestAsync();
+        }
+
+        public AetheriaRuntimeCurrentEntityDocument LatestEntity()
+        {
+            return LatestEntityAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
     }
 
     public sealed class AetheriaClientSettingsState
@@ -459,6 +499,16 @@ namespace GameCult.Aetheria.State.Verse
             return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
+        public Task<AetheriaRuntimeObjectsViewportDocument> LatestObjectsAsync(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return Objects(viewport).LatestAsync();
+        }
+
+        public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return LatestObjectsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _gravity(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -467,6 +517,16 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _renderSplats(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public Task<AetheriaRuntimeRenderSplatsViewportDocument> LatestRenderSplatsAsync(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return RenderSplats(viewport).LatestAsync();
+        }
+
+        public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return LatestRenderSplatsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
         }
     }
 
@@ -489,6 +549,16 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> Zone(int zoneIndex)
         {
             return _zoneDetails(zoneIndex);
+        }
+
+        public Task<AetheriaRuntimeZoneDetailsDocument> LatestZoneAsync(int zoneIndex)
+        {
+            return Zone(zoneIndex).LatestAsync();
+        }
+
+        public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)
+        {
+            return LatestZoneAsync(zoneIndex).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)

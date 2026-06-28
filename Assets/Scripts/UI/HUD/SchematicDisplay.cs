@@ -367,10 +367,7 @@ public class SchematicDisplay : MonoBehaviour
                 _currentEntityDocument = ResolveClient()
                     .Aetheria()
                     .Current
-                    .Entity
-                    .LatestAsync()
-                    .GetAwaiter()
-                    .GetResult();
+                    .LatestEntity();
             }
             catch (Exception ex)
             {

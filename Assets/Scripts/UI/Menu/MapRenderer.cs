@@ -127,17 +127,11 @@ public class MapRenderer : MonoBehaviour
             _objectsViewport = client
                 .Aetheria()
                 .Viewports
-                .Objects(viewport)
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestObjects(viewport);
             _renderSplatsViewport = client
                 .Aetheria()
                 .Viewports
-                .RenderSplats(viewport)
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestRenderSplats(viewport);
 
             var zoneName = string.IsNullOrWhiteSpace(_objectsViewport?.ZoneName)
                 ? "Unknown"

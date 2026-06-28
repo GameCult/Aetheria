@@ -93,6 +93,7 @@ RequireInventoryProjectionSlotIdentity(root);
 RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireMenuDockingUsesManagedTypedSnapshot(root);
 RequireUnitySharedDocumentAccessorErgonomics(root);
+RequireUnityViewportAndMapReadsUseManagedAccessors(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
@@ -2407,7 +2408,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "void LoadAsteroidBelt(AetheriaRuntimeZoneRenderAsteroidBeltPose beltPose)",
         "private void SyncDaemonEntityInstances()",
         ".Viewports",
-        ".Objects(ToViewportBounds(viewport))",
+        ".LatestObjects(ToViewportBounds(viewport))",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
@@ -2425,8 +2426,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
         ".Aetheria()",
-        ".ZoneContacts",
-        ".LatestAsync()",
+        ".LatestZoneContacts()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -2533,8 +2533,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "ResolveCurrentEntityHudStatus()",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Current",
-        ".Entity",
-        ".LatestAsync()",
+        ".LatestEntity()",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
         "hud.Heatstroke",
@@ -4492,10 +4491,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "ProjectZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Aetheria()",
-        ".SectorMap",
-        ".LatestAsync()",
+        ".LatestSectorMap()",
         ".Details",
-        ".Zone(zoneIndex)",
+        ".LatestZone(zoneIndex)",
         ".Settings",
         ".LatestCatalog()",
         ".LatestPlayer()",
@@ -6997,7 +6995,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs"),
-        Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")
+        Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Zone Display", "VolumeCloudRenderer.cs")
     };
 
     var missingPaths = unityPaths.Where(path => !File.Exists(path)).ToArray();
@@ -7034,6 +7033,89 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     }
 
     Console.WriteLine("Shared document accessors: Unity shared catalog/settings reads use named managed Aetheria client accessors");
+}
+
+static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
+{
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
+    if (!File.Exists(clientStatePath))
+        throw new InvalidOperationException("Cannot verify Unity viewport/map managed accessors; AetheriaClientState.cs is missing.");
+
+    var clientState = File.ReadAllText(clientStatePath);
+    var requiredClientSymbols = new[]
+    {
+        "public AetheriaRuntimeSectorMapDocument LatestSectorMap()",
+        "public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()",
+        "public AetheriaRuntimeCurrentZoneDocument LatestZone()",
+        "public AetheriaRuntimeCurrentEntityDocument LatestEntity()",
+        "public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)"
+    };
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must expose named managed latest accessors for map, viewport, contacts, and current-entity documents: " +
+            string.Join(", ", missingClientSymbols));
+    }
+
+    var unityPaths = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRenderSplatViewportSource.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MapRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorMap.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")
+    };
+
+    var missingPaths = unityPaths.Where(path => !File.Exists(path)).ToArray();
+    if (missingPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Cannot verify Unity viewport/map managed accessors; missing sources: " +
+            string.Join(", ", missingPaths.Select(path => Path.GetRelativePath(root, path))));
+    }
+
+    var forbiddenCompactedSymbols = new[]
+    {
+        ".Aetheria().SectorMap.LatestAsync()",
+        ".Aetheria().ZoneContacts.LatestAsync()",
+        ".Aetheria().Current.Entity.LatestAsync()",
+        ".Aetheria().Viewports.Objects(",
+        ".Aetheria().Viewports.RenderSplats(",
+        ".Details.Zone(zoneIndex).LatestAsync()"
+    }
+        .Select(CompactSource)
+        .ToArray();
+    var offenders = unityPaths
+        .Select(path => new
+        {
+            Path = path,
+            Compact = CompactSource(File.ReadAllText(path))
+        })
+        .Where(entry => forbiddenCompactedSymbols.Any(symbol => entry.Compact.Contains(symbol, StringComparison.Ordinal)))
+        .Select(entry => Path.GetRelativePath(root, entry.Path))
+        .ToArray();
+
+    if (offenders.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity map, viewport, contact, and current-entity reads still walk CultMesh document handles instead of named managed accessors: " +
+            string.Join(", ", offenders));
+    }
+
+    Console.WriteLine("Viewport and map document accessors: Unity reads map, contact, viewport, and current-entity state through named managed accessors");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)
@@ -7619,8 +7701,7 @@ static void RequireClientTargetBootAuthority(string root)
         "LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaClient",
         ".Aetheria()",
-        ".SectorMap",
-        ".LatestAsync()",
+        ".LatestSectorMap()",
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
@@ -10095,7 +10176,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "Daemon.LatestFrame.LatestAsync()",
         "Daemon.Health.LatestAsync()",
         "Daemon.CommandBoundary.LatestAsync()",
-        "() => Catalog.Latest()",
+        "LatestCatalog",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
     };
     var missingClientStateSymbols = requiredClientStateSymbols
@@ -10922,8 +11003,7 @@ static void RequireMainMenuContinueRunState(string root)
         "LatestSectorMap",
         "AetheriaClient",
         ".Aetheria()",
-        ".SectorMap",
-        ".LatestAsync()",
+        ".LatestSectorMap()",
         "ContinueGame()",
         "AetheriaUnityObservedRunProjection.Project(",
         "SceneManager.LoadScene(\"ARPG\")"
@@ -11255,8 +11335,7 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".Aetheria()",
-        ".ZoneContacts",
-        ".LatestAsync()",
+        ".LatestZoneContacts()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
@@ -12214,8 +12293,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".Aetheria()",
-        ".ZoneContacts",
-        ".LatestAsync()",
+        ".LatestZoneContacts()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
@@ -12343,23 +12421,21 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".Objects(viewport)", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".LatestObjects(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".LatestRenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".Zone(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".LatestZone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !sectorMap.Contains(".SectorMap", StringComparison.Ordinal) ||
-        !sectorMap.Contains(".LatestAsync()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13003,8 +13079,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryStartDaemonObservedGame",
         "LatestSectorMap(stateBoot)",
         ".Aetheria()",
-        ".SectorMap",
-        ".LatestAsync()",
+        ".LatestSectorMap()",
         "AetheriaUnityObservedRunProjection.Project(",
         "sectorMap.FrameId",
         "sectorMap.IsTutorial",
@@ -14213,9 +14288,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains("LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".SectorMap", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".LatestAsync()", StringComparison.Ordinal))
+        !mainMenu.Contains(".LatestPlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");

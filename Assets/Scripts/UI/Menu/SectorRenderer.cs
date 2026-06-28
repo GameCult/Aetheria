@@ -171,10 +171,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         {
             var sectorMap = ResolveClient()
                 .Aetheria()
-                .SectorMap
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestSectorMap();
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
         }
@@ -200,10 +197,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             return ResolveClient()
                 .Aetheria()
                 .Details
-                .Zone(zoneIndex)
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestZone(zoneIndex);
         }
         catch (Exception ex)
         {
@@ -309,10 +303,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             return ResolveClient()
                 .Aetheria()
                 .Current
-                .Zone
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestZone();
         }
         catch (Exception ex)
         {

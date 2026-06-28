@@ -895,10 +895,7 @@ public class ZoneRenderer : MonoBehaviour
             var objects = ResolveClient()
                 .Aetheria()
                 .Viewports
-                .Objects(ToViewportBounds(viewport))
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestObjects(ToViewportBounds(viewport));
             foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
             {
                 if (entity != null && entity.EntityIndex >= 0)
@@ -943,10 +940,7 @@ public class ZoneRenderer : MonoBehaviour
         {
             var contacts = ResolveClient()
                 .Aetheria()
-                .ZoneContacts
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestZoneContacts();
             foreach (var target in contacts?.Targets ?? Array.Empty<AetheriaRuntimeZoneTargetRow>())
             {
                 if (target != null && target.EntityIndex >= 0)

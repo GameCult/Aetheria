@@ -95,10 +95,7 @@ public sealed class AetheriaUnityObservedTargetQuery
         {
             return _resolveClient()
                 ?.Aetheria()
-                .ZoneContacts
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestZoneContacts();
         }
         catch
         {

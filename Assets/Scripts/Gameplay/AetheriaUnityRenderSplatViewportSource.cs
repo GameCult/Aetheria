@@ -107,10 +107,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             _document = ResolveClient()
                 .Aetheria()
                 .Viewports
-                .RenderSplats(ResolveViewportBounds())
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestRenderSplats(ResolveViewportBounds());
         }
         catch (Exception ex)
         {

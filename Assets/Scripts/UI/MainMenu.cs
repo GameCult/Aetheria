@@ -163,10 +163,7 @@ public class MainMenu : MonoBehaviour
         {
             return ResolveClient(stateBoot)
                 .Aetheria()
-                .SectorMap
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+                .LatestSectorMap();
         }
         catch (Exception ex)
         {
