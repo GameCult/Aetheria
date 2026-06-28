@@ -85,7 +85,7 @@ public abstract class ActionBarBinding
 
         try
         {
-            _catalog ??= Client.Aetheria().Catalog.Latest();
+            _catalog ??= Client.Aetheria().LatestCatalog();
             return _catalog?.FindItem(item.ItemKey);
         }
         catch (Exception ex)

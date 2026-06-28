@@ -999,7 +999,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().Aetheria().Catalog.Latest();
+            _catalog = ResolveClient().Aetheria().LatestCatalog();
         }
         catch (Exception ex)
         {
@@ -1019,8 +1019,7 @@ public class InventoryMenu : MonoBehaviour
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {

@@ -92,6 +92,7 @@ RequireTradePurchaseRequestAuthority(root);
 RequireInventoryProjectionSlotIdentity(root);
 RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireMenuDockingUsesManagedTypedSnapshot(root);
+RequireUnitySharedDocumentAccessorErgonomics(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
@@ -4167,8 +4168,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Aetheria()",
         ".Settings",
-        ".Player",
-        ".Latest()",
+        ".LatestPlayer()",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -4496,10 +4496,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".LatestAsync()",
         ".Details",
         ".Zone(zoneIndex)",
-        ".Catalog",
         ".Settings",
-        ".Player",
-        ".Latest()",
+        ".LatestCatalog()",
+        ".LatestPlayer()",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
@@ -6177,7 +6176,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "LoadoutRestoreOptions"
     };
 
@@ -6915,7 +6914,8 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs"),
-        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs")
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedDockingIndex.cs")
     };
 
     var missingPaths = menuPaths.Where(path => !File.Exists(path)).ToArray();
@@ -6952,6 +6952,88 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     }
 
     Console.WriteLine("Menu docking state: Unity menus read managed typed docking snapshots through AetheriaClientDockingState.TryLatest");
+}
+
+static void RequireUnitySharedDocumentAccessorErgonomics(string root)
+{
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
+    if (!File.Exists(clientStatePath))
+        throw new InvalidOperationException("Cannot verify shared document accessor ergonomics; AetheriaClientState.cs is missing.");
+
+    var clientState = File.ReadAllText(clientStatePath);
+    var requiredClientSymbols = new[]
+    {
+        "public AetheriaRuntimeCatalogSnapshot LatestCatalog()",
+        "public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()",
+        "public AetheriaRuntimePlayerSettingsDocument LatestPlayer()",
+        "public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()",
+        "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()"
+    };
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must expose named managed latest accessors for shared Unity documents: " +
+            string.Join(", ", missingClientSymbols));
+    }
+
+    var unityPaths = new[]
+    {
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionBarSlot.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "InputScreen", "InputDisplayLayout.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MapRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"),
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")
+    };
+
+    var missingPaths = unityPaths.Where(path => !File.Exists(path)).ToArray();
+    if (missingPaths.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Cannot verify shared Unity document accessor ergonomics; missing sources: " +
+            string.Join(", ", missingPaths.Select(path => Path.GetRelativePath(root, path))));
+    }
+
+    var forbiddenCompactedSymbols = new[]
+    {
+        ".Aetheria().Catalog.Latest()",
+        ".Aetheria().Settings.Player.Latest()",
+        ".Aetheria().Settings.VerseHost.Latest()"
+    }
+        .Select(CompactSource)
+        .ToArray();
+    var offenders = unityPaths
+        .Select(path => new
+        {
+            Path = path,
+            Compact = CompactSource(File.ReadAllText(path))
+        })
+        .Where(entry => forbiddenCompactedSymbols.Any(symbol => entry.Compact.Contains(symbol, StringComparison.Ordinal)))
+        .Select(entry => Path.GetRelativePath(root, entry.Path))
+        .ToArray();
+
+    if (offenders.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity presentation code still walks shared CultMesh document handles instead of named managed accessors: " +
+            string.Join(", ", offenders));
+    }
+
+    Console.WriteLine("Shared document accessors: Unity shared catalog/settings reads use named managed Aetheria client accessors");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)
@@ -7487,8 +7569,7 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".Aetheria()",
-        ".Catalog",
-        ".Latest()",
+        ".LatestCatalog()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
@@ -10715,8 +10796,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     {
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         ".Settings",
-        ".VerseHost",
-        ".Latest()",
+        ".LatestVerseHost()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -11214,7 +11294,7 @@ static void RequireMainMenuContinueRunState(string root)
         "public sealed class AetheriaUnityObservedDockingIndex",
         ".Aetheria()",
         ".DockingState",
-        ".Latest()",
+        ".TryLatest(",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -12266,17 +12346,16 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".Objects(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".Player", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Zone(zoneIndex)", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".Catalog", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".Latest()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".Player", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorMap.Contains(".SectorMap", StringComparison.Ordinal) ||
@@ -13810,8 +13889,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".Aetheria()",
-        ".Catalog",
-        ".Latest()",
+        ".LatestCatalog()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
@@ -13846,8 +13924,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClient",
         ".Aetheria()",
         ".Settings",
-        ".Player",
-        ".Latest()",
+        ".LatestPlayer()",
         "OpenAsync(",
         "pullOnOpen: true",
         "ApplyPlayerSettings(settings, stored)"
@@ -14137,7 +14214,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !mainMenu.Contains("LatestRuntimeCatalog(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".SectorMap", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".Catalog.Latest()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

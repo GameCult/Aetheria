@@ -183,6 +183,11 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public AetheriaRuntimeCatalogSnapshot LatestCatalog()
+        {
+            return Latest<AetheriaRuntimeCatalogSnapshot>();
+        }
+
         public Observable<TDocument> Watch<TDocument>()
             where TDocument : class
         {
@@ -315,6 +320,26 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> Player { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHost { get; }
+
+        public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()
+        {
+            return Player.LatestAsync();
+        }
+
+        public AetheriaRuntimePlayerSettingsDocument LatestPlayer()
+        {
+            return LatestPlayerAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()
+        {
+            return VerseHost.LatestAsync();
+        }
+
+        public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()
+        {
+            return LatestVerseHostAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
     }
 
     public sealed class AetheriaClientDockingState

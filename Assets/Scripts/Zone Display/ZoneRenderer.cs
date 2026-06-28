@@ -1179,7 +1179,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().Aetheria().Catalog.Latest();
+            _catalog = ResolveClient().Aetheria().LatestCatalog();
         }
         catch (Exception ex)
         {

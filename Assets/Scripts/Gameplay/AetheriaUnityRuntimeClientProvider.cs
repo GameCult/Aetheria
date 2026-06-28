@@ -83,8 +83,7 @@ public static class AetheriaUnityRuntimeClientProvider
             var stored = ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
             if (stored == null)
                 return settings;
 

@@ -1496,7 +1496,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().Aetheria().Catalog.Latest();
+            _catalog = ResolveClient().Aetheria().LatestCatalog();
         }
         catch (Exception ex)
         {
@@ -1516,8 +1516,7 @@ private void Update()
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {

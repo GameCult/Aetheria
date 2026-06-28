@@ -185,8 +185,7 @@ public class MainMenu : MonoBehaviour
             return ResolveClient(stateBoot)
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {
@@ -205,8 +204,7 @@ public class MainMenu : MonoBehaviour
             return ResolveClient(stateBoot)
                 .Aetheria()
                 .Settings
-                .VerseHost
-                .Latest();
+                .LatestVerseHost();
         }
         catch (Exception ex)
         {
@@ -225,7 +223,7 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient(stateBoot).Aetheria().Catalog.Latest();
+            _catalog = ResolveClient(stateBoot).Aetheria().LatestCatalog();
             return _catalog;
         }
         catch (Exception ex)

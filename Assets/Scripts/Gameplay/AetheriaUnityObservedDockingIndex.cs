@@ -163,11 +163,8 @@ public sealed class AetheriaUnityObservedDockingIndex
         snapshot = null;
         try
         {
-            snapshot = _resolveClient()
-                ?.Aetheria()
-                .DockingState
-                .Latest();
-            return snapshot != null;
+            var client = _resolveClient();
+            return client?.Aetheria().DockingState.TryLatest(out snapshot) == true;
         }
         catch
         {

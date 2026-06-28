@@ -628,7 +628,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().Aetheria().Catalog.Latest();
+            _catalog = ResolveClient().Aetheria().LatestCatalog();
         }
         catch (Exception ex)
         {
@@ -648,8 +648,7 @@ public class TradeMenu : MonoBehaviour
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {

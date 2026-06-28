@@ -391,8 +391,7 @@ public class InputDisplayLayout : MonoBehaviour
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {

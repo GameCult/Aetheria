@@ -225,7 +225,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().Aetheria().Catalog.Latest();
+            _catalog = ResolveClient().Aetheria().LatestCatalog();
         }
         catch (Exception ex)
         {
@@ -245,8 +245,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .Player
-                .Latest();
+                .LatestPlayer();
         }
         catch (Exception ex)
         {
