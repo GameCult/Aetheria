@@ -197,9 +197,10 @@ namespace GameCult.Aetheria.State.Verse
             string statePath,
             string runtimeId = DefaultRuntimeId)
         {
-            return AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(
+            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
                 statePath,
-                string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId);
+                string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId,
+                AetheriaRuntimeCatalogStore.OpenReadOnly);
         }
 
         public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
@@ -324,7 +325,7 @@ namespace GameCult.Aetheria.State.Verse
 
             await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
 
-            return AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(
+            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
                 frameTask.Result,
                 healthTask.Result,
                 commandBoundaryTask.Result,

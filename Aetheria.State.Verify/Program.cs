@@ -9283,7 +9283,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "VerseHostSettingsAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "CreateEveSurfaceStateRefResolver(",
-        "AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver(",
+        "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
@@ -9314,6 +9314,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime state reader is missing typed Eve state-ref resolver symbols: " +
             string.Join(", ", missingStateReaderSymbols));
+    }
+
+    if (client.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
+        client.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
     }
 
     if (client.Contains("public async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(", StringComparison.Ordinal) ||
@@ -12725,6 +12732,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredReaderSymbols = new[]
     {
         "public static class AetheriaRuntimeStateReader",
+        "public static class AetheriaRuntimeStateRefResolver",
         "OpenRuntimeCatalog",
         "ReadPlayerSettings",
         "ReadVerseHostSettings",
@@ -12756,7 +12764,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ResolveSurfaceStateRefs(stateFilePath, surface)",
         "public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)",
         "public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(",
-        "private static CultMeshStateRefResolver CreateStateRefResolver(string stateFilePath, string runtimeId)",
+        "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "CultMeshStateRefResolver.Empty",
         "CultMesh.StateRefResolver(",
         ".AsFunc()",
@@ -13201,6 +13209,24 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Unity Eve surface host still resolves default state refs through the file reader instead of the managed runtime client provider.");
+    }
+
+    var runtimeVerseClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var runtimeVerseClient = File.Exists(runtimeVerseClientPath)
+        ? File.ReadAllText(runtimeVerseClientPath)
+        : throw new InvalidOperationException("Cannot verify managed state-ref resolver ownership; AetheriaRuntimeVerseClient.cs is missing.");
+
+    if (!runtimeVerseClient.Contains("AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Managed Verse client no longer resolves Eve state refs through the typed runtime state-ref resolver.");
+    }
+
+    if (runtimeVerseClient.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
+        runtimeVerseClient.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Managed Verse client still routes Eve state-ref resolution through the file-backed compatibility reader.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>
