@@ -9495,7 +9495,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "ReadLoadoutTemplatesDocument()",
         "ReadPlayerSettingsDocument()",
         "ReadVerseHostSettingsDocument()",
-        "CreateEveSurfaceStateRefResolver(",
+        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
@@ -9538,6 +9538,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     if (stateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
         stateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
+        stateReader.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        stateReader.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        stateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
+        stateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
         stateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
         stateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
         stateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
@@ -13024,13 +13028,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaRuntimeStateRefResolver",
         "TryResolveDaemonStateRef",
         "TryResolveDaemonItemStatRef",
-        "ResolveEveSurfaceStateRef",
-        "TryResolveEveSurfaceStateRef",
-        "AetheriaRuntimeDaemonStateRefs.Prefix",
         "AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix",
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(",
-        "CultMeshStateRefResolver.Empty",
         "CultMesh.StateRefResolver(",
         "FindDaemonItem("
     };
@@ -13055,6 +13055,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (runtimeStateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
         runtimeStateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
         runtimeStateReader.Contains("TryReadDaemonFrame(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
         runtimeStateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
         runtimeStateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
         runtimeStateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||

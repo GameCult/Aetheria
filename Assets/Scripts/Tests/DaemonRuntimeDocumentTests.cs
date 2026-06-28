@@ -536,10 +536,11 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonStateRefs.CurrentEntityName,
             out var resolvedEntityName));
         Assert.AreEqual("Player", resolvedEntityName);
-        Assert.IsTrue(AetheriaRuntimeStateRefResolver.TryResolveEveSurfaceStateRef(
-            statePath,
+        Assert.IsTrue(AetheriaRuntimeStateRefResolver.TryResolveDaemonStateRef(
+            frame,
+            health,
+            commandBoundary,
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
-            AetheriaRuntimeCatalogStore.OpenReadOnly,
             out var resolvedTargetName));
         Assert.AreEqual("Target", resolvedTargetName);
         Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(statePath, out var gameTuiSurface));

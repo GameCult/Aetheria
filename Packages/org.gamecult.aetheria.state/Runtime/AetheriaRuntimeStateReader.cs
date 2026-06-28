@@ -43,44 +43,6 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeStateRefResolver
     {
-        public static string ResolveEveSurfaceStateRef(
-            string stateFilePath,
-            string stateRef,
-            Func<string, AetheriaRuntimeCatalogSnapshot> catalogProvider)
-        {
-            return TryResolveEveSurfaceStateRef(stateFilePath, stateRef, catalogProvider, out var value) ? value : "";
-        }
-
-        public static bool TryResolveEveSurfaceStateRef(
-            string stateFilePath,
-            string stateRef,
-            Func<string, AetheriaRuntimeCatalogSnapshot> catalogProvider,
-            out string value)
-        {
-            value = "";
-            if (string.IsNullOrWhiteSpace(stateRef))
-                return false;
-
-            AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out var frame);
-            if (stateRef.StartsWith(AetheriaRuntimeDaemonStateRefs.Prefix + "/", StringComparison.Ordinal))
-            {
-                AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
-                AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
-                return TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out value);
-            }
-
-            if (stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
-            {
-                return TryResolveDaemonItemStatRef(
-                    frame,
-                    catalogProvider(stateFilePath),
-                    stateRef,
-                    out value);
-            }
-
-            return false;
-        }
-
         public static bool TryResolveDaemonStateRef(
             AetheriaRuntimeDaemonFrameDocument? frame,
             AetheriaRuntimeDaemonHealthDocument? health,
@@ -196,30 +158,6 @@ namespace GameCult.Aetheria.State.Verse
                     item.Temperature)
                 .ToString("0.###", CultureInfo.InvariantCulture);
             return true;
-        }
-
-        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
-            string stateFilePath,
-            string runtimeId,
-            Func<string, AetheriaRuntimeCatalogSnapshot> catalogProvider)
-        {
-            if (string.IsNullOrWhiteSpace(stateFilePath))
-                return CultMeshStateRefResolver.Empty;
-
-            AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out var frame);
-            AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath, out var health);
-            AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(stateFilePath, out var commandBoundary);
-
-            return CreateEveSurfaceCultMeshStateRefResolver(
-                frame,
-                health,
-                commandBoundary,
-                () => catalogProvider(stateFilePath),
-                new CultMeshRouteHint(
-                    CultMeshLocalityKind.InProcess,
-                    string.IsNullOrWhiteSpace(runtimeId)
-                        ? AetheriaRuntimeVerseClient.DefaultRuntimeId
-                        : runtimeId));
         }
 
         public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(

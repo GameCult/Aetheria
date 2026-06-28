@@ -194,23 +194,6 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeVerseClient(fullPath, effectiveRuntimeId, node);
         }
 
-        public static Func<string, string> CreateEveSurfaceStateRefResolver(
-            string statePath,
-            string runtimeId = DefaultRuntimeId)
-        {
-            return CreateEveSurfaceCultMeshStateRefResolver(statePath, runtimeId).AsFunc();
-        }
-
-        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
-            string statePath,
-            string runtimeId = DefaultRuntimeId)
-        {
-            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                statePath,
-                string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId,
-                AetheriaRuntimeCatalogStore.OpenReadOnly);
-        }
-
         public AetheriaClientState Aetheria()
         {
             ThrowIfDisposed();
