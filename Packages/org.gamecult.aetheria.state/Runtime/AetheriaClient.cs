@@ -2,8 +2,6 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
-using R3;
 
 #nullable enable
 
@@ -38,56 +36,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientState State => _state;
 
         public AetheriaClientState Aetheria() => State;
-
-        public CultMeshDocumentHandle<TDocument> Document<TDocument>()
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.Document<TDocument>();
-        }
-
-        public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)
-        {
-            ThrowIfDisposed();
-            return State.DocumentBySchema(schemaVersion);
-        }
-
-        public Task<TDocument> LatestAsync<TDocument>()
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.LatestAsync<TDocument>();
-        }
-
-        public Observable<TDocument> Watch<TDocument>()
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.Watch<TDocument>();
-        }
-
-        public IDisposable Watch<TDocument>(Action<TDocument> onNext)
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.Watch(onNext);
-        }
-
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.ReactiveAsync<TDocument>(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            ThrowIfDisposed();
-            return State.Reactive<TDocument>(options);
-        }
 
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 

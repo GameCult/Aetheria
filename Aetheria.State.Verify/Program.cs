@@ -13491,23 +13491,38 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingDaemonStateFacadeSymbols));
     }
 
-    var requiredManagedClientAccessSymbols = new[]
+    var requiredManagedClientConnectionSymbols = new[]
     {
         "public AetheriaClientState State => _state;",
-        "public AetheriaClientState Aetheria() => State;",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
-        "public Task<TDocument> LatestAsync<TDocument>()",
-        "public Observable<TDocument> Watch<TDocument>()",
-        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
+        "public AetheriaClientState Aetheria() => State;"
     };
-    var missingManagedClientAccessSymbols = requiredManagedClientAccessSymbols
+    var missingManagedClientConnectionSymbols = requiredManagedClientConnectionSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingManagedClientAccessSymbols.Length > 0)
+    if (missingManagedClientConnectionSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClient must expose managed typed document access instead of document-specific compatibility readers: " +
-            string.Join(", ", missingManagedClientAccessSymbols));
+            "AetheriaClient must expose the managed state object without owning document-catalog shortcuts: " +
+            string.Join(", ", missingManagedClientConnectionSymbols));
+    }
+
+    var requiredManagedStateAccessSymbols = new[]
+    {
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
+        "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public Observable<TDocument> Watch<TDocument>()",
+        "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
+    };
+    var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
+        .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingManagedStateAccessSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must expose managed typed document access instead of AetheriaClient forwarding shortcuts: " +
+            string.Join(", ", missingManagedStateAccessSymbols));
     }
 
     var requiredObservedDaemonStateSymbols = new[]
@@ -13576,7 +13591,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()",
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()",
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
-        "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()"
+        "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
+        "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public Observable<TDocument> Watch<TDocument>()",
+        "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var daemonClientBypassHits = forbiddenDaemonClientBypassSymbols
         .Where(symbol => aetheriaClient.Contains(symbol, StringComparison.Ordinal))

@@ -194,11 +194,11 @@ public class DaemonRuntimeDocumentTests
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
-        var currentEntityFromClientType = client
+        var currentEntityFromClientType = client.State
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
             .GetResult();
-        using var currentEntityReactive = client
+        using var currentEntityReactive = client.State
             .ReactiveAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
             .GetResult();
@@ -222,21 +222,21 @@ public class DaemonRuntimeDocumentTests
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
-        Assert.AreSame(client.State.Catalog, client.Document<AetheriaRuntimeCatalogSnapshot>());
-        Assert.AreSame(client.State.ZoneRender, client.Document<AetheriaRuntimeZoneRenderDocument>());
-        Assert.AreSame(client.State.LatestFrame, client.Document<AetheriaRuntimeDaemonFrameDocument>());
+        Assert.AreSame(client.State.Catalog, client.State.Document<AetheriaRuntimeCatalogSnapshot>());
+        Assert.AreSame(client.State.ZoneRender, client.State.Document<AetheriaRuntimeZoneRenderDocument>());
+        Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(client.State.Daemon.LatestFrame, client.State.LatestFrame);
         Assert.AreSame(client.State.Daemon.LatestSoaView, client.State.LatestSoaView);
         Assert.AreSame(
             client.State.Daemon.ProviderAdvertisement,
-            client.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>());
-        Assert.AreSame(client.State.Daemon.Health, client.Document<AetheriaRuntimeDaemonHealthDocument>());
+            client.State.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>());
+        Assert.AreSame(client.State.Daemon.Health, client.State.Document<AetheriaRuntimeDaemonHealthDocument>());
         Assert.AreSame(
             client.State.Daemon.CommandBoundary,
-            client.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
+            client.State.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
         Assert.AreSame(
             client.State.Daemon.AuthorityPolicy,
-            client.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>());
+            client.State.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>());
         Assert.AreSame(
             client.State.Daemon.AuthorityPolicy,
             client.State.DocumentBySchema(AetheriaRuntimeVerseAuthoritySchemas.Policy));
@@ -244,17 +244,17 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, client.State.Daemon.GameTuiSurface.DocumentId);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, client.State.Daemon.EditorSurface.DocumentId);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, client.State.Daemon.EditorTuiSurface.DocumentId);
-        Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
             client.State.Current.Entity,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
         Assert.AreSame(
             client.State.ZoneContacts,
-            client.DocumentBySchema("gamecult.aetheria.zone_contacts"));
+            client.State.DocumentBySchema("gamecult.aetheria.zone_contacts"));
         Assert.AreEqual(
             typeof(AetheriaRuntimeCurrentEntityDocument),
-            client.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity).DocumentType);
+            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity).DocumentType);
         Assert.IsTrue(client.State.TryGetDocument<AetheriaRuntimeSectorMapDocument>(out var sectorMapDocument));
         Assert.AreSame(client.State.SectorMap, sectorMapDocument);
         Assert.IsTrue(client.State.TryGetDocumentBySchema(
@@ -325,8 +325,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHost.Schema);
         Assert.AreEqual("", player.PlayerName);
         Assert.AreEqual("", verseHost.VerseId);
-        Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
     }
 
     [Test]

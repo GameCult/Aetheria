@@ -351,7 +351,7 @@ Work:
 Gates:
 
 - `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `LocalMenu`, `SchematicDisplay`, `SectorRenderer`, `MapRenderer`, and `ZoneRenderer` do not manually join state projections to obtain domain values.
-- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, including same-schema CLR aliases, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Watch<TDocument>()`; the underlying type/schema lookup is delegated to CultMesh rather than an Aetheria-owned schema registry.
+- Shared projected documents are reachable through `client.Aetheria().Document<TDocument>()`, including same-schema CLR aliases, `client.Aetheria().DocumentBySchema(schemaVersion)`, `client.Aetheria().LatestAsync<TDocument>()`, and `client.Aetheria().Watch<TDocument>()`; the underlying type/schema lookup is delegated to CultMesh rather than an Aetheria-owned schema registry.
 - Client-facing code contains no `_observedFacadeIndex.TryResolve*` outside Unity render adapter internals.
 - Client-facing code contains no `ResolveClient().Current*Async().GetAwaiter().GetResult()` or equivalent blocking state reads.
 - `TryGetTypedCurrentDockingBayFacade` and similar transitional helpers are deleted rather than renamed.
