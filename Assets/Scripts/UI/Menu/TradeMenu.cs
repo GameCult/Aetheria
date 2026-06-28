@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -37,8 +38,8 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _rowActionSurfaceDocument;
     private UIDocument _tradeItemSurfaceDocument;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSession _catalog;
-    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -625,7 +626,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ObserveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -645,7 +646,7 @@ public class TradeMenu : MonoBehaviour
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {

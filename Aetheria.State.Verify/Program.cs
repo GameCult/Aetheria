@@ -7628,19 +7628,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "TradeMenu.cs"));
-    var requiredTradeMenuSharedDocumentSymbols = new[]
-    {
-        "AetheriaRuntimeCatalogSession _catalog",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        "ResolveClient().State.ObserveCatalog()",
-        ".Settings",
-        ".ObservePlayer()",
-        "_catalog?.Dispose()",
-        "_playerSettings?.Dispose()",
-        "_catalog?.Current",
-        "_playerSettings?.Current",
-        "private void OnDestroy()"
-    };
+    var requiredTradeMenuSharedDocumentSymbols = new[] { "private void OnDestroy()" };
     var missingTradeMenuSharedDocumentSymbols = requiredTradeMenuSharedDocumentSymbols
         .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -7651,22 +7639,22 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingTradeMenuSharedDocumentSymbols));
     }
 
-    var forbiddenTradeMenuSharedDocumentSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+    RequireReactiveTypedDocumentAccess(
+        tradeMenu,
+        "TradeMenu",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
         "ResolveClient().State.ReactiveCatalog()",
-        ".ReactivePlayer()"
-    };
-    var tradeMenuRawDocumentHits = forbiddenTradeMenuSharedDocumentSymbols
-        .Where(symbol => tradeMenu.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (tradeMenuRawDocumentHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "TradeMenu still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
-            string.Join(", ", tradeMenuRawDocumentHits));
-    }
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+    RequireReactiveTypedDocumentAccess(
+        tradeMenu,
+        "TradeMenu",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
 
     var inventoryMenu = File.ReadAllText(Path.Combine(
         root,
