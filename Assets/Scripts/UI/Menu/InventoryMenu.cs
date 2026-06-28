@@ -838,13 +838,8 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            var current = ResolveClient()
-                .Aetheria()
-                .Current
-                .Entity
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+            var state = ResolveClient().Aetheria();
+            var current = state.Latest<AetheriaRuntimeCurrentEntityDocument>();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
             {
                 equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
@@ -852,12 +847,7 @@ public class InventoryMenu : MonoBehaviour
                 return true;
             }
 
-            var refit = ResolveClient()
-                .Aetheria()
-                .StationRefit
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+            var refit = state.Latest<AetheriaRuntimeStationRefitDocument>();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -872,13 +862,7 @@ public class InventoryMenu : MonoBehaviour
             if (entityIndex < 0)
                 return false;
 
-            var inventory = ResolveClient()
-                .Aetheria()
-                .Details
-                .Inventory(entityIndex)
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+            var inventory = state.Details.LatestInventory(entityIndex);
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
                 return false;
 

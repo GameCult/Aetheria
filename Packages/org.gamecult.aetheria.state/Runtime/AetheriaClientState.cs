@@ -461,6 +461,16 @@ namespace GameCult.Aetheria.State.Verse
         {
             return _inventory(entityIndex);
         }
+
+        public Task<AetheriaRuntimeInventoryDocument> LatestInventoryAsync(int entityIndex)
+        {
+            return Inventory(entityIndex).LatestAsync();
+        }
+
+        public AetheriaRuntimeInventoryDocument LatestInventory(int entityIndex)
+        {
+            return LatestInventoryAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
     }
 
     public sealed class AetheriaClientStarbridgeState

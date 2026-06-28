@@ -1255,13 +1255,8 @@ private void Update()
 
         try
         {
-            var current = ResolveClient()
-                .Aetheria()
-                .Current
-                .Entity
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+            var state = ResolveClient().Aetheria();
+            var current = state.Latest<AetheriaRuntimeCurrentEntityDocument>();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
             {
                 equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
@@ -1269,7 +1264,7 @@ private void Update()
                 return true;
             }
 
-            var refit = ResolveStationRefit();
+            var refit = state.Latest<AetheriaRuntimeStationRefitDocument>();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -1284,13 +1279,7 @@ private void Update()
             if (entityIndex < 0)
                 return false;
 
-            var inventory = ResolveClient()
-                .Aetheria()
-                .Details
-                .Inventory(entityIndex)
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
+            var inventory = state.Details.LatestInventory(entityIndex);
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
                 return false;
 

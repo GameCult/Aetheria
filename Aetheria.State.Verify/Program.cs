@@ -90,6 +90,7 @@ RequireEntityDestroyedRequestAuthority(root);
 RequireDroppedPickupCheckpointState(root);
 RequireTradePurchaseRequestAuthority(root);
 RequireInventoryProjectionSlotIdentity(root);
+RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
@@ -6814,6 +6815,78 @@ static void RequireInventoryProjectionSlotIdentity(string root)
             "Inventory item document no longer publishes cargo/equipment slot identity to CultMesh clients: " +
             string.Join(", ", missingDocumentSymbols));
     }
+}
+
+static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
+{
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+
+    if (!File.Exists(clientStatePath) ||
+        !File.Exists(inventoryMenuPath) ||
+        !File.Exists(inventoryPanelPath))
+    {
+        throw new InvalidOperationException("Cannot verify managed inventory document access; expected client state and inventory UI sources are missing.");
+    }
+
+    var clientState = File.ReadAllText(clientStatePath);
+    if (!clientState.Contains("public Task<AetheriaRuntimeInventoryDocument> LatestInventoryAsync(int entityIndex)", StringComparison.Ordinal) ||
+        !clientState.Contains("public AetheriaRuntimeInventoryDocument LatestInventory(int entityIndex)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientDetailState must expose managed typed latest access for indexed inventory documents.");
+    }
+
+    var sources = new Dictionary<string, string>
+    {
+        ["InventoryMenu.cs"] = File.ReadAllText(inventoryMenuPath),
+        ["InventoryPanel.cs"] = File.ReadAllText(inventoryPanelPath)
+    };
+    foreach (var (name, source) in sources)
+    {
+        var compact = CompactSource(source);
+        var requiredSymbols = new[]
+        {
+            "var state = ResolveClient().Aetheria();",
+            "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
+            "state.Latest<AetheriaRuntimeStationRefitDocument>()",
+            "state.Details.LatestInventory(entityIndex)"
+        };
+        var missingSymbols = requiredSymbols
+            .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+        if (missingSymbols.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"{name} no longer validates inventory slots through managed typed client documents: " +
+                string.Join(", ", missingSymbols));
+        }
+
+        var forbiddenCompactedSymbols = new[]
+        {
+            ".Aetheria().Current.Entity.LatestAsync()",
+            ".Aetheria().StationRefit.LatestAsync()",
+            ".Details.Inventory(entityIndex).LatestAsync()"
+        }
+            .Select(CompactSource)
+            .ToArray();
+        var hits = forbiddenCompactedSymbols
+            .Where(symbol => compact.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+        if (hits.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"{name} still walks CultMesh document handles manually instead of using managed typed client state.");
+        }
+    }
+
+    Console.WriteLine("Inventory validation: cargo/equipment checks read managed typed client documents instead of manual handle walks");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)
@@ -14828,7 +14901,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
         ".Details",
-        ".Inventory(entityIndex)",
+        ".LatestInventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
@@ -15821,6 +15894,11 @@ static bool ContainsUnitySettingsMember(string source, string memberName)
            source.Contains($", Settings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\tSettings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\nSettings.{memberName}", StringComparison.Ordinal);
+}
+
+static string CompactSource(string source)
+{
+    return string.Concat((source ?? "").Where(character => !char.IsWhiteSpace(character)));
 }
 
 static string TryReadMethodName(string trimmedLine)
