@@ -322,15 +322,10 @@ namespace GameCult.Aetheria.State.Verse
             return await State.Daemon.Health.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> AuthorityStatusAsync()
+        public async Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> AuthorityStatusAsync()
         {
             ThrowIfDisposed();
-            return Task.FromResult(
-                AetheriaRuntimeDaemonPublicationStore.TryReadVerseAuthorityPolicy(
-                    StatePath,
-                    out var policy)
-                    ? policy
-                    : null);
+            return await State.Daemon.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeDaemonSoaViewDocument?> SoaViewAsync()

@@ -27,6 +27,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonCommandBoundary { get; } =
             new CultRecordKey("daemon:aetheria.command_boundary.v1");
 
+        public static CultRecordKey VerseAuthorityPolicy { get; } =
+            new CultRecordKey(AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey);
+
         public static CultRecordKey DaemonFrameLatest { get; } =
             new CultRecordKey("daemon:aetheria.frame.latest.v1");
 
@@ -88,6 +91,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument),
             typeof(AetheriaRuntimeDaemonHealthDocument),
             typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
+            typeof(AetheriaRuntimeVerseAuthorityPolicyDocument),
             typeof(AetheriaRuntimeDaemonFrameDocument),
             typeof(AetheriaRuntimeDaemonSoaViewDocument),
             typeof(AetheriaRuntimeAssetManifestDocument),
@@ -220,6 +224,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             ThrowIfDisposed();
             return await Aetheria().Daemon.CommandBoundary.LatestAsync().ConfigureAwait(false);
+        }
+
+        public async Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> GetVerseAuthorityPolicyAsync()
+        {
+            ThrowIfDisposed();
+            return await Aetheria().Daemon.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestFrameAsync()
@@ -391,6 +401,13 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
         }
 
+        public CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument> VerseAuthorityPolicy()
+        {
+            ThrowIfDisposed();
+            return MutableDocumentPointer<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+                AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy);
+        }
+
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
         {
             ThrowIfDisposed();
@@ -502,6 +519,14 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             return Database.WatchRecord<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
+        }
+
+        public Observable<CultNetDatabaseChange<AetheriaRuntimeVerseAuthorityPolicyDocument>>
+            WatchVerseAuthorityPolicies()
+        {
+            ThrowIfDisposed();
+            return Database.WatchRecord<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+                AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy);
         }
 
         public Observable<CultNetDatabaseChange<AetheriaRuntimeDaemonFrameDocument>> WatchLatestFrames()
@@ -742,6 +767,8 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonHealth),
                 Document<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary),
+                Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+                    AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy),
                 Document<AetheriaRuntimeDaemonFrameDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(

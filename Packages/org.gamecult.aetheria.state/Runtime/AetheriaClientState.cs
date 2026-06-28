@@ -16,6 +16,7 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
+            CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> authorityPolicy,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
             CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
@@ -49,6 +50,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerAdvertisement,
                 health,
                 commandBoundary,
+                authorityPolicy,
                 latestFrame,
                 latestSoaView,
                 gameSurface,
@@ -84,6 +86,7 @@ namespace GameCult.Aetheria.State.Verse
                 Daemon.ProviderAdvertisement,
                 Daemon.Health,
                 Daemon.CommandBoundary,
+                Daemon.AuthorityPolicy,
                 Daemon.GameSurface,
                 Daemon.GameTuiSurface,
                 Daemon.EditorSurface,
@@ -214,6 +217,7 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
+            CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> authorityPolicy,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
             CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
@@ -224,6 +228,7 @@ namespace GameCult.Aetheria.State.Verse
             ProviderAdvertisement = providerAdvertisement ?? throw new ArgumentNullException(nameof(providerAdvertisement));
             Health = health ?? throw new ArgumentNullException(nameof(health));
             CommandBoundary = commandBoundary ?? throw new ArgumentNullException(nameof(commandBoundary));
+            AuthorityPolicy = authorityPolicy ?? throw new ArgumentNullException(nameof(authorityPolicy));
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
             GameSurface = gameSurface ?? throw new ArgumentNullException(nameof(gameSurface));
@@ -237,6 +242,8 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
 

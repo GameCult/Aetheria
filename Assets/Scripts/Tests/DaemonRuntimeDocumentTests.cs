@@ -159,7 +159,11 @@ public class DaemonRuntimeDocumentTests
             7,
             1.25,
             0.02);
+        var authorityPolicy = AetheriaRuntimeVerseAuthorityPolicyDocument.TrustedCoop(
+            "aetheria.local",
+            "daemon");
         PublishLatestFrameThroughVerseClient(statePath, frame);
+        PublishVerseAuthorityPolicyThroughVerseClient(statePath, authorityPolicy);
 
         using var client = AetheriaClient
             .OpenAsync(statePath, "unity-test", pullOnOpen: true)
@@ -221,6 +225,7 @@ public class DaemonRuntimeDocumentTests
         var legacyGameTuiSurface = client.DaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
         var legacyEditorSurface = client.DaemonEditorSurfaceAsync().GetAwaiter().GetResult();
         var legacyEditorTuiSurface = client.DaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
+        var legacyAuthorityStatus = client.AuthorityStatusAsync().GetAwaiter().GetResult();
         var dockingState = client.Aetheria()
             .DockingState
             .LatestAsync()
@@ -241,6 +246,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(
             client.State.Daemon.CommandBoundary,
             client.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
+        Assert.AreSame(
+            client.State.Daemon.AuthorityPolicy,
+            client.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>());
+        Assert.AreSame(
+            client.State.Daemon.AuthorityPolicy,
+            client.State.DocumentBySchema(AetheriaRuntimeVerseAuthoritySchemas.Policy));
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, client.State.Daemon.GameSurface.DocumentId);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, client.State.Daemon.GameTuiSurface.DocumentId);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, client.State.Daemon.EditorSurface.DocumentId);
@@ -272,6 +283,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, legacyGameTuiSurface.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, legacyEditorSurface.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, legacyEditorTuiSurface.Surface.Id);
+        Assert.IsNotNull(legacyAuthorityStatus);
+        Assert.AreEqual(AetheriaRuntimeVerseAuthoritySchemas.Policy, legacyAuthorityStatus!.Schema);
+        Assert.AreEqual(authorityPolicy.HostRuntimeId, legacyAuthorityStatus.HostRuntimeId);
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);
@@ -4145,6 +4159,23 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         client.LatestFrame()
             .ReplaceAsync(frame)
+            .GetAwaiter()
+            .GetResult();
+        client.FlushAsync()
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private static void PublishVerseAuthorityPolicyThroughVerseClient(
+        string statePath,
+        AetheriaRuntimeVerseAuthorityPolicyDocument policy)
+    {
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-authority-policy-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        client.VerseAuthorityPolicy()
+            .ReplaceAsync(policy)
             .GetAwaiter()
             .GetResult();
         client.FlushAsync()
