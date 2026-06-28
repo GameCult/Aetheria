@@ -727,6 +727,10 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(change => change.Document!);
 
             return new AetheriaClientState(
+                Document<AetheriaRuntimeDaemonFrameDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
+                Document<AetheriaRuntimeDaemonSoaViewDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
                 ProjectedDocument(
                     "aetheria.current.zone",
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame)),
@@ -756,7 +760,13 @@ namespace GameCult.Aetheria.State.Verse
                 ProjectedDocument(
                     "aetheria.zone.render",
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneRender(frame)),
-                    AetheriaRuntimeDaemonSchemas.ZoneRender));
+                    AetheriaRuntimeDaemonSchemas.ZoneRender),
+                Document<AetheriaRuntimeStarbridgeScenarioDocument>(
+                    AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest),
+                Document<AetheriaRuntimeStarbridgeSessionDocument>(
+                    AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest),
+                seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
+                    AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
             CultMeshDocumentHandle<TDocument> ProjectedDocument<TDocument>(
                 string documentId,

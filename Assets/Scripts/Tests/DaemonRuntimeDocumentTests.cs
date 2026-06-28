@@ -167,8 +167,13 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var currentEntity = client.Aetheria().Current.Entity.LatestAsync().GetAwaiter().GetResult();
+        var latestFrame = client.Aetheria().LatestFrame.LatestAsync().GetAwaiter().GetResult();
         var currentEntityByType = client.Aetheria()
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
+            .GetAwaiter()
+            .GetResult();
+        var latestFrameByType = client.Aetheria()
+            .LatestAsync<AetheriaRuntimeDaemonFrameDocument>()
             .GetAwaiter()
             .GetResult();
         var currentEntityFromClientType = client
@@ -186,6 +191,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.ZoneRender, client.Document<AetheriaRuntimeZoneRenderDocument>());
+        Assert.AreSame(client.State.LatestFrame, client.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(
             client.State.Current.Entity,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
@@ -202,6 +208,9 @@ public class DaemonRuntimeDocumentTests
             out var sectorMapBySchema));
         Assert.AreSame(client.State.SectorMap, sectorMapBySchema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
+        Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
+        Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);
         Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);

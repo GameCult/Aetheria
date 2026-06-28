@@ -13,33 +13,54 @@ namespace GameCult.Aetheria.State.Verse
         private readonly CultMeshDocumentCatalog _documents;
 
         internal AetheriaClientState(
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> currentZone,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
             CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> zoneContacts,
             CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit,
             CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> sectorMap,
-            CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> zoneRender)
+            CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> zoneRender,
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession,
+            Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> starbridgePlayerSeat)
         {
+            LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
+            LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
             Current = new AetheriaClientCurrentState(currentZone, currentEntity, currentDocking);
             ZoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
             SectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
             ZoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
             DockingState = new AetheriaClientDockingState(Current.Entity, Current.Docking, StationRefit);
+            Starbridge = new AetheriaClientStarbridgeState(
+                starbridgeScenario,
+                starbridgeSession,
+                starbridgePlayerSeat);
             _documents = CultMesh.Documents(
+                LatestFrame,
+                LatestSoaView,
                 Current.Zone,
                 Current.Entity,
                 Current.Docking,
                 ZoneContacts,
                 StationRefit,
                 SectorMap,
-                ZoneRender);
+                ZoneRender,
+                Starbridge.Scenario,
+                Starbridge.Session);
         }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
 
         public AetheriaClientCurrentState Current { get; }
 
         public AetheriaClientDockingState DockingState { get; }
+
+        public AetheriaClientStarbridgeState Starbridge { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContacts { get; }
 
@@ -209,5 +230,31 @@ namespace GameCult.Aetheria.State.Verse
         public string CurrentEntityKey => CurrentEntity?.EntityKey ?? CurrentDocking?.CurrentEntityKey ?? "";
 
         public bool IsDocked => StationRefit?.IsDocked == true && CurrentDockingBay != null;
+    }
+
+    public sealed class AetheriaClientStarbridgeState
+    {
+        private readonly Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> _playerSeat;
+
+        internal AetheriaClientStarbridgeState(
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> scenario,
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> session,
+            Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> playerSeat)
+        {
+            Scenario = scenario ?? throw new ArgumentNullException(nameof(scenario));
+            Session = session ?? throw new ArgumentNullException(nameof(session));
+            _playerSeat = playerSeat ?? throw new ArgumentNullException(nameof(playerSeat));
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> Scenario { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> Session { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument> PlayerSeat(string seatId)
+        {
+            if (string.IsNullOrWhiteSpace(seatId))
+                throw new ArgumentException("Seat id must be non-empty.", nameof(seatId));
+            return _playerSeat(seatId);
+        }
     }
 }
