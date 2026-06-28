@@ -5732,7 +5732,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeCurrentDockingDocument",
         "ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()",
-        "ResolveClient().State.LatestStationRefit()",
+        "ResolveClient().State.Latest<AetheriaRuntimeStationRefitDocument>()",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -7227,7 +7227,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
         source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
         source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
         source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-        source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
+        source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
         !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
@@ -7251,7 +7251,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
            source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
            source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
            source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-           source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
+           source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
            !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
            !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
            !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
@@ -7278,11 +7278,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public AetheriaRuntimeCatalogSnapshot LatestCatalog()",
-        "public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()",
-        "public AetheriaRuntimePlayerSettingsDocument LatestPlayer()",
-        "public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()",
-        "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public TDocument Latest<TDocument>()",
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
@@ -7902,8 +7899,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     var clientState = File.ReadAllText(clientStatePath);
     var requiredClientSymbols = new[]
     {
-        "public AetheriaRuntimeSectorMapDocument LatestSectorMap()",
-        "public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
+        "public TDocument Latest<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
@@ -8109,23 +8106,14 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         StringSplitOptions.None)[0];
     var requiredClientSymbols = new[]
     {
-        "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
-        "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public TDocument Latest<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
-        "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
-        "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
-        "public AetheriaRuntimeDaemonProviderAdvertisementDocument LatestProviderAdvertisement()",
-        "public AetheriaRuntimeDaemonHealthDocument LatestHealth()",
-        "public AetheriaRuntimeDaemonCommandBoundaryDocument LatestCommandBoundary()",
-        "public AetheriaRuntimeVerseAuthorityPolicyDocument LatestAuthorityPolicy()",
-        "public AetheriaRuntimeDaemonFrameDocument LatestFrameDocument()",
-        "public AetheriaRuntimeDaemonSoaViewDocument LatestSoaViewDocument()",
         "public global::Aetheria.State.Documents.EveSurfaceState LatestGameSurface()",
         "public global::Aetheria.State.Documents.EveSurfaceState LatestGameTuiSurface()",
         "public global::Aetheria.State.Documents.EveSurfaceState LatestEditorSurface()",
@@ -8157,26 +8145,58 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
 
     var forbiddenFixedReactiveWrappers = new[]
     {
+        "LatestCatalog(",
+        "LatestCatalogAsync(",
         "ReactiveCatalog(",
         "ReactiveCatalogAsync(",
+        "LatestLoadoutTemplates(",
+        "LatestLoadoutTemplatesAsync(",
         "ReactiveLoadoutTemplates(",
         "ReactiveLoadoutTemplatesAsync(",
+        "LatestSectorMap(",
+        "LatestSectorMapAsync(",
         "ReactiveSectorMap(",
         "ReactiveSectorMapAsync(",
+        "LatestZoneContacts(",
+        "LatestZoneContactsAsync(",
         "ReactiveZoneContacts(",
         "ReactiveZoneContactsAsync(",
+        "LatestStationRefit(",
+        "LatestStationRefitAsync(",
         "ReactiveStationRefit(",
         "ReactiveStationRefitAsync(",
+        "LatestDaemonFrame(",
+        "LatestDaemonFrameAsync(",
         "ReactiveDaemonFrame(",
         "ReactiveDaemonFrameAsync(",
+        "LatestDaemonSoaView(",
+        "LatestDaemonSoaViewAsync(",
         "ReactiveDaemonSoaView(",
         "ReactiveDaemonSoaViewAsync(",
+        "LatestZoneRender(",
+        "LatestZoneRenderAsync(",
         "ReactiveZoneRender(",
         "ReactiveZoneRenderAsync(",
+        "LatestPlayer(",
+        "LatestPlayerAsync(",
         "ReactivePlayer(",
         "ReactivePlayerAsync(",
+        "LatestVerseHost(",
+        "LatestVerseHostAsync(",
         "ReactiveVerseHost(",
         "ReactiveVerseHostAsync(",
+        "LatestProviderAdvertisement(",
+        "LatestProviderAdvertisementAsync(",
+        "LatestHealth(",
+        "LatestHealthAsync(",
+        "LatestCommandBoundary(",
+        "LatestCommandBoundaryAsync(",
+        "LatestAuthorityPolicy(",
+        "LatestAuthorityPolicyAsync(",
+        "LatestFrameDocument(",
+        "LatestFrameDocumentAsync(",
+        "LatestSoaViewDocument(",
+        "LatestSoaViewDocumentAsync(",
         "LatestScenario(",
         "LatestScenarioAsync(",
         "ReactiveScenario(",
@@ -8332,7 +8352,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             "Observed daemon state must not hide typed document access behind aggregate reactive compatibility wrappers.");
     }
 
-    if (observedDaemonState.Contains("state.LatestDaemonFrameAsync()", StringComparison.Ordinal) ||
+    if (observedDaemonState.Contains("state.LatestAsync<AetheriaRuntimeDaemonFrameDocument>()", StringComparison.Ordinal) ||
         observedDaemonState.Contains("state.LatestDaemonSoaViewAsync()", StringComparison.Ordinal) ||
         observedDaemonState.Contains("state.ReactiveObservedDaemonAsync()", StringComparison.Ordinal) ||
         observedDaemonState.Contains("TryReadLatestSoaViewAsync", StringComparison.Ordinal))
@@ -8366,12 +8386,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         ".State.Daemon.GameTuiSurface.LatestAsync()",
         ".State.Daemon.EditorSurface.LatestAsync()",
         ".State.Daemon.EditorTuiSurface.LatestAsync()",
-        "client.State.Daemon.LatestFrameDocument()",
         "client.State.Daemon.LatestGameSurface()",
         "client.State.Daemon.LatestGameTuiSurface()",
         "client.State.Daemon.LatestEditorSurface()",
         "client.State.Daemon.LatestEditorTuiSurface()",
-        "client.State.Daemon.LatestAuthorityPolicy()",
         "client.State.ObserveCatalog()",
         "client.State.ObserveDaemonFrame()",
         "client.State.ObserveLoadoutTemplates()",
@@ -11671,10 +11689,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()",
-        "LatestDaemonFrameAsync()",
-        "LatestHealthAsync()",
-        "LatestCommandBoundaryAsync()",
-        "LatestCatalog",
+        "LatestAsync<AetheriaRuntimeDaemonFrameDocument>()",
+        "LatestAsync<AetheriaRuntimeDaemonHealthDocument>()",
+        "LatestAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>()",
+        "() => Latest<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
     };
     var missingClientStateSymbols = requiredClientStateSymbols
@@ -11689,7 +11707,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     if (clientState.Contains("var frameTask = Daemon.LatestFrameDocumentAsync()", StringComparison.Ordinal) ||
         clientState.Contains("var healthTask = Daemon.LatestHealthAsync()", StringComparison.Ordinal) ||
-        clientState.Contains("var commandBoundaryTask = Daemon.LatestCommandBoundaryAsync()", StringComparison.Ordinal))
+        clientState.Contains("var commandBoundaryTask = Daemon.LatestCommandBoundaryAsync()", StringComparison.Ordinal) ||
+        clientState.Contains("LatestCatalog)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "AetheriaClientState Eve state-ref resolver must use top-level managed accessors instead of walking through the nested daemon state.");
@@ -12938,7 +12957,7 @@ static void RequireMainMenuContinueRunState(string root)
         "var state = _resolveClient()?.State;",
         "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
         "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
-        "state.LatestStationRefit()",
+        "state.Latest<AetheriaRuntimeStationRefitDocument>()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -15709,7 +15728,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("var currentZoneRender = zoneRender?.Current;", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender)", StringComparison.Ordinal) ||
-        !aetheriaClientState.Contains("var zoneRender = await LatestZoneRenderAsync().ConfigureAwait(false);", StringComparison.Ordinal) ||
+        !aetheriaClientState.Contains("var zoneRender = await LatestAsync<AetheriaRuntimeZoneRenderDocument>().ConfigureAwait(false);", StringComparison.Ordinal) ||
         !aetheriaClientState.Contains("return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

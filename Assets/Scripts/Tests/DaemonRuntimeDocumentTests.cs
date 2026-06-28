@@ -165,10 +165,10 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var currentEntity = client.State.Latest<AetheriaRuntimeCurrentEntityDocument>();
-        var latestFrame = client.State.LatestDaemonFrame();
-        var catalog = client.State.LatestCatalog();
-        var playerSettings = client.State.Settings.LatestPlayer();
-        var verseHostSettings = client.State.Settings.LatestVerseHost();
+        var latestFrame = client.State.Latest<AetheriaRuntimeDaemonFrameDocument>();
+        var catalog = client.State.Latest<AetheriaRuntimeCatalogSnapshot>();
+        var playerSettings = client.State.Latest<AetheriaRuntimePlayerSettingsDocument>();
+        var verseHostSettings = client.State.Latest<AetheriaRuntimeVerseHostSettingsDocument>();
         var currentEntityByType = client.State
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
@@ -204,7 +204,7 @@ public class DaemonRuntimeDocumentTests
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observed = client.State.LatestObservedDaemon();
-        var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
+        var observedAuthoritativeFrame = client.State.Latest<AetheriaRuntimeDaemonFrameDocument>();
         using var catalogReactive = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
         using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
@@ -231,12 +231,12 @@ public class DaemonRuntimeDocumentTests
         var gameTuiSurface = client.State.LatestGameTuiSurface();
         var editorSurface = client.State.LatestEditorSurface();
         var editorTuiSurface = client.State.LatestEditorTuiSurface();
-        var authorityStatus = client.State.LatestAuthorityPolicy();
+        var authorityStatus = client.State.Latest<AetheriaRuntimeVerseAuthorityPolicyDocument>();
         var currentDocking = client.State.Current.Docking
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
-        var stationRefit = client.State.LatestStationRefit();
+        var stationRefit = client.State.Latest<AetheriaRuntimeStationRefitDocument>();
         var observedDocking = client.State.CurrentDocking();
         using var reactiveGameSurface = client.State.ReactiveGameSurface();
         using var reactiveGameTuiSurface = client.State.ReactiveGameTuiSurface();
@@ -255,9 +255,9 @@ public class DaemonRuntimeDocumentTests
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(client.State.LatestSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
-        Assert.IsNotNull(client.State.LatestProviderAdvertisement());
-        Assert.IsNotNull(client.State.LatestHealth());
-        Assert.IsNotNull(client.State.LatestCommandBoundary());
+        Assert.IsNotNull(client.State.Latest<AetheriaRuntimeDaemonProviderAdvertisementDocument>());
+        Assert.IsNotNull(client.State.Latest<AetheriaRuntimeDaemonHealthDocument>());
+        Assert.IsNotNull(client.State.Latest<AetheriaRuntimeDaemonCommandBoundaryDocument>());
         Assert.AreSame(
             client.State.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(),
             client.State.DocumentBySchema(AetheriaRuntimeVerseAuthoritySchemas.Policy));
@@ -367,9 +367,9 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var player = client.State.Settings.LatestPlayer();
-        var verseHost = client.State.Settings.LatestVerseHost();
-        var catalog = client.State.LatestCatalog();
+        var player = client.State.Latest<AetheriaRuntimePlayerSettingsDocument>();
+        var verseHost = client.State.Latest<AetheriaRuntimeVerseHostSettingsDocument>();
+        var catalog = client.State.Latest<AetheriaRuntimeCatalogSnapshot>();
 
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.IsNotNull(catalog);

@@ -182,36 +182,11 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public AetheriaRuntimeCatalogSnapshot LatestCatalog()
-        {
-            return Latest<AetheriaRuntimeCatalogSnapshot>();
-        }
-
-        public Task<AetheriaRuntimeDaemonFrameDocument> LatestDaemonFrameAsync()
-        {
-            return LatestFrame.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()
-        {
-            return LatestDaemonFrameAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestDaemonSoaViewAsync()
-        {
-            return LatestSoaView.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()
-        {
-            return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
         {
-            var frame = await LatestDaemonFrameAsync().ConfigureAwait(false);
-            var soaView = await TryLatestDaemonSoaViewAsync().ConfigureAwait(false);
-            var zoneRender = await LatestZoneRenderAsync().ConfigureAwait(false);
+            var frame = await LatestAsync<AetheriaRuntimeDaemonFrameDocument>().ConfigureAwait(false);
+            var soaView = await TryReadDaemonSoaViewAsync().ConfigureAwait(false);
+            var zoneRender = await LatestAsync<AetheriaRuntimeZoneRenderDocument>().ConfigureAwait(false);
             return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);
         }
 
@@ -256,11 +231,11 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryLatestDaemonSoaViewAsync()
+        private async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryReadDaemonSoaViewAsync()
         {
             try
             {
-                var soaView = await LatestDaemonSoaViewAsync().ConfigureAwait(false);
+                var soaView = await LatestAsync<AetheriaRuntimeDaemonSoaViewDocument>().ConfigureAwait(false);
                 return string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal)
                     ? soaView
                     : null;
@@ -269,46 +244,6 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return null;
             }
-        }
-
-        public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument> LatestProviderAdvertisementAsync()
-        {
-            return Daemon.LatestProviderAdvertisementAsync();
-        }
-
-        public AetheriaRuntimeDaemonProviderAdvertisementDocument LatestProviderAdvertisement()
-        {
-            return LatestProviderAdvertisementAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonHealthDocument> LatestHealthAsync()
-        {
-            return Daemon.LatestHealthAsync();
-        }
-
-        public AetheriaRuntimeDaemonHealthDocument LatestHealth()
-        {
-            return LatestHealthAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonCommandBoundaryDocument> LatestCommandBoundaryAsync()
-        {
-            return Daemon.LatestCommandBoundaryAsync();
-        }
-
-        public AetheriaRuntimeDaemonCommandBoundaryDocument LatestCommandBoundary()
-        {
-            return LatestCommandBoundaryAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeVerseAuthorityPolicyDocument> LatestAuthorityPolicyAsync()
-        {
-            return Daemon.LatestAuthorityPolicyAsync();
-        }
-
-        public AetheriaRuntimeVerseAuthorityPolicyDocument LatestAuthorityPolicy()
-        {
-            return LatestAuthorityPolicyAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameSurfaceAsync()
@@ -399,56 +334,6 @@ namespace GameCult.Aetheria.State.Verse
             return Daemon.ReactiveEditorTuiSurface(options);
         }
 
-        public Task<AetheriaRuntimeLoadoutTemplatesDocument> LatestLoadoutTemplatesAsync()
-        {
-            return LoadoutTemplates.LatestAsync();
-        }
-
-        public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()
-        {
-            return LatestLoadoutTemplatesAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeSectorMapDocument> LatestSectorMapAsync()
-        {
-            return SectorMap.LatestAsync();
-        }
-
-        public AetheriaRuntimeSectorMapDocument LatestSectorMap()
-        {
-            return LatestSectorMapAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeZoneContactsDocument> LatestZoneContactsAsync()
-        {
-            return ZoneContacts.LatestAsync();
-        }
-
-        public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()
-        {
-            return LatestZoneContactsAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeStationRefitDocument> LatestStationRefitAsync()
-        {
-            return StationRefit.LatestAsync();
-        }
-
-        public AetheriaRuntimeStationRefitDocument LatestStationRefit()
-        {
-            return LatestStationRefitAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeZoneRenderDocument> LatestZoneRenderAsync()
-        {
-            return ZoneRender.LatestAsync();
-        }
-
-        public AetheriaRuntimeZoneRenderDocument LatestZoneRender()
-        {
-            return LatestZoneRenderAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public Observable<TDocument> Watch<TDocument>()
             where TDocument : class
         {
@@ -488,9 +373,9 @@ namespace GameCult.Aetheria.State.Verse
 
         public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
         {
-            var frameTask = LatestDaemonFrameAsync();
-            var healthTask = LatestHealthAsync();
-            var commandBoundaryTask = LatestCommandBoundaryAsync();
+            var frameTask = LatestAsync<AetheriaRuntimeDaemonFrameDocument>();
+            var healthTask = LatestAsync<AetheriaRuntimeDaemonHealthDocument>();
+            var commandBoundaryTask = LatestAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>();
 
             await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
 
@@ -498,7 +383,7 @@ namespace GameCult.Aetheria.State.Verse
                 frameTask.Result,
                 healthTask.Result,
                 commandBoundaryTask.Result,
-                LatestCatalog);
+                () => Latest<AetheriaRuntimeCatalogSnapshot>());
         }
     }
 
@@ -547,66 +432,6 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }
 
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }
-
-        public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument> LatestProviderAdvertisementAsync()
-        {
-            return ProviderAdvertisement.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonProviderAdvertisementDocument LatestProviderAdvertisement()
-        {
-            return LatestProviderAdvertisementAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonHealthDocument> LatestHealthAsync()
-        {
-            return Health.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonHealthDocument LatestHealth()
-        {
-            return LatestHealthAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonCommandBoundaryDocument> LatestCommandBoundaryAsync()
-        {
-            return CommandBoundary.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonCommandBoundaryDocument LatestCommandBoundary()
-        {
-            return LatestCommandBoundaryAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeVerseAuthorityPolicyDocument> LatestAuthorityPolicyAsync()
-        {
-            return AuthorityPolicy.LatestAsync();
-        }
-
-        public AetheriaRuntimeVerseAuthorityPolicyDocument LatestAuthorityPolicy()
-        {
-            return LatestAuthorityPolicyAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonFrameDocument> LatestFrameDocumentAsync()
-        {
-            return LatestFrame.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonFrameDocument LatestFrameDocument()
-        {
-            return LatestFrameDocumentAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaViewDocumentAsync()
-        {
-            return LatestSoaView.LatestAsync();
-        }
-
-        public AetheriaRuntimeDaemonSoaViewDocument LatestSoaViewDocument()
-        {
-            return LatestSoaViewDocumentAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
 
         public Task<global::Aetheria.State.Documents.EveSurfaceState> LatestGameSurfaceAsync()
         {
@@ -730,26 +555,6 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> Player { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHost { get; }
-
-        public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()
-        {
-            return Player.LatestAsync();
-        }
-
-        public AetheriaRuntimePlayerSettingsDocument LatestPlayer()
-        {
-            return LatestPlayerAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()
-        {
-            return VerseHost.LatestAsync();
-        }
-
-        public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()
-        {
-            return LatestVerseHostAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
 
     }
 

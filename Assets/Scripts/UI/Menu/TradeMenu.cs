@@ -523,7 +523,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return ResolveClient().State.LatestStationRefit();
+            return ResolveClient().State.Latest<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
