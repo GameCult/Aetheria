@@ -142,7 +142,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private bool TryResolveReactiveObservedDaemonDocuments()
     {
-        var state = ResolveClient()?.Aetheria();
+        var state = ResolveClient()?.State;
         if (state == null)
             return false;
 

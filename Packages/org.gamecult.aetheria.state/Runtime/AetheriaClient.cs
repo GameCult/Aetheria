@@ -37,8 +37,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaUi Ui => _ui;
         public AetheriaClientState State => _state;
 
-        public AetheriaClientState Aetheria() => State;
-
         internal AetheriaRuntimeDaemonOperationsClient Operations => _operations;
 
         public static async Task<AetheriaClient> OpenAsync(

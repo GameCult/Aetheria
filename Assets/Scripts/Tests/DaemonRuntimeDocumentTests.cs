@@ -164,16 +164,16 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var currentEntity = client.Aetheria().Current.LatestEntity();
-        var latestFrame = client.Aetheria().LatestDaemonFrame();
-        var catalog = client.Aetheria().LatestCatalog();
-        var playerSettings = client.Aetheria().Settings.LatestPlayer();
-        var verseHostSettings = client.Aetheria().Settings.LatestVerseHost();
-        var currentEntityByType = client.Aetheria()
+        var currentEntity = client.State.Current.LatestEntity();
+        var latestFrame = client.State.LatestDaemonFrame();
+        var catalog = client.State.LatestCatalog();
+        var playerSettings = client.State.Settings.LatestPlayer();
+        var verseHostSettings = client.State.Settings.LatestVerseHost();
+        var currentEntityByType = client.State
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
             .GetResult();
-        var latestFrameByType = client.Aetheria()
+        var latestFrameByType = client.State
             .LatestAsync<AetheriaRuntimeDaemonFrameDocument>()
             .GetAwaiter()
             .GetResult();
@@ -184,13 +184,13 @@ public class DaemonRuntimeDocumentTests
             MaxX = 100,
             MaxY = 100
         };
-        var objectsViewport = client.Aetheria()
+        var objectsViewport = client.State
             .Viewports
             .LatestObjects(viewport);
-        var zoneDetails = client.Aetheria()
+        var zoneDetails = client.State
             .Details
             .LatestZone(0);
-        var inventory = client.Aetheria()
+        var inventory = client.State
             .Details
             .LatestInventory(0);
         var currentEntityFromClientType = client.State
@@ -317,9 +317,9 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var player = client.Aetheria().Settings.LatestPlayer();
-        var verseHost = client.Aetheria().Settings.LatestVerseHost();
-        var catalog = client.Aetheria().LatestCatalog();
+        var player = client.State.Settings.LatestPlayer();
+        var verseHost = client.State.Settings.LatestVerseHost();
+        var catalog = client.State.LatestCatalog();
 
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.IsNotNull(catalog);

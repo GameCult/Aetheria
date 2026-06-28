@@ -182,7 +182,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     {
         try
         {
-            var state = _resolveClient()?.Aetheria();
+            var state = _ResolveClient()?.State;
             if (state == null)
                 return false;
 

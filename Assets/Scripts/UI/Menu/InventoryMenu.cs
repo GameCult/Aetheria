@@ -958,7 +958,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _currentEntity = ResolveClient()
-                .Aetheria()
+                .State
                 .Current
                 .ReactiveEntity();
         }
@@ -978,7 +978,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _stationRefit = ResolveClient()
-                .Aetheria()
+                .State
                 .ReactiveStationRefit();
         }
         catch (Exception ex)
@@ -997,7 +997,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             var nextInventory = ResolveClient()
-                .Aetheria()
+                .State
                 .Details
                 .ReactiveInventory(entityIndex);
             _inventory?.Dispose();
@@ -1071,7 +1071,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -1089,7 +1089,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
         }

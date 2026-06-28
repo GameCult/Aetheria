@@ -130,11 +130,11 @@ public class MapRenderer : MonoBehaviour
             var viewport = ResolveViewportBounds();
             ClearViewportCaches();
             _objectsViewport = client
-                .Aetheria()
+                .State
                 .Viewports
                 .ReactiveObjects(viewport);
             _renderSplatsViewport = client
-                .Aetheria()
+                .State
                 .Viewports
                 .ReactiveRenderSplats(viewport);
 
@@ -319,7 +319,7 @@ public class MapRenderer : MonoBehaviour
         try
         {
             _playerSettings ??= ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;

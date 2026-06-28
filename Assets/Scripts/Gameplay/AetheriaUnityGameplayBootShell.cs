@@ -35,7 +35,7 @@ public sealed class AetheriaUnityGameplayBootShell
         }
 
         var aetheria = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
-            .Aetheria();
+            .State;
         using var runtimeCatalogDocument = aetheria.ReactiveCatalog();
         var runtimeCatalog = runtimeCatalogDocument.Current;
         if (runtimeCatalog == null)

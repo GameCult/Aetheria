@@ -393,7 +393,7 @@ public class InputDisplayLayout : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
         }

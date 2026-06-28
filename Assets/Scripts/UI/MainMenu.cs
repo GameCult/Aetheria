@@ -151,7 +151,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _sectorMap ??= ResolveClient(stateBoot)
-                .Aetheria()
+                .State
                 .ReactiveSectorMap();
             return _sectorMap?.Current;
         }
@@ -170,7 +170,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _playerSettings ??= ResolveClient(stateBoot)
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
             return _playerSettings?.Current;
@@ -190,7 +190,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _verseHostSettings ??= ResolveClient(stateBoot)
-                .Aetheria()
+                .State
                 .Settings
                 .ReactiveVerseHost();
             return _verseHostSettings?.Current;

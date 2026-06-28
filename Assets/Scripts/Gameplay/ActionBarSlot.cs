@@ -95,7 +95,7 @@ public abstract class ActionBarBinding : IDisposable
 
         try
         {
-            _catalog ??= Client.Aetheria().ReactiveCatalog();
+            _catalog ??= Client.State.ReactiveCatalog();
             return _catalog?.Current?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)

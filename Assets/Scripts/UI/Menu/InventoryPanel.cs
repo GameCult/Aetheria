@@ -1496,7 +1496,7 @@ private void Update()
         try
         {
             _currentEntity = ResolveClient()
-                .Aetheria()
+                .State
                 .Current
                 .ReactiveEntity();
         }
@@ -1516,7 +1516,7 @@ private void Update()
         try
         {
             _stationRefit = ResolveClient()
-                .Aetheria()
+                .State
                 .ReactiveStationRefit();
         }
         catch (Exception ex)
@@ -1543,7 +1543,7 @@ private void Update()
         try
         {
             _loadoutFrame = ResolveClient()
-                .Aetheria()
+                .State
                 .ReactiveDaemonFrame();
         }
         catch (Exception ex)
@@ -1562,7 +1562,7 @@ private void Update()
         try
         {
             var nextInventory = ResolveClient()
-                .Aetheria()
+                .State
                 .Details
                 .ReactiveInventory(entityIndex);
             _inventory?.Dispose();
@@ -1584,7 +1584,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -1602,7 +1602,7 @@ private void Update()
         try
         {
             _playerSettings = ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
         }

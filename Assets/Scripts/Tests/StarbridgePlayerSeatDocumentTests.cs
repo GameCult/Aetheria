@@ -79,13 +79,13 @@ public class StarbridgePlayerSeatDocumentTests
         var handle = client.Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
             AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seat.SeatId));
         var aetheriaStarbridge = client
-            .Aetheria()
+            .State
             .Starbridge;
         using var reactive = handle.Reactive();
         using var aetheriaReactive = aetheriaStarbridge.ReactivePlayerSeat(seat.SeatId);
 
         Assert.AreEqual("seat-support", handle.Latest().SeatId);
-        Assert.AreEqual("seat-support", client.Aetheria().Starbridge.LatestPlayerSeat(seat.SeatId).SeatId);
+        Assert.AreEqual("seat-support", client.State.Starbridge.LatestPlayerSeat(seat.SeatId).SeatId);
         Assert.AreEqual("item:cockpit:support", reactive.Current.CockpitItemKey);
         Assert.AreEqual("item:cockpit:support", aetheriaReactive.Current.CockpitItemKey);
         Assert.AreEqual("entity:pod:support", reactive.Current.EscapePodEntityKey);

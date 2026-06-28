@@ -175,7 +175,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _sectorMap ??= ResolveClient()
-                .Aetheria()
+                .State
                 .ReactiveSectorMap();
             var sectorMap = _sectorMap.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
@@ -204,7 +204,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             var nextZoneDetails = ResolveClient()
-                .Aetheria()
+                .State
                 .Details
                 .ReactiveZone(zoneIndex);
             _zoneDetails?.Dispose();
@@ -232,7 +232,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -250,7 +250,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _playerSettings = ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
         }
@@ -323,7 +323,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _currentZone ??= ResolveClient()
-                .Aetheria()
+                .State
                 .Current
                 .ReactiveZone();
         }

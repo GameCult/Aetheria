@@ -326,7 +326,7 @@ public class SchematicDisplay : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -344,7 +344,7 @@ public class SchematicDisplay : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .Aetheria()
+                .State
                 .Settings
                 .ReactivePlayer();
         }
@@ -363,7 +363,7 @@ public class SchematicDisplay : MonoBehaviour
             try
             {
                 _currentEntity = ResolveClient()
-                    .Aetheria()
+                    .State
                     .Current
                     .ReactiveEntity();
             }
