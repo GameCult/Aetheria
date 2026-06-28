@@ -8634,10 +8634,10 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".ReactiveCatalog()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        ".ObserveCatalog()",
+        "runtimeCatalogSession.Current",
+        ".ObserveSectorMap()",
+        "sectorMapSession.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
@@ -8655,6 +8655,13 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "AetheriaUnityGameplayBootShell no longer boots gameplay through the shared client-target report: " +
             string.Join(", ", missingGameplayBootShellSymbols));
+    }
+
+    if (gameplayBootShell.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityGameplayBootShell still opens raw reactive catalog/sector map documents instead of managed sessions.");
     }
 
     var requiredPresenterSymbols = new[]
@@ -15228,10 +15235,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".ReactiveCatalog()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        ".ObserveCatalog()",
+        "runtimeCatalogSession.Current",
+        ".ObserveSectorMap()",
+        "sectorMapSession.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
@@ -15251,6 +15258,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Unity gameplay boot shell no longer owns typed runtime boot/catalog/render setup: " +
             string.Join(", ", missingGameplayBootShellSymbols));
+    }
+
+    if (gameplayBootShell.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityGameplayBootShell still opens raw reactive catalog/sector map documents instead of managed sessions.");
     }
 
     var requiredRuntimeClientProviderSymbols = new[]
@@ -15680,10 +15694,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredGameplayBootSymbols = new[]
     {
-        ".ReactiveCatalog()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        ".ObserveCatalog()",
+        "runtimeCatalogSession.Current",
+        ".ObserveSectorMap()",
+        "sectorMapSession.Current",
         "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
         "sectorMap.GenerationSeed",
