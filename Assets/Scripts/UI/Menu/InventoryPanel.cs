@@ -88,6 +88,12 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
         _observedEntityIndex = observedEntityIndex;
     }
 
@@ -1123,16 +1129,20 @@ private void Update()
 
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
-        currentEntityKey = "";
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
+        currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? "";
+        return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
+        var refit = ResolveStationRefitDocument();
+        if (refit?.IsDocked != true || refit.DockingBayIndex < 0)
+            return false;
+
+        dockingBay = (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+            .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex);
+        return dockingBay != null;
     }
 
     private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
@@ -1150,9 +1160,7 @@ private void Update()
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return TryResolveObservedDockingIndex(out var dockingIndex)
-            ? dockingIndex.ResolveStationRefit()
-            : null;
+        return ResolveStationRefitDocument();
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)

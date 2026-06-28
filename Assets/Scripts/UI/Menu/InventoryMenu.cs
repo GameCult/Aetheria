@@ -65,6 +65,12 @@ public class InventoryMenu : MonoBehaviour
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
         _observedEntityIndex = observedEntityIndex;
     }
     // private int2 _dragCellOffset;
@@ -729,22 +735,25 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
+        var refit = ResolveStationRefitDocument();
+        if (refit?.IsDocked != true || refit.DockingBayIndex < 0)
+            return false;
+
+        dockingBay = (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+            .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex);
+        return dockingBay != null;
     }
 
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
-        currentEntityKey = "";
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
+        currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? "";
+        return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
     private bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        currentEntity = null;
-        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
-            !dockingIndex.TryResolveCurrentEntityDocument(out currentEntity))
+        currentEntity = ResolveCurrentEntity();
+        if (currentEntity == null)
         {
             Debug.LogWarning("Failed to read Aetheria current entity for inventory ship settings.");
             return false;
@@ -755,9 +764,7 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return TryResolveObservedDockingIndex(out var dockingIndex)
-            ? dockingIndex.ResolveStationRefit()
-            : null;
+        return ResolveStationRefitDocument();
     }
 
     private bool TryResolveCurrentEntity(out Entity currentEntity)
