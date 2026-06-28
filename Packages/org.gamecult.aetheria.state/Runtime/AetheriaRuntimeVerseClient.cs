@@ -775,7 +775,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             return CultMesh.ProjectionSource(
                 sourceId,
-                description: "legacy catalog store bootstrap seed for managed Aetheria state");
+                description: "managed Aetheria document bootstrap seed");
         }
 
         private sealed class AetheriaRuntimeReactiveProjectionInputs : IDisposable
@@ -829,25 +829,22 @@ namespace GameCult.Aetheria.State.Verse
 
         private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()
         {
-            return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
+            return AetheriaRuntimeBootstrapDocuments.RuntimeCatalog(StatePath);
         }
 
         private AetheriaRuntimeLoadoutTemplatesDocument BootstrapLoadoutTemplatesDocument()
         {
-            return new AetheriaRuntimeLoadoutTemplatesDocument(
-                AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath));
+            return AetheriaRuntimeBootstrapDocuments.LoadoutTemplates(StatePath);
         }
 
         private AetheriaRuntimePlayerSettingsDocument BootstrapPlayerSettingsDocument()
         {
-            return AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
-                AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));
+            return AetheriaRuntimeBootstrapDocuments.PlayerSettings(StatePath);
         }
 
         private AetheriaRuntimeVerseHostSettingsDocument BootstrapVerseHostSettingsDocument()
         {
-            return AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(
-                AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));
+            return AetheriaRuntimeBootstrapDocuments.VerseHostSettings(StatePath);
         }
     }
 }
