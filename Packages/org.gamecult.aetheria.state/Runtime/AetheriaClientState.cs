@@ -267,6 +267,17 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
+        public AetheriaRuntimeObservedDockingState? CurrentDocking(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            using var entity = Current.ReactiveEntity(options);
+            using var docking = Current.ReactiveDocking(options);
+            using var refit = ReactiveStationRefit(options);
+            return AetheriaRuntimeObservedDockingState.TryCreateCurrent(entity, docking, refit, out var current)
+                ? current
+                : null;
+        }
+
         private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView(
             CultMeshReactiveDocumentOptions? options)
         {

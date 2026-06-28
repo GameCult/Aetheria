@@ -7115,12 +7115,11 @@ static bool HasManagedDockingSnapshotAccess(string source)
     }
 
     return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
-           source.Contains("state.ReactiveEntity()", StringComparison.Ordinal) &&
-           source.Contains("state.ReactiveDocking()", StringComparison.Ordinal) &&
-           source.Contains("state.ReactiveStationRefit()", StringComparison.Ordinal) &&
+           source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
+           source.Contains("_resolveClient()?.State?.CurrentDocking()", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
            !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
            !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal);
 }
@@ -7679,6 +7678,12 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeObservedDaemonState.cs");
+    var observedDockingStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeObservedDockingState.cs");
     var daemonRuntimeDocumentTestsPath = Path.Combine(
         root,
         "Assets",
@@ -7696,6 +7701,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         clientStatePath,
         observedDaemonStatePath,
+        observedDockingStatePath,
         daemonRuntimeDocumentTestsPath,
         starbridgePlayerSeatTestsPath
     };
@@ -7718,6 +7724,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
+        "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
         "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
@@ -7763,6 +7770,16 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         throw new InvalidOperationException(
             "Observed daemon state must compose current values from managed typed frame, SoA, and zone-render documents.");
+    }
+
+    var observedDockingState = File.ReadAllText(observedDockingStatePath);
+    if (!observedDockingState.Contains("public sealed class AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("public static bool TryCreateCurrent(", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("new AetheriaRuntimeObservedDockingState(", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("TryResolveCurrentDockingBayRow(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Observed docking state must compose current entity, docking, and station-refit documents inside the managed state package.");
     }
 
     if (observedDaemonState.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
@@ -12330,12 +12347,8 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedDockingSymbols = new[]
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
-        "state.ReactiveEntity()",
-        "state.ReactiveDocking()",
-        "state.ReactiveStationRefit()",
+        "AetheriaRuntimeObservedDockingState",
+        "_resolveClient()?.State?.CurrentDocking()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -12350,6 +12363,25 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "Observed docking relationship queries must live in AetheriaUnityObservedDockingIndex instead of ActionGameManager: " +
             string.Join(", ", missingObservedDockingSymbols));
+    }
+
+    var forbiddenObservedDockingSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        "state.ReactiveEntity()",
+        "state.ReactiveDocking()",
+        "state.ReactiveStationRefit()"
+    };
+    var observedDockingHits = forbiddenObservedDockingSymbols
+        .Where(symbol => observedDockingIndex.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (observedDockingHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Observed docking state composition must live in AetheriaClientState.CurrentDocking(), not the Unity docking index: " +
+            string.Join(", ", observedDockingHits));
     }
 
     var requiredCurrentEntityBinderSymbols = new[]

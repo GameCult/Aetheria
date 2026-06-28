@@ -215,6 +215,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var stationRefit = client.State.LatestStationRefit();
+        var observedDocking = client.State.CurrentDocking();
         using var reactiveCurrentDocking = client.State.Current.ReactiveDocking();
         using var reactiveStationRefit = client.State.ReactiveStationRefit();
         using var reactiveGameSurface = client.State.ReactiveGameSurface();
@@ -293,6 +294,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentDocking.CurrentEntityKey);
+        Assert.IsNotNull(observedDocking);
+        Assert.AreEqual(currentEntity.EntityKey, observedDocking.CurrentEntityKey);
+        Assert.AreEqual(currentEntity.EntityIndex, observedDocking.CurrentEntityIndex);
+        Assert.AreEqual(currentDocking.CurrentEntityKey, observedDocking.Docking.CurrentEntityKey);
+        Assert.AreEqual(stationRefit.DockParentEntityKey, observedDocking.Refit.DockParentEntityKey);
+        Assert.IsFalse(observedDocking.TryResolveCurrentDockingBayRow(out _));
         Assert.AreEqual(currentEntity.EntityKey, reactiveCurrentDocking.Current.CurrentEntityKey);
         Assert.AreEqual("", stationRefit.DockParentEntityKey);
         Assert.AreEqual("", reactiveStationRefit.Current.DockParentEntityKey);
