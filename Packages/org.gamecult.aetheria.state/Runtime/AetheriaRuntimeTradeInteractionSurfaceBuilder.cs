@@ -98,9 +98,9 @@ namespace GameCult.Aetheria.State.Verse
         public string Token { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeFilterSurfaceProjection
+    public sealed class AetheriaRuntimeTradeFilterSurfaceModel
     {
-        public AetheriaRuntimeTradeFilterSurfaceProjection(
+        public AetheriaRuntimeTradeFilterSurfaceModel(
             AetheriaRuntimeTradeFilterSurfaceState state,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> selections)
         {
@@ -161,9 +161,9 @@ namespace GameCult.Aetheria.State.Verse
         public int Index { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeRowActionSurfaceProjection
+    public sealed class AetheriaRuntimeTradeRowActionSurfaceModel
     {
-        public AetheriaRuntimeTradeRowActionSurfaceProjection(
+        public AetheriaRuntimeTradeRowActionSurfaceModel(
             AetheriaRuntimeTradeRowActionSurfaceState state,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> selections)
         {
@@ -225,7 +225,7 @@ namespace GameCult.Aetheria.State.Verse
             return $"{RowActionSurfaceId}.action_{index}";
         }
 
-        public static AetheriaRuntimeTradeFilterSurfaceProjection ProjectFilters(
+        public static AetheriaRuntimeTradeFilterSurfaceModel ComposeFilters(
             string filterSummary,
             IEnumerable<AetheriaRuntimeTradeFilterOption> options,
             string updatedAtUtc)
@@ -270,7 +270,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(group => group.Options.Count > 0)
                 .ToArray();
 
-            return new AetheriaRuntimeTradeFilterSurfaceProjection(
+            return new AetheriaRuntimeTradeFilterSurfaceModel(
                 new AetheriaRuntimeTradeFilterSurfaceState(
                     filterSummary,
                     groups,
@@ -278,7 +278,7 @@ namespace GameCult.Aetheria.State.Verse
                 selections);
         }
 
-        public static AetheriaRuntimeTradeRowActionSurfaceProjection ProjectRowActions(
+        public static AetheriaRuntimeTradeRowActionSurfaceModel ComposeRowActions(
             string title,
             IEnumerable<AetheriaRuntimeTradeRowActionOption> actions,
             string updatedAtUtc)
@@ -302,7 +302,7 @@ namespace GameCult.Aetheria.State.Verse
                 selections[command] = new AetheriaRuntimeTradeRowActionSelection(command, action.Index);
             }
 
-            return new AetheriaRuntimeTradeRowActionSurfaceProjection(
+            return new AetheriaRuntimeTradeRowActionSurfaceModel(
                 new AetheriaRuntimeTradeRowActionSurfaceState(
                     title,
                     options,
@@ -326,7 +326,7 @@ namespace GameCult.Aetheria.State.Verse
                     "Trade Filters",
                     Text(
                         $"{FilterSurfaceId}.note",
-                        "The observing client projects available trade filters; the shared runtime surface owns the filter selector contract."),
+                                "The observing client lists available trade filters; the shared runtime surface owns the filter selector contract."),
                     Text($"{FilterSurfaceId}.active", state.FilterSummary))
             };
 
@@ -398,7 +398,7 @@ namespace GameCult.Aetheria.State.Verse
                             Text($"{RowActionSurfaceId}.title", state.Title),
                             Text(
                                 $"{RowActionSurfaceId}.note",
-                                "The observing client projects available row actions; the shared runtime surface owns the row action contract."),
+                                "The observing client lists available row actions; the shared runtime surface owns the row action contract."),
                             ButtonColumn(
                                 $"{RowActionSurfaceId}.options",
                                 state.Actions

@@ -47,9 +47,9 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
         Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
     private AetheriaRuntimeStationRefitDocument _stationRefit;
-    private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
+    private AetheriaRuntimeTradeFilterSurfaceModel _filterSurfaceModel;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
-    private AetheriaRuntimeTradeRowActionSurfaceProjection _rowActionSurfaceProjection;
+    private AetheriaRuntimeTradeRowActionSurfaceModel _rowActionSurfaceModel;
     
     public EquippedCargoBay Inventory { get; set; }
 
@@ -766,13 +766,13 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderFilterSurface()
     {
-        _filterSurfaceProjection = ProjectTradeFilterSurface();
+        _filterSurfaceModel = ComposeTradeFilterSurface();
 
         _filterSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _filterSurfaceDocument,
             "Aetheria Trade Filter Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(_filterSurfaceProjection.State),
+            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(_filterSurfaceModel.State),
             HandleFilterSurfaceCommand,
             _filterSurfaceChrome,
             sortingOrder: 1001);
@@ -793,7 +793,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _filterSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
+            _filterSurfaceModel?.TryResolve(command.Command, out var selection) == true)
         {
             ExecuteTradeFilterSelection(selection);
             HideFilterSurface();
@@ -811,7 +811,7 @@ public class TradeMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument);
     }
 
-    private AetheriaRuntimeTradeFilterSurfaceProjection ProjectTradeFilterSurface()
+    private AetheriaRuntimeTradeFilterSurfaceModel ComposeTradeFilterSurface()
     {
         var options = new List<AetheriaRuntimeTradeFilterOption>();
         options.AddRange(((HardpointType[])Enum.GetValues(typeof(HardpointType)))
@@ -856,7 +856,7 @@ public class TradeMenu : MonoBehaviour
                 "Maximum Size"));
         }
 
-        return AetheriaRuntimeTradeInteractionSurfaceBuilder.ProjectFilters(
+        return AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeFilters(
             BuildFilterSummary(),
             options,
             DateTime.UtcNow.ToString("O"));
@@ -906,7 +906,7 @@ public class TradeMenu : MonoBehaviour
         _rowActionCallbacks = actions
             .Select(action => action.Action)
             .ToArray();
-        _rowActionSurfaceProjection = AetheriaRuntimeTradeInteractionSurfaceBuilder.ProjectRowActions(
+        _rowActionSurfaceModel = AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeRowActions(
             title,
             actions.Select((action, index) => new AetheriaRuntimeTradeRowActionOption(index, action.Label)),
             DateTime.UtcNow.ToString("O"));
@@ -915,7 +915,7 @@ public class TradeMenu : MonoBehaviour
             transform,
             _rowActionSurfaceDocument,
             "Aetheria Trade Row Action Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceProjection.State),
+            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceModel.State),
             HandleRowActionSurfaceCommand,
             _rowActionSurfaceChrome,
             sortingOrder: 1002);
@@ -936,7 +936,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _rowActionSurfaceProjection?.TryResolve(command.Command, out var selection) == true &&
+            _rowActionSurfaceModel?.TryResolve(command.Command, out var selection) == true &&
             selection.Index >= 0 &&
             selection.Index < _rowActionCallbacks.Length)
         {
