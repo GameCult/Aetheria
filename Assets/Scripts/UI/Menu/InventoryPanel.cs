@@ -258,7 +258,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 }
                 return;
             case AetheriaRuntimeInventoryDropdownSelectionKind.DockingBay:
-                if (TryResolveCurrentDockingBayFacade(out var dockingBay))
+                if (TryResolveCurrentDockingBay(out var dockingBay))
                 {
                     Display(dockingBay);
                 }
@@ -1141,7 +1141,7 @@ private void Update()
                dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
     }
 
-    private bool TryResolveCurrentDockingBayFacade(out EquippedCargoBay dockingBay)
+    private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
     {
         dockingBay = null;
         if (!TryResolveObservedDockingIndex(out var dockingIndex) ||

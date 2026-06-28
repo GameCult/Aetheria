@@ -6229,22 +6229,26 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !source.Contains("TryResolveStationRefitEntity(selection.EntityKey", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBayRow(out var currentDockingBay)", StringComparison.Ordinal) ||
         !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
+        !source.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !source.Contains("dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay)", StringComparison.Ordinal) ||
         !source.Contains("currentDockingBay.DockingBayIndex", StringComparison.Ordinal) ||
         !source.Contains("ResolveStationRefit()?.DockParentEntityKey", StringComparison.Ordinal) ||
         source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
+        source.Contains("TryResolveCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "InventoryPanel dropdown must carry typed entity identity through the shared Eve surface and must project docking display state from StationRefitAsync docking-bay rows.");
     }
 
-    if (!inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
+    if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".Latest()", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("TryResolveCurrentEntityFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
         inventoryMenu.Contains("_observedFacadeIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||

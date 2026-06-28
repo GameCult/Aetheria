@@ -87,14 +87,14 @@ public class InventoryMenu : MonoBehaviour
         // {
         //     _destroyItem = false;
         // });
-        var hasObservedCurrentEntity = TryResolveCurrentEntityFacade(out var currentEntity);
+        var hasCurrentEntity = TryResolveCurrentEntity(out var currentEntity);
         var cargo = TryResolveCurrentDockingBay(out var dockingBay)
             ? dockingBay
             : currentEntity?.CargoBays.FirstOrDefault();
         if (cargo!=null)
             InventoryPanels[0].Display(cargo);
         else InventoryPanels[0].Clear();
-        if(hasObservedCurrentEntity)
+        if(hasCurrentEntity)
             InventoryPanels[1].Display(currentEntity);
         else InventoryPanels[1].Clear();
     }
@@ -760,7 +760,7 @@ public class InventoryMenu : MonoBehaviour
         return ResolveDockingState()?.StationRefit;
     }
 
-    private bool TryResolveCurrentEntityFacade(out Entity currentEntity)
+    private bool TryResolveCurrentEntity(out Entity currentEntity)
     {
         currentEntity = null;
         return TryResolveObservedDockingIndex(out var dockingIndex) &&
