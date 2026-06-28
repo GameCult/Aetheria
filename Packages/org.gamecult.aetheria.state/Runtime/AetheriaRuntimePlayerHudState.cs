@@ -1,5 +1,4 @@
 using System;
-using GameCult.Mesh;
 
 #nullable enable
 
@@ -7,14 +6,14 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimePlayerHudSession : IDisposable
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+        private readonly AetheriaRuntimeCatalogSession _catalog;
+        private readonly AetheriaRuntimePlayerSettingsSession _playerSettings;
+        private readonly AetheriaRuntimeCurrentEntitySession _currentEntity;
 
         public AetheriaRuntimePlayerHudSession(
-            CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog,
-            CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> playerSettings,
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity)
+            AetheriaRuntimeCatalogSession catalog,
+            AetheriaRuntimePlayerSettingsSession playerSettings,
+            AetheriaRuntimeCurrentEntitySession currentEntity)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _playerSettings = playerSettings ?? throw new ArgumentNullException(nameof(playerSettings));

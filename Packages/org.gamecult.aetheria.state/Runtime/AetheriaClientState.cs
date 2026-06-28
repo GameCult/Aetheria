@@ -320,13 +320,13 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimePlayerHudSession ObservePlayerHud(
             CultMeshReactiveDocumentOptions? options = null)
         {
-            var catalog = ReactiveCatalog(options);
-            CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>? playerSettings = null;
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>? currentEntity = null;
+            var catalog = ObserveCatalog(options);
+            AetheriaRuntimePlayerSettingsSession? playerSettings = null;
+            AetheriaRuntimeCurrentEntitySession? currentEntity = null;
             try
             {
-                playerSettings = Settings.ReactivePlayer(options);
-                currentEntity = Current.ReactiveEntity(options);
+                playerSettings = Settings.ObservePlayer(options);
+                currentEntity = Current.ObserveEntity(options);
                 return new AetheriaRuntimePlayerHudSession(catalog, playerSettings, currentEntity);
             }
             catch
