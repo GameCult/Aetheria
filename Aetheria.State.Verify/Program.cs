@@ -7077,6 +7077,36 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingActionBarSymbols));
     }
 
+    var schematicDisplay = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "HUD",
+        "SchematicDisplay.cs"));
+    var requiredSchematicDisplaySymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_catalog?.Current",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingSchematicDisplaySymbols = requiredSchematicDisplaySymbols
+        .Where(symbol => !schematicDisplay.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSchematicDisplaySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SchematicDisplay should bind shared catalog/settings through managed reactive Aetheria documents with HUD lifetime disposal: " +
+            string.Join(", ", missingSchematicDisplaySymbols));
+    }
+
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",
