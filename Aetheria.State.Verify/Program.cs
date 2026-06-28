@@ -14383,6 +14383,10 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var client = File.Exists(clientPath)
         ? File.ReadAllText(clientPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; AetheriaClient.cs is missing.");
+    var verseClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var verseClient = File.Exists(verseClientPath)
+        ? File.ReadAllText(verseClientPath)
+        : throw new InvalidOperationException("Cannot verify loadout restore authority; AetheriaRuntimeVerseClient.cs is missing.");
 
     var requiredSymbols = new[]
     {
@@ -14530,7 +14534,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
         !client.Contains("GetLoadoutTemplatesAsync()", StringComparison.Ordinal) ||
-        !client.Contains("ProjectStationRefit(frame, loadoutTemplates, catalog)", StringComparison.Ordinal))
+        !verseClient.Contains("ProjectStationRefit(frame, loadoutTemplates, catalog)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "StationRefitAsync must publish typed loadout restore options with shared runtime pricing and daemon-target identity.");
