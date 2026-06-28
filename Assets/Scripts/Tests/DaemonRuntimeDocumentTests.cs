@@ -204,14 +204,13 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
-        var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
         var legacyObserved = client.ObserveAsync().GetAwaiter().GetResult();
-        var legacyAuthoritativeFrame = client.LatestAuthoritativeRunFrameAsync().GetAwaiter().GetResult();
-        var legacyGameSurface = client.DaemonGameSurfaceAsync().GetAwaiter().GetResult();
-        var legacyGameTuiSurface = client.DaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
-        var legacyEditorSurface = client.DaemonEditorSurfaceAsync().GetAwaiter().GetResult();
-        var legacyEditorTuiSurface = client.DaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
-        var legacyAuthorityStatus = client.AuthorityStatusAsync().GetAwaiter().GetResult();
+        var observedAuthoritativeFrame = client.State.Daemon.LatestFrame.LatestAsync().GetAwaiter().GetResult();
+        var gameSurface = client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult();
+        var gameTuiSurface = client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
+        var editorSurface = client.State.Daemon.EditorSurface.LatestAsync().GetAwaiter().GetResult();
+        var editorTuiSurface = client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult();
+        var authorityStatus = client.State.Daemon.AuthorityPolicy.LatestAsync().GetAwaiter().GetResult();
         var dockingState = client.Aetheria()
             .DockingState
             .LatestAsync()
@@ -264,14 +263,15 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
         Assert.AreEqual(frame.FrameId, legacyObserved.Frame.FrameId);
-        Assert.AreEqual(frame.FrameId, legacyAuthoritativeFrame.FrameId);
-        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, legacyGameSurface.Surface.Id);
-        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, legacyGameTuiSurface.Surface.Id);
-        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, legacyEditorSurface.Surface.Id);
-        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, legacyEditorTuiSurface.Surface.Id);
-        Assert.IsNotNull(legacyAuthorityStatus);
-        Assert.AreEqual(AetheriaRuntimeVerseAuthoritySchemas.Policy, legacyAuthorityStatus!.Schema);
-        Assert.AreEqual(authorityPolicy.HostRuntimeId, legacyAuthorityStatus.HostRuntimeId);
+        Assert.AreEqual(frame.FrameId, observedAuthoritativeFrame.FrameId);
+        Assert.IsTrue(observedAuthoritativeFrame.IsAuthoritative);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, gameSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, gameTuiSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, editorSurface.Surface.Id);
+        Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, editorTuiSurface.Surface.Id);
+        Assert.IsNotNull(authorityStatus);
+        Assert.AreEqual(AetheriaRuntimeVerseAuthoritySchemas.Policy, authorityStatus!.Schema);
+        Assert.AreEqual(authorityPolicy.HostRuntimeId, authorityStatus.HostRuntimeId);
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);
@@ -289,7 +289,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, zoneRenderReactive.Current.Schema);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
-        Assert.AreEqual(legacyCurrentEntity.EntityKey, currentEntity.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, dockingState.CurrentEntityKey);
         Assert.AreEqual("", dockingState.DockParentEntityKey);
         Assert.AreEqual(-1, dockingState.DockingBayIndex);

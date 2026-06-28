@@ -3172,10 +3172,10 @@ static void RequireEveRuntimeBootstrap(string root)
         "ReadDaemonSurface(statePath)",
         "ReadDaemonSurface(stateBoot.StateFilePath)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        "DaemonGameSurfaceAsync()",
-        "DaemonGameTuiSurfaceAsync()",
-        "DaemonEditorSurfaceAsync()",
-        "DaemonEditorTuiSurfaceAsync()",
+        "client.State.Daemon.GameSurface.LatestAsync()",
+        "client.State.Daemon.GameTuiSurface.LatestAsync()",
+        "client.State.Daemon.EditorSurface.LatestAsync()",
+        "client.State.Daemon.EditorTuiSurface.LatestAsync()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
         "_mountedSurfaceVersion != surface.Version",
@@ -3200,6 +3200,15 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         throw new InvalidOperationException(
             "Aetheria Eve presenter still mounts daemon surfaces through file-reader lookup instead of the shared AetheriaClient facade.");
+    }
+
+    if (presenter.Contains(".DaemonGameSurfaceAsync()", StringComparison.Ordinal) ||
+        presenter.Contains(".DaemonGameTuiSurfaceAsync()", StringComparison.Ordinal) ||
+        presenter.Contains(".DaemonEditorSurfaceAsync()", StringComparison.Ordinal) ||
+        presenter.Contains(".DaemonEditorTuiSurfaceAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter still reads daemon surfaces through AetheriaClient compatibility helpers instead of managed document handles.");
     }
 
     if (presenter.Contains("new EveUiToolkitSurfaceLowerer", StringComparison.Ordinal))
@@ -13448,27 +13457,25 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingDaemonStateFacadeSymbols));
     }
 
-    var requiredDaemonClientFacadeSymbols = new[]
+    var requiredManagedClientAccessSymbols = new[]
     {
+        "public AetheriaClientState State => _state;",
+        "public AetheriaClientState Aetheria() => State;",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public Observable<TDocument> Watch<TDocument>()",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "State.Daemon.LatestFrame.LatestAsync()",
-        "State.Daemon.LatestSoaView.LatestAsync()",
-        "State.Daemon.Health.LatestAsync()",
-        "State.Daemon.AuthorityPolicy.LatestAsync()",
-        "State.Daemon.GameSurface.LatestAsync()",
-        "State.Daemon.GameTuiSurface.LatestAsync()",
-        "State.Daemon.EditorSurface.LatestAsync()",
-        "State.Daemon.EditorTuiSurface.LatestAsync()",
-        "State.Starbridge.Scenario.LatestAsync()",
-        "State.Starbridge.Session.LatestAsync()"
+        "State.Daemon.LatestSoaView.LatestAsync()"
     };
-    var missingDaemonClientFacadeSymbols = requiredDaemonClientFacadeSymbols
+    var missingManagedClientAccessSymbols = requiredManagedClientAccessSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingDaemonClientFacadeSymbols.Length > 0)
+    if (missingManagedClientAccessSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClient daemon compatibility methods must read managed typed state documents: " +
-            string.Join(", ", missingDaemonClientFacadeSymbols));
+            "AetheriaClient must expose managed typed document access instead of document-specific compatibility readers: " +
+            string.Join(", ", missingManagedClientAccessSymbols));
     }
 
     var forbiddenDaemonClientBypassSymbols = new[]
@@ -13489,7 +13496,31 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()",
         "scenario ??= await _verse.GetStarbridgeScenarioAsync()",
         "session ??= await _verse.GetStarbridgeSessionAsync()",
-        "var frame = await _verse.GetLatestFrameAsync()"
+        "var frame = await _verse.GetLatestFrameAsync()",
+        "public async Task<AetheriaRuntimeDaemonFrameDocument?> LatestAuthoritativeRunFrameAsync()",
+        "public async Task<AetheriaRuntimeRtsViewportDocument> MapViewportAsync(",
+        "public async Task<AetheriaRuntimeObjectsViewportDocument> ObjectsViewportAsync(",
+        "public async Task<AetheriaRuntimeGravityViewportDocument> GravityViewportAsync(",
+        "public async Task<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewportAsync(",
+        "public async Task<AetheriaRuntimeAssetManifestDocument> AssetManifestAsync()",
+        "public async Task<AetheriaRuntimeCurrentZoneDocument> CurrentZoneAsync()",
+        "public async Task<AetheriaRuntimeCurrentEntityDocument> CurrentEntityAsync()",
+        "public async Task<AetheriaRuntimeCurrentDockingDocument> CurrentDockingAsync()",
+        "public async Task<AetheriaRuntimeZoneContactsDocument> ZoneContactsAsync()",
+        "public async Task<AetheriaRuntimeStationRefitDocument> StationRefitAsync()",
+        "public async Task<AetheriaRuntimeSectorMapDocument> SectorMapAsync()",
+        "public async Task<AetheriaRuntimeZoneDetailsDocument> ZoneDetailsAsync(",
+        "public async Task<AetheriaRuntimeZoneRenderDocument> ZoneRenderAsync()",
+        "public async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummaryAsync(",
+        "public async Task<AetheriaRuntimeSelectedObjectDocument> SelectedObjectAsync(",
+        "public async Task<AetheriaRuntimeInventoryDocument> InventoryAsync(",
+        "public async Task<AetheriaRuntimeDaemonHealthDocument?> DaemonHealthAsync()",
+        "public async Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> AuthorityStatusAsync()",
+        "public async Task<AetheriaRuntimeDaemonSoaViewDocument?> SoaViewAsync()",
+        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameSurfaceAsync()",
+        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameTuiSurfaceAsync()",
+        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()",
+        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()"
     };
     var daemonClientBypassHits = forbiddenDaemonClientBypassSymbols
         .Where(symbol => aetheriaClient.Contains(symbol, StringComparison.Ordinal))

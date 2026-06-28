@@ -132,16 +132,16 @@ namespace GameCult.Aetheria.EveRuntime
         private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaClient client)
         {
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.DaemonGameSurfaceAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.DaemonGameTuiSurfaceAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return client.DaemonEditorSurfaceAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.EditorSurface.LatestAsync().GetAwaiter().GetResult();
 
             if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return client.DaemonEditorTuiSurfaceAsync().GetAwaiter().GetResult();
+                return client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult();
 
             return null;
         }
