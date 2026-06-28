@@ -450,25 +450,26 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("aetheria.daemon", providerAdvertisement.ProviderId);
         Assert.AreEqual("test-daemon", providerAdvertisement.DaemonId);
         Assert.AreEqual("cultmesh://aetheria.test/eve/providers/aetheria.daemon", providerAdvertisement.CultMeshAddress);
-        Assert.AreEqual(AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath), providerAdvertisement.FrameWitnessPath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetHealthPath(statePath), providerAdvertisement.HealthWitnessPath);
+        Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), providerAdvertisement.FrameRecordRef);
+        Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(), providerAdvertisement.SoaViewRecordRef);
+        Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(), providerAdvertisement.HealthRecordRef);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetCommandBoundaryPath(statePath),
-            providerAdvertisement.CommandBoundaryWitnessPath);
+            AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
+            providerAdvertisement.CommandBoundaryRecordRef);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetGameSurfacePath(statePath),
-            providerAdvertisement.EveGuiSurfaceWitnessPath);
+            AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+            providerAdvertisement.EveGuiSurfaceRecordRef);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetGameTuiSurfacePath(statePath),
-            providerAdvertisement.EveTuiSurfaceWitnessPath);
+            AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
+            providerAdvertisement.EveTuiSurfaceRecordRef);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, providerAdvertisement.EveGuiSurfaceId);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, providerAdvertisement.EveTuiSurfaceId);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetEditorSurfacePath(statePath),
-            providerAdvertisement.EditorGuiSurfaceWitnessPath);
+            AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
+            providerAdvertisement.EditorGuiSurfaceRecordRef);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetEditorTuiSurfacePath(statePath),
-            providerAdvertisement.EditorTuiSurfaceWitnessPath);
+            AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
+            providerAdvertisement.EditorTuiSurfaceRecordRef);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, providerAdvertisement.EditorGuiSurfaceId);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, providerAdvertisement.EditorTuiSurfaceId);
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.Command);

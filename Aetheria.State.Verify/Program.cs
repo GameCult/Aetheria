@@ -8773,10 +8773,12 @@ static void RequireDaemonVersePublication(string root)
         "[CultDocument(\"gamecult.aetheria.daemon_command_boundary\", \"gamecult.aetheria.daemon_command_boundary.v1\")]",
         "[CultDocument(\"gamecult.aetheria.daemon_frame\", \"gamecult.aetheria.daemon_frame.v1\")]",
         "[CultDocument(\"gamecult.aetheria.daemon_command\", \"gamecult.aetheria.daemon_command.v1\")]",
-        "EveGuiSurfaceWitnessPath",
-        "EveTuiSurfaceWitnessPath",
-        "EditorGuiSurfaceWitnessPath",
-        "EditorTuiSurfaceWitnessPath"
+        "FrameRecordRef",
+        "SoaViewRecordRef",
+        "EveGuiSurfaceRecordRef",
+        "EveTuiSurfaceRecordRef",
+        "EditorGuiSurfaceRecordRef",
+        "EditorTuiSurfaceRecordRef"
     };
     var missingDocumentSymbols = requiredDocumentSymbols
         .Where(symbol => !daemonDocuments.Contains(symbol, StringComparison.Ordinal))
@@ -8786,6 +8788,30 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon Verse publication documents are incomplete: " +
             string.Join(", ", missingDocumentSymbols));
+    }
+
+    var forbiddenDaemonProviderDocumentSymbols = new[]
+    {
+        "StateWitnessPath",
+        "FrameWitnessPath",
+        "SoaWitnessPath",
+        "HealthWitnessPath",
+        "CommandBoundaryWitnessPath",
+        "EveGuiSurfaceWitnessPath",
+        "EveTuiSurfaceWitnessPath",
+        "EditorGuiSurfaceWitnessPath",
+        "EditorTuiSurfaceWitnessPath",
+        "AssetManifestWitnessPath"
+    };
+    var daemonProviderDocumentHits = forbiddenDaemonProviderDocumentSymbols
+        .Where(symbol => daemonDocuments.Contains(symbol, StringComparison.Ordinal) ||
+                         daemonEditorSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (daemonProviderDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon provider advertisement still exposes witness-path vocabulary instead of managed record refs: " +
+            string.Join(", ", daemonProviderDocumentHits));
     }
 
     if (!daemonSoaDocuments.Contains("[CultDocument(\"gamecult.aetheria.daemon_soa_view\", \"gamecult.aetheria.daemon_soa_view.v1\")]", StringComparison.Ordinal))
@@ -9444,7 +9470,14 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
         "\"editor.daemon\"",
         "\"Verse Provider\"",
-        "\"Witnesses\"",
+        "\"Managed Records\"",
+        "\"aetheria.daemon.editor.records\"",
+        "provider.FrameRecordRef",
+        "provider.SoaViewRecordRef",
+        "provider.HealthRecordRef",
+        "provider.CommandBoundaryRecordRef",
+        "provider.EveGuiSurfaceRecordRef",
+        "provider.EditorGuiSurfaceRecordRef",
         "\"Designer Surfaces\"",
         "AetheriaRuntimeSurfaceDocument",
         "\"Typed Commands\"",

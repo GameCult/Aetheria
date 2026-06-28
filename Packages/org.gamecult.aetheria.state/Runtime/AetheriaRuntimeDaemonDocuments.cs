@@ -213,25 +213,25 @@ namespace GameCult.Aetheria.State.Verse
         public string PublishedAtUtc { get; set; } = "";
 
         [Key(5)]
-        public string StateWitnessPath { get; set; } = "";
+        public string StateRecordRef { get; set; } = "";
 
         [Key(6)]
-        public string FrameWitnessPath { get; set; } = "";
+        public string FrameRecordRef { get; set; } = "";
 
         [Key(7)]
-        public string SoaWitnessPath { get; set; } = "";
+        public string SoaViewRecordRef { get; set; } = "";
 
         [Key(8)]
-        public string HealthWitnessPath { get; set; } = "";
+        public string HealthRecordRef { get; set; } = "";
 
         [Key(9)]
-        public string CommandBoundaryWitnessPath { get; set; } = "";
+        public string CommandBoundaryRecordRef { get; set; } = "";
 
         [Key(10)]
-        public string EveGuiSurfaceWitnessPath { get; set; } = "";
+        public string EveGuiSurfaceRecordRef { get; set; } = "";
 
         [Key(11)]
-        public string EveTuiSurfaceWitnessPath { get; set; } = "";
+        public string EveTuiSurfaceRecordRef { get; set; } = "";
 
         [Key(12)]
         public string EveGuiSurfaceId { get; set; } = "aetheria.game";
@@ -240,10 +240,10 @@ namespace GameCult.Aetheria.State.Verse
         public string EveTuiSurfaceId { get; set; } = "aetheria.game.tui";
 
         [Key(14)]
-        public string EditorGuiSurfaceWitnessPath { get; set; } = "";
+        public string EditorGuiSurfaceRecordRef { get; set; } = "";
 
         [Key(15)]
-        public string EditorTuiSurfaceWitnessPath { get; set; } = "";
+        public string EditorTuiSurfaceRecordRef { get; set; } = "";
 
         [Key(16)]
         public string EditorGuiSurfaceId { get; set; } = "aetheria.daemon.editor";
@@ -261,7 +261,7 @@ namespace GameCult.Aetheria.State.Verse
         public string CultMeshAddress { get; set; } = "cultmesh://aetheria.local/eve/providers/aetheria.daemon";
 
         [Key(21)]
-        public string AssetManifestWitnessPath { get; set; } = "";
+        public string AssetManifestRecordRef { get; set; } = "";
 
         public static AetheriaRuntimeDaemonProviderAdvertisementDocument Create(
             string stateFilePath,
@@ -274,18 +274,18 @@ namespace GameCult.Aetheria.State.Verse
                 VerseId = string.IsNullOrWhiteSpace(verseId) ? "aetheria.local" : verseId,
                 DaemonId = string.IsNullOrWhiteSpace(daemonId) ? "aetheria-daemon" : daemonId,
                 PublishedAtUtc = DateTime.UtcNow.ToString("O"),
-                StateWitnessPath = stateFilePath ?? "",
-                FrameWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonFramePath(stateFilePath ?? ""),
-                SoaWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(stateFilePath ?? ""),
-                HealthWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonHealthPath(stateFilePath ?? ""),
-                AssetManifestWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonAssetManifestPath(stateFilePath ?? ""),
-                CommandBoundaryWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(stateFilePath ?? ""),
-                EveGuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(stateFilePath ?? ""),
-                EveTuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(stateFilePath ?? ""),
+                StateRecordRef = stateFilePath ?? "",
+                FrameRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                SoaViewRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(),
+                HealthRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(),
+                AssetManifestRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+                CommandBoundaryRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
+                EveGuiSurfaceRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+                EveTuiSurfaceRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
                 EveGuiSurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
                 EveTuiSurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId,
-                EditorGuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(stateFilePath ?? ""),
-                EditorTuiSurfaceWitnessPath = AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(stateFilePath ?? ""),
+                EditorGuiSurfaceRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
+                EditorTuiSurfaceRecordRef = AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
                 EditorGuiSurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId,
                 EditorTuiSurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId,
                 CultMeshAddress = string.IsNullOrWhiteSpace(cultMeshAddress)
