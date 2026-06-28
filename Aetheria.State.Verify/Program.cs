@@ -5071,21 +5071,21 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException("InventoryMenu cargo click path no longer routes item inspection through the Eve surface.");
     }
 
-    var runtimeStateReaderPath = Path.Combine(
+    var runtimeStateRefResolverPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeStateReader.cs");
-    var runtimeStateReader = File.Exists(runtimeStateReaderPath)
-        ? File.ReadAllText(runtimeStateReaderPath)
-        : throw new InvalidOperationException("Cannot verify item stat state-ref authority; AetheriaRuntimeStateReader.cs is missing.");
+        "AetheriaRuntimeStateRefResolver.cs");
+    var runtimeStateRefResolver = File.Exists(runtimeStateRefResolverPath)
+        ? File.ReadAllText(runtimeStateRefResolverPath)
+        : throw new InvalidOperationException("Cannot verify item stat state-ref authority; AetheriaRuntimeStateRefResolver.cs is missing.");
 
-    if (!runtimeStateReader.Contains("TryResolveDaemonItemStatRef(", StringComparison.Ordinal) ||
-        !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
-        !runtimeStateReader.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
-        !runtimeStateReader.Contains("item.Temperature", StringComparison.Ordinal) ||
-        !runtimeStateReader.Contains("FindDaemonItem(", StringComparison.Ordinal) ||
+    if (!runtimeStateRefResolver.Contains("TryResolveDaemonItemStatRef(", StringComparison.Ordinal) ||
+        !runtimeStateRefResolver.Contains("AetheriaRuntimeDaemonItemStatQueries.TryReadItemStatRef(", StringComparison.Ordinal) ||
+        !runtimeStateRefResolver.Contains("AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(", StringComparison.Ordinal) ||
+        !runtimeStateRefResolver.Contains("item.Temperature", StringComparison.Ordinal) ||
+        !runtimeStateRefResolver.Contains("FindDaemonItem(", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(", StringComparison.Ordinal) ||
         source.Contains("ResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
         source.Contains("TryResolveInventorySurfaceStateRef", StringComparison.Ordinal) ||
@@ -9462,10 +9462,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
     var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
     var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
-    var stateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
+    var stateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, surfaceStatePath, stateReaderPath, docPath };
+    var requiredFiles = new[] { clientPath, surfaceStatePath, stateRefResolverPath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -9479,7 +9479,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     var client = File.ReadAllText(clientPath);
     var surfaceState = File.ReadAllText(surfaceStatePath);
-    var stateReader = File.ReadAllText(stateReaderPath);
+    var stateRefResolver = File.ReadAllText(stateRefResolverPath);
     var doc = File.ReadAllText(docPath);
 
     if (File.Exists(oldSurfaceStatePath))
@@ -9547,19 +9547,26 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             string.Join(", ", missingClientSymbols));
     }
 
-    var requiredStateReaderSymbols = new[]
+    var requiredStateRefResolverSymbols = new[]
     {
+        "public static class AetheriaRuntimeStateRefResolver",
         "TryResolveDaemonStateRef(",
         "TryResolveDaemonItemStatRef("
     };
-    var missingStateReaderSymbols = requiredStateReaderSymbols
-        .Where(symbol => !stateReader.Contains(symbol, StringComparison.Ordinal))
+    var missingStateRefResolverSymbols = requiredStateRefResolverSymbols
+        .Where(symbol => !stateRefResolver.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingStateReaderSymbols.Length > 0)
+    if (missingStateRefResolverSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria runtime state reader is missing typed Eve state-ref resolver symbols: " +
-            string.Join(", ", missingStateReaderSymbols));
+            "Aetheria runtime state-ref resolver is missing typed Eve state-ref symbols: " +
+            string.Join(", ", missingStateRefResolverSymbols));
+    }
+
+    if (stateRefResolver.Contains("public static class AetheriaRuntimeStateReader", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeStateReader compatibility wrapper still exists; use AetheriaRuntimeStateRefResolver and managed AetheriaClient documents.");
     }
 
     if (client.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
@@ -9576,20 +9583,20 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             "AetheriaRuntimeVerseClient still exposes daemon observation compatibility helpers; use AetheriaClient managed documents instead.");
     }
 
-    if (stateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
-        stateReader.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
-        stateReader.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
-        stateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
-        stateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
-        stateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal))
+    if (stateRefResolver.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
+        stateRefResolver.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaRuntimeStateReader still exposes daemon acquisition that belongs on managed AetheriaClient documents.");
+            "Aetheria runtime state-ref resolver still exposes daemon acquisition that belongs on managed AetheriaClient documents.");
     }
 
     var starbridgeSummaryStart = client.IndexOf(
@@ -10149,7 +10156,7 @@ static void RequireMainMenuVerseHostProjection(string root)
 {
     var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs");
     var packageStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
-    var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
+    var runtimeStateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var mainMenuSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
 
@@ -10157,7 +10164,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     {
         packageSnapshotPath,
         packageStorePath,
-        runtimeStateReaderPath,
+        runtimeStateRefResolverPath,
         mainMenuPath,
         mainMenuSurfaceBuilderPath
     };
@@ -10175,7 +10182,7 @@ static void RequireMainMenuVerseHostProjection(string root)
 
     var packageSnapshot = File.ReadAllText(packageSnapshotPath);
     var packageStore = File.ReadAllText(packageStorePath);
-    var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
+    var runtimeStateRefResolver = File.ReadAllText(runtimeStateRefResolverPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
 
@@ -10273,15 +10280,15 @@ static void RequireMainMenuContinueRunState(string root)
     var packageSnapshot = File.Exists(packageSnapshotPath)
         ? File.ReadAllText(packageSnapshotPath)
         : throw new InvalidOperationException("Cannot verify Continue entity identity; package runtime snapshots are missing.");
-    var runtimeStateReaderPath = Path.Combine(
+    var runtimeStateRefResolverPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeStateReader.cs");
-    var runtimeStateReader = File.Exists(runtimeStateReaderPath)
-        ? File.ReadAllText(runtimeStateReaderPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity readback; shared runtime state reader is missing.");
+        "AetheriaRuntimeStateRefResolver.cs");
+    var runtimeStateRefResolver = File.Exists(runtimeStateRefResolverPath)
+        ? File.ReadAllText(runtimeStateRefResolverPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity readback; shared runtime state-ref resolver is missing.");
     var packageStorePath = Path.Combine(
         root,
         "Packages",
@@ -13023,7 +13030,7 @@ static void RequireNameToolsUsesUiToolkit(string root)
 
 static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 {
-    var runtimeStateReaderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateReader.cs");
+    var runtimeStateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var runtimeEveSurfaceAdapterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceAdapter.cs");
     var unityPackageProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
@@ -13033,7 +13040,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredPaths = new[]
     {
-        runtimeStateReaderPath,
+        runtimeStateRefResolverPath,
         runtimeEveSurfaceAdapterPath,
         unityPackageProjectPath,
         actionGameManagerPath,
@@ -13054,7 +13061,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingPaths));
     }
 
-    var runtimeStateReader = File.ReadAllText(runtimeStateReaderPath);
+    var runtimeStateRefResolver = File.ReadAllText(runtimeStateRefResolverPath);
     var runtimeEveSurfaceAdapter = File.ReadAllText(runtimeEveSurfaceAdapterPath);
     var unityPackageProject = File.ReadAllText(unityPackageProjectPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
@@ -13062,9 +13069,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var eveSurfacePresenter = File.ReadAllText(eveSurfacePresenterPath);
     var eveUnitySurfaceHost = File.ReadAllText(eveUnitySurfaceHostPath);
 
-    var requiredReaderSymbols = new[]
+    var requiredResolverSymbols = new[]
     {
-        "public static class AetheriaRuntimeStateReader",
         "public static class AetheriaRuntimeStateRefResolver",
         "TryResolveDaemonStateRef",
         "TryResolveDaemonItemStatRef",
@@ -13075,55 +13081,61 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "FindDaemonItem("
     };
 
-    var missingReaderSymbols = requiredReaderSymbols
-        .Where(symbol => !runtimeStateReader.Contains(symbol, StringComparison.Ordinal))
+    var missingResolverSymbols = requiredResolverSymbols
+        .Where(symbol => !runtimeStateRefResolver.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingReaderSymbols.Length > 0)
+    if (missingResolverSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader is incomplete: " +
-            string.Join(", ", missingReaderSymbols));
+            "Shared runtime state-ref resolver is incomplete: " +
+            string.Join(", ", missingResolverSymbols));
     }
 
-    if (runtimeStateReader.Contains("ReadEntitySnapshots", StringComparison.Ordinal))
+    if (runtimeStateRefResolver.Contains("public static class AetheriaRuntimeStateReader", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader still exposes file-backed entity snapshot reads; use daemon zone-render EntitySnapshots documents.");
+            "Shared runtime state reader compatibility wrapper still exists; use AetheriaRuntimeStateRefResolver directly.");
     }
 
-    if (runtimeStateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonFrame(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("OpenRuntimeCatalog(", StringComparison.Ordinal))
+    if (runtimeStateRefResolver.Contains("ReadEntitySnapshots", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader still exposes daemon file reads; use AetheriaClient and managed typed documents.");
+            "Shared runtime state-ref resolver still exposes file-backed entity snapshot reads; use daemon zone-render EntitySnapshots documents.");
     }
 
-    if (runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ReadZoneStates", StringComparison.Ordinal))
+    if (runtimeStateRefResolver.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonFrame(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryResolveEveSurfaceStateRef(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("CreateEveSurfaceCultMeshStateRefResolver(\r\n            string stateFilePath", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("CreateEveSurfaceCultMeshStateRefResolver(\n            string stateFilePath", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("OpenRuntimeCatalog(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader still exposes file-backed run/zone snapshot reads; use managed daemon frame and zone-render documents.");
+            "Shared runtime state-ref resolver still exposes daemon file reads; use AetheriaClient and managed typed documents.");
     }
 
-    if (runtimeStateReader.Contains("ReadPlayerSettings", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ReadVerseHostSettings", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ReadLoadoutTemplates", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("ReadTradeValuePolicy", StringComparison.Ordinal))
+    if (runtimeStateRefResolver.Contains("ReadRunStates", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ReadZoneStates", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader still exposes file-backed catalog/settings reads; use AetheriaClient managed document handles.");
+            "Shared runtime state-ref resolver still exposes file-backed run/zone snapshot reads; use managed daemon frame and zone-render documents.");
+    }
+
+    if (runtimeStateRefResolver.Contains("ReadPlayerSettings", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ReadVerseHostSettings", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ReadLoadoutTemplates", StringComparison.Ordinal) ||
+        runtimeStateRefResolver.Contains("ReadTradeValuePolicy", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state-ref resolver still exposes file-backed catalog/settings reads; use AetheriaClient managed document handles.");
     }
 
     var runtimeCatalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
@@ -13149,10 +13161,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Runtime catalog store still exposes file-backed run/zone snapshot projection; managed daemon checkpoint and zone-render documents own runtime state lowering.");
     }
 
-    if (!unityPackageProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
+    if (!unityPackageProject.Contains("AetheriaRuntimeStateRefResolver.cs", StringComparison.Ordinal) ||
+        unityPackageProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "GameCult.Aetheria.State.Unity.csproj does not include the shared runtime state reader.");
+            "GameCult.Aetheria.State.Unity.csproj must include AetheriaRuntimeStateRefResolver.cs and not the old state reader filename.");
     }
 
     if (!unityPackageProject.Contains("AetheriaRuntimeDaemonStateRefs.cs", StringComparison.Ordinal))

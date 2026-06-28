@@ -8,39 +8,6 @@ using GameCult.Mesh;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    // Thin compatibility shell for pure state-ref helpers; runtime state acquisition belongs to AetheriaClient.
-    public static class AetheriaRuntimeStateReader
-    {
-        public static bool TryResolveDaemonStateRef(
-            AetheriaRuntimeDaemonFrameDocument? frame,
-            AetheriaRuntimeDaemonHealthDocument? health,
-            AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary,
-            string stateRef,
-            out string value)
-        {
-            return AetheriaRuntimeStateRefResolver.TryResolveDaemonStateRef(
-                frame,
-                health,
-                commandBoundary,
-                stateRef,
-                out value);
-        }
-
-        public static bool TryResolveDaemonItemStatRef(
-            AetheriaRuntimeDaemonFrameDocument? frame,
-            AetheriaRuntimeCatalogSnapshot? catalog,
-            string stateRef,
-            out string value)
-        {
-            return AetheriaRuntimeStateRefResolver.TryResolveDaemonItemStatRef(
-                frame,
-                catalog,
-                stateRef,
-                out value);
-        }
-
-    }
-
     public static class AetheriaRuntimeStateRefResolver
     {
         public static bool TryResolveDaemonStateRef(

@@ -511,7 +511,7 @@ public class DaemonRuntimeDocumentTests
             "value",
             AetheriaRuntimeDaemonStateRefs.CurrentEntityName,
             AetheriaRuntimeDaemonSchemas.Frame));
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryResolveDaemonStateRef(
+        Assert.IsTrue(AetheriaRuntimeStateRefResolver.TryResolveDaemonStateRef(
             frame,
             health,
             commandBoundary,
@@ -766,7 +766,7 @@ public class DaemonRuntimeDocumentTests
             Array.Empty<AetheriaRuntimeCorporation>(),
             Array.Empty<AetheriaRuntimeNameFile>());
 
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryResolveDaemonItemStatRef(
+        Assert.IsTrue(AetheriaRuntimeStateRefResolver.TryResolveDaemonItemStatRef(
             frame,
             catalog,
             AetheriaRuntimeDaemonItemStatQueries.ItemStatRef("test-laser", "Weapon", 2, 7),
