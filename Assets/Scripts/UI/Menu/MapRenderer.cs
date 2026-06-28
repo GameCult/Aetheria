@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using TMPro;
 using UnityEngine;
@@ -40,12 +39,12 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
-    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+    private AetheriaRuntimeObjectsViewportSession _objectsViewport;
+    private AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
     
     void Start()
     {
@@ -132,11 +131,11 @@ public class MapRenderer : MonoBehaviour
             _objectsViewport = client
                 .State
                 .Viewports
-                .ReactiveObjects(viewport);
+                .ObserveObjects(viewport);
             _renderSplatsViewport = client
                 .State
                 .Viewports
-                .ReactiveRenderSplats(viewport);
+                .ObserveRenderSplats(viewport);
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)
@@ -321,7 +320,7 @@ public class MapRenderer : MonoBehaviour
             _playerSettings ??= ResolveClient()
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)

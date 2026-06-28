@@ -1075,6 +1075,13 @@ namespace GameCult.Aetheria.State.Verse
             return Objects(viewport).Reactive(options);
         }
 
+        public AetheriaRuntimeObjectsViewportSession ObserveObjects(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeObjectsViewportSession(ReactiveObjects(viewport, options));
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _gravity(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -1131,6 +1138,13 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return RenderSplats(viewport).Reactive(options);
+        }
+
+        public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeRenderSplatsViewportSession(ReactiveRenderSplats(viewport, options));
         }
     }
 

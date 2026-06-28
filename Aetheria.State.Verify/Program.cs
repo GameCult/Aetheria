@@ -7381,13 +7381,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer.cs"));
     var requiredMapRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
-        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        ".ReactiveObjects(viewport)",
-        ".ReactiveRenderSplats(viewport)",
+        "AetheriaRuntimeObjectsViewportSession _objectsViewport",
+        "AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        ".ObserveObjects(viewport)",
+        ".ObserveRenderSplats(viewport)",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "ClearViewportCaches()",
         "_objectsViewport?.Dispose()",
         "_renderSplatsViewport?.Dispose()",
@@ -7405,6 +7405,25 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "MapRenderer should bind viewport and player settings through managed reactive Aetheria documents: " +
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
+    }
+
+    var forbiddenMapRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
+        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".ReactiveObjects(viewport)",
+        ".ReactiveRenderSplats(viewport)",
+        ".ReactivePlayer()"
+    };
+    var mapRendererRawDocumentHits = forbiddenMapRendererSharedDocumentSymbols
+        .Where(symbol => mapRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (mapRendererRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MapRenderer still owns raw viewport/settings CultMesh documents instead of managed sessions: " +
+            string.Join(", ", mapRendererRawDocumentHits));
     }
 
     var mainMenu = File.ReadAllText(Path.Combine(
@@ -7647,8 +7666,10 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "public AetheriaRuntimeCurrentEntityDocument LatestEntity()",
         "public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjects(",
+        "public AetheriaRuntimeObjectsViewportSession ObserveObjects(",
         "public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplats(",
+        "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats(",
         "public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)"
     };
     var missingClientSymbols = requiredClientSymbols
@@ -7717,8 +7738,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "AetheriaUnityRenderSplatViewportSource.cs"));
     var requiredRenderSplatViewportSourceSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
-        ".ReactiveRenderSplats(viewport)",
+        "AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport",
+        ".ObserveRenderSplats(viewport)",
         "_renderSplatsViewport?.Current",
         "ClearViewportDocument()"
     };
@@ -7731,6 +7752,13 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         throw new InvalidOperationException(
             "AetheriaUnityRenderSplatViewportSource must keep a managed reactive render-splats viewport document instead of polling latest snapshots: " +
             string.Join(", ", missingRenderSplatViewportSourceSymbols));
+    }
+
+    if (renderSplatViewportSource.Contains("CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport", StringComparison.Ordinal) ||
+        renderSplatViewportSource.Contains(".ReactiveRenderSplats(viewport)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityRenderSplatViewportSource still owns a raw render-splats CultMesh document instead of AetheriaRuntimeRenderSplatsViewportSession.");
     }
 
     var zoneRenderer = File.ReadAllText(Path.Combine(
@@ -13550,10 +13578,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".ReactiveObjects(viewport)", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".ReactiveRenderSplats(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ObserveObjects(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ObserveRenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".State", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
@@ -15285,7 +15313,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
         "public AetheriaRuntimePlayerSettingsSession ObservePlayer(",
         "public AetheriaRuntimeVerseHostSettingsSession ObserveVerseHost(",
-        "public AetheriaRuntimeSectorMapSession ObserveSectorMap("
+        "public AetheriaRuntimeSectorMapSession ObserveSectorMap(",
+        "public AetheriaRuntimeObjectsViewportSession ObserveObjects(",
+        "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats("
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))

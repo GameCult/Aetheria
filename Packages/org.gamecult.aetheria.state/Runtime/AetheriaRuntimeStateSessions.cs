@@ -94,4 +94,40 @@ namespace GameCult.Aetheria.State.Verse
             _zoneContacts.Dispose();
         }
     }
+
+    public sealed class AetheriaRuntimeObjectsViewportSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+
+        public AetheriaRuntimeObjectsViewportSession(
+            CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> objectsViewport)
+        {
+            _objectsViewport = objectsViewport ?? throw new ArgumentNullException(nameof(objectsViewport));
+        }
+
+        public AetheriaRuntimeObjectsViewportDocument? Current => _objectsViewport.Current;
+
+        public void Dispose()
+        {
+            _objectsViewport.Dispose();
+        }
+    }
+
+    public sealed class AetheriaRuntimeRenderSplatsViewportSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+
+        public AetheriaRuntimeRenderSplatsViewportSession(
+            CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> renderSplatsViewport)
+        {
+            _renderSplatsViewport = renderSplatsViewport ?? throw new ArgumentNullException(nameof(renderSplatsViewport));
+        }
+
+        public AetheriaRuntimeRenderSplatsViewportDocument? Current => _renderSplatsViewport.Current;
+
+        public void Dispose()
+        {
+            _renderSplatsViewport.Dispose();
+        }
+    }
 }
