@@ -107,7 +107,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-    private AetheriaRuntimeReactiveLoadoutSnapshotProjector _loadoutSnapshotProjector;
+    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
@@ -1075,7 +1075,7 @@ private void Update()
         try
         {
             var client = ResolveClient();
-            var loadout = ResolveLoadoutSnapshotProjector().ProjectLoadoutTemplate(targetEntityKey);
+            var loadout = ProjectLoadoutTemplate(targetEntityKey);
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
 
@@ -1475,14 +1475,14 @@ private void Update()
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
-        _loadoutSnapshotProjector?.Dispose();
+        _loadoutFrame?.Dispose();
         _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;
         _currentEntity = null;
         _stationRefit = null;
-        _loadoutSnapshotProjector = null;
+        _loadoutFrame = null;
         _observedDockingIndex = null;
         _inventory = null;
         _inventoryEntityIndex = -1;
@@ -1527,15 +1527,31 @@ private void Update()
         return _stationRefit?.Current;
     }
 
-    private AetheriaRuntimeReactiveLoadoutSnapshotProjector ResolveLoadoutSnapshotProjector()
+    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string targetEntityKey)
     {
-        if (_loadoutSnapshotProjector != null)
-            return _loadoutSnapshotProjector;
+        var frame = ResolveLoadoutFrame();
+        return AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(
+            frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
+            targetEntityKey ?? "");
+    }
 
-        _loadoutSnapshotProjector = ResolveClient()
-            .Aetheria()
-            .ReactiveLoadoutSnapshotProjector();
-        return _loadoutSnapshotProjector;
+    private AetheriaRuntimeDaemonFrameDocument ResolveLoadoutFrame()
+    {
+        if (_loadoutFrame != null)
+            return _loadoutFrame.Current;
+
+        try
+        {
+            _loadoutFrame = ResolveClient()
+                .Aetheria()
+                .ReactiveDaemonFrame();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria daemon frame for loadout template save: {ex.Message}");
+        }
+
+        return _loadoutFrame?.Current;
     }
 
     private AetheriaRuntimeInventoryDocument ResolveInventory(int entityIndex)

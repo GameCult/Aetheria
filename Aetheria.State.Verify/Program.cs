@@ -16707,10 +16707,11 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        "AetheriaRuntimeReactiveLoadoutSnapshotProjector _loadoutSnapshotProjector",
-        "ResolveLoadoutSnapshotProjector().ProjectLoadoutTemplate(targetEntityKey)",
-        ".ReactiveLoadoutSnapshotProjector()",
-        "_loadoutSnapshotProjector?.Dispose()",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
+        "ProjectLoadoutTemplate(targetEntityKey)",
+        "AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(",
+        ".ReactiveDaemonFrame()",
+        "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
@@ -16719,15 +16720,17 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     if (missingInventoryPanelSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryPanel no longer sends a typed Eve loadout-template command: " +
+            "InventoryPanel no longer sends a typed Eve loadout-template command from the managed reactive daemon frame: " +
             string.Join(", ", missingInventoryPanelSymbols));
     }
 
     if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal) ||
-        inventoryPanel.Contains(".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)", StringComparison.Ordinal))
+        inventoryPanel.Contains(".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("AetheriaRuntimeReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".ReactiveLoadoutSnapshotProjector()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still asks a one-shot compatibility helper for loadout templates instead of caching the managed reactive loadout projector.");
+            "InventoryPanel still asks an aggregate compatibility helper for loadout templates instead of caching the managed reactive daemon frame.");
     }
 
     var requiredLoadoutSnapshotProjectorSymbols = new[]
