@@ -72,7 +72,8 @@ public class StarbridgePlayerSeatDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        client.PutStarbridgePlayerSeatAsync(seat)
+        client.StarbridgePlayerSeat(seat.SeatId)
+            .ReplaceAsync(seat)
             .GetAwaiter()
             .GetResult();
         var handle = client.Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(

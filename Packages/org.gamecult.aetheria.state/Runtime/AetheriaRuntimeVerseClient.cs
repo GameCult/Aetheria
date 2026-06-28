@@ -456,48 +456,6 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeEveCommandClient.ToEnvelope(command);
         }
 
-        public async Task PutStarbridgeScenarioAsync(
-            AetheriaRuntimeStarbridgeScenarioDocument scenario,
-            bool flush = true)
-        {
-            ThrowIfDisposed();
-            if (scenario == null) throw new ArgumentNullException(nameof(scenario));
-
-            scenario.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeScenario;
-            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest, scenario)
-                .ConfigureAwait(false);
-            if (flush)
-                await FlushAsync().ConfigureAwait(false);
-        }
-
-        public async Task PutStarbridgeSessionAsync(
-            AetheriaRuntimeStarbridgeSessionDocument session,
-            bool flush = true)
-        {
-            ThrowIfDisposed();
-            if (session == null) throw new ArgumentNullException(nameof(session));
-
-            session.Schema = AetheriaRuntimeDaemonSchemas.StarbridgeSession;
-            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest, session)
-                .ConfigureAwait(false);
-            if (flush)
-                await FlushAsync().ConfigureAwait(false);
-        }
-
-        public async Task PutStarbridgePlayerSeatAsync(
-            AetheriaRuntimeStarbridgePlayerSeatDocument seat,
-            bool flush = true)
-        {
-            ThrowIfDisposed();
-            if (seat == null) throw new ArgumentNullException(nameof(seat));
-
-            seat.Schema = AetheriaRuntimeDaemonSchemas.StarbridgePlayerSeat;
-            await Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seat.SeatId), seat)
-                .ConfigureAwait(false);
-            if (flush)
-                await FlushAsync().ConfigureAwait(false);
-        }
-
         internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitInputSettingsCommandAsync(
             AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
