@@ -208,60 +208,6 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeCatalogStore.OpenReadOnly);
         }
 
-        public async Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.ProviderAdvertisement.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeDaemonHealthDocument?> GetHealthAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.Health.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeDaemonCommandBoundaryDocument?> GetCommandBoundaryAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.CommandBoundary.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> GetVerseAuthorityPolicyAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestFrameAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeDaemonSoaViewDocument?> GetLatestSoaViewAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeStarbridgeScenarioDocument?> GetStarbridgeScenarioAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Starbridge.Scenario.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeStarbridgeSessionDocument?> GetStarbridgeSessionAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Starbridge.Session.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<AetheriaRuntimeStarbridgePlayerSeatDocument?> GetStarbridgePlayerSeatAsync(string seatId)
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Starbridge.PlayerSeat(seatId).LatestAsync().ConfigureAwait(false);
-        }
-
         public AetheriaClientState Aetheria()
         {
             ThrowIfDisposed();
@@ -334,30 +280,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return frame;
-        }
-
-        public async Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.GameSurface.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<EveSurfaceState?> GetDaemonGameTuiSurfaceAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.GameTuiSurface.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<EveSurfaceState?> GetDaemonEditorSurfaceAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.EditorSurface.LatestAsync().ConfigureAwait(false);
-        }
-
-        public async Task<EveSurfaceState?> GetDaemonEditorTuiSurfaceAsync()
-        {
-            ThrowIfDisposed();
-            return await Aetheria().Daemon.EditorTuiSurface.LatestAsync().ConfigureAwait(false);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
