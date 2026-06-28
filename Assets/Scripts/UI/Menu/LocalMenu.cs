@@ -27,6 +27,8 @@ public class LocalMenu : MonoBehaviour
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private string _clientStatePath = "";
+    private AetheriaClientReactiveDockingState _dockingState;
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
@@ -203,7 +205,8 @@ public class LocalMenu : MonoBehaviour
 
     private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)
     {
-        var resolved = ResolveClient().Aetheria().DockingState.TryLatest(out dockingState);
+        _dockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        var resolved = _dockingState.TryCurrent(out dockingState);
         if (!resolved)
             Debug.LogWarning("Failed to read Aetheria docking state for local story surface.");
         return resolved;
@@ -232,9 +235,15 @@ public class LocalMenu : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
-            "unity-runtime-local-story");
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            _dockingState?.Dispose();
+            _dockingState = null;
+        }
+
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-local-story");
     }
 
     private void HideStorySurface()
@@ -257,6 +266,8 @@ public class LocalMenu : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
             _surfaceDocument = null;
         }
+        _dockingState?.Dispose();
+        _dockingState = null;
     }
 
     // Update is called once per frame

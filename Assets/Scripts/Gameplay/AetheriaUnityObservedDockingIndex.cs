@@ -5,10 +5,11 @@
 using System;
 using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaUnityObservedDockingIndex
+public sealed class AetheriaUnityObservedDockingIndex : IDisposable
 {
     private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaClientReactiveDockingState _dockingState;
 
     public AetheriaUnityObservedDockingIndex(
         Func<AetheriaClient> resolveClient,
@@ -163,8 +164,8 @@ public sealed class AetheriaUnityObservedDockingIndex
         snapshot = null;
         try
         {
-            var client = _resolveClient();
-            return client?.Aetheria().DockingState.TryLatest(out snapshot) == true;
+            _dockingState ??= _resolveClient()?.Aetheria().DockingState.Reactive();
+            return _dockingState?.TryCurrent(out snapshot) == true;
         }
         catch
         {
@@ -172,4 +173,9 @@ public sealed class AetheriaUnityObservedDockingIndex
         }
     }
 
+    public void Dispose()
+    {
+        _dockingState?.Dispose();
+        _dockingState = null;
+    }
 }

@@ -36,10 +36,12 @@ public class InventoryMenu : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private AetheriaClientReactiveDockingState _reactiveDockingState;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
     private readonly AetheriaEveUnitySurfaceChrome _cargoItemDetailsSurfaceChrome = PanelChrome(420f, 520f);
     private readonly AetheriaEveUnitySurfaceChrome _equippedItemDetailsSurfaceChrome = PanelChrome(460f, 560f);
@@ -779,7 +781,8 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
     {
-        if (ResolveClient().Aetheria().DockingState.TryLatest(out var docking))
+        _reactiveDockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        if (_reactiveDockingState.TryCurrent(out var docking))
             return docking;
 
         Debug.LogWarning("Failed to read Aetheria docking state for inventory menu.");
@@ -792,7 +795,7 @@ public class InventoryMenu : MonoBehaviour
         if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
         return true;
     }
 
@@ -944,11 +947,15 @@ public class InventoryMenu : MonoBehaviour
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
+        _reactiveDockingState?.Dispose();
+        _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;
         _currentEntity = null;
         _stationRefit = null;
+        _reactiveDockingState = null;
+        _observedDockingIndex = null;
         _inventory = null;
         _inventoryEntityIndex = -1;
     }

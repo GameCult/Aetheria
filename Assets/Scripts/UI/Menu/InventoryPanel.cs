@@ -75,6 +75,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private RectTransform _firstRect;
     private AetheriaUnityDragSession _dragSession;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
 
     public ItemInstance FakeItem;
     public Shape FakeOccupancy;
@@ -106,6 +107,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private AetheriaClientReactiveDockingState _reactiveDockingState;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
@@ -1167,7 +1169,8 @@ private void Update()
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
     {
-        if (ResolveClient().Aetheria().DockingState.TryLatest(out var docking))
+        _reactiveDockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        if (_reactiveDockingState.TryCurrent(out var docking))
             return docking;
 
         Debug.LogWarning("Failed to read Aetheria docking state for inventory panel.");
@@ -1180,7 +1183,7 @@ private void Update()
         if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
         return true;
     }
 
@@ -1493,11 +1496,15 @@ private void Update()
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
+        _reactiveDockingState?.Dispose();
+        _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;
         _currentEntity = null;
         _stationRefit = null;
+        _reactiveDockingState = null;
+        _observedDockingIndex = null;
         _inventory = null;
         _inventoryEntityIndex = -1;
     }

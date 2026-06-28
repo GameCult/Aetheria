@@ -47,6 +47,7 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeCargoSelectorSurfaceProjection _cargoSelectorSurfaceProjection;
     private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
         Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
+    private AetheriaClientReactiveDockingState _reactiveDockingState;
     private AetheriaClientDockingSnapshot _dockingState;
     private AetheriaRuntimeStationRefitDocument _stationRefit;
     private AetheriaRuntimeTradeFilterSurfaceProjection _filterSurfaceProjection;
@@ -540,7 +541,8 @@ public class TradeMenu : MonoBehaviour
         if (_dockingState != null)
             return _dockingState;
 
-        if (!ResolveClient().Aetheria().DockingState.TryLatest(out _dockingState))
+        _reactiveDockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        if (!_reactiveDockingState.TryCurrent(out _dockingState))
         {
             Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");
             return null;
@@ -618,8 +620,10 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
+        _reactiveDockingState?.Dispose();
         _catalog = null;
         _playerSettings = null;
+        _reactiveDockingState = null;
         _dockingState = null;
         _stationRefit = null;
     }

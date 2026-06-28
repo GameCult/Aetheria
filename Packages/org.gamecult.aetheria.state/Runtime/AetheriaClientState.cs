@@ -708,6 +708,22 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
+        public Task<AetheriaClientReactiveDockingState> ReactiveAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return AetheriaClientReactiveDockingState.CreateAsync(
+                _currentEntity,
+                _currentDocking,
+                _stationRefit,
+                options);
+        }
+
+        public AetheriaClientReactiveDockingState Reactive(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ReactiveAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         private static AetheriaClientDockingSnapshot CreateSnapshot(
             AetheriaRuntimeCurrentEntityDocument? entity,
             AetheriaRuntimeCurrentDockingDocument? docking,
@@ -718,6 +734,74 @@ namespace GameCult.Aetheria.State.Verse
                     .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex)
                 : null;
             return new AetheriaClientDockingSnapshot(entity, docking, refit, dockingBay);
+        }
+
+        internal static AetheriaClientDockingSnapshot SnapshotFromCurrent(
+            AetheriaRuntimeCurrentEntityDocument? entity,
+            AetheriaRuntimeCurrentDockingDocument? docking,
+            AetheriaRuntimeStationRefitDocument? refit)
+        {
+            return CreateSnapshot(entity, docking, refit);
+        }
+    }
+
+    public sealed class AetheriaClientReactiveDockingState : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+
+        private AetheriaClientReactiveDockingState(
+            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity,
+            CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> currentDocking,
+            CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> stationRefit)
+        {
+            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
+            _currentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
+            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
+        }
+
+        internal static async Task<AetheriaClientReactiveDockingState> CreateAsync(
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
+            CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
+            CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit,
+            CultMeshReactiveDocumentOptions? options)
+        {
+            var currentEntityTask = currentEntity.ReactiveAsync(options);
+            var currentDockingTask = currentDocking.ReactiveAsync(options);
+            var stationRefitTask = stationRefit.ReactiveAsync(options);
+            await Task.WhenAll(currentEntityTask, currentDockingTask, stationRefitTask).ConfigureAwait(false);
+            return new AetheriaClientReactiveDockingState(
+                currentEntityTask.Result,
+                currentDockingTask.Result,
+                stationRefitTask.Result);
+        }
+
+        public AetheriaClientDockingSnapshot Current =>
+            AetheriaClientDockingState.SnapshotFromCurrent(
+                _currentEntity.Current,
+                _currentDocking.Current,
+                _stationRefit.Current);
+
+        public bool TryCurrent(out AetheriaClientDockingSnapshot? snapshot)
+        {
+            snapshot = null;
+            try
+            {
+                snapshot = Current;
+                return snapshot != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            _currentEntity.Dispose();
+            _currentDocking.Dispose();
+            _stationRefit.Dispose();
         }
     }
 

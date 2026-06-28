@@ -4688,7 +4688,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "ResolveCurrentDocking()?.IsDocked == true",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
@@ -4804,7 +4805,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
         "new AetheriaRuntimeLocalStoryChoiceState(",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "unity-runtime-local-story"
     };
     var dockedStoryObserverCorpus = localMenu;
@@ -4923,7 +4925,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "?.CurrentEntity"
     };
 
@@ -5634,7 +5637,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -6194,7 +6198,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "LoadoutRestoreOptions"
     };
 
@@ -6267,7 +6272,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".TryLatest(", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".Reactive()", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".TryCurrent(", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
@@ -6925,11 +6931,24 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         throw new InvalidOperationException("Cannot verify managed docking snapshot access; AetheriaClientState.cs is missing.");
 
     var clientState = File.ReadAllText(clientStatePath);
-    if (!clientState.Contains("public bool TryLatest(out AetheriaClientDockingSnapshot", StringComparison.Ordinal) ||
-        !clientState.Contains("snapshot = Latest();", StringComparison.Ordinal))
+    var requiredClientSymbols = new[]
+    {
+        "public AetheriaClientReactiveDockingState Reactive(",
+        "public sealed class AetheriaClientReactiveDockingState : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
+        "public AetheriaClientDockingSnapshot Current =>",
+        "public bool TryCurrent(out AetheriaClientDockingSnapshot"
+    };
+    var missingClientSymbols = requiredClientSymbols
+        .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientDockingState must expose a managed typed safe latest snapshot read for Unity menu surfaces.");
+            "AetheriaClientDockingState must expose a managed reactive typed docking snapshot for Unity menu surfaces: " +
+            string.Join(", ", missingClientSymbols));
     }
 
     var menuPaths = new[]
@@ -6963,19 +6982,21 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
             Compact = CompactSource(entry.Source)
         })
         .Where(entry =>
-            !entry.Source.Contains(".DockingState.TryLatest(", StringComparison.Ordinal) ||
-            entry.Compact.Contains(CompactSource(".DockingState.Latest()"), StringComparison.Ordinal))
+            !entry.Source.Contains(".DockingState.Reactive()", StringComparison.Ordinal) ||
+            !entry.Source.Contains(".TryCurrent(", StringComparison.Ordinal) ||
+            entry.Compact.Contains(CompactSource(".DockingState.Latest()"), StringComparison.Ordinal) ||
+            entry.Compact.Contains(CompactSource(".DockingState.TryLatest("), StringComparison.Ordinal))
         .Select(entry => Path.GetRelativePath(root, entry.Path))
         .ToArray();
 
     if (offenders.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking state must read through AetheriaClientDockingState.TryLatest instead of local latest wrappers: " +
+            "Unity menu docking state must read through AetheriaClientDockingState.Reactive instead of latest wrappers: " +
             string.Join(", ", offenders));
     }
 
-    Console.WriteLine("Menu docking state: Unity menus read managed typed docking snapshots through AetheriaClientDockingState.TryLatest");
+    Console.WriteLine("Menu docking state: Unity menus read managed reactive typed docking snapshots");
 }
 
 static void RequireUnitySharedDocumentAccessorErgonomics(string root)
@@ -11951,7 +11972,8 @@ static void RequireMainMenuContinueRunState(string root)
         "public sealed class AetheriaUnityObservedDockingIndex",
         ".Aetheria()",
         ".DockingState",
-        ".TryLatest(",
+        ".Reactive()",
+        ".TryCurrent(",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
