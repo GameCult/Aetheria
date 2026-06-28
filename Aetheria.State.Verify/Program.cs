@@ -7278,6 +7278,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingSectorRendererSharedDocumentSymbols));
     }
 
+    var zoneRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Zone Display",
+        "ZoneRenderer.cs"));
+    var requiredZoneRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        "_catalog?.Dispose()",
+        "_catalog?.Current",
+        "private void OnDestroy()"
+    };
+    var missingZoneRendererSharedDocumentSymbols = requiredZoneRendererSharedDocumentSymbols
+        .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneRendererSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer should bind catalog state through the managed reactive Aetheria catalog document with renderer lifetime disposal: " +
+            string.Join(", ", missingZoneRendererSharedDocumentSymbols));
+    }
+
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",

@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
+using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -118,7 +119,8 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private string _clientStatePath = "";
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -1006,7 +1008,7 @@ public class ZoneRenderer : MonoBehaviour
 
     private void OnDestroy()
     {
-        _catalog = null;
+        ClearClientCaches();
     }
 
     private float GetTerrainHeight(float2 position)
@@ -1214,25 +1216,38 @@ public class ZoneRenderer : MonoBehaviour
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
     {
         if (_catalog != null)
-            return _catalog;
+            return _catalog.Current;
 
         try
         {
-            _catalog = ResolveClient().Aetheria().LatestCatalog();
+            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria runtime catalog for zone renderer: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for zone renderer: {ex.Message}");
         }
 
-        return _catalog;
+        return _catalog?.Current;
     }
 
     private AetheriaClient ResolveClient()
     {
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
+        }
+
         return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            stateBoot,
             "unity-zone-renderer");
+    }
+
+    private void ClearClientCaches()
+    {
+        _catalog?.Dispose();
+        _catalog = null;
     }
 }
 
