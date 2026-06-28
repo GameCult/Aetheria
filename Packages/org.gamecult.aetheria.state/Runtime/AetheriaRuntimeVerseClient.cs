@@ -262,30 +262,10 @@ namespace GameCult.Aetheria.State.Verse
             return await Aetheria().Starbridge.PlayerSeat(seatId).LatestAsync().ConfigureAwait(false);
         }
 
-        public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
-        {
-            ThrowIfDisposed();
-            return Aetheria().Catalog.Latest();
-        }
-
         public AetheriaClientState Aetheria()
         {
             ThrowIfDisposed();
             return _aetheriaState ??= CreateAetheriaStateFacade();
-        }
-
-        public async Task<AetheriaRuntimePlayerSettingsSnapshot?> GetPlayerSettingsAsync()
-        {
-            ThrowIfDisposed();
-            var document = await Aetheria().Settings.Player.LatestAsync().ConfigureAwait(false);
-            return document.ToSnapshot();
-        }
-
-        public async Task<AetheriaRuntimeVerseHostSettingsSnapshot?> GetVerseHostSettingsAsync()
-        {
-            ThrowIfDisposed();
-            var document = await Aetheria().Settings.VerseHost.LatestAsync().ConfigureAwait(false);
-            return document.ToSnapshot();
         }
 
         public async Task<AetheriaRuntimeObservedDaemonState?> GetObservedDaemonStateAsync()
@@ -336,7 +316,7 @@ namespace GameCult.Aetheria.State.Verse
                 frameTask.Result,
                 healthTask.Result,
                 commandBoundaryTask.Result,
-                OpenRuntimeCatalog);
+                () => state.Catalog.Latest());
         }
 
         public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()
