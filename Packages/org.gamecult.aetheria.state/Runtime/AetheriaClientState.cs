@@ -750,6 +750,20 @@ namespace GameCult.Aetheria.State.Verse
             return LatestMapAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument>> ReactiveMapAsync(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Map(viewport).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveMap(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Map(viewport).Reactive(options);
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> Objects(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -763,6 +777,20 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return LatestObjectsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument>> ReactiveObjectsAsync(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Objects(viewport).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjects(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Objects(viewport).Reactive(options);
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
@@ -780,6 +808,20 @@ namespace GameCult.Aetheria.State.Verse
             return LatestGravityAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument>> ReactiveGravityAsync(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Gravity(viewport).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravity(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Gravity(viewport).Reactive(options);
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _renderSplats(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -793,6 +835,20 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return LatestRenderSplatsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument>> ReactiveRenderSplatsAsync(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return RenderSplats(viewport).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplats(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return RenderSplats(viewport).Reactive(options);
         }
     }
 

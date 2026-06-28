@@ -7126,9 +7126,18 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer.cs"));
     var requiredMapRendererSharedDocumentSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
+        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".ReactiveObjects(viewport)",
+        ".ReactiveRenderSplats(viewport)",
         ".Settings",
         ".ReactivePlayer()",
+        "ClearViewportCaches()",
+        "_objectsViewport?.Dispose()",
+        "_renderSplatsViewport?.Dispose()",
+        "_objectsViewport?.Current",
+        "_renderSplatsViewport?.Current",
         "_playerSettings?.Dispose()",
         "_playerSettings?.Current",
         "private void OnDestroy()"
@@ -7139,7 +7148,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingMapRendererSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MapRenderer should bind player settings through the managed reactive Aetheria settings document: " +
+            "MapRenderer should bind viewport and player settings through managed reactive Aetheria documents: " +
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
     }
 
@@ -7370,7 +7379,9 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "public AetheriaRuntimeCurrentZoneDocument LatestZone()",
         "public AetheriaRuntimeCurrentEntityDocument LatestEntity()",
         "public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjects(",
         "public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplats(",
         "public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)"
     };
     var missingClientSymbols = requiredClientSymbols
@@ -12919,8 +12930,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".LatestObjects(viewport)", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".LatestRenderSplats(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ReactiveObjects(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ReactiveRenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||

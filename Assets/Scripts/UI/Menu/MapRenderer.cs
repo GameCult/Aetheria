@@ -40,8 +40,8 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private AetheriaRuntimeObjectsViewportDocument _objectsViewport;
-    private AetheriaRuntimeRenderSplatsViewportDocument _renderSplatsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     private string _clientStatePath = "";
@@ -74,6 +74,7 @@ public class MapRenderer : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearViewportCaches();
         if (_mapTexture != null)
         {
             ReleaseTextures();
@@ -127,18 +128,20 @@ public class MapRenderer : MonoBehaviour
         {
             var client = ResolveClient();
             var viewport = ResolveViewportBounds();
+            ClearViewportCaches();
             _objectsViewport = client
                 .Aetheria()
                 .Viewports
-                .LatestObjects(viewport);
+                .ReactiveObjects(viewport);
             _renderSplatsViewport = client
                 .Aetheria()
                 .Viewports
-                .LatestRenderSplats(viewport);
+                .ReactiveRenderSplats(viewport);
 
-            var zoneName = string.IsNullOrWhiteSpace(_objectsViewport?.ZoneName)
+            var objectsViewport = _objectsViewport?.Current;
+            var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)
                 ? "Unknown"
-                : _objectsViewport.ZoneName;
+                : objectsViewport.ZoneName;
             Title.text = $"Zone: {zoneName}";
         }
         catch (Exception ex)
@@ -150,14 +153,15 @@ public class MapRenderer : MonoBehaviour
 
     private void RenderSplatLayers()
     {
-        if (_renderSplatsViewport == null)
+        var renderSplatsViewport = _renderSplatsViewport?.Current;
+        if (renderSplatsViewport == null)
             return;
 
         if (SplatLayerRenderer == null)
             SplatLayerRenderer = GetComponent<AetheriaRenderSplatLayerRenderer>() ??
                 gameObject.AddComponent<AetheriaRenderSplatLayerRenderer>();
 
-        SplatLayerRenderer.Render(_renderSplatsViewport, _size.x, _size.y);
+        SplatLayerRenderer.Render(renderSplatsViewport, _size.x, _size.y);
         ApplyLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.GravityHeight, GravityDisplay);
         ApplyLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogTint, TintDisplay);
         ApplyLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.Influence, InfluenceDisplay);
@@ -188,7 +192,7 @@ public class MapRenderer : MonoBehaviour
         if (RtsIconRoot == null)
             return;
 
-        var objects = _objectsViewport?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>();
+        var objects = _objectsViewport?.Current?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>();
         for (var i = 0; i < objects.Count; i++)
         {
             var icon = ResolveRtsIcon(i);
@@ -247,7 +251,7 @@ public class MapRenderer : MonoBehaviour
 
     private Vector2 WorldToMapPosition(double worldX, double worldY)
     {
-        var viewport = _objectsViewport?.Viewport ?? ResolveViewportBounds();
+        var viewport = _objectsViewport?.Current?.Viewport ?? ResolveViewportBounds();
         var minX = Math.Min(viewport.MinX, viewport.MaxX);
         var maxX = Math.Max(viewport.MinX, viewport.MaxX);
         var minY = Math.Min(viewport.MinY, viewport.MaxY);
@@ -343,8 +347,17 @@ public class MapRenderer : MonoBehaviour
 
     private void ClearClientCaches()
     {
+        ClearViewportCaches();
         _playerSettings?.Dispose();
         _playerSettings = null;
+    }
+
+    private void ClearViewportCaches()
+    {
+        _objectsViewport?.Dispose();
+        _renderSplatsViewport?.Dispose();
+        _objectsViewport = null;
+        _renderSplatsViewport = null;
     }
 
     private void OnDestroy()
