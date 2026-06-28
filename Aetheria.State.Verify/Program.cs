@@ -1292,36 +1292,39 @@ static void RequireTypedBehaviorBodyKeys(string root)
 
 static void RequireNoDeadRuntimeProjectionCaches(string root)
 {
-    var path = Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection", "ReflectionExtensions.cs");
-    if (!File.Exists(path))
-        return;
-
-    var forbiddenSymbols = new[]
+    var runtimeProjectionDirectory = Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection");
+    if (Directory.Exists(runtimeProjectionDirectory))
     {
-        "GetAllInterfaceClasses(",
-        "GetParentTypes(",
-        "GetAllChildClasses(",
-        "GetAllGenericChildClasses(",
-        "IsAssignableToGenericType(",
-        "GetFullName(",
-        "InterfaceClasses",
-        "ParentTypes",
-        "ChildClasses",
-        "GenericChildClasses",
-        "AppDomain.CurrentDomain.GetAssemblies()"
-    };
+        var survivors = Directory.EnumerateFileSystemEntries(runtimeProjectionDirectory)
+            .Select(path => Path.GetRelativePath(root, path))
+            .ToArray();
+        throw new InvalidOperationException(
+            "Dead runtime-projection helper directory should stay deleted; move live helpers under explicit runtime owners: " +
+            string.Join(", ", survivors));
+    }
 
-    var hits = File.ReadLines(path)
-        .Select((line, index) => new { Line = line, LineNumber = index + 1 })
-        .Where(line => forbiddenSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
-        .Select(line => $"Assets/Scripts/ServerShared/RuntimeProjection/ReflectionExtensions.cs:{line.LineNumber}: {line.Line.Trim()}")
-        .ToArray();
+    var selectionExtensionsPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "EnumerableSelectionExtensions.cs");
+    var sharedProjectPath = Path.Combine(root, "Aetheria.Shared.Unity.csproj");
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var selectionExtensions = File.Exists(selectionExtensionsPath)
+        ? File.ReadAllText(selectionExtensionsPath)
+        : "";
+    var sharedProject = File.Exists(sharedProjectPath)
+        ? File.ReadAllText(sharedProjectPath)
+        : "";
+    var tradeMenu = File.Exists(tradeMenuPath)
+        ? File.ReadAllText(tradeMenuPath)
+        : "";
 
-    if (hits.Length > 0)
+    if (!selectionExtensions.Contains("public static T MaxBy<T, U>", StringComparison.Ordinal) ||
+        !selectionExtensions.Contains("public static T MinBy<T, U>", StringComparison.Ordinal) ||
+        !sharedProject.Contains(@"Assets\Scripts\ServerShared\EnumerableSelectionExtensions.cs", StringComparison.Ordinal) ||
+        sharedProject.Contains("RuntimeProjection", StringComparison.Ordinal) ||
+        tradeMenu.Contains(".FormatTypeName()", StringComparison.Ordinal) ||
+        !tradeMenu.Contains("private static string FormatTypeName(string typeName)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Dead runtime-projection reflection caches should stay deleted; keep only the live string-formatting helpers: " +
-            string.Join("; ", hits));
+            "Live RuntimeProjection remnants must move into explicit owners: enumerable selection helpers under ServerShared and trade labels inside TradeMenu.");
     }
 }
 

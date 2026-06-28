@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -840,26 +841,26 @@ public class TradeMenu : MonoBehaviour
             .Select(type => new AetheriaRuntimeTradeFilterOption(
                 AetheriaRuntimeTradeFilterSelectionKind.Hardpoint,
                 type.ToString(),
-                type.ToString().FormatTypeName())));
+                FormatTypeName(type.ToString()))));
         options.AddRange(((SimpleCommodityCategory[])Enum.GetValues(typeof(SimpleCommodityCategory)))
             .Where(type => _commodityFilter.filter == null || type != _commodityFilter.type)
             .Select(type => new AetheriaRuntimeTradeFilterOption(
                 AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity,
                 type.ToString(),
-                type.ToString().FormatTypeName())));
+                FormatTypeName(type.ToString()))));
         options.AddRange(((CompoundCommodityCategory[])Enum.GetValues(typeof(CompoundCommodityCategory)))
             .Where(type => _compoundCommodityFilter.filter == null || type != _compoundCommodityFilter.type)
             .Select(type => new AetheriaRuntimeTradeFilterOption(
                 AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity,
                 type.ToString(),
-                type.ToString().FormatTypeName())));
+                FormatTypeName(type.ToString()))));
         options.AddRange(AetheriaRuntimeBehaviorMetadataCatalog.All
             .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
             .OrderBy(option => option.Kind, StringComparer.Ordinal)
             .Select(option => new AetheriaRuntimeTradeFilterOption(
                 AetheriaRuntimeTradeFilterSelectionKind.Behavior,
                 option.Kind,
-                option.Kind.FormatTypeName())));
+                FormatTypeName(option.Kind))));
 
         if (!MinimumSizeFilter.gameObject.activeSelf)
         {
@@ -1017,7 +1018,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         var filter = FilterPrototype.Instantiate<ItemFilter>();
-        filter.Label.text = metadata.Kind.FormatTypeName();
+        filter.Label.text = FormatTypeName(metadata.Kind);
         var behaviorFilter = new BehaviorFilter(filter, metadata);
         filter.OnDisable += () =>
         {
@@ -1132,7 +1133,7 @@ public class TradeMenu : MonoBehaviour
             activeFilters.Add($"Compound: {Enum.GetName(typeof(CompoundCommodityCategory), _compoundCommodityFilter.type)}");
         }
 
-        activeFilters.AddRange(_behaviorFilters.Select(filter => $"Behavior: {filter.Kind.FormatTypeName()}"));
+        activeFilters.AddRange(_behaviorFilters.Select(filter => $"Behavior: {FormatTypeName(filter.Kind)}"));
 
         if (MinimumSizeFilter.gameObject.activeSelf)
         {
@@ -1280,6 +1281,26 @@ public class TradeMenu : MonoBehaviour
         {
             TargetCargoLabel.text = _targetCargoLabel;
         }
+    }
+
+    private static string FormatTypeName(string typeName)
+    {
+        var value = typeName ?? "";
+        var trimmed = value.EndsWith("Data", StringComparison.InvariantCultureIgnoreCase)
+            ? value.Substring(0, value.Length - 4)
+            : value;
+        return SplitCamelCase(trimmed);
+    }
+
+    private static string SplitCamelCase(string value)
+    {
+        return Regex.Replace(
+            Regex.Replace(
+                value ?? "",
+                @"(\P{Ll})(\P{Ll}\p{Ll})",
+                "$1 $2"),
+            @"(\p{Ll})(\P{Ll})",
+            "$1 $2");
     }
 
     private void OnDisable()
