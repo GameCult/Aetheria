@@ -8740,6 +8740,13 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredDaemonNodeSymbols = new[]
     {
+        "public string RuntimeId { get; }",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(CultRecordKey key)",
+        "CultMesh.Document<TDocument>(",
+        "Database.WatchRecord<TDocument>(key)",
+        "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()",
+        "AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)",
+        "AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest",
         "PutDaemonProviderAdvertisementAsync(",
         "GetDaemonProviderAdvertisementAsync(",
         "PutDaemonHealthAsync(",
@@ -8893,6 +8900,9 @@ static void RequireDaemonVersePublication(string root)
         "ProjectReference Include=\"..\\Aetheria.State\\Aetheria.State.csproj\"",
         "AetheriaStateNode.OpenAsync(",
         "startServer: true",
+        ".Document<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
+        ".LatestAsync()",
+        "Catalog = node.RuntimeCatalog().Latest()",
         "GetStarbridgeScenarioAsync()",
         "GetStarbridgeSessionAsync()",
         "StarbridgeScenario = starbridgeScenario",
@@ -8927,6 +8937,8 @@ static void RequireDaemonVersePublication(string root)
 
     var forbiddenDaemonHostSymbols = new[]
     {
+        "AetheriaRuntimeDaemonFrameStore.TryReadFrame(node.StatePath",
+        "Catalog = node.OpenRuntimeCatalog()",
         "AetheriaRuntimeDaemonCommandLog.",
         "DeleteProcessedCommands",
         "new HttpListener",

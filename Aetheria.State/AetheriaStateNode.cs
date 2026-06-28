@@ -7,20 +7,27 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
 using GameCult.Networking;
+using R3;
 
 namespace Aetheria.State;
 
 public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 {
     private readonly CultMeshNode _node;
+    private CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot>? _runtimeCatalog;
 
-    private AetheriaStateNode(string statePath, CultMeshNode node)
+    private AetheriaStateNode(string statePath, string runtimeId, CultMeshNode node)
     {
         StatePath = statePath;
+        RuntimeId = string.IsNullOrWhiteSpace(runtimeId)
+            ? "aetheria-local"
+            : runtimeId;
         _node = node;
     }
 
     public string StatePath { get; }
+
+    public string RuntimeId { get; }
 
     public CultMeshNode MeshNode => _node;
 
@@ -62,7 +69,45 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                 }
             }).ConfigureAwait(false);
 
-        return new AetheriaStateNode(statePath, node);
+        return new AetheriaStateNode(statePath, runtimeId, node);
+    }
+
+    public CultMeshDocumentHandle<TDocument> Document<TDocument>(CultRecordKey key)
+        where TDocument : class
+    {
+        return CultMesh.Document<TDocument>(
+            key.ToString(),
+            CultMesh.Verse("aetheria.local", RuntimeId),
+            async _ => (await Database.GetAsync<TDocument>(key).ConfigureAwait(false))!,
+            _ => Database.WatchRecord<TDocument>(key)
+                .Where(change => change.Document != null)
+                .Select(change => change.Document!),
+            sources: new[]
+            {
+                CultMesh.ProjectionSource(key.ToString())
+            },
+            routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed state node document"));
+    }
+
+    public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()
+    {
+        return _runtimeCatalog ??= CultMesh.Document(
+            "aetheria.catalog.runtime",
+            CultMesh.Verse("aetheria.local", RuntimeId),
+            _ => Task.FromResult(AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)),
+            _ => Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                .Where(change => change.Document != null)
+                .Select(_ => AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)),
+            sources: new[]
+            {
+                CultMesh.ProjectionSource("catalog:aetheria.runtime"),
+                CultMesh.ProjectionSource(
+                    "aetheria.catalog.runtime",
+                    AetheriaRuntimeCatalogSnapshot.SchemaId,
+                    "managed Aetheria runtime catalog document")
+            },
+            routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
     public Task<CultRecordHandle<AetheriaWorldState>> PutWorldAsync(AetheriaWorldState world)

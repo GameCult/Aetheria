@@ -30,9 +30,10 @@ await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
 discoveryHost.Update(verseHost);
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").ConfigureAwait(false);
 await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
-var latestFrame = AetheriaRuntimeDaemonFrameStore.TryReadFrame(node.StatePath, out var startupFrame)
-    ? startupFrame
-    : null;
+var latestFrame = await node
+    .Document<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+    .LatestAsync()
+    .ConfigureAwait(false);
 using var cultMeshRudpHost = StartRtsCultMeshHost(node, options, () => latestFrame);
 using var rtsPumpCancellation = new CancellationTokenSource();
 var rtsPump = RunRtsCultMeshPumpAsync(cultMeshRudpHost, rtsPumpCancellation.Token);
@@ -167,7 +168,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             PreRejectedCommandIds = policyRejectedCommandIds,
             CumulativeAppliedCommandIds = currentFrame?.CumulativeAppliedCommandIds ?? currentFrame?.AppliedCommandIds ?? Array.Empty<string>(),
             CumulativeRejectedCommandIds = currentFrame?.CumulativeRejectedCommandIds ?? currentFrame?.RejectedCommandIds ?? Array.Empty<string>(),
-            Catalog = node.OpenRuntimeCatalog(),
+            Catalog = node.RuntimeCatalog().Latest(),
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             PublishWitnesses = publishWitnesses,
