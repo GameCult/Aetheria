@@ -290,11 +290,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             ThrowIfDisposed();
 
-            var frame = await GetLatestFrameAsync().ConfigureAwait(false);
+            var state = Aetheria();
+            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
             if (frame == null)
                 return null;
 
-            var soaView = await GetLatestSoaViewAsync().ConfigureAwait(false);
+            var soaView = await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
             if (soaView == null ||
                 !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
             {
@@ -322,9 +323,10 @@ namespace GameCult.Aetheria.State.Verse
         {
             ThrowIfDisposed();
 
-            var frameTask = GetLatestFrameAsync();
-            var healthTask = GetHealthAsync();
-            var commandBoundaryTask = GetCommandBoundaryAsync();
+            var state = Aetheria();
+            var frameTask = state.Daemon.LatestFrame.LatestAsync();
+            var healthTask = state.Daemon.Health.LatestAsync();
+            var commandBoundaryTask = state.Daemon.CommandBoundary.LatestAsync();
 
             await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
 
@@ -339,7 +341,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             ThrowIfDisposed();
 
-            var frame = await GetLatestFrameAsync().ConfigureAwait(false);
+            var frame = await Aetheria().Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
             if (frame == null ||
                 !frame.IsAuthoritative ||
                 frame.Run == null ||
@@ -352,28 +354,28 @@ namespace GameCult.Aetheria.State.Verse
             return frame;
         }
 
-        public Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
+        public async Task<EveSurfaceState?> GetDaemonGameSurfaceAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+            return await Aetheria().Daemon.GameSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<EveSurfaceState?> GetDaemonGameTuiSurfaceAsync()
+        public async Task<EveSurfaceState?> GetDaemonGameTuiSurfaceAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
+            return await Aetheria().Daemon.GameTuiSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<EveSurfaceState?> GetDaemonEditorSurfaceAsync()
+        public async Task<EveSurfaceState?> GetDaemonEditorSurfaceAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
+            return await Aetheria().Daemon.EditorSurface.LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<EveSurfaceState?> GetDaemonEditorTuiSurfaceAsync()
+        public async Task<EveSurfaceState?> GetDaemonEditorTuiSurfaceAsync()
         {
             ThrowIfDisposed();
-            return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
+            return await Aetheria().Daemon.EditorTuiSurface.LatestAsync().ConfigureAwait(false);
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
@@ -943,7 +945,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private async Task<AetheriaRuntimeDaemonFrameDocument> RequireFrameAsync()
         {
-            var frame = await GetLatestFrameAsync().ConfigureAwait(false);
+            var frame = await Aetheria().Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
             if (frame == null)
                 throw new InvalidOperationException("Aetheria Verse client has no daemon frame yet.");
             return frame;

@@ -9282,6 +9282,16 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "private AetheriaClientState? _aetheriaState",
         "return Aetheria().Catalog.Latest()",
         "return _aetheriaState ??= CreateAetheriaStateFacade();",
+        "var state = Aetheria();",
+        "state.Daemon.LatestFrame.LatestAsync()",
+        "state.Daemon.LatestSoaView.LatestAsync()",
+        "state.Daemon.Health.LatestAsync()",
+        "state.Daemon.CommandBoundary.LatestAsync()",
+        "Aetheria().Daemon.LatestFrame.LatestAsync()",
+        "Aetheria().Daemon.GameSurface.LatestAsync()",
+        "Aetheria().Daemon.GameTuiSurface.LatestAsync()",
+        "Aetheria().Daemon.EditorSurface.LatestAsync()",
+        "Aetheria().Daemon.EditorTuiSurface.LatestAsync()",
         "GetPlayerSettingsAsync()",
         "Aetheria().Settings.Player.LatestAsync()",
         "Aetheria().Settings.VerseHost.LatestAsync()",
@@ -9337,7 +9347,16 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));",
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));",
         "() => Task.FromResult(OpenRuntimeCatalog())",
-        "OpenRuntimeCatalog());"
+        "OpenRuntimeCatalog());",
+        "var frame = await GetLatestFrameAsync().ConfigureAwait(false);",
+        "var soaView = await GetLatestSoaViewAsync().ConfigureAwait(false);",
+        "var frameTask = GetLatestFrameAsync();",
+        "var healthTask = GetHealthAsync();",
+        "var commandBoundaryTask = GetCommandBoundaryAsync();",
+        "return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);",
+        "return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);",
+        "return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);",
+        "return Database.GetAsync<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);"
     };
     var clientCompatibilityStoreBypassHits = forbiddenClientCompatibilityStoreBypasses
         .Where(symbol => client.Contains(symbol, StringComparison.Ordinal))
@@ -9345,7 +9364,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     if (clientCompatibilityStoreBypassHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaRuntimeVerseClient compatibility reads still bypass managed typed catalog/settings documents: " +
+            "AetheriaRuntimeVerseClient compatibility reads still bypass managed typed documents: " +
             string.Join(", ", clientCompatibilityStoreBypassHits));
     }
 
