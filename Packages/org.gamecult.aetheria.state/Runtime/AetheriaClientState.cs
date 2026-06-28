@@ -521,6 +521,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestPlayerAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>> ReactivePlayerAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Player.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayer(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Player.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()
         {
             return VerseHost.LatestAsync();
@@ -529,6 +541,18 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()
         {
             return LatestVerseHostAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>> ReactiveVerseHostAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return VerseHost.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHost(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return VerseHost.Reactive(options);
         }
     }
 

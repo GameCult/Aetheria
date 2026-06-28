@@ -6980,8 +6980,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public AetheriaRuntimeCatalogSnapshot LatestCatalog()",
         "public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()",
         "public AetheriaRuntimePlayerSettingsDocument LatestPlayer()",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>> ReactivePlayerAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayer(",
         "public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()",
-        "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()"
+        "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>> ReactiveVerseHostAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHost("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7041,6 +7045,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "Unity presentation code still walks shared CultMesh document handles instead of named managed accessors: " +
             string.Join(", ", offenders));
+    }
+
+    var volumeCloudRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Zone Display",
+        "VolumeCloudRenderer.cs"));
+    var requiredVolumeCloudSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_playerSettings?.Dispose()",
+        "_playerSettings?.Current"
+    };
+    var missingVolumeCloudSymbols = requiredVolumeCloudSymbols
+        .Where(symbol => !volumeCloudRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVolumeCloudSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "VolumeCloudRenderer should bind player settings through the managed reactive Aetheria settings document: " +
+            string.Join(", ", missingVolumeCloudSymbols));
     }
 
     Console.WriteLine("Shared document accessors: Unity shared catalog/settings reads use named managed Aetheria client accessors");
