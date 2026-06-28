@@ -558,6 +558,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestZoneAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Zone.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Zone.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeCurrentEntityDocument> LatestEntityAsync()
         {
             return Entity.LatestAsync();
@@ -566,6 +578,30 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeCurrentEntityDocument LatestEntity()
         {
             return LatestEntityAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Entity.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Entity.Reactive(options);
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Docking.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Docking.Reactive(options);
         }
     }
 
@@ -883,6 +919,20 @@ namespace GameCult.Aetheria.State.Verse
             return LatestZoneAsync(zoneIndex).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument>> ReactiveZoneAsync(
+            int zoneIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Zone(zoneIndex).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZone(
+            int zoneIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Zone(zoneIndex).Reactive(options);
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)
         {
             return _selectedObject(entityIndex);
@@ -898,6 +948,20 @@ namespace GameCult.Aetheria.State.Verse
             return LatestSelectedObjectAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument>> ReactiveSelectedObjectAsync(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return SelectedObject(entityIndex).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return SelectedObject(entityIndex).Reactive(options);
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
         {
             return _inventory(entityIndex);
@@ -911,6 +975,20 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeInventoryDocument LatestInventory(int entityIndex)
         {
             return LatestInventoryAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Inventory(entityIndex).ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Inventory(entityIndex).Reactive(options);
         }
     }
 

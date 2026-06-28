@@ -4508,9 +4508,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "ProjectZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Aetheria()",
-        ".LatestSectorMap()",
+        ".ReactiveSectorMap()",
         ".Details",
-        ".LatestZone(zoneIndex)",
+        ".ReactiveZone(zoneIndex)",
+        "_zoneDetails?.Current",
         ".Settings",
         ".ReactiveCatalog()",
         ".ReactivePlayer()",
@@ -7003,7 +7004,19 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>> ReactiveStationRefitAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender("
+        "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument>> ReactiveZoneAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZone(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument>> ReactiveSelectedObjectAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -12987,15 +13000,16 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".LatestZone(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactiveZone(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !sectorMap.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
