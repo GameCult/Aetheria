@@ -10,12 +10,12 @@ using Unity.Mathematics;
 
 public sealed class AetheriaUnityEntityConstructionBlueprintProjector
 {
-    private readonly AetheriaUnityLoadoutItemProjector _loadoutItemProjector;
+    private readonly AetheriaUnityLoadoutItemFactory _loadoutItemFactory;
 
     public AetheriaUnityEntityConstructionBlueprintProjector(
-        AetheriaUnityLoadoutItemProjector loadoutItemProjector)
+        AetheriaUnityLoadoutItemFactory loadoutItemFactory)
     {
-        _loadoutItemProjector = loadoutItemProjector ?? throw new ArgumentNullException(nameof(loadoutItemProjector));
+        _loadoutItemFactory = loadoutItemFactory ?? throw new ArgumentNullException(nameof(loadoutItemFactory));
     }
 
     public EntityConstructionBlueprint ProjectTemplate(AetheriaRuntimeLoadoutTemplateSnapshot template)
@@ -137,7 +137,7 @@ public sealed class AetheriaUnityEntityConstructionBlueprintProjector
     {
         return (bays ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutSnapshot>())
             .Select(bay => (bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotSnapshot>())
-                .Select(slot => (position: new int2(slot.X, slot.Y), item: _loadoutItemProjector.CreateLoadoutItem(slot.Item)))
+                .Select(slot => (position: new int2(slot.X, slot.Y), item: _loadoutItemFactory.CreateLoadoutItem(slot.Item)))
                 .Where(slot => slot.item != null)
                 .ToArray())
             .ToArray();
@@ -145,7 +145,7 @@ public sealed class AetheriaUnityEntityConstructionBlueprintProjector
 
     private EquippableItem CreateEquippableItem(AetheriaRuntimeLoadoutItemSnapshot item)
     {
-        var instance = _loadoutItemProjector.CreateLoadoutItem(item) as EquippableItem;
+        var instance = _loadoutItemFactory.CreateLoadoutItem(item) as EquippableItem;
         if (instance != null && item.Durability > 0)
             instance.Durability = (float)item.Durability;
         return instance;

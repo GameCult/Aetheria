@@ -5,12 +5,12 @@
 using System;
 using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaUnityLoadoutItemProjector
+public sealed class AetheriaUnityLoadoutItemFactory
 {
     private readonly ItemManager _itemManager;
     private readonly AetheriaRuntimeCatalogSnapshot _catalog;
 
-    public AetheriaUnityLoadoutItemProjector(
+    public AetheriaUnityLoadoutItemFactory(
         ItemManager itemManager,
         AetheriaRuntimeCatalogSnapshot catalog)
     {

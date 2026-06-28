@@ -43,7 +43,7 @@ public class ActionGameManager : MonoBehaviour
             _observedEntityIndex,
             ItemManager,
             EntityConstructionBlueprintProjector.ProjectObservedEntity,
-            _loadoutItemProjector.CreateLoadoutItem,
+            _loadoutItemFactory.CreateLoadoutItem,
             Debug.LogWarning);
     private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>
         _observedZoneContextProjector ??= new AetheriaUnityObservedZoneContextProjector(
@@ -107,7 +107,7 @@ public class ActionGameManager : MonoBehaviour
             entity => CurrentEntityBinder.RestoreBinding(entity),
             Debug.LogWarning);
     private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>
-        _entityConstructionBlueprintProjector ??= new AetheriaUnityEntityConstructionBlueprintProjector(_loadoutItemProjector);
+        _entityConstructionBlueprintProjector ??= new AetheriaUnityEntityConstructionBlueprintProjector(_loadoutItemFactory);
     private AetheriaUnityActionBarBindingAdapter ActionBarBindings =>
         _actionBarBindingAdapter ??= new AetheriaUnityActionBarBindingAdapter(_actionBarPresentation);
     private AetheriaUnityMenuShell MenuShell =>
@@ -291,7 +291,7 @@ public class ActionGameManager : MonoBehaviour
     }
 
     private ItemManager ItemManager { get; set; }
-    private AetheriaUnityLoadoutItemProjector _loadoutItemProjector;
+    private AetheriaUnityLoadoutItemFactory _loadoutItemFactory;
     private Galaxy ObservedGalaxy { get; set; }
     private Zone Zone { get; set; }
 
@@ -323,7 +323,7 @@ public class ActionGameManager : MonoBehaviour
     {
         var boot = GameplayBootShell.Boot();
         ItemManager = boot.ItemManager;
-        _loadoutItemProjector = boot.LoadoutItemProjector;
+        _loadoutItemFactory = boot.LoadoutItemFactory;
         ObservedGalaxy = boot.ObservedGalaxy;
         SceneWiring.ConfigureCurrentEntityPresentation(_currentEntityPresentation, boot.RuntimeCatalog);
         SceneWiring.ConfigureTargetPresentation(

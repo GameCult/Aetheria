@@ -62,8 +62,8 @@ public sealed class AetheriaUnityGameplayBootShell
             runtimeCatalog,
             Settings.GameplaySettings,
             message => Log?.Invoke(message));
-        var loadoutItemProjector = new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog);
-        ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem);
+        var loadoutItemFactory = new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog);
+        ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem);
         ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections;
         ZoneRenderer.RenderSettings = AetheriaUnityRenderSettingsBridge.Build(
             Settings,
@@ -78,7 +78,7 @@ public sealed class AetheriaUnityGameplayBootShell
             runtimeCatalog,
             observedGalaxy,
             itemManager,
-            loadoutItemProjector);
+            loadoutItemFactory);
     }
 
     private AetheriaRuntimeStateBootReport SyncRemoteReplicaBeforeBoot(AetheriaRuntimeStateBootReport stateBoot)
@@ -123,16 +123,16 @@ public readonly struct AetheriaUnityGameplayBootResult
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         Galaxy observedGalaxy,
         ItemManager itemManager,
-        AetheriaUnityLoadoutItemProjector loadoutItemProjector)
+        AetheriaUnityLoadoutItemFactory loadoutItemFactory)
     {
         RuntimeCatalog = runtimeCatalog;
         ObservedGalaxy = observedGalaxy;
         ItemManager = itemManager;
-        LoadoutItemProjector = loadoutItemProjector;
+        LoadoutItemFactory = loadoutItemFactory;
     }
 
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; }
     public Galaxy ObservedGalaxy { get; }
     public ItemManager ItemManager { get; }
-    public AetheriaUnityLoadoutItemProjector LoadoutItemProjector { get; }
+    public AetheriaUnityLoadoutItemFactory LoadoutItemFactory { get; }
 }

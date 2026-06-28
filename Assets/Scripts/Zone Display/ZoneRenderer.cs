@@ -1106,7 +1106,7 @@ public class ZoneRenderer : MonoBehaviour
         _loot.Remove(loot);
     }
 
-    public void SetDroppedPickupItemProjector(Func<AetheriaRuntimeLoadoutItemCommit, ItemInstance> createDroppedPickupItem)
+    public void SetDroppedPickupItemFactory(Func<AetheriaRuntimeLoadoutItemCommit, ItemInstance> createDroppedPickupItem)
     {
         _createDroppedPickupItem = createDroppedPickupItem;
     }

@@ -8589,7 +8589,7 @@ static void RequireClientTargetBootAuthority(string root)
         "boot.RuntimeCatalog,",
         "SceneWiring.ConfigureActionBarPresentation(",
         "ItemManager = boot.ItemManager;",
-        "_loadoutItemProjector = boot.LoadoutItemProjector;"
+        "_loadoutItemFactory = boot.LoadoutItemFactory;"
     };
     var missingActionGameManagerSymbols = requiredActionGameManagerSymbols
         .Where(symbol => !actionGameManager.Contains(symbol, StringComparison.Ordinal))
@@ -8639,8 +8639,8 @@ static void RequireClientTargetBootAuthority(string root)
         ".ObserveSectorMap()",
         "sectorMapSession.Current",
         "new ItemManager(",
-        "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
-        "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
+        "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
+        "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections",
         "AetheriaUnityRenderSettingsBridge.Build(",
         "CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)",
@@ -12248,7 +12248,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
         "EntityConstructionBlueprintProjector.ProjectObservedEntity",
-        "_loadoutItemProjector.CreateLoadoutItem",
+        "_loadoutItemFactory.CreateLoadoutItem",
         "private AetheriaUnityObservedDockingIndex ObservedDocking =>",
         "ObservedDocking.IsEntityUndocked(CurrentEntity)",
         "IsCurrentEntityObservedUndocked(",
@@ -12394,8 +12394,8 @@ static void RequireMainMenuContinueRunState(string root)
         "blueprint.Equipment = CreateEquippableSlots(entity.Equipment)",
         "blueprint.CargoContents = CreateCargoBayContents(entity.CargoContents)",
         "blueprint.Children = entity.Children",
-        "_loadoutItemProjector.CreateLoadoutItem(slot.Item)",
-        "_loadoutItemProjector.CreateLoadoutItem(item) as EquippableItem"
+        "_loadoutItemFactory.CreateLoadoutItem(slot.Item)",
+        "_loadoutItemFactory.CreateLoadoutItem(item) as EquippableItem"
     };
     var missingEntityConstructionBlueprintProjectorSymbols = requiredEntityConstructionBlueprintProjectorSymbols
         .Where(symbol => !entityConstructionBlueprintProjector.Contains(symbol, StringComparison.Ordinal))
@@ -13250,7 +13250,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
         "EntityConstructionBlueprintProjector.ProjectObservedEntity",
-        "_loadoutItemProjector.CreateLoadoutItem",
+        "_loadoutItemFactory.CreateLoadoutItem",
         "private AetheriaUnityPilotCommandSender PilotCommands =>",
         "private AetheriaUnityPilotFrameAdapter PilotFrameAdapter =>",
         "PilotFrameAdapter = PilotFrameAdapter",
@@ -13328,8 +13328,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "blueprint.Equipment = CreateEquippableSlots(entity.Equipment)",
         "blueprint.CargoContents = CreateCargoBayContents(entity.CargoContents)",
         "blueprint.Children = entity.Children",
-        "_loadoutItemProjector.CreateLoadoutItem(slot.Item)",
-        "_loadoutItemProjector.CreateLoadoutItem(item) as EquippableItem"
+        "_loadoutItemFactory.CreateLoadoutItem(slot.Item)",
+        "_loadoutItemFactory.CreateLoadoutItem(item) as EquippableItem"
     };
     var missingEntityConstructionBlueprintProjectorSymbols = requiredEntityConstructionBlueprintProjectorSymbols
         .Where(symbol => !entityConstructionBlueprintProjector.Contains(symbol, StringComparison.Ordinal))
@@ -15211,7 +15211,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "SceneWiring.ConfigureTargetPresentation(",
         "SceneWiring.ConfigureActionBarPresentation(",
         "ItemManager = boot.ItemManager;",
-        "_loadoutItemProjector = boot.LoadoutItemProjector;",
+        "_loadoutItemFactory = boot.LoadoutItemFactory;",
         "AetheriaUnityRuntimeClientProvider.PlayerSettings",
         "ResolveDaemonObserver()",
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>"
@@ -15240,8 +15240,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ".ObserveSectorMap()",
         "sectorMapSession.Current",
         "new ItemManager(",
-        "new AetheriaUnityLoadoutItemProjector(itemManager, runtimeCatalog)",
-        "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)",
+        "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
+        "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections",
         "AetheriaUnityRenderSettingsBridge.Build(",
         "CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)",
@@ -15608,7 +15608,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeStateBoot.Inspect(",
         "ResolveClient(stateBoot.StateFilePath).OpenRuntimeCatalog()",
         "ItemManager = new ItemManager(",
-        "ZoneRenderer.SetDroppedPickupItemProjector(",
+        "ZoneRenderer.SetDroppedPickupItemFactory(",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections",
         "ResolveRuntimeVerseClient(",
         "PlayerSettingsAsync()",
@@ -16884,29 +16884,29 @@ static void RequireDroppedPickupCheckpointState(string root)
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {
-            "private AetheriaUnityLoadoutItemProjector _loadoutItemProjector",
-            "_loadoutItemProjector = boot.LoadoutItemProjector"
+            "private AetheriaUnityLoadoutItemFactory _loadoutItemFactory",
+            "_loadoutItemFactory = boot.LoadoutItemFactory"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs")] = new[]
         {
             "public sealed class AetheriaUnityGameplayBootShell",
-            "ZoneRenderer.SetDroppedPickupItemProjector(loadoutItemProjector.CreateLoadoutItem)"
+            "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs")] = new[]
         {
             "public sealed class AetheriaUnityObservedFrameApplier",
             "zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render)"
         },
-        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityLoadoutItemProjector.cs")] = new[]
+        [Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityLoadoutItemFactory.cs")] = new[]
         {
-            "public sealed class AetheriaUnityLoadoutItemProjector",
+            "public sealed class AetheriaUnityLoadoutItemFactory",
             "public ItemInstance CreateLoadoutItem(AetheriaRuntimeLoadoutItemCommit item)",
             "_itemManager.CreateSimpleCommodityInstance",
             "_itemManager.CreateCraftedInstance"
         },
         [Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs")] = new[]
         {
-            "public void SetDroppedPickupItemProjector(Func<AetheriaRuntimeLoadoutItemCommit, ItemInstance> createDroppedPickupItem)",
+            "public void SetDroppedPickupItemFactory(Func<AetheriaRuntimeLoadoutItemCommit, ItemInstance> createDroppedPickupItem)",
             "public void RestoreDroppedPickupsFromZoneRender(AetheriaRuntimeZoneRenderDocument render)",
             "_createDroppedPickupItem?.Invoke(pickup.Item)",
             "AetheriaRuntimeDroppedPickupCommit",
