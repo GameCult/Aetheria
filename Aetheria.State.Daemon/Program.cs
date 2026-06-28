@@ -648,14 +648,16 @@ static async Task InjectEveSurfaceSnapshotAsync(
 
 static Task<EveSurfaceState?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
 {
-    return surfaceKind switch
+    var key = surfaceKind switch
     {
-        "game" => node.GetDaemonGameSurfaceAsync(),
-        "game-tui" => node.GetDaemonGameTuiSurfaceAsync(),
-        "editor" => node.GetDaemonEditorSurfaceAsync(),
-        "editor-tui" => node.GetDaemonEditorTuiSurfaceAsync(),
+        "game" => AetheriaRuntimeVerseRecordKeys.DaemonGameSurface,
+        "game-tui" => AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface,
+        "editor" => AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface,
+        "editor-tui" => AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface,
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
+
+    return LatestOrDefaultAsync(node.Document<EveSurfaceState>(key));
 }
 
 static async Task RunRtsCultMeshPumpAsync(
