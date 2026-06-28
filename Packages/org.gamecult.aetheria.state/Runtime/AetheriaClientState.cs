@@ -956,6 +956,16 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeCurrentEntitySession(ReactiveEntity(options));
         }
 
+        public Task<AetheriaRuntimeCurrentDockingDocument> LatestDockingAsync()
+        {
+            return Docking.LatestAsync();
+        }
+
+        public AetheriaRuntimeCurrentDockingDocument LatestDocking()
+        {
+            return LatestDockingAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(
             CultMeshReactiveDocumentOptions? options = null)
         {

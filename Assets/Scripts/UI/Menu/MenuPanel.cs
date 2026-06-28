@@ -170,12 +170,12 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeObservedDockingState docking)
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
         try
         {
-            docking = ResolveClient().State.CurrentDocking();
+            docking = ResolveClient().State.Current.LatestDocking();
             return docking != null;
         }
         catch (Exception ex)

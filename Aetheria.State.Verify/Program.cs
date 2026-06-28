@@ -4724,8 +4724,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeMenuTabModelOption(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "AetheriaRuntimeObservedDockingState",
-        "ResolveClient().State.CurrentDocking()",
+        "AetheriaRuntimeCurrentDockingDocument",
+        "ResolveClient().State.Current.LatestDocking()",
         "docking.IsDocked",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
@@ -4781,6 +4781,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "ResolveTabSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
         "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
+        "ResolveClient().State.CurrentDocking()",
+        "AetheriaRuntimeObservedDockingState",
         "ProjectTabSurfaceState(",
         "ProjectTabSurface(",
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
@@ -7058,6 +7060,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         "public AetheriaClientCurrentState Current { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
+        "public AetheriaRuntimeCurrentDockingDocument LatestDocking()",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
         "public AetheriaRuntimeCurrentDockingSession ObserveDocking(",
@@ -7141,6 +7144,15 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 
 static bool HasManagedDockingSnapshotAccess(string source)
 {
+    if (source.Contains("AetheriaRuntimeCurrentDockingDocument", StringComparison.Ordinal) &&
+        source.Contains("ResolveClient().State.Current.LatestDocking()", StringComparison.Ordinal) &&
+        !source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
+        !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
+        !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal))
+    {
+        return true;
+    }
+
     if (source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
         source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
