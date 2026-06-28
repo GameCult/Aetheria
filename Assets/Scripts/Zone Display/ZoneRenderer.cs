@@ -7,7 +7,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
-using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -120,10 +119,10 @@ public class ZoneRenderer : MonoBehaviour
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
+    private AetheriaRuntimeCatalogSession _catalog;
+    private AetheriaRuntimeZoneContactsSession _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
-    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+    private AetheriaRuntimeObjectsViewportSession _objectsViewport;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -1208,7 +1207,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.ObserveCatalog();
         }
         catch (Exception ex)
         {
@@ -1225,7 +1224,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _zoneContacts = ResolveClient().State.ReactiveZoneContacts();
+            _zoneContacts = ResolveClient().State.ObserveZoneContacts();
         }
         catch (Exception ex)
         {
@@ -1246,7 +1245,7 @@ public class ZoneRenderer : MonoBehaviour
             var nextObjectsViewport = ResolveClient()
                 .State
                 .Viewports
-                .ReactiveObjects(viewportBounds);
+                .ObserveObjects(viewportBounds);
             _objectsViewport?.Dispose();
             _objectsViewportBounds = viewportBounds;
             _objectsViewport = nextObjectsViewport;

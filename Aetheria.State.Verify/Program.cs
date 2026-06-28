@@ -2434,7 +2434,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ".Viewports",
         "ResolveObjectsViewport(viewport)",
         "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
-        ".ReactiveObjects(viewportBounds)",
+        ".ObserveObjects(viewportBounds)",
         "_objectsViewport?.Current",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
@@ -2453,7 +2453,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
         ".State",
-        ".ReactiveZoneContacts()",
+        ".ObserveZoneContacts()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -7654,14 +7654,14 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        "ResolveClient().State.ReactiveCatalog()",
-        "ResolveClient().State.ReactiveZoneContacts()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimeZoneContactsSession _zoneContacts",
+        "ResolveClient().State.ObserveCatalog()",
+        "ResolveClient().State.ObserveZoneContacts()",
         "_catalog?.Dispose()",
         "_zoneContacts?.Dispose()",
         "_catalog?.Current",
-        "_zoneContacts.Current",
+        "_zoneContacts?.Current",
         "private void OnDestroy()"
     };
     var missingZoneRendererSharedDocumentSymbols = requiredZoneRendererSharedDocumentSymbols
@@ -7672,6 +7672,23 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "ZoneRenderer should bind catalog and contact state through managed reactive Aetheria documents with renderer lifetime disposal: " +
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
+    }
+
+    var forbiddenZoneRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        "ResolveClient().State.ReactiveCatalog()",
+        "ResolveClient().State.ReactiveZoneContacts()"
+    };
+    var zoneRendererRawDocumentHits = forbiddenZoneRendererSharedDocumentSymbols
+        .Where(symbol => zoneRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (zoneRendererRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer still owns raw catalog/contact CultMesh documents instead of managed sessions: " +
+            string.Join(", ", zoneRendererRawDocumentHits));
     }
 
     Console.WriteLine("Shared document accessors: Unity shared catalog/settings reads use named managed Aetheria client accessors");
@@ -7802,8 +7819,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererViewportSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
-        ".ReactiveObjects(viewportBounds)",
+        "AetheriaRuntimeObjectsViewportSession _objectsViewport",
+        ".ObserveObjects(viewportBounds)",
         "_objectsViewport?.Current",
         "_objectsViewport?.Dispose()"
     };
@@ -7816,6 +7833,13 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         throw new InvalidOperationException(
             "ZoneRenderer fallback presentation queries must keep a managed reactive objects viewport document instead of polling latest snapshots: " +
             string.Join(", ", missingZoneRendererViewportSymbols));
+    }
+
+    if (zoneRenderer.Contains("CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport", StringComparison.Ordinal) ||
+        zoneRenderer.Contains(".ReactiveObjects(viewportBounds)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ZoneRenderer still owns a raw objects viewport CultMesh document instead of AetheriaRuntimeObjectsViewportSession.");
     }
 
     Console.WriteLine("Viewport and map document accessors: Unity reads map, contact, viewport, and current-entity state through named managed accessors");
