@@ -17,26 +17,6 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath);
         }
 
-        public static AetheriaRuntimePlayerSettingsSnapshot? ReadPlayerSettings(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadPlayerSettings(stateFilePath);
-        }
-
-        public static AetheriaRuntimeTradeValueSettings ReadTradeValuePolicy(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadTradeValuePolicy(stateFilePath);
-        }
-
-        public static AetheriaRuntimeVerseHostSettingsSnapshot? ReadVerseHostSettings(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadVerseHostSettings(stateFilePath);
-        }
-
-        public static IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot> ReadLoadoutTemplates(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);
-        }
-
         public static bool TryReadDaemonFrame(string stateFilePath, out AetheriaRuntimeDaemonFrameDocument frame)
         {
             return AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out frame);

@@ -9921,12 +9921,6 @@ static void RequireMainMenuVerseHostProjection(string root)
             string.Join(", ", missingStoreSymbols));
     }
 
-    if (!runtimeStateReader.Contains("ReadVerseHostSettings", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Shared runtime state reader no longer exposes typed verse-host settings.");
-    }
-
     var requiredMainMenuSymbols = new[]
     {
         "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
@@ -12780,9 +12774,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaRuntimeStateReader",
         "public static class AetheriaRuntimeStateRefResolver",
         "OpenRuntimeCatalog",
-        "ReadPlayerSettings",
-        "ReadVerseHostSettings",
-        "ReadLoadoutTemplates",
         "ReadEveSurface",
         "TryReadDaemonGameSurface",
         "TryReadDaemonGameTuiSurface",
@@ -12838,6 +12829,15 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Shared runtime state reader still exposes file-backed run/zone snapshot reads; use managed daemon frame and zone-render documents.");
+    }
+
+    if (runtimeStateReader.Contains("ReadPlayerSettings", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ReadVerseHostSettings", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ReadLoadoutTemplates", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ReadTradeValuePolicy", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader still exposes file-backed catalog/settings reads; use AetheriaClient managed document handles.");
     }
 
     var runtimeCatalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
