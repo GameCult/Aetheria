@@ -121,7 +121,7 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private AetheriaRuntimeZoneContactsSession _zoneContacts;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
     private AetheriaRuntimeObjectsViewportSession _objectsViewport;
 
@@ -1225,7 +1225,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _zoneContacts = ResolveClient().State.ObserveZoneContacts();
+            _zoneContacts = ResolveClient().State.ReactiveZoneContacts();
         }
         catch (Exception ex)
         {

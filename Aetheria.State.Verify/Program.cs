@@ -2453,7 +2453,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
         ".State",
-        ".ObserveZoneContacts()",
+        ".ReactiveZoneContacts()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -7856,8 +7856,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeZoneContactsSession _zoneContacts",
-        "ResolveClient().State.ObserveZoneContacts()",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        "ResolveClient().State.ReactiveZoneContacts()",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current",
         "private void OnDestroy()"
@@ -7875,6 +7875,14 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     RequireReactiveTypedDocumentAccess(
         zoneRenderer,
         "ZoneRenderer",
+        "AetheriaRuntimeZoneContactsDocument",
+        "_zoneContacts",
+        "ResolveClient().State.ReactiveZoneContacts()",
+        "AetheriaRuntimeZoneContactsSession",
+        "ResolveClient().State.ObserveZoneContacts()");
+    RequireReactiveTypedDocumentAccess(
+        zoneRenderer,
+        "ZoneRenderer",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
         "ResolveClient().State.ReactiveCatalog()",
@@ -7883,8 +7891,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
 
     var forbiddenZoneRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        "ResolveClient().State.ReactiveZoneContacts()"
+        "AetheriaRuntimeZoneContactsSession _zoneContacts",
+        "ResolveClient().State.ObserveZoneContacts()"
     };
     var zoneRendererRawDocumentHits = forbiddenZoneRendererSharedDocumentSymbols
         .Where(symbol => zoneRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -7892,7 +7900,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (zoneRendererRawDocumentHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ZoneRenderer still owns raw catalog/contact CultMesh documents instead of managed sessions: " +
+            "ZoneRenderer still routes contact state through session wrappers instead of managed reactive typed documents: " +
             string.Join(", ", zoneRendererRawDocumentHits));
     }
 
