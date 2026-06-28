@@ -562,7 +562,7 @@ public class DaemonRuntimeDocumentTests
         var unityGameTuiSurfaceState = client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
         var unityEditorSurfaceState = client.State.Daemon.EditorSurface.LatestAsync().GetAwaiter().GetResult();
         var unityEditorTuiSurfaceState = client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult();
-        var surfaceResolver = client.CreateEveSurfaceStateRefResolver();
+        var surfaceResolver = client.State.CreateEveSurfaceStateRefResolver();
         var unityGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
             unityGameSurfaceState,
             surfaceResolver);

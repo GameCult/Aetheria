@@ -9476,12 +9476,13 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 static void RequireAetheriaRuntimeVerseClientContract(string root)
 {
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
+    var clientStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClientState.cs");
     var surfaceStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceState.cs");
     var oldSurfaceStatePath = Path.Combine(root, "Aetheria.State", "Documents", "EveSurfaceState.cs");
     var stateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var docPath = Path.Combine(root, "docs", "aetheria-verse-client-contract.md");
 
-    var requiredFiles = new[] { clientPath, surfaceStatePath, stateRefResolverPath, docPath };
+    var requiredFiles = new[] { clientPath, clientStatePath, surfaceStatePath, stateRefResolverPath, docPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -9494,6 +9495,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     var client = File.ReadAllText(clientPath);
+    var clientState = File.ReadAllText(clientStatePath);
     var surfaceState = File.ReadAllText(surfaceStatePath);
     var stateRefResolver = File.ReadAllText(stateRefResolverPath);
     var doc = File.ReadAllText(docPath);
@@ -9532,11 +9534,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "CultMeshMutableStatePointer<EveSurfaceState>",
         "private AetheriaClientState? _aetheriaState",
         "return _aetheriaState ??= CreateAetheriaStateFacade();",
-        "var state = Aetheria();",
-        "() => state.Catalog.Latest()",
-        "state.Daemon.LatestFrame.LatestAsync()",
-        "state.Daemon.Health.LatestAsync()",
-        "state.Daemon.CommandBoundary.LatestAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
         "var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);",
@@ -9544,8 +9541,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "ReadLoadoutTemplatesDocument()",
         "ReadPlayerSettingsDocument()",
         "ReadVerseHostSettingsDocument()",
-        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
-        "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
@@ -9561,6 +9556,27 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    var requiredClientStateSymbols = new[]
+    {
+        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
+        "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
+        "public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()",
+        "Daemon.LatestFrame.LatestAsync()",
+        "Daemon.Health.LatestAsync()",
+        "Daemon.CommandBoundary.LatestAsync()",
+        "() => Catalog.Latest()",
+        "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
+    };
+    var missingClientStateSymbols = requiredClientStateSymbols
+        .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientStateSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must own Eve state-ref resolver creation through managed typed documents: " +
+            string.Join(", ", missingClientStateSymbols));
     }
 
     var requiredStateRefResolverSymbols = new[]
@@ -9590,6 +9606,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
+    }
+
+    if (client.Contains("public Func<string, string> CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
+        client.Contains("public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient still exposes Eve state-ref resolver compatibility factories; use AetheriaClientState managed documents.");
     }
 
     if (client.Contains("GetObservedDaemonStateAsync()", StringComparison.Ordinal) ||
@@ -13551,7 +13574,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameSurfaceAsync()",
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameTuiSurfaceAsync()",
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()",
-        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()"
+        "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()",
+        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
+        "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()"
     };
     var daemonClientBypassHits = forbiddenDaemonClientBypassSymbols
         .Where(symbol => aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -13661,11 +13686,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Aetheria Eve surface presenter no longer routes daemon surface lookup through the shared AetheriaClient facade.");
     }
 
-    if (!eveSurfacePresenter.Contains("client.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
-        !eveSurfacePresenter.Contains("ResolveClient(statePath).CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("client.State.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains("ResolveClient(statePath).State.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter no longer resolves provider state refs through the shared AetheriaClient facade.");
+            "Aetheria Eve surface presenter no longer resolves provider state refs through managed AetheriaClientState documents.");
     }
 
     if (eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
@@ -13680,22 +13705,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Unity Eve surface host still resolves default state refs through the file reader instead of the managed runtime client provider.");
     }
 
-    var runtimeVerseClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseClient.cs");
-    var runtimeVerseClient = File.Exists(runtimeVerseClientPath)
-        ? File.ReadAllText(runtimeVerseClientPath)
-        : throw new InvalidOperationException("Cannot verify managed state-ref resolver ownership; AetheriaRuntimeVerseClient.cs is missing.");
-
-    if (!runtimeVerseClient.Contains("AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(", StringComparison.Ordinal))
+    if (!aetheriaClientState.Contains("AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Managed Verse client no longer resolves Eve state refs through the typed runtime state-ref resolver.");
+            "Managed client state no longer resolves Eve state refs through the typed runtime state-ref resolver.");
     }
 
-    if (runtimeVerseClient.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
-        runtimeVerseClient.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+    if (aetheriaClientState.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Managed Verse client still routes Eve state-ref resolution through the file-backed compatibility reader.");
+            "Managed client state still routes Eve state-ref resolution through the file-backed compatibility reader.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>

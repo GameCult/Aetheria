@@ -227,6 +227,7 @@ namespace GameCult.Aetheria.EveRuntime
 
             return AetheriaUnityRuntimeClientProvider
                 .ResolveClient(stateBoot, "unity-eve-surface-host")
+                .State
                 .CreateEveSurfaceStateRefResolver();
         }
 

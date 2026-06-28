@@ -134,8 +134,9 @@ Queries are derived-state surfaces, not bespoke HTTP endpoints or local projecti
 Current leak:
 
 ```csharp
-var resolver = AetheriaRuntimeVerseClient.CreateEveSurfaceStateRefResolver(statePath, runtimeId);
-var selected = await resolver.ResolveAsync(surface.StateRef);
+using var client = await AetheriaClient.OpenAsync(statePath, runtimeId);
+var resolver = client.State.CreateEveSurfaceStateRefResolver();
+var selected = resolver(surface.StateRef);
 ```
 
 Desired shape:

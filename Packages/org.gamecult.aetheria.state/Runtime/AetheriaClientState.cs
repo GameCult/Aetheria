@@ -209,6 +209,31 @@ namespace GameCult.Aetheria.State.Verse
         {
             return Document<TDocument>().Reactive(options);
         }
+
+        public Func<string, string> CreateEveSurfaceStateRefResolver()
+        {
+            return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
+        }
+
+        public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
+        {
+            return CreateEveSurfaceCultMeshStateRefResolverAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
+        {
+            var frameTask = Daemon.LatestFrame.LatestAsync();
+            var healthTask = Daemon.Health.LatestAsync();
+            var commandBoundaryTask = Daemon.CommandBoundary.LatestAsync();
+
+            await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
+
+            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
+                frameTask.Result,
+                healthTask.Result,
+                commandBoundaryTask.Result,
+                () => Catalog.Latest());
+        }
     }
 
     public sealed class AetheriaClientDaemonState

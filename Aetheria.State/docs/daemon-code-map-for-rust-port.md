@@ -387,7 +387,8 @@ let hits = verse
 Current Eve surface state-ref resolution:
 
 ```csharp
-var resolver = AetheriaRuntimeVerseClient.CreateEveSurfaceStateRefResolver(statePath, runtimeId);
+using var client = await AetheriaClient.OpenAsync(statePath, runtimeId);
+var resolver = client.State.CreateEveSurfaceStateRefResolver();
 var label = resolver("aetheria.daemon/frame/currentEntity/name");
 ```
 

@@ -126,7 +126,7 @@ namespace GameCult.Aetheria.EveRuntime
                 ? null
                 : AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
                     surface,
-                    client.CreateEveSurfaceStateRefResolver());
+                    client.State.CreateEveSurfaceStateRefResolver());
         }
 
         private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(AetheriaClient client)
@@ -194,7 +194,7 @@ namespace GameCult.Aetheria.EveRuntime
                 surface,
                 request => EmitCommand(statePath, request),
                 RootOnlyChrome,
-                ResolveClient(statePath).CreateEveSurfaceStateRefResolver());
+                ResolveClient(statePath).State.CreateEveSurfaceStateRefResolver());
             _mountedStatePath = statePath;
             _mountedSurfaceId = surface.Surface.Id;
             _mountedSurfaceVersion = surface.Version;

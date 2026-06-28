@@ -200,34 +200,6 @@ namespace GameCult.Aetheria.State.Verse
             return _aetheriaState ??= CreateAetheriaStateFacade();
         }
 
-        public Func<string, string> CreateEveSurfaceStateRefResolver()
-        {
-            return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
-        }
-
-        public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
-        {
-            return CreateEveSurfaceCultMeshStateRefResolverAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
-        {
-            ThrowIfDisposed();
-
-            var state = Aetheria();
-            var frameTask = state.Daemon.LatestFrame.LatestAsync();
-            var healthTask = state.Daemon.Health.LatestAsync();
-            var commandBoundaryTask = state.Daemon.CommandBoundary.LatestAsync();
-
-            await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
-
-            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                frameTask.Result,
-                healthTask.Result,
-                commandBoundaryTask.Result,
-                () => state.Catalog.Latest());
-        }
-
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
         {
             ThrowIfDisposed();

@@ -127,18 +127,6 @@ namespace GameCult.Aetheria.State.Verse
                 pullOnOpen: pullOnOpen);
         }
 
-        public Func<string, string> CreateEveSurfaceStateRefResolver()
-        {
-            ThrowIfDisposed();
-            return _verse.CreateEveSurfaceStateRefResolver();
-        }
-
-        public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
-        {
-            ThrowIfDisposed();
-            return _verse.CreateEveSurfaceCultMeshStateRefResolver();
-        }
-
         internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitInputSettingsCommandAsync(
             AetheriaRuntimeEveCommandKind command,
             AetheriaRuntimeInputSettingsCommandBody body,
