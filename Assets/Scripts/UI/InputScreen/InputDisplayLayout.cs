@@ -4,6 +4,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
@@ -14,7 +15,7 @@ public class InputDisplayLayout : MonoBehaviour
     private UIDocument _surfaceDocument;
     private AetheriaInput _ownedInput;
     private string _clientStatePath = "";
-    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private InputAction _captureAction;
     private InputActionAsset _input;
     private string _captureActionName = "";
@@ -93,6 +94,8 @@ public class InputDisplayLayout : MonoBehaviour
 
         _ownedInput?.Dispose();
         _ownedInput = null;
+
+        ClearClientCaches();
 
         if (_surfaceDocument != null)
         {
@@ -378,27 +381,28 @@ public class InputDisplayLayout : MonoBehaviour
 
     private void ClearClientCaches()
     {
+        _playerSettings?.Dispose();
         _playerSettings = null;
     }
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
-            return _playerSettings;
+            return _playerSettings.Current;
 
         try
         {
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .LatestPlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria player settings for input screen: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria player settings for input screen: {ex.Message}");
         }
 
-        return _playerSettings;
+        return _playerSettings?.Current;
     }
 
     private void ClearCapture()

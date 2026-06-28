@@ -97,7 +97,7 @@ public class VolumeCloudRenderer : EffectBase
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
-            return _playerSettings;
+            return _playerSettings.Current;
 
         try
         {
