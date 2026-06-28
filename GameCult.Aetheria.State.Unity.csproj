@@ -76,7 +76,6 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaControl.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonStateRefs.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateSessions.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimePlayerHudState.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeMainMenuSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRenderSplatDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInputSettingsSurfaceBuilder.cs" />

@@ -317,27 +317,6 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
-        public AetheriaRuntimePlayerHudSession ObservePlayerHud(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            var catalog = ObserveCatalog(options);
-            AetheriaRuntimePlayerSettingsSession? playerSettings = null;
-            AetheriaRuntimeCurrentEntitySession? currentEntity = null;
-            try
-            {
-                playerSettings = Settings.ObservePlayer(options);
-                currentEntity = Current.ObserveEntity(options);
-                return new AetheriaRuntimePlayerHudSession(catalog, playerSettings, currentEntity);
-            }
-            catch
-            {
-                catalog.Dispose();
-                playerSettings?.Dispose();
-                currentEntity?.Dispose();
-                throw;
-            }
-        }
-
         private AetheriaRuntimeDaemonSoaViewSession? TryObserveDaemonSoaView(
             CultMeshReactiveDocumentOptions? options)
         {

@@ -225,7 +225,9 @@ public class DaemonRuntimeDocumentTests
         using var objectsViewportSession = client.State.Viewports.ObserveObjects(viewport);
         using var gravityViewportSession = client.State.Viewports.ObserveGravity(viewport);
         using var renderSplatsViewportSession = client.State.Viewports.ObserveRenderSplats(viewport);
-        using var playerHud = client.State.ObservePlayerHud();
+        using var playerHudCatalog = client.State.ReactiveCatalog();
+        using var playerHudSettings = client.State.Settings.ReactivePlayer();
+        using var playerHudEntity = client.State.Current.ReactiveEntity();
         var gameSurface = client.State.LatestGameSurface();
         var gameTuiSurface = client.State.LatestGameTuiSurface();
         var editorSurface = client.State.LatestEditorSurface();
@@ -319,9 +321,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);
         Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);
-        Assert.AreEqual(currentEntity.EntityKey, playerHud.CurrentEntity.EntityKey);
-        Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerHud.PlayerSettings.Schema);
-        Assert.AreSame(playerHud.Hud, playerHud.CurrentEntity.Hud);
+        Assert.AreEqual(currentEntity.EntityKey, playerHudEntity.Current.EntityKey);
+        Assert.AreSame(catalog, playerHudCatalog.Current);
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerHudSettings.Current.Schema);
+        Assert.AreEqual(currentEntity.Hud.Visibility, playerHudEntity.Current.Hud.Visibility);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityReactive.Current.EntityKey);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, zoneRenderReactive.Current.Schema);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);

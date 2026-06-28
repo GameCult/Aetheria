@@ -7374,12 +7374,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "HUD",
         "SchematicDisplay.cs"));
-    var playerHudState = File.ReadAllText(Path.Combine(
+    var playerHudStatePath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimePlayerHudState.cs"));
+        "AetheriaRuntimePlayerHudState.cs");
     var requiredSchematicDisplaySymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
@@ -7424,46 +7424,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", schematicDisplayHits));
     }
 
-    var requiredPlayerHudSessionSymbols = new[]
-    {
-        "private readonly AetheriaRuntimeCatalogSession _catalog;",
-        "private readonly AetheriaRuntimePlayerSettingsSession _playerSettings;",
-        "private readonly AetheriaRuntimeCurrentEntitySession _currentEntity;",
-        "public AetheriaRuntimePlayerHudSession(",
-        "AetheriaRuntimeCatalogSession catalog",
-        "AetheriaRuntimePlayerSettingsSession playerSettings",
-        "AetheriaRuntimeCurrentEntitySession currentEntity",
-        "public AetheriaRuntimeCatalogSnapshot? Catalog => _catalog.Current;",
-        "public AetheriaRuntimePlayerSettingsDocument? PlayerSettings => _playerSettings.Current;",
-        "public AetheriaRuntimeCurrentEntityDocument? CurrentEntity => _currentEntity.Current;"
-    };
-    var missingPlayerHudSessionSymbols = requiredPlayerHudSessionSymbols
-        .Where(symbol => !playerHudState.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingPlayerHudSessionSymbols.Length > 0)
+    if (File.Exists(playerHudStatePath) ||
+        clientState.Contains("ObservePlayerHud(", StringComparison.Ordinal) ||
+        clientState.Contains("AetheriaRuntimePlayerHudSession", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaRuntimePlayerHudSession must compose named managed sessions instead of owning raw reactive documents: " +
-            string.Join(", ", missingPlayerHudSessionSymbols));
-    }
-
-    if (playerHudState.Contains("CultMeshReactiveDocument<", StringComparison.Ordinal) ||
-        playerHudState.Contains("using GameCult.Mesh;", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "AetheriaRuntimePlayerHudSession reintroduced raw CultMesh reactive document ownership.");
-    }
-
-    if (!clientState.Contains("var catalog = ObserveCatalog(options);", StringComparison.Ordinal) ||
-        !clientState.Contains("AetheriaRuntimePlayerSettingsSession? playerSettings = null;", StringComparison.Ordinal) ||
-        !clientState.Contains("AetheriaRuntimeCurrentEntitySession? currentEntity = null;", StringComparison.Ordinal) ||
-        !clientState.Contains("playerSettings = Settings.ObservePlayer(options);", StringComparison.Ordinal) ||
-        !clientState.Contains("currentEntity = Current.ObserveEntity(options);", StringComparison.Ordinal) ||
-        clientState.Contains("playerSettings = Settings.ReactivePlayer(options);", StringComparison.Ordinal) ||
-        clientState.Contains("currentEntity = Current.ReactiveEntity(options);", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "AetheriaClientState.ObservePlayerHud() must compose named managed sessions instead of raw reactive CultMesh documents.");
+            "Player HUD state must be read as direct reactive catalog/settings/current-entity documents; remove the aggregate AetheriaRuntimePlayerHudSession helper.");
     }
 
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
@@ -8074,7 +8040,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeCatalogSession ObserveCatalog(",
         "public AetheriaRuntimeSectorMapSession ObserveSectorMap(",
         "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
-        "public AetheriaRuntimePlayerHudSession ObservePlayerHud(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
         "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
