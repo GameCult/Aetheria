@@ -6852,11 +6852,11 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     }
 
     var clientState = File.ReadAllText(clientStatePath);
-    if (!clientState.Contains("public Task<AetheriaRuntimeInventoryDocument> LatestInventoryAsync(int entityIndex)", StringComparison.Ordinal) ||
-        !clientState.Contains("public AetheriaRuntimeInventoryDocument LatestInventory(int entityIndex)", StringComparison.Ordinal))
+    if (!clientState.Contains("public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientDetailState must expose managed typed latest access for indexed inventory documents.");
+            "AetheriaClientDetailState must expose managed reactive typed access for indexed inventory documents.");
     }
 
     var sources = new Dictionary<string, string>
@@ -6869,10 +6869,13 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var compact = CompactSource(source);
         var requiredSymbols = new[]
         {
-            "var state = ResolveClient().Aetheria();",
-            "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
-            "state.Latest<AetheriaRuntimeStationRefitDocument>()",
-            "state.Details.LatestInventory(entityIndex)"
+            "ResolveCurrentEntity()",
+            ".ReactiveEntity()",
+            "ResolveReactiveStationRefit()",
+            ".ReactiveStationRefit()",
+            "ResolveInventory(entityIndex)",
+            ".ReactiveInventory(entityIndex)",
+            "_inventory?.Current"
         };
         var missingSymbols = requiredSymbols
             .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
@@ -6886,6 +6889,9 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
 
         var forbiddenCompactedSymbols = new[]
         {
+            ".Latest<AetheriaRuntimeCurrentEntityDocument>()",
+            ".Latest<AetheriaRuntimeStationRefitDocument>()",
+            ".Details.LatestInventory(entityIndex)",
             ".Aetheria().Current.Entity.LatestAsync()",
             ".Aetheria().StationRefit.LatestAsync()",
             ".Details.Inventory(entityIndex).LatestAsync()"
@@ -15724,7 +15730,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
         ".Details",
-        ".LatestInventory(entityIndex)",
+        ".ReactiveInventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",

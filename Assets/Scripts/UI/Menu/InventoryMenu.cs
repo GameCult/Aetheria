@@ -34,6 +34,10 @@ public class InventoryMenu : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private int _inventoryEntityIndex = -1;
+    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
@@ -824,8 +828,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            var state = ResolveClient().Aetheria();
-            var current = state.Latest<AetheriaRuntimeCurrentEntityDocument>();
+            var current = ResolveCurrentEntity();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
             {
                 equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
@@ -833,7 +836,7 @@ public class InventoryMenu : MonoBehaviour
                 return true;
             }
 
-            var refit = state.Latest<AetheriaRuntimeStationRefitDocument>();
+            var refit = ResolveReactiveStationRefit();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -848,7 +851,7 @@ public class InventoryMenu : MonoBehaviour
             if (entityIndex < 0)
                 return false;
 
-            var inventory = state.Details.LatestInventory(entityIndex);
+            var inventory = ResolveInventory(entityIndex);
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
                 return false;
 
@@ -939,8 +942,77 @@ public class InventoryMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
+        _currentEntity?.Dispose();
+        _stationRefit?.Dispose();
+        _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;
+        _currentEntity = null;
+        _stationRefit = null;
+        _inventory = null;
+        _inventoryEntityIndex = -1;
+    }
+
+    private AetheriaRuntimeCurrentEntityDocument ResolveCurrentEntity()
+    {
+        if (_currentEntity != null)
+            return _currentEntity.Current;
+
+        try
+        {
+            _currentEntity = ResolveClient()
+                .Aetheria()
+                .Current
+                .ReactiveEntity();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria current entity for inventory menu: {ex.Message}");
+        }
+
+        return _currentEntity?.Current;
+    }
+
+    private AetheriaRuntimeStationRefitDocument ResolveReactiveStationRefit()
+    {
+        if (_stationRefit != null)
+            return _stationRefit.Current;
+
+        try
+        {
+            _stationRefit = ResolveClient()
+                .Aetheria()
+                .ReactiveStationRefit();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria station refit for inventory menu: {ex.Message}");
+        }
+
+        return _stationRefit?.Current;
+    }
+
+    private AetheriaRuntimeInventoryDocument ResolveInventory(int entityIndex)
+    {
+        if (_inventory != null && _inventoryEntityIndex == entityIndex)
+            return _inventory.Current;
+
+        try
+        {
+            var nextInventory = ResolveClient()
+                .Aetheria()
+                .Details
+                .ReactiveInventory(entityIndex);
+            _inventory?.Dispose();
+            _inventoryEntityIndex = entityIndex;
+            _inventory = nextInventory;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria inventory projection for entity {entityIndex}: {ex.Message}");
+        }
+
+        return _inventory?.Current;
     }
 
     void Update()
