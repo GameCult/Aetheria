@@ -15775,6 +15775,20 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", clientStateSessionWrapperHits));
     }
 
+    var publicObserveAccessorHits = System.Text.RegularExpressions.Regex
+        .Matches(
+            aetheriaClientState,
+            @"public\s+[^{;=]+\s+Observe[A-Za-z0-9_]*\s*\(",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+        .Select(match => match.Value.Trim())
+        .ToArray();
+    if (publicObserveAccessorHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState reintroduced public Observe* state accessors; expose direct Reactive* typed documents instead: " +
+            string.Join(", ", publicObserveAccessorHits));
+    }
+
     var runtimeStateSessionsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateSessions.cs");
     if (File.Exists(runtimeStateSessionsPath))
     {
