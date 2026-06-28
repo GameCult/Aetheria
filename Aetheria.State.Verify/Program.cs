@@ -17150,7 +17150,13 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var dragObjectsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDragObjects.cs");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutProjectorPath, loadoutSnapshotProjectorPath, clientStatePath, dragSessionPath, gameplaySceneWiringPath };
+    if (File.Exists(loadoutProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "Legacy AetheriaRuntimeLoadoutProjector must stay deleted; loadout-template saves should compose typed commits from managed daemon-frame documents.");
+    }
+
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutSnapshotProjectorPath, clientStatePath, dragSessionPath, gameplaySceneWiringPath };
     var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
     if (missingFiles.Length > 0)
     {
@@ -17164,7 +17170,6 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var eveBridge = File.ReadAllText(eveBridgePath);
     var runtimeStateMapper = File.ReadAllText(runtimeStateMapperPath);
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
-    var loadoutProjector = File.ReadAllText(loadoutProjectorPath);
     var loadoutSnapshotProjector = File.ReadAllText(loadoutSnapshotProjectorPath);
     var clientState = File.ReadAllText(clientStatePath);
     var dragSession = File.ReadAllText(dragSessionPath);
@@ -17173,27 +17178,11 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         ? File.ReadAllText(dragObjectsPath)
         : throw new InvalidOperationException("Cannot verify inventory drag/drop authority; AetheriaUnityDragObjects.cs is missing.");
 
-    var requiredProjectorSymbols = new[]
-    {
-        "public static class AetheriaRuntimeLoadoutProjector",
-        "ProjectLoadoutTemplate(Entity entity)",
-        "ProjectSlots(IEnumerable<EquippedItem> slots)",
-    };
-    var missingProjectorSymbols = requiredProjectorSymbols
-        .Where(symbol => !loadoutProjector.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingProjectorSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "The typed loadout-template projection used by loadout save is missing from the shared projector: " +
-            string.Join(", ", missingProjectorSymbols));
-    }
-
     if (actionGameManager.Contains("ProjectLoadoutTemplate(Entity entity)", StringComparison.Ordinal) ||
         inventoryPanel.Contains("ActionGameManager.ProjectLoadoutTemplate", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Loadout-template projection must not live on ActionGameManager; callers should use AetheriaRuntimeLoadoutProjector.");
+            "Loadout-template projection must not live on ActionGameManager; callers should use the managed daemon-frame snapshot path.");
     }
 
     if (actionGameManager.Contains("public DragObject DragObject", StringComparison.Ordinal) ||
