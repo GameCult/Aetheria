@@ -121,6 +121,7 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -985,9 +986,7 @@ public class ZoneRenderer : MonoBehaviour
         _daemonContactRows.Clear();
         try
         {
-            var contacts = ResolveClient()
-                .Aetheria()
-                .LatestZoneContacts();
+            var contacts = ResolveZoneContacts();
             foreach (var target in contacts?.Targets ?? Array.Empty<AetheriaRuntimeZoneTargetRow>())
             {
                 if (target != null && target.EntityIndex >= 0)
@@ -1230,6 +1229,23 @@ public class ZoneRenderer : MonoBehaviour
         return _catalog?.Current;
     }
 
+    private AetheriaRuntimeZoneContactsDocument ResolveZoneContacts()
+    {
+        if (_zoneContacts != null)
+            return _zoneContacts.Current;
+
+        try
+        {
+            _zoneContacts = ResolveClient().Aetheria().ReactiveZoneContacts();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to bind Aetheria zone contacts for renderer target distances: {ex.Message}");
+        }
+
+        return _zoneContacts?.Current;
+    }
+
     private AetheriaClient ResolveClient()
     {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
@@ -1247,7 +1263,9 @@ public class ZoneRenderer : MonoBehaviour
     private void ClearClientCaches()
     {
         _catalog?.Dispose();
+        _zoneContacts?.Dispose();
         _catalog = null;
+        _zoneContacts = null;
     }
 }
 

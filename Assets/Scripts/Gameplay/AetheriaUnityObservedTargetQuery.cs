@@ -4,12 +4,14 @@
 
 using System;
 using System.Linq;
+using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaUnityObservedTargetQuery
+public sealed class AetheriaUnityObservedTargetQuery : IDisposable
 {
     private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _entityIndex;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
 
     public AetheriaUnityObservedTargetQuery(
         Func<AetheriaClient> resolveClient,
@@ -91,15 +93,25 @@ public sealed class AetheriaUnityObservedTargetQuery
 
     private AetheriaRuntimeZoneContactsDocument ReadZoneContacts()
     {
+        if (_zoneContacts != null)
+            return _zoneContacts.Current;
+
         try
         {
-            return _resolveClient()
+            _zoneContacts = _resolveClient()
                 ?.Aetheria()
-                .LatestZoneContacts();
+                .ReactiveZoneContacts();
+            return _zoneContacts?.Current;
         }
         catch
         {
             return null;
         }
+    }
+
+    public void Dispose()
+    {
+        _zoneContacts?.Dispose();
+        _zoneContacts = null;
     }
 }

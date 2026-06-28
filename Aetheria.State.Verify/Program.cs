@@ -2437,7 +2437,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
         ".Aetheria()",
-        ".LatestZoneContacts()",
+        ".ReactiveZoneContacts()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -7305,9 +7305,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         "ResolveClient().Aetheria().ReactiveCatalog()",
+        "ResolveClient().Aetheria().ReactiveZoneContacts()",
         "_catalog?.Dispose()",
+        "_zoneContacts?.Dispose()",
         "_catalog?.Current",
+        "_zoneContacts.Current",
         "private void OnDestroy()"
     };
     var missingZoneRendererSharedDocumentSymbols = requiredZoneRendererSharedDocumentSymbols
@@ -7316,7 +7320,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingZoneRendererSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "ZoneRenderer should bind catalog state through the managed reactive Aetheria catalog document with renderer lifetime disposal: " +
+            "ZoneRenderer should bind catalog and contact state through managed reactive Aetheria documents with renderer lifetime disposal: " +
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
     }
 
@@ -11810,7 +11814,8 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredObservedTargetQuerySymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedTargetQuery",
+        "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -11820,7 +11825,9 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".Aetheria()",
-        ".LatestZoneContacts()",
+        ".ReactiveZoneContacts()",
+        "_zoneContacts?.Current",
+        "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
@@ -12771,7 +12778,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredObservedTargetQuerySymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedTargetQuery",
+        "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -12781,7 +12789,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".Aetheria()",
-        ".LatestZoneContacts()",
+        ".ReactiveZoneContacts()",
+        "_zoneContacts?.Current",
+        "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
     };
     var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
