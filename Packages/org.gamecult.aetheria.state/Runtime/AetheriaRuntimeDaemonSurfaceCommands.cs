@@ -21,10 +21,10 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            var observed = AetheriaRuntimeObservedDaemonState
-                .ReadAsync(client.State)
-                .GetAwaiter()
-                .GetResult();
+            using var observedState = client.State.ReactiveObservedDaemon();
+            var observed = observedState.TryCurrent(out var current)
+                ? current
+                : null;
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 client.StatePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,

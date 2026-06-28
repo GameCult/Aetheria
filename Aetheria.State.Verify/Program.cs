@@ -3265,8 +3265,8 @@ static void RequireEveRuntimeBootstrap(string root)
         "EveSurfaceCommandRequest request",
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaClient",
-        "AetheriaRuntimeObservedDaemonState",
-        ".ReadAsync(client.State)",
+        "client.State.ReactiveObservedDaemon()",
+        "observedState.TryCurrent(out var current)",
         "new AetheriaRuntimeDaemonOperationClient(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
@@ -3285,6 +3285,12 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         throw new InvalidOperationException(
             "Daemon Eve surface command routing still reads observed daemon state through the runtime file reader instead of the Verse client.");
+    }
+
+    if (daemonSurfaceCommands.Contains(".ReadAsync(client.State)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing still samples observed daemon state through a one-shot compatibility helper instead of a managed reactive document.");
     }
 
     if (daemonSurfaceCommands.Contains("ObserveAsync()", StringComparison.Ordinal))
