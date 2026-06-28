@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -58,7 +57,7 @@ public abstract class ActionBarBinding : IDisposable
     protected AetheriaClient Client { get; }
     protected ActionBarSlot Slot { get; }
     protected GameSettings Settings { get; }
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private AetheriaRuntimeCatalogSession _catalog;
     public abstract void Activate();
     public abstract void Deactivate();
     public abstract void Update();
@@ -95,7 +94,7 @@ public abstract class ActionBarBinding : IDisposable
 
         try
         {
-            _catalog ??= Client.State.ReactiveCatalog();
+            _catalog ??= Client.State.ObserveCatalog();
             return _catalog?.Current?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)

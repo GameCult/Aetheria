@@ -4217,8 +4217,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
         ".Settings",
-        ".ReactivePlayer()",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".ObservePlayer()",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
         "_playerSettings?.Dispose()",
         "_playerSettings?.Current",
         "action.ApplyBindingOverride",
@@ -4249,6 +4249,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "LayoutRebuilder",
         "UILineRenderer",
         "Observable.NextFrame()",
+        ".ReactivePlayer()",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "DisplayLayout(_inputLayout)",
         "EnsureSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
@@ -7241,8 +7243,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredActionBarSymbols = new[]
     {
         "public abstract class ActionBarBinding : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "Client.State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "Client.State.ObserveCatalog()",
         "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
         "binding?.Dispose()",
         "private void OnDestroy()"
@@ -7255,6 +7257,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "ActionBarSlot should resolve runtime catalog items through a managed reactive catalog document with binding lifetime disposal: " +
             string.Join(", ", missingActionBarSymbols));
+    }
+
+    if (actionBarSlot.Contains("CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("Client.State.ReactiveCatalog()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "ActionBarSlot still owns the raw catalog CultMesh document instead of AetheriaRuntimeCatalogSession.");
     }
 
     var schematicDisplay = File.ReadAllText(Path.Combine(
@@ -7739,6 +7748,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
+        "public AetheriaRuntimeCatalogSession ObserveCatalog(",
         "public AetheriaRuntimePlayerHudSession ObservePlayerHud(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
@@ -15023,7 +15033,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredRuntimeClientProviderSymbols = new[]
     {
         "public static class AetheriaUnityRuntimeClientProvider",
-        "private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument",
+        "private static AetheriaRuntimePlayerSettingsSession _playerSettingsDocument",
         "public static RuntimePlayerSettings PlayerSettings",
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
@@ -15034,7 +15044,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClient",
         ".State",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "_playerSettingsDocument.Current",
         "_playerSettingsDocument?.Dispose()",
         "OpenAsync(",
@@ -15049,6 +15059,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Unity runtime client/player-settings boot must live behind AetheriaUnityRuntimeClientProvider: " +
             string.Join(", ", missingRuntimeClientProviderSymbols));
+    }
+
+    if (runtimeClientProvider.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains(".ReactivePlayer()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityRuntimeClientProvider still owns the raw player-settings CultMesh document instead of AetheriaRuntimePlayerSettingsSession.");
     }
 
     var providerOwnedClientAccessSources = new Dictionary<string, string>
@@ -15174,7 +15191,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(",
-        "public AetheriaRuntimeObservedDaemonSession ObserveDaemon("
+        "public AetheriaRuntimeObservedDaemonSession ObserveDaemon(",
+        "public AetheriaRuntimeCatalogSession ObserveCatalog(",
+        "public AetheriaRuntimePlayerSettingsSession ObservePlayer("
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))

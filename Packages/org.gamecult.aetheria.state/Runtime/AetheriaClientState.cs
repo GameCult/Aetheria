@@ -199,6 +199,12 @@ namespace GameCult.Aetheria.State.Verse
             return Catalog.Reactive(options);
         }
 
+        public AetheriaRuntimeCatalogSession ObserveCatalog(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeCatalogSession(ReactiveCatalog(options));
+        }
+
         public Task<AetheriaRuntimeDaemonFrameDocument> LatestDaemonFrameAsync()
         {
             return LatestFrame.LatestAsync();
@@ -943,6 +949,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Player.Reactive(options);
+        }
+
+        public AetheriaRuntimePlayerSettingsSession ObservePlayer(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimePlayerSettingsSession(ReactivePlayer(options));
         }
 
         public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()

@@ -4,7 +4,6 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
@@ -15,7 +14,7 @@ public class InputDisplayLayout : MonoBehaviour
     private UIDocument _surfaceDocument;
     private AetheriaInput _ownedInput;
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
     private InputAction _captureAction;
     private InputActionAsset _input;
     private string _captureActionName = "";
@@ -395,7 +394,7 @@ public class InputDisplayLayout : MonoBehaviour
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
         }
         catch (Exception ex)
         {
