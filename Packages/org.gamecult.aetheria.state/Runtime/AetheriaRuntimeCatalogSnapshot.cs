@@ -793,6 +793,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeEntitySnapshot(
             string recordKey,
+            int entityIndex,
             string name,
             string kind,
             double positionX,
@@ -830,6 +831,7 @@ namespace GameCult.Aetheria.State.Verse
             double shutdownPerformance)
         {
             RecordKey = recordKey;
+            EntityIndex = entityIndex;
             Name = name;
             Kind = kind;
             PositionX = positionX;
@@ -868,6 +870,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public string RecordKey { get; }
+        public int EntityIndex { get; }
         public string Name { get; }
         public string Kind { get; }
         public double PositionX { get; }

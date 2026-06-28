@@ -11829,9 +11829,9 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public static class AetheriaUnityDaemonEntitySnapshotProjector",
         "public static AetheriaRuntimeEntitySnapshot[] CreateSnapshots(",
-        "public static int EntityIndexFromRecordKey(string recordKey)",
         "public static string DaemonEntityRecordKey(string runId, int zoneIndex, int entityIndex)",
         "new AetheriaRuntimeEntitySnapshot(",
+        "entity.EntityIndex,",
         "CreateItemSlots(entity.Equipment)",
         "CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)",
         "CreateBehaviorStates(entity.BehaviorStates)",
@@ -12023,7 +12023,7 @@ static void RequireMainMenuContinueRunState(string root)
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
-        "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
+        ".OrderBy(entity => entity.EntityIndex)",
         "_entityProjector.TryApplyInPlace(",
         "zoneRenderer?.ApplyZoneRender(render)",
         "_zoneContextProjector.ResolveContext(targetZone, render)",
@@ -12798,10 +12798,18 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (!daemonEntitySnapshotProjector.Contains("new AetheriaRuntimeEntitySnapshot(", StringComparison.Ordinal) ||
         !daemonEntitySnapshotProjector.Contains("CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)", StringComparison.Ordinal) ||
-        !daemonEntitySnapshotProjector.Contains("public static int EntityIndexFromRecordKey(string recordKey)", StringComparison.Ordinal))
+        !daemonEntitySnapshotProjector.Contains("entity.EntityIndex,", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer entity projection no longer flows through the dedicated daemon snapshot projector.");
+            "Unity observer entity projection no longer carries typed daemon entity indices through the dedicated daemon snapshot projector.");
+    }
+
+    if (daemonEntitySnapshotProjector.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
+        observedFrameApplier.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
+        observedEntityProjector.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity observer entity projection must use typed daemon entity indices instead of parsing synthetic record keys.");
     }
 
     if (!observedEntityProjector.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
@@ -12880,7 +12888,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "observer.LastObservedState?.ZoneRender",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
-        "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
+        ".OrderBy(entity => entity.EntityIndex)",
         "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
         "_entityProjector.TryApplyInPlace(",
         "_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",

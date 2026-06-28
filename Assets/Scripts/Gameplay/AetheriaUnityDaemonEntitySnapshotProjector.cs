@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using Regex = System.Text.RegularExpressions.Regex;
 
 public static class AetheriaUnityDaemonEntitySnapshotProjector
 {
@@ -31,14 +30,6 @@ public static class AetheriaUnityDaemonEntitySnapshotProjector
             .ToArray();
     }
 
-    public static int EntityIndexFromRecordKey(string recordKey)
-    {
-        var match = Regex.Match(recordKey ?? "", @"\.entity\.(\d+)\.v1$");
-        return match.Success && int.TryParse(match.Groups[1].Value, out var index)
-            ? index
-            : int.MaxValue;
-    }
-
     public static string DaemonEntityRecordKey(string runId, int zoneIndex, int entityIndex)
     {
         return string.IsNullOrWhiteSpace(runId)
@@ -53,6 +44,7 @@ public static class AetheriaUnityDaemonEntitySnapshotProjector
     {
         return new AetheriaRuntimeEntitySnapshot(
             DaemonEntityRecordKey(runId, zoneIndex, entity.EntityIndex),
+            entity.EntityIndex,
             entity.Name ?? "",
             entity.Kind ?? "",
             entity.PositionX,

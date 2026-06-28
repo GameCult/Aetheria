@@ -91,7 +91,7 @@ public sealed class AetheriaUnityObservedFrameApplier
         }
 
         var entitySnapshots = AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)
-            .OrderBy(entity => AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey))
+            .OrderBy(entity => entity.EntityIndex)
             .ToArray();
 
         if (entitySnapshots.Length == 0)

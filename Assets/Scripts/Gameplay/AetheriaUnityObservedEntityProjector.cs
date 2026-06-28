@@ -123,8 +123,7 @@ public sealed class AetheriaUnityObservedEntityProjector
 
     private static void ApplyPoseAndSimpleRuntimeState(Entity entity, AetheriaRuntimeEntitySnapshot entitySnapshot)
     {
-        entity.DaemonEntityIndex =
-            AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entitySnapshot.RecordKey);
+        entity.DaemonEntityIndex = entitySnapshot.EntityIndex;
         entity.Name = entitySnapshot.Name ?? "";
         entity.CultPosition = new CultMath.float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);
         entity.CultDirection = new CultMath.float2((float)entitySnapshot.DirectionX, (float)entitySnapshot.DirectionY);
