@@ -4221,10 +4221,6 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
         ".Settings",
-        ".ObservePlayer()",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        "_playerSettings?.Dispose()",
-        "_playerSettings?.Current",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -4244,6 +4240,15 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
             string.Join(", ", missingInputScreenSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        inputScreen,
+        "InputDisplayLayout",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
+
     var forbiddenInputScreenSymbols = new[]
     {
         "OnPointerClickAsObservable",
@@ -4253,8 +4258,6 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "LayoutRebuilder",
         "UILineRenderer",
         "Observable.NextFrame()",
-        ".ReactivePlayer()",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "DisplayLayout(_inputLayout)",
         "EnsureSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
@@ -17773,6 +17776,48 @@ static bool ContainsUnitySettingsMember(string source, string memberName)
            source.Contains($", Settings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\tSettings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\nSettings.{memberName}", StringComparison.Ordinal);
+}
+
+static void RequireReactiveTypedDocumentAccess(
+    string source,
+    string ownerName,
+    string documentType,
+    string fieldName,
+    string reactiveAccessor,
+    string forbiddenSessionType,
+    string forbiddenObserveAccessor)
+{
+    var requiredSymbols = new[]
+    {
+        $"CultMeshReactiveDocument<{documentType}> {fieldName}",
+        reactiveAccessor,
+        $"{fieldName}?.Current",
+        $"{fieldName}?.Dispose()"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            $"{ownerName} should read {documentType} through a managed reactive typed document: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        $"{forbiddenSessionType} {fieldName}",
+        forbiddenObserveAccessor
+    };
+    var survivingSymbols = forbiddenSymbols
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            $"{ownerName} still routes {documentType} through a legacy session wrapper instead of the managed reactive typed document: " +
+            string.Join(", ", survivingSymbols));
+    }
 }
 
 static string CompactSource(string source)
