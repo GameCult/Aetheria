@@ -757,22 +757,22 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.PutDaemonSoaViewAsync(soaView).ConfigureAwait(false);
     }
 
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadProviderAdvertisement(node.StatePath, out var provider))
-        await node.PutDaemonProviderAdvertisementAsync(provider).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadHealth(node.StatePath, out var health))
-        await node.PutDaemonHealthAsync(health).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(node.StatePath, out var commandBoundary))
-        await node.PutDaemonCommandBoundaryAsync(commandBoundary).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadStarbridgeSessionSummary(node.StatePath, out var starbridgeSummary))
-        await node.PutStarbridgeSessionSummaryAsync(starbridgeSummary).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface(node.StatePath, out var gameSurface))
-        await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface)).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(node.StatePath, out var gameTuiSurface))
-        await node.PutDaemonGameTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameTuiSurface)).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface(node.StatePath, out var editorSurface))
-        await node.PutDaemonEditorSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorSurface)).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface(node.StatePath, out var editorTuiSurface))
-        await node.PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorTuiSurface)).ConfigureAwait(false);
+    if (result.ProviderAdvertisement != null)
+        await node.PutDaemonProviderAdvertisementAsync(result.ProviderAdvertisement).ConfigureAwait(false);
+    if (result.Health != null)
+        await node.PutDaemonHealthAsync(result.Health).ConfigureAwait(false);
+    if (result.CommandBoundary != null)
+        await node.PutDaemonCommandBoundaryAsync(result.CommandBoundary).ConfigureAwait(false);
+    if (result.StarbridgeSessionSummary != null)
+        await node.PutStarbridgeSessionSummaryAsync(result.StarbridgeSessionSummary).ConfigureAwait(false);
+    if (result.GameSurface != null)
+        await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameSurface)).ConfigureAwait(false);
+    if (result.GameTuiSurface != null)
+        await node.PutDaemonGameTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameTuiSurface)).ConfigureAwait(false);
+    if (result.EditorSurface != null)
+        await node.PutDaemonEditorSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorSurface)).ConfigureAwait(false);
+    if (result.EditorTuiSurface != null)
+        await node.PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorTuiSurface)).ConfigureAwait(false);
 }
 
 static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonHostOptions options)

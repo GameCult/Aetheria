@@ -8882,6 +8882,11 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface",
+        "ProviderAdvertisement = providerAdvertisement",
+        "Health = health",
+        "CommandBoundary = commandBoundary",
+        "StarbridgeSessionSummary = starbridgeSessionSummary",
+        "GameSurface = gameSurface",
         "ObservedCommands",
         "AccountedCommandIds",
         "frame.AccountedCommandIds = accountedBeforeTick",
@@ -8915,9 +8920,12 @@ static void RequireDaemonVersePublication(string root)
         "discoveryHost.Update(",
         "PublishDaemonApiDocumentsAsync(node, result)",
         "PutDaemonFrameAsync(result.Frame)",
-        "PutStarbridgeSessionSummaryAsync(starbridgeSummary)",
-        "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface))",
-        "PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorTuiSurface))",
+        "PutDaemonProviderAdvertisementAsync(result.ProviderAdvertisement)",
+        "PutDaemonHealthAsync(result.Health)",
+        "PutDaemonCommandBoundaryAsync(result.CommandBoundary)",
+        "PutStarbridgeSessionSummaryAsync(result.StarbridgeSessionSummary)",
+        "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameSurface))",
+        "PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorTuiSurface))",
         "GetStarbridgeSessionSummaryAsync()",
         "InjectEveSurfaceSnapshotAsync(",
         "ReadEveSurfacePublicationAsync(",
@@ -8945,6 +8953,27 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
             string.Join(", ", missingDaemonHostSymbols));
+    }
+
+    var apiPublicationStart = daemonHostSource.IndexOf(
+        "static async Task PublishDaemonApiDocumentsAsync",
+        StringComparison.Ordinal);
+    var apiPublicationEnd = apiPublicationStart >= 0
+        ? daemonHostSource.IndexOf("static async Task AcceptEveCommandsAsync", apiPublicationStart, StringComparison.Ordinal)
+        : -1;
+    var apiPublicationBlock = apiPublicationStart >= 0 && apiPublicationEnd > apiPublicationStart
+        ? daemonHostSource.Substring(apiPublicationStart, apiPublicationEnd - apiPublicationStart)
+        : "";
+    if (apiPublicationBlock.Contains("AetheriaRuntimeDaemonPublicationStore.TryRead", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon API document publication must use typed tick result documents instead of reopening publication-store witness files.");
+    }
+
+    if (daemonTickRunner.Contains("AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon tick must pass the typed health document through surface builders instead of reopening its witness file.");
     }
 
     var snapshotHandlerStart = daemonHostSource.IndexOf(
