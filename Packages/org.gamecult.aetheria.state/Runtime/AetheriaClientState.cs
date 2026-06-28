@@ -188,6 +188,18 @@ namespace GameCult.Aetheria.State.Verse
             return Latest<AetheriaRuntimeCatalogSnapshot>();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>> ReactiveCatalogAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Catalog.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalog(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return Catalog.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeDaemonFrameDocument> LatestDaemonFrameAsync()
         {
             return LatestFrame.LatestAsync();

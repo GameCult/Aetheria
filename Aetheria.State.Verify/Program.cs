@@ -6978,6 +6978,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredClientSymbols = new[]
     {
         "public AetheriaRuntimeCatalogSnapshot LatestCatalog()",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>> ReactiveCatalogAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalog(",
         "public Task<AetheriaRuntimePlayerSettingsDocument> LatestPlayerAsync()",
         "public AetheriaRuntimePlayerSettingsDocument LatestPlayer()",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>> ReactivePlayerAsync(",
@@ -7045,6 +7047,31 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "Unity presentation code still walks shared CultMesh document handles instead of named managed accessors: " +
             string.Join(", ", offenders));
+    }
+
+    var actionBarSlot = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Gameplay",
+        "ActionBarSlot.cs"));
+    var requiredActionBarSymbols = new[]
+    {
+        "public abstract class ActionBarBinding : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "Client.Aetheria().ReactiveCatalog()",
+        "_catalog?.Current?.FindItem(item.ItemKey)",
+        "binding?.Dispose()",
+        "private void OnDestroy()"
+    };
+    var missingActionBarSymbols = requiredActionBarSymbols
+        .Where(symbol => !actionBarSlot.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingActionBarSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "ActionBarSlot should resolve runtime catalog items through a managed reactive catalog document with binding lifetime disposal: " +
+            string.Join(", ", missingActionBarSymbols));
     }
 
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(

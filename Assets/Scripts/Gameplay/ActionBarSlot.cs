@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -24,6 +25,10 @@ public class ActionBarSlot : MonoBehaviour
         get => binding;
         set
         {
+            if (ReferenceEquals(binding, value))
+                return;
+
+            binding?.Dispose();
             binding = value;
             if (binding == null)
             {
@@ -35,6 +40,11 @@ public class ActionBarSlot : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        Binding = null;
+    }
+
     private void Update()
     {
         Binding?.Update();
@@ -42,13 +52,13 @@ public class ActionBarSlot : MonoBehaviour
 
 }
 
-public abstract class ActionBarBinding
+public abstract class ActionBarBinding : IDisposable
 {
     public Entity Entity { get; }
     protected AetheriaClient Client { get; }
     protected ActionBarSlot Slot { get; }
     protected GameSettings Settings { get; }
-    private AetheriaRuntimeCatalogSnapshot _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     public abstract void Activate();
     public abstract void Deactivate();
     public abstract void Update();
@@ -85,14 +95,20 @@ public abstract class ActionBarBinding
 
         try
         {
-            _catalog ??= Client.Aetheria().LatestCatalog();
-            return _catalog?.FindItem(item.ItemKey);
+            _catalog ??= Client.Aetheria().ReactiveCatalog();
+            return _catalog?.Current?.FindItem(item.ItemKey);
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria runtime catalog for action-bar binding: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for action-bar binding: {ex.Message}");
             return null;
         }
+    }
+
+    public virtual void Dispose()
+    {
+        _catalog?.Dispose();
+        _catalog = null;
     }
 }
 
