@@ -10741,8 +10741,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "loadoutTemplatesDocument.Reactive()",
         "starbridgeScenarioDocument.Reactive()",
         "starbridgeSessionDocument.Reactive()",
+        "latestFrameDocument.Reactive()",
         "BootstrapRuntimeCatalogSnapshot(),",
         "BootstrapLoadoutTemplatesDocument())",
+        "projectionInputs.RequireFrame()",
         "projectionInputs.Catalog",
         "projectionInputs.LoadoutTemplates.Templates",
         "projectionInputs.StarbridgeScenario",
@@ -10785,6 +10787,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "Aetheria runtime Verse client Starbridge projection still polls sibling documents instead of sampling managed reactive projection inputs.");
+    }
+
+    if (client.Contains("RequireFrameAsync", StringComparison.Ordinal) ||
+        client.Contains("Aetheria().Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client projected documents still bootstrap through one-shot latest-frame reads instead of the managed reactive projection inputs.");
     }
 
     var requiredClientStateSymbols = new[]
@@ -14766,7 +14775,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredManagedClientConnectionSymbols = new[]
     {
         "public AetheriaClientState State => _state;",
-        "public AetheriaClientState Aetheria() => State;"
+        "public AetheriaClientState Aetheria() => State;",
+        "using var observedState = State.ReactiveObservedDaemon();",
+        "observedState.TryCurrent(out var current)"
     };
     var missingManagedClientConnectionSymbols = requiredManagedClientConnectionSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -14840,6 +14851,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var forbiddenDaemonClientBypassSymbols = new[]
     {
+        ".ReadAsync(State)",
         "return _verse.GetObservedDaemonStateAsync();",
         "return _verse.GetLatestAuthoritativeRunFrameAsync();",
         "return _verse.GetHealthAsync();",

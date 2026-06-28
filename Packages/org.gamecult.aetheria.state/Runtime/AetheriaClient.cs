@@ -161,10 +161,10 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
-            var observed = AetheriaRuntimeObservedDaemonState
-                .ReadAsync(State)
-                .GetAwaiter()
-                .GetResult();
+            using var observedState = State.ReactiveObservedDaemon();
+            var observed = observedState.TryCurrent(out var current)
+                ? current
+                : null;
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 StatePath,
                 _clientId,
