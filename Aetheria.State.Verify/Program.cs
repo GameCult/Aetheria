@@ -7816,13 +7816,9 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeCatalogSession _catalog",
         "AetheriaRuntimeZoneContactsSession _zoneContacts",
-        "ResolveClient().State.ObserveCatalog()",
         "ResolveClient().State.ObserveZoneContacts()",
-        "_catalog?.Dispose()",
         "_zoneContacts?.Dispose()",
-        "_catalog?.Current",
         "_zoneContacts?.Current",
         "private void OnDestroy()"
     };
@@ -7836,11 +7832,18 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        zoneRenderer,
+        "ZoneRenderer",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
+        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+
     var forbiddenZoneRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        "ResolveClient().State.ReactiveCatalog()",
         "ResolveClient().State.ReactiveZoneContacts()"
     };
     var zoneRendererRawDocumentHits = forbiddenZoneRendererSharedDocumentSymbols

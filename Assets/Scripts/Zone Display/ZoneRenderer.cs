@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
@@ -119,7 +120,7 @@ public class ZoneRenderer : MonoBehaviour
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSession _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private AetheriaRuntimeZoneContactsSession _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
     private AetheriaRuntimeObjectsViewportSession _objectsViewport;
@@ -1207,7 +1208,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ObserveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
