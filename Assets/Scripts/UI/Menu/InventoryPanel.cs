@@ -1289,7 +1289,10 @@ private void Update()
                 return false;
 
             var inventory = ResolveClient()
-                .InventoryAsync(entityIndex)
+                .Aetheria()
+                .Details
+                .Inventory(entityIndex)
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))

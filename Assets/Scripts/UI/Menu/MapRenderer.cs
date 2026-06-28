@@ -133,11 +133,17 @@ public class MapRenderer : MonoBehaviour
             var client = ResolveClient();
             var viewport = ResolveViewportBounds();
             _objectsViewport = client
-                .ObjectsViewportAsync(viewport)
+                .Aetheria()
+                .Viewports
+                .Objects(viewport)
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             _renderSplatsViewport = client
-                .RenderSplatsViewportAsync(viewport)
+                .Aetheria()
+                .Viewports
+                .RenderSplats(viewport)
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
 

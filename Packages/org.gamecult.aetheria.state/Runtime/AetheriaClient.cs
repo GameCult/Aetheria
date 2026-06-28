@@ -177,32 +177,28 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectViewport(frame, viewport);
+            return await State.Viewports.Map(viewport).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeObjectsViewportDocument> ObjectsViewportAsync(
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectObjectsViewport(frame, viewport);
+            return await State.Viewports.Objects(viewport).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeGravityViewportDocument> GravityViewportAsync(
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectGravityViewport(frame, viewport);
+            return await State.Viewports.Gravity(viewport).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewportAsync(
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectRenderSplatsViewport(frame, viewport);
+            return await State.Viewports.RenderSplats(viewport).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeAssetManifestDocument> AssetManifestAsync()
@@ -253,8 +249,7 @@ namespace GameCult.Aetheria.State.Verse
         public async Task<AetheriaRuntimeZoneDetailsDocument> ZoneDetailsAsync(int zoneIndex)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectZoneDetails(frame, zoneIndex);
+            return await State.Details.Zone(zoneIndex).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeZoneRenderDocument> ZoneRenderAsync()
@@ -268,6 +263,9 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeStarbridgeSessionDocument? session = null)
         {
             ThrowIfDisposed();
+            if (scenario == null && session == null)
+                return await State.Starbridge.Summary.LatestAsync().ConfigureAwait(false);
+
             var frame = await RequireFrameAsync().ConfigureAwait(false);
             scenario ??= await _verse.GetStarbridgeScenarioAsync().ConfigureAwait(false);
             session ??= await _verse.GetStarbridgeSessionAsync().ConfigureAwait(false);
@@ -281,15 +279,13 @@ namespace GameCult.Aetheria.State.Verse
         public async Task<AetheriaRuntimeSelectedObjectDocument> SelectedObjectAsync(int entityIndex)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectSelectedObject(frame, entityIndex);
+            return await State.Details.SelectedObject(entityIndex).LatestAsync().ConfigureAwait(false);
         }
 
         public async Task<AetheriaRuntimeInventoryDocument> InventoryAsync(int entityIndex)
         {
             ThrowIfDisposed();
-            var frame = await RequireFrameAsync().ConfigureAwait(false);
-            return AetheriaRuntimeRtsProjection.ProjectInventory(frame, entityIndex);
+            return await State.Details.Inventory(entityIndex).LatestAsync().ConfigureAwait(false);
         }
 
         public Task<AetheriaRuntimeDaemonHealthDocument?> DaemonHealthAsync()

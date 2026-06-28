@@ -176,6 +176,31 @@ public class DaemonRuntimeDocumentTests
             .LatestAsync<AetheriaRuntimeDaemonFrameDocument>()
             .GetAwaiter()
             .GetResult();
+        var viewport = new AetheriaRuntimeRtsViewportBounds
+        {
+            MinX = -100,
+            MinY = -100,
+            MaxX = 100,
+            MaxY = 100
+        };
+        var objectsViewport = client.Aetheria()
+            .Viewports
+            .Objects(viewport)
+            .LatestAsync()
+            .GetAwaiter()
+            .GetResult();
+        var zoneDetails = client.Aetheria()
+            .Details
+            .Zone(0)
+            .LatestAsync()
+            .GetAwaiter()
+            .GetResult();
+        var inventory = client.Aetheria()
+            .Details
+            .Inventory(0)
+            .LatestAsync()
+            .GetAwaiter()
+            .GetResult();
         var currentEntityFromClientType = client
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
@@ -211,6 +236,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema);
+        Assert.AreEqual("Player", objectsViewport.Objects.FirstOrDefault()?.DisplayName);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneDetails, zoneDetails.Schema);
+        Assert.AreEqual(0, zoneDetails.ZoneIndex);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Inventory, inventory.Schema);
+        Assert.AreEqual("zone.0.entity.0", inventory.EntityKey);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);
         Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);

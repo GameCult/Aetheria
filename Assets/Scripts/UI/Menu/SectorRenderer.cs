@@ -200,7 +200,10 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             return ResolveClient()
-                .ZoneDetailsAsync(zoneIndex)
+                .Aetheria()
+                .Details
+                .Zone(zoneIndex)
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
         }

@@ -2395,7 +2395,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "LoadAsteroidBelt(beltPose)",
         "void LoadAsteroidBelt(AetheriaRuntimeZoneRenderAsteroidBeltPose beltPose)",
         "private void SyncDaemonEntityInstances()",
-        "ObjectsViewportAsync(ToViewportBounds(viewport))",
+        ".Viewports",
+        ".Objects(ToViewportBounds(viewport))",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntityFacadesByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
@@ -4482,7 +4483,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".Aetheria()",
         ".SectorMap",
         ".LatestAsync()",
-        "ZoneDetailsAsync(zoneIndex)",
+        ".Details",
+        ".Zone(zoneIndex)",
         "OpenRuntimeCatalog()",
         "PlayerSettingsAsync()",
         "AetheriaClient",
@@ -11406,13 +11408,16 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     }
 
     if (!mapRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
-        !mapRenderer.Contains("ObjectsViewportAsync", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".Objects(viewport)", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("ZoneDetailsAsync(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".Zone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("OpenRuntimeCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("PlayerSettingsAsync()", StringComparison.Ordinal) ||
         !sectorMap.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
@@ -13741,7 +13746,8 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryResolveTypedInventoryRows(",
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
-        "InventoryAsync(entityIndex)",
+        ".Details",
+        ".Inventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",

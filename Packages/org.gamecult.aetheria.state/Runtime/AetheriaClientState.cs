@@ -22,8 +22,16 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit,
             CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> sectorMap,
             CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> zoneRender,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> mapViewport,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> objectsViewport,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> gravityViewport,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> renderSplatsViewport,
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> zoneDetails,
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> selectedObject,
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> inventory,
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession,
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> starbridgeSummary,
             Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> starbridgePlayerSeat)
         {
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
@@ -33,10 +41,20 @@ namespace GameCult.Aetheria.State.Verse
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
             SectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
             ZoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
+            Viewports = new AetheriaClientViewportState(
+                mapViewport,
+                objectsViewport,
+                gravityViewport,
+                renderSplatsViewport);
+            Details = new AetheriaClientDetailState(
+                zoneDetails,
+                selectedObject,
+                inventory);
             DockingState = new AetheriaClientDockingState(Current.Entity, Current.Docking, StationRefit);
             Starbridge = new AetheriaClientStarbridgeState(
                 starbridgeScenario,
                 starbridgeSession,
+                starbridgeSummary,
                 starbridgePlayerSeat);
             _documents = CultMesh.Documents(
                 LatestFrame,
@@ -59,6 +77,10 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaClientCurrentState Current { get; }
 
         public AetheriaClientDockingState DockingState { get; }
+
+        public AetheriaClientViewportState Viewports { get; }
+
+        public AetheriaClientDetailState Details { get; }
 
         public AetheriaClientStarbridgeState Starbridge { get; }
 
@@ -232,6 +254,78 @@ namespace GameCult.Aetheria.State.Verse
         public bool IsDocked => StationRefit?.IsDocked == true && CurrentDockingBay != null;
     }
 
+    public sealed class AetheriaClientViewportState
+    {
+        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> _map;
+        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> _objects;
+        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> _gravity;
+        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> _renderSplats;
+
+        internal AetheriaClientViewportState(
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> map,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> objects,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> gravity,
+            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> renderSplats)
+        {
+            _map = map ?? throw new ArgumentNullException(nameof(map));
+            _objects = objects ?? throw new ArgumentNullException(nameof(objects));
+            _gravity = gravity ?? throw new ArgumentNullException(nameof(gravity));
+            _renderSplats = renderSplats ?? throw new ArgumentNullException(nameof(renderSplats));
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument> Map(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _map(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> Objects(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _gravity(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _renderSplats(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+    }
+
+    public sealed class AetheriaClientDetailState
+    {
+        private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> _zoneDetails;
+        private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> _selectedObject;
+        private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> _inventory;
+
+        internal AetheriaClientDetailState(
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> zoneDetails,
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> selectedObject,
+            Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> inventory)
+        {
+            _zoneDetails = zoneDetails ?? throw new ArgumentNullException(nameof(zoneDetails));
+            _selectedObject = selectedObject ?? throw new ArgumentNullException(nameof(selectedObject));
+            _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> Zone(int zoneIndex)
+        {
+            return _zoneDetails(zoneIndex);
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)
+        {
+            return _selectedObject(entityIndex);
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
+        {
+            return _inventory(entityIndex);
+        }
+    }
+
     public sealed class AetheriaClientStarbridgeState
     {
         private readonly Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> _playerSeat;
@@ -239,16 +333,20 @@ namespace GameCult.Aetheria.State.Verse
         internal AetheriaClientStarbridgeState(
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> scenario,
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> session,
+            CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> summary,
             Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> playerSeat)
         {
             Scenario = scenario ?? throw new ArgumentNullException(nameof(scenario));
             Session = session ?? throw new ArgumentNullException(nameof(session));
+            Summary = summary ?? throw new ArgumentNullException(nameof(summary));
             _playerSeat = playerSeat ?? throw new ArgumentNullException(nameof(playerSeat));
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> Scenario { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> Session { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> Summary { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument> PlayerSeat(string seatId)
         {

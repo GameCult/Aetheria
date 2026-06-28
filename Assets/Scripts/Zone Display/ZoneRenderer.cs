@@ -896,7 +896,10 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             var objects = ResolveClient()
-                .ObjectsViewportAsync(ToViewportBounds(viewport))
+                .Aetheria()
+                .Viewports
+                .Objects(ToViewportBounds(viewport))
+                .LatestAsync()
                 .GetAwaiter()
                 .GetResult();
             foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -761,10 +762,45 @@ namespace GameCult.Aetheria.State.Verse
                     "aetheria.zone.render",
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneRender(frame)),
                     AetheriaRuntimeDaemonSchemas.ZoneRender),
+                viewport => ProjectedDocument(
+                    ViewportDocumentId("aetheria.viewport.map", viewport),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectViewport(frame, viewport)),
+                    AetheriaRuntimeDaemonSchemas.RtsViewport),
+                viewport => ProjectedDocument(
+                    ViewportDocumentId("aetheria.viewport.objects", viewport),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectObjectsViewport(frame, viewport)),
+                    AetheriaRuntimeDaemonSchemas.ObjectsViewport),
+                viewport => ProjectedDocument(
+                    ViewportDocumentId("aetheria.viewport.gravity", viewport),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectGravityViewport(frame, viewport)),
+                    AetheriaRuntimeDaemonSchemas.GravityViewport),
+                viewport => ProjectedDocument(
+                    ViewportDocumentId("aetheria.viewport.render_splats", viewport),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectRenderSplatsViewport(frame, viewport)),
+                    AetheriaRuntimeDaemonSchemas.RenderSplatsViewport),
+                zoneIndex => ProjectedDocument(
+                    IndexedDocumentId("aetheria.zone.details", zoneIndex),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectZoneDetails(frame, zoneIndex)),
+                    AetheriaRuntimeDaemonSchemas.ZoneDetails),
+                entityIndex => ProjectedDocument(
+                    IndexedDocumentId("aetheria.object.selected", entityIndex),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectSelectedObject(frame, entityIndex)),
+                    AetheriaRuntimeDaemonSchemas.SelectedObject),
+                entityIndex => ProjectedDocument(
+                    IndexedDocumentId("aetheria.inventory", entityIndex),
+                    frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectInventory(frame, entityIndex)),
+                    AetheriaRuntimeDaemonSchemas.Inventory),
                 Document<AetheriaRuntimeStarbridgeScenarioDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest),
                 Document<AetheriaRuntimeStarbridgeSessionDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest),
+                ProjectedDocument(
+                    "aetheria.starbridge.summary",
+                    ProjectStarbridgeSummaryAsync,
+                    AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest.ToString()),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest.ToString()),
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime")),
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
@@ -804,6 +840,43 @@ namespace GameCult.Aetheria.State.Verse
                 var loadoutTemplates = await GetLoadoutTemplatesAsync().ConfigureAwait(false);
                 var catalog = OpenRuntimeCatalog();
                 return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates, catalog);
+            }
+
+            async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
+                AetheriaRuntimeDaemonFrameDocument frame)
+            {
+                var scenario = await GetStarbridgeScenarioAsync().ConfigureAwait(false);
+                var session = await GetStarbridgeSessionAsync().ConfigureAwait(false);
+                return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+                    frame,
+                    scenario,
+                    session,
+                    OpenRuntimeCatalog());
+            }
+
+            static string IndexedDocumentId(string prefix, int index)
+            {
+                return $"{prefix}.{index.ToString(CultureInfo.InvariantCulture)}";
+            }
+
+            static string ViewportDocumentId(string prefix, AetheriaRuntimeRtsViewportBounds viewport)
+            {
+                var normalized = AetheriaRuntimeRtsProjection.Normalize(viewport);
+                return string.Join(
+                    ".",
+                    prefix,
+                    ViewportToken(normalized.MinX),
+                    ViewportToken(normalized.MinY),
+                    ViewportToken(normalized.MaxX),
+                    ViewportToken(normalized.MaxY));
+            }
+
+            static string ViewportToken(double value)
+            {
+                return value
+                    .ToString("0.###", CultureInfo.InvariantCulture)
+                    .Replace('-', 'n')
+                    .Replace('.', 'p');
             }
         }
 
