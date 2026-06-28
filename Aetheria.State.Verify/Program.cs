@@ -15214,6 +15214,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var observedDaemonState = File.Exists(observedDaemonStatePath)
         ? File.ReadAllText(observedDaemonStatePath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaRuntimeObservedDaemonState.cs is missing.");
+    var runtimeStateSessionsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateSessions.cs");
+    var runtimeStateSessions = File.Exists(runtimeStateSessionsPath)
+        ? File.ReadAllText(runtimeStateSessionsPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaRuntimeStateSessions.cs is missing.");
     var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
         ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
@@ -15463,6 +15467,35 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaClientState must expose managed typed document access instead of AetheriaClient forwarding shortcuts: " +
             string.Join(", ", missingManagedStateAccessSymbols));
+    }
+
+    var requiredRuntimeStateSessionSymbols = new[]
+    {
+        "public abstract class AetheriaRuntimeReactiveSession<TDocument> : IDisposable",
+        "private readonly CultMeshReactiveDocument<TDocument> _document;",
+        "public TDocument? Current => _document.Current;",
+        "public sealed class AetheriaRuntimeCatalogSession",
+        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeCatalogSnapshot>",
+        "public sealed class AetheriaRuntimeZoneRenderSession",
+        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeZoneRenderDocument>",
+        "public sealed class AetheriaRuntimeStarbridgePlayerSeatSession",
+        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgePlayerSeatDocument>"
+    };
+    var missingRuntimeStateSessionSymbols = requiredRuntimeStateSessionSymbols
+        .Where(symbol => !runtimeStateSessions.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingRuntimeStateSessionSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Runtime state sessions must keep named typed accessors over the shared managed reactive session base: " +
+            string.Join(", ", missingRuntimeStateSessionSymbols));
+    }
+
+    if (runtimeStateSessions.Contains("private readonly CultMeshReactiveDocument<AetheriaRuntime", StringComparison.Ordinal) ||
+        runtimeStateSessions.Contains("private readonly CultMeshReactiveDocument<global::Aetheria", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime state sessions reintroduced per-document reactive fields instead of sharing AetheriaRuntimeReactiveSession<TDocument>.");
     }
 
     var requiredManagedObservedDaemonSymbols = new[]

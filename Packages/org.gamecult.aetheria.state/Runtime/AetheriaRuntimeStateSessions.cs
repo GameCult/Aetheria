@@ -5,435 +5,237 @@ using GameCult.Mesh;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeCatalogSession : IDisposable
+    public abstract class AetheriaRuntimeReactiveSession<TDocument> : IDisposable
+        where TDocument : class
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+        private readonly CultMeshReactiveDocument<TDocument> _document;
 
-        public AetheriaRuntimeCatalogSession(
-            CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog)
+        protected AetheriaRuntimeReactiveSession(CultMeshReactiveDocument<TDocument> document)
         {
-            _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _document = document ?? throw new ArgumentNullException(nameof(document));
         }
 
-        public AetheriaRuntimeCatalogSnapshot? Current => _catalog.Current;
+        public TDocument? Current => _document.Current;
 
         public void Dispose()
         {
-            _catalog.Dispose();
+            _document.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimePlayerSettingsSession : IDisposable
+    public sealed class AetheriaRuntimeCatalogSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeCatalogSnapshot>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-
-        public AetheriaRuntimePlayerSettingsSession(
-            CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> playerSettings)
+        public AetheriaRuntimeCatalogSession(CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog)
+            : base(catalog)
         {
-            _playerSettings = playerSettings ?? throw new ArgumentNullException(nameof(playerSettings));
-        }
-
-        public AetheriaRuntimePlayerSettingsDocument? Current => _playerSettings.Current;
-
-        public void Dispose()
-        {
-            _playerSettings.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeVerseHostSettingsSession : IDisposable
+    public sealed class AetheriaRuntimePlayerSettingsSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimePlayerSettingsDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings;
-
-        public AetheriaRuntimeVerseHostSettingsSession(
-            CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> verseHostSettings)
+        public AetheriaRuntimePlayerSettingsSession(CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> playerSettings)
+            : base(playerSettings)
         {
-            _verseHostSettings = verseHostSettings ?? throw new ArgumentNullException(nameof(verseHostSettings));
-        }
-
-        public AetheriaRuntimeVerseHostSettingsDocument? Current => _verseHostSettings.Current;
-
-        public void Dispose()
-        {
-            _verseHostSettings.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeSectorMapSession : IDisposable
+    public sealed class AetheriaRuntimeVerseHostSettingsSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeVerseHostSettingsDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
-
-        public AetheriaRuntimeSectorMapSession(
-            CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> sectorMap)
+        public AetheriaRuntimeVerseHostSettingsSession(CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> verseHostSettings)
+            : base(verseHostSettings)
         {
-            _sectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
-        }
-
-        public AetheriaRuntimeSectorMapDocument? Current => _sectorMap.Current;
-
-        public void Dispose()
-        {
-            _sectorMap.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeDaemonFrameSession : IDisposable
+    public sealed class AetheriaRuntimeSectorMapSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeSectorMapDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
-
-        public AetheriaRuntimeDaemonFrameSession(
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame)
+        public AetheriaRuntimeSectorMapSession(CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> sectorMap)
+            : base(sectorMap)
         {
-            _daemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
-        }
-
-        public AetheriaRuntimeDaemonFrameDocument? Current => _daemonFrame.Current;
-
-        public void Dispose()
-        {
-            _daemonFrame.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeDaemonSoaViewSession : IDisposable
+    public sealed class AetheriaRuntimeDaemonFrameSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeDaemonFrameDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _soaView;
-
-        public AetheriaRuntimeDaemonSoaViewSession(
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> soaView)
+        public AetheriaRuntimeDaemonFrameSession(CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame)
+            : base(daemonFrame)
         {
-            _soaView = soaView ?? throw new ArgumentNullException(nameof(soaView));
-        }
-
-        public AetheriaRuntimeDaemonSoaViewDocument? Current => _soaView.Current;
-
-        public void Dispose()
-        {
-            _soaView.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeZoneContactsSession : IDisposable
+    public sealed class AetheriaRuntimeDaemonSoaViewSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeDaemonSoaViewDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
-
-        public AetheriaRuntimeZoneContactsSession(
-            CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> zoneContacts)
+        public AetheriaRuntimeDaemonSoaViewSession(CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> soaView)
+            : base(soaView)
         {
-            _zoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
-        }
-
-        public AetheriaRuntimeZoneContactsDocument? Current => _zoneContacts.Current;
-
-        public void Dispose()
-        {
-            _zoneContacts.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeStationRefitSession : IDisposable
+    public sealed class AetheriaRuntimeZoneContactsSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeZoneContactsDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-
-        public AetheriaRuntimeStationRefitSession(
-            CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> stationRefit)
+        public AetheriaRuntimeZoneContactsSession(CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> zoneContacts)
+            : base(zoneContacts)
         {
-            _stationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
-        }
-
-        public AetheriaRuntimeStationRefitDocument? Current => _stationRefit.Current;
-
-        public void Dispose()
-        {
-            _stationRefit.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeZoneRenderSession : IDisposable
+    public sealed class AetheriaRuntimeStationRefitSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeStationRefitDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
-
-        public AetheriaRuntimeZoneRenderSession(
-            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender)
+        public AetheriaRuntimeStationRefitSession(CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> stationRefit)
+            : base(stationRefit)
         {
-            _zoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
-        }
-
-        public AetheriaRuntimeZoneRenderDocument? Current => _zoneRender.Current;
-
-        public void Dispose()
-        {
-            _zoneRender.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeCurrentZoneSession : IDisposable
+    public sealed class AetheriaRuntimeZoneRenderSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeZoneRenderDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone;
-
-        public AetheriaRuntimeCurrentZoneSession(
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> currentZone)
+        public AetheriaRuntimeZoneRenderSession(CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender)
+            : base(zoneRender)
         {
-            _currentZone = currentZone ?? throw new ArgumentNullException(nameof(currentZone));
-        }
-
-        public AetheriaRuntimeCurrentZoneDocument? Current => _currentZone.Current;
-
-        public void Dispose()
-        {
-            _currentZone.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeCurrentEntitySession : IDisposable
+    public sealed class AetheriaRuntimeCurrentZoneSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeCurrentZoneDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-
-        public AetheriaRuntimeCurrentEntitySession(
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity)
+        public AetheriaRuntimeCurrentZoneSession(CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> currentZone)
+            : base(currentZone)
         {
-            _currentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
-        }
-
-        public AetheriaRuntimeCurrentEntityDocument? Current => _currentEntity.Current;
-
-        public void Dispose()
-        {
-            _currentEntity.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeCurrentDockingSession : IDisposable
+    public sealed class AetheriaRuntimeCurrentEntitySession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeCurrentEntityDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
-
-        public AetheriaRuntimeCurrentDockingSession(
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> currentDocking)
+        public AetheriaRuntimeCurrentEntitySession(CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> currentEntity)
+            : base(currentEntity)
         {
-            _currentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
-        }
-
-        public AetheriaRuntimeCurrentDockingDocument? Current => _currentDocking.Current;
-
-        public void Dispose()
-        {
-            _currentDocking.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeZoneDetailsSession : IDisposable
+    public sealed class AetheriaRuntimeCurrentDockingSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeCurrentDockingDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
-
-        public AetheriaRuntimeZoneDetailsSession(
-            CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> zoneDetails)
+        public AetheriaRuntimeCurrentDockingSession(CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> currentDocking)
+            : base(currentDocking)
         {
-            _zoneDetails = zoneDetails ?? throw new ArgumentNullException(nameof(zoneDetails));
-        }
-
-        public AetheriaRuntimeZoneDetailsDocument? Current => _zoneDetails.Current;
-
-        public void Dispose()
-        {
-            _zoneDetails.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeInventorySession : IDisposable
+    public sealed class AetheriaRuntimeZoneDetailsSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeZoneDetailsDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
-
-        public AetheriaRuntimeInventorySession(
-            CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> inventory)
+        public AetheriaRuntimeZoneDetailsSession(CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> zoneDetails)
+            : base(zoneDetails)
         {
-            _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
-        }
-
-        public AetheriaRuntimeInventoryDocument? Current => _inventory.Current;
-
-        public void Dispose()
-        {
-            _inventory.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeObjectsViewportSession : IDisposable
+    public sealed class AetheriaRuntimeInventorySession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeInventoryDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
-
-        public AetheriaRuntimeObjectsViewportSession(
-            CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> objectsViewport)
+        public AetheriaRuntimeInventorySession(CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> inventory)
+            : base(inventory)
         {
-            _objectsViewport = objectsViewport ?? throw new ArgumentNullException(nameof(objectsViewport));
-        }
-
-        public AetheriaRuntimeObjectsViewportDocument? Current => _objectsViewport.Current;
-
-        public void Dispose()
-        {
-            _objectsViewport.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeMapViewportSession : IDisposable
+    public sealed class AetheriaRuntimeObjectsViewportSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeObjectsViewportDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> _mapViewport;
-
-        public AetheriaRuntimeMapViewportSession(
-            CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> mapViewport)
+        public AetheriaRuntimeObjectsViewportSession(CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> objectsViewport)
+            : base(objectsViewport)
         {
-            _mapViewport = mapViewport ?? throw new ArgumentNullException(nameof(mapViewport));
-        }
-
-        public AetheriaRuntimeRtsViewportDocument? Current => _mapViewport.Current;
-
-        public void Dispose()
-        {
-            _mapViewport.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeRenderSplatsViewportSession : IDisposable
+    public sealed class AetheriaRuntimeMapViewportSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeRtsViewportDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
-
-        public AetheriaRuntimeRenderSplatsViewportSession(
-            CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> renderSplatsViewport)
+        public AetheriaRuntimeMapViewportSession(CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> mapViewport)
+            : base(mapViewport)
         {
-            _renderSplatsViewport = renderSplatsViewport ?? throw new ArgumentNullException(nameof(renderSplatsViewport));
-        }
-
-        public AetheriaRuntimeRenderSplatsViewportDocument? Current => _renderSplatsViewport.Current;
-
-        public void Dispose()
-        {
-            _renderSplatsViewport.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeGravityViewportSession : IDisposable
+    public sealed class AetheriaRuntimeRenderSplatsViewportSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeRenderSplatsViewportDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> _gravityViewport;
-
-        public AetheriaRuntimeGravityViewportSession(
-            CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> gravityViewport)
+        public AetheriaRuntimeRenderSplatsViewportSession(CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> renderSplatsViewport)
+            : base(renderSplatsViewport)
         {
-            _gravityViewport = gravityViewport ?? throw new ArgumentNullException(nameof(gravityViewport));
-        }
-
-        public AetheriaRuntimeGravityViewportDocument? Current => _gravityViewport.Current;
-
-        public void Dispose()
-        {
-            _gravityViewport.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeSelectedObjectSession : IDisposable
+    public sealed class AetheriaRuntimeGravityViewportSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeGravityViewportDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> _selectedObject;
-
-        public AetheriaRuntimeSelectedObjectSession(
-            CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> selectedObject)
+        public AetheriaRuntimeGravityViewportSession(CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> gravityViewport)
+            : base(gravityViewport)
         {
-            _selectedObject = selectedObject ?? throw new ArgumentNullException(nameof(selectedObject));
-        }
-
-        public AetheriaRuntimeSelectedObjectDocument? Current => _selectedObject.Current;
-
-        public void Dispose()
-        {
-            _selectedObject.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeLoadoutTemplatesSession : IDisposable
+    public sealed class AetheriaRuntimeSelectedObjectSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeSelectedObjectDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
-
-        public AetheriaRuntimeLoadoutTemplatesSession(
-            CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates)
+        public AetheriaRuntimeSelectedObjectSession(CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> selectedObject)
+            : base(selectedObject)
         {
-            _loadoutTemplates = loadoutTemplates ?? throw new ArgumentNullException(nameof(loadoutTemplates));
-        }
-
-        public AetheriaRuntimeLoadoutTemplatesDocument? Current => _loadoutTemplates.Current;
-
-        public void Dispose()
-        {
-            _loadoutTemplates.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeStarbridgeScenarioSession : IDisposable
+    public sealed class AetheriaRuntimeLoadoutTemplatesSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeLoadoutTemplatesDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _scenario;
-
-        public AetheriaRuntimeStarbridgeScenarioSession(
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> scenario)
+        public AetheriaRuntimeLoadoutTemplatesSession(CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates)
+            : base(loadoutTemplates)
         {
-            _scenario = scenario ?? throw new ArgumentNullException(nameof(scenario));
-        }
-
-        public AetheriaRuntimeStarbridgeScenarioDocument? Current => _scenario.Current;
-
-        public void Dispose()
-        {
-            _scenario.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeStarbridgeRunSession : IDisposable
+    public sealed class AetheriaRuntimeStarbridgeScenarioSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgeScenarioDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _session;
-
-        public AetheriaRuntimeStarbridgeRunSession(
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> session)
+        public AetheriaRuntimeStarbridgeScenarioSession(CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> scenario)
+            : base(scenario)
         {
-            _session = session ?? throw new ArgumentNullException(nameof(session));
-        }
-
-        public AetheriaRuntimeStarbridgeSessionDocument? Current => _session.Current;
-
-        public void Dispose()
-        {
-            _session.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeStarbridgeSummarySession : IDisposable
+    public sealed class AetheriaRuntimeStarbridgeRunSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgeSessionDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> _summary;
-
-        public AetheriaRuntimeStarbridgeSummarySession(
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> summary)
+        public AetheriaRuntimeStarbridgeRunSession(CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> session)
+            : base(session)
         {
-            _summary = summary ?? throw new ArgumentNullException(nameof(summary));
-        }
-
-        public AetheriaRuntimeStarbridgeSessionSummaryDocument? Current => _summary.Current;
-
-        public void Dispose()
-        {
-            _summary.Dispose();
         }
     }
 
-    public sealed class AetheriaRuntimeStarbridgePlayerSeatSession : IDisposable
+    public sealed class AetheriaRuntimeStarbridgeSummarySession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgeSessionSummaryDocument>
     {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> _playerSeat;
-
-        public AetheriaRuntimeStarbridgePlayerSeatSession(
-            CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> playerSeat)
+        public AetheriaRuntimeStarbridgeSummarySession(CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> summary)
+            : base(summary)
         {
-            _playerSeat = playerSeat ?? throw new ArgumentNullException(nameof(playerSeat));
         }
+    }
 
-        public AetheriaRuntimeStarbridgePlayerSeatDocument? Current => _playerSeat.Current;
-
-        public void Dispose()
+    public sealed class AetheriaRuntimeStarbridgePlayerSeatSession
+        : AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgePlayerSeatDocument>
+    {
+        public AetheriaRuntimeStarbridgePlayerSeatSession(CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> playerSeat)
+            : base(playerSeat)
         {
-            _playerSeat.Dispose();
         }
     }
 }
