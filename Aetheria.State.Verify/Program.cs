@@ -7079,7 +7079,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (offenders.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking state must read through AetheriaClientState.ReactiveDockingState instead of nested latest/reactive wrappers: " +
+            "Unity menu docking state must read managed typed docking documents instead of nested latest/reactive wrappers: " +
             string.Join(", ", offenders));
     }
 
@@ -7088,16 +7088,23 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 
 static bool HasManagedDockingSnapshotAccess(string source)
 {
-    if (source.Contains(".ReactiveDockingState()", StringComparison.Ordinal) &&
-        source.Contains(".TryCurrent(", StringComparison.Ordinal))
+    if (source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
+        source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
+        source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
+        !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal))
     {
         return true;
     }
 
-    return source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
-           source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
-           source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
-           !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal);
+    return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
+           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
+           source.Contains("state.ReactiveEntity()", StringComparison.Ordinal) &&
+           source.Contains("state.ReactiveDocking()", StringComparison.Ordinal) &&
+           source.Contains("state.ReactiveStationRefit()", StringComparison.Ordinal) &&
+           !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
+           !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal);
 }
 
 static void RequireUnitySharedDocumentAccessorErgonomics(string root)
@@ -12314,9 +12321,12 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedDockingSymbols = new[]
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
-        ".Aetheria()",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        "state.ReactiveEntity()",
+        "state.ReactiveDocking()",
+        "state.ReactiveStationRefit()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
