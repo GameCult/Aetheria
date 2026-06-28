@@ -8277,7 +8277,16 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "client.State.Daemon.LatestGameTuiSurface()",
         "client.State.Daemon.LatestEditorSurface()",
         "client.State.Daemon.LatestEditorTuiSurface()",
-        "client.State.Daemon.LatestAuthorityPolicy()"
+        "client.State.Daemon.LatestAuthorityPolicy()",
+        "client.State.ObserveCatalog()",
+        "client.State.ObserveDaemonFrame()",
+        "client.State.ObserveLoadoutTemplates()",
+        "client.State.ObserveSectorMap()",
+        "client.State.Settings.ObservePlayer()",
+        "client.State.ObserveZoneContacts()",
+        "client.State.Details.ObserveInventory(0)",
+        "client.State.Viewports.ObserveObjects(viewport)",
+        "client.State.Viewports.ObserveRenderSplats(viewport)"
     }
         .Select(CompactSource)
         .ToArray();
@@ -8311,11 +8320,11 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
-            ".ObservePlayerSeat(seat.SeatId)",
+            ".ReactivePlayerSeat(seat.SeatId)",
             StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Starbridge player-seat examples must use the named managed session accessor instead of fetching the raw document handle.");
+            "Starbridge player-seat examples must use the named managed reactive accessor instead of fetching the raw document handle.");
     }
 
     Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest/reactive reads for daemon, viewport, detail, and Starbridge documents");

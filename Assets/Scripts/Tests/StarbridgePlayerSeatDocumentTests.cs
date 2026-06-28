@@ -82,7 +82,7 @@ public class StarbridgePlayerSeatDocumentTests
             .State
             .Starbridge;
         using var reactive = handle.Reactive();
-        using var aetheriaSeat = aetheriaStarbridge.ObservePlayerSeat(seat.SeatId);
+        using var aetheriaSeat = aetheriaStarbridge.ReactivePlayerSeat(seat.SeatId);
 
         Assert.AreEqual("seat-support", handle.Latest().SeatId);
         Assert.AreEqual("seat-support", client.State.Starbridge.LatestPlayerSeat(seat.SeatId).SeatId);
