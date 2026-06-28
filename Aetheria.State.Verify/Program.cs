@@ -7036,6 +7036,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
+        "public AetheriaRuntimeCurrentDockingSession ObserveDocking(",
         "public AetheriaRuntimeStationRefitSession ObserveStationRefit("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -7161,26 +7162,37 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHost(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>> ReactiveLoadoutTemplatesAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(",
+        "public AetheriaRuntimeLoadoutTemplatesSession ObserveLoadoutTemplates(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>> ReactiveSectorMapAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(",
+        "public AetheriaRuntimeSectorMapSession ObserveSectorMap(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>> ReactiveZoneContactsAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
+        "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>> ReactiveStationRefitAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
+        "public AetheriaRuntimeStationRefitSession ObserveStationRefit(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(",
+        "public AetheriaRuntimeZoneRenderSession ObserveZoneRender(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(",
+        "public AetheriaRuntimeCurrentZoneSession ObserveZone(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(",
+        "public AetheriaRuntimeCurrentEntitySession ObserveEntity(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
+        "public AetheriaRuntimeCurrentDockingSession ObserveDocking(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument>> ReactiveZoneAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZone(",
+        "public AetheriaRuntimeZoneDetailsSession ObserveZone(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument>> ReactiveSelectedObjectAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(",
+        "public AetheriaRuntimeSelectedObjectSession ObserveSelectedObject(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory("
+        "public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(",
+        "public AetheriaRuntimeInventorySession ObserveInventory("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7974,12 +7986,16 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)",
         "public AetheriaRuntimeStarbridgeScenarioDocument LatestScenario()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveScenario(",
+        "public AetheriaRuntimeStarbridgeScenarioSession ObserveScenario(",
         "public AetheriaRuntimeStarbridgeSessionDocument LatestSession()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveSession(",
+        "public AetheriaRuntimeStarbridgeRunSession ObserveSession(",
         "public AetheriaRuntimeStarbridgeSessionSummaryDocument LatestSummary()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveSummary(",
+        "public AetheriaRuntimeStarbridgeSummarySession ObserveSummary(",
         "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat("
+        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat(",
+        "public AetheriaRuntimeStarbridgePlayerSeatSession ObservePlayerSeat("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8091,11 +8107,11 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
-            ".ReactivePlayerSeat(seat.SeatId)",
+            ".ObservePlayerSeat(seat.SeatId)",
             StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Starbridge player-seat examples must use the named managed reactive accessor instead of fetching the raw document handle.");
+            "Starbridge player-seat examples must use the named managed session accessor instead of fetching the raw document handle.");
     }
 
     Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest/reactive reads for daemon, viewport, detail, and Starbridge documents");
@@ -17123,7 +17139,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
-        ".ReactiveDaemonFrameAsync()",
+        ".ObserveDaemonFrame()",
         "ProjectLoadoutTemplate(",
         "frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
     };

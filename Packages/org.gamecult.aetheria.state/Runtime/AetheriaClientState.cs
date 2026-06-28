@@ -255,6 +255,12 @@ namespace GameCult.Aetheria.State.Verse
             return LatestSoaView.Reactive(options);
         }
 
+        public AetheriaRuntimeDaemonSoaViewSession ObserveDaemonSoaView(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeDaemonSoaViewSession(ReactiveDaemonSoaView(options));
+        }
+
         public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
         {
             var frame = await LatestDaemonFrameAsync().ConfigureAwait(false);
@@ -510,6 +516,12 @@ namespace GameCult.Aetheria.State.Verse
             return LoadoutTemplates.Reactive(options);
         }
 
+        public AetheriaRuntimeLoadoutTemplatesSession ObserveLoadoutTemplates(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeLoadoutTemplatesSession(ReactiveLoadoutTemplates(options));
+        }
+
         public Task<AetheriaRuntimeSectorMapDocument> LatestSectorMapAsync()
         {
             return SectorMap.LatestAsync();
@@ -614,6 +626,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return ZoneRender.Reactive(options);
+        }
+
+        public AetheriaRuntimeZoneRenderSession ObserveZoneRender(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeZoneRenderSession(ReactiveZoneRender(options));
         }
 
         public Observable<TDocument> Watch<TDocument>()
@@ -949,6 +967,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             return Docking.Reactive(options);
         }
+
+        public AetheriaRuntimeCurrentDockingSession ObserveDocking(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeCurrentDockingSession(ReactiveDocking(options));
+        }
     }
 
     public sealed class AetheriaClientSettingsState
@@ -1070,6 +1094,13 @@ namespace GameCult.Aetheria.State.Verse
             return Map(viewport).Reactive(options);
         }
 
+        public AetheriaRuntimeMapViewportSession ObserveMap(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeMapViewportSession(ReactiveMap(viewport, options));
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> Objects(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
@@ -1133,6 +1164,13 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Gravity(viewport).Reactive(options);
+        }
+
+        public AetheriaRuntimeGravityViewportSession ObserveGravity(
+            AetheriaRuntimeRtsViewportBounds viewport,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeGravityViewportSession(ReactiveGravity(viewport, options));
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
@@ -1253,6 +1291,13 @@ namespace GameCult.Aetheria.State.Verse
             return SelectedObject(entityIndex).Reactive(options);
         }
 
+        public AetheriaRuntimeSelectedObjectSession ObserveSelectedObject(
+            int entityIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeSelectedObjectSession(ReactiveSelectedObject(entityIndex, options));
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
         {
             return _inventory(entityIndex);
@@ -1341,6 +1386,12 @@ namespace GameCult.Aetheria.State.Verse
             return Scenario.Reactive(options);
         }
 
+        public AetheriaRuntimeStarbridgeScenarioSession ObserveScenario(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeStarbridgeScenarioSession(ReactiveScenario(options));
+        }
+
         public Task<AetheriaRuntimeStarbridgeSessionDocument> LatestSessionAsync()
         {
             return Session.LatestAsync();
@@ -1361,6 +1412,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Session.Reactive(options);
+        }
+
+        public AetheriaRuntimeStarbridgeRunSession ObserveSession(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeStarbridgeRunSession(ReactiveSession(options));
         }
 
         public Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> LatestSummaryAsync()
@@ -1385,6 +1442,12 @@ namespace GameCult.Aetheria.State.Verse
             return Summary.Reactive(options);
         }
 
+        public AetheriaRuntimeStarbridgeSummarySession ObserveSummary(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeStarbridgeSummarySession(ReactiveSummary(options));
+        }
+
         public Task<AetheriaRuntimeStarbridgePlayerSeatDocument> LatestPlayerSeatAsync(string seatId)
         {
             return PlayerSeat(seatId).LatestAsync();
@@ -1407,6 +1470,13 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return PlayerSeat(seatId).Reactive(options);
+        }
+
+        public AetheriaRuntimeStarbridgePlayerSeatSession ObservePlayerSeat(
+            string seatId,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeStarbridgePlayerSeatSession(ReactivePlayerSeat(seatId, options));
         }
     }
 }

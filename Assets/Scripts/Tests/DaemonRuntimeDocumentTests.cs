@@ -207,16 +207,23 @@ public class DaemonRuntimeDocumentTests
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
         using var catalogSession = client.State.ObserveCatalog();
         using var daemonFrameSession = client.State.ObserveDaemonFrame();
+        using var daemonSoaViewSession = client.State.ObserveDaemonSoaView();
+        using var loadoutTemplatesSession = client.State.ObserveLoadoutTemplates();
         using var sectorMapSession = client.State.ObserveSectorMap();
         using var playerSettingsSession = client.State.Settings.ObservePlayer();
         using var verseHostSettingsSession = client.State.Settings.ObserveVerseHost();
         using var zoneContactsSession = client.State.ObserveZoneContacts();
+        using var zoneRenderSession = client.State.ObserveZoneRender();
         using var currentZoneSession = client.State.Current.ObserveZone();
         using var currentEntitySession = client.State.Current.ObserveEntity();
+        using var currentDockingSession = client.State.Current.ObserveDocking();
         using var stationRefitSession = client.State.ObserveStationRefit();
         using var zoneDetailsSession = client.State.Details.ObserveZone(0);
+        using var selectedObjectSession = client.State.Details.ObserveSelectedObject(0);
         using var inventorySession = client.State.Details.ObserveInventory(0);
+        using var mapViewportSession = client.State.Viewports.ObserveMap(viewport);
         using var objectsViewportSession = client.State.Viewports.ObserveObjects(viewport);
+        using var gravityViewportSession = client.State.Viewports.ObserveGravity(viewport);
         using var renderSplatsViewportSession = client.State.Viewports.ObserveRenderSplats(viewport);
         using var playerHud = client.State.ObservePlayerHud();
         var gameSurface = client.State.LatestGameSurface();
@@ -230,8 +237,6 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         var stationRefit = client.State.LatestStationRefit();
         var observedDocking = client.State.CurrentDocking();
-        using var reactiveCurrentDocking = client.State.Current.ReactiveDocking();
-        using var reactiveStationRefit = client.State.ReactiveStationRefit();
         using var reactiveGameSurface = client.State.ReactiveGameSurface();
         using var reactiveGameTuiSurface = client.State.ReactiveGameTuiSurface();
         using var reactiveEditorSurface = client.State.ReactiveEditorSurface();
@@ -259,6 +264,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, reactiveGameTuiSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, reactiveEditorSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, reactiveEditorTuiSurface.Current.Surface.Id);
+        Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingSession.Current.CurrentEntityKey);
+        Assert.AreEqual(stationRefit.StationEntityKey, stationRefitSession.Current.StationEntityKey);
         Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
         Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(

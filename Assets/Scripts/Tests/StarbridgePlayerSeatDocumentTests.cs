@@ -82,15 +82,14 @@ public class StarbridgePlayerSeatDocumentTests
             .State
             .Starbridge;
         using var reactive = handle.Reactive();
-        using var aetheriaReactive = aetheriaStarbridge.ReactivePlayerSeat(seat.SeatId);
+        using var aetheriaSeat = aetheriaStarbridge.ObservePlayerSeat(seat.SeatId);
 
         Assert.AreEqual("seat-support", handle.Latest().SeatId);
         Assert.AreEqual("seat-support", client.State.Starbridge.LatestPlayerSeat(seat.SeatId).SeatId);
         Assert.AreEqual("item:cockpit:support", reactive.Current.CockpitItemKey);
-        Assert.AreEqual("item:cockpit:support", aetheriaReactive.Current.CockpitItemKey);
+        Assert.AreEqual("item:cockpit:support", aetheriaSeat.Current.CockpitItemKey);
         Assert.AreEqual("entity:pod:support", reactive.Current.EscapePodEntityKey);
-        Assert.AreEqual("entity:pod:support", aetheriaReactive.Current.EscapePodEntityKey);
+        Assert.AreEqual("entity:pod:support", aetheriaSeat.Current.EscapePodEntityKey);
         Assert.AreEqual("unity-support", reactive.Document.Context.RuntimeId);
-        Assert.AreEqual("unity-support", aetheriaReactive.Document.Context.RuntimeId);
     }
 }
