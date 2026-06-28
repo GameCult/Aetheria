@@ -551,9 +551,7 @@ namespace GameCult.Aetheria.State.Verse
                 catalogDocument.Reactive(),
                 loadoutTemplatesDocument.Reactive(),
                 starbridgeScenarioDocument.Reactive(),
-                starbridgeSessionDocument.Reactive(),
-                BootstrapRuntimeCatalogSnapshot(),
-                BootstrapLoadoutTemplatesDocument());
+                starbridgeSessionDocument.Reactive());
             _projectionInputs = projectionInputs;
 
             return new AetheriaClientState(
@@ -785,29 +783,27 @@ namespace GameCult.Aetheria.State.Verse
             private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
             private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;
             private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;
-            private readonly AetheriaRuntimeCatalogSnapshot _fallbackCatalog;
-            private readonly AetheriaRuntimeLoadoutTemplatesDocument _fallbackLoadoutTemplates;
 
             public AetheriaRuntimeReactiveProjectionInputs(
                 CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
                 CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog,
                 CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
                 CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
-                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession,
-                AetheriaRuntimeCatalogSnapshot fallbackCatalog,
-                AetheriaRuntimeLoadoutTemplatesDocument fallbackLoadoutTemplates)
+                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession)
             {
                 _daemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
                 _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
                 _loadoutTemplates = loadoutTemplates ?? throw new ArgumentNullException(nameof(loadoutTemplates));
                 _starbridgeScenario = starbridgeScenario ?? throw new ArgumentNullException(nameof(starbridgeScenario));
                 _starbridgeSession = starbridgeSession ?? throw new ArgumentNullException(nameof(starbridgeSession));
-                _fallbackCatalog = fallbackCatalog ?? throw new ArgumentNullException(nameof(fallbackCatalog));
-                _fallbackLoadoutTemplates = fallbackLoadoutTemplates ?? throw new ArgumentNullException(nameof(fallbackLoadoutTemplates));
             }
 
-            public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current ?? _fallbackCatalog;
-            public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current ?? _fallbackLoadoutTemplates;
+            public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current
+                ?? throw new InvalidOperationException("Aetheria Verse client has no runtime catalog document yet.");
+
+            public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current
+                ?? throw new InvalidOperationException("Aetheria Verse client has no loadout templates document yet.");
+
             public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario => _starbridgeScenario.Current;
             public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession => _starbridgeSession.Current;
 

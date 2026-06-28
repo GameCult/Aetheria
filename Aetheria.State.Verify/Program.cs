@@ -10820,8 +10820,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "starbridgeScenarioDocument.Reactive()",
         "starbridgeSessionDocument.Reactive()",
         "latestFrameDocument.Reactive()",
-        "BootstrapRuntimeCatalogSnapshot(),",
-        "BootstrapLoadoutTemplatesDocument())",
         "projectionInputs.RequireFrame()",
         "projectionInputs.Catalog",
         "projectionInputs.LoadoutTemplates.Templates",
@@ -10872,6 +10870,15 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "Aetheria runtime Verse client projected documents still bootstrap through one-shot latest-frame reads instead of the managed reactive projection inputs.");
+    }
+
+    if (client.Contains("_fallbackCatalog", StringComparison.Ordinal) ||
+        client.Contains("_fallbackLoadoutTemplates", StringComparison.Ordinal) ||
+        client.Contains("fallbackCatalog", StringComparison.Ordinal) ||
+        client.Contains("fallbackLoadoutTemplates", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client projections must use managed reactive catalog/loadout documents directly instead of carrying manual fallback snapshots.");
     }
 
     var requiredClientStateSymbols = new[]
