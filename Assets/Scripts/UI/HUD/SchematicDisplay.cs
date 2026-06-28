@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -70,9 +69,7 @@ public class SchematicDisplay : MonoBehaviour
     private SchematicDisplayItem[] _schematicItems;
     private AetherDrive _aetherDrive;
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
+    private AetheriaRuntimePlayerHudSession _playerHud;
     private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
 
     private bool _enemy;
@@ -316,64 +313,34 @@ public class SchematicDisplay : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
+        return ResolvePlayerHud()?.Catalog?.FindItem(item, x => x.ItemKey);
     }
 
-    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    private AetheriaRuntimePlayerHudSession ResolvePlayerHud()
     {
-        if (_catalog != null)
-            return _catalog.Current;
+        if (_playerHud != null)
+            return _playerHud;
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _playerHud = ResolveClient().State.ObservePlayerHud();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for schematic display: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria player HUD state for schematic display: {ex.Message}");
         }
 
-        return _catalog?.Current;
+        return _playerHud;
     }
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
-        if (_playerSettings != null)
-            return _playerSettings.Current;
-
-        try
-        {
-            _playerSettings = ResolveClient()
-                .State
-                .Settings
-                .ReactivePlayer();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to bind Aetheria player settings for schematic display: {ex.Message}");
-        }
-
-        return _playerSettings?.Current;
+        return ResolvePlayerHud()?.PlayerSettings;
     }
 
     private AetheriaRuntimeCurrentEntityHudStatus ResolveCurrentEntityHudStatus()
     {
-        if (_currentEntity == null)
-        {
-            try
-            {
-                _currentEntity = ResolveClient()
-                    .State
-                    .Current
-                    .ReactiveEntity();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to bind Aetheria current entity HUD status: {ex.Message}");
-            }
-        }
-
-        return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+        return ResolvePlayerHud()?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
     }
 
     private AetheriaClient ResolveClient()
@@ -418,12 +385,8 @@ public class SchematicDisplay : MonoBehaviour
 
     private void ClearClientCaches()
     {
-        _catalog?.Dispose();
-        _playerSettings?.Dispose();
-        _currentEntity?.Dispose();
-        _catalog = null;
-        _playerSettings = null;
-        _currentEntity = null;
+        _playerHud?.Dispose();
+        _playerHud = null;
     }
 
     private void OnDestroy()

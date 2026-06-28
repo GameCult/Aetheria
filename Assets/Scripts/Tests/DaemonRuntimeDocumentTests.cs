@@ -205,6 +205,7 @@ public class DaemonRuntimeDocumentTests
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observed = client.State.LatestObservedDaemon();
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
+        using var playerHud = client.State.ObservePlayerHud();
         var gameSurface = client.State.LatestGameSurface();
         var gameTuiSurface = client.State.LatestGameTuiSurface();
         var editorSurface = client.State.LatestEditorSurface();
@@ -289,6 +290,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual(0, currentEntity.EntityIndex);
         Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);
+        Assert.AreEqual(currentEntity.EntityKey, playerHud.CurrentEntity.EntityKey);
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerHud.PlayerSettings.Schema);
+        Assert.AreSame(playerHud.Hud, playerHud.CurrentEntity.Hud);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityReactive.Current.EntityKey);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, zoneRenderReactive.Current.Schema);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
