@@ -140,16 +140,18 @@ namespace GameCult.Aetheria.State.Verse
             return _verse.OpenRuntimeCatalog();
         }
 
-        public Task<AetheriaRuntimePlayerSettingsSnapshot?> PlayerSettingsAsync()
+        public async Task<AetheriaRuntimePlayerSettingsSnapshot?> PlayerSettingsAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetPlayerSettingsAsync();
+            var document = await State.Settings.Player.LatestAsync().ConfigureAwait(false);
+            return document.ToSnapshot();
         }
 
-        public Task<AetheriaRuntimeVerseHostSettingsSnapshot?> VerseHostSettingsAsync()
+        public async Task<AetheriaRuntimeVerseHostSettingsSnapshot?> VerseHostSettingsAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetVerseHostSettingsAsync();
+            var document = await State.Settings.VerseHost.LatestAsync().ConfigureAwait(false);
+            return document.ToSnapshot();
         }
 
         public Task<System.Collections.Generic.IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>> LoadoutTemplatesAsync()

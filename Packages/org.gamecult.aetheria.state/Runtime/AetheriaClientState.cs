@@ -15,6 +15,8 @@ namespace GameCult.Aetheria.State.Verse
         internal AetheriaClientState(
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
+            CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> playerSettings,
+            CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> verseHostSettings,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> currentZone,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> currentEntity,
             CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> currentDocking,
@@ -36,6 +38,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
+            Settings = new AetheriaClientSettingsState(playerSettings, verseHostSettings);
             Current = new AetheriaClientCurrentState(currentZone, currentEntity, currentDocking);
             ZoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
@@ -59,6 +62,8 @@ namespace GameCult.Aetheria.State.Verse
             _documents = CultMesh.Documents(
                 LatestFrame,
                 LatestSoaView,
+                Settings.Player,
+                Settings.VerseHost,
                 Current.Zone,
                 Current.Entity,
                 Current.Docking,
@@ -73,6 +78,8 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
+
+        public AetheriaClientSettingsState Settings { get; }
 
         public AetheriaClientCurrentState Current { get; }
 
@@ -182,6 +189,21 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> Entity { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }
+    }
+
+    public sealed class AetheriaClientSettingsState
+    {
+        internal AetheriaClientSettingsState(
+            CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> player,
+            CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> verseHost)
+        {
+            Player = player ?? throw new ArgumentNullException(nameof(player));
+            VerseHost = verseHost ?? throw new ArgumentNullException(nameof(verseHost));
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> Player { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHost { get; }
     }
 
     public sealed class AetheriaClientDockingState

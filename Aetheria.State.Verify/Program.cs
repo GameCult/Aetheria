@@ -985,6 +985,7 @@ static void RequirePackageSerializerBoundary(string root)
         "AetheriaRuntimeRtsViewportDocuments.cs",
         "AetheriaRuntimeAssetDocuments.cs",
         "AetheriaRuntimeRenderSplatDocuments.cs",
+        "AetheriaRuntimeSettingsDocuments.cs",
         "AetheriaRuntimeStarbridgeDocuments.cs",
         "AetheriaRuntimeStarbridgePlayerSeatDocuments.cs",
         "AetheriaRuntimeVerseAuthorityPolicy.cs"

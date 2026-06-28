@@ -168,6 +168,8 @@ public class DaemonRuntimeDocumentTests
 
         var currentEntity = client.Aetheria().Current.Entity.LatestAsync().GetAwaiter().GetResult();
         var latestFrame = client.Aetheria().LatestFrame.LatestAsync().GetAwaiter().GetResult();
+        var playerSettings = client.Aetheria().Settings.Player.LatestAsync().GetAwaiter().GetResult();
+        var verseHostSettings = client.Aetheria().Settings.VerseHost.LatestAsync().GetAwaiter().GetResult();
         var currentEntityByType = client.Aetheria()
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
@@ -217,6 +219,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.ZoneRender, client.Document<AetheriaRuntimeZoneRenderDocument>());
         Assert.AreSame(client.State.LatestFrame, client.Document<AetheriaRuntimeDaemonFrameDocument>());
+        Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
             client.State.Current.Entity,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
@@ -236,6 +240,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);
+        Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettings.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema);
         Assert.AreEqual("Player", objectsViewport.Objects.FirstOrDefault()?.DisplayName);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneDetails, zoneDetails.Schema);
@@ -254,6 +260,31 @@ public class DaemonRuntimeDocumentTests
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
         Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>
             source.SourceId == "catalog:aetheria.runtime"));
+    }
+
+    [Test]
+    public void AetheriaClientSettingsDocumentsDoNotRequireDaemonFrame()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-client-settings-doc-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "settings-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        var player = client.Aetheria().Settings.Player.LatestAsync().GetAwaiter().GetResult();
+        var verseHost = client.Aetheria().Settings.VerseHost.LatestAsync().GetAwaiter().GetResult();
+
+        Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, player.Schema);
+        Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHost.Schema);
+        Assert.AreEqual("", player.PlayerName);
+        Assert.AreEqual("", verseHost.VerseId);
+        Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
     }
 
     [Test]

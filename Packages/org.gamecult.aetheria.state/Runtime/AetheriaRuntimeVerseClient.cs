@@ -107,6 +107,8 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeStarbridgeSessionDocument),
             typeof(AetheriaRuntimeStarbridgeSessionSummaryDocument),
             typeof(AetheriaRuntimeStarbridgePlayerSeatDocument),
+            typeof(AetheriaRuntimePlayerSettingsDocument),
+            typeof(AetheriaRuntimeVerseHostSettingsDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(EveSurfaceState)
@@ -732,6 +734,18 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
+                CatalogDocument(
+                    "aetheria.settings.player",
+                    () => Task.FromResult(AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
+                        AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath))),
+                    AetheriaRuntimePlayerSettingsDocument.SchemaId,
+                    CultMesh.ProjectionSource("catalog:aetheria.player_settings")),
+                CatalogDocument(
+                    "aetheria.settings.verse_host",
+                    () => Task.FromResult(AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(
+                        AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath))),
+                    AetheriaRuntimeVerseHostSettingsDocument.SchemaId,
+                    CultMesh.ProjectionSource("catalog:aetheria.verse_host_settings")),
                 ProjectedDocument(
                     "aetheria.current.zone",
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame)),
@@ -832,6 +846,29 @@ namespace GameCult.Aetheria.State.Verse
                             await project(frame).ConfigureAwait(false)),
                     sources: sources,
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
+            }
+
+            CultMeshDocumentHandle<TDocument> CatalogDocument<TDocument>(
+                string documentId,
+                Func<Task<TDocument>> project,
+                string schemaId,
+                params CultMeshProjectionSource[] additionalSources)
+                where TDocument : class
+            {
+                var sources = (additionalSources ?? Array.Empty<CultMeshProjectionSource>())
+                    .Append(CultMesh.ProjectionSource(documentId, schemaId, "projected Aetheria catalog document"))
+                    .ToArray();
+
+                var verse = CultMesh.Verse("aetheria.local", RuntimeId);
+                return CultMesh.Document(
+                    documentId,
+                    verse,
+                    async _ => await project().ConfigureAwait(false),
+                    _ => frameChanges
+                        .SelectAwait(async (_, cancellationToken) =>
+                            await project().ConfigureAwait(false)),
+                    sources: sources,
+                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
             }
 
             async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
