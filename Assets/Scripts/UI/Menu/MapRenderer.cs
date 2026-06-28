@@ -5,7 +5,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using TMPro;
@@ -40,8 +39,6 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     private AetheriaRuntimeObjectsViewportDocument _objectsViewport;
     private AetheriaRuntimeRenderSplatsViewportDocument _renderSplatsViewport;
     private float _nextViewportRefreshTime;
@@ -89,11 +86,6 @@ public class MapRenderer : MonoBehaviour
         // If hiding minimap asteroids, turn them back off when leaving the map screen
         if (!ResolveShowAsteroidsInMinimap())
             ZoneRenderer.ShowAsteroidUI = false;
-    }
-
-    private void OnDestroy()
-    {
-        DisposeClient();
     }
 
     void ReleaseTextures()
@@ -341,28 +333,8 @@ public class MapRenderer : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-map-renderer",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-map-renderer");
     }
 }

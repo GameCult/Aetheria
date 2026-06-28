@@ -4669,7 +4669,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         ".Latest()",
         "ResolveCurrentDocking()?.IsDocked == true",
         "AetheriaClient",
-        "OpenLocalAsync(",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "GetTabLabel(",
         "ToRuntimeTabKey(",
         "AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString())",
@@ -11427,7 +11427,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Map and sector UI must read current-zone identity from the daemon-observed run, not Unity's mirrored Zone hierarchy.");
     }
 
-    if (!mapRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
+    if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Viewports", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Objects(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
@@ -11443,7 +11443,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".Latest()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Player", StringComparison.Ordinal) ||
-        !sectorMap.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
+        !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorMap.Contains(".SectorMap", StringComparison.Ordinal) ||
         !sectorMap.Contains(".LatestAsync()", StringComparison.Ordinal) ||
@@ -12840,6 +12840,22 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var renderSplatViewportSource = File.Exists(renderSplatViewportSourcePath)
         ? File.ReadAllText(renderSplatViewportSourcePath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRenderSplatViewportSource.cs is missing.");
+    var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
+    var menuPanel = File.Exists(menuPanelPath)
+        ? File.ReadAllText(menuPanelPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; MenuPanel.cs is missing.");
+    var mapRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MapRenderer.cs");
+    var mapRenderer = File.Exists(mapRendererPath)
+        ? File.ReadAllText(mapRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; MapRenderer.cs is missing.");
+    var sectorMapPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorMap.cs");
+    var sectorMap = File.Exists(sectorMapPath)
+        ? File.ReadAllText(sectorMapPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; SectorMap.cs is missing.");
+    var localMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs");
+    var localMenu = File.Exists(localMenuPath)
+        ? File.ReadAllText(localMenuPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; LocalMenu.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12939,7 +12955,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Packages/org.gamecult.aetheria.eve-runtime/Runtime/AetheriaEveSurfacePresenter.cs"] = eveSurfacePresenter,
         ["Assets/Scripts/Zone Display/ZoneRenderer.cs"] = zoneRenderer,
         ["Assets/Scripts/Zone Display/VolumeCloudRenderer.cs"] = volumeCloudRenderer,
-        ["Assets/Scripts/Gameplay/AetheriaUnityRenderSplatViewportSource.cs"] = renderSplatViewportSource
+        ["Assets/Scripts/Gameplay/AetheriaUnityRenderSplatViewportSource.cs"] = renderSplatViewportSource,
+        ["Assets/Scripts/UI/Menu/MenuPanel.cs"] = menuPanel,
+        ["Assets/Scripts/UI/Menu/MapRenderer.cs"] = mapRenderer,
+        ["Assets/Scripts/UI/Menu/SectorMap.cs"] = sectorMap,
+        ["Assets/Scripts/UI/Menu/LocalMenu.cs"] = localMenu
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>

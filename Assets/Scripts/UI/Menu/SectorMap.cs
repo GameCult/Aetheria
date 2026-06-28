@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using TMPro;
@@ -54,8 +53,6 @@ public class SectorMap : MonoBehaviour
     private readonly Dictionary<int, AetheriaRuntimeSectorMapZone> _zonesByIndex =
         new Dictionary<int, AetheriaRuntimeSectorMapZone>();
     private AetheriaRuntimeSectorMapDocument _sectorMap;
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     private bool _sectorMapLoaded;
 
     public bool TryMarkPlayerLocation(int zoneIndex)
@@ -258,7 +255,7 @@ public class SectorMap : MonoBehaviour
 
     private void OnDestroy()
     {
-        DisposeClient();
+        _sectorMapLoaded = false;
     }
 
     private void AddFactionMaterials(int factionIndex)
@@ -501,30 +498,9 @@ public class SectorMap : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-sector-map",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
-        _sectorMapLoaded = false;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-sector-map");
     }
 
     private static float2 Position(AetheriaRuntimeSectorMapZone zone)

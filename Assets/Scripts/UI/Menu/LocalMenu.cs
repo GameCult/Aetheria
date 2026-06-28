@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -13,7 +12,6 @@ using UniRx;
 using UniRx.Triggers;
 using UnityEngine;
 using UnityEngine.UIElements;
-using Path = System.IO.Path;
 
 public class LocalMenu : MonoBehaviour
 {
@@ -28,8 +26,6 @@ public class LocalMenu : MonoBehaviour
     private readonly List<ActiveStoryChoice> _activeChoices = new List<ActiveStoryChoice>();
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     private AetheriaUnityObservedFacadeIndex _observedFacadeIndex;
 
     public void SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)
@@ -248,23 +244,9 @@ public class LocalMenu : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-runtime-local-story",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-runtime-local-story");
     }
 
     private void HideStorySurface()
@@ -275,13 +257,6 @@ public class LocalMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument);
     }
 
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
-    }
-
     private void OnDisable()
     {
         HideStorySurface();
@@ -289,7 +264,6 @@ public class LocalMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        DisposeClient();
         if (_surfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);

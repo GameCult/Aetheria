@@ -4,7 +4,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -32,8 +31,6 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     
     public MenuTab CurrentTab { get; private set; }
 
@@ -91,7 +88,6 @@ public class MenuPanel : MonoBehaviour
 
     private void OnDestroy()
     {
-        DisposeClient();
         if (_tabSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_tabSurfaceDocument);
@@ -187,30 +183,9 @@ public class MenuPanel : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-runtime-menu-tabs",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-runtime-menu-tabs");
     }
 
     private static string GetTabLabel(MenuTabBinding tabBinding)
