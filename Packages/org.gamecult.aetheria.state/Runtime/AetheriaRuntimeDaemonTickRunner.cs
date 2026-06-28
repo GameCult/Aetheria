@@ -47,6 +47,7 @@ namespace GameCult.Aetheria.State.Verse
             string gameTuiSurfacePath,
             string editorSurfacePath,
             string editorTuiSurfacePath,
+            AetheriaRuntimeDaemonSoaViewDocument? soaView = null,
             AetheriaRuntimeDaemonProviderAdvertisementDocument? providerAdvertisement = null,
             AetheriaRuntimeDaemonHealthDocument? health = null,
             AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary = null,
@@ -70,6 +71,7 @@ namespace GameCult.Aetheria.State.Verse
             GameTuiSurfacePath = gameTuiSurfacePath ?? "";
             EditorSurfacePath = editorSurfacePath ?? "";
             EditorTuiSurfacePath = editorTuiSurfacePath ?? "";
+            SoaView = soaView;
             ProviderAdvertisement = providerAdvertisement;
             Health = health;
             CommandBoundary = commandBoundary;
@@ -91,6 +93,7 @@ namespace GameCult.Aetheria.State.Verse
         public string GameTuiSurfacePath { get; }
         public string EditorSurfacePath { get; }
         public string EditorTuiSurfacePath { get; }
+        public AetheriaRuntimeDaemonSoaViewDocument? SoaView { get; }
         public AetheriaRuntimeDaemonProviderAdvertisementDocument? ProviderAdvertisement { get; }
         public AetheriaRuntimeDaemonHealthDocument? Health { get; }
         public AetheriaRuntimeDaemonCommandBoundaryDocument? CommandBoundary { get; }
@@ -207,7 +210,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(stateFilePath, frame);
-            AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame);
+            var soaView = AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var commandBoundaryPath = AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary(
                 stateFilePath,
@@ -291,6 +294,7 @@ namespace GameCult.Aetheria.State.Verse
                 gameTuiSurfacePath,
                 editorSurfacePath,
                 editorTuiSurfacePath,
+                soaView,
                 providerAdvertisement,
                 health,
                 commandBoundary,

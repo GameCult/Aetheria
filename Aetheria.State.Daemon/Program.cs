@@ -751,10 +751,10 @@ static async Task PublishDaemonApiDocumentsAsync(
     AetheriaRuntimeDaemonTickResult result)
 {
     await node.PutDaemonFrameAsync(result.Frame).ConfigureAwait(false);
-    if (AetheriaRuntimeDaemonSoaViewStore.TryReadView(node.StatePath, out var soaView) &&
-        string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+    if (result.SoaView != null &&
+        string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
     {
-        await node.PutDaemonSoaViewAsync(soaView).ConfigureAwait(false);
+        await node.PutDaemonSoaViewAsync(result.SoaView).ConfigureAwait(false);
     }
 
     if (result.ProviderAdvertisement != null)

@@ -8882,6 +8882,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface",
+        "SoaView = soaView",
         "ProviderAdvertisement = providerAdvertisement",
         "Health = health",
         "CommandBoundary = commandBoundary",
@@ -8920,6 +8921,7 @@ static void RequireDaemonVersePublication(string root)
         "discoveryHost.Update(",
         "PublishDaemonApiDocumentsAsync(node, result)",
         "PutDaemonFrameAsync(result.Frame)",
+        "PutDaemonSoaViewAsync(result.SoaView)",
         "PutDaemonProviderAdvertisementAsync(result.ProviderAdvertisement)",
         "PutDaemonHealthAsync(result.Health)",
         "PutDaemonCommandBoundaryAsync(result.CommandBoundary)",
@@ -8964,10 +8966,11 @@ static void RequireDaemonVersePublication(string root)
     var apiPublicationBlock = apiPublicationStart >= 0 && apiPublicationEnd > apiPublicationStart
         ? daemonHostSource.Substring(apiPublicationStart, apiPublicationEnd - apiPublicationStart)
         : "";
-    if (apiPublicationBlock.Contains("AetheriaRuntimeDaemonPublicationStore.TryRead", StringComparison.Ordinal))
+    if (apiPublicationBlock.Contains("AetheriaRuntimeDaemonPublicationStore.TryRead", StringComparison.Ordinal) ||
+        apiPublicationBlock.Contains("AetheriaRuntimeDaemonSoaViewStore.TryRead", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon API document publication must use typed tick result documents instead of reopening publication-store witness files.");
+            "Daemon API document publication must use typed tick result documents instead of reopening witness files.");
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonPublicationStore.TryReadHealth(stateFilePath", StringComparison.Ordinal))
