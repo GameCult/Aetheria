@@ -210,6 +210,8 @@ public class DaemonRuntimeDocumentTests
         using var playerSettingsSession = client.State.Settings.ObservePlayer();
         using var verseHostSettingsSession = client.State.Settings.ObserveVerseHost();
         using var zoneContactsSession = client.State.ObserveZoneContacts();
+        using var currentZoneSession = client.State.Current.ObserveZone();
+        using var zoneDetailsSession = client.State.Details.ObserveZone(0);
         using var objectsViewportSession = client.State.Viewports.ObserveObjects(viewport);
         using var renderSplatsViewportSession = client.State.Viewports.ObserveRenderSplats(viewport);
         using var playerHud = client.State.ObservePlayerHud();
@@ -296,8 +298,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewportSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.RenderSplatsViewport, renderSplatsViewportSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneContacts, zoneContactsSession.Current.Schema);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZoneSession.Current.Schema);
         Assert.AreEqual("Player", objectsViewport.Objects.FirstOrDefault()?.DisplayName);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneDetails, zoneDetails.Schema);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneDetails, zoneDetailsSession.Current.Schema);
         Assert.AreEqual(0, zoneDetails.ZoneIndex);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Inventory, inventory.Schema);
         Assert.AreEqual("zone.0.entity.0", inventory.EntityKey);

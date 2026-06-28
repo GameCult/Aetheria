@@ -95,6 +95,42 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    public sealed class AetheriaRuntimeCurrentZoneSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone;
+
+        public AetheriaRuntimeCurrentZoneSession(
+            CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> currentZone)
+        {
+            _currentZone = currentZone ?? throw new ArgumentNullException(nameof(currentZone));
+        }
+
+        public AetheriaRuntimeCurrentZoneDocument? Current => _currentZone.Current;
+
+        public void Dispose()
+        {
+            _currentZone.Dispose();
+        }
+    }
+
+    public sealed class AetheriaRuntimeZoneDetailsSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
+
+        public AetheriaRuntimeZoneDetailsSession(
+            CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> zoneDetails)
+        {
+            _zoneDetails = zoneDetails ?? throw new ArgumentNullException(nameof(zoneDetails));
+        }
+
+        public AetheriaRuntimeZoneDetailsDocument? Current => _zoneDetails.Current;
+
+        public void Dispose()
+        {
+            _zoneDetails.Dispose();
+        }
+    }
+
     public sealed class AetheriaRuntimeObjectsViewportSession : IDisposable
     {
         private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;

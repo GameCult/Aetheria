@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -47,12 +46,12 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
     private string _clientStatePath = "";
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone;
+    private AetheriaRuntimeCatalogSession _catalog;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private AetheriaRuntimeSectorMapSession _sectorMap;
+    private AetheriaRuntimeCurrentZoneSession _currentZone;
     private int _zoneDetailsIndex = -1;
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
+    private AetheriaRuntimeZoneDetailsSession _zoneDetails;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -176,7 +175,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         {
             _sectorMap ??= ResolveClient()
                 .State
-                .ReactiveSectorMap();
+                .ObserveSectorMap();
             var sectorMap = _sectorMap.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
@@ -206,7 +205,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             var nextZoneDetails = ResolveClient()
                 .State
                 .Details
-                .ReactiveZone(zoneIndex);
+                .ObserveZone(zoneIndex);
             _zoneDetails?.Dispose();
             _zoneDetailsIndex = zoneIndex;
             _zoneDetails = nextZoneDetails;
@@ -232,7 +231,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.ObserveCatalog();
         }
         catch (Exception ex)
         {
@@ -252,7 +251,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
         }
         catch (Exception ex)
         {
@@ -325,7 +324,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             _currentZone ??= ResolveClient()
                 .State
                 .Current
-                .ReactiveZone();
+                .ObserveZone();
         }
         catch (Exception ex)
         {

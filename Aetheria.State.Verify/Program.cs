@@ -4546,13 +4546,13 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "ProjectZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
-        ".ReactiveSectorMap()",
+        ".ObserveSectorMap()",
         ".Details",
-        ".ReactiveZone(zoneIndex)",
+        ".ObserveZone(zoneIndex)",
         "_zoneDetails?.Current",
         ".Settings",
-        ".ReactiveCatalog()",
-        ".ReactivePlayer()",
+        ".ObserveCatalog()",
+        ".ObservePlayer()",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
@@ -7594,13 +7594,22 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer.cs"));
     var requiredSectorRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        "AetheriaRuntimeSectorMapSession _sectorMap",
+        "AetheriaRuntimeCurrentZoneSession _currentZone",
+        "AetheriaRuntimeZoneDetailsSession _zoneDetails",
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObserveSectorMap()",
+        ".Current",
+        ".ObserveZone(zoneIndex)",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
+        "_sectorMap?.Dispose()",
+        "_currentZone?.Dispose()",
+        "_zoneDetails?.Dispose()",
         "_catalog?.Current",
         "_playerSettings?.Current",
         "private void OnDestroy()"
@@ -7613,6 +7622,28 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "SectorRenderer should bind shared catalog/settings through managed reactive Aetheria documents with renderer lifetime disposal: " +
             string.Join(", ", missingSectorRendererSharedDocumentSymbols));
+    }
+
+    var forbiddenSectorRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
+        "ResolveClient().State.ReactiveCatalog()",
+        ".ReactiveSectorMap()",
+        ".ReactiveZone(zoneIndex)",
+        ".ReactivePlayer()"
+    };
+    var sectorRendererRawDocumentHits = forbiddenSectorRendererSharedDocumentSymbols
+        .Where(symbol => sectorRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (sectorRendererRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorRenderer still owns raw map/catalog/settings CultMesh documents instead of managed sessions: " +
+            string.Join(", ", sectorRendererRawDocumentHits));
     }
 
     var zoneRenderer = File.ReadAllText(Path.Combine(
@@ -7663,6 +7694,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "public AetheriaRuntimeSectorMapDocument LatestSectorMap()",
         "public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()",
         "public AetheriaRuntimeCurrentZoneDocument LatestZone()",
+        "public AetheriaRuntimeCurrentZoneSession ObserveZone(",
         "public AetheriaRuntimeCurrentEntityDocument LatestEntity()",
         "public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjects(",
@@ -7670,7 +7702,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplats(",
         "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats(",
-        "public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)"
+        "public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)",
+        "public AetheriaRuntimeZoneDetailsSession ObserveZone("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -13584,16 +13617,16 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".State", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ReactiveZone(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ObserveZone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".State", StringComparison.Ordinal) ||
-        !sectorMap.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -13605,6 +13638,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "Map and sector UI must not read the raw ObservedGalaxy projection directly.");
+    }
+
+    if (sectorMap.Contains("CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMapDocument", StringComparison.Ordinal) ||
+        sectorMap.Contains(".ReactiveSectorMap()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "SectorMap still owns a raw sector-map CultMesh document instead of AetheriaRuntimeSectorMapSession.");
     }
 
     var requiredDaemonControlValidationSymbols = new[]
@@ -15315,7 +15355,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaRuntimeVerseHostSettingsSession ObserveVerseHost(",
         "public AetheriaRuntimeSectorMapSession ObserveSectorMap(",
         "public AetheriaRuntimeObjectsViewportSession ObserveObjects(",
-        "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats("
+        "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats(",
+        "public AetheriaRuntimeCurrentZoneSession ObserveZone(",
+        "public AetheriaRuntimeZoneDetailsSession ObserveZone("
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))

@@ -892,6 +892,12 @@ namespace GameCult.Aetheria.State.Verse
             return Zone.Reactive(options);
         }
 
+        public AetheriaRuntimeCurrentZoneSession ObserveZone(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeCurrentZoneSession(ReactiveZone(options));
+        }
+
         public Task<AetheriaRuntimeCurrentEntityDocument> LatestEntityAsync()
         {
             return Entity.LatestAsync();
@@ -1191,6 +1197,13 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return Zone(zoneIndex).Reactive(options);
+        }
+
+        public AetheriaRuntimeZoneDetailsSession ObserveZone(
+            int zoneIndex,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeZoneDetailsSession(ReactiveZone(zoneIndex, options));
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)
