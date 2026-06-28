@@ -144,6 +144,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly CultMeshNode _node;
         private AetheriaClientState? _aetheriaState;
+        private AetheriaRuntimeReactiveProjectionInputs? _projectionInputs;
         private bool _disposed;
 
         private AetheriaRuntimeVerseClient(string statePath, string runtimeId, CultMeshNode node)
@@ -514,6 +515,7 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
+            _projectionInputs?.Dispose();
             _node.Dispose();
         }
 
@@ -542,6 +544,14 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
             var starbridgeSessionDocument = Document<AetheriaRuntimeStarbridgeSessionDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
+            var projectionInputs = new AetheriaRuntimeReactiveProjectionInputs(
+                catalogDocument.Reactive(),
+                loadoutTemplatesDocument.Reactive(),
+                starbridgeScenarioDocument.Reactive(),
+                starbridgeSessionDocument.Reactive(),
+                BootstrapRuntimeCatalogSnapshot(),
+                BootstrapLoadoutTemplatesDocument());
+            _projectionInputs = projectionInputs;
 
             return new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
@@ -699,25 +709,23 @@ namespace GameCult.Aetheria.State.Verse
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria managed catalog state"));
             }
 
-            async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
+            Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var loadoutTemplates = await loadoutTemplatesDocument.LatestAsync().ConfigureAwait(false);
-                var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);
-                return AetheriaRuntimeRtsProjection.ProjectStationRefit(frame, loadoutTemplates.Templates, catalog);
+                return Task.FromResult(AetheriaRuntimeRtsProjection.ProjectStationRefit(
+                    frame,
+                    projectionInputs.LoadoutTemplates.Templates,
+                    projectionInputs.Catalog));
             }
 
-            async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
+            Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var scenario = await starbridgeScenarioDocument.LatestAsync().ConfigureAwait(false);
-                var session = await starbridgeSessionDocument.LatestAsync().ConfigureAwait(false);
-                var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);
-                return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+                return Task.FromResult(AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
-                    scenario,
-                    session,
-                    catalog);
+                    projectionInputs.StarbridgeScenario,
+                    projectionInputs.StarbridgeSession,
+                    projectionInputs.Catalog));
             }
 
             static string IndexedDocumentId(string prefix, int index)
@@ -774,6 +782,45 @@ namespace GameCult.Aetheria.State.Verse
             return CultMesh.ProjectionSource(
                 sourceId,
                 description: "legacy catalog store bootstrap seed for managed Aetheria state");
+        }
+
+        private sealed class AetheriaRuntimeReactiveProjectionInputs : IDisposable
+        {
+            private readonly CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+            private readonly CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> _loadoutTemplates;
+            private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;
+            private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;
+            private readonly AetheriaRuntimeCatalogSnapshot _fallbackCatalog;
+            private readonly AetheriaRuntimeLoadoutTemplatesDocument _fallbackLoadoutTemplates;
+
+            public AetheriaRuntimeReactiveProjectionInputs(
+                CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> catalog,
+                CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
+                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
+                CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> starbridgeSession,
+                AetheriaRuntimeCatalogSnapshot fallbackCatalog,
+                AetheriaRuntimeLoadoutTemplatesDocument fallbackLoadoutTemplates)
+            {
+                _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+                _loadoutTemplates = loadoutTemplates ?? throw new ArgumentNullException(nameof(loadoutTemplates));
+                _starbridgeScenario = starbridgeScenario ?? throw new ArgumentNullException(nameof(starbridgeScenario));
+                _starbridgeSession = starbridgeSession ?? throw new ArgumentNullException(nameof(starbridgeSession));
+                _fallbackCatalog = fallbackCatalog ?? throw new ArgumentNullException(nameof(fallbackCatalog));
+                _fallbackLoadoutTemplates = fallbackLoadoutTemplates ?? throw new ArgumentNullException(nameof(fallbackLoadoutTemplates));
+            }
+
+            public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current ?? _fallbackCatalog;
+            public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current ?? _fallbackLoadoutTemplates;
+            public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario => _starbridgeScenario.Current;
+            public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession => _starbridgeSession.Current;
+
+            public void Dispose()
+            {
+                _catalog.Dispose();
+                _loadoutTemplates.Dispose();
+                _starbridgeScenario.Dispose();
+                _starbridgeSession.Dispose();
+            }
         }
 
         private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()

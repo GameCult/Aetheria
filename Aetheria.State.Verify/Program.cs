@@ -10717,10 +10717,23 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchDaemonEditorTuiSurfaces()",
         "CultMeshMutableStatePointer<EveSurfaceState>",
         "private AetheriaClientState? _aetheriaState",
+        "private AetheriaRuntimeReactiveProjectionInputs? _projectionInputs",
+        "_projectionInputs?.Dispose()",
         "return _aetheriaState ??= CreateAetheriaState();",
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
-        "var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);",
+        "new AetheriaRuntimeReactiveProjectionInputs(",
+        "catalogDocument.Reactive()",
+        "loadoutTemplatesDocument.Reactive()",
+        "starbridgeScenarioDocument.Reactive()",
+        "starbridgeSessionDocument.Reactive()",
+        "BootstrapRuntimeCatalogSnapshot(),",
+        "BootstrapLoadoutTemplatesDocument())",
+        "projectionInputs.Catalog",
+        "projectionInputs.LoadoutTemplates.Templates",
+        "projectionInputs.StarbridgeScenario",
+        "projectionInputs.StarbridgeSession",
+        "private sealed class AetheriaRuntimeReactiveProjectionInputs : IDisposable",
         "BootstrapCatalogDocument(",
         "CatalogBootstrapSource(",
         "BootstrapRuntimeCatalogSnapshot()",
@@ -10742,6 +10755,22 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "Aetheria runtime Verse client is missing typed CultMesh client contract symbols: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    if (client.Contains("ProjectStationRefitAsync", StringComparison.Ordinal) &&
+        client.Contains("loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client station-refit projection still polls loadout templates instead of sampling managed reactive projection inputs.");
+    }
+
+    if (client.Contains("ProjectStarbridgeSummaryAsync", StringComparison.Ordinal) &&
+        (client.Contains("starbridgeScenarioDocument.LatestAsync()", StringComparison.Ordinal) ||
+            client.Contains("starbridgeSessionDocument.LatestAsync()", StringComparison.Ordinal) ||
+            client.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal)))
+    {
+        throw new InvalidOperationException(
+            "Aetheria runtime Verse client Starbridge projection still polls sibling documents instead of sampling managed reactive projection inputs.");
     }
 
     var requiredClientStateSymbols = new[]
@@ -10825,7 +10854,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     var starbridgeSummaryStart = client.IndexOf(
-        "async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync",
+        "Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync",
         StringComparison.Ordinal);
     if (starbridgeSummaryStart < 0)
     {
@@ -10837,7 +10866,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     var starbridgeSummaryBlock = indexedDocumentStart > starbridgeSummaryStart
         ? client.Substring(starbridgeSummaryStart, indexedDocumentStart - starbridgeSummaryStart)
         : client.Substring(starbridgeSummaryStart);
-    if (!starbridgeSummaryBlock.Contains("var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);", StringComparison.Ordinal) ||
+    if (!starbridgeSummaryBlock.Contains("projectionInputs.Catalog", StringComparison.Ordinal) ||
+        starbridgeSummaryBlock.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("BootstrapRuntimeCatalogSnapshot()", StringComparison.Ordinal) ||
         starbridgeSummaryBlock.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
     {
@@ -16619,8 +16649,8 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
-        !verseClient.Contains("var loadoutTemplates = await loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal) ||
-        !verseClient.Contains("ProjectStationRefit(frame, loadoutTemplates.Templates, catalog)", StringComparison.Ordinal))
+        !verseClient.Contains("projectionInputs.LoadoutTemplates.Templates", StringComparison.Ordinal) ||
+        !verseClient.Contains("ProjectStationRefit(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "StationRefitAsync must publish typed loadout restore options with shared runtime pricing and daemon-target identity.");
