@@ -8144,12 +8144,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeRtsViewportDocument LatestMap(AetheriaRuntimeRtsViewportBounds viewport)",
         "public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)",
         "public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)",
-        "public AetheriaRuntimeStarbridgeScenarioDocument LatestScenario()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveScenario(",
-        "public AetheriaRuntimeStarbridgeSessionDocument LatestSession()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveSession(",
-        "public AetheriaRuntimeStarbridgeSessionSummaryDocument LatestSummary()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveSummary(",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public TDocument Latest<TDocument>()",
+        "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public AetheriaRuntimeStarbridgePlayerSeatDocument LatestPlayerSeat(string seatId)",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactivePlayerSeat("
     };
@@ -8184,7 +8182,19 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactivePlayer(",
         "ReactivePlayerAsync(",
         "ReactiveVerseHost(",
-        "ReactiveVerseHostAsync("
+        "ReactiveVerseHostAsync(",
+        "LatestScenario(",
+        "LatestScenarioAsync(",
+        "ReactiveScenario(",
+        "ReactiveScenarioAsync(",
+        "LatestSession(",
+        "LatestSessionAsync(",
+        "ReactiveSession(",
+        "ReactiveSessionAsync(",
+        "LatestSummary(",
+        "LatestSummaryAsync(",
+        "ReactiveSummary(",
+        "ReactiveSummaryAsync("
     };
     var survivingFixedReactiveWrappers = forbiddenFixedReactiveWrappers
         .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8323,7 +8333,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             "Starbridge player-seat examples must use the named managed reactive accessor instead of fetching the raw document handle.");
     }
 
-    Console.WriteLine("Domain document accessors: managed Aetheria state exposes named latest/reactive reads for daemon, viewport, detail, and Starbridge documents");
+    Console.WriteLine("Domain document accessors: managed Aetheria state uses generic fixed-document reads plus named parameterized viewport/detail/Starbridge handles");
 }
 
 static void RequireVerseHostSettingsAuthority(string root)
