@@ -31,21 +31,12 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private string _clientStatePath = "";
     
     public MenuTab CurrentTab { get; private set; }
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex?.Dispose();
-            _observedDockingIndex = null;
-        }
-
-        _observedEntityIndex = observedEntityIndex;
     }
 
     public void ShowTab(MenuTab tab)
@@ -107,8 +98,6 @@ public class MenuPanel : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_tabSurfaceDocument);
             _tabSurfaceDocument = null;
         }
-        _observedDockingIndex?.Dispose();
-        _observedDockingIndex = null;
     }
 
     private void RenderTabSurface()
@@ -181,27 +170,19 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeObservedDockingState docking)
     {
         docking = null;
-        if (TryResolveObservedDockingIndex(out var dockingIndex) &&
-            dockingIndex.TryResolveCurrentDocking(out docking))
+        try
         {
-            return true;
+            docking = ResolveClient().State.CurrentDocking();
+            return docking != null;
         }
-
-        Debug.LogWarning("Failed to read Aetheria current docking for runtime menu tabs.");
-        return false;
-    }
-
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
-    {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for runtime menu tabs: {ex.Message}");
             return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
-        return true;
+        }
     }
 
     private AetheriaClient ResolveClient()
@@ -210,8 +191,6 @@ public class MenuPanel : MonoBehaviour
         if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
         {
             _clientStatePath = stateBoot.StateFilePath;
-            _observedDockingIndex?.Dispose();
-            _observedDockingIndex = null;
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-menu-tabs");

@@ -4724,8 +4724,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "TryResolveObservedDockingIndex(out var dockingIndex)",
-        "dockingIndex.TryResolveCurrentDocking(out docking)",
+        "AetheriaRuntimeObservedDockingState",
+        "ResolveClient().State.CurrentDocking()",
         "docking.IsDocked",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
@@ -4803,7 +4803,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         source.Contains("private AetheriaClientDockingSnapshot ResolveCurrentDocking()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MenuPanel tab visibility must read typed current-docking state through AetheriaUnityObservedDockingIndex instead of direct docking caches or ActionGameManager observed adapters.");
+            "MenuPanel tab visibility must read managed typed current-docking state instead of direct docking caches or ActionGameManager observed adapters.");
     }
 
     var requiredProjectionBuilderSymbols = new[]
@@ -5670,9 +5670,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "TryResolveObservedDockingIndex(out var dockingIndex)",
-        "dockingIndex.TryResolveCurrentDocking(out docking)",
-        "dockingIndex.ResolveStationRefit()",
+        "AetheriaRuntimeObservedDockingState",
+        "ResolveClient().State.CurrentDocking()",
+        "docking.Refit",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -7117,6 +7117,16 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 
 static bool HasManagedDockingSnapshotAccess(string source)
 {
+    if (source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
+        source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
+        !source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
+        !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
+        !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
+        !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal))
+    {
+        return true;
+    }
+
     if (source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
         source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
         source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&

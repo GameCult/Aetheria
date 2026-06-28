@@ -39,8 +39,6 @@ public class TradeMenu : MonoBehaviour
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSession _catalog;
     private AetheriaRuntimePlayerSettingsSession _playerSettings;
-    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -57,19 +55,12 @@ public class TradeMenu : MonoBehaviour
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex?.Dispose();
-            _observedDockingIndex = null;
-            InvalidateStationRefit();
-        }
-
-        _observedEntityIndex = observedEntityIndex;
+        InvalidateStationRefit();
     }
     
     private void OnEnable()
     {
-        if (!TryResolveCurrentDocking(out var docking) ||
+        if (!TryResolveObservedDocking(out var docking) ||
             docking.IsDocked != true ||
             string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
             docking.DockingBayIndex < 0)
@@ -507,7 +498,7 @@ public class TradeMenu : MonoBehaviour
     private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
     {
         targetEntityKey = "";
-        if (!TryResolveCurrentDocking(out var docking) ||
+        if (!TryResolveObservedDocking(out var docking) ||
             docking.IsDocked != true ||
             string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
         {
@@ -523,33 +514,25 @@ public class TradeMenu : MonoBehaviour
         if (_stationRefit != null)
             return _stationRefit;
 
-        _stationRefit = TryResolveObservedDockingIndex(out var dockingIndex)
-            ? dockingIndex.ResolveStationRefit()
+        _stationRefit = TryResolveObservedDocking(out var docking)
+            ? docking.Refit
             : null;
         return _stationRefit;
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveObservedDocking(out AetheriaRuntimeObservedDockingState docking)
     {
         docking = null;
-        if (TryResolveObservedDockingIndex(out var dockingIndex) &&
-            dockingIndex.TryResolveCurrentDocking(out docking))
+        try
         {
-            return true;
+            docking = ResolveClient().State.CurrentDocking();
+            return docking != null;
         }
-
-        Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");
-        return false;
-    }
-
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
-    {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria docking state for trade menu: {ex.Message}");
             return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
-        return true;
+        }
     }
 
     private void InvalidateStationRefit()
@@ -619,10 +602,8 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
-        _observedDockingIndex?.Dispose();
         _catalog = null;
         _playerSettings = null;
-        _observedDockingIndex = null;
         _stationRefit = null;
     }
 
