@@ -16,10 +16,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            using var projector = await state
-                .ReactiveLoadoutSnapshotProjectorAsync()
+            using var frame = await state
+                .ReactiveDaemonFrameAsync()
                 .ConfigureAwait(false);
-            return projector.ProjectLoadoutTemplate(entityKey);
+            return ProjectLoadoutTemplate(
+                frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
+                entityKey ?? "");
         }
 
         public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(
@@ -251,47 +253,4 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
-    public sealed class AetheriaRuntimeReactiveLoadoutSnapshotProjector : IDisposable
-    {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
-
-        private AetheriaRuntimeReactiveLoadoutSnapshotProjector(
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame)
-        {
-            _frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        }
-
-        public static async Task<AetheriaRuntimeReactiveLoadoutSnapshotProjector> CreateAsync(
-            AetheriaClientState state,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            if (state == null) throw new ArgumentNullException(nameof(state));
-
-            var frame = await state.ReactiveDaemonFrameAsync(options).ConfigureAwait(false);
-            return new AetheriaRuntimeReactiveLoadoutSnapshotProjector(frame);
-        }
-
-        public static AetheriaRuntimeReactiveLoadoutSnapshotProjector Create(
-            AetheriaClientState state,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return CreateAsync(state, options).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string entityKey)
-        {
-            var frame = _frame.Current;
-            if (frame == null)
-                return new AetheriaRuntimeLoadoutTemplateCommit();
-
-            return AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(
-                frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
-                entityKey ?? "");
-        }
-
-        public void Dispose()
-        {
-            _frame.Dispose();
-        }
-    }
 }

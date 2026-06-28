@@ -7707,7 +7707,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaClientReactiveDockingState ReactiveDockingState(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeReactiveObservedDaemonState ReactiveObservedDaemon(",
-        "public AetheriaRuntimeReactiveLoadoutSnapshotProjector ReactiveLoadoutSnapshotProjector(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
         "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
@@ -16626,11 +16625,17 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeLoadoutSnapshotProjector.cs");
+    var clientStatePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaClientState.cs");
     var dragSessionPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDragSession.cs");
     var dragObjectsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDragObjects.cs");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
 
-    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutProjectorPath, loadoutSnapshotProjectorPath, dragSessionPath, gameplaySceneWiringPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutProjectorPath, loadoutSnapshotProjectorPath, clientStatePath, dragSessionPath, gameplaySceneWiringPath };
     var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
     if (missingFiles.Length > 0)
     {
@@ -16646,6 +16651,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
     var loadoutProjector = File.ReadAllText(loadoutProjectorPath);
     var loadoutSnapshotProjector = File.ReadAllText(loadoutSnapshotProjectorPath);
+    var clientState = File.ReadAllText(clientStatePath);
     var dragSession = File.ReadAllText(dragSessionPath);
     var gameplaySceneWiring = File.ReadAllText(gameplaySceneWiringPath);
     var dragObjects = File.Exists(dragObjectsPath)
@@ -16750,12 +16756,9 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
-        "public sealed class AetheriaRuntimeReactiveLoadoutSnapshotProjector",
-        "state.ReactiveDaemonFrameAsync(options)",
-        "public AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string entityKey)",
+        ".ReactiveDaemonFrameAsync()",
         "ProjectLoadoutTemplate(",
-        "frame.Run ?? new AetheriaRuntimeRunCheckpointCommit()",
-        "public void Dispose()"
+        "frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
     };
     var missingLoadoutSnapshotProjectorSymbols = requiredLoadoutSnapshotProjectorSymbols
         .Where(symbol => !loadoutSnapshotProjector.Contains(symbol, StringComparison.Ordinal))
@@ -16778,6 +16781,14 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         throw new InvalidOperationException(
             "Loadout template save payloads must use named AetheriaClientState reactive daemon frame access instead of walking raw CultMesh handles.");
+    }
+
+    if (clientState.Contains("ReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains("AetheriaRuntimeReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains("ProjectLoadoutTemplate(string entityKey)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Loadout template save payloads must not recreate aggregate reactive projector wrappers; cache or sample the managed typed daemon frame document directly.");
     }
 
     var forbiddenActionSymbols = new[]
