@@ -36,9 +36,9 @@ namespace GameCult.Aetheria.State.Verse
         public string UpdatedAtUtc { get; }
     }
 
-    public sealed class AetheriaRuntimeMenuTabProjectionOption
+    public sealed class AetheriaRuntimeMenuTabModelOption
     {
-        public AetheriaRuntimeMenuTabProjectionOption(string key, string label, int order)
+        public AetheriaRuntimeMenuTabModelOption(string key, string label, int order)
         {
             Key = key ?? "";
             Label = label ?? "";
@@ -66,15 +66,15 @@ namespace GameCult.Aetheria.State.Verse
             return $"aetheria.runtime_menu.tab.{NormalizeTabKey(tabKey)}";
         }
 
-        public static AetheriaRuntimeMenuTabsSurfaceState Project(
+        public static AetheriaRuntimeMenuTabsSurfaceState Compose(
             string currentTabKey,
-            IEnumerable<AetheriaRuntimeMenuTabProjectionOption> visibleTabs,
+            IEnumerable<AetheriaRuntimeMenuTabModelOption> visibleTabs,
             string updatedAtUtc)
         {
             var normalizedCurrent = NormalizeTabKey(currentTabKey);
             return new AetheriaRuntimeMenuTabsSurfaceState(
                 normalizedCurrent,
-                (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabProjectionOption>())
+                (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabModelOption>())
                     .Where(tab => tab != null)
                     .OrderBy(tab => tab.Order)
                     .ThenBy(tab => NormalizeTabKey(tab.Key), StringComparer.Ordinal)

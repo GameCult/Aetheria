@@ -112,7 +112,7 @@ public class MenuPanel : MonoBehaviour
             transform,
             _tabSurfaceDocument,
             "Aetheria Runtime Menu Tabs Surface",
-            AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurface()),
+            AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ComposeTabSurface()),
             HandleTabSurfaceCommand,
             _tabSurfaceChrome);
     }
@@ -146,13 +146,13 @@ public class MenuPanel : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument);
     }
 
-    private AetheriaRuntimeMenuTabsSurfaceState ProjectTabSurface()
+    private AetheriaRuntimeMenuTabsSurfaceState ComposeTabSurface()
     {
         var visibleTabs = ResolveVisibleTabs();
-        return AetheriaRuntimeMenuTabsSurfaceBuilder.Project(
+        return AetheriaRuntimeMenuTabsSurfaceBuilder.Compose(
             ToRuntimeTabKey(CurrentTab),
             visibleTabs
-                .Select(tabBinding => new AetheriaRuntimeMenuTabProjectionOption(
+                .Select(tabBinding => new AetheriaRuntimeMenuTabModelOption(
                     ToRuntimeTabKey(tabBinding.Tab),
                     GetTabLabel(tabBinding),
                     (int)tabBinding.Tab))

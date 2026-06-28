@@ -4718,10 +4718,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "HandleTabSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument)",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ProjectTabSurface())",
-        "ProjectTabSurface(",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
-        "new AetheriaRuntimeMenuTabProjectionOption(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ComposeTabSurface())",
+        "ComposeTabSurface(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Compose(",
+        "new AetheriaRuntimeMenuTabModelOption(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeObservedDockingState",
@@ -4782,6 +4782,9 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new EveUiToolkitSurfaceLowerer()",
         "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
         "ProjectTabSurfaceState(",
+        "ProjectTabSurface(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
+        "new AetheriaRuntimeMenuTabProjectionOption(",
         "new AetheriaRuntimeMenuTabSurfaceEntry(",
         "private static string TabKey("
     };
@@ -4808,9 +4811,9 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
 
     var requiredProjectionBuilderSymbols = new[]
     {
-        "public sealed class AetheriaRuntimeMenuTabProjectionOption",
+        "public sealed class AetheriaRuntimeMenuTabModelOption",
         "public static string NormalizeTabKey(string tabKey)",
-        "public static AetheriaRuntimeMenuTabsSurfaceState Project(",
+        "public static AetheriaRuntimeMenuTabsSurfaceState Compose(",
         "public int Order { get; }",
         ".OrderBy(tab => tab.Order)",
         "new AetheriaRuntimeMenuTabSurfaceEntry(",
