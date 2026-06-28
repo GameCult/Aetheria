@@ -393,12 +393,6 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
             }
 
             var health = await node.GetDaemonHealthAsync().ConfigureAwait(false);
-            if (health == null &&
-                AetheriaRuntimeDaemonPublicationStore.TryReadHealth(node.StatePath, out var publishedHealth))
-            {
-                health = publishedHealth;
-            }
-
             if (health != null && SnapshotWants(
                 request,
                 AetheriaRuntimeDaemonSchemas.Health,
@@ -467,47 +461,46 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            InjectEveSurfaceSnapshot(
+            await InjectEveSurfaceSnapshotAsync(
                 node,
                 options,
                 request,
                 response,
                 AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
-                "game");
-            InjectEveSurfaceSnapshot(
+                "game").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
                 node,
                 options,
                 request,
                 response,
                 AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
-                "game-tui");
-            InjectEveSurfaceSnapshot(
+                "game-tui").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
                 node,
                 options,
                 request,
                 response,
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
-                "editor");
-            InjectEveSurfaceSnapshot(
+                "editor").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
                 node,
                 options,
                 request,
                 response,
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
-                "editor-tui");
+                "editor-tui").ConfigureAwait(false);
 
-            if (AetheriaRuntimeDaemonPublicationStore.TryReadStarbridgeSessionSummary(
-                node.StatePath,
-                out var starbridgeSession) &&
+            var starbridgeSession = await node.GetStarbridgeSessionSummaryAsync().ConfigureAwait(false);
+            if (starbridgeSession != null &&
                 SnapshotWants(
                     request,
                     AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
-                    "daemon:aetheria.starbridge.session.latest.v1"))
+                    AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary.ToString()))
             {
                 var starbridgePut = node.Database.Documents.CreateRawDocumentPutMessage(
                     response.MessageId,
                     new CultRecordHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
-                        new CultRecordKey("daemon:aetheria.starbridge.session.latest.v1")),
+                        AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary),
                     starbridgeSession,
                     new CultNetDocumentMessageOptions
                     {
@@ -599,7 +592,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
     return server;
 }
 
-static void InjectEveSurfaceSnapshot(
+static async Task InjectEveSurfaceSnapshotAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     CultNetSnapshotRequestMessage request,
@@ -611,11 +604,14 @@ static void InjectEveSurfaceSnapshot(
     if (!SnapshotWants(request, EveSurfaceSchema, recordKey))
         return;
 
-    var surfaceDocument = ReadEveSurfacePublication(node.StatePath, surfaceKind);
+    var surfaceState = await ReadEveSurfacePublicationAsync(node, surfaceKind).ConfigureAwait(false);
+    if (surfaceState == null)
+        return;
+
     var surfacePut = node.Database.Documents.CreateRawDocumentPutMessage(
         response.MessageId,
         new CultRecordHandle<EveSurfaceState>(new CultRecordKey(recordKey)),
-        AetheriaRuntimeEveSurfaceStateProjector.ToState(surfaceDocument),
+        surfaceState,
         new CultNetDocumentMessageOptions
         {
             SourceRuntimeId = options.DaemonId,
@@ -628,18 +624,16 @@ static void InjectEveSurfaceSnapshot(
         .ToArray();
 }
 
-static AetheriaRuntimeSurfaceDocument ReadEveSurfacePublication(string statePath, string surfaceKind)
+static Task<EveSurfaceState?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
 {
-    AetheriaRuntimeSurfaceDocument document;
-    _ = surfaceKind switch
+    return surfaceKind switch
     {
-        "game" => AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface(statePath, out document),
-        "game-tui" => AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(statePath, out document),
-        "editor" => AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface(statePath, out document),
-        "editor-tui" => AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface(statePath, out document),
+        "game" => node.GetDaemonGameSurfaceAsync(),
+        "game-tui" => node.GetDaemonGameTuiSurfaceAsync(),
+        "editor" => node.GetDaemonEditorSurfaceAsync(),
+        "editor-tui" => node.GetDaemonEditorTuiSurfaceAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
-    return document;
 }
 
 static async Task RunRtsCultMeshPumpAsync(
@@ -769,6 +763,8 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.PutDaemonHealthAsync(health).ConfigureAwait(false);
     if (AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(node.StatePath, out var commandBoundary))
         await node.PutDaemonCommandBoundaryAsync(commandBoundary).ConfigureAwait(false);
+    if (AetheriaRuntimeDaemonPublicationStore.TryReadStarbridgeSessionSummary(node.StatePath, out var starbridgeSummary))
+        await node.PutStarbridgeSessionSummaryAsync(starbridgeSummary).ConfigureAwait(false);
     if (AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface(node.StatePath, out var gameSurface))
         await node.PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface)).ConfigureAwait(false);
     if (AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(node.StatePath, out var gameTuiSurface))

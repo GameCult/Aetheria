@@ -441,6 +441,18 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
     }
 
+    public Task<CultRecordHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument>> PutStarbridgeSessionSummaryAsync(
+        AetheriaRuntimeStarbridgeSessionSummaryDocument summary)
+    {
+        return Database.PutAsync(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary, summary);
+    }
+
+    public Task<AetheriaRuntimeStarbridgeSessionSummaryDocument?> GetStarbridgeSessionSummaryAsync()
+    {
+        return Database.GetAsync<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
+            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary);
+    }
+
     public Task<CultRecordHandle<EveSurfaceState>> PutDaemonGameSurfaceAsync(EveSurfaceState surface)
     {
         return Database.PutAsync(new CultRecordKey(AetheriaProviderAdvertisementProjector.DaemonGameSurfaceKey), surface);

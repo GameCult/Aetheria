@@ -42,6 +42,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey StarbridgeSessionLatest { get; } =
             new CultRecordKey("starbridge:aetheria.session.latest.v1");
 
+        public static CultRecordKey StarbridgeSessionSummary { get; } =
+            new CultRecordKey("daemon:aetheria.starbridge.session.latest.v1");
+
         public static CultRecordKey StarbridgePlayerSeat(string seatId)
         {
             return new CultRecordKey(AetheriaRuntimeStarbridgePlayerSeatDocument.RecordKey(seatId));

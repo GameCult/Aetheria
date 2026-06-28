@@ -8759,6 +8759,8 @@ static void RequireDaemonVersePublication(string root)
         "GetDaemonFrameAsync(",
         "PutDaemonSoaViewAsync(",
         "GetDaemonSoaViewAsync(",
+        "PutStarbridgeSessionSummaryAsync(",
+        "GetStarbridgeSessionSummaryAsync(",
         "PutDaemonGameSurfaceAsync(",
         "GetDaemonGameSurfaceAsync(",
         "PutDaemonGameTuiSurfaceAsync(",
@@ -8913,8 +8915,16 @@ static void RequireDaemonVersePublication(string root)
         "discoveryHost.Update(",
         "PublishDaemonApiDocumentsAsync(node, result)",
         "PutDaemonFrameAsync(result.Frame)",
+        "PutStarbridgeSessionSummaryAsync(starbridgeSummary)",
         "PutDaemonGameSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(gameSurface))",
         "PutDaemonEditorTuiSurfaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(editorTuiSurface))",
+        "GetStarbridgeSessionSummaryAsync()",
+        "InjectEveSurfaceSnapshotAsync(",
+        "ReadEveSurfacePublicationAsync(",
+        "node.GetDaemonGameSurfaceAsync()",
+        "node.GetDaemonGameTuiSurfaceAsync()",
+        "node.GetDaemonEditorSurfaceAsync()",
+        "node.GetDaemonEditorTuiSurfaceAsync()",
         "AetheriaEveCommandBridge.AcceptObservedAsync(",
         "ReadObservedDaemonCommands()",
         "currentFrame?.AccountedCommandIds ?? Array.Empty<string>()",
@@ -8935,6 +8945,46 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
             string.Join(", ", missingDaemonHostSymbols));
+    }
+
+    var snapshotHandlerStart = daemonHostSource.IndexOf(
+        "server.OnCultNet<CultNetSnapshotRequestMessage>",
+        StringComparison.Ordinal);
+    var snapshotHandlerEnd = snapshotHandlerStart >= 0
+        ? daemonHostSource.IndexOf("var factPuts = node.ReadCommittedCommandFacts()", snapshotHandlerStart, StringComparison.Ordinal)
+        : -1;
+    var snapshotHandler = snapshotHandlerStart >= 0 && snapshotHandlerEnd > snapshotHandlerStart
+        ? daemonHostSource.Substring(snapshotHandlerStart, snapshotHandlerEnd - snapshotHandlerStart)
+        : "";
+    var forbiddenSnapshotStoreReads = new[]
+    {
+        "AetheriaRuntimeDaemonPublicationStore.TryReadHealth",
+        "AetheriaRuntimeDaemonPublicationStore.TryReadStarbridgeSessionSummary"
+    };
+    var snapshotStoreHits = forbiddenSnapshotStoreReads
+        .Where(symbol => snapshotHandler.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (snapshotStoreHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "RUDP snapshot responses must inject managed daemon node documents instead of reopening publication-store files: " +
+            string.Join(", ", snapshotStoreHits));
+    }
+
+    var surfaceSnapshotStart = daemonHostSource.IndexOf(
+        "static async Task InjectEveSurfaceSnapshotAsync",
+        StringComparison.Ordinal);
+    var surfaceSnapshotEnd = surfaceSnapshotStart >= 0
+        ? daemonHostSource.IndexOf("static Task<EveSurfaceState?> ReadEveSurfacePublicationAsync", surfaceSnapshotStart, StringComparison.Ordinal)
+        : -1;
+    var surfaceSnapshotBlock = surfaceSnapshotStart >= 0 && surfaceSnapshotEnd > surfaceSnapshotStart
+        ? daemonHostSource.Substring(surfaceSnapshotStart, surfaceSnapshotEnd - surfaceSnapshotStart)
+        : "";
+    if (surfaceSnapshotBlock.Contains("AetheriaRuntimeDaemonPublicationStore.TryRead", StringComparison.Ordinal) ||
+        surfaceSnapshotBlock.Contains("AetheriaRuntimeEveSurfaceStateProjector.ToState(surfaceDocument)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "RUDP Eve surface snapshots still reopen publication-store files instead of using managed Eve surface records.");
     }
 
     var forbiddenDaemonHostSymbols = new[]
@@ -9389,6 +9439,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "CultMesh.CreateCultNetDocumentRegistry(RuntimeDocumentTypes, registry)",
         "typeof(AetheriaRuntimeVerseAuthorityPolicyDocument)",
         "AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy",
+        "public static CultRecordKey StarbridgeSessionSummary",
+        "new CultRecordKey(\"daemon:aetheria.starbridge.session.latest.v1\")",
         "Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(",
         "typeof(EveSurfaceState)",
         "WatchDaemonGameTuiSurfaces()",
