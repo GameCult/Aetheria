@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using GameCult.Mesh;
 
 #nullable enable
 
@@ -46,9 +45,9 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static bool TryCreateCurrent(
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>? entity,
-            CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> docking,
-            CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> refit,
+            AetheriaRuntimeCurrentEntitySession? entity,
+            AetheriaRuntimeCurrentDockingSession docking,
+            AetheriaRuntimeStationRefitSession refit,
             out AetheriaRuntimeObservedDockingState? observed)
         {
             observed = null;

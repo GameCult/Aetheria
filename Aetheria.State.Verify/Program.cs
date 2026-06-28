@@ -8018,11 +8018,23 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var observedDockingState = File.ReadAllText(observedDockingStatePath);
     if (!observedDockingState.Contains("public sealed class AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) ||
         !observedDockingState.Contains("public static bool TryCreateCurrent(", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("AetheriaRuntimeCurrentEntitySession? entity", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("AetheriaRuntimeCurrentDockingSession docking", StringComparison.Ordinal) ||
+        !observedDockingState.Contains("AetheriaRuntimeStationRefitSession refit", StringComparison.Ordinal) ||
         !observedDockingState.Contains("new AetheriaRuntimeObservedDockingState(", StringComparison.Ordinal) ||
         !observedDockingState.Contains("TryResolveCurrentDockingBayRow(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed docking state must compose current entity, docking, and station-refit documents inside the managed state package.");
+    }
+
+    if (observedDockingState.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>", StringComparison.Ordinal) ||
+        observedDockingState.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) ||
+        observedDockingState.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>", StringComparison.Ordinal) ||
+        observedDockingState.Contains("using GameCult.Mesh;", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Observed docking state must sample named managed sessions instead of owning raw reactive CultMesh documents.");
     }
 
     if (observedDaemonState.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
