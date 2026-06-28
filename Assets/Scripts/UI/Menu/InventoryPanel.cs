@@ -107,7 +107,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-    private AetheriaClientReactiveDockingState _reactiveDockingState;
     private AetheriaRuntimeReactiveLoadoutSnapshotProjector _loadoutSnapshotProjector;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
@@ -1126,9 +1125,8 @@ private void Update()
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-        var snapshot = ResolveDockingState();
-        currentEntityKey = snapshot?.CurrentEntityKey ?? "";
-        return !string.IsNullOrWhiteSpace(currentEntityKey);
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
@@ -1153,17 +1151,9 @@ private void Update()
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return ResolveDockingState()?.StationRefit;
-    }
-
-    private AetheriaClientDockingSnapshot ResolveDockingState()
-    {
-        _reactiveDockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
-        if (_reactiveDockingState.TryCurrent(out var docking))
-            return docking;
-
-        Debug.LogWarning("Failed to read Aetheria docking state for inventory panel.");
-        return null;
+        return TryResolveObservedDockingIndex(out var dockingIndex)
+            ? dockingIndex.ResolveStationRefit()
+            : null;
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
@@ -1485,7 +1475,6 @@ private void Update()
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
-        _reactiveDockingState?.Dispose();
         _loadoutSnapshotProjector?.Dispose();
         _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
@@ -1493,7 +1482,6 @@ private void Update()
         _playerSettings = null;
         _currentEntity = null;
         _stationRefit = null;
-        _reactiveDockingState = null;
         _loadoutSnapshotProjector = null;
         _observedDockingIndex = null;
         _inventory = null;

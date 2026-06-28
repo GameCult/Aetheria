@@ -4952,9 +4952,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
-        "?.CurrentEntity"
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentEntityDocument(out currentEntity)"
     };
 
     var missingSymbols = requiredSymbols
@@ -6274,8 +6273,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "_observedEntityIndex.TryResolveEntityByRecordKey",
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
+        "dockingIndex.ResolveStationRefit()",
+        "dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey)",
         "LoadoutRestoreOptions"
     };
 
@@ -6335,11 +6334,14 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !source.Contains("dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay)", StringComparison.Ordinal) ||
+        !source.Contains("dockingIndex.ResolveStationRefit()", StringComparison.Ordinal) ||
+        !source.Contains("dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey)", StringComparison.Ordinal) ||
         !source.Contains("currentDockingBay.DockingBayIndex", StringComparison.Ordinal) ||
         !source.Contains("ResolveStationRefit()?.DockParentEntityKey", StringComparison.Ordinal) ||
         source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("TryResolveCurrentDockingBayFacade", StringComparison.Ordinal) ||
-        source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal))
+        source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
+        source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "InventoryPanel dropdown must carry typed entity identity through the shared Eve surface and must project docking display state from StationRefitAsync docking-bay rows.");
@@ -6347,13 +6349,15 @@ static void RequireInventoryDropdownUseEveSurface(string root)
 
     if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".TryCurrent(", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("dockingIndex.TryResolveCurrentEntityDocument(out currentEntity)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("dockingIndex.ResolveStationRefit()", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryResolveCurrentEntityFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) ||
         inventoryMenu.Contains("_observedEntityIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
@@ -7059,8 +7063,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
             Compact = CompactSource(entry.Source)
         })
         .Where(entry =>
-            !entry.Source.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
-            !entry.Source.Contains(".TryCurrent(", StringComparison.Ordinal) ||
+            !HasManagedDockingSnapshotAccess(entry.Source) ||
             entry.Source.Contains(".DockingState.Reactive()", StringComparison.Ordinal) ||
             entry.Compact.Contains(CompactSource(".DockingState.Latest()"), StringComparison.Ordinal) ||
             entry.Compact.Contains(CompactSource(".DockingState.TryLatest("), StringComparison.Ordinal))
@@ -7075,6 +7078,20 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     }
 
     Console.WriteLine("Menu docking state: Unity menus read managed reactive typed docking snapshots");
+}
+
+static bool HasManagedDockingSnapshotAccess(string source)
+{
+    if (source.Contains(".ReactiveDockingState()", StringComparison.Ordinal) &&
+        source.Contains(".TryCurrent(", StringComparison.Ordinal))
+    {
+        return true;
+    }
+
+    return source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
+           source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
+           source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
+           !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal);
 }
 
 static void RequireUnitySharedDocumentAccessorErgonomics(string root)
@@ -17060,8 +17077,8 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     }
 
     if (!inventoryPanel.Contains("TryResolveCurrentEntityKey(out var currentEntityKey)", StringComparison.Ordinal) ||
-        !inventoryPanel.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
-        !inventoryPanel.Contains("snapshot?.CurrentEntityKey", StringComparison.Ordinal) ||
+        !inventoryPanel.Contains("dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey)", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) ||
         inventoryPanel.Contains("GameManager.CurrentEntity", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

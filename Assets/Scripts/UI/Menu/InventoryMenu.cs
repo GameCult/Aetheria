@@ -36,7 +36,6 @@ public class InventoryMenu : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-    private AetheriaClientReactiveDockingState _reactiveDockingState;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
@@ -738,14 +737,15 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-        currentEntityKey = ResolveDockingState()?.CurrentEntityKey ?? "";
-        return !string.IsNullOrWhiteSpace(currentEntityKey);
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentEntityKey(out currentEntityKey);
     }
 
     private bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        currentEntity = ResolveDockingState()?.CurrentEntity;
-        if (currentEntity == null)
+        currentEntity = null;
+        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
+            !dockingIndex.TryResolveCurrentEntityDocument(out currentEntity))
         {
             Debug.LogWarning("Failed to read Aetheria current entity for inventory ship settings.");
             return false;
@@ -756,7 +756,9 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return ResolveDockingState()?.StationRefit;
+        return TryResolveObservedDockingIndex(out var dockingIndex)
+            ? dockingIndex.ResolveStationRefit()
+            : null;
     }
 
     private bool TryResolveCurrentEntity(out Entity currentEntity)
@@ -777,16 +779,6 @@ public class InventoryMenu : MonoBehaviour
 
         dockingBay = resolvedDockingBay;
         return dockingBay != null;
-    }
-
-    private AetheriaClientDockingSnapshot ResolveDockingState()
-    {
-        _reactiveDockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
-        if (_reactiveDockingState.TryCurrent(out var docking))
-            return docking;
-
-        Debug.LogWarning("Failed to read Aetheria docking state for inventory menu.");
-        return null;
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
@@ -947,14 +939,12 @@ public class InventoryMenu : MonoBehaviour
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
-        _reactiveDockingState?.Dispose();
         _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;
         _currentEntity = null;
         _stationRefit = null;
-        _reactiveDockingState = null;
         _observedDockingIndex = null;
         _inventory = null;
         _inventoryEntityIndex = -1;
