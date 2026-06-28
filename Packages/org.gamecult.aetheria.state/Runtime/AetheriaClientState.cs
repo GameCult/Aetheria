@@ -209,18 +209,6 @@ namespace GameCult.Aetheria.State.Verse
             return LatestDaemonFrameAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>> ReactiveDaemonFrameAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return LatestFrame.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return LatestFrame.Reactive(options);
-        }
-
         public Task<AetheriaRuntimeDaemonSoaViewDocument> LatestDaemonSoaViewAsync()
         {
             return LatestSoaView.LatestAsync();
@@ -229,18 +217,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()
         {
             return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>> ReactiveDaemonSoaViewAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return LatestSoaView.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return LatestSoaView.Reactive(options);
         }
 
         public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
@@ -259,9 +235,9 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(
             CultMeshReactiveDocumentOptions? options = null)
         {
-            using var frame = ReactiveDaemonFrame(options);
-            using var soaView = TryReactiveDaemonSoaView(options);
-            using var zoneRender = ReactiveZoneRender(options);
+            using var frame = Reactive<AetheriaRuntimeDaemonFrameDocument>(options);
+            using var soaView = TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(options);
+            using var zoneRender = Reactive<AetheriaRuntimeZoneRenderDocument>(options);
             return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
                 ? current
                 : null;
@@ -278,12 +254,13 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
-        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView(
+        private CultMeshReactiveDocument<TDocument>? TryReactive<TDocument>(
             CultMeshReactiveDocumentOptions? options)
+            where TDocument : class
         {
             try
             {
-                return ReactiveDaemonSoaView(options);
+                return Reactive<TDocument>(options);
             }
             catch (KeyNotFoundException)
             {
@@ -530,18 +507,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeZoneRenderDocument LatestZoneRender()
         {
             return LatestZoneRenderAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return ZoneRender.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return ZoneRender.Reactive(options);
         }
 
         public Observable<TDocument> Watch<TDocument>()

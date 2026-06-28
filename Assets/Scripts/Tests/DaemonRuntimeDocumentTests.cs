@@ -206,8 +206,8 @@ public class DaemonRuntimeDocumentTests
         var observed = client.State.LatestObservedDaemon();
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
         using var catalogReactive = client.State.ReactiveCatalog();
-        using var daemonFrameReactive = client.State.ReactiveDaemonFrame();
-        using var daemonSoaViewReactive = client.State.ReactiveDaemonSoaView();
+        using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+        using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
         using var loadoutTemplatesReactive = client.State.ReactiveLoadoutTemplates();
         using var sectorMapReactive = client.State.ReactiveSectorMap();
         using var playerSettingsReactive = client.State.Settings.ReactivePlayer();
@@ -2263,9 +2263,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.ReactiveDaemonFrame();
-        using var observedSoaView = client.State.ReactiveDaemonSoaView();
-        using var observedZoneRender = client.State.ReactiveZoneRender();
+        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
             observedFrame,
             observedSoaView,

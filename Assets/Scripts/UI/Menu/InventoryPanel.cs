@@ -1552,7 +1552,7 @@ private void Update()
         {
             _loadoutFrame = ResolveClient()
                 .State
-                .ReactiveDaemonFrame();
+                .Reactive<AetheriaRuntimeDaemonFrameDocument>();
         }
         catch (Exception ex)
         {

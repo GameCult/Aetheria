@@ -15,7 +15,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            using var frame = state.ReactiveDaemonFrame();
+            using var frame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();
             return Task.FromResult(ProjectLoadoutTemplate(
                 frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
                 entityKey ?? ""));

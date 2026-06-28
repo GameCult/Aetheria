@@ -7295,8 +7295,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>> ReactiveStationRefitAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
-        "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(",
@@ -8133,9 +8132,8 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var requiredClientSymbols = new[]
     {
         "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(",
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalog(",
@@ -8178,6 +8176,14 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         throw new InvalidOperationException(
             "AetheriaClientState must expose named managed latest accessors for the remaining domain documents: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    if (topLevelClientState.Contains("ReactiveDaemonFrame(", StringComparison.Ordinal) ||
+        topLevelClientState.Contains("ReactiveDaemonSoaView(", StringComparison.Ordinal) ||
+        topLevelClientState.Contains("ReactiveZoneRender(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must not reintroduce named daemon reactive wrappers; use Reactive<TDocument>() for managed typed document access.");
     }
 
     var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
@@ -11468,11 +11474,11 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> _starbridgeScenario;",
         "private readonly CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> _starbridgeSession;",
         "public AetheriaRuntimeManagedClientInputs(AetheriaClientState state)",
-        "_daemonFrame = state.ReactiveDaemonFrame();",
-        "_catalog = state.ReactiveCatalog();",
-        "_loadoutTemplates = state.ReactiveLoadoutTemplates();",
-        "_starbridgeScenario = state.Starbridge.ReactiveScenario();",
-        "_starbridgeSession = state.Starbridge.ReactiveSession();",
+        "_daemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();",
+        "_catalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();",
+        "_loadoutTemplates = state.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();",
+        "_starbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();",
+        "_starbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();",
         "public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current",
         "public AetheriaRuntimeLoadoutTemplatesDocument LoadoutTemplates => _loadoutTemplates.Current",
         "public AetheriaRuntimeDaemonFrameDocument RequireFrame()",
@@ -15686,9 +15692,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredManagedObservedDaemonSymbols = new[]
     {
         "public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(",
-        "using var frame = ReactiveDaemonFrame(options);",
-        "using var soaView = TryReactiveDaemonSoaView(options);",
-        "using var zoneRender = ReactiveZoneRender(options);",
+        "using var frame = Reactive<AetheriaRuntimeDaemonFrameDocument>(options);",
+        "using var soaView = TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(options);",
+        "using var zoneRender = Reactive<AetheriaRuntimeZoneRenderDocument>(options);",
         "AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)"
     };
     var missingManagedObservedDaemonSymbols = requiredManagedObservedDaemonSymbols
@@ -15702,9 +15708,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (!daemonRuntimeDocumentTests.Contains("ManagedStateSamplesCurrentObservedDaemonFromReactiveDocuments()", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedFrame = client.State.ReactiveDaemonFrame();", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedSoaView = client.State.ReactiveDaemonSoaView();", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedZoneRender = client.State.ReactiveZoneRender();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();", StringComparison.Ordinal) ||
         !daemonRuntimeDocumentTests.Contains("AetheriaRuntimeObservedDaemonState.TryCreateCurrent(", StringComparison.Ordinal) ||
         !daemonRuntimeDocumentTests.Contains("var sampledObserved = client.State.CurrentObservedDaemon();", StringComparison.Ordinal))
     {
@@ -15926,9 +15932,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame", StringComparison.Ordinal) ||
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView", StringComparison.Ordinal) ||
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_daemonFrame ??= state.ReactiveDaemonFrame();", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_daemonSoaView ??= TryReactiveDaemonSoaView(state);", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_zoneRender ??= state.ReactiveZoneRender();", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_daemonFrame ??= state.Reactive<AetheriaRuntimeDaemonFrameDocument>();", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_daemonSoaView ??= TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(state);", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_zoneRender ??= state.Reactive<AetheriaRuntimeZoneRenderDocument>();", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeObservedDaemonState.TryCreateCurrent(", StringComparison.Ordinal) ||
         !daemonObserver.Contains("DisposeObservedDaemonDocuments()", StringComparison.Ordinal))
     {
@@ -17372,7 +17378,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
         "ProjectLoadoutTemplate(targetEntityKey)",
         "AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(",
-        ".ReactiveDaemonFrame()",
+        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
         "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
@@ -17398,7 +17404,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "InventoryPanel",
         "AetheriaRuntimeDaemonFrameDocument",
         "_loadoutFrame",
-        ".ReactiveDaemonFrame()",
+        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
         "AetheriaRuntimeDaemonFrameSession",
         ".ObserveDaemonFrame()");
 
@@ -17415,7 +17421,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
-        ".ReactiveDaemonFrame()",
+        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
         "ProjectLoadoutTemplate(",
         "frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
     };
@@ -17437,10 +17443,11 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
 
     if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
         loadoutSnapshotProjector.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal))
+        loadoutSnapshotProjector.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains(".ReactiveDaemonFrame()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Loadout template save payloads must use named AetheriaClientState reactive daemon frame access instead of walking raw CultMesh handles.");
+            "Loadout template save payloads must use generic AetheriaClientState reactive typed document access instead of named wrappers or raw handle walks.");
     }
 
     if (clientState.Contains("ReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||

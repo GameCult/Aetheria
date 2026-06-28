@@ -18,11 +18,11 @@ namespace GameCult.Aetheria.State.Verse
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
 
-            _daemonFrame = state.ReactiveDaemonFrame();
-            _catalog = state.ReactiveCatalog();
-            _loadoutTemplates = state.ReactiveLoadoutTemplates();
-            _starbridgeScenario = state.Starbridge.ReactiveScenario();
-            _starbridgeSession = state.Starbridge.ReactiveSession();
+            _daemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _catalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _loadoutTemplates = state.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
+            _starbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();
+            _starbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();
         }
 
         public AetheriaRuntimeCatalogSnapshot Catalog => _catalog.Current
