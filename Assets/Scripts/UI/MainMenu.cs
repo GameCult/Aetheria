@@ -19,7 +19,9 @@ public class MainMenu : MonoBehaviour
 
     private UIDocument _menuSurfaceDocument;
     private string _clientStatePath;
+    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
@@ -51,9 +53,9 @@ public class MainMenu : MonoBehaviour
     private void ShowMain()
     {
         var stateBoot = CurrentStateBoot();
-        var sectorMap = LatestSectorMap(stateBoot);
-        var verseHost = LatestVerseHostSettings(stateBoot);
-        var playerSettings = LatestPlayerSettings(stateBoot);
+        var sectorMap = ResolveSectorMap(stateBoot);
+        var verseHost = ResolveVerseHostSettings(stateBoot);
+        var playerSettings = ResolvePlayerSettings(stateBoot);
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
@@ -78,7 +80,7 @@ public class MainMenu : MonoBehaviour
         switch (command.Kind)
         {
             case AetheriaRuntimeMainMenuCommandKind.ContinueRun:
-                if (LatestSectorMap(CurrentStateBoot()) == null)
+                if (ResolveSectorMap(CurrentStateBoot()) == null)
                 {
                     Debug.LogWarning("Main-menu Continue requested without a typed Aetheria sector-map projection.");
                     ShowMain();
@@ -113,7 +115,7 @@ public class MainMenu : MonoBehaviour
     private bool TryStartDaemonObservedGame(string title)
     {
         var stateBoot = CurrentStateBoot();
-        var sectorMap = LatestSectorMap(stateBoot);
+        var sectorMap = ResolveSectorMap(stateBoot);
         if (sectorMap == null)
         {
             Debug.LogWarning($"Cannot start Aetheria observer scene without a typed Aetheria sector-map projection in {stateBoot.StateFilePath}.");
@@ -139,7 +141,7 @@ public class MainMenu : MonoBehaviour
         return AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
     }
 
-    private AetheriaRuntimeSectorMapDocument LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeSectorMapDocument ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
@@ -148,18 +150,19 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            return ResolveClient(stateBoot)
+            _sectorMap ??= ResolveClient(stateBoot)
                 .Aetheria()
-                .LatestSectorMap();
+                .ReactiveSectorMap();
+            return _sectorMap?.Current;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to read typed Aetheria sector-map state for the main menu: {ex}");
+            Debug.LogError($"Failed to bind typed Aetheria sector-map state for the main menu: {ex}");
             return null;
         }
     }
 
-    private AetheriaRuntimePlayerSettingsDocument LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             return null;
@@ -179,21 +182,22 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private AetheriaRuntimeVerseHostSettingsDocument LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
+    private AetheriaRuntimeVerseHostSettingsDocument ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
     {
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             return null;
 
         try
         {
-            return ResolveClient(stateBoot)
+            _verseHostSettings ??= ResolveClient(stateBoot)
                 .Aetheria()
                 .Settings
-                .LatestVerseHost();
+                .ReactiveVerseHost();
+            return _verseHostSettings?.Current;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Failed to read typed Aetheria Verse host settings for the main menu: {ex}");
+            Debug.LogError($"Failed to bind typed Aetheria Verse host settings for the main menu: {ex}");
             return null;
         }
     }
@@ -220,7 +224,7 @@ public class MainMenu : MonoBehaviour
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
                     stateBoot,
-                    LatestPlayerSettings(stateBoot),
+                    ResolvePlayerSettings(stateBoot),
                     CanOpenRuntimeInputScreen(),
                     InGame,
                     DateTime.UtcNow.ToString("O"))),
@@ -232,7 +236,7 @@ public class MainMenu : MonoBehaviour
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(
-                    LatestPlayerSettings(CurrentStateBoot()),
+                    ResolvePlayerSettings(CurrentStateBoot()),
                     DateTime.UtcNow.ToString("O"))),
             HandlePlayerSettingsSurfaceCommand);
     }
@@ -244,7 +248,7 @@ public class MainMenu : MonoBehaviour
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
                 AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(
                     stateBoot,
-                    LatestVerseHostSettings(stateBoot),
+                    ResolveVerseHostSettings(stateBoot),
                     DateTime.UtcNow.ToString("O"))),
             HandleVerseSettingsSurfaceCommand);
     }
@@ -469,8 +473,12 @@ public class MainMenu : MonoBehaviour
 
     private void ClearClientCaches()
     {
+        _sectorMap?.Dispose();
         _playerSettings?.Dispose();
+        _verseHostSettings?.Dispose();
+        _sectorMap = null;
         _playerSettings = null;
+        _verseHostSettings = null;
     }
 
     private void OnDestroy()

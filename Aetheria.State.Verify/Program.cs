@@ -3577,7 +3577,7 @@ static void RequireMainMenuSettingsCommands(string root)
     {
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(",
-        "LatestPlayerSettings(CurrentStateBoot())",
+        "ResolvePlayerSettings(CurrentStateBoot())",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
         "SendKnownAetheriaEveCommand(request, \"player-settings\")"
@@ -3685,7 +3685,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuCommandKind.BackToMain",
         "AetheriaRuntimeMainMenuCommandKind.BackToSettings",
         "AetheriaRuntimeMainMenuCommandKind.OpenRuntimeInputScreen",
-        "LatestPlayerSettings(",
+        "ResolvePlayerSettings(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument)"
     };
@@ -3812,9 +3812,9 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuCommandKind.ShowSettings",
         "AetheriaRuntimeMainMenuCommandKind.Quit",
         "HandleMainSurfaceCommand(",
-        "LatestSectorMap(stateBoot)",
-        "LatestVerseHostSettings(stateBoot)",
-        "LatestPlayerSettings(stateBoot)",
+        "ResolveSectorMap(stateBoot)",
+        "ResolveVerseHostSettings(stateBoot)",
+        "ResolvePlayerSettings(stateBoot)",
         "HideMenuSurface();"
     };
 
@@ -6990,7 +6990,17 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()",
         "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()",
         "public Task<CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>> ReactiveVerseHostAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHost("
+        "public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHost(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>> ReactiveLoadoutTemplatesAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>> ReactiveSectorMapAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>> ReactiveZoneContactsAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>> ReactiveStationRefitAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
+        "public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender("
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7141,11 +7151,19 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu.cs"));
     var requiredMainMenuSharedDocumentSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings",
+        ".ReactiveSectorMap()",
         ".Settings",
         ".ReactivePlayer()",
+        ".ReactiveVerseHost()",
+        "_sectorMap?.Dispose()",
         "_playerSettings?.Dispose()",
+        "_verseHostSettings?.Dispose()",
+        "_sectorMap?.Current",
         "_playerSettings?.Current",
+        "_verseHostSettings?.Current",
         "private void OnDestroy()"
     };
     var missingMainMenuSharedDocumentSymbols = requiredMainMenuSharedDocumentSymbols
@@ -7154,7 +7172,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingMainMenuSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu should bind player settings through the managed reactive Aetheria settings document: " +
+            "MainMenu should bind sector, player, and Verse host state through managed reactive Aetheria documents: " +
             string.Join(", ", missingMainMenuSharedDocumentSymbols));
     }
 
@@ -8131,16 +8149,16 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredMainMenuSymbols = new[]
     {
         "CurrentStateBoot()",
-        "LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
+        "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaClient",
         ".Aetheria()",
-        ".LatestSectorMap()",
-        "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        ".ReactiveSectorMap()",
+        "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
         "RequestClientTargetCommand(request)",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
-        "LatestPlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        "ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
@@ -11340,9 +11358,9 @@ static void RequireMainMenuVerseHostProjection(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "LatestVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         ".Settings",
-        ".LatestVerseHost()",
+        ".ReactiveVerseHost()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -11465,10 +11483,10 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredMenuSymbols = new[]
     {
-        "LatestSectorMap",
+        "ResolveSectorMap",
         "AetheriaClient",
         ".Aetheria()",
-        ".LatestSectorMap()",
+        ".ReactiveSectorMap()",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -13547,9 +13565,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredMenuSymbols = new[]
     {
         "TryStartDaemonObservedGame",
-        "LatestSectorMap(stateBoot)",
+        "ResolveSectorMap(stateBoot)",
         ".Aetheria()",
-        ".LatestSectorMap()",
+        ".ReactiveSectorMap()",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -14751,9 +14769,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
-        !mainMenu.Contains("LatestSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
+        !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         !mainMenu.Contains(".ReactivePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

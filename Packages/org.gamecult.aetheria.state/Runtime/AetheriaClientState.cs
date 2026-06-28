@@ -230,6 +230,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestLoadoutTemplatesAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>> ReactiveLoadoutTemplatesAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LoadoutTemplates.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return LoadoutTemplates.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeSectorMapDocument> LatestSectorMapAsync()
         {
             return SectorMap.LatestAsync();
@@ -238,6 +250,18 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeSectorMapDocument LatestSectorMap()
         {
             return LatestSectorMapAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>> ReactiveSectorMapAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return SectorMap.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return SectorMap.Reactive(options);
         }
 
         public Task<AetheriaRuntimeZoneContactsDocument> LatestZoneContactsAsync()
@@ -250,6 +274,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestZoneContactsAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>> ReactiveZoneContactsAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ZoneContacts.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ZoneContacts.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeStationRefitDocument> LatestStationRefitAsync()
         {
             return StationRefit.LatestAsync();
@@ -260,6 +296,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestStationRefitAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>> ReactiveStationRefitAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return StationRefit.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return StationRefit.Reactive(options);
+        }
+
         public Task<AetheriaRuntimeZoneRenderDocument> LatestZoneRenderAsync()
         {
             return ZoneRender.LatestAsync();
@@ -268,6 +316,18 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeZoneRenderDocument LatestZoneRender()
         {
             return LatestZoneRenderAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>> ReactiveZoneRenderAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ZoneRender.ReactiveAsync(options);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ZoneRender.Reactive(options);
         }
 
         public Observable<TDocument> Watch<TDocument>()
