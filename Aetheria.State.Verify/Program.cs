@@ -10055,6 +10055,7 @@ static void RequireDaemonVersePublication(string root)
         "startServer: true",
         "node.LatestFrame().ReadAsync()",
         "Catalog = node.RuntimeCatalog().Latest()",
+        "node.RuntimeCatalog().Latest());",
         "node.VerseAuthorityPolicy().ReadAsync()",
         "node.StarbridgeScenario().ReadAsync()",
         "node.StarbridgeSession().ReadAsync()",
@@ -10113,6 +10114,21 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
             string.Join(", ", missingDaemonHostSymbols));
+    }
+
+    var committedFactImportStart = daemonHostSource.IndexOf(
+        "static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsync",
+        StringComparison.Ordinal);
+    var committedFactImportEnd = committedFactImportStart >= 0
+        ? daemonHostSource.IndexOf("static RudpCultNetSchemaServer StartRtsCultMeshHost", committedFactImportStart, StringComparison.Ordinal)
+        : -1;
+    var committedFactImportBlock = committedFactImportStart >= 0 && committedFactImportEnd > committedFactImportStart
+        ? daemonHostSource.Substring(committedFactImportStart, committedFactImportEnd - committedFactImportStart)
+        : "";
+    if (!committedFactImportBlock.Contains("node.RuntimeCatalog().Latest())", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Remote committed fact import must pass the managed runtime catalog document into the tick importer instead of reopening catalog storage.");
     }
 
     var apiPublicationStart = daemonHostSource.IndexOf(

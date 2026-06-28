@@ -308,7 +308,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsy
         options.DaemonId,
         frame.SessionId,
         options.VerseId,
-        importedFactIds);
+        importedFactIds,
+        node.RuntimeCatalog().Latest());
 
     var importedFrame = import.Frame;
     importedFrame.ImportedFactIds = import.AcceptedFactIds;

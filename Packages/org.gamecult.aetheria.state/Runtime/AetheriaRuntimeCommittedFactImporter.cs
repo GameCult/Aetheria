@@ -40,7 +40,8 @@ namespace GameCult.Aetheria.State.Verse
             string daemonId,
             string sessionId,
             string verseId,
-            IEnumerable<string>? importedFactIds = null)
+            IEnumerable<string>? importedFactIds = null,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             currentFrame ??= new AetheriaRuntimeDaemonFrameDocument
             {
@@ -111,7 +112,7 @@ namespace GameCult.Aetheria.State.Verse
                     AccountedCommandIds = currentFrame.AccountedCommandIds,
                     CumulativeAppliedCommandIds = currentFrame.CumulativeAppliedCommandIds,
                     CumulativeRejectedCommandIds = currentFrame.CumulativeRejectedCommandIds,
-                    Catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath),
+                    Catalog = catalog ?? AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath),
                     BuildPublications = false
                 });
 
