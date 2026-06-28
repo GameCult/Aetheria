@@ -10287,10 +10287,12 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
         "var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);",
-        "ReadRuntimeCatalogSnapshot()",
-        "ReadLoadoutTemplatesDocument()",
-        "ReadPlayerSettingsDocument()",
-        "ReadVerseHostSettingsDocument()",
+        "BootstrapCatalogDocument(",
+        "CatalogBootstrapSource(",
+        "BootstrapRuntimeCatalogSnapshot()",
+        "BootstrapLoadoutTemplatesDocument()",
+        "BootstrapPlayerSettingsDocument()",
+        "BootstrapVerseHostSettingsDocument()",
         "SubmitDaemonCommandAsync(",
         "SubmitEveCommandAsync(",
         "AetheriaRuntimeVerseRecordKeys.DaemonCommand(command.CommandId)",
@@ -10402,16 +10404,46 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         ? client.Substring(starbridgeSummaryStart, indexedDocumentStart - starbridgeSummaryStart)
         : client.Substring(starbridgeSummaryStart);
     if (!starbridgeSummaryBlock.Contains("var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);", StringComparison.Ordinal) ||
-        starbridgeSummaryBlock.Contains("ReadRuntimeCatalogSnapshot()", StringComparison.Ordinal))
+        starbridgeSummaryBlock.Contains("BootstrapRuntimeCatalogSnapshot()", StringComparison.Ordinal) ||
+        starbridgeSummaryBlock.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Starbridge summary projection must use the managed runtime catalog document instead of reopening the catalog store.");
+    }
+
+    var requiredClientBootstrapSymbols = new[]
+    {
+        "BootstrapCatalogDocument(",
+        "CatalogBootstrapSource(",
+        "legacy catalog store bootstrap seed for managed Aetheria state",
+        "BootstrapRuntimeCatalogSnapshot()",
+        "BootstrapLoadoutTemplatesDocument()",
+        "BootstrapPlayerSettingsDocument()",
+        "BootstrapVerseHostSettingsDocument()"
+    };
+    var missingClientBootstrapSymbols = requiredClientBootstrapSymbols
+        .Where(symbol => !client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingClientBootstrapSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient must name catalog/settings file reads as bootstrap seeds for managed documents: " +
+            string.Join(", ", missingClientBootstrapSymbols));
     }
 
     var forbiddenClientCompatibilityStoreBypasses = new[]
     {
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));",
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));",
+        "ReadRuntimeCatalogSnapshot()",
+        "ReadLoadoutTemplatesDocument()",
+        "ReadPlayerSettingsDocument()",
+        "ReadVerseHostSettingsDocument()",
+        "var catalogDocument = CatalogDocument(",
+        "var loadoutTemplatesDocument = CatalogDocument(",
+        "CultMeshDocumentHandle<TDocument> CatalogDocument<TDocument>(",
+        "projected Aetheria catalog document",
+        "Aetheria typed catalog state",
         "public async Task<AetheriaRuntimeDaemonProviderAdvertisementDocument?> GetProviderAdvertisementAsync()",
         "public async Task<AetheriaRuntimeDaemonHealthDocument?> GetHealthAsync()",
         "public async Task<AetheriaRuntimeDaemonCommandBoundaryDocument?> GetCommandBoundaryAsync()",

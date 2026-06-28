@@ -528,16 +528,16 @@ namespace GameCult.Aetheria.State.Verse
             var frameChanges = WatchLatestFrames()
                 .Where(change => change.Document != null)
                 .Select(change => change.Document!);
-            var catalogDocument = CatalogDocument(
+            var catalogDocument = BootstrapCatalogDocument(
                 "aetheria.catalog.runtime",
-                () => Task.FromResult(ReadRuntimeCatalogSnapshot()),
+                () => Task.FromResult(BootstrapRuntimeCatalogSnapshot()),
                 AetheriaRuntimeCatalogSnapshot.SchemaId,
-                CultMesh.ProjectionSource("catalog:aetheria.runtime"));
-            var loadoutTemplatesDocument = CatalogDocument(
+                CatalogBootstrapSource("catalog:aetheria.runtime"));
+            var loadoutTemplatesDocument = BootstrapCatalogDocument(
                 "aetheria.catalog.loadout_templates",
-                () => Task.FromResult(ReadLoadoutTemplatesDocument()),
+                () => Task.FromResult(BootstrapLoadoutTemplatesDocument()),
                 AetheriaRuntimeLoadoutTemplatesDocument.SchemaId,
-                CultMesh.ProjectionSource("catalog:aetheria.loadout_templates"));
+                CatalogBootstrapSource("catalog:aetheria.loadout_templates"));
             var starbridgeScenarioDocument = Document<AetheriaRuntimeStarbridgeScenarioDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
             var starbridgeSessionDocument = Document<AetheriaRuntimeStarbridgeSessionDocument>(
@@ -566,16 +566,16 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
                 catalogDocument,
                 loadoutTemplatesDocument,
-                CatalogDocument(
+                BootstrapCatalogDocument(
                     "aetheria.settings.player",
-                    () => Task.FromResult(ReadPlayerSettingsDocument()),
+                    () => Task.FromResult(BootstrapPlayerSettingsDocument()),
                     AetheriaRuntimePlayerSettingsDocument.SchemaId,
-                    CultMesh.ProjectionSource("catalog:aetheria.player_settings")),
-                CatalogDocument(
+                    CatalogBootstrapSource("catalog:aetheria.player_settings")),
+                BootstrapCatalogDocument(
                     "aetheria.settings.verse_host",
-                    () => Task.FromResult(ReadVerseHostSettingsDocument()),
+                    () => Task.FromResult(BootstrapVerseHostSettingsDocument()),
                     AetheriaRuntimeVerseHostSettingsDocument.SchemaId,
-                    CultMesh.ProjectionSource("catalog:aetheria.verse_host_settings")),
+                    CatalogBootstrapSource("catalog:aetheria.verse_host_settings")),
                 ProjectedDocument(
                     "aetheria.current.zone",
                     frame => Task.FromResult(AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame)),
@@ -676,27 +676,27 @@ namespace GameCult.Aetheria.State.Verse
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
             }
 
-            CultMeshDocumentHandle<TDocument> CatalogDocument<TDocument>(
+            CultMeshDocumentHandle<TDocument> BootstrapCatalogDocument<TDocument>(
                 string documentId,
-                Func<Task<TDocument>> project,
+                Func<Task<TDocument>> bootstrap,
                 string schemaId,
                 params CultMeshProjectionSource[] additionalSources)
                 where TDocument : class
             {
                 var sources = (additionalSources ?? Array.Empty<CultMeshProjectionSource>())
-                    .Append(CultMesh.ProjectionSource(documentId, schemaId, "projected Aetheria catalog document"))
+                    .Append(CultMesh.ProjectionSource(documentId, schemaId, "managed Aetheria catalog document"))
                     .ToArray();
 
                 var verse = CultMesh.Verse("aetheria.local", RuntimeId);
                 return CultMesh.Document(
                     documentId,
                     verse,
-                    async _ => await project().ConfigureAwait(false),
+                    async _ => await bootstrap().ConfigureAwait(false),
                     _ => frameChanges
                         .SelectAwait(async (_, cancellationToken) =>
-                            await project().ConfigureAwait(false)),
+                            await bootstrap().ConfigureAwait(false)),
                     sources: sources,
-                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
+                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria managed catalog state"));
             }
 
             async Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
@@ -769,24 +769,31 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
-        private AetheriaRuntimeCatalogSnapshot ReadRuntimeCatalogSnapshot()
+        private static CultMeshProjectionSource CatalogBootstrapSource(string sourceId)
+        {
+            return CultMesh.ProjectionSource(
+                sourceId,
+                description: "legacy catalog store bootstrap seed for managed Aetheria state");
+        }
+
+        private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()
         {
             return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
         }
 
-        private AetheriaRuntimeLoadoutTemplatesDocument ReadLoadoutTemplatesDocument()
+        private AetheriaRuntimeLoadoutTemplatesDocument BootstrapLoadoutTemplatesDocument()
         {
             return new AetheriaRuntimeLoadoutTemplatesDocument(
                 AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath));
         }
 
-        private AetheriaRuntimePlayerSettingsDocument ReadPlayerSettingsDocument()
+        private AetheriaRuntimePlayerSettingsDocument BootstrapPlayerSettingsDocument()
         {
             return AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
                 AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));
         }
 
-        private AetheriaRuntimeVerseHostSettingsDocument ReadVerseHostSettingsDocument()
+        private AetheriaRuntimeVerseHostSettingsDocument BootstrapVerseHostSettingsDocument()
         {
             return AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(
                 AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));
