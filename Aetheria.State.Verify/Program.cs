@@ -9020,7 +9020,7 @@ static void RequireDaemonVersePublication(string root)
     var requiredProviderAdvertisementSymbols = new[]
     {
         "private const string DaemonCommandBoundaryId = \"aetheria.daemon.commands\"",
-        "private const string DaemonWitnessTransport = \"cultcache-witness\"",
+        "private const string DaemonRecordTransport = \"cultmesh-record\"",
         "AetheriaRuntimeDaemonSchemas.ProviderAdvertisement",
         "AetheriaRuntimeDaemonSchemas.Frame",
         "AetheriaRuntimeDaemonSchemas.SoaView",
@@ -9029,15 +9029,15 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonSchemas.GameSurface",
         "AetheriaRuntimeDaemonSchemas.EditorSurface",
         "AetheriaRuntimeDaemonSchemas.Command",
-        "AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonHealthPath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(statePath)",
-        "AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(statePath)",
+        "AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString()",
+        "AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString()",
         "public const string DaemonGameSurfaceKey = \"eve:surface:aetheria.daemon.game\"",
         "public const string DaemonGameTuiSurfaceKey = \"eve:surface:aetheria.daemon.game.tui\"",
         "public const string DaemonEditorSurfaceKey = \"eve:surface:aetheria.daemon.editor\"",
@@ -9053,8 +9053,31 @@ static void RequireDaemonVersePublication(string root)
     if (missingProviderAdvertisementSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Odin-visible provider advertisement no longer points at daemon-owned Verse witnesses: " +
+            "Odin-visible provider advertisement no longer points at managed daemon CultMesh records: " +
             string.Join(", ", missingProviderAdvertisementSymbols));
+    }
+
+    var forbiddenProviderAdvertisementSymbols = new[]
+    {
+        "DaemonWitnessTransport",
+        "AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonHealthPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(statePath)",
+        "AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(statePath)"
+    };
+    var forbiddenProviderAdvertisementHits = forbiddenProviderAdvertisementSymbols
+        .Where(symbol => providerAdvertisement.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenProviderAdvertisementHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Odin-visible provider advertisement still advertises daemon sidecar paths instead of managed CultMesh records: " +
+            string.Join(", ", forbiddenProviderAdvertisementHits));
     }
 
     var requiredTickSymbols = new[]

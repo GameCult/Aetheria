@@ -12,7 +12,7 @@ public static class AetheriaProviderAdvertisementProjector
     public const string DaemonEditorTuiSurfaceKey = "eve:surface:aetheria.daemon.editor.tui";
     public const string ProviderId = "aetheria";
     private const string DaemonCommandBoundaryId = "aetheria.daemon.commands";
-    private const string DaemonWitnessTransport = "cultcache-witness";
+    private const string DaemonRecordTransport = "cultmesh-record";
 
     public static EveProviderAdvertisementState Build(
         AetheriaVerseHostSettings settings,
@@ -74,57 +74,57 @@ public static class AetheriaProviderAdvertisementProjector
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath),
-                    Summary = "Aetheria daemon-owned provider advertisement"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString(),
+                    Summary = "Aetheria daemon-owned provider advertisement record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath),
-                    Summary = "Aetheria daemon simulation frame"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                    Summary = "Aetheria daemon latest simulation frame record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath),
-                    Summary = "Aetheria daemon SoA view for thin clients"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(),
+                    Summary = "Aetheria daemon latest SoA view record for thin clients"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonHealthPath(statePath),
-                    Summary = "Aetheria daemon health publication"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(),
+                    Summary = "Aetheria daemon health record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath),
-                    Summary = "Aetheria daemon typed command boundary"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
+                    Summary = "Aetheria daemon typed command boundary record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonGameSurfacePath(statePath),
-                    Summary = "Aetheria daemon game Eve GUI surface"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+                    Summary = "Aetheria daemon game Eve GUI surface record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonGameTuiSurfacePath(statePath),
-                    Summary = "Aetheria daemon game Eve TUI surface"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
+                    Summary = "Aetheria daemon game Eve TUI surface record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonEditorSurfacePath(statePath),
-                    Summary = "Aetheria daemon editor Eve GUI surface"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
+                    Summary = "Aetheria daemon editor Eve GUI surface record"
                 },
                 new EveProviderWitness
                 {
-                    Kind = DaemonWitnessTransport,
-                    Ref = AetheriaRuntimeStateBoundary.GetDaemonEditorTuiSurfacePath(statePath),
-                    Summary = "Aetheria daemon editor Eve TUI surface"
+                    Kind = DaemonRecordTransport,
+                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
+                    Summary = "Aetheria daemon editor Eve TUI surface record"
                 }
             ],
             Surfaces =
@@ -170,7 +170,7 @@ public static class AetheriaProviderAdvertisementProjector
                 new EveProviderCommandRef
                 {
                     Command = DaemonCommandBoundaryId,
-                    Transport = DaemonWitnessTransport,
+                    Transport = "cultmesh",
                     Summary = "Aetheria daemon typed command boundary"
                 },
                 new EveProviderCommandRef
