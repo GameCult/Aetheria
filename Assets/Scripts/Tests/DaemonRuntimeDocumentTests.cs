@@ -2263,8 +2263,16 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedSession = client.State.ObserveDaemon();
-        var observed = observedSession.Current;
+        using var observedFrame = client.State.ReactiveDaemonFrame();
+        using var observedSoaView = client.State.ReactiveDaemonSoaView();
+        using var observedZoneRender = client.State.ReactiveZoneRender();
+        var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+            observedFrame,
+            observedSoaView,
+            observedZoneRender,
+            out var currentObserved)
+            ? currentObserved
+            : null;
         var sampledObserved = client.State.CurrentObservedDaemon();
         Assert.IsNotNull(observed);
         Assert.IsNotNull(sampledObserved);

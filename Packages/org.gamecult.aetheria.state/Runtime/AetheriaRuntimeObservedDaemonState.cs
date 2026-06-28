@@ -57,33 +57,4 @@ namespace GameCult.Aetheria.State.Verse
         }
 
     }
-
-    public sealed class AetheriaRuntimeObservedDaemonSession : IDisposable
-    {
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _soaView;
-        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
-
-        public AetheriaRuntimeObservedDaemonSession(
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame,
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView,
-            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender)
-        {
-            _frame = frame ?? throw new ArgumentNullException(nameof(frame));
-            _soaView = soaView;
-            _zoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
-        }
-
-        public AetheriaRuntimeObservedDaemonState? Current =>
-            AetheriaRuntimeObservedDaemonState.TryCreateCurrent(_frame, _soaView, _zoneRender, out var current)
-                ? current
-                : null;
-
-        public void Dispose()
-        {
-            _frame.Dispose();
-            _soaView?.Dispose();
-            _zoneRender.Dispose();
-        }
-    }
 }

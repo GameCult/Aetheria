@@ -1,5 +1,6 @@
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 
 public sealed class AetheriaDaemonObserver : MonoBehaviour
@@ -20,7 +21,9 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private float _nextPollTime;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
-    private AetheriaRuntimeObservedDaemonSession _observedDaemon;
+    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
+    private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
 
     public AetheriaRuntimeObservedDaemonState LastObservedState { get; private set; }
     public AetheriaRuntimeDaemonObservationResult LastObservation { get; private set; }
@@ -100,10 +103,47 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     {
         try
         {
-            _observedDaemon ??= ResolveClient()?.State?.ObserveDaemon();
-            return _observedDaemon?.Current;
+            EnsureObservedDaemonDocuments();
+            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+                _daemonFrame,
+                _daemonSoaView,
+                _zoneRender,
+                out var observed)
+                ? observed
+                : null;
         }
         catch
+        {
+            return null;
+        }
+    }
+
+    private void EnsureObservedDaemonDocuments()
+    {
+        if (_daemonFrame != null && _zoneRender != null)
+        {
+            return;
+        }
+
+        var state = ResolveClient()?.State;
+        if (state == null)
+        {
+            return;
+        }
+
+        _daemonFrame ??= state.ReactiveDaemonFrame();
+        _daemonSoaView ??= TryReactiveDaemonSoaView(state);
+        _zoneRender ??= state.ReactiveZoneRender();
+    }
+
+    private static CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> TryReactiveDaemonSoaView(
+        AetheriaClientState state)
+    {
+        try
+        {
+            return state.ReactiveDaemonSoaView();
+        }
+        catch (System.Collections.Generic.KeyNotFoundException)
         {
             return null;
         }
@@ -159,7 +199,11 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void DisposeObservedDaemonSession()
     {
-        _observedDaemon?.Dispose();
-        _observedDaemon = null;
+        _daemonFrame?.Dispose();
+        _daemonFrame = null;
+        _daemonSoaView?.Dispose();
+        _daemonSoaView = null;
+        _zoneRender?.Dispose();
+        _zoneRender = null;
     }
 }
