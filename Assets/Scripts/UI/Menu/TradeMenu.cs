@@ -106,22 +106,22 @@ public class TradeMenu : MonoBehaviour
             columns.Add(("Type", 2,
                 x => () =>
                 {
-                    if (x.TryGetTypedSimpleCommodityCategory(out _))
+                    if (x.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _))
                         return x.TypedItem.SimpleCommodityCategory;
-                    if (x.TryGetTypedCompoundCommodityCategory(out _))
+                    if (x.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory _))
                         return x.TypedItem.CompoundCommodityCategory;
-                    if (x.TryGetTypedHardpoint(out var hardpointType)) return Enum.GetName(typeof(HardpointType), hardpointType);
+                    if (x.TypedItem.TryGetHardpointType(out HardpointType hardpointType)) return Enum.GetName(typeof(HardpointType), hardpointType);
                     return "None";
                 },
                 x =>
                 {
-                    if (x.TryGetTypedSimpleCommodityCategory(out var simpleCategory))
+                    if (x.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory simpleCategory))
                         return (int)simpleCategory;
                     var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
-                    if(x.TryGetTypedCompoundCommodityCategory(out var compoundCategory))
+                    if(x.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory compoundCategory))
                         return (int)compoundCategory + offset;
                     offset += Enum.GetValues(typeof(CompoundCommodityCategory)).Length;
-                    if (x.TryGetTypedHardpoint(out var hardpointType)) return (int) hardpointType + offset;
+                    if (x.TypedItem.TryGetHardpointType(out HardpointType hardpointType)) return (int) hardpointType + offset;
                     return 0;
                 }));
         columns.Add(("Mass", 1,
@@ -147,13 +147,13 @@ public class TradeMenu : MonoBehaviour
                  MaximumSizeFilter.Height.text.Length > 0 && i.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)));
         
         if(_commodityFilter.filter != null)
-            items = items.Where(i => i.TryGetTypedSimpleCommodityCategory(out var category) && category == _commodityFilter.type);
+            items = items.Where(i => i.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory category) && category == _commodityFilter.type);
         
         if(_compoundCommodityFilter.filter != null)
-            items = items.Where(i => i.TryGetTypedCompoundCommodityCategory(out var category) && category == _compoundCommodityFilter.type);
+            items = items.Where(i => i.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory category) && category == _compoundCommodityFilter.type);
         
         if (_hardpointFilter.filter != null)
-            items = items.Where(i => i.TryGetTypedHardpoint(out var hardpointType) && hardpointType == _hardpointFilter.type);
+            items = items.Where(i => i.TypedItem.TryGetHardpointType(out HardpointType hardpointType) && hardpointType == _hardpointFilter.type);
         
         foreach (var behaviorFilter in _behaviorFilters)
         {
@@ -224,7 +224,7 @@ public class TradeMenu : MonoBehaviour
                 },
                 OnRightClick = () =>
                 {
-                    if (i.TryGetTypedSimpleCommodityCategory(out _))
+                    if (i.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _))
                     {
                         RenderRowActionSurface(
                             $"Buying {i.Name}",
@@ -394,26 +394,6 @@ public class TradeMenu : MonoBehaviour
 
         public bool IsHull => !string.IsNullOrWhiteSpace(TypedItem?.HullType);
 
-        public bool TryGetTypedSimpleCommodityCategory(out SimpleCommodityCategory category)
-        {
-            category = SimpleCommodityCategory.Minerals;
-            return !string.IsNullOrWhiteSpace(TypedItem?.SimpleCommodityCategory) &&
-                   Enum.TryParse(TypedItem.SimpleCommodityCategory, true, out category);
-        }
-
-        public bool TryGetTypedCompoundCommodityCategory(out CompoundCommodityCategory category)
-        {
-            category = CompoundCommodityCategory.Wearables;
-            return !string.IsNullOrWhiteSpace(TypedItem?.CompoundCommodityCategory) &&
-                   Enum.TryParse(TypedItem.CompoundCommodityCategory, true, out category);
-        }
-
-        public bool TryGetTypedHardpoint(out HardpointType hardpointType)
-        {
-            hardpointType = HardpointType.Hull;
-            return !string.IsNullOrWhiteSpace(TypedItem?.HardpointType) &&
-                   Enum.TryParse(TypedItem.HardpointType, true, out hardpointType);
-        }
     }
     
     private void UpdateCreditsLabel()
@@ -492,7 +472,7 @@ public class TradeMenu : MonoBehaviour
 
         var purchaseKind = createsDockedShip
             ? "docked_ship"
-            : row.TryGetTypedSimpleCommodityCategory(out _)
+            : row.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _)
                 ? "commodity"
                 : "crafted";
 

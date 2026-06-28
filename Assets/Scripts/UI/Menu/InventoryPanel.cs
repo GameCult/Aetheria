@@ -967,7 +967,7 @@ private void Update()
                 return Color.white * .25f;
 
             var c = float3(1);
-            if (TryGetTypedHardpointType(item, out var typedHardpoint))
+            if (FindTypedInventoryItem(item)?.TryGetHardpointType(out HardpointType typedHardpoint) == true)
                 c = HardpointData.GetColor(typedHardpoint).ToUnityFloat3();
             
             if(!highlight)
@@ -975,15 +975,6 @@ private void Update()
 
             return c.ToColor();
         }
-    }
-
-    private bool TryGetTypedHardpointType(ItemInstance item, out HardpointType hardpointType)
-    {
-        hardpointType = HardpointType.Hull;
-        var typedItem = FindTypedInventoryItem(item);
-        return typedItem != null &&
-               !string.IsNullOrWhiteSpace(typedItem.HardpointType) &&
-               Enum.TryParse(typedItem.HardpointType, true, out hardpointType);
     }
 
     private float GetMaxDurability(ItemInstance item)

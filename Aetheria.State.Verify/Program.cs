@@ -480,6 +480,19 @@ if (!catalog.FindItemsByHardpoint(hardpointType).Any())
     throw new InvalidOperationException($"Typed catalog hardpoint query failed for {hardpointType}.");
 }
 
+var typedHardpointItem = catalog.Items.FirstOrDefault(item => item.TryGetHardpointType<AetheriaVerifyHardpointType>(out _))
+    ?? throw new InvalidOperationException("Typed catalog item hardpoint enum accessor failed.");
+var typedSimpleCommodityItem = catalog.Items.FirstOrDefault(item => item.TryGetSimpleCommodityCategory<AetheriaVerifySimpleCommodityCategory>(out _))
+    ?? throw new InvalidOperationException("Typed catalog item simple commodity enum accessor failed.");
+var typedCompoundCommodityItem = catalog.Items.FirstOrDefault(item => item.TryGetCompoundCommodityCategory<AetheriaVerifyCompoundCommodityCategory>(out _))
+    ?? throw new InvalidOperationException("Typed catalog item compound commodity enum accessor failed.");
+if (string.IsNullOrWhiteSpace(typedHardpointItem.HardpointType) ||
+    string.IsNullOrWhiteSpace(typedSimpleCommodityItem.SimpleCommodityCategory) ||
+    string.IsNullOrWhiteSpace(typedCompoundCommodityItem.CompoundCommodityCategory))
+{
+    throw new InvalidOperationException("Typed catalog item enum accessors returned an item without its source field.");
+}
+
 var manufacturedItem = catalog.Items.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ManufacturerKey))
     ?? throw new InvalidOperationException("Cannot verify typed catalog manufacturer lookup: no manufactured item.");
 if (string.IsNullOrWhiteSpace(manufacturedItem.ManufacturerKey) ||
@@ -6011,6 +6024,13 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
 static void RequireTradeItemValuesUseRuntimeQueries(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var catalogSnapshotPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeCatalogSnapshot.cs");
     var tradeQueriesPath = Path.Combine(
         root,
         "Packages",
@@ -6021,12 +6041,22 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     {
         throw new InvalidOperationException("Cannot verify trade item value projection; TradeMenu.cs is missing.");
     }
+    if (!File.Exists(inventoryPanelPath))
+    {
+        throw new InvalidOperationException("Cannot verify typed catalog item enum accessors; InventoryPanel.cs is missing.");
+    }
+    if (!File.Exists(catalogSnapshotPath))
+    {
+        throw new InvalidOperationException("Cannot verify typed catalog item enum accessors; AetheriaRuntimeCatalogSnapshot.cs is missing.");
+    }
     if (!File.Exists(tradeQueriesPath))
     {
         throw new InvalidOperationException("Cannot verify trade item value projection; shared runtime trade item queries are missing.");
     }
 
     var tradeMenu = File.ReadAllText(tradeMenuPath);
+    var inventoryPanel = File.ReadAllText(inventoryPanelPath);
+    var catalogSnapshot = File.ReadAllText(catalogSnapshotPath);
     var tradeQueries = File.ReadAllText(tradeQueriesPath);
     var requiredTradeMenuSymbols = new[]
     {
@@ -6036,7 +6066,11 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         "AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(",
         "AetheriaRuntimeTradeItemProjection TradeProjection",
         "public int Price => TradeProjection.Price",
-        "public string TierColorHex => TradeProjection.TierColorHex"
+        "public string TierColorHex => TradeProjection.TierColorHex",
+        "x.TypedItem.TryGetSimpleCommodityCategory(",
+        "x.TypedItem.TryGetCompoundCommodityCategory(",
+        "x.TypedItem.TryGetHardpointType(",
+        "row.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _)"
     };
     var missingTradeMenuSymbols = requiredTradeMenuSymbols
         .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
@@ -6056,7 +6090,10 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         "GameManager.ObservedTradeValueSettings()",
         "AetheriaUnityProjectionSettings.TradeValueSettings",
         "private readonly ItemManager _itemManager",
-        "new TradeRow(item, FindTypedTradeItem(item), GameManager.ItemManager)"
+        "new TradeRow(item, FindTypedTradeItem(item), GameManager.ItemManager)",
+        "TryGetTypedSimpleCommodityCategory(",
+        "TryGetTypedCompoundCommodityCategory(",
+        "TryGetTypedHardpoint("
     };
     var tradeMenuHits = forbiddenTradeMenuSymbols
         .Where(symbol => tradeMenu.Contains(symbol, StringComparison.Ordinal))
@@ -6066,6 +6103,32 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         throw new InvalidOperationException(
             "TradeMenu still asks Unity ItemManager for trade item value projection: " +
             string.Join(", ", tradeMenuHits));
+    }
+
+    var requiredCatalogItemEnumSymbols = new[]
+    {
+        "public bool TryGetHardpointType<TEnum>(out TEnum hardpointType) where TEnum : struct",
+        "public bool TryGetSimpleCommodityCategory<TEnum>(out TEnum category) where TEnum : struct",
+        "public bool TryGetCompoundCommodityCategory<TEnum>(out TEnum category) where TEnum : struct",
+        "Enum.TryParse(HardpointType, true, out hardpointType)",
+        "Enum.TryParse(SimpleCommodityCategory, true, out category)",
+        "Enum.TryParse(CompoundCommodityCategory, true, out category)"
+    };
+    var missingCatalogItemEnumSymbols = requiredCatalogItemEnumSymbols
+        .Where(symbol => !catalogSnapshot.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingCatalogItemEnumSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeCatalogItem must own typed enum accessors for catalog category/hardpoint fields: " +
+            string.Join(", ", missingCatalogItemEnumSymbols));
+    }
+
+    if (!inventoryPanel.Contains("FindTypedInventoryItem(item)?.TryGetHardpointType(out HardpointType typedHardpoint) == true", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("TryGetTypedHardpointType(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel must ask AetheriaRuntimeCatalogItem for typed hardpoint classification instead of parsing catalog strings locally.");
     }
 
     var requiredQuerySymbols = new[]

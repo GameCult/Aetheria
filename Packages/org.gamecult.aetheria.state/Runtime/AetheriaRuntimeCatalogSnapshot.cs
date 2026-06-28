@@ -261,6 +261,27 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeCurveKey> EffectivenessCurveKeys { get; }
         public string SimpleCommodityCategory { get; }
         public string CompoundCommodityCategory { get; }
+
+        public bool TryGetHardpointType<TEnum>(out TEnum hardpointType) where TEnum : struct
+        {
+            hardpointType = default;
+            return !string.IsNullOrWhiteSpace(HardpointType) &&
+                   Enum.TryParse(HardpointType, true, out hardpointType);
+        }
+
+        public bool TryGetSimpleCommodityCategory<TEnum>(out TEnum category) where TEnum : struct
+        {
+            category = default;
+            return !string.IsNullOrWhiteSpace(SimpleCommodityCategory) &&
+                   Enum.TryParse(SimpleCommodityCategory, true, out category);
+        }
+
+        public bool TryGetCompoundCommodityCategory<TEnum>(out TEnum category) where TEnum : struct
+        {
+            category = default;
+            return !string.IsNullOrWhiteSpace(CompoundCommodityCategory) &&
+                   Enum.TryParse(CompoundCommodityCategory, true, out category);
+        }
     }
 
     public sealed class AetheriaRuntimeAudioStat
