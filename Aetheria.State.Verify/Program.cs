@@ -9279,9 +9279,18 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "GetLatestAuthoritativeRunFrameAsync()",
         "GetObservedDaemonStateAsync()",
         "OpenRuntimeCatalog()",
+        "private AetheriaClientState? _aetheriaState",
+        "return Aetheria().Catalog.Latest()",
+        "return _aetheriaState ??= CreateAetheriaStateFacade();",
         "GetPlayerSettingsAsync()",
+        "Aetheria().Settings.Player.LatestAsync()",
+        "Aetheria().Settings.VerseHost.LatestAsync()",
         "VerseHostSettingsAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
+        "ReadRuntimeCatalogSnapshot()",
+        "ReadLoadoutTemplatesDocument()",
+        "ReadPlayerSettingsDocument()",
+        "ReadVerseHostSettingsDocument()",
         "CreateEveSurfaceStateRefResolver(",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "SubmitDaemonCommandAsync(",
@@ -9321,6 +9330,23 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
+    }
+
+    var forbiddenClientCompatibilityStoreBypasses = new[]
+    {
+        "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));",
+        "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));",
+        "() => Task.FromResult(OpenRuntimeCatalog())",
+        "OpenRuntimeCatalog());"
+    };
+    var clientCompatibilityStoreBypassHits = forbiddenClientCompatibilityStoreBypasses
+        .Where(symbol => client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (clientCompatibilityStoreBypassHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient compatibility reads still bypass managed typed catalog/settings documents: " +
+            string.Join(", ", clientCompatibilityStoreBypassHits));
     }
 
     if (client.Contains("public async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(", StringComparison.Ordinal) ||
