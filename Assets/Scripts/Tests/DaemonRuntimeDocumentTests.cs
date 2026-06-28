@@ -121,7 +121,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-frame-read-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var published = client.LatestFrame()
+        var published = client
+            .MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
             .ReadAsync()
             .GetAwaiter()
             .GetResult();
@@ -2041,7 +2043,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-soa-store-read-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var published = client.LatestSoaView()
+        var published = client
+            .MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(
+                AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
             .ReadAsync()
             .GetAwaiter()
             .GetResult();
@@ -4300,7 +4304,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-surface-command-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        client.LatestFrame()
+        client
+            .MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
             .ReplaceAsync(frame)
             .GetAwaiter()
             .GetResult();
@@ -4317,7 +4323,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-soa-view-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        client.LatestSoaView()
+        client
+            .MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(
+                AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
             .ReplaceAsync(soaView)
             .GetAwaiter()
             .GetResult();
@@ -4334,19 +4342,27 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-surfaces-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        client.DaemonGameSurface()
+        client
+            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+                AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
             .ReplaceAsync(ToEveSurfaceState(result.GameSurface))
             .GetAwaiter()
             .GetResult();
-        client.DaemonGameTuiSurface()
+        client
+            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+                AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(ToEveSurfaceState(result.GameTuiSurface))
             .GetAwaiter()
             .GetResult();
-        client.DaemonEditorSurface()
+        client
+            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+                AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
             .ReplaceAsync(ToEveSurfaceState(result.EditorSurface))
             .GetAwaiter()
             .GetResult();
-        client.DaemonEditorTuiSurface()
+        client
+            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+                AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
             .ReplaceAsync(ToEveSurfaceState(result.EditorTuiSurface))
             .GetAwaiter()
             .GetResult();
@@ -4438,7 +4454,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-authority-policy-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        client.VerseAuthorityPolicy()
+        client
+            .MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(
+                AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .GetAwaiter()
             .GetResult();

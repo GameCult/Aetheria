@@ -72,7 +72,9 @@ public class StarbridgePlayerSeatDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        client.StarbridgePlayerSeat(seat.SeatId)
+        client
+            .MutableDocument<AetheriaRuntimeStarbridgePlayerSeatDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seat.SeatId))
             .ReplaceAsync(seat)
             .GetAwaiter()
             .GetResult();

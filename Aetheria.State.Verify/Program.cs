@@ -11596,11 +11596,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)",
         "public Observable<CultNetDatabaseChange<TDocument>> WatchRecord<TDocument>(",
         "WatchRecord<AetheriaRuntimeDaemonFrameDocument>",
-        "CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument>",
-        "CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument>",
-        "CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument>",
-        "CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument>",
-        "CultMeshMutableStatePointer<AetheriaRuntimeStarbridgePlayerSeatDocument>",
+        "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(",
         "CultMesh.MutableStatePointer(",
         "CultMesh.CreateCultCacheDocumentRegistry(RuntimeDocumentTypes)",
         "CultMesh.CreateCultNetDocumentRegistry(RuntimeDocumentTypes, registry)",
@@ -11612,7 +11608,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "new CultRecordKey(\"daemon:aetheria.starbridge.session.latest.v1\")",
         "Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(",
         "typeof(EveSurfaceState)",
-        "CultMeshMutableStatePointer<EveSurfaceState>",
         "private AetheriaClientState? _aetheriaState",
         "private AetheriaRuntimeManagedClientInputs? _managedClientInputs",
         "_managedClientInputs?.Dispose()",
@@ -11674,6 +11669,37 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         throw new InvalidOperationException(
             "AetheriaRuntimeVerseClient must expose generic WatchRecord<TDocument>(CultRecordKey) instead of named record-watch wrappers: " +
             string.Join(", ", survivingNamedWatchHelpers));
+    }
+
+    var forbiddenNamedMutablePointers = new[]
+    {
+        "ProviderAdvertisement(",
+        "Health(",
+        "CommandBoundary(",
+        "VerseAuthorityPolicy(",
+        "LatestFrame(",
+        "LatestSoaView(",
+        "StarbridgeScenario(",
+        "StarbridgeSession(",
+        "StarbridgePlayerSeat(",
+        "DaemonGameSurface(",
+        "DaemonGameTuiSurface(",
+        "DaemonEditorSurface(",
+        "DaemonEditorTuiSurface("
+    };
+    var runtimeClientInstanceApi = client.Split(
+        "public AetheriaClientState Aetheria()",
+        StringSplitOptions.None).Last().Split(
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(",
+        StringSplitOptions.None)[0];
+    var survivingNamedMutablePointers = forbiddenNamedMutablePointers
+        .Where(symbol => runtimeClientInstanceApi.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingNamedMutablePointers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient must expose generic MutableDocument<TDocument>(CultRecordKey) instead of named mutable pointer wrappers: " +
+            string.Join(", ", survivingNamedMutablePointers));
     }
 
     var requiredManagedInputSymbols = new[]
@@ -12016,7 +12042,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         "AetheriaRuntimeVerseClient",
         "WatchRecord<T>(CultRecordKey)",
-        "CultMeshMutableStatePointer<T>",
+        "MutableDocument<T>(CultRecordKey)",
         "Unity",
         "Verse records",
         "EveSurfaceState",

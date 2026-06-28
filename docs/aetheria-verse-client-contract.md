@@ -31,9 +31,9 @@ registry and exposes:
   latest daemon frame, latest SoA view, and daemon game/editor Eve surfaces;
 - reactive watches via `WatchRecord<T>(CultRecordKey)`, with record identity
   passed as data instead of one watch helper per document lane;
-- `CultMeshMutableStatePointer<T>` handles for transparent reactive POCO
+- `MutableDocument<T>(CultRecordKey)` handles for transparent reactive POCO
   presentation, including read, watch, and replace through shared CultMesh
-  Verse context semantics;
+  Verse context semantics, with record identity passed as data;
 - typed daemon and Eve command submission through the same command record keys
   used by the daemon.
 
