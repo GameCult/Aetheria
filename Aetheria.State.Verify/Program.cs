@@ -7591,13 +7591,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu.cs"));
     var requiredMainMenuSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeSectorMapSession _sectorMap",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        "AetheriaRuntimeVerseHostSettingsSession _verseHostSettings",
-        ".ObserveSectorMap()",
         ".Settings",
-        ".ObservePlayer()",
-        ".ObserveVerseHost()",
         "_sectorMap?.Dispose()",
         "_playerSettings?.Dispose()",
         "_verseHostSettings?.Dispose()",
@@ -7616,24 +7610,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingMainMenuSharedDocumentSymbols));
     }
 
-    var forbiddenMainMenuSharedDocumentSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings",
+    RequireReactiveTypedDocumentAccess(
+        mainMenu,
+        "MainMenu",
+        "AetheriaRuntimeSectorMapDocument",
+        "_sectorMap",
         ".ReactiveSectorMap()",
+        "AetheriaRuntimeSectorMapSession",
+        ".ObserveSectorMap()");
+    RequireReactiveTypedDocumentAccess(
+        mainMenu,
+        "MainMenu",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
         ".ReactivePlayer()",
-        ".ReactiveVerseHost()"
-    };
-    var mainMenuRawDocumentHits = forbiddenMainMenuSharedDocumentSymbols
-        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (mainMenuRawDocumentHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "MainMenu still owns raw sector/settings CultMesh documents instead of managed sessions: " +
-            string.Join(", ", mainMenuRawDocumentHits));
-    }
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
+    RequireReactiveTypedDocumentAccess(
+        mainMenu,
+        "MainMenu",
+        "AetheriaRuntimeVerseHostSettingsDocument",
+        "_verseHostSettings",
+        ".ReactiveVerseHost()",
+        "AetheriaRuntimeVerseHostSettingsSession",
+        ".ObserveVerseHost()");
 
     var tradeMenu = File.ReadAllText(Path.Combine(
         root,
@@ -8833,7 +8833,7 @@ static void RequireClientTargetBootAuthority(string root)
         "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaClient",
         ".State",
-        ".ObserveSectorMap()",
+        ".ReactiveSectorMap()",
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
@@ -12229,7 +12229,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         ".Settings",
-        ".ObserveVerseHost()",
+        ".ReactiveVerseHost()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -12362,7 +12362,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ResolveSectorMap",
         "AetheriaClient",
         ".State",
-        ".ObserveSectorMap()",
+        ".ReactiveSectorMap()",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -14513,7 +14513,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryStartDaemonObservedGame",
         "ResolveSectorMap(stateBoot)",
         ".State",
-        ".ObserveSectorMap()",
+        ".ReactiveSectorMap()",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -15878,8 +15878,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
         !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".State", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".ObservePlayer()", StringComparison.Ordinal))
+        !mainMenu.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".ReactivePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");
