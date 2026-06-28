@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Mesh;
 using GameCult.Aetheria.State.Verse;
 using TMPro;
 using UnityEngine;
@@ -43,6 +44,8 @@ public class MapRenderer : MonoBehaviour
     private AetheriaRuntimeRenderSplatsViewportDocument _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
+    private string _clientStatePath = "";
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     
     void Start()
     {
@@ -311,23 +314,41 @@ public class MapRenderer : MonoBehaviour
     {
         try
         {
-            return ResolveClient()
+            _playerSettings ??= ResolveClient()
                 .Aetheria()
                 .Settings
-                .LatestPlayer()
-                ?.ShowAsteroidsInMinimap ?? false;
+                .ReactivePlayer();
+            return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria map graphics settings from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria map graphics settings from local Verse state: {ex.Message}");
             return false;
         }
     }
 
     private AetheriaClient ResolveClient()
     {
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
+        }
+
         return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            stateBoot,
             "unity-map-renderer");
+    }
+
+    private void ClearClientCaches()
+    {
+        _playerSettings?.Dispose();
+        _playerSettings = null;
+    }
+
+    private void OnDestroy()
+    {
+        ClearClientCaches();
     }
 }

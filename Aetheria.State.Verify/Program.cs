@@ -7107,6 +7107,32 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingSchematicDisplaySymbols));
     }
 
+    var mapRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "Menu",
+        "MapRenderer.cs"));
+    var requiredMapRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_playerSettings?.Dispose()",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingMapRendererSharedDocumentSymbols = requiredMapRendererSharedDocumentSymbols
+        .Where(symbol => !mapRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingMapRendererSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MapRenderer should bind player settings through the managed reactive Aetheria settings document: " +
+            string.Join(", ", missingMapRendererSharedDocumentSymbols));
+    }
+
     var tradeMenu = File.ReadAllText(Path.Combine(
         root,
         "Assets",
@@ -12819,7 +12845,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".LatestObjects(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".LatestRenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !mapRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
+        !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
