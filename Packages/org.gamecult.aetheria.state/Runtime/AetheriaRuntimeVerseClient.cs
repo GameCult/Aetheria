@@ -831,11 +831,12 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var scenario = await starbridgeScenarioDocument.LatestAsync().ConfigureAwait(false);
                 var session = await starbridgeSessionDocument.LatestAsync().ConfigureAwait(false);
+                var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);
                 return AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
                     scenario,
                     session,
-                    ReadRuntimeCatalogSnapshot());
+                    catalog);
             }
 
             static string IndexedDocumentId(string prefix, int index)

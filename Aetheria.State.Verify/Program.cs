@@ -9338,6 +9338,8 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "state.Daemon.Health.LatestAsync()",
         "state.Daemon.CommandBoundary.LatestAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
+        "ProjectStarbridgeSummaryAsync",
+        "var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);",
         "ReadRuntimeCatalogSnapshot()",
         "ReadLoadoutTemplatesDocument()",
         "ReadPlayerSettingsDocument()",
@@ -9381,6 +9383,26 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
+    }
+
+    var starbridgeSummaryStart = client.IndexOf(
+        "async Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync",
+        StringComparison.Ordinal);
+    if (starbridgeSummaryStart < 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient no longer exposes the managed Starbridge summary projection.");
+    }
+
+    var indexedDocumentStart = client.IndexOf("static string IndexedDocumentId", starbridgeSummaryStart, StringComparison.Ordinal);
+    var starbridgeSummaryBlock = indexedDocumentStart > starbridgeSummaryStart
+        ? client.Substring(starbridgeSummaryStart, indexedDocumentStart - starbridgeSummaryStart)
+        : client.Substring(starbridgeSummaryStart);
+    if (!starbridgeSummaryBlock.Contains("var catalog = await catalogDocument.LatestAsync().ConfigureAwait(false);", StringComparison.Ordinal) ||
+        starbridgeSummaryBlock.Contains("ReadRuntimeCatalogSnapshot()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Starbridge summary projection must use the managed runtime catalog document instead of reopening the catalog store.");
     }
 
     var forbiddenClientCompatibilityStoreBypasses = new[]
