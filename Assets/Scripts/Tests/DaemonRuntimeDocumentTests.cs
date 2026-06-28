@@ -536,11 +536,12 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonStateRefs.CurrentEntityName,
             out var resolvedEntityName));
         Assert.AreEqual("Player", resolvedEntityName);
-        Assert.AreEqual(
-            "Target",
-            AetheriaRuntimeStateReader.ResolveEveSurfaceStateRef(
-                statePath,
-                AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
+        Assert.IsTrue(AetheriaRuntimeStateRefResolver.TryResolveEveSurfaceStateRef(
+            statePath,
+            AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
+            AetheriaRuntimeCatalogStore.OpenReadOnly,
+            out var resolvedTargetName));
+        Assert.AreEqual("Target", resolvedTargetName);
         Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(statePath, out var gameTuiSurface));
         Assert.AreEqual("aetheria.daemon", gameTuiSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameTuiSurface.ProviderKind);
@@ -567,22 +568,36 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, editorTuiSurface.Surface.Id);
         Assert.AreEqual(42, editorTuiSurface.Version);
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryReadDaemonGameSurface(
-            statePath,
-            out var unityGameSurface));
+        PublishDaemonSurfacesThroughVerseClient(statePath, result);
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-surface-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var unityGameSurfaceState = client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult();
+        var unityGameTuiSurfaceState = client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult();
+        var unityEditorSurfaceState = client.State.Daemon.EditorSurface.LatestAsync().GetAwaiter().GetResult();
+        var unityEditorTuiSurfaceState = client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult();
+        var surfaceResolver = client.CreateEveSurfaceStateRefResolver();
+        var unityGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            unityGameSurfaceState,
+            surfaceResolver);
+        var unityGameTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            unityGameTuiSurfaceState,
+            surfaceResolver);
+        var unityEditorSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            unityEditorSurfaceState,
+            surfaceResolver);
+        var unityEditorTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            unityEditorTuiSurfaceState,
+            surfaceResolver);
+
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, unityGameSurface.Surface.Id);
         Assert.AreEqual("aetheria.daemon", unityGameSurface.ProviderId);
         Assert.IsTrue(unityGameSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.SetMoveVector" &&
             command.Transport == "cultmesh"));
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryReadDaemonGameTuiSurface(
-            statePath,
-            out var unityGameTuiSurface));
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, unityGameTuiSurface.Surface.Id);
         Assert.AreEqual("game.daemon", unityGameTuiSurface.ProviderKind);
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryReadDaemonEditorSurface(
-            statePath,
-            out var unityEditorSurface));
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, unityEditorSurface.Surface.Id);
         Assert.AreEqual("editor.daemon", unityEditorSurface.ProviderKind);
         Assert.IsTrue(unityEditorSurface.Commands.Any(command =>
@@ -590,15 +605,11 @@ public class DaemonRuntimeDocumentTests
             command.Transport == "cultmesh"));
         Assert.IsFalse(unityEditorSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.TransferCargoItem"));
-        Assert.IsTrue(AetheriaRuntimeStateReader.TryReadDaemonEditorTuiSurface(
-            statePath,
-            out var unityEditorTuiSurface));
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, unityEditorTuiSurface.Surface.Id);
         Assert.AreEqual("editor.daemon", unityEditorTuiSurface.ProviderKind);
-        var genericGameSurface = AetheriaRuntimeStateReader.ReadEveSurface(
-            statePath,
-            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
-        Assert.IsNotNull(genericGameSurface);
+        var genericGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            client.State.Daemon.GameSurface.LatestAsync().GetAwaiter().GetResult(),
+            surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, genericGameSurface.Surface.Id);
         Assert.AreEqual(unityGameSurface.ProviderId, genericGameSurface.ProviderId);
         Assert.IsTrue(ContainsEveSurfaceMetric(genericGameSurface.Surface.Root, "Target", "Target"));
@@ -619,15 +630,13 @@ public class DaemonRuntimeDocumentTests
             "value",
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
             AetheriaRuntimeDaemonSchemas.Frame));
-        var genericGameTuiSurface = AetheriaRuntimeStateReader.ReadEveSurface(
-            statePath,
-            AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId);
-        Assert.IsNotNull(genericGameTuiSurface);
+        var genericGameTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            client.State.Daemon.GameTuiSurface.LatestAsync().GetAwaiter().GetResult(),
+            surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, genericGameTuiSurface.Surface.Id);
-        var genericEditorTuiSurface = AetheriaRuntimeStateReader.ReadEveSurface(
-            statePath,
-            AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId);
-        Assert.IsNotNull(genericEditorTuiSurface);
+        var genericEditorTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+            client.State.Daemon.EditorTuiSurface.LatestAsync().GetAwaiter().GetResult(),
+            surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, genericEditorTuiSurface.Surface.Id);
     }
 
@@ -4167,6 +4176,110 @@ public class DaemonRuntimeDocumentTests
         client.FlushAsync()
             .GetAwaiter()
             .GetResult();
+    }
+
+    private static void PublishDaemonSurfacesThroughVerseClient(
+        string statePath,
+        AetheriaRuntimeDaemonTickResult result)
+    {
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-surfaces-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        client.DaemonGameSurface()
+            .ReplaceAsync(ToEveSurfaceState(result.GameSurface))
+            .GetAwaiter()
+            .GetResult();
+        client.DaemonGameTuiSurface()
+            .ReplaceAsync(ToEveSurfaceState(result.GameTuiSurface))
+            .GetAwaiter()
+            .GetResult();
+        client.DaemonEditorSurface()
+            .ReplaceAsync(ToEveSurfaceState(result.EditorSurface))
+            .GetAwaiter()
+            .GetResult();
+        client.DaemonEditorTuiSurface()
+            .ReplaceAsync(ToEveSurfaceState(result.EditorTuiSurface))
+            .GetAwaiter()
+            .GetResult();
+        client.FlushAsync()
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    private static Aetheria.State.Documents.EveSurfaceState ToEveSurfaceState(
+        AetheriaRuntimeSurfaceDocument document)
+    {
+        return new Aetheria.State.Documents.EveSurfaceState
+        {
+            ProviderId = document.ProviderId,
+            ProviderKind = document.ProviderKind,
+            Title = document.Title,
+            Version = document.Version,
+            UpdatedAtUtc = document.UpdatedAtUtc,
+            Surface = ToEveSurface(document.Surface),
+            Commands = document.Commands
+                .Select(command =>
+                {
+                    var record = CultMesh.OperationBindingRecord(command.Operation);
+                    return new Aetheria.State.Documents.EveCommandTemplate
+                    {
+                        Command = record.OperationId,
+                        Label = record.Label,
+                        Transport = record.RouteDescription,
+                        SchemaId = record.SchemaId,
+                        RouteKind = record.RouteKind,
+                        RouteDescription = record.RouteDescription
+                    };
+                })
+                .ToArray()
+        };
+    }
+
+    private static Aetheria.State.Documents.EveSurface ToEveSurface(AetheriaRuntimeSurfaceTree surface)
+    {
+        return new Aetheria.State.Documents.EveSurface
+        {
+            Id = surface.Id,
+            Root = ToEveSurfaceComponent(surface.Root),
+            Styles = surface.Styles
+                .Select(style => new Aetheria.State.Documents.EveStyleToken
+                {
+                    Name = style.Name,
+                    Value = style.Value
+                })
+                .ToArray()
+        };
+    }
+
+    private static Aetheria.State.Documents.EveSurfaceComponent ToEveSurfaceComponent(
+        AetheriaRuntimeSurfaceComponent component)
+    {
+        var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+        AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
+
+        return new Aetheria.State.Documents.EveSurfaceComponent
+        {
+            Id = component.Id,
+            Kind = component.Kind,
+            Props = props,
+            Children = component.Children.Select(ToEveSurfaceComponent).ToArray(),
+            StateBindings = component.StateBindings
+                .Select(binding =>
+                {
+                    var record = CultMesh.StateBindingRecord(binding);
+                    return new Aetheria.State.Documents.EveSurfaceStateBinding
+                    {
+                        TargetProp = record.TargetProp,
+                        PointerId = record.PointerId,
+                        SourceId = record.SourceId,
+                        SchemaId = record.SchemaId,
+                        RouteKind = record.RouteKind,
+                        RouteDescription = record.RouteDescription
+                    };
+                })
+                .ToArray()
+        };
     }
 
     private static void PublishVerseAuthorityPolicyThroughVerseClient(

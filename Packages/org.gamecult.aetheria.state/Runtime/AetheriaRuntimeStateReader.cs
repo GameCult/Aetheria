@@ -2,74 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using GameCult.Eve.Surface;
 using GameCult.Mesh;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
-    // Compatibility reader for file-backed tools and pure state-ref helpers; Unity shells should prefer AetheriaClient.
+    // Thin compatibility shell for pure state-ref helpers; runtime state acquisition belongs to AetheriaClient.
     public static class AetheriaRuntimeStateReader
     {
-        public static AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath);
-        }
-
-        public static bool TryReadDaemonFrame(string stateFilePath, out AetheriaRuntimeDaemonFrameDocument frame)
-        {
-            return AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out frame);
-        }
-
-        public static EveSurfaceDocument? ReadEveSurface(string stateFilePath, string surfaceId)
-        {
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal) &&
-                TryReadDaemonGameSurface(stateFilePath, out var gameSurface))
-            {
-                return gameSurface;
-            }
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal) &&
-                TryReadDaemonGameTuiSurface(stateFilePath, out var gameTuiSurface))
-            {
-                return gameTuiSurface;
-            }
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal) &&
-                TryReadDaemonEditorSurface(stateFilePath, out var editorSurface))
-            {
-                return editorSurface;
-            }
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal) &&
-                TryReadDaemonEditorTuiSurface(stateFilePath, out var editorTuiSurface))
-            {
-                return editorTuiSurface;
-            }
-
-            var surface = AetheriaRuntimeCatalogStore.ReadEveSurfaces(stateFilePath)
-                .FirstOrDefault(candidate => string.Equals(candidate.Surface.Id, surfaceId, StringComparison.Ordinal));
-            return surface == null ? null : ResolveSurfaceStateRefs(stateFilePath, surface);
-        }
-
-        public static string ResolveEveSurfaceStateRef(string stateFilePath, string stateRef)
-        {
-            return AetheriaRuntimeStateRefResolver.ResolveEveSurfaceStateRef(
-                stateFilePath,
-                stateRef,
-                OpenRuntimeCatalog);
-        }
-
-        public static bool TryResolveEveSurfaceStateRef(string stateFilePath, string stateRef, out string value)
-        {
-            return AetheriaRuntimeStateRefResolver.TryResolveEveSurfaceStateRef(
-                stateFilePath,
-                stateRef,
-                OpenRuntimeCatalog,
-                out value);
-        }
-
         public static bool TryResolveDaemonStateRef(
             AetheriaRuntimeDaemonFrameDocument? frame,
             AetheriaRuntimeDaemonHealthDocument? health,
@@ -96,115 +37,6 @@ namespace GameCult.Aetheria.State.Verse
                 catalog,
                 stateRef,
                 out value);
-        }
-
-        public static bool TryReadDaemonGameSurface(
-            string stateFilePath,
-            out EveSurfaceDocument document)
-        {
-            if (!AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface(stateFilePath, out var surface))
-            {
-                document = EmptySurface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
-                return false;
-            }
-
-            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
-            return true;
-        }
-
-        public static bool TryReadDaemonGameTuiSurface(
-            string stateFilePath,
-            out EveSurfaceDocument document)
-        {
-            if (!AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(stateFilePath, out var surface))
-            {
-                document = EmptySurface(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId);
-                return false;
-            }
-
-            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
-            return true;
-        }
-
-        public static bool TryReadDaemonEditorSurface(
-            string stateFilePath,
-            out EveSurfaceDocument document)
-        {
-            if (!AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface(stateFilePath, out var surface))
-            {
-                document = EmptySurface(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId);
-                return false;
-            }
-
-            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
-            return true;
-        }
-
-        public static bool TryReadDaemonEditorTuiSurface(
-            string stateFilePath,
-            out EveSurfaceDocument document)
-        {
-            if (!AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface(stateFilePath, out var surface))
-            {
-                document = EmptySurface(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId);
-                return false;
-            }
-
-            document = ToResolvedEveSurfaceDocument(stateFilePath, surface);
-            return true;
-        }
-
-        private static EveSurfaceDocument EmptySurface(string surfaceId)
-        {
-            return AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId);
-        }
-
-        public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)
-        {
-            return CreateEveSurfaceCultMeshStateRefResolver(stateFilePath).AsFunc();
-        }
-
-        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
-            string stateFilePath,
-            string runtimeId = AetheriaRuntimeVerseClient.DefaultRuntimeId)
-        {
-            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                stateFilePath,
-                runtimeId,
-                OpenRuntimeCatalog);
-        }
-
-        public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
-            AetheriaRuntimeDaemonFrameDocument? frame,
-            AetheriaRuntimeDaemonHealthDocument? health,
-            AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary,
-            Func<AetheriaRuntimeCatalogSnapshot?>? catalogProvider = null,
-            CultMeshRouteHint? routeHint = null)
-        {
-            return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                frame,
-                health,
-                commandBoundary,
-                catalogProvider,
-                routeHint);
-        }
-
-        private static EveSurfaceDocument ToResolvedEveSurfaceDocument(
-            string stateFilePath,
-            AetheriaRuntimeSurfaceDocument surface)
-        {
-            return AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-                surface,
-                CreateEveSurfaceStateRefResolver(stateFilePath));
-        }
-
-        private static EveSurfaceDocument ResolveSurfaceStateRefs(
-            string stateFilePath,
-            EveSurfaceDocument surface)
-        {
-            return AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
-                surface,
-                CreateEveSurfaceStateRefResolver(stateFilePath));
         }
 
     }

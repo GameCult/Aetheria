@@ -9537,10 +9537,15 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     if (stateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
-        stateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal))
+        stateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
+        stateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
+        stateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
+        stateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
+        stateReader.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
+        stateReader.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaRuntimeStateReader still exposes observed daemon frame/SoA acquisition that belongs on managed AetheriaClient documents.");
+            "AetheriaRuntimeStateReader still exposes daemon acquisition that belongs on managed AetheriaClient documents.");
     }
 
     var starbridgeSummaryStart = client.IndexOf(
@@ -13017,38 +13022,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public static class AetheriaRuntimeStateReader",
         "public static class AetheriaRuntimeStateRefResolver",
-        "OpenRuntimeCatalog",
-        "ReadEveSurface",
-        "TryReadDaemonGameSurface",
-        "TryReadDaemonGameTuiSurface",
-        "TryReadDaemonEditorSurface",
-        "TryReadDaemonEditorTuiSurface",
-        "ResolveEveSurfaceStateRef",
-        "TryResolveEveSurfaceStateRef",
         "TryResolveDaemonStateRef",
         "TryResolveDaemonItemStatRef",
+        "ResolveEveSurfaceStateRef",
+        "TryResolveEveSurfaceStateRef",
         "AetheriaRuntimeDaemonStateRefs.Prefix",
         "AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix",
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
-        "AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface",
-        "AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface",
-        "AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface",
-        "AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface",
-        "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
-        "AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId",
-        "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
-        "AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId",
-        "ToResolvedEveSurfaceDocument(stateFilePath, surface)",
-        "ResolveSurfaceStateRefs(stateFilePath, surface)",
-        "public static Func<string, string> CreateEveSurfaceStateRefResolver(string stateFilePath)",
         "public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(",
-        "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(",
         "CultMeshStateRefResolver.Empty",
         "CultMesh.StateRefResolver(",
-        ".AsFunc()",
-        "FindDaemonItem(",
-        "AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(",
-        "AetheriaRuntimeEveSurfaceAdapter.EmptySurface(surfaceId)"
+        "FindDaemonItem("
     };
 
     var missingReaderSymbols = requiredReaderSymbols
@@ -13069,10 +13053,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (runtimeStateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||
-        runtimeStateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal))
+        runtimeStateReader.Contains("TryReadDaemonSoaView(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonFrame(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonGameSurface(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonGameTuiSurface(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonEditorSurface(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("TryReadDaemonEditorTuiSurface(", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("OpenRuntimeCatalog(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime state reader still exposes observed daemon frame/SoA file reads; use AetheriaClient.ObserveAsync and managed typed documents.");
+            "Shared runtime state reader still exposes daemon file reads; use AetheriaClient and managed typed documents.");
     }
 
     if (runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal) ||
