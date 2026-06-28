@@ -14911,6 +14911,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var observedDaemonState = File.Exists(observedDaemonStatePath)
         ? File.ReadAllText(observedDaemonStatePath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaRuntimeObservedDaemonState.cs is missing.");
+    var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
+    var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
+        ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; DaemonRuntimeDocumentTests.cs is missing.");
 
     var requiredActionGameManagerSymbols = new[]
     {
@@ -15150,6 +15154,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaClientState must compose current observed daemon state from managed typed reactive documents: " +
             string.Join(", ", missingManagedObservedDaemonSymbols));
+    }
+
+    if (!daemonRuntimeDocumentTests.Contains("ManagedStateSamplesCurrentObservedDaemonFromReactiveDocuments()", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("var observed = client.State.CurrentObservedDaemon();", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon runtime document tests must teach current observed daemon sampling through AetheriaClientState.CurrentObservedDaemon().");
     }
 
     var requiredObservedDaemonStateSymbols = new[]

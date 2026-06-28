@@ -2179,7 +2179,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void ObservedDaemonStateComposesManagedReactiveFrameSoaAndZoneRenderDocuments()
+    public void ManagedStateSamplesCurrentObservedDaemonFromReactiveDocuments()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -2213,15 +2213,7 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var frameDocument = client.State.ReactiveDaemonFrame();
-        using var soaDocument = client.State.ReactiveDaemonSoaView();
-        using var zoneRenderDocument = client.State.ReactiveZoneRender();
-
-        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
-            frameDocument,
-            soaDocument,
-            zoneRenderDocument,
-            out var observed));
+        var observed = client.State.CurrentObservedDaemon();
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);
         Assert.AreEqual("reactive-daemon-run", observed.Run.RunId);
