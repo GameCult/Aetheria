@@ -5655,16 +5655,16 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
     var requiredSymbols = new[]
     {
         "RenderCargoSelectorSurface(",
-        "_cargoSelectorSurfaceProjection = ProjectTradeCargoSelectorSurface();",
+        "_cargoSelectorSurfaceModel = ComposeTradeCargoSelectorSurface();",
         "HandleCargoSelectorSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_cargoSelectorSurfaceDocument)",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceProjection.State)",
-        "ProjectTradeCargoSelectorSurface(",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Project(",
-        "_cargoSelectorSurfaceProjection?.TryResolve(command.Command, out var selection) == true",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceModel.State)",
+        "ComposeTradeCargoSelectorSurface(",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(",
+        "_cargoSelectorSurfaceModel?.TryResolve(command.Command, out var selection) == true",
         "ApplyCargoSelection(",
-        "new AetheriaRuntimeTradeCargoProjectionOption(",
+        "new AetheriaRuntimeTradeCargoModelOption(",
         "AetheriaRuntimeTradeCargoTargetKind.DockingBay",
         "AetheriaRuntimeTradeCargoTargetKind.ShipBay",
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
@@ -5710,6 +5710,8 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "private readonly Dictionary<string, (EquippedCargoBay Cargo, string Label)> _cargoSelectionCommands",
         "BuildCargoSelectionCommands(",
         "ProjectTradeCargoSelectorSurfaceState(",
+        "ProjectTradeCargoSelectorSurface(",
+        "_cargoSelectorSurfaceProjection",
         "GameManager.DockedEntity.Children",
         "GameManager.CurrentEntity.Parent.Children",
         "GameManager.DockingBay",
@@ -5761,16 +5763,16 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "public static bool TryRead(",
         "AetheriaRuntimeTradeCargoSelectorSurfaceState",
         "AetheriaRuntimeTradeCargoTargetOption",
-        "AetheriaRuntimeTradeCargoProjectionOption",
+        "AetheriaRuntimeTradeCargoModelOption",
         "AetheriaRuntimeTradeCargoTargetKind",
         "AetheriaRuntimeTradeCargoSelection",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceProjection",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceModel",
         "public static string ShipBayCommand(",
-        "public static AetheriaRuntimeTradeCargoSelectorSurfaceProjection Project(",
+        "public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(",
         "public bool TryResolve(string command, out AetheriaRuntimeTradeCargoSelection selection)",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
-        "The observing client projects available cargo targets; the shared runtime surface owns the cargo selector contract."
+        "The observing client lists available cargo targets; the shared runtime surface owns the cargo selector contract."
     };
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !tradeCargoSelectorSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))

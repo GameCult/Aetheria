@@ -43,9 +43,9 @@ namespace GameCult.Aetheria.State.Verse
         ShipBay = 2
     }
 
-    public sealed class AetheriaRuntimeTradeCargoProjectionOption
+    public sealed class AetheriaRuntimeTradeCargoModelOption
     {
-        public AetheriaRuntimeTradeCargoProjectionOption(
+        public AetheriaRuntimeTradeCargoModelOption(
             AetheriaRuntimeTradeCargoTargetKind kind,
             string label,
             string entityKey = "",
@@ -95,9 +95,9 @@ namespace GameCult.Aetheria.State.Verse
         public int BayIndex { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeCargoSelectorSurfaceProjection
+    public sealed class AetheriaRuntimeTradeCargoSelectorSurfaceModel
     {
-        public AetheriaRuntimeTradeCargoSelectorSurfaceProjection(
+        public AetheriaRuntimeTradeCargoSelectorSurfaceModel(
             AetheriaRuntimeTradeCargoSelectorSurfaceState state,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> selections)
         {
@@ -128,15 +128,15 @@ namespace GameCult.Aetheria.State.Verse
             return $"{SurfaceId}.ship_{shipIndex}_bay_{bayIndex}";
         }
 
-        public static AetheriaRuntimeTradeCargoSelectorSurfaceProjection Project(
+        public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(
             string currentTarget,
-            IEnumerable<AetheriaRuntimeTradeCargoProjectionOption> targets,
+            IEnumerable<AetheriaRuntimeTradeCargoModelOption> targets,
             string updatedAtUtc)
         {
             var options = new List<AetheriaRuntimeTradeCargoTargetOption>();
             var selections = new Dictionary<string, AetheriaRuntimeTradeCargoSelection>(StringComparer.Ordinal);
 
-            foreach (var target in targets ?? Array.Empty<AetheriaRuntimeTradeCargoProjectionOption>())
+            foreach (var target in targets ?? Array.Empty<AetheriaRuntimeTradeCargoModelOption>())
             {
                 if (target == null ||
                     target.IsCurrent ||
@@ -165,7 +165,7 @@ namespace GameCult.Aetheria.State.Verse
                     target.BayIndex);
             }
 
-            return new AetheriaRuntimeTradeCargoSelectorSurfaceProjection(
+            return new AetheriaRuntimeTradeCargoSelectorSurfaceModel(
                 new AetheriaRuntimeTradeCargoSelectorSurfaceState(
                     currentTarget,
                     options,
@@ -204,7 +204,7 @@ namespace GameCult.Aetheria.State.Verse
                             Metric($"{SurfaceId}.current", "Current", state.CurrentTarget),
                             Text(
                                 $"{SurfaceId}.note",
-                                "The observing client projects available cargo targets; the shared runtime surface owns the cargo selector contract."),
+                                "The observing client lists available cargo targets; the shared runtime surface owns the cargo selector contract."),
                             ButtonColumn(
                                 $"{SurfaceId}.options",
                                 targets
@@ -271,7 +271,7 @@ namespace GameCult.Aetheria.State.Verse
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
         }
 
-        private static string CommandFor(AetheriaRuntimeTradeCargoProjectionOption target)
+        private static string CommandFor(AetheriaRuntimeTradeCargoModelOption target)
         {
             switch (target.Kind)
             {

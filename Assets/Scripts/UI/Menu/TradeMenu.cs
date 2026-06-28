@@ -43,7 +43,7 @@ public class TradeMenu : MonoBehaviour
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
-    private AetheriaRuntimeTradeCargoSelectorSurfaceProjection _cargoSelectorSurfaceProjection;
+    private AetheriaRuntimeTradeCargoSelectorSurfaceModel _cargoSelectorSurfaceModel;
     private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
         Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
     private AetheriaRuntimeStationRefitDocument _stationRefit;
@@ -1130,13 +1130,13 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderCargoSelectorSurface()
     {
-        _cargoSelectorSurfaceProjection = ProjectTradeCargoSelectorSurface();
+        _cargoSelectorSurfaceModel = ComposeTradeCargoSelectorSurface();
 
         _cargoSelectorSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _cargoSelectorSurfaceDocument,
             "Aetheria Trade Cargo Selector Surface",
-            AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceProjection.State),
+            AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceModel.State),
             HandleCargoSelectorSurfaceCommand,
             _cargoSelectorSurfaceChrome);
     }
@@ -1156,7 +1156,7 @@ public class TradeMenu : MonoBehaviour
         }
 
         if (command.Kind == AetheriaRuntimeTradeCargoSelectorCommandKind.Select &&
-            _cargoSelectorSurfaceProjection?.TryResolve(command.Command, out var selection) == true)
+            _cargoSelectorSurfaceModel?.TryResolve(command.Command, out var selection) == true)
         {
             ApplyCargoSelection(selection);
             HideCargoSelectorSurface();
@@ -1194,15 +1194,15 @@ public class TradeMenu : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeTradeCargoSelectorSurfaceProjection ProjectTradeCargoSelectorSurface()
+    private AetheriaRuntimeTradeCargoSelectorSurfaceModel ComposeTradeCargoSelectorSurface()
     {
-        var targets = new List<AetheriaRuntimeTradeCargoProjectionOption>();
+        var targets = new List<AetheriaRuntimeTradeCargoModelOption>();
         var stationRefit = ResolveStationRefit();
         if (stationRefit?.IsDocked == true &&
             !string.IsNullOrWhiteSpace(stationRefit.DockParentEntityKey) &&
             stationRefit.DockingBayIndex >= 0)
         {
-            targets.Add(new AetheriaRuntimeTradeCargoProjectionOption(
+            targets.Add(new AetheriaRuntimeTradeCargoModelOption(
                 AetheriaRuntimeTradeCargoTargetKind.DockingBay,
                 "Docking Bay",
                 stationRefit.DockParentEntityKey,
@@ -1214,7 +1214,7 @@ public class TradeMenu : MonoBehaviour
                 Array.Empty<AetheriaRuntimeStationCargoTargetRow>())
             .ToArray();
         targets.AddRange(_cargoSelectorStationRefitTargets
-            .Select(target => new AetheriaRuntimeTradeCargoProjectionOption(
+            .Select(target => new AetheriaRuntimeTradeCargoModelOption(
                 target.Kind,
                 target.Label,
                 target.EntityKey,
@@ -1222,7 +1222,7 @@ public class TradeMenu : MonoBehaviour
                 target.BayIndex,
                 IsTargetCargoBayKey(target.EntityKey, target.BayIndex))));
 
-        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Project(
+        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(
             _targetCargoLabel ?? "",
             targets,
             DateTime.UtcNow.ToString("O"));
