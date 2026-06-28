@@ -9111,24 +9111,17 @@ static void RequireDaemonVersePublication(string root)
     {
         "VerseId",
         "CultMeshAddress",
+        "BuildPublications",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
         "AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
-        "AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary",
-        "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement",
-        "AetheriaRuntimeDaemonPublicationStore.PublishHealth",
         "AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(",
-        "AetheriaRuntimeDaemonPublicationStore.PublishStarbridgeSessionSummary",
         "StarbridgeScenario",
         "StarbridgeSession",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.Build",
         "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)",
         "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)",
-        "AetheriaRuntimeDaemonPublicationStore.PublishGameSurface",
-        "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
-        "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface",
-        "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface",
         "SoaView = soaView",
         "ProviderAdvertisement = providerAdvertisement",
         "Health = health",
@@ -9139,7 +9132,9 @@ static void RequireDaemonVersePublication(string root)
         "AccountedCommandIds",
         "frame.AccountedCommandIds = accountedBeforeTick",
         "ObservedCommandCount = observedCommands.Length",
-        "PublicationSource = \"daemon-published\""
+        "PublicationSource = \"daemon-published\"",
+        "Transport = \"cultmesh-managed\"",
+        "CommandBoundaryPath = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()"
     };
     var missingTickSymbols = requiredTickSymbols
         .Where(symbol => !daemonTickRunner.Contains(symbol, StringComparison.Ordinal))
@@ -9149,6 +9144,29 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon tick does not publish Verse-facing provider/health/command-boundary records: " +
             string.Join(", ", missingTickSymbols));
+    }
+
+    var forbiddenTickPublicationSymbols = new[]
+    {
+        "AetheriaRuntimeDaemonFrameStore.PublishFrame(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishHealth(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishAssetManifest(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishStarbridgeSessionSummary(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishGameSurface(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface(",
+        "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface("
+    };
+    var forbiddenTickPublicationHits = forbiddenTickPublicationSymbols
+        .Where(symbol => daemonTickRunner.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenTickPublicationHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon tick runner must build typed publication documents, not write legacy witness stores: " +
+            string.Join(", ", forbiddenTickPublicationHits));
     }
 
     var requiredDaemonHostSymbols = new[]
@@ -9164,6 +9182,7 @@ static void RequireDaemonVersePublication(string root)
         "node.StarbridgeSession().ReadAsync()",
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
+        "BuildPublications = buildPublications",
         "new AetheriaVerseDiscoveryHost(node)",
         "discoveryHost.Update(",
         "PublishDaemonApiDocumentsAsync(node, result)",
@@ -9249,18 +9268,18 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickBlock = daemonTickStart >= 0 && daemonTickEnd > daemonTickStart
         ? daemonHostSource.Substring(daemonTickStart, daemonTickEnd - daemonTickStart)
         : "";
-    var publishWitnessBlockStart = daemonTickBlock.IndexOf(
-        "if (publishWitnesses)",
-        StringComparison.Ordinal);
-    var frameWitnessPublishIndex = daemonTickBlock.IndexOf(
-        "AetheriaRuntimeDaemonFrameStore.PublishFrame(node.StatePath, result.Frame)",
-        StringComparison.Ordinal);
-    if (frameWitnessPublishIndex < 0 ||
-        publishWitnessBlockStart < 0 ||
-        frameWitnessPublishIndex < publishWitnessBlockStart)
+    if (daemonTickBlock.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame(", StringComparison.Ordinal) ||
+        daemonTickBlock.Contains("AetheriaRuntimeDaemonPublicationStore.Publish", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon ticks must keep legacy frame witness writes inside the API publication cadence; managed frames carry per-tick state.");
+            "Daemon host tick publication must publish typed documents through AetheriaStateNode, not legacy witness stores.");
+    }
+
+    if (!daemonTickBlock.Contains("if (buildPublications)", StringComparison.Ordinal) ||
+        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, result)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon ticks must publish API cadence documents through managed AetheriaStateNode pointers.");
     }
 
     var snapshotHandlerStart = daemonHostSource.IndexOf(
@@ -12862,7 +12881,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "AetheriaRuntimeDaemonTickRunner",
         "Tick(",
         "AetheriaRuntimeDaemonFrameDocument.Create",
-        "AetheriaRuntimeDaemonFrameStore.PublishFrame",
+        "BuildPublications",
         "AetheriaRuntimeDaemonOperations.Execute("
     };
 
@@ -12873,8 +12892,14 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     if (missingDaemonTickSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Shared simulation ticks no longer have a daemon-owned frame publication path: " +
+            "Shared simulation ticks no longer produce daemon-owned managed frame documents: " +
             string.Join(", ", missingDaemonTickSymbols));
+    }
+
+    if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared simulation ticks still write legacy frame witness files instead of returning managed typed documents.");
     }
 }
 

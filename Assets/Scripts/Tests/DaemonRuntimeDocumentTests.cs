@@ -96,11 +96,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void FrameStorePublishesLatestDaemonFrameWitness()
+    public void ManagedLatestFramePublishesAuthoritativeDaemonFrame()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-daemon-frame-store-tests",
+            "aetheria-managed-frame-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -116,18 +116,26 @@ public class DaemonRuntimeDocumentTests
             45.5,
             0.016);
 
-        var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-frame-read-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var published = client.LatestFrame()
+            .ReadAsync()
+            .GetAwaiter()
+            .GetResult();
 
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), framePath);
-        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, frame.Schema);
-        Assert.AreEqual("aetheria-daemon", frame.DaemonId);
-        Assert.AreEqual("session-3", frame.SessionId);
-        Assert.AreEqual(123, frame.FrameId);
-        Assert.IsTrue(frame.IsAuthoritative);
-        Assert.AreEqual("daemon", frame.StateSource);
-        Assert.AreEqual("run-2", frame.Run.RunId);
-        Assert.AreEqual(7, frame.Run.CurrentZoneIndex);
-        Assert.AreEqual("entity:ship", frame.Run.CurrentEntityKey);
+        Assert.IsNotNull(published);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, published.Schema);
+        Assert.AreEqual("aetheria-daemon", published.DaemonId);
+        Assert.AreEqual("session-3", published.SessionId);
+        Assert.AreEqual(123, published.FrameId);
+        Assert.IsTrue(published.IsAuthoritative);
+        Assert.AreEqual("daemon", published.StateSource);
+        Assert.AreEqual("run-2", published.Run.RunId);
+        Assert.AreEqual(7, published.Run.CurrentZoneIndex);
+        Assert.AreEqual("entity:ship", published.Run.CurrentEntityKey);
     }
 
     [Test]
@@ -415,7 +423,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("zone.0.entity.0", result.Intents.Movement.ActorEntityKey);
         Assert.AreEqual(1.0, result.Intents.Movement.DirectionX, 0.0001);
         Assert.AreEqual(12.5, result.Run.Zones[0].SimulationTimeSeconds, 0.0001);
-        Assert.AreEqual(result.FramePath, AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath));
         var frame = result.Frame;
         Assert.AreEqual("test-daemon", frame.DaemonId);
         Assert.AreEqual("session-tick", frame.SessionId);
@@ -433,18 +440,8 @@ public class DaemonRuntimeDocumentTests
         CollectionAssert.Contains(frame.AccountedCommandIds, movementCommand.CommandId);
         Assert.AreEqual(1, frame.Run.Zones[0].Entities[0].TargetEntityIndex);
         Assert.AreEqual(12.5, frame.Run.Zones[0].SimulationTimeSeconds, 0.0001);
-        Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetProviderAdvertisementPath(statePath),
-            result.ProviderAdvertisementPath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetHealthPath(statePath), result.HealthPath);
-        Assert.AreEqual(
-            AetheriaRuntimeDaemonPublicationStore.GetCommandBoundaryPath(statePath),
-            result.CommandBoundaryPath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetGameSurfacePath(statePath), result.GameSurfacePath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetGameTuiSurfacePath(statePath), result.GameTuiSurfacePath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetEditorSurfacePath(statePath), result.EditorSurfacePath);
-        Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetEditorTuiSurfacePath(statePath), result.EditorTuiSurfacePath);
         var providerAdvertisement = result.ProviderAdvertisement;
+        Assert.IsNotNull(providerAdvertisement);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement, providerAdvertisement.Schema);
         Assert.AreEqual("aetheria.test", providerAdvertisement.VerseId);
         Assert.AreEqual("aetheria.daemon", providerAdvertisement.ProviderId);
@@ -477,6 +474,7 @@ public class DaemonRuntimeDocumentTests
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.GameSurface);
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.EditorSurface);
         var health = result.Health;
+        Assert.IsNotNull(health);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Health, health.Schema);
         Assert.AreEqual("test-daemon", health.DaemonId);
         Assert.AreEqual("aetheria.test", health.VerseId);
@@ -485,8 +483,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(2, health.AppliedCommandCount);
         Assert.AreEqual(0, health.RejectedCommandCount);
         Assert.AreEqual("daemon-published", health.PublicationSource);
-        Assert.AreEqual("cultcache-witness", health.Transport);
+        Assert.AreEqual("cultmesh-managed", health.Transport);
+        Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(), health.CommandBoundaryPath);
         var commandBoundary = result.CommandBoundary;
+        Assert.IsNotNull(commandBoundary);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommandBoundary, commandBoundary.Schema);
         Assert.AreEqual("aetheria.daemon.commands", commandBoundary.BoundaryId);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Command, commandBoundary.CommandSchema);

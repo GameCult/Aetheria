@@ -36,7 +36,7 @@ using var cultMeshRudpHost = StartRtsCultMeshHost(node, options, () => latestFra
 using var rtsPumpCancellation = new CancellationTokenSource();
 var rtsPump = RunRtsCultMeshPumpAsync(cultMeshRudpHost, rtsPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var firstTick = await TickAsync(node, options, latestFrame, publishWitnesses: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, latestFrame, buildPublications: true).ConfigureAwait(false);
 ThrowIfRtsPumpFaulted(rtsPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -73,14 +73,14 @@ while (!stopped.Task.IsCompleted)
             break;
     }
 
-    var publishWitnesses = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, latestFrame, publishWitnesses).ConfigureAwait(false);
+    var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
+    var tick = await TickAsync(node, options, latestFrame, buildPublications).ConfigureAwait(false);
     ThrowIfRtsPumpFaulted(rtsPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
     if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
         nextTickUtc = DateTimeOffset.UtcNow;
-    if (publishWitnesses)
+    if (buildPublications)
     {
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
         discoveryHost.Update(await node.VerseHostSettings().ReadAsync().ConfigureAwait(false));
@@ -110,7 +110,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
-    bool publishWitnesses)
+    bool buildPublications)
 {
     await AcceptEveCommandsAsync(node, options).ConfigureAwait(false);
 
@@ -169,7 +169,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             Catalog = node.RuntimeCatalog().Latest(),
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
-            PublishWitnesses = publishWitnesses,
+            BuildPublications = buildPublications,
             OperationContext = new AetheriaRuntimeDaemonOperationContext
             {
                 LoadoutTemplates = loadoutTemplates
@@ -199,9 +199,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             authorityLeases).ConfigureAwait(false);
     }
 
-    if (publishWitnesses)
+    if (buildPublications)
     {
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(node.StatePath, result.Frame);
         await PublishDaemonApiDocumentsAsync(node, result).ConfigureAwait(false);
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
     }

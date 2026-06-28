@@ -112,7 +112,7 @@ namespace GameCult.Aetheria.State.Verse
                     CumulativeAppliedCommandIds = currentFrame.CumulativeAppliedCommandIds,
                     CumulativeRejectedCommandIds = currentFrame.CumulativeRejectedCommandIds,
                     Catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(stateFilePath),
-                    PublishWitnesses = false
+                    BuildPublications = false
                 });
 
             var operationRejectedCommandIds = new HashSet<string>(

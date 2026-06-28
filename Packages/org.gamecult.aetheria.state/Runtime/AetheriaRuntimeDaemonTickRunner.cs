@@ -30,7 +30,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
         public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
         public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
-        public bool PublishWitnesses { get; set; } = true;
+        public bool BuildPublications { get; set; } = true;
     }
 
     public sealed class AetheriaRuntimeDaemonTickResult
@@ -39,14 +39,6 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonOperationResult operationResult,
             AetheriaRuntimeDaemonFrameDocument frame,
-            string framePath,
-            string providerAdvertisementPath,
-            string healthPath,
-            string commandBoundaryPath,
-            string gameSurfacePath,
-            string gameTuiSurfacePath,
-            string editorSurfacePath,
-            string editorTuiSurfacePath,
             AetheriaRuntimeDaemonSoaViewDocument? soaView = null,
             AetheriaRuntimeDaemonProviderAdvertisementDocument? providerAdvertisement = null,
             AetheriaRuntimeDaemonHealthDocument? health = null,
@@ -63,14 +55,6 @@ namespace GameCult.Aetheria.State.Verse
                 Array.Empty<string>(),
                 Array.Empty<string>());
             Frame = frame ?? new AetheriaRuntimeDaemonFrameDocument();
-            FramePath = framePath ?? "";
-            ProviderAdvertisementPath = providerAdvertisementPath ?? "";
-            HealthPath = healthPath ?? "";
-            CommandBoundaryPath = commandBoundaryPath ?? "";
-            GameSurfacePath = gameSurfacePath ?? "";
-            GameTuiSurfacePath = gameTuiSurfacePath ?? "";
-            EditorSurfacePath = editorSurfacePath ?? "";
-            EditorTuiSurfacePath = editorTuiSurfacePath ?? "";
             SoaView = soaView;
             ProviderAdvertisement = providerAdvertisement;
             Health = health;
@@ -85,14 +69,6 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeRunCheckpointCommit Run { get; }
         public AetheriaRuntimeDaemonOperationResult OperationResult { get; }
         public AetheriaRuntimeDaemonFrameDocument Frame { get; }
-        public string FramePath { get; }
-        public string ProviderAdvertisementPath { get; }
-        public string HealthPath { get; }
-        public string CommandBoundaryPath { get; }
-        public string GameSurfacePath { get; }
-        public string GameTuiSurfacePath { get; }
-        public string EditorSurfacePath { get; }
-        public string EditorTuiSurfacePath { get; }
         public AetheriaRuntimeDaemonSoaViewDocument? SoaView { get; }
         public AetheriaRuntimeDaemonProviderAdvertisementDocument? ProviderAdvertisement { get; }
         public AetheriaRuntimeDaemonHealthDocument? Health { get; }
@@ -193,36 +169,21 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeDaemonSchemas.EditorSurface
             };
 
-            if (!options.PublishWitnesses)
+            if (!options.BuildPublications)
             {
                 return new AetheriaRuntimeDaemonTickResult(
                     operationResult.Run,
                     operationResult,
-                    frame,
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "");
+                    frame);
             }
 
-            var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(stateFilePath, frame);
             var soaView = AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
-            var commandBoundaryPath = AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary(
-                stateFilePath,
-                commandBoundary);
             var providerAdvertisement = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
                 stateFilePath,
                 options.DaemonId,
                 options.VerseId,
                 options.CultMeshAddress);
-            var providerAdvertisementPath = AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement(
-                stateFilePath,
-                providerAdvertisement);
             var health = new AetheriaRuntimeDaemonHealthDocument
             {
                 DaemonId = string.IsNullOrWhiteSpace(options.DaemonId) ? "aetheria-daemon" : options.DaemonId,
@@ -235,37 +196,19 @@ namespace GameCult.Aetheria.State.Verse
                 RejectedCommandCount = operationResult.RejectedCommandIds.Count,
                 Status = operationResult.RejectedCommandIds.Count == 0 ? "healthy" : "commands-rejected",
                 PublicationSource = "daemon-published",
-                Transport = "cultcache-witness",
-                CommandBoundaryPath = commandBoundaryPath
+                Transport = "cultmesh-managed",
+                CommandBoundaryPath = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()
             };
-            var healthPath = AetheriaRuntimeDaemonPublicationStore.PublishHealth(
-                stateFilePath,
-                health);
-            AetheriaRuntimeDaemonPublicationStore.PublishAssetManifest(
-                stateFilePath,
-                AetheriaRuntimeAssets.ProjectManifest(
-                    options.Catalog,
-                    frame.Run?.RunId ?? "",
-                    $"cultmesh://{options.VerseId}/assets"));
             var starbridgeSummary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                 frame,
                 options.StarbridgeScenario,
                 options.StarbridgeSession,
                 options.Catalog);
-            AetheriaRuntimeDaemonPublicationStore.PublishStarbridgeSessionSummary(
-                stateFilePath,
-                starbridgeSummary);
             var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
                 frame,
                 health,
                 commandBoundary,
                 starbridgeSummary);
-            var gameSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishGameSurface(
-                stateFilePath,
-                gameSurface);
-            var gameTuiSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface(
-                stateFilePath,
-                gameSurface);
             var designerSurfaces = new[]
             {
                 AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath),
@@ -276,24 +219,10 @@ namespace GameCult.Aetheria.State.Verse
                 health,
                 commandBoundary,
                 designerSurfaces);
-            var editorSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface(
-                stateFilePath,
-                editorSurface);
-            var editorTuiSurfacePath = AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface(
-                stateFilePath,
-                editorSurface);
             return new AetheriaRuntimeDaemonTickResult(
                 operationResult.Run,
                 operationResult,
                 frame,
-                framePath,
-                providerAdvertisementPath,
-                healthPath,
-                commandBoundaryPath,
-                gameSurfacePath,
-                gameTuiSurfacePath,
-                editorSurfacePath,
-                editorTuiSurfacePath,
                 soaView,
                 providerAdvertisement,
                 health,
