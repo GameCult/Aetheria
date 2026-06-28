@@ -230,6 +230,48 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return MutableDocumentPointer<AetheriaWorldState>(new CultRecordKey("global:aetheria.world_state.v1"));
     }
 
+    public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()
+    {
+        return MutableDocumentPointer<AetheriaMigrationLedger>(
+            new CultRecordKey("global:aetheria.migration_ledger.v1"));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()
+    {
+        return MutableDocumentPointer<AetheriaLegacyCatalogQuarantine>(
+            new CultRecordKey("global:aetheria.legacy_catalog_quarantine.v1"));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaItemDefinition>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinitionByLegacyId(string legacyId)
+    {
+        return ItemDefinition(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(legacyId));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaCorporation> Corporation(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaCorporation>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaCorporation> CorporationByLegacyId(string legacyId)
+    {
+        return Corporation(AetheriaCatalogKeys.CorporationFromLegacyId(legacyId));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaNameFile>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaNameFile> NameFileByLegacyId(string legacyId)
+    {
+        return NameFile(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
+    }
+
     public CultMeshMutableStatePointer<AetheriaTradeValuePolicy> TradeValuePolicy()
     {
         return MutableDocumentPointer<AetheriaTradeValuePolicy>(
