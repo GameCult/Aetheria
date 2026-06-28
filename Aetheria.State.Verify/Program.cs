@@ -63,6 +63,7 @@ RequireTypedStatRecipeOperations(root);
 RequireTypedDaemonCommandPayloads(root);
 RequireUnityPublicRequestVocabulary(root);
 RequireDaemonVersePublication(root);
+RequireUnityRuntimeCatalogClientUsesManagedDocument(root);
 RequireAetheriaRuntimeVerseClientContract(root);
 RequireTypedEveCommandBodies(root);
 RequireMainMenuVerseHostProjection(root);
@@ -9213,6 +9214,62 @@ static void RequireDaemonVersePublication(string root)
             "Daemon Verse shape note no longer records the Odin/VoidBot daemon authority contract: " +
             string.Join(", ", missingNoteSymbols));
     }
+}
+
+static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
+{
+    var clientPath = Path.Combine(root, "Aetheria.State.Unity", "AetheriaRuntimeCatalogClient.cs");
+    var mapperPath = Path.Combine(root, "Aetheria.State.Unity", "AetheriaRuntimeCatalogSnapshotMapper.cs");
+    var client = File.Exists(clientPath)
+        ? File.ReadAllText(clientPath)
+        : throw new InvalidOperationException("Cannot verify Unity runtime catalog client; AetheriaRuntimeCatalogClient.cs is missing.");
+
+    var requiredSymbols = new[]
+    {
+        "\"aetheria-unity-runtime-catalog\",",
+        "enableDurableShardLogs: false",
+        "public AetheriaRuntimeCatalogSnapshot ReadCatalog()",
+        "return _node.RuntimeCatalog().Latest();",
+        "public async Task<EveSurfaceState?> ReadCatalogSurfaceAsync()",
+        "AetheriaRuntimeCatalogStore",
+        ".ReadEveSurfaces(_node.StatePath)",
+        "candidate.Surface.Id == AetheriaCatalogSurfaceProjector.SurfaceId",
+        "private static EveSurfaceState ToState(global::GameCult.Eve.Surface.EveSurfaceDocument document)"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime catalog client must read the managed runtime catalog document: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "_node.ReadCatalogSnapshot()",
+        "_node.GetCatalogSurfaceAsync()",
+        "AetheriaRuntimeCatalogSnapshotMapper.FromCatalog(",
+        "AetheriaCatalogSnapshot"
+    };
+    var forbiddenHits = forbiddenSymbols
+        .Where(symbol => client.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime catalog client still maps authored catalog state instead of using the managed runtime document: " +
+            string.Join(", ", forbiddenHits));
+    }
+
+    if (File.Exists(mapperPath))
+    {
+        throw new InvalidOperationException(
+            "Unity runtime catalog snapshot mapper is dead projection chaff; AetheriaStateNode.RuntimeCatalog owns this document now.");
+    }
+
+    Console.WriteLine("Unity runtime catalog client: catalog reads use the managed typed runtime document");
 }
 
 static void RequireAetheriaRuntimeVerseClientContract(string root)
