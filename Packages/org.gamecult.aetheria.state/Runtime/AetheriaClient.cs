@@ -208,7 +208,7 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             var frame = await RequireFrameAsync().ConfigureAwait(false);
             return AetheriaRuntimeAssets.ProjectManifest(
-                _verse.OpenRuntimeCatalog(),
+                State.Catalog.Latest(),
                 frame.Run?.RunId ?? "");
         }
 
@@ -275,7 +275,7 @@ namespace GameCult.Aetheria.State.Verse
                 frame,
                 scenario,
                 session,
-                _verse.OpenRuntimeCatalog());
+                State.Catalog.Latest());
         }
 
         public async Task<AetheriaRuntimeSelectedObjectDocument> SelectedObjectAsync(int entityIndex)
