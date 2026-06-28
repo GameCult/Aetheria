@@ -90,7 +90,7 @@ public class InventoryMenu : MonoBehaviour
         //     _destroyItem = false;
         // });
         var hasObservedCurrentEntity = TryResolveCurrentEntityFacade(out var currentEntity);
-        var cargo = TryGetTypedCurrentDockingBayFacade(out var dockingBay)
+        var cargo = TryResolveCurrentDockingBay(out var dockingBay)
             ? dockingBay
             : currentEntity?.CargoBays.FirstOrDefault();
         if (cargo!=null)
@@ -726,12 +726,8 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        var stationRefit = ResolveStationRefit();
-        dockingBay = stationRefit?.IsDocked == true && stationRefit.DockingBayIndex >= 0
-            ? (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
-                .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex)
-            : null;
-        return dockingBay != null;
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
     }
 
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
@@ -769,22 +765,21 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentEntityFacade(out Entity currentEntity)
     {
         currentEntity = null;
-        var currentEntityKey = ResolveDockingState()?.CurrentEntityKey;
-        return _observedFacadeIndex != null &&
-               !string.IsNullOrWhiteSpace(currentEntityKey) &&
-               _observedFacadeIndex.TryResolveEntityByRecordKey(currentEntityKey, out currentEntity);
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentEntity(out currentEntity);
     }
 
-    private bool TryGetTypedCurrentDockingBayFacade(out EquippedCargoBay dockingBay)
+    private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
     {
         dockingBay = null;
-        var docking = ResolveDockingState()?.CurrentDocking;
-        return _observedFacadeIndex != null &&
-               docking?.IsDocked == true &&
-               _observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                   docking.DockParentEntityKey,
-                   docking.DockingBayIndex,
-                   out dockingBay);
+        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
+            !dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay))
+        {
+            return false;
+        }
+
+        dockingBay = resolvedDockingBay;
+        return dockingBay != null;
     }
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
@@ -801,6 +796,16 @@ public class InventoryMenu : MonoBehaviour
             Debug.LogWarning($"Failed to read Aetheria docking state for inventory menu: {ex.Message}");
             return null;
         }
+    }
+
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    {
+        dockingIndex = null;
+        if (_observedFacadeIndex == null)
+            return false;
+
+        dockingIndex = new AetheriaUnityObservedDockingIndex(ResolveClient, _observedFacadeIndex);
+        return true;
     }
 
     private bool TryResolveCargoBay(EquippedCargoBay cargoBay, out string entityKey, out int cargoIndex)

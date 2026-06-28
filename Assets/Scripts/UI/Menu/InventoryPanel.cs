@@ -1139,24 +1139,21 @@ private void Update()
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        var stationRefit = ResolveStationRefit();
-        dockingBay = stationRefit?.IsDocked == true && stationRefit.DockingBayIndex >= 0
-            ? (stationRefit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
-                .FirstOrDefault(row => row != null && row.DockingBayIndex == stationRefit.DockingBayIndex)
-            : null;
-        return dockingBay != null;
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay);
     }
 
     private bool TryResolveCurrentDockingBayFacade(out EquippedCargoBay dockingBay)
     {
         dockingBay = null;
-        var docking = ResolveDockingState()?.CurrentDocking;
-        return _observedFacadeIndex != null &&
-               docking?.IsDocked == true &&
-               _observedFacadeIndex.TryResolveDockingBayByRecordKey(
-                   docking.DockParentEntityKey,
-                   docking.DockingBayIndex,
-                   out dockingBay);
+        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
+            !dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay))
+        {
+            return false;
+        }
+
+        dockingBay = resolvedDockingBay;
+        return dockingBay != null;
     }
 
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()

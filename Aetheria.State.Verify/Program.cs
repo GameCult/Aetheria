@@ -6169,7 +6169,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "TryResolveStationRefitEntity(string entityKey",
         "SetObservedFacadeIndex(AetheriaUnityObservedFacadeIndex observedFacadeIndex)",
         "_observedFacadeIndex.TryResolveEntityByRecordKey",
-        "_observedFacadeIndex.TryResolveDockingBayByRecordKey",
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
         ".DockingState",
         ".Latest()",
         "LoadoutRestoreOptions"
@@ -6228,24 +6229,30 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !inventoryDropdownSurfaceBuilder.Contains("entityKey: entity.EntityKey", StringComparison.Ordinal) ||
         !source.Contains("TryResolveStationRefitEntity(selection.EntityKey", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBayRow(out var currentDockingBay)", StringComparison.Ordinal) ||
+        !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
+        !source.Contains("dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay)", StringComparison.Ordinal) ||
         !source.Contains("currentDockingBay.DockingBayIndex", StringComparison.Ordinal) ||
         !source.Contains("ResolveStationRefit()?.DockParentEntityKey", StringComparison.Ordinal) ||
-        source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal))
+        source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
+        source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "InventoryPanel dropdown must carry typed entity identity through the shared Eve surface and must project docking display state from StationRefitAsync docking-bay rows.");
     }
 
-    if (!inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade(out var dockingBay)", StringComparison.Ordinal) ||
+    if (!inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".Latest()", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("_observedFacadeIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("_observedFacadeIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryMenu must resolve typed current-docking state before adapting a key/index-scoped Unity docking bay facade.");
+            "InventoryMenu must resolve typed current-docking state through the shared observed docking index before adapting to Unity facades.");
     }
 
     var requiredBuilderSymbols = new[]
@@ -6400,8 +6407,8 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
     {
         "TryResolveCurrentDockingBayRow(out var currentDockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
-        "stationRefit.DockingBays",
-        "row.DockingBayIndex == stationRefit.DockingBayIndex",
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay)",
         "currentDockingBay.DockingBayIndex"
     };
     var missingPanelSymbols = requiredPanelSymbols
@@ -6419,8 +6426,8 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
     {
         "TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
-        "stationRefit.DockingBays",
-        "row.DockingBayIndex == stationRefit.DockingBayIndex"
+        "TryResolveObservedDockingIndex(out var dockingIndex)",
+        "dockingIndex.TryResolveCurrentDockingBayRow(out dockingBay)"
     };
     var missingMenuSymbols = requiredMenuSymbols
         .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
