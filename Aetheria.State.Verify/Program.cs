@@ -9484,14 +9484,11 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "WatchDaemonGameTuiSurfaces()",
         "WatchDaemonEditorTuiSurfaces()",
         "CultMeshMutableStatePointer<EveSurfaceState>",
-        "GetLatestAuthoritativeRunFrameAsync()",
-        "GetObservedDaemonStateAsync()",
         "private AetheriaClientState? _aetheriaState",
         "return _aetheriaState ??= CreateAetheriaStateFacade();",
         "var state = Aetheria();",
         "() => state.Catalog.Latest()",
         "state.Daemon.LatestFrame.LatestAsync()",
-        "state.Daemon.LatestSoaView.LatestAsync()",
         "state.Daemon.Health.LatestAsync()",
         "state.Daemon.CommandBoundary.LatestAsync()",
         "AetheriaRuntimeLoadoutTemplatesDocument",
@@ -9540,6 +9537,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         throw new InvalidOperationException(
             "AetheriaRuntimeVerseClient still routes Eve state-ref resolution through the file-backed compatibility reader.");
+    }
+
+    if (client.Contains("GetObservedDaemonStateAsync()", StringComparison.Ordinal) ||
+        client.Contains("GetLatestAuthoritativeRunFrameAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient still exposes daemon observation compatibility helpers; use AetheriaClient managed documents instead.");
     }
 
     if (stateReader.Contains("TryReadObservedDaemonState", StringComparison.Ordinal) ||

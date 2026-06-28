@@ -200,29 +200,6 @@ namespace GameCult.Aetheria.State.Verse
             return _aetheriaState ??= CreateAetheriaStateFacade();
         }
 
-        public async Task<AetheriaRuntimeObservedDaemonState?> GetObservedDaemonStateAsync()
-        {
-            ThrowIfDisposed();
-
-            var state = Aetheria();
-            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-            if (frame == null)
-                return null;
-
-            var soaView = await state.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
-            if (soaView == null ||
-                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
-            {
-                soaView = null;
-            }
-
-            return new AetheriaRuntimeObservedDaemonState(
-                frame,
-                soaView,
-                AetheriaRuntimeDaemonFrameStore.GetFramePath(StatePath),
-                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
-        }
-
         public Func<string, string> CreateEveSurfaceStateRefResolver()
         {
             return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
@@ -249,23 +226,6 @@ namespace GameCult.Aetheria.State.Verse
                 healthTask.Result,
                 commandBoundaryTask.Result,
                 () => state.Catalog.Latest());
-        }
-
-        public async Task<AetheriaRuntimeDaemonFrameDocument?> GetLatestAuthoritativeRunFrameAsync()
-        {
-            ThrowIfDisposed();
-
-            var frame = await Aetheria().Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-            if (frame == null ||
-                !frame.IsAuthoritative ||
-                frame.Run == null ||
-                frame.Run.Zones == null ||
-                frame.Run.Zones.Count == 0)
-            {
-                return null;
-            }
-
-            return frame;
         }
 
         public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
