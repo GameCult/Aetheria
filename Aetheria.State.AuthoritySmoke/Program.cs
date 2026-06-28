@@ -648,8 +648,12 @@ internal sealed class AuthoritySmokeChecks
             await writer.VerseAuthorityPolicy()
                 .ReplaceAsync(policy)
                 .ConfigureAwait(false);
-            await writer.PutStarbridgeScenarioAsync(scenario, flush: false).ConfigureAwait(false);
-            await writer.PutStarbridgeSessionAsync(session, flush: false).ConfigureAwait(false);
+            await writer.StarbridgeScenario()
+                .ReplaceAsync(scenario)
+                .ConfigureAwait(false);
+            await writer.StarbridgeSession()
+                .ReplaceAsync(session)
+                .ConfigureAwait(false);
             await writer.FlushAsync().ConfigureAwait(false);
         }
 
@@ -769,11 +773,15 @@ internal sealed class AuthoritySmokeChecks
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
 
-        await ravenNode.PutVerseAuthorityPolicyAsync(policy).ConfigureAwait(false);
-        await starfireNode.PutVerseAuthorityPolicyAsync(policy).ConfigureAwait(false);
+        await ravenNode.VerseAuthorityPolicy()
+            .ReplaceAsync(policy)
+            .ConfigureAwait(false);
+        await starfireNode.VerseAuthorityPolicy()
+            .ReplaceAsync(policy)
+            .ConfigureAwait(false);
 
-        var ravenPolicy = await ravenNode.GetVerseAuthorityPolicyAsync().ConfigureAwait(false);
-        var starfirePolicy = await starfireNode.GetVerseAuthorityPolicyAsync().ConfigureAwait(false);
+        var ravenPolicy = await ravenNode.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
+        var starfirePolicy = await starfireNode.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
 
         Require(ravenPolicy != null, "raven node should load authority policy");
         Require(starfirePolicy != null, "starfire node should load authority policy");
@@ -1109,7 +1117,9 @@ internal sealed class AuthoritySmokeChecks
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
 
-        await node.PutVerseAuthorityPolicyAsync(policy).ConfigureAwait(false);
+        await node.VerseAuthorityPolicy()
+            .ReplaceAsync(policy)
+            .ConfigureAwait(false);
         foreach (var command in commands)
             await node.SubmitDaemonCommandAsync(command).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
@@ -1321,7 +1331,7 @@ internal sealed class AuthoritySmokeChecks
                     runtimeId,
                     startServer: false,
                     enableDurableShardLogs: false).ConfigureAwait(false);
-                var frame = await node.GetDaemonFrameAsync().ConfigureAwait(false);
+                var frame = await node.LatestFrame().ReadAsync().ConfigureAwait(false);
                 if (frame != null)
                 {
                     lastFrame = frame;

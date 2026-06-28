@@ -93,17 +93,18 @@ RequireInventoryProjectionSlotIdentity(root);
 RequireInventoryLoadoutSaveRequestAuthority(root);
 RequireInventoryLoadoutRestoreRequestAuthority(root);
 RequireDockedCurrentShipRequestAuthority(root);
+RequireAuthoritySmokeUsesManagedPointers(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(
     statePath,
     "aetheria-state-verify",
     enableDurableShardLogs: false);
 
-var ledger = await node.GetMigrationLedgerAsync()
+var ledger = await node.MigrationLedger().ReadAsync()
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
-var quarantine = await node.GetLegacyCatalogQuarantineAsync()
+var quarantine = await node.LegacyCatalogQuarantine().ReadAsync()
     ?? throw new InvalidOperationException("Missing legacy catalog quarantine document.");
-var publishedSurface = await node.GetCatalogSurfaceAsync()
+var publishedSurface = await node.CatalogSurface().ReadAsync()
     ?? throw new InvalidOperationException("Missing Aetheria catalog Eve surface document.");
 
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
@@ -510,15 +511,15 @@ if (publishedSurface.Schema != surface.Schema ||
 
 await RequireLegacyLookupAsync(
     items[0].LegacyId,
-    () => node.GetItemDefinitionByLegacyIdAsync(items[0].LegacyId),
+    () => node.ItemDefinitionByLegacyId(items[0].LegacyId).ReadAsync(),
     "item definition");
 await RequireLegacyLookupAsync(
     corporations[0].LegacyId,
-    () => node.GetCorporationByLegacyIdAsync(corporations[0].LegacyId),
+    () => node.CorporationByLegacyId(corporations[0].LegacyId).ReadAsync(),
     "corporation");
 await RequireLegacyLookupAsync(
     nameFiles[0].LegacyId,
-    () => node.GetNameFileByLegacyIdAsync(nameFiles[0].LegacyId),
+    () => node.NameFileByLegacyId(nameFiles[0].LegacyId).ReadAsync(),
     "name file");
 
 if (string.IsNullOrWhiteSpace(quarantine.CatalogFingerprint))
@@ -8528,6 +8529,57 @@ static void RequireUnityPublicRequestVocabulary(string root)
         throw new InvalidOperationException(
             "Unity-facing Aetheria APIs must say Request/Submit, not Commit; Unity is an input provider, not state authority: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireAuthoritySmokeUsesManagedPointers(string root)
+{
+    var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
+    if (!File.Exists(authoritySmokePath))
+    {
+        throw new InvalidOperationException("Authority smoke source is missing.");
+    }
+
+    var authoritySmoke = File.ReadAllText(authoritySmokePath);
+    var requiredSymbols = new[]
+    {
+        "writer.StarbridgeScenario()",
+        "writer.StarbridgeSession()",
+        "ravenNode.VerseAuthorityPolicy()",
+        "starfireNode.VerseAuthorityPolicy()",
+        "node.VerseAuthorityPolicy()",
+        "node.LatestFrame().ReadAsync()",
+        ".ReplaceAsync(policy)",
+        ".ReplaceAsync(scenario)",
+        ".ReplaceAsync(session)",
+        ".ReadAsync().ConfigureAwait(false)"
+    };
+    var missingSymbols = requiredSymbols
+        .Where(symbol => !authoritySmoke.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Authority smoke no longer exercises managed Verse state pointers: " +
+            string.Join(", ", missingSymbols));
+    }
+
+    var forbiddenSymbols = new[]
+    {
+        "PutStarbridgeScenarioAsync(",
+        "PutStarbridgeSessionAsync(",
+        "PutVerseAuthorityPolicyAsync(",
+        "GetVerseAuthorityPolicyAsync(",
+        "GetDaemonFrameAsync("
+    };
+    var survivingSymbols = forbiddenSymbols
+        .Where(symbol => authoritySmoke.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Authority smoke still teaches compatibility helper access instead of managed Verse pointers: " +
+            string.Join(", ", survivingSymbols));
     }
 }
 
