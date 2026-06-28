@@ -1030,7 +1030,7 @@ private void Update()
 
     private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
     }
 
     private void RequestDockedCurrentShip(Ship ship)

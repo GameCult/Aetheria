@@ -6110,6 +6110,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         "public bool TryGetHardpointType<TEnum>(out TEnum hardpointType) where TEnum : struct",
         "public bool TryGetSimpleCommodityCategory<TEnum>(out TEnum category) where TEnum : struct",
         "public bool TryGetCompoundCommodityCategory<TEnum>(out TEnum category) where TEnum : struct",
+        "public AetheriaRuntimeCatalogItem? FindItem<T>(T? item, Func<T, string?> itemKey) where T : class",
         "Enum.TryParse(HardpointType, true, out hardpointType)",
         "Enum.TryParse(SimpleCommodityCategory, true, out category)",
         "Enum.TryParse(CompoundCommodityCategory, true, out category)"
@@ -7195,7 +7196,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public abstract class ActionBarBinding : IDisposable",
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
         "Client.Aetheria().ReactiveCatalog()",
-        "_catalog?.Current?.FindItem(item.ItemKey)",
+        "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
         "binding?.Dispose()",
         "private void OnDestroy()"
     };
@@ -7226,6 +7227,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_catalog?.Current",
+        "ResolveCatalog()?.FindItem(item, x => x.ItemKey)",
         "_playerSettings?.Current",
         "private void OnDestroy()"
     };
@@ -12375,7 +12377,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ResolveInfoGathered?.Invoke(currentEntity, target)",
         "ResolveHostileContact?.Invoke(currentEntity, observedTarget)",
         "public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; set; }",
-        "RuntimeCatalog?.FindItem(target.Hull?.ItemKey ?? \"\")"
+        "RuntimeCatalog?.FindItem(target.Hull, x => x.ItemKey)"
     };
     var missingTargetPresentationSymbols = requiredTargetPresentationSymbols
         .Where(symbol => !targetPresentation.Contains(symbol, StringComparison.Ordinal))

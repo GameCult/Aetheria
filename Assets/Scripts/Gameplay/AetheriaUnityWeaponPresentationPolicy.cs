@@ -21,7 +21,7 @@ public static class AetheriaUnityWeaponPresentationPolicy
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         EquippedItem item)
     {
-        var typedItem = runtimeCatalog?.FindItem(item?.EquippableItem?.ItemKey ?? "");
+        var typedItem = runtimeCatalog?.FindItem(item?.EquippableItem, x => x.ItemKey);
         if (typedItem?.BehaviorKinds == null)
             return false;
 

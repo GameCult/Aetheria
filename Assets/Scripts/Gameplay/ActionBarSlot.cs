@@ -90,13 +90,13 @@ public abstract class ActionBarBinding : IDisposable
 
     protected AetheriaRuntimeCatalogItem FindCatalogItem(ItemInstance item)
     {
-        if (item == null || string.IsNullOrWhiteSpace(item.ItemKey) || Client == null)
+        if (Client == null)
             return null;
 
         try
         {
             _catalog ??= Client.Aetheria().ReactiveCatalog();
-            return _catalog?.Current?.FindItem(item.ItemKey);
+            return _catalog?.Current?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)
         {

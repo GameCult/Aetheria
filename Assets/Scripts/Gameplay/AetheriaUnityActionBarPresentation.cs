@@ -53,7 +53,7 @@ public sealed class AetheriaUnityActionBarPresentation
         {
             ActionBarWeaponGroupBinding weaponGroup => $"G{weaponGroup.Group + 1}",
             ActionBarConsumableBinding consumable => consumable.Target?.Name ?? "Consumable",
-            ActionBarGearBinding gear => _catalog?.FindItem(gear.Item?.EquippableItem?.ItemKey ?? "")?.Name ?? "Gear",
+            ActionBarGearBinding gear => _catalog?.FindItem(gear.Item?.EquippableItem, x => x.ItemKey)?.Name ?? "Gear",
             _ => "Empty"
         };
     }
@@ -257,7 +257,7 @@ public sealed class AetheriaUnityActionBarPresentation
 
     private AetheriaRuntimeCatalogItem FindConsumable(ItemInstance item)
     {
-        var typedItem = _catalog?.FindItem(item?.ItemKey ?? "");
+        var typedItem = _catalog?.FindItem(item, x => x.ItemKey);
         return typedItem != null &&
                string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
             ? typedItem

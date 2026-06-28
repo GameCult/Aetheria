@@ -184,7 +184,7 @@ public sealed class AetheriaUnityTargetPresentation
         var visibilityToTarget = ResolveInfoGathered?.Invoke(target, currentEntity) ?? 0f;
         TargetVisibilityFill.fillAmount = (float)renderSettings.NormalizeTargetVisibilityFill(targetInfoGathered);
         VisibilityToTargetFill.fillAmount = (float)renderSettings.NormalizeVisibilityToTargetFill(visibilityToTarget);
-        var targetHull = RuntimeCatalog?.FindItem(target.Hull?.ItemKey ?? "");
+        var targetHull = RuntimeCatalog?.FindItem(target.Hull, x => x.ItemKey);
         var targetMaxDurability = targetHull?.Durability > 0
             ? (float)targetHull.Durability
             : Math.Max(target.Hull.Durability, 1f);

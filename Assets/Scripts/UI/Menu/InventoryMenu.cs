@@ -1071,7 +1071,7 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
     }
 
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()

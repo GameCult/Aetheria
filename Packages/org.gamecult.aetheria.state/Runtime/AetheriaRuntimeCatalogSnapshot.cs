@@ -57,6 +57,14 @@ namespace GameCult.Aetheria.State.Verse
             return TryGet(_itemsByKey, itemKey);
         }
 
+        public AetheriaRuntimeCatalogItem? FindItem<T>(T? item, Func<T, string?> itemKey) where T : class
+        {
+            if (item == null || itemKey == null)
+                return null;
+
+            return FindItem(itemKey(item) ?? "");
+        }
+
         public AetheriaRuntimeCorporation? FindCorporation(string corporationKey)
         {
             return TryGet(_corporationsByKey, corporationKey);

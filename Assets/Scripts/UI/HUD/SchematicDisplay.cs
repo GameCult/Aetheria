@@ -316,7 +316,7 @@ public class SchematicDisplay : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item?.ItemKey ?? "");
+        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
     }
 
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()

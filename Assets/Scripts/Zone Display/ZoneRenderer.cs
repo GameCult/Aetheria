@@ -232,10 +232,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public AetheriaRuntimeCatalogItem FindCatalogItem(ItemInstance item)
     {
-        if (item == null || string.IsNullOrWhiteSpace(item.ItemKey))
-            return null;
-
-        return ResolveCatalog()?.FindItem(item.ItemKey);
+        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
     }
 
     void Start()
@@ -1201,7 +1198,7 @@ public class ZoneRenderer : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedZoneItem(ItemInstance item)
     {
-        return FindCatalogItem(item);
+        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
     }
 
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()

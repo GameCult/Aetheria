@@ -28,11 +28,7 @@ public class ItemManager
 
     public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
     {
-        return item == null
-            ? null
-            : !string.IsNullOrWhiteSpace(item.ItemKey)
-                ? _runtimeCatalog.FindItem(item.ItemKey)
-                : null;
+        return _runtimeCatalog.FindItem(item, x => x.ItemKey);
     }
 
     public Behavior[] CreateRuntimeBehaviors(EquippedItem item)
