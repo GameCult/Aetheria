@@ -167,7 +167,20 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         docking = null;
         try
         {
-            docking = _resolveClient()?.State?.CurrentDocking();
+            var state = _resolveClient()?.State;
+            if (state == null)
+                return false;
+
+            var currentEntity = state.Current.LatestEntity();
+            var currentDocking = state.Current.LatestDocking();
+            var stationRefit = state.LatestStationRefit();
+            if (currentDocking == null || stationRefit == null)
+                return false;
+
+            docking = new AetheriaRuntimeObservedDockingState(
+                currentEntity,
+                currentDocking,
+                stationRefit);
             return docking != null;
         }
         catch

@@ -7157,8 +7157,13 @@ static bool HasManagedDockingSnapshotAccess(string source)
     }
 
     if (source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
-        source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
-        !source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
+        source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
+        source.Contains("state.Current.LatestEntity()", StringComparison.Ordinal) &&
+        source.Contains("state.Current.LatestDocking()", StringComparison.Ordinal) &&
+        source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
+        !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
+        !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
+        !source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
         !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
         !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal))
@@ -7176,7 +7181,12 @@ static bool HasManagedDockingSnapshotAccess(string source)
 
     return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
            source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
-           source.Contains("_resolveClient()?.State?.CurrentDocking()", StringComparison.Ordinal) &&
+           source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
+           source.Contains("state.Current.LatestEntity()", StringComparison.Ordinal) &&
+           source.Contains("state.Current.LatestDocking()", StringComparison.Ordinal) &&
+           source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
+           !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
+           !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
            !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
            !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
            !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
@@ -12729,7 +12739,10 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
         "AetheriaRuntimeObservedDockingState",
-        "_resolveClient()?.State?.CurrentDocking()",
+        "var state = _resolveClient()?.State;",
+        "state.Current.LatestEntity()",
+        "state.Current.LatestDocking()",
+        "state.LatestStationRefit()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -12751,6 +12764,8 @@ static void RequireMainMenuContinueRunState(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        "State?.CurrentDocking()",
+        ".State.CurrentDocking()",
         "state.ReactiveEntity()",
         "state.ReactiveDocking()",
         "state.ReactiveStationRefit()"
