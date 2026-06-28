@@ -123,7 +123,7 @@ public class ZoneRenderer : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
-    private AetheriaRuntimeObjectsViewportSession _objectsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -1246,7 +1246,7 @@ public class ZoneRenderer : MonoBehaviour
             var nextObjectsViewport = ResolveClient()
                 .State
                 .Viewports
-                .ObserveObjects(viewportBounds);
+                .ReactiveObjects(viewportBounds);
             _objectsViewport?.Dispose();
             _objectsViewportBounds = viewportBounds;
             _objectsViewport = nextObjectsViewport;

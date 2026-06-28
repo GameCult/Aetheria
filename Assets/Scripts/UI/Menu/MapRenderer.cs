@@ -40,8 +40,8 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private AetheriaRuntimeObjectsViewportSession _objectsViewport;
-    private AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     private string _clientStatePath = "";
@@ -132,11 +132,11 @@ public class MapRenderer : MonoBehaviour
             _objectsViewport = client
                 .State
                 .Viewports
-                .ObserveObjects(viewport);
+                .ReactiveObjects(viewport);
             _renderSplatsViewport = client
                 .State
                 .Viewports
-                .ObserveRenderSplats(viewport);
+                .ReactiveRenderSplats(viewport);
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)

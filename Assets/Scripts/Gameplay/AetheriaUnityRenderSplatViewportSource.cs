@@ -1,5 +1,6 @@
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 
 public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
@@ -27,7 +28,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
     private float _nextRefreshTime;
     private AetheriaRuntimeRtsViewportBounds _viewport;
-    private AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport;
+    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
 
     public RenderTexture TargetTexture
     {
@@ -118,7 +119,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             var nextRenderSplatsViewport = ResolveClient()
                 .State
                 .Viewports
-                .ObserveRenderSplats(viewport);
+                .ReactiveRenderSplats(viewport);
             ClearViewportDocument();
             _viewport = viewport;
             _renderSplatsViewport = nextRenderSplatsViewport;
