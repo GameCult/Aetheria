@@ -60,7 +60,7 @@ public class TradeMenu : MonoBehaviour
     
     private void OnEnable()
     {
-        if (!TryResolveObservedDocking(out var docking) ||
+        if (!TryResolveCurrentDocking(out var docking) ||
             docking.IsDocked != true ||
             string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
             docking.DockingBayIndex < 0)
@@ -498,7 +498,7 @@ public class TradeMenu : MonoBehaviour
     private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
     {
         targetEntityKey = "";
-        if (!TryResolveObservedDocking(out var docking) ||
+        if (!TryResolveCurrentDocking(out var docking) ||
             docking.IsDocked != true ||
             string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
         {
@@ -514,18 +514,29 @@ public class TradeMenu : MonoBehaviour
         if (_stationRefit != null)
             return _stationRefit;
 
-        _stationRefit = TryResolveObservedDocking(out var docking)
-            ? docking.Refit
-            : null;
+        _stationRefit = TryResolveStationRefit();
         return _stationRefit;
     }
 
-    private bool TryResolveObservedDocking(out AetheriaRuntimeObservedDockingState docking)
+    private AetheriaRuntimeStationRefitDocument TryResolveStationRefit()
+    {
+        try
+        {
+            return ResolveClient().State.LatestStationRefit();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria station refit state for trade menu: {ex.Message}");
+            return null;
+        }
+    }
+
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
         try
         {
-            docking = ResolveClient().State.CurrentDocking();
+            docking = ResolveClient().State.Current.LatestDocking();
             return docking != null;
         }
         catch (Exception ex)
