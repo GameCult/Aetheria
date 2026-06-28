@@ -225,6 +225,37 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return MutableDocumentPointer<AetheriaEveCommandAcceptanceStatus>(EveCommandAcceptanceStatusKey);
     }
 
+    public CultMeshMutableStatePointer<AetheriaWorldState> World()
+    {
+        return MutableDocumentPointer<AetheriaWorldState>(new CultRecordKey("global:aetheria.world_state.v1"));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaTradeValuePolicy> TradeValuePolicy()
+    {
+        return MutableDocumentPointer<AetheriaTradeValuePolicy>(
+            new CultRecordKey(AetheriaTradeValuePolicy.RecordKey));
+    }
+
+    public CultMeshMutableStatePointer<AetheriaLoadoutTemplate> LoadoutTemplate(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaLoadoutTemplate>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaRunState> RunState(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaRunState>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaZoneState> ZoneState(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaZoneState>(key);
+    }
+
+    public CultMeshMutableStatePointer<AetheriaEntitySnapshot> EntitySnapshot(CultRecordKey key)
+    {
+        return MutableDocumentPointer<AetheriaEntitySnapshot>(key);
+    }
+
     public Task<CultRecordHandle<AetheriaWorldState>> PutWorldAsync(AetheriaWorldState world)
     {
         return Database.PutAsync(new CultRecordKey("global:aetheria.world_state.v1"), world);

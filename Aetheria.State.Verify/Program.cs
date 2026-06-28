@@ -111,7 +111,7 @@ var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
 var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
 var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
-var tradeValuePolicy = await node.GetTradeValuePolicyAsync()
+var tradeValuePolicy = await node.TradeValuePolicy().ReadAsync()
     ?? throw new InvalidOperationException("Missing authored trade value policy document.");
 await RequireTradeValuePolicyEveCommandPersistsAsync();
 var runtimeCatalog = catalog;
@@ -9945,7 +9945,7 @@ static void RequireTypedEveCommandBodies(string root)
         "command.TradeValuePolicy.Value",
         "command.TradeValuePolicy.TierIndex",
         "ExecuteTradeValuePolicyCommandAsync(",
-        "PutTradeValuePolicyAsync(",
+        "TradeValuePolicy()",
         "SubmitInputSettingsCommandAsync(",
         "SubmitLoadoutTemplateCommandAsync(",
         "SubmitKnownSurfaceCommandAsync(",
@@ -12826,7 +12826,9 @@ static async Task RequireTradeValuePolicyEveCommandPersistsAsync()
         var policy = AetheriaRuntimeStateMapper.ToTradeValuePolicy(
             AetheriaRuntimeTradeValueSettings.Default,
             DateTimeOffset.UtcNow.ToString("O"));
-        await commandNode.PutTradeValuePolicyAsync(policy).ConfigureAwait(false);
+        await commandNode.TradeValuePolicy()
+            .ReplaceAsync(policy)
+            .ConfigureAwait(false);
         var originalMinimum = policy.QualityPriceModifier?.Minimum ?? 0;
         var editedMinimum = originalMinimum + 0.125;
 
@@ -12847,7 +12849,7 @@ static async Task RequireTradeValuePolicyEveCommandPersistsAsync()
                 "Trade value policy Eve command was not accepted by the typed command bridge.");
         }
 
-        var editedPolicy = await commandNode.GetTradeValuePolicyAsync().ConfigureAwait(false)
+        var editedPolicy = await commandNode.TradeValuePolicy().ReadAsync().ConfigureAwait(false)
             ?? throw new InvalidOperationException("Trade value policy disappeared after typed Eve command.");
         var actualMinimum = editedPolicy.QualityPriceModifier?.Minimum ?? 0;
         if (Math.Abs(actualMinimum - editedMinimum) > 0.000001)

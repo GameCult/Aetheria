@@ -298,16 +298,17 @@ public static class AetheriaEveCommandBridge
         var commit = command.LoadoutTemplate ?? throw new InvalidOperationException(
             $"Loadout template command '{command.CommandId}' is missing its typed payload.");
         var loadout = AetheriaRuntimeStateMapper.ToLoadoutTemplate(commit, command.IssuedAtUtc);
-        await node.PutLoadoutTemplateAsync(
-            AetheriaRuntimeStateMapper.LoadoutKey(loadout.Name),
-            loadout).ConfigureAwait(false);
+        await node.LoadoutTemplate(AetheriaRuntimeStateMapper.LoadoutKey(loadout.Name))
+            .ReplaceAsync(loadout)
+            .ConfigureAwait(false);
     }
 
     private static async Task ExecuteTradeValuePolicyCommandAsync(
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var policy = await node.GetTradeValuePolicyAsync().ConfigureAwait(false) ??
+        var tradeValuePolicy = node.TradeValuePolicy();
+        var policy = await tradeValuePolicy.ReadAsync().ConfigureAwait(false) ??
             AetheriaRuntimeStateMapper.ToTradeValuePolicy(
                 AetheriaRuntimeTradeValueSettings.Default,
                 command.IssuedAtUtc);
@@ -343,7 +344,7 @@ public static class AetheriaEveCommandBridge
         if (persistPolicy)
         {
             policy.UpdatedAtUtc = command.IssuedAtUtc;
-            await node.PutTradeValuePolicyAsync(policy).ConfigureAwait(false);
+            await tradeValuePolicy.ReplaceAsync(policy).ConfigureAwait(false);
         }
     }
 

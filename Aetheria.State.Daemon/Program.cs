@@ -937,15 +937,16 @@ static async Task PublishRuntimeSessionAsync(
 static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)
 {
     var now = DateTimeOffset.UtcNow.ToString("O");
-    var existing = await node.GetWorldAsync().ConfigureAwait(false);
+    var world = node.World();
+    var existing = await world.ReadAsync().ConfigureAwait(false);
     if (existing != null)
     {
         existing.UpdatedAtUtc = now;
-        await node.PutWorldAsync(existing).ConfigureAwait(false);
+        await world.ReplaceAsync(existing).ConfigureAwait(false);
         return;
     }
 
-    await node.PutWorldAsync(new AetheriaWorldState
+    await world.ReplaceAsync(new AetheriaWorldState
     {
         Name = "Aetheria",
         WorldId = "aetheria",
@@ -957,11 +958,12 @@ static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)
 
 static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now)
 {
-    var existing = await node.GetTradeValuePolicyAsync().ConfigureAwait(false);
+    var tradeValuePolicy = node.TradeValuePolicy();
+    var existing = await tradeValuePolicy.ReadAsync().ConfigureAwait(false);
     if (existing != null)
         return;
 
-    await node.PutTradeValuePolicyAsync(
+    await tradeValuePolicy.ReplaceAsync(
         AetheriaRuntimeStateMapper.ToTradeValuePolicy(
             AetheriaRuntimeTradeValueSettings.Default,
             now)).ConfigureAwait(false);
@@ -993,7 +995,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
         .ReplaceAsync(settings)
         .ConfigureAwait(false);
 
-    await node.PutRunStateAsync(runKey, new AetheriaRunState
+    await node.RunState(runKey).ReplaceAsync(new AetheriaRunState
     {
         RunId = runId,
         EntranceZoneIndex = 0,
@@ -1006,7 +1008,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
         UpdatedAtUtc = now
     }).ConfigureAwait(false);
 
-    await node.PutZoneStateAsync(zoneKey, new AetheriaZoneState
+    await node.ZoneState(zoneKey).ReplaceAsync(new AetheriaZoneState
     {
         Name = "Daemon Local Testbed",
         Position = Vec2(0, 0),
@@ -1084,7 +1086,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
         GravityTerrainWaveFrequency = 0.6
     }).ConfigureAwait(false);
 
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[0]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[0])).ReplaceAsync(SeedEntity(
         "Anchor Station",
         "station",
         Vec3(-220, 0, -90),
@@ -1103,7 +1105,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[7], 0.6, false)
         ],
         ["repair-parts", "reactor-fuel", "drone-core"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[1]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[1])).ReplaceAsync(SeedEntity(
         "Vanguard One",
         "ship",
         Vec3(-60, 0, -40),
@@ -1120,7 +1122,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[5], 0.85, true)
         ],
         ["coilgun-ammo", "field-rations"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[2]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[2])).ReplaceAsync(SeedEntity(
         "Wing Two",
         "ship",
         Vec3(180, 0, 120),
@@ -1137,7 +1139,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[6], 0.6, true)
         ],
         ["sensor-buoy", "shield-cell"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[3]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[3])).ReplaceAsync(SeedEntity(
         "Torch Three",
         "ship",
         Vec3(-160, 0, 210),
@@ -1153,7 +1155,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[5], 0.9, true)
         ],
         ["micro-missile", "coolant-pack"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[4]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[4])).ReplaceAsync(SeedEntity(
         "Ash Raider",
         "ship",
         Vec3(420, 0, 180),
@@ -1169,7 +1171,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[2], 0.5, true)
         ],
         ["scrap-metal", "stolen-capacitor"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[5]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[5])).ReplaceAsync(SeedEntity(
         "Cinder Knife",
         "ship",
         Vec3(560, 0, -110),
@@ -1184,7 +1186,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[3], 1, true)
         ],
         ["volatile-fuel"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[6]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[6])).ReplaceAsync(SeedEntity(
         "Blackwake",
         "ship",
         Vec3(680, 0, 260),
@@ -1198,7 +1200,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
             Contact(entityKeys[2], 0.8, true)
         ],
         ["ore-cache", "burned-relay-core"])).ConfigureAwait(false);
-    await node.PutEntitySnapshotAsync(new CultRecordKey(entityKeys[7]), SeedEntity(
+    await node.EntitySnapshot(new CultRecordKey(entityKeys[7])).ReplaceAsync(SeedEntity(
         "Derelict Relay",
         "station",
         Vec3(-260, 0, 260),
@@ -1378,7 +1380,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     if (string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
         return null;
 
-    var run = await node.GetRunStateAsync(new CultRecordKey(settings.ActiveRunKey)).ConfigureAwait(false);
+    var run = await node.RunState(new CultRecordKey(settings.ActiveRunKey)).ReadAsync().ConfigureAwait(false);
     if (run == null)
         return null;
 
@@ -1386,7 +1388,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     var zoneKeys = run.ZoneKeys ?? Array.Empty<string>();
     for (var zoneIndex = 0; zoneIndex < zoneKeys.Length; zoneIndex++)
     {
-        var zone = await node.GetZoneStateAsync(new CultRecordKey(zoneKeys[zoneIndex])).ConfigureAwait(false);
+        var zone = await node.ZoneState(new CultRecordKey(zoneKeys[zoneIndex])).ReadAsync().ConfigureAwait(false);
         if (zone == null)
             continue;
 
@@ -1429,7 +1431,7 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     var entities = new List<AetheriaRuntimeEntitySnapshotCommit>();
     for (var entityIndex = 0; entityIndex < entityKeys.Length; entityIndex++)
     {
-        var entity = await node.GetEntitySnapshotAsync(new CultRecordKey(entityKeys[entityIndex])).ConfigureAwait(false);
+        var entity = await node.EntitySnapshot(new CultRecordKey(entityKeys[entityIndex])).ReadAsync().ConfigureAwait(false);
         if (entity != null)
             entities.Add(ToRuntimeEntity(entity, entityIndex, entityIndices));
     }
