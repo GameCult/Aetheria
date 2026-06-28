@@ -199,10 +199,9 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             authorityLeases).ConfigureAwait(false);
     }
 
-    AetheriaRuntimeDaemonFrameStore.PublishFrame(node.StatePath, result.Frame);
-
     if (publishWitnesses)
     {
+        AetheriaRuntimeDaemonFrameStore.PublishFrame(node.StatePath, result.Frame);
         await PublishDaemonApiDocumentsAsync(node, result).ConfigureAwait(false);
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
     }

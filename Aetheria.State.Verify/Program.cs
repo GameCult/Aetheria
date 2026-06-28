@@ -9190,6 +9190,29 @@ static void RequireDaemonVersePublication(string root)
             "Daemon tick must pass the typed health document through surface builders instead of reopening its witness file.");
     }
 
+    var daemonTickStart = daemonHostSource.IndexOf(
+        "static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(",
+        StringComparison.Ordinal);
+    var daemonTickEnd = daemonTickStart >= 0
+        ? daemonHostSource.IndexOf("static async Task PublishCommittedCommandFactsAsync", daemonTickStart, StringComparison.Ordinal)
+        : -1;
+    var daemonTickBlock = daemonTickStart >= 0 && daemonTickEnd > daemonTickStart
+        ? daemonHostSource.Substring(daemonTickStart, daemonTickEnd - daemonTickStart)
+        : "";
+    var publishWitnessBlockStart = daemonTickBlock.IndexOf(
+        "if (publishWitnesses)",
+        StringComparison.Ordinal);
+    var frameWitnessPublishIndex = daemonTickBlock.IndexOf(
+        "AetheriaRuntimeDaemonFrameStore.PublishFrame(node.StatePath, result.Frame)",
+        StringComparison.Ordinal);
+    if (frameWitnessPublishIndex < 0 ||
+        publishWitnessBlockStart < 0 ||
+        frameWitnessPublishIndex < publishWitnessBlockStart)
+    {
+        throw new InvalidOperationException(
+            "Daemon ticks must keep legacy frame witness writes inside the API publication cadence; managed frames carry per-tick state.");
+    }
+
     var snapshotHandlerStart = daemonHostSource.IndexOf(
         "server.OnCultNet<CultNetSnapshotRequestMessage>",
         StringComparison.Ordinal);
