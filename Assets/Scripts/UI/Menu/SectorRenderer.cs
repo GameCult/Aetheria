@@ -6,6 +6,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -46,8 +47,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSession _catalog;
-    private AetheriaRuntimePlayerSettingsSession _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private AetheriaRuntimeSectorMapSession _sectorMap;
     private AetheriaRuntimeCurrentZoneSession _currentZone;
     private int _zoneDetailsIndex = -1;
@@ -231,7 +232,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().State.ObserveCatalog();
+            _catalog = ResolveClient().State.ReactiveCatalog();
         }
         catch (Exception ex)
         {
@@ -251,7 +252,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ObservePlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {

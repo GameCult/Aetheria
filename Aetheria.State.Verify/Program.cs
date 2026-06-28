@@ -4557,9 +4557,6 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".Details",
         ".ObserveZone(zoneIndex)",
         "_zoneDetails?.Current",
-        ".Settings",
-        ".ObserveCatalog()",
-        ".ObservePlayer()",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
@@ -4575,6 +4572,23 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
             "SectorRenderer no longer lowers zone details through an Eve surface shell: " +
             string.Join(", ", missingSymbols));
     }
+
+    RequireReactiveTypedDocumentAccess(
+        source,
+        "SectorRenderer",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
+        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+    RequireReactiveTypedDocumentAccess(
+        source,
+        "SectorRenderer",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
 
     var forbiddenSymbols = new[]
     {
@@ -7747,24 +7761,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer.cs"));
     var requiredSectorRendererSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeCatalogSession _catalog",
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
         "AetheriaRuntimeSectorMapSession _sectorMap",
         "AetheriaRuntimeCurrentZoneSession _currentZone",
         "AetheriaRuntimeZoneDetailsSession _zoneDetails",
-        "ResolveClient().State.ObserveCatalog()",
         ".ObserveSectorMap()",
         ".Current",
         ".ObserveZone(zoneIndex)",
-        ".Settings",
-        ".ObservePlayer()",
-        "_catalog?.Dispose()",
-        "_playerSettings?.Dispose()",
         "_sectorMap?.Dispose()",
         "_currentZone?.Dispose()",
         "_zoneDetails?.Dispose()",
-        "_catalog?.Current",
-        "_playerSettings?.Current",
         "private void OnDestroy()"
     };
     var missingSectorRendererSharedDocumentSymbols = requiredSectorRendererSharedDocumentSymbols
@@ -7777,17 +7782,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingSectorRendererSharedDocumentSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        sectorRenderer,
+        "SectorRenderer",
+        "AetheriaRuntimeCatalogSnapshot",
+        "_catalog",
+        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession",
+        "ResolveClient().State.ObserveCatalog()");
+    RequireReactiveTypedDocumentAccess(
+        sectorRenderer,
+        "SectorRenderer",
+        "AetheriaRuntimePlayerSettingsDocument",
+        "_playerSettings",
+        ".ReactivePlayer()",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()");
+
     var forbiddenSectorRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone",
         "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
-        "ResolveClient().State.ReactiveCatalog()",
         ".ReactiveSectorMap()",
-        ".ReactiveZone(zoneIndex)",
-        ".ReactivePlayer()"
+        ".ReactiveZone(zoneIndex)"
     };
     var sectorRendererRawDocumentHits = forbiddenSectorRendererSharedDocumentSymbols
         .Where(symbol => sectorRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -13842,8 +13860,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".ObserveZone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("ResolveClient().State.ReactiveCatalog()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".State", StringComparison.Ordinal) ||
         !sectorMap.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
