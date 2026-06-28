@@ -2521,6 +2521,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         "private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;",
         "ResolveCurrentEntityHudStatus()",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Current",
         ".Entity",
         ".LatestAsync()",
@@ -4484,7 +4485,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
         "ProjectZoneDetailsSurfaceState(",
-        "private AetheriaClient _client",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Aetheria()",
         ".SectorMap",
         ".LatestAsync()",
@@ -4495,7 +4496,6 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".Player",
         ".Latest()",
         "AetheriaClient",
-        ".OpenLocalAsync(",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -11433,7 +11433,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".RenderSplats(viewport)", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !mapRenderer.Contains(".Player", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("private AetheriaClient _client", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".SectorMap", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestAsync()", StringComparison.Ordinal) ||
@@ -12840,6 +12840,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var renderSplatViewportSource = File.Exists(renderSplatViewportSourcePath)
         ? File.ReadAllText(renderSplatViewportSourcePath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRenderSplatViewportSource.cs is missing.");
+    var schematicDisplayPath = Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs");
+    var schematicDisplay = File.Exists(schematicDisplayPath)
+        ? File.ReadAllText(schematicDisplayPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; SchematicDisplay.cs is missing.");
     var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
     var menuPanel = File.Exists(menuPanelPath)
         ? File.ReadAllText(menuPanelPath)
@@ -12856,6 +12860,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var localMenu = File.Exists(localMenuPath)
         ? File.ReadAllText(localMenuPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; LocalMenu.cs is missing.");
+    var sectorRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "SectorRenderer.cs");
+    var sectorRenderer = File.Exists(sectorRendererPath)
+        ? File.ReadAllText(sectorRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; SectorRenderer.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12931,6 +12939,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
         "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
+        "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
+        "RuntimeClients.TryGetValue(cacheKey, out var runtimeClient)",
+        "RuntimeClients[cacheKey] = runtimeClient",
         "AetheriaClient",
         ".Aetheria()",
         ".Settings",
@@ -12959,7 +12970,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/MenuPanel.cs"] = menuPanel,
         ["Assets/Scripts/UI/Menu/MapRenderer.cs"] = mapRenderer,
         ["Assets/Scripts/UI/Menu/SectorMap.cs"] = sectorMap,
-        ["Assets/Scripts/UI/Menu/LocalMenu.cs"] = localMenu
+        ["Assets/Scripts/UI/Menu/LocalMenu.cs"] = localMenu,
+        ["Assets/Scripts/UI/Menu/SectorRenderer.cs"] = sectorRenderer,
+        ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>

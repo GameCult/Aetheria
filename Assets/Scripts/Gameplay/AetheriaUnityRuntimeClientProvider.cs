@@ -3,15 +3,15 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
 public static class AetheriaUnityRuntimeClientProvider
 {
-    private static AetheriaClient _runtimeClient;
-    private static string _runtimeClientStatePath;
-    private static string _runtimeClientRuntimeId;
+    private static readonly Dictionary<string, AetheriaClient> RuntimeClients =
+        new Dictionary<string, AetheriaClient>(StringComparer.Ordinal);
     private static RuntimePlayerSettings _runtimePlayerSettings;
 
     public static RuntimePlayerSettings PlayerSettings =>
@@ -20,15 +20,11 @@ public static class AetheriaUnityRuntimeClientProvider
     public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = "")
     {
         var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "raven-unity" : runtimeId;
-        if (_runtimeClient != null &&
-            string.Equals(_runtimeClientStatePath, stateFilePath, StringComparison.Ordinal) &&
-            string.Equals(_runtimeClientRuntimeId, effectiveRuntimeId, StringComparison.Ordinal))
-        {
-            return _runtimeClient;
-        }
+        var cacheKey = CacheKey(stateFilePath, effectiveRuntimeId);
+        if (RuntimeClients.TryGetValue(cacheKey, out var runtimeClient))
+            return runtimeClient;
 
-        Dispose();
-        _runtimeClient = AetheriaClient
+        runtimeClient = AetheriaClient
             .OpenAsync(
                 stateFilePath,
                 effectiveRuntimeId,
@@ -37,9 +33,8 @@ public static class AetheriaUnityRuntimeClientProvider
                 pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        _runtimeClientStatePath = stateFilePath;
-        _runtimeClientRuntimeId = effectiveRuntimeId;
-        return _runtimeClient;
+        RuntimeClients[cacheKey] = runtimeClient;
+        return runtimeClient;
     }
 
     public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = "")
@@ -54,18 +49,30 @@ public static class AetheriaUnityRuntimeClientProvider
 
     public static AetheriaClient CurrentClientForStateFile(string stateFilePath)
     {
-        return _runtimeClient != null &&
-               string.Equals(_runtimeClientStatePath, stateFilePath, StringComparison.Ordinal)
-            ? _runtimeClient
-            : null;
+        foreach (var pair in RuntimeClients)
+        {
+            if (pair.Key.StartsWith(StatePathCachePrefix(stateFilePath), StringComparison.Ordinal))
+                return pair.Value;
+        }
+
+        return null;
     }
 
     public static void Dispose()
     {
-        _runtimeClient?.Dispose();
-        _runtimeClient = null;
-        _runtimeClientStatePath = null;
-        _runtimeClientRuntimeId = null;
+        foreach (var client in RuntimeClients.Values)
+            client.Dispose();
+        RuntimeClients.Clear();
+    }
+
+    private static string CacheKey(string stateFilePath, string runtimeId)
+    {
+        return StatePathCachePrefix(stateFilePath) + runtimeId;
+    }
+
+    private static string StatePathCachePrefix(string stateFilePath)
+    {
+        return (stateFilePath ?? "") + "\n";
     }
 
     private static RuntimePlayerSettings LoadPlayerSettings()
