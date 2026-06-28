@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -161,8 +163,10 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
-            using var observedState = State.ReactiveObservedDaemon();
-            var observed = observedState.TryCurrent(out var current)
+            using var frame = State.ReactiveDaemonFrame();
+            using var soaView = TryReactiveDaemonSoaView();
+            using var zoneRender = State.ReactiveZoneRender();
+            var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
                 ? current
                 : null;
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
@@ -175,6 +179,18 @@ namespace GameCult.Aetheria.State.Verse
                     .GetResult());
 
             return submit(operationClient, observed);
+        }
+
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView()
+        {
+            try
+            {
+                return State.ReactiveDaemonSoaView();
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
         }
 
         private void ThrowIfDisposed()

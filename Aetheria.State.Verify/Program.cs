@@ -3282,8 +3282,10 @@ static void RequireEveRuntimeBootstrap(string root)
         "EveSurfaceCommandRequest request",
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaClient",
-        "client.State.ReactiveObservedDaemon()",
-        "observedState.TryCurrent(out var current)",
+        "using var frame = client.State.ReactiveDaemonFrame();",
+        "using var soaView = TryReactiveDaemonSoaView(client);",
+        "using var zoneRender = client.State.ReactiveZoneRender();",
+        "AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)",
         "new AetheriaRuntimeDaemonOperationClient(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
@@ -3298,10 +3300,12 @@ static void RequireEveRuntimeBootstrap(string root)
             string.Join(", ", missingDaemonSurfaceCommandSymbols));
     }
 
-    if (daemonSurfaceCommands.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
+    if (daemonSurfaceCommands.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        daemonSurfaceCommands.Contains("client.State.ReactiveObservedDaemon()", StringComparison.Ordinal) ||
+        daemonSurfaceCommands.Contains("observedState.TryCurrent(out var current)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon Eve surface command routing still reads observed daemon state through the runtime file reader instead of the Verse client.");
+            "Daemon Eve surface command routing still reads observed daemon state through an aggregate reader instead of direct managed typed documents.");
     }
 
     if (daemonSurfaceCommands.Contains(".ReadAsync(client.State)", StringComparison.Ordinal))
@@ -15082,8 +15086,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public AetheriaClientState State => _state;",
         "public AetheriaClientState Aetheria() => State;",
-        "using var observedState = State.ReactiveObservedDaemon();",
-        "observedState.TryCurrent(out var current)"
+        "using var frame = State.ReactiveDaemonFrame();",
+        "using var soaView = TryReactiveDaemonSoaView();",
+        "using var zoneRender = State.ReactiveZoneRender();",
+        "AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)"
     };
     var missingManagedClientConnectionSymbols = requiredManagedClientConnectionSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -15093,6 +15099,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaClient must expose the managed state object without owning document-catalog shortcuts: " +
             string.Join(", ", missingManagedClientConnectionSymbols));
+    }
+
+    if (aetheriaClient.Contains("State.ReactiveObservedDaemon()", StringComparison.Ordinal) ||
+        aetheriaClient.Contains("observedState.TryCurrent(out var current)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClient command submission still samples observed daemon state through an aggregate reactive wrapper instead of direct managed typed documents.");
     }
 
     var requiredManagedStateAccessSymbols = new[]
