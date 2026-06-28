@@ -7457,8 +7457,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "VolumeCloudRenderer.cs"));
     var requiredVolumeCloudSymbols = new[]
     {
-        "AetheriaRuntimePlayerSettingsSession _playerSettings",
-        ".ObservePlayer()",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        ".ReactivePlayer()",
         "_playerSettings?.Dispose()",
         "_playerSettings?.Current"
     };
@@ -7468,15 +7468,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingVolumeCloudSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "VolumeCloudRenderer should read player settings through AetheriaRuntimePlayerSettingsSession: " +
+            "VolumeCloudRenderer should read player settings through a managed reactive typed document: " +
             string.Join(", ", missingVolumeCloudSymbols));
     }
 
-    if (volumeCloudRenderer.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings", StringComparison.Ordinal) ||
-        volumeCloudRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal))
+    if (volumeCloudRenderer.Contains("AetheriaRuntimePlayerSettingsSession _playerSettings", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "VolumeCloudRenderer still owns the raw player-settings CultMesh document instead of AetheriaRuntimePlayerSettingsSession.");
+            "VolumeCloudRenderer still routes player settings through AetheriaRuntimePlayerSettingsSession instead of the managed reactive typed document.");
     }
 
     var observedTargetQuery = File.ReadAllText(Path.Combine(
