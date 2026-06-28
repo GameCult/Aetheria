@@ -4509,8 +4509,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         ".Details",
         ".LatestZone(zoneIndex)",
         ".Settings",
-        ".LatestCatalog()",
-        ".LatestPlayer()",
+        ".ReactiveCatalog()",
+        ".ReactivePlayer()",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
@@ -7195,6 +7195,36 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "InventoryPanel should bind shared catalog/settings through managed reactive Aetheria documents with panel lifetime disposal: " +
             string.Join(", ", missingInventoryPanelSharedDocumentSymbols));
+    }
+
+    var sectorRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "Menu",
+        "SectorRenderer.cs"));
+    var requiredSectorRendererSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_catalog?.Current",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingSectorRendererSharedDocumentSymbols = requiredSectorRendererSharedDocumentSymbols
+        .Where(symbol => !sectorRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingSectorRendererSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorRenderer should bind shared catalog/settings through managed reactive Aetheria documents with renderer lifetime disposal: " +
+            string.Join(", ", missingSectorRendererSharedDocumentSymbols));
     }
 
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
@@ -12795,9 +12825,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !sectorRenderer.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".LatestZone(zoneIndex)", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".LatestCatalog()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".LatestPlayer()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactiveCatalog()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorMap.Contains(".Aetheria()", StringComparison.Ordinal) ||
         !sectorMap.Contains(".LatestSectorMap()", StringComparison.Ordinal) ||

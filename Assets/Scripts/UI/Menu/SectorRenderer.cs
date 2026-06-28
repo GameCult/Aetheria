@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using GameCult.Mesh;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
@@ -46,8 +47,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
     private string _clientStatePath = "";
-    private AetheriaRuntimeCatalogSnapshot _catalog;
-    private AetheriaRuntimePlayerSettingsDocument _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
+    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -215,38 +216,38 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
     {
         if (_catalog != null)
-            return _catalog;
+            return _catalog.Current;
 
         try
         {
-            _catalog = ResolveClient().Aetheria().LatestCatalog();
+            _catalog = ResolveClient().Aetheria().ReactiveCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria sector catalog from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria sector catalog from local Verse state: {ex.Message}");
         }
 
-        return _catalog;
+        return _catalog?.Current;
     }
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
         if (_playerSettings != null)
-            return _playerSettings;
+            return _playerSettings.Current;
 
         try
         {
             _playerSettings = ResolveClient()
                 .Aetheria()
                 .Settings
-                .LatestPlayer();
+                .ReactivePlayer();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria sector player settings from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria sector player settings from local Verse state: {ex.Message}");
         }
 
-        return _playerSettings;
+        return _playerSettings?.Current;
     }
 
     private string FormatValue(float value)
@@ -278,6 +279,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void ClearClientCaches()
     {
+        _catalog?.Dispose();
+        _playerSettings?.Dispose();
         _catalog = null;
         _playerSettings = null;
     }
@@ -325,6 +328,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void OnDestroy()
     {
+        ClearClientCaches();
+
         if (_zoneDetailsSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_zoneDetailsSurfaceDocument);
