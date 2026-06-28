@@ -9993,9 +9993,10 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(",
         "StarbridgeScenario",
         "StarbridgeSession",
+        "var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.Build",
-        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)",
-        "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)",
+        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(catalog)",
+        "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(catalog)",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
         "SoaView = soaView",
         "ProviderAdvertisement = providerAdvertisement",
@@ -10032,7 +10033,9 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonPublicationStore.PublishGameSurface(",
         "AetheriaRuntimeDaemonPublicationStore.PublishGameTuiSurface(",
         "AetheriaRuntimeDaemonPublicationStore.PublishEditorSurface(",
-        "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface("
+        "AetheriaRuntimeDaemonPublicationStore.PublishEditorTuiSurface(",
+        "AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath)",
+        "AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)"
     };
     var forbiddenTickPublicationHits = forbiddenTickPublicationSymbols
         .Where(symbol => daemonTickRunner.Contains(symbol, StringComparison.Ordinal))

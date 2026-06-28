@@ -73,36 +73,48 @@ namespace GameCult.Aetheria.State.Verse
                 surfaces.Add(ReadEveSurface(record.Payload));
             }
 
+            var catalogSnapshot = OpenReadOnly(stateFilePath);
             surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-                ProjectStatRecipeSurfaceDocument(stateFilePath)));
+                ProjectStatRecipeSurfaceDocument(catalogSnapshot)));
             surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-                ProjectTradeValuePolicySurfaceDocument(stateFilePath)));
+                ProjectTradeValuePolicySurfaceDocument(catalogSnapshot)));
             return surfaces;
         }
 
         public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(string stateFilePath)
         {
-            var state = ProjectStatRecipeSurfaceState(stateFilePath);
-            return AetheriaRuntimeStatRecipeSurfaceBuilder.Build(state);
+            return ProjectStatRecipeSurfaceDocument(OpenReadOnly(stateFilePath));
+        }
+
+        public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            return AetheriaRuntimeStatRecipeSurfaceBuilder.Build(ProjectStatRecipeSurfaceState(catalog));
         }
 
         public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(string stateFilePath)
         {
-            var state = ProjectTradeValuePolicySurfaceState(stateFilePath);
-            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.Build(state);
+            return ProjectTradeValuePolicySurfaceDocument(OpenReadOnly(stateFilePath));
         }
 
-        private static AetheriaRuntimeTradeValuePolicySurfaceState ProjectTradeValuePolicySurfaceState(string stateFilePath)
+        public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.Build(ProjectTradeValuePolicySurfaceState(catalog));
+        }
+
+        private static AetheriaRuntimeTradeValuePolicySurfaceState ProjectTradeValuePolicySurfaceState(
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             return new AetheriaRuntimeTradeValuePolicySurfaceState(
-                ReadTradeValuePolicy(stateFilePath),
+                catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default,
                 DateTime.UtcNow.ToString("O"));
         }
 
-        private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(string stateFilePath)
+        private static AetheriaRuntimeStatRecipeSurfaceState ProjectStatRecipeSurfaceState(
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            var catalog = OpenReadOnly(stateFilePath);
-            var recipes = catalog.Items
+            var recipes = (catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
                 .SelectMany(ProjectStatRecipeRows)
                 .OrderBy(recipe => recipe.StatName, StringComparer.Ordinal)
                 .ToArray();

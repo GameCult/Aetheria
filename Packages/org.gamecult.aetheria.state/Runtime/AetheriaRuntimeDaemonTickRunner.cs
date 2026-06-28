@@ -199,11 +199,15 @@ namespace GameCult.Aetheria.State.Verse
                 Transport = "cultmesh-managed",
                 CommandBoundaryPath = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()
             };
+            var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(
+                Array.Empty<AetheriaRuntimeCatalogItem>(),
+                Array.Empty<AetheriaRuntimeCorporation>(),
+                Array.Empty<AetheriaRuntimeNameFile>());
             var starbridgeSummary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                 frame,
                 options.StarbridgeScenario,
                 options.StarbridgeSession,
-                options.Catalog);
+                catalog);
             var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
                 frame,
                 health,
@@ -211,8 +215,8 @@ namespace GameCult.Aetheria.State.Verse
                 starbridgeSummary);
             var designerSurfaces = new[]
             {
-                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(stateFilePath),
-                AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(stateFilePath)
+                AetheriaRuntimeCatalogStore.ProjectStatRecipeSurfaceDocument(catalog),
+                AetheriaRuntimeCatalogStore.ProjectTradeValuePolicySurfaceDocument(catalog)
             };
             var editorSurface = AetheriaRuntimeDaemonEditorSurfaceBuilder.Build(
                 providerAdvertisement,
