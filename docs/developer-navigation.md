@@ -28,7 +28,10 @@ Read these in this order:
    Surface inventory and edit queue for Unity/Electron/client boundaries.
 5. `docs/aetheria-verse-client-contract.md`
    Intended client contract: use typed Verse state, not daemon internals.
-6. `Aetheria.State/docs/verse-authority-implementation-plan.md`
+6. `docs/cultmesh-feature-implementation-guide.md`
+   Step-by-step guide for adding daemon-owned typed state, publishing it through
+   CultMesh, and consuming/interacting with it from Unity.
+7. `Aetheria.State/docs/verse-authority-implementation-plan.md`
    Authority and Starbridge staged implementation map.
 
 Longer background/reference docs:
@@ -500,4 +503,3 @@ command document -> daemon apply -> projected result
 ```
 
 If a path does not fit that shape, it is probably transitional debt or a bug.
-
