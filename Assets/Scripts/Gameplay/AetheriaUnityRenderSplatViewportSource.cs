@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 
@@ -26,8 +25,6 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     [SerializeField]
     private bool renderInLateUpdate = true;
 
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     private float _nextRefreshTime;
     private AetheriaRuntimeRenderSplatsViewportDocument _document;
 
@@ -135,33 +132,9 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-render-splat-viewport",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-render-splat-viewport");
     }
 
-    private void OnDestroy()
-    {
-        DisposeClient();
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
-    }
 }

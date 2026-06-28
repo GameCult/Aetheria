@@ -42,6 +42,16 @@ public static class AetheriaUnityRuntimeClientProvider
         return _runtimeClient;
     }
 
+    public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = "")
+    {
+        if (stateBoot == null)
+            throw new ArgumentNullException(nameof(stateBoot));
+
+        return ResolveClient(
+            stateBoot.StateFilePath,
+            string.IsNullOrWhiteSpace(runtimeId) ? stateBoot.RuntimeId : runtimeId);
+    }
+
     public static AetheriaClient CurrentClientForStateFile(string stateFilePath)
     {
         return _runtimeClient != null &&

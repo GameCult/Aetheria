@@ -29,8 +29,6 @@ namespace GameCult.Aetheria.EveRuntime
         private float refreshIntervalSeconds = 0.1f;
 
         private UIDocument? _document;
-        private AetheriaClient? _client;
-        private string _clientStatePath = "";
         private float _nextRefreshTime;
         private string _mountedStatePath = "";
         private string _mountedSurfaceId = "";
@@ -151,20 +149,9 @@ namespace GameCult.Aetheria.EveRuntime
 
         private AetheriaClient ResolveClient(string statePath)
         {
-            if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
-                return _client;
-
-            _client?.Dispose();
-            _clientStatePath = statePath ?? "";
-            _client = AetheriaClient.OpenAsync(
-                    _clientStatePath,
-                    "unity-eve-surface-presenter",
-                    "local",
-                    startServer: false,
-                    pullOnOpen: true)
-                .GetAwaiter()
-                .GetResult();
-            return _client;
+            return AetheriaUnityRuntimeClientProvider.ResolveClient(
+                statePath,
+                "unity-eve-surface-presenter");
         }
 
         private UIDocument ResolveDocument()
@@ -242,11 +229,5 @@ namespace GameCult.Aetheria.EveRuntime
             }
         }
 
-        private void OnDisable()
-        {
-            _client?.Dispose();
-            _client = null;
-            _clientStatePath = "";
-        }
     }
 }

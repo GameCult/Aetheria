@@ -3191,10 +3191,9 @@ static void RequireEveRuntimeBootstrap(string root)
     var requiredPresenterSymbols = new[]
     {
         "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
-        "private AetheriaClient? _client",
         "ReadDaemonSurface(statePath)",
         "ReadDaemonSurface(stateBoot.StateFilePath)",
-        "AetheriaClient.OpenAsync(",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "DaemonGameSurfaceAsync()",
         "DaemonGameTuiSurfaceAsync()",
         "DaemonEditorSurfaceAsync()",
@@ -9472,7 +9471,7 @@ static void RequireTypedEveCommandBodies(string root)
         "internal static class AetheriaRuntimeEveCommands",
         "public static class AetheriaRuntimeEveCommandClient",
         "namespace GameCult.Aetheria.State.Verse",
-        "AetheriaClient.OpenAsync(",
+        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "internal async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
         "internal async Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
         "CreatePlayerSettingsCommand(",
@@ -12829,6 +12828,18 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var runtimeClientProvider = File.Exists(runtimeClientProviderPath)
         ? File.ReadAllText(runtimeClientProviderPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRuntimeClientProvider.cs is missing.");
+    var zoneRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs");
+    var zoneRenderer = File.Exists(zoneRendererPath)
+        ? File.ReadAllText(zoneRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; ZoneRenderer.cs is missing.");
+    var volumeCloudRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "VolumeCloudRenderer.cs");
+    var volumeCloudRenderer = File.Exists(volumeCloudRendererPath)
+        ? File.ReadAllText(volumeCloudRendererPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; VolumeCloudRenderer.cs is missing.");
+    var renderSplatViewportSourcePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRenderSplatViewportSource.cs");
+    var renderSplatViewportSource = File.Exists(renderSplatViewportSourcePath)
+        ? File.ReadAllText(renderSplatViewportSourcePath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRenderSplatViewportSource.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12902,6 +12913,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaUnityRuntimeClientProvider",
         "public static RuntimePlayerSettings PlayerSettings =>",
         "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
+        "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
         "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
         "AetheriaClient",
         ".Aetheria()",
@@ -12920,6 +12932,37 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Unity runtime client/player-settings boot must live behind AetheriaUnityRuntimeClientProvider: " +
             string.Join(", ", missingRuntimeClientProviderSymbols));
+    }
+
+    var providerOwnedClientAccessSources = new Dictionary<string, string>
+    {
+        ["Packages/org.gamecult.aetheria.eve-runtime/Runtime/AetheriaEveSurfacePresenter.cs"] = eveSurfacePresenter,
+        ["Assets/Scripts/Zone Display/ZoneRenderer.cs"] = zoneRenderer,
+        ["Assets/Scripts/Zone Display/VolumeCloudRenderer.cs"] = volumeCloudRenderer,
+        ["Assets/Scripts/Gameplay/AetheriaUnityRenderSplatViewportSource.cs"] = renderSplatViewportSource
+    };
+    var directClientOpenHits = providerOwnedClientAccessSources
+        .Where(pair =>
+            pair.Value.Contains("AetheriaClient.OpenAsync(", StringComparison.Ordinal) ||
+            pair.Value.Contains(".OpenLocalAsync(", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (directClientOpenHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime readers must acquire managed typed state through AetheriaUnityRuntimeClientProvider instead of opening local clients: " +
+            string.Join(", ", directClientOpenHits));
+    }
+
+    var missingProviderClientAccess = providerOwnedClientAccessSources
+        .Where(pair => !pair.Value.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (missingProviderClientAccess.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity runtime readers no longer use the shared managed runtime client provider: " +
+            string.Join(", ", missingProviderClientAccess));
     }
 
     if (!observedFrameApplier.Contains("private AetheriaRuntimeZoneRenderDocument _lastZoneRender;", StringComparison.Ordinal) ||
@@ -13078,7 +13121,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", mainMenuReaderHits));
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaClient.OpenAsync(", StringComparison.Ordinal) ||
+    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !eveSurfacePresenter.Contains("ReadDaemonSurface(statePath)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

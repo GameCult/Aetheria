@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -54,8 +53,6 @@ public class VolumeCloudRenderer : EffectBase
     // The index of 4x4 pixels.
     private int frameIndex = 0;
     private bool firstFrame = true;
-    private AetheriaClient _client;
-    private string _clientStatePath = "";
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
 
     [SerializeField]
@@ -68,7 +65,7 @@ public class VolumeCloudRenderer : EffectBase
     }
 
     private void OnDestroy() {
-        DisposeClient();
+        _playerSettings = null;
         if (this.fullBuffer != null) {
             for (int i = 0; i < fullBuffer.Length; i++) {
                 fullBuffer[i].Release();
@@ -118,30 +115,9 @@ public class VolumeCloudRenderer : EffectBase
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-volume-cloud-renderer",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
-    }
-
-    private void DisposeClient()
-    {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
-        _playerSettings = null;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(
+            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
+            "unity-volume-cloud-renderer");
     }
 
     [ImageEffectOpaque]
