@@ -132,11 +132,11 @@ public class MapRenderer : MonoBehaviour
             _objectsViewport = client
                 .State
                 .Viewports
-                .ReactiveObjects(viewport);
+                .Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
             _renderSplatsViewport = client
                 .State
                 .Viewports
-                .ReactiveRenderSplats(viewport);
+                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)

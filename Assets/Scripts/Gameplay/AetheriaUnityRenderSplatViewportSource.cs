@@ -119,7 +119,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             var nextRenderSplatsViewport = ResolveClient()
                 .State
                 .Viewports
-                .ReactiveRenderSplats(viewport);
+                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
             ClearViewportDocument();
             _viewport = viewport;
             _renderSplatsViewport = nextRenderSplatsViewport;

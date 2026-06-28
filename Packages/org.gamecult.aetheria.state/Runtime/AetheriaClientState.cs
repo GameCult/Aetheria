@@ -843,28 +843,37 @@ namespace GameCult.Aetheria.State.Verse
             return _map(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
-        public Task<AetheriaRuntimeRtsViewportDocument> LatestMapAsync(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return Map(viewport).LatestAsync();
-        }
-
-        public AetheriaRuntimeRtsViewportDocument LatestMap(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return LatestMapAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument>> ReactiveMapAsync(
+        public bool TryGetDocument<TDocument>(
             AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
+            out CultMeshDocumentHandle<TDocument> document)
+            where TDocument : class
         {
-            return Map(viewport).ReactiveAsync(options);
-        }
+            if (typeof(TDocument) == typeof(AetheriaRuntimeRtsViewportDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)Map(viewport);
+                return true;
+            }
 
-        public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveMap(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Map(viewport).Reactive(options);
+            if (typeof(TDocument) == typeof(AetheriaRuntimeObjectsViewportDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)Objects(viewport);
+                return true;
+            }
+
+            if (typeof(TDocument) == typeof(AetheriaRuntimeGravityViewportDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)Gravity(viewport);
+                return true;
+            }
+
+            if (typeof(TDocument) == typeof(AetheriaRuntimeRenderSplatsViewportDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)RenderSplats(viewport);
+                return true;
+            }
+
+            document = null!;
+            return false;
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> Objects(AetheriaRuntimeRtsViewportBounds viewport)
@@ -872,28 +881,42 @@ namespace GameCult.Aetheria.State.Verse
             return _objects(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
-        public Task<AetheriaRuntimeObjectsViewportDocument> LatestObjectsAsync(AetheriaRuntimeRtsViewportBounds viewport)
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
+            where TDocument : class
         {
-            return Objects(viewport).LatestAsync();
+            if (TryGetDocument<TDocument>(viewport, out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria viewport state does not expose a projected document for type '{typeof(TDocument).FullName}'.");
         }
 
-        public AetheriaRuntimeObjectsViewportDocument LatestObjects(AetheriaRuntimeRtsViewportBounds viewport)
+        public Task<TDocument> LatestAsync<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
+            where TDocument : class
         {
-            return LatestObjectsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+            return Document<TDocument>(viewport).LatestAsync();
         }
 
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument>> ReactiveObjectsAsync(
+        public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
+            where TDocument : class
+        {
+            return LatestAsync<TDocument>(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
             AetheriaRuntimeRtsViewportBounds viewport,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return Objects(viewport).ReactiveAsync(options);
+            return Document<TDocument>(viewport).ReactiveAsync(options);
         }
 
-        public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjects(
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
             AetheriaRuntimeRtsViewportBounds viewport,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return Objects(viewport).Reactive(options);
+            return Document<TDocument>(viewport).Reactive(options);
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> Gravity(AetheriaRuntimeRtsViewportBounds viewport)
@@ -901,57 +924,9 @@ namespace GameCult.Aetheria.State.Verse
             return _gravity(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
-        public Task<AetheriaRuntimeGravityViewportDocument> LatestGravityAsync(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return Gravity(viewport).LatestAsync();
-        }
-
-        public AetheriaRuntimeGravityViewportDocument LatestGravity(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return LatestGravityAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument>> ReactiveGravityAsync(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Gravity(viewport).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravity(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Gravity(viewport).Reactive(options);
-        }
-
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _renderSplats(viewport ?? new AetheriaRuntimeRtsViewportBounds());
-        }
-
-        public Task<AetheriaRuntimeRenderSplatsViewportDocument> LatestRenderSplatsAsync(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return RenderSplats(viewport).LatestAsync();
-        }
-
-        public AetheriaRuntimeRenderSplatsViewportDocument LatestRenderSplats(AetheriaRuntimeRtsViewportBounds viewport)
-        {
-            return LatestRenderSplatsAsync(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument>> ReactiveRenderSplatsAsync(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return RenderSplats(viewport).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplats(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return RenderSplats(viewport).Reactive(options);
         }
 
     }
@@ -977,28 +952,31 @@ namespace GameCult.Aetheria.State.Verse
             return _zoneDetails(zoneIndex);
         }
 
-        public Task<AetheriaRuntimeZoneDetailsDocument> LatestZoneAsync(int zoneIndex)
+        public bool TryGetDocument<TDocument>(
+            int entityOrZoneIndex,
+            out CultMeshDocumentHandle<TDocument> document)
+            where TDocument : class
         {
-            return Zone(zoneIndex).LatestAsync();
-        }
+            if (typeof(TDocument) == typeof(AetheriaRuntimeZoneDetailsDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)Zone(entityOrZoneIndex);
+                return true;
+            }
 
-        public AetheriaRuntimeZoneDetailsDocument LatestZone(int zoneIndex)
-        {
-            return LatestZoneAsync(zoneIndex).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
+            if (typeof(TDocument) == typeof(AetheriaRuntimeSelectedObjectDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)SelectedObject(entityOrZoneIndex);
+                return true;
+            }
 
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument>> ReactiveZoneAsync(
-            int zoneIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Zone(zoneIndex).ReactiveAsync(options);
-        }
+            if (typeof(TDocument) == typeof(AetheriaRuntimeInventoryDocument))
+            {
+                document = (CultMeshDocumentHandle<TDocument>)(object)Inventory(entityOrZoneIndex);
+                return true;
+            }
 
-        public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZone(
-            int zoneIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Zone(zoneIndex).Reactive(options);
+            document = null!;
+            return false;
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)
@@ -1006,57 +984,47 @@ namespace GameCult.Aetheria.State.Verse
             return _selectedObject(entityIndex);
         }
 
-        public Task<AetheriaRuntimeSelectedObjectDocument> LatestSelectedObjectAsync(int entityIndex)
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)
+            where TDocument : class
         {
-            return SelectedObject(entityIndex).LatestAsync();
+            if (TryGetDocument<TDocument>(entityOrZoneIndex, out var document))
+                return document;
+
+            throw new NotSupportedException(
+                $"Aetheria detail state does not expose a projected document for type '{typeof(TDocument).FullName}'.");
         }
 
-        public AetheriaRuntimeSelectedObjectDocument LatestSelectedObject(int entityIndex)
+        public Task<TDocument> LatestAsync<TDocument>(int entityOrZoneIndex)
+            where TDocument : class
         {
-            return LatestSelectedObjectAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
+            return Document<TDocument>(entityOrZoneIndex).LatestAsync();
         }
 
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument>> ReactiveSelectedObjectAsync(
-            int entityIndex,
+        public TDocument Latest<TDocument>(int entityOrZoneIndex)
+            where TDocument : class
+        {
+            return LatestAsync<TDocument>(entityOrZoneIndex).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
+            int entityOrZoneIndex,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return SelectedObject(entityIndex).ReactiveAsync(options);
+            return Document<TDocument>(entityOrZoneIndex).ReactiveAsync(options);
         }
 
-        public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(
-            int entityIndex,
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+            int entityOrZoneIndex,
             CultMeshReactiveDocumentOptions? options = null)
+            where TDocument : class
         {
-            return SelectedObject(entityIndex).Reactive(options);
+            return Document<TDocument>(entityOrZoneIndex).Reactive(options);
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
         {
             return _inventory(entityIndex);
-        }
-
-        public Task<AetheriaRuntimeInventoryDocument> LatestInventoryAsync(int entityIndex)
-        {
-            return Inventory(entityIndex).LatestAsync();
-        }
-
-        public AetheriaRuntimeInventoryDocument LatestInventory(int entityIndex)
-        {
-            return LatestInventoryAsync(entityIndex).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument>> ReactiveInventoryAsync(
-            int entityIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Inventory(entityIndex).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(
-            int entityIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Inventory(entityIndex).Reactive(options);
         }
 
     }

@@ -186,13 +186,13 @@ public class DaemonRuntimeDocumentTests
         };
         var objectsViewport = client.State
             .Viewports
-            .LatestObjects(viewport);
+            .Latest<AetheriaRuntimeObjectsViewportDocument>(viewport);
         var zoneDetails = client.State
             .Details
-            .LatestZone(0);
+            .Latest<AetheriaRuntimeZoneDetailsDocument>(0);
         var inventory = client.State
             .Details
-            .LatestInventory(0);
+            .Latest<AetheriaRuntimeInventoryDocument>(0);
         var currentEntityFromClientType = client.State
             .LatestAsync<AetheriaRuntimeCurrentEntityDocument>()
             .GetAwaiter()
@@ -217,13 +217,13 @@ public class DaemonRuntimeDocumentTests
         using var currentEntityDocumentReactive = client.State.Current.ReactiveEntity();
         using var currentDockingReactive = client.State.Current.ReactiveDocking();
         using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
-        using var zoneDetailsReactive = client.State.Details.ReactiveZone(0);
-        using var selectedObjectReactive = client.State.Details.ReactiveSelectedObject(0);
-        using var inventoryReactive = client.State.Details.ReactiveInventory(0);
-        using var mapViewportReactive = client.State.Viewports.ReactiveMap(viewport);
-        using var objectsViewportReactive = client.State.Viewports.ReactiveObjects(viewport);
-        using var gravityViewportReactive = client.State.Viewports.ReactiveGravity(viewport);
-        using var renderSplatsViewportReactive = client.State.Viewports.ReactiveRenderSplats(viewport);
+        using var zoneDetailsReactive = client.State.Details.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
+        using var selectedObjectReactive = client.State.Details.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
+        using var inventoryReactive = client.State.Details.Reactive<AetheriaRuntimeInventoryDocument>(0);
+        using var mapViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeRtsViewportDocument>(viewport);
+        using var objectsViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
+        using var gravityViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeGravityViewportDocument>(viewport);
+        using var renderSplatsViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
         using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         using var playerHudEntity = client.State.Current.ReactiveEntity();

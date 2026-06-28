@@ -1572,7 +1572,7 @@ private void Update()
             var nextInventory = ResolveClient()
                 .State
                 .Details
-                .ReactiveInventory(entityIndex);
+                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;

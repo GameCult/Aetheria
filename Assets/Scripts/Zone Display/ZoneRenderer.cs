@@ -1246,7 +1246,7 @@ public class ZoneRenderer : MonoBehaviour
             var nextObjectsViewport = ResolveClient()
                 .State
                 .Viewports
-                .ReactiveObjects(viewportBounds);
+                .Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds);
             _objectsViewport?.Dispose();
             _objectsViewportBounds = viewportBounds;
             _objectsViewport = nextObjectsViewport;
