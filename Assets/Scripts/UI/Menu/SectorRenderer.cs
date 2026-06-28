@@ -49,10 +49,10 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private AetheriaRuntimeSectorMapSession _sectorMap;
-    private AetheriaRuntimeCurrentZoneSession _currentZone;
+    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone;
     private int _zoneDetailsIndex = -1;
-    private AetheriaRuntimeZoneDetailsSession _zoneDetails;
+    private CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -176,8 +176,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         {
             _sectorMap ??= ResolveClient()
                 .State
-                .ObserveSectorMap();
-            var sectorMap = _sectorMap.Current;
+                .ReactiveSectorMap();
+            var sectorMap = _sectorMap?.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
         }
@@ -206,7 +206,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             var nextZoneDetails = ResolveClient()
                 .State
                 .Details
-                .ObserveZone(zoneIndex);
+                .ReactiveZone(zoneIndex);
             _zoneDetails?.Dispose();
             _zoneDetailsIndex = zoneIndex;
             _zoneDetails = nextZoneDetails;
@@ -325,7 +325,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             _currentZone ??= ResolveClient()
                 .State
                 .Current
-                .ObserveZone();
+                .ReactiveZone();
         }
         catch (Exception ex)
         {

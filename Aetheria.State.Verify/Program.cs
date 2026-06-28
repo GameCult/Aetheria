@@ -4553,9 +4553,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "ProjectZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
-        ".ObserveSectorMap()",
+        ".ReactiveSectorMap()",
         ".Details",
-        ".ObserveZone(zoneIndex)",
+        ".ReactiveZone(zoneIndex)",
         "_zoneDetails?.Current",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
@@ -4573,6 +4573,30 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
             string.Join(", ", missingSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        source,
+        "SectorRenderer",
+        "AetheriaRuntimeSectorMapDocument",
+        "_sectorMap",
+        ".ReactiveSectorMap()",
+        "AetheriaRuntimeSectorMapSession",
+        ".ObserveSectorMap()");
+    RequireReactiveTypedDocumentAccess(
+        source,
+        "SectorRenderer",
+        "AetheriaRuntimeCurrentZoneDocument",
+        "_currentZone",
+        ".ReactiveZone()",
+        "AetheriaRuntimeCurrentZoneSession",
+        ".ObserveZone()");
+    RequireReactiveTypedDocumentAccess(
+        source,
+        "SectorRenderer",
+        "AetheriaRuntimeZoneDetailsDocument",
+        "_zoneDetails",
+        ".ReactiveZone(zoneIndex)",
+        "AetheriaRuntimeZoneDetailsSession",
+        ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
         source,
         "SectorRenderer",
@@ -7718,12 +7742,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer.cs"));
     var requiredSectorRendererSharedDocumentSymbols = new[]
     {
-        "AetheriaRuntimeSectorMapSession _sectorMap",
-        "AetheriaRuntimeCurrentZoneSession _currentZone",
-        "AetheriaRuntimeZoneDetailsSession _zoneDetails",
-        ".ObserveSectorMap()",
+        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
+        ".ReactiveSectorMap()",
         ".Current",
-        ".ObserveZone(zoneIndex)",
+        ".ReactiveZone()",
+        ".ReactiveZone(zoneIndex)",
         "_sectorMap?.Dispose()",
         "_currentZone?.Dispose()",
         "_zoneDetails?.Dispose()",
@@ -7739,6 +7764,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingSectorRendererSharedDocumentSymbols));
     }
 
+    RequireReactiveTypedDocumentAccess(
+        sectorRenderer,
+        "SectorRenderer",
+        "AetheriaRuntimeSectorMapDocument",
+        "_sectorMap",
+        ".ReactiveSectorMap()",
+        "AetheriaRuntimeSectorMapSession",
+        ".ObserveSectorMap()");
+    RequireReactiveTypedDocumentAccess(
+        sectorRenderer,
+        "SectorRenderer",
+        "AetheriaRuntimeCurrentZoneDocument",
+        "_currentZone",
+        ".ReactiveZone()",
+        "AetheriaRuntimeCurrentZoneSession",
+        ".ObserveZone()");
+    RequireReactiveTypedDocumentAccess(
+        sectorRenderer,
+        "SectorRenderer",
+        "AetheriaRuntimeZoneDetailsDocument",
+        "_zoneDetails",
+        ".ReactiveZone(zoneIndex)",
+        "AetheriaRuntimeZoneDetailsSession",
+        ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
         sectorRenderer,
         "SectorRenderer",
@@ -7758,11 +7807,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
 
     var forbiddenSectorRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
-        ".ReactiveSectorMap()",
-        ".ReactiveZone(zoneIndex)"
+        "AetheriaRuntimeSectorMapSession _sectorMap",
+        "AetheriaRuntimeCurrentZoneSession _currentZone",
+        "AetheriaRuntimeZoneDetailsSession _zoneDetails",
+        ".ObserveSectorMap()",
+        ".ObserveZone(zoneIndex)"
     };
     var sectorRendererRawDocumentHits = forbiddenSectorRendererSharedDocumentSymbols
         .Where(symbol => sectorRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -7770,7 +7819,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (sectorRendererRawDocumentHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "SectorRenderer still owns raw map/catalog/settings CultMesh documents instead of managed sessions: " +
+            "SectorRenderer still routes map/current-zone/details through session wrappers instead of managed reactive typed documents: " +
             string.Join(", ", sectorRendererRawDocumentHits));
     }
 
@@ -13823,9 +13872,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !mapRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".State", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Details", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".ObserveZone(zoneIndex)", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains(".ReactiveZone(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Settings", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("ResolveClient().State.ReactiveCatalog()", StringComparison.Ordinal) ||
