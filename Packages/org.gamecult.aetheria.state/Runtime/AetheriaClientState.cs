@@ -277,9 +277,9 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(
             CultMeshReactiveDocumentOptions? options = null)
         {
-            using var frame = ReactiveDaemonFrame(options);
-            using var soaView = TryReactiveDaemonSoaView(options);
-            using var zoneRender = ReactiveZoneRender(options);
+            using var frame = ObserveDaemonFrame(options);
+            using var soaView = TryObserveDaemonSoaView(options);
+            using var zoneRender = ObserveZoneRender(options);
             return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
                 ? current
                 : null;
@@ -288,13 +288,13 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObservedDaemonSession ObserveDaemon(
             CultMeshReactiveDocumentOptions? options = null)
         {
-            var frame = ReactiveDaemonFrame(options);
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView = null;
-            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>? zoneRender = null;
+            var frame = ObserveDaemonFrame(options);
+            AetheriaRuntimeDaemonSoaViewSession? soaView = null;
+            AetheriaRuntimeZoneRenderSession? zoneRender = null;
             try
             {
-                soaView = TryReactiveDaemonSoaView(options);
-                zoneRender = ReactiveZoneRender(options);
+                soaView = TryObserveDaemonSoaView(options);
+                zoneRender = ObserveZoneRender(options);
                 return new AetheriaRuntimeObservedDaemonSession(frame, soaView, zoneRender);
             }
             catch
@@ -338,12 +338,12 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? TryReactiveDaemonSoaView(
+        private AetheriaRuntimeDaemonSoaViewSession? TryObserveDaemonSoaView(
             CultMeshReactiveDocumentOptions? options)
         {
             try
             {
-                return ReactiveDaemonSoaView(options);
+                return ObserveDaemonSoaView(options);
             }
             catch (KeyNotFoundException)
             {
