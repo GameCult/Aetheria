@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
 
-public sealed class AetheriaUnityObservedEntityProjector
+public sealed class AetheriaUnityObservedEntityRestorer
 {
     private readonly AetheriaUnityObservedEntityIndex _entityIndex;
     private readonly ItemManager _itemManager;
@@ -14,7 +14,7 @@ public sealed class AetheriaUnityObservedEntityProjector
     private readonly Func<AetheriaRuntimeLoadoutItemSnapshot, ItemInstance> _createLoadoutItem;
     private readonly Action<string> _logWarning;
 
-    public AetheriaUnityObservedEntityProjector(
+    public AetheriaUnityObservedEntityRestorer(
         AetheriaUnityObservedEntityIndex entityIndex,
         ItemManager itemManager,
         Func<AetheriaRuntimeEntitySnapshot, bool, EntityConstructionBlueprint> createBlueprint,

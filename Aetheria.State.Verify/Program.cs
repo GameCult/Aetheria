@@ -3012,7 +3012,7 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
 {
     var itemManagerPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "ItemManager.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
-    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
+    var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
 
     var itemManager = File.Exists(itemManagerPath)
         ? File.ReadAllText(itemManagerPath)
@@ -3020,10 +3020,10 @@ static void RequireTypedRuntimeBehaviorCoverage(string root)
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ActionGameManager.cs is missing.");
-    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
-        ? File.ReadAllText(observedEntityProjectorPath)
-        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; AetheriaUnityObservedEntityProjector.cs is missing.");
-    var runtimeRestoreSource = actionGameManager + "\n" + observedEntityProjector;
+    var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
+        ? File.ReadAllText(observedEntityRestorerPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; AetheriaUnityObservedEntityRestorer.cs is missing.");
+    var runtimeRestoreSource = actionGameManager + "\n" + observedEntityRestorer;
 
     var requiredFactoryMappings = new[]
     {
@@ -12186,18 +12186,18 @@ static void RequireMainMenuContinueRunState(string root)
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
         : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
-    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
-    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
-        ? File.ReadAllText(observedEntityProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityObservedEntityProjector.cs is missing.");
+    var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
+    var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
+        ? File.ReadAllText(observedEntityRestorerPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaUnityObservedEntityRestorer.cs is missing.");
     var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
     var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
         ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
         : throw new InvalidOperationException("Cannot verify Continue entity construction projection; AetheriaUnityEntityConstructionBlueprintProjector.cs is missing.");
-    var observedZoneContextProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextProjector.cs");
-    var observedZoneContextProjector = File.Exists(observedZoneContextProjectorPath)
-        ? File.ReadAllText(observedZoneContextProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue zone context projection; AetheriaUnityObservedZoneContextProjector.cs is missing.");
+    var observedZoneContextFactoryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextFactory.cs");
+    var observedZoneContextFactory = File.Exists(observedZoneContextFactoryPath)
+        ? File.ReadAllText(observedZoneContextFactoryPath)
+        : throw new InvalidOperationException("Cannot verify Continue zone context projection; AetheriaUnityObservedZoneContextFactory.cs is missing.");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
     var gameplaySceneWiring = File.Exists(gameplaySceneWiringPath)
         ? File.ReadAllText(gameplaySceneWiringPath)
@@ -12240,7 +12240,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private Galaxy ObservedGalaxy { get; set; }",
         "ObservedGalaxy = boot.ObservedGalaxy",
         "ResolveObservedGalaxyZone",
-        "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
+        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
         "ResolveObservedTarget = entity => ObservedTargetQuery.GetObservedTarget(entity)",
@@ -12329,9 +12329,9 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerSnapshotProjectionHits));
     }
 
-    var requiredObservedEntityProjectorSymbols = new[]
+    var requiredObservedEntityRestorerSymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedEntityProjector",
+        "public sealed class AetheriaUnityObservedEntityRestorer",
         "public bool TryApplyInPlace(",
         "public void Replace(",
         "EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)",
@@ -12346,14 +12346,14 @@ static void RequireMainMenuContinueRunState(string root)
         "resourceScanner.RestoreRuntimeState(",
         "_entityIndex.RefreshDaemonIndex();"
     };
-    var missingObservedEntityProjectorSymbols = requiredObservedEntityProjectorSymbols
-        .Where(symbol => !observedEntityProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingObservedEntityRestorerSymbols = requiredObservedEntityRestorerSymbols
+        .Where(symbol => !observedEntityRestorer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingObservedEntityProjectorSymbols.Length > 0)
+    if (missingObservedEntityRestorerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed Unity entity mutation/restoration must live in AetheriaUnityObservedEntityProjector instead of ActionGameManager: " +
-            string.Join(", ", missingObservedEntityProjectorSymbols));
+            "Observed Unity entity mutation/restoration must live in AetheriaUnityObservedEntityRestorer instead of ActionGameManager: " +
+            string.Join(", ", missingObservedEntityRestorerSymbols));
     }
 
     var forbiddenManagerFacadeProjectionSymbols = new[]
@@ -12430,9 +12430,9 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerEntityConstructionHits));
     }
 
-    var requiredObservedZoneContextProjectorSymbols = new[]
+    var requiredObservedZoneContextFactorySymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedZoneContextProjector",
+        "public sealed class AetheriaUnityObservedZoneContextFactory",
         "public Zone ResolveContext(",
         "private readonly Dictionary<int, Zone> _observedZoneContextsByDaemonIndex",
         "private static ZoneConstructionBlueprint CreateZoneConstructionBlueprint(",
@@ -12443,14 +12443,14 @@ static void RequireMainMenuContinueRunState(string root)
         "new Zone(_itemManager, _planetSettings, constructionBlueprint, galaxyZone, _observedGalaxy)",
         "_playMusic(MusicType.Overworld);"
     };
-    var missingObservedZoneContextProjectorSymbols = requiredObservedZoneContextProjectorSymbols
-        .Where(symbol => !observedZoneContextProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingObservedZoneContextFactorySymbols = requiredObservedZoneContextFactorySymbols
+        .Where(symbol => !observedZoneContextFactory.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingObservedZoneContextProjectorSymbols.Length > 0)
+    if (missingObservedZoneContextFactorySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed Unity zone context lowering must live in AetheriaUnityObservedZoneContextProjector instead of ActionGameManager: " +
-            string.Join(", ", missingObservedZoneContextProjectorSymbols));
+            "Observed Unity zone context lowering must live in AetheriaUnityObservedZoneContextFactory instead of ActionGameManager: " +
+            string.Join(", ", missingObservedZoneContextFactorySymbols));
     }
 
     var forbiddenManagerZoneContextProjectionSymbols = new[]
@@ -12484,10 +12484,10 @@ static void RequireMainMenuContinueRunState(string root)
         "Aetheria zone-render feed does not identify a run id.",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         ".OrderBy(entity => entity.EntityIndex)",
-        "_entityProjector.TryApplyInPlace(",
+        "_entityRestorer.TryApplyInPlace(",
         "zoneRenderer?.ApplyZoneRender(render)",
-        "_zoneContextProjector.ResolveContext(targetZone, render)",
-        "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
+        "_zoneContextFactory.ResolveContext(targetZone, render)",
+        "_entityRestorer.Replace(entitySnapshots, currentEntityKey, _getZone())",
         "_restoreCurrentEntityBinding(currentEntity)",
         "_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
         "_entityIndex.EntitiesByDaemonIndex",
@@ -12513,8 +12513,8 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
-        "ObservedEntityProjector.TryApplyInPlace(",
-        "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
+        "ObservedEntityRestorer.TryApplyInPlace(",
+        "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
         "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
         "ZoneRenderer?.RestoreDroppedPickupsFromDaemonZoneState(daemonZone)",
         "render.ActionBarBindings",
@@ -13103,9 +13103,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
     var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
-    var observedEntityProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityProjector.cs");
+    var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
     var entityConstructionBlueprintProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEntityConstructionBlueprintProjector.cs");
-    var observedZoneContextProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextProjector.cs");
+    var observedZoneContextFactoryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedZoneContextFactory.cs");
     var currentEntityBinderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityCurrentEntityBinder.cs");
     var gameplaySceneWiringPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplaySceneWiring.cs");
     var daemonGameplayOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationsClient.cs");
@@ -13158,15 +13158,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
         ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
-    var observedEntityProjector = File.Exists(observedEntityProjectorPath)
-        ? File.ReadAllText(observedEntityProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityProjector.cs is missing.");
+    var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
+        ? File.ReadAllText(observedEntityRestorerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityRestorer.cs is missing.");
     var entityConstructionBlueprintProjector = File.Exists(entityConstructionBlueprintProjectorPath)
         ? File.ReadAllText(entityConstructionBlueprintProjectorPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityEntityConstructionBlueprintProjector.cs is missing.");
-    var observedZoneContextProjector = File.Exists(observedZoneContextProjectorPath)
-        ? File.ReadAllText(observedZoneContextProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedZoneContextProjector.cs is missing.");
+    var observedZoneContextFactory = File.Exists(observedZoneContextFactoryPath)
+        ? File.ReadAllText(observedZoneContextFactoryPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedZoneContextFactory.cs is missing.");
     var currentEntityBinder = File.Exists(currentEntityBinderPath)
         ? File.ReadAllText(currentEntityBinderPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityCurrentEntityBinder.cs is missing.");
@@ -13246,7 +13246,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private Galaxy ObservedGalaxy { get; set; }",
         "ObservedGalaxy = boot.ObservedGalaxy",
         "ResolveObservedGalaxyZone",
-        "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
+        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
         "EntityConstructionBlueprintProjector.ProjectObservedEntity",
@@ -13298,19 +13298,19 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     if (daemonEntitySnapshotProjector.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
         observedFrameApplier.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
-        observedEntityProjector.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal))
+        observedEntityRestorer.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Unity observer entity projection must use typed daemon entity indices instead of parsing synthetic record keys.");
     }
 
-    if (!observedEntityProjector.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
-        !observedEntityProjector.Contains("public void Replace(", StringComparison.Ordinal) ||
-        !observedEntityProjector.Contains("EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
-        !observedEntityProjector.Contains("RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)", StringComparison.Ordinal))
+    if (!observedEntityRestorer.Contains("public bool TryApplyInPlace(", StringComparison.Ordinal) ||
+        !observedEntityRestorer.Contains("public void Replace(", StringComparison.Ordinal) ||
+        !observedEntityRestorer.Contains("EntityConstructionBlueprintProjector.ProjectObservedFromBlueprint(_itemManager, zone, blueprint)", StringComparison.Ordinal) ||
+        !observedEntityRestorer.Contains("RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer facade restoration no longer flows through the dedicated observed entity projector.");
+            "Unity observer facade restoration no longer flows through the dedicated observed entity restorer.");
     }
 
     var requiredEntityConstructionBlueprintProjectorSymbols = new[]
@@ -13364,13 +13364,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", managerEntityConstructionHits));
     }
 
-    if (!observedZoneContextProjector.Contains("public Zone ResolveContext(", StringComparison.Ordinal) ||
-        !observedZoneContextProjector.Contains("private static ZoneConstructionBlueprint CreateZoneConstructionBlueprint(", StringComparison.Ordinal) ||
-        !observedZoneContextProjector.Contains("private static BodyConstructionData CreateBodyConstructionData(", StringComparison.Ordinal) ||
-        !observedZoneContextProjector.Contains("new Zone(_itemManager, _planetSettings, constructionBlueprint, galaxyZone, _observedGalaxy)", StringComparison.Ordinal))
+    if (!observedZoneContextFactory.Contains("public Zone ResolveContext(", StringComparison.Ordinal) ||
+        !observedZoneContextFactory.Contains("private static ZoneConstructionBlueprint CreateZoneConstructionBlueprint(", StringComparison.Ordinal) ||
+        !observedZoneContextFactory.Contains("private static BodyConstructionData CreateBodyConstructionData(", StringComparison.Ordinal) ||
+        !observedZoneContextFactory.Contains("new Zone(_itemManager, _planetSettings, constructionBlueprint, galaxyZone, _observedGalaxy)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer zone context lowering no longer flows through the dedicated observed zone context projector.");
+            "Unity observer zone context lowering no longer flows through the dedicated observed zone context factory.");
     }
 
     var requiredObservedFrameApplierSymbols = new[]
@@ -13381,11 +13381,11 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         ".OrderBy(entity => entity.EntityIndex)",
-        "_entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone())",
-        "_entityProjector.TryApplyInPlace(",
+        "_entityRestorer.Replace(entitySnapshots, currentEntityKey, _getZone())",
+        "_entityRestorer.TryApplyInPlace(",
         "_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity)",
         "_entityIndex.EntitiesByDaemonIndex",
-        "_zoneContextProjector.ResolveContext(targetZone, render)",
+        "_zoneContextFactory.ResolveContext(targetZone, render)",
         "zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render)",
         "zoneRenderer?.ApplyZoneRender(render)",
         "zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render)",
@@ -13410,8 +13410,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
-        "ObservedEntityProjector.Replace(entitySnapshots, currentEntityKey, Zone)",
-        "ObservedEntityProjector.TryApplyInPlace(",
+        "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
+        "ObservedEntityRestorer.TryApplyInPlace(",
         "ZoneRenderer?.LoadDaemonZoneView(_observedEntityIndex.EntitiesByDaemonIndex, render)",
         "ZoneRenderer?.ApplyZoneRender(render)",
         "ZoneRenderer?.RestoreDroppedPickupsFromDaemonZoneState(daemonZone)",

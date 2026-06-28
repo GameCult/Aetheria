@@ -17,9 +17,9 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaDaemonObserver _daemonObserver;
     private AetheriaUnityPilotCommandSender _pilotCommands;
     private AetheriaUnityObservedDockingIndex _observedDocking;
-    private AetheriaUnityObservedEntityProjector _observedEntityProjector;
+    private AetheriaUnityObservedEntityRestorer _observedEntityRestorer;
     private AetheriaUnityCurrentEntityBinder _currentEntityBinder;
-    private AetheriaUnityObservedZoneContextProjector _observedZoneContextProjector;
+    private AetheriaUnityObservedZoneContextFactory _observedZoneContextFactory;
     private AetheriaUnityPilotFrameAdapter _pilotFrameAdapter;
     private AetheriaUnityPilotOperationAdapter _pilotOperationAdapter;
     private AetheriaUnityObservedTargetQuery _observedTargetQuery;
@@ -38,15 +38,15 @@ public class ActionGameManager : MonoBehaviour
         _observedDocking ??= new AetheriaUnityObservedDockingIndex(
             () => ResolveDaemonObserver()?.Client,
             _observedEntityIndex);
-    private AetheriaUnityObservedEntityProjector ObservedEntityProjector =>
-        _observedEntityProjector ??= new AetheriaUnityObservedEntityProjector(
+    private AetheriaUnityObservedEntityRestorer ObservedEntityRestorer =>
+        _observedEntityRestorer ??= new AetheriaUnityObservedEntityRestorer(
             _observedEntityIndex,
             ItemManager,
             EntityConstructionBlueprintProjector.ProjectObservedEntity,
             _loadoutItemFactory.CreateLoadoutItem,
             Debug.LogWarning);
-    private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>
-        _observedZoneContextProjector ??= new AetheriaUnityObservedZoneContextProjector(
+    private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>
+        _observedZoneContextFactory ??= new AetheriaUnityObservedZoneContextFactory(
             ItemManager,
             Settings.PlanetSettings,
             () => ObservedGalaxy,
@@ -100,8 +100,8 @@ public class ActionGameManager : MonoBehaviour
             () => Zone,
             zone => Zone = zone,
             _observedEntityIndex,
-            ObservedEntityProjector,
-            ObservedZoneContextProjector,
+            ObservedEntityRestorer,
+            ObservedZoneContextFactory,
             () => ZoneRenderer,
             () => CurrentEntity,
             entity => CurrentEntityBinder.RestoreBinding(entity),

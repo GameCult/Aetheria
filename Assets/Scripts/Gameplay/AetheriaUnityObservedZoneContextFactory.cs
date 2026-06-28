@@ -10,7 +10,7 @@ using UnityEngine;
 using float2 = Unity.Mathematics.float2;
 using float4 = Unity.Mathematics.float4;
 
-public sealed class AetheriaUnityObservedZoneContextProjector
+public sealed class AetheriaUnityObservedZoneContextFactory
 {
     private readonly Dictionary<int, Zone> _observedZoneContextsByDaemonIndex = new Dictionary<int, Zone>();
     private readonly ItemManager _itemManager;
@@ -20,7 +20,7 @@ public sealed class AetheriaUnityObservedZoneContextProjector
     private readonly Action<MusicType> _playMusic;
     private Galaxy _observedGalaxy;
 
-    public AetheriaUnityObservedZoneContextProjector(
+    public AetheriaUnityObservedZoneContextFactory(
         ItemManager itemManager,
         PlanetSettings planetSettings,
         Func<Galaxy> resolveObservedGalaxy,

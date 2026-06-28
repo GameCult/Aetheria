@@ -14,8 +14,8 @@ public sealed class AetheriaUnityObservedFrameApplier
     private readonly Func<Zone> _getZone;
     private readonly Action<Zone> _setZone;
     private readonly AetheriaUnityObservedEntityIndex _entityIndex;
-    private readonly AetheriaUnityObservedEntityProjector _entityProjector;
-    private readonly AetheriaUnityObservedZoneContextProjector _zoneContextProjector;
+    private readonly AetheriaUnityObservedEntityRestorer _entityRestorer;
+    private readonly AetheriaUnityObservedZoneContextFactory _zoneContextFactory;
     private readonly Func<ZoneRenderer> _resolveZoneRenderer;
     private readonly Func<Entity> _getCurrentEntity;
     private readonly Action<Entity> _restoreCurrentEntityBinding;
@@ -32,8 +32,8 @@ public sealed class AetheriaUnityObservedFrameApplier
         Func<Zone> getZone,
         Action<Zone> setZone,
         AetheriaUnityObservedEntityIndex entityIndex,
-        AetheriaUnityObservedEntityProjector entityProjector,
-        AetheriaUnityObservedZoneContextProjector zoneContextProjector,
+        AetheriaUnityObservedEntityRestorer entityRestorer,
+        AetheriaUnityObservedZoneContextFactory zoneContextFactory,
         Func<ZoneRenderer> resolveZoneRenderer,
         Func<Entity> getCurrentEntity,
         Action<Entity> restoreCurrentEntityBinding,
@@ -44,8 +44,8 @@ public sealed class AetheriaUnityObservedFrameApplier
         _getZone = getZone ?? (() => null);
         _setZone = setZone ?? (_ => { });
         _entityIndex = entityIndex ?? throw new ArgumentNullException(nameof(entityIndex));
-        _entityProjector = entityProjector ?? throw new ArgumentNullException(nameof(entityProjector));
-        _zoneContextProjector = zoneContextProjector ?? throw new ArgumentNullException(nameof(zoneContextProjector));
+        _entityRestorer = entityRestorer ?? throw new ArgumentNullException(nameof(entityRestorer));
+        _zoneContextFactory = zoneContextFactory ?? throw new ArgumentNullException(nameof(zoneContextFactory));
         _resolveZoneRenderer = resolveZoneRenderer ?? (() => null);
         _getCurrentEntity = getCurrentEntity ?? (() => null);
         _restoreCurrentEntityBinding = restoreCurrentEntityBinding ?? (_ => { });
@@ -115,7 +115,7 @@ public sealed class AetheriaUnityObservedFrameApplier
         }
 
         var zoneRenderer = _resolveZoneRenderer();
-        if (_entityProjector.TryApplyInPlace(
+        if (_entityRestorer.TryApplyInPlace(
                 _lastAppliedZoneRenderRunId,
                 _lastAppliedZoneRenderZoneIndex,
                 runId,
@@ -138,14 +138,14 @@ public sealed class AetheriaUnityObservedFrameApplier
 
         if (_getZone()?.GalaxyZone != targetZone)
         {
-            var resolvedZone = _zoneContextProjector.ResolveContext(targetZone, render);
+            var resolvedZone = _zoneContextFactory.ResolveContext(targetZone, render);
             if (resolvedZone == null)
                 return false;
 
             _setZone(resolvedZone);
         }
 
-        _entityProjector.Replace(entitySnapshots, currentEntityKey, _getZone());
+        _entityRestorer.Replace(entitySnapshots, currentEntityKey, _getZone());
         zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render);
         if (_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity))
             _restoreCurrentEntityBinding(currentEntity);
