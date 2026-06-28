@@ -13,6 +13,9 @@ namespace GameCult.Aetheria.State.Verse
         private readonly CultMeshDocumentCatalog _documents;
 
         internal AetheriaClientState(
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
             CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> catalog,
@@ -38,6 +41,12 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> starbridgeSummary,
             Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> starbridgePlayerSeat)
         {
+            Daemon = new AetheriaClientDaemonState(
+                providerAdvertisement,
+                health,
+                commandBoundary,
+                latestFrame,
+                latestSoaView);
             LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
             LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
             Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -64,6 +73,9 @@ namespace GameCult.Aetheria.State.Verse
                 starbridgeSummary,
                 starbridgePlayerSeat);
             _documents = CultMesh.Documents(
+                Daemon.ProviderAdvertisement,
+                Daemon.Health,
+                Daemon.CommandBoundary,
                 LatestFrame,
                 LatestSoaView,
                 Catalog,
@@ -80,6 +92,8 @@ namespace GameCult.Aetheria.State.Verse
                 Starbridge.Scenario,
                 Starbridge.Session);
         }
+
+        public AetheriaClientDaemonState Daemon { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
 
@@ -180,6 +194,33 @@ namespace GameCult.Aetheria.State.Verse
         {
             return Document<TDocument>().Reactive(options);
         }
+    }
+
+    public sealed class AetheriaClientDaemonState
+    {
+        internal AetheriaClientDaemonState(
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView)
+        {
+            ProviderAdvertisement = providerAdvertisement ?? throw new ArgumentNullException(nameof(providerAdvertisement));
+            Health = health ?? throw new ArgumentNullException(nameof(health));
+            CommandBoundary = commandBoundary ?? throw new ArgumentNullException(nameof(commandBoundary));
+            LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
+            LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
     }
 
     public sealed class AetheriaClientCurrentState

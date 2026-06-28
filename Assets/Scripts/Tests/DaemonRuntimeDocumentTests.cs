@@ -215,6 +215,8 @@ public class DaemonRuntimeDocumentTests
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
         var legacyCurrentEntity = client.CurrentEntityAsync().GetAwaiter().GetResult();
+        var legacyObserved = client.ObserveAsync().GetAwaiter().GetResult();
+        var legacyAuthoritativeFrame = client.LatestAuthoritativeRunFrameAsync().GetAwaiter().GetResult();
         var dockingState = client.Aetheria()
             .DockingState
             .LatestAsync()
@@ -226,6 +228,15 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(client.State.Catalog, client.Document<AetheriaRuntimeCatalogSnapshot>());
         Assert.AreSame(client.State.ZoneRender, client.Document<AetheriaRuntimeZoneRenderDocument>());
         Assert.AreSame(client.State.LatestFrame, client.Document<AetheriaRuntimeDaemonFrameDocument>());
+        Assert.AreSame(client.State.Daemon.LatestFrame, client.State.LatestFrame);
+        Assert.AreSame(client.State.Daemon.LatestSoaView, client.State.LatestSoaView);
+        Assert.AreSame(
+            client.State.Daemon.ProviderAdvertisement,
+            client.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>());
+        Assert.AreSame(client.State.Daemon.Health, client.Document<AetheriaRuntimeDaemonHealthDocument>());
+        Assert.AreSame(
+            client.State.Daemon.CommandBoundary,
+            client.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>());
         Assert.AreSame(client.State.Settings.Player, client.Document<AetheriaRuntimePlayerSettingsDocument>());
         Assert.AreSame(client.State.Settings.VerseHost, client.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
@@ -247,6 +258,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
         Assert.AreEqual(frame.FrameId, latestFrameByType.FrameId);
+        Assert.AreEqual(frame.FrameId, legacyObserved.Frame.FrameId);
+        Assert.AreEqual(frame.FrameId, legacyAuthoritativeFrame.FrameId);
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);

@@ -12833,6 +12833,14 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityGameplayBootShell.cs is missing.");
+    var aetheriaClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClient.cs");
+    var aetheriaClient = File.Exists(aetheriaClientPath)
+        ? File.ReadAllText(aetheriaClientPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaClient.cs is missing.");
+    var aetheriaClientStatePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClientState.cs");
+    var aetheriaClientState = File.Exists(aetheriaClientStatePath)
+        ? File.ReadAllText(aetheriaClientStatePath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaClientState.cs is missing.");
 
     var requiredActionGameManagerSymbols = new[]
     {
@@ -12922,6 +12930,60 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Observed zone-render state acquisition must live behind AetheriaUnityObservedFrameApplier.");
+    }
+
+    var requiredDaemonStateFacadeSymbols = new[]
+    {
+        "public AetheriaClientDaemonState Daemon { get; }",
+        "public sealed class AetheriaClientDaemonState",
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement",
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health",
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary",
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame",
+        "CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView"
+    };
+    var missingDaemonStateFacadeSymbols = requiredDaemonStateFacadeSymbols
+        .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonStateFacadeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must expose daemon service state as managed typed document handles: " +
+            string.Join(", ", missingDaemonStateFacadeSymbols));
+    }
+
+    var requiredDaemonClientFacadeSymbols = new[]
+    {
+        "State.Daemon.LatestFrame.LatestAsync()",
+        "State.Daemon.LatestSoaView.LatestAsync()",
+        "State.Daemon.Health.LatestAsync()"
+    };
+    var missingDaemonClientFacadeSymbols = requiredDaemonClientFacadeSymbols
+        .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonClientFacadeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClient daemon compatibility methods must read managed typed state documents: " +
+            string.Join(", ", missingDaemonClientFacadeSymbols));
+    }
+
+    var forbiddenDaemonClientBypassSymbols = new[]
+    {
+        "return _verse.GetObservedDaemonStateAsync();",
+        "return _verse.GetLatestAuthoritativeRunFrameAsync();",
+        "return _verse.GetHealthAsync();",
+        "return _verse.GetLatestSoaViewAsync();",
+        "var frame = await _verse.GetLatestFrameAsync()"
+    };
+    var daemonClientBypassHits = forbiddenDaemonClientBypassSymbols
+        .Where(symbol => aetheriaClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (daemonClientBypassHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClient still bypasses managed daemon documents for compatibility reads: " +
+            string.Join(", ", daemonClientBypassHits));
     }
 
     var forbiddenActionGameManagerReaderSymbols = new[]

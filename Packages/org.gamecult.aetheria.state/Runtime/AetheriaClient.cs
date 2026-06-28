@@ -128,10 +128,25 @@ namespace GameCult.Aetheria.State.Verse
                 pullOnOpen: pullOnOpen);
         }
 
-        public Task<AetheriaRuntimeObservedDaemonState?> ObserveAsync()
+        public async Task<AetheriaRuntimeObservedDaemonState?> ObserveAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetObservedDaemonStateAsync();
+            var frame = await State.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
+            if (frame == null)
+                return null;
+
+            var soaView = await State.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
+            if (soaView == null ||
+                !string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+            {
+                soaView = null;
+            }
+
+            return new AetheriaRuntimeObservedDaemonState(
+                frame,
+                soaView,
+                AetheriaRuntimeDaemonFrameStore.GetFramePath(StatePath),
+                AetheriaRuntimeDaemonSoaViewStore.GetViewPath(StatePath));
         }
 
         public AetheriaRuntimeCatalogSnapshot OpenRuntimeCatalog()
@@ -170,10 +185,20 @@ namespace GameCult.Aetheria.State.Verse
                 entityKey ?? "");
         }
 
-        public Task<AetheriaRuntimeDaemonFrameDocument?> LatestAuthoritativeRunFrameAsync()
+        public async Task<AetheriaRuntimeDaemonFrameDocument?> LatestAuthoritativeRunFrameAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetLatestAuthoritativeRunFrameAsync();
+            var frame = await State.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
+            if (frame == null ||
+                !frame.IsAuthoritative ||
+                frame.Run == null ||
+                frame.Run.Zones == null ||
+                frame.Run.Zones.Count == 0)
+            {
+                return null;
+            }
+
+            return frame;
         }
 
         public async Task<AetheriaRuntimeRtsViewportDocument> MapViewportAsync(
@@ -291,10 +316,10 @@ namespace GameCult.Aetheria.State.Verse
             return await State.Details.Inventory(entityIndex).LatestAsync().ConfigureAwait(false);
         }
 
-        public Task<AetheriaRuntimeDaemonHealthDocument?> DaemonHealthAsync()
+        public async Task<AetheriaRuntimeDaemonHealthDocument?> DaemonHealthAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetHealthAsync();
+            return await State.Daemon.Health.LatestAsync().ConfigureAwait(false);
         }
 
         public Task<AetheriaRuntimeVerseAuthorityPolicyDocument?> AuthorityStatusAsync()
@@ -308,10 +333,10 @@ namespace GameCult.Aetheria.State.Verse
                     : null);
         }
 
-        public Task<AetheriaRuntimeDaemonSoaViewDocument?> SoaViewAsync()
+        public async Task<AetheriaRuntimeDaemonSoaViewDocument?> SoaViewAsync()
         {
             ThrowIfDisposed();
-            return _verse.GetLatestSoaViewAsync();
+            return await State.Daemon.LatestSoaView.LatestAsync().ConfigureAwait(false);
         }
 
         public Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameSurfaceAsync()
@@ -451,7 +476,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private async Task<AetheriaRuntimeDaemonFrameDocument> RequireFrameAsync()
         {
-            var frame = await _verse.GetLatestFrameAsync().ConfigureAwait(false);
+            var frame = await State.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
             if (frame == null)
                 throw new InvalidOperationException("Aetheria local client has no daemon frame yet.");
             return frame;

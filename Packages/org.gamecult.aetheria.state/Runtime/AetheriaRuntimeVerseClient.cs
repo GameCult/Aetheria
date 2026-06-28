@@ -735,6 +735,12 @@ namespace GameCult.Aetheria.State.Verse
                 CultMesh.ProjectionSource("catalog:aetheria.loadout_templates"));
 
             return new AetheriaClientState(
+                Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement),
+                Document<AetheriaRuntimeDaemonHealthDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonHealth),
+                Document<AetheriaRuntimeDaemonCommandBoundaryDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary),
                 Document<AetheriaRuntimeDaemonFrameDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest),
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
