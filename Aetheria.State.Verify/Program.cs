@@ -14820,10 +14820,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !observedFrameApplier.Contains("ApplyLatestZoneRender()", StringComparison.Ordinal) ||
         !observedFrameApplier.Contains("observer.LastObservedState?.ZoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("public AetheriaRuntimeZoneRenderDocument ZoneRender { get; }", StringComparison.Ordinal) ||
-        !observedDaemonState.Contains("ZoneRender = zoneRender ?? AetheriaRuntimeRtsProjection.ProjectZoneRender(Frame);", StringComparison.Ordinal))
+        !observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender", StringComparison.Ordinal) ||
+        !observedDaemonState.Contains("var zoneRender = await state.ReactiveZoneRenderAsync(options).ConfigureAwait(false);", StringComparison.Ordinal) ||
+        !observedDaemonState.Contains("return new AetheriaRuntimeObservedDaemonState(frame, soaView, _zoneRender.Current);", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Observed zone-render state acquisition must live behind AetheriaUnityObservedFrameApplier.");
+            "Observed zone-render state acquisition must sample the managed reactive zone-render document behind AetheriaUnityObservedFrameApplier.");
     }
 
     var requiredDaemonStateFacadeSymbols = new[]
@@ -14903,6 +14905,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(",
         "state.ReactiveDaemonFrameAsync(options)",
         "state.ReactiveDaemonSoaViewAsync(options)",
+        "state.ReactiveZoneRenderAsync(options)",
+        "return new AetheriaRuntimeObservedDaemonState(frame, soaView, _zoneRender.Current);",
         "public bool TryCurrent(out AetheriaRuntimeObservedDaemonState? observed)"
     };
     var missingObservedDaemonStateSymbols = requiredObservedDaemonStateSymbols
@@ -14923,7 +14927,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeDaemonFrameStore.GetFramePath",
         "SoaViewStore.GetViewPath",
         "state.LatestFrame.ReactiveAsync",
-        "state.LatestSoaView.ReactiveAsync"
+        "state.LatestSoaView.ReactiveAsync",
+        "return new AetheriaRuntimeObservedDaemonState(frame, soaView);"
     };
     var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
         .Where(symbol => observedDaemonState.Contains(symbol, StringComparison.Ordinal))

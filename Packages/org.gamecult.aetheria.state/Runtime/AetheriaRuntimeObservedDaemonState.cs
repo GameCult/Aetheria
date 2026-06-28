@@ -41,13 +41,16 @@ namespace GameCult.Aetheria.State.Verse
     {
         private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
         private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _soaView;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
 
         private AetheriaRuntimeReactiveObservedDaemonState(
             CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame,
-            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView)
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView,
+            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender)
         {
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
             _soaView = soaView;
+            _zoneRender = zoneRender ?? throw new ArgumentNullException(nameof(zoneRender));
         }
 
         public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(
@@ -58,7 +61,8 @@ namespace GameCult.Aetheria.State.Verse
 
             var frame = await state.ReactiveDaemonFrameAsync(options).ConfigureAwait(false);
             var soaView = await TryCreateSoaViewAsync(state, options).ConfigureAwait(false);
-            return new AetheriaRuntimeReactiveObservedDaemonState(frame, soaView);
+            var zoneRender = await state.ReactiveZoneRenderAsync(options).ConfigureAwait(false);
+            return new AetheriaRuntimeReactiveObservedDaemonState(frame, soaView, zoneRender);
         }
 
         public AetheriaRuntimeObservedDaemonState? Current
@@ -76,7 +80,7 @@ namespace GameCult.Aetheria.State.Verse
                     soaView = null;
                 }
 
-                return new AetheriaRuntimeObservedDaemonState(frame, soaView);
+                return new AetheriaRuntimeObservedDaemonState(frame, soaView, _zoneRender.Current);
             }
         }
 
@@ -98,6 +102,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             _frame.Dispose();
             _soaView?.Dispose();
+            _zoneRender.Dispose();
         }
 
         private static async Task<CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>?> TryCreateSoaViewAsync(
