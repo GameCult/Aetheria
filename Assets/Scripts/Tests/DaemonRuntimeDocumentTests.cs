@@ -2311,7 +2311,12 @@ public class DaemonRuntimeDocumentTests
             DateTimeOffset.UtcNow,
             "unity-uitoolkit");
 
-        Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var envelope));
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-uitoolkit", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(client, request, out var envelope));
 
         Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, envelope.Kind);
         Assert.AreEqual("unity-uitoolkit", envelope.ClientId);
@@ -2348,7 +2353,16 @@ public class DaemonRuntimeDocumentTests
             DateTimeOffset.UtcNow,
             "");
 
-        Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var envelope));
+        using var client = AetheriaClient
+            .OpenAsync(
+                statePath,
+                AetheriaRuntimeDaemonOperationClient.DefaultClientId,
+                startServer: false,
+                pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(client, request, out var envelope));
         Assert.AreEqual(AetheriaRuntimeDaemonOperationClient.DefaultClientId, envelope.ClientId);
         Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.SensorPing, envelope.Kind);
     }
@@ -2371,7 +2385,7 @@ public class DaemonRuntimeDocumentTests
             78,
             1.5,
             0.02);
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
@@ -2380,7 +2394,12 @@ public class DaemonRuntimeDocumentTests
             DateTimeOffset.UtcNow,
             "unity-uitoolkit");
 
-        Assert.IsFalse(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(statePath, request, out var envelope));
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-uitoolkit", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+
+        Assert.IsFalse(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(client, request, out var envelope));
         Assert.IsNull(envelope);
     }
 

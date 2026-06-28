@@ -3226,7 +3226,6 @@ static void RequireEveRuntimeBootstrap(string root)
         "EveSurfaceCommandRequest request",
         "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaClient",
-        ".OpenAsync(",
         "ObserveAsync()",
         "new AetheriaRuntimeDaemonOperationClient(",
         "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
@@ -3246,6 +3245,13 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         throw new InvalidOperationException(
             "Daemon Eve surface command routing still reads observed daemon state through the runtime file reader instead of the Verse client.");
+    }
+
+    if (daemonSurfaceCommands.Contains(".OpenAsync(", StringComparison.Ordinal) ||
+        daemonSurfaceCommands.Contains("string stateFilePath", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon Eve surface command routing still hides the managed client boundary behind a state-file-path shortcut.");
     }
 
     var forbiddenDaemonSurfaceCommandSymbols = new[]

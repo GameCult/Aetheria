@@ -8,33 +8,6 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeDaemonSurfaceCommands
     {
         public static bool TrySubmit(
-            string stateFilePath,
-            EveSurfaceCommandRequest request,
-            out AetheriaRuntimeDaemonCommandEnvelope? envelope)
-        {
-            envelope = null;
-            if (request == null ||
-                !string.Equals(request.ProviderId, "aetheria.daemon", StringComparison.Ordinal) ||
-                !TryResolveKind(request, out _))
-            {
-                return false;
-            }
-
-            using var client = AetheriaClient
-                .OpenAsync(
-                    stateFilePath,
-                    string.IsNullOrWhiteSpace(request.ClientId)
-                        ? AetheriaRuntimeDaemonOperationClient.DefaultClientId
-                        : request.ClientId,
-                    "local",
-                    startServer: false,
-                    pullOnOpen: true)
-                .GetAwaiter()
-                .GetResult();
-            return TrySubmit(client, request, out envelope);
-        }
-
-        public static bool TrySubmit(
             AetheriaClient client,
             EveSurfaceCommandRequest request,
             out AetheriaRuntimeDaemonCommandEnvelope? envelope)
