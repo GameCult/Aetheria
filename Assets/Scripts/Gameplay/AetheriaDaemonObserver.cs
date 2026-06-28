@@ -20,6 +20,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private float _nextPollTime;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
+    private AetheriaRuntimeReactiveObservedDaemonState _reactiveObservedDaemonState;
 
     public AetheriaRuntimeObservedDaemonState LastObservedState { get; private set; }
     public AetheriaRuntimeDaemonObservationResult LastObservation { get; private set; }
@@ -83,6 +84,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public void ResetObservation()
     {
         _cursor.Reset();
+        DisposeReactiveObservedDaemonState();
         DisposeSoaMemoryMap();
         LastObservedState = null;
         LastObservation = null;
@@ -90,16 +92,16 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void OnDisable()
     {
+        DisposeReactiveObservedDaemonState();
         DisposeSoaMemoryMap();
     }
 
     private AetheriaRuntimeObservedDaemonState ReadObservedDaemonState()
     {
-        var client = ResolveClient();
-        return AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State)
-            .GetAwaiter()
-            .GetResult();
+        var reactive = ResolveReactiveObservedDaemonState();
+        return reactive.TryCurrent(out var observed)
+            ? observed
+            : null;
     }
 
     private AetheriaClient ResolveClient()
@@ -112,6 +114,19 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, clientId);
+    }
+
+    private AetheriaRuntimeReactiveObservedDaemonState ResolveReactiveObservedDaemonState()
+    {
+        if (_reactiveObservedDaemonState != null)
+        {
+            return _reactiveObservedDaemonState;
+        }
+
+        _reactiveObservedDaemonState = ResolveClient()
+            .State
+            .ReactiveObservedDaemon();
+        return _reactiveObservedDaemonState;
     }
 
     private void RemapSoaView(AetheriaRuntimeObservedDaemonState observed)
@@ -148,5 +163,11 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         _renderNativeView = default;
         _soaMemoryMap?.Dispose();
         _soaMemoryMap = null;
+    }
+
+    private void DisposeReactiveObservedDaemonState()
+    {
+        _reactiveObservedDaemonState?.Dispose();
+        _reactiveObservedDaemonState = null;
     }
 }

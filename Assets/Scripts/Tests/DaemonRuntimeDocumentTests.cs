@@ -2177,6 +2177,54 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void ReactiveObservedDaemonStateSamplesManagedFrameAndSoaDocuments()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-reactive-observed-daemon-state-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "reactive-daemon-run",
+                CurrentZoneIndex = 3,
+                CurrentEntityKey = "entity:reactive-observer-target"
+            },
+            "aetheria-daemon",
+            "session-reactive-observed",
+            330,
+            13.0,
+            0.02);
+        var soaView = AetheriaRuntimeDaemonSoaViewDocument.Create(
+            "aetheria-daemon",
+            "session-reactive-observed",
+            330,
+            331,
+            Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>(),
+            Array.Empty<AetheriaRuntimeDaemonSoaColumnDocument>());
+
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+        PublishLatestSoaViewThroughVerseClient(statePath, soaView);
+
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        using var observedState = client.State.ReactiveObservedDaemon();
+
+        Assert.IsTrue(observedState.TryCurrent(out var observed));
+        Assert.IsNotNull(observed);
+        Assert.IsTrue(observed.IsAuthoritative);
+        Assert.AreEqual("reactive-daemon-run", observed.Run.RunId);
+        Assert.AreEqual("entity:reactive-observer-target", observed.Run.CurrentEntityKey);
+        Assert.AreEqual(330, observed.Frame.FrameId);
+        Assert.AreEqual(331, observed.SoaView.Generation);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, observed.ZoneRender.Schema);
+        Assert.AreEqual(330, observed.ZoneRender.FrameId);
+    }
+
+    [Test]
     public void ObservedDaemonStateReadsManagedFrameWithoutSoaDocument()
     {
         var statePath = Path.Combine(

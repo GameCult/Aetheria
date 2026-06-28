@@ -14747,7 +14747,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaClientState state",
         "state.LatestDaemonFrameAsync()",
         "state.LatestDaemonSoaViewAsync()",
-        "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)"
+        "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
+        "public sealed class AetheriaRuntimeReactiveObservedDaemonState",
+        "public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(",
+        "state.LatestFrame.ReactiveAsync(options)",
+        "state.LatestSoaView.ReactiveAsync(options)",
+        "public bool TryCurrent(out AetheriaRuntimeObservedDaemonState? observed)"
     };
     var missingObservedDaemonStateSymbols = requiredObservedDaemonStateSymbols
         .Where(symbol => !observedDaemonState.Contains(symbol, StringComparison.Ordinal))
@@ -14875,16 +14880,20 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeObservedDaemonState", StringComparison.Ordinal) ||
-        !daemonObserver.Contains(".ReadAsync(client.State)", StringComparison.Ordinal))
+        !daemonObserver.Contains("AetheriaRuntimeReactiveObservedDaemonState", StringComparison.Ordinal) ||
+        !daemonObserver.Contains(".ReactiveObservedDaemon()", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("reactive.TryCurrent(out var observed)", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("DisposeReactiveObservedDaemonState()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaDaemonObserver no longer composes observed daemon state from managed Aetheria client documents.");
+            "AetheriaDaemonObserver no longer samples observed daemon state from the managed reactive Aetheria client documents.");
     }
 
-    if (daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal))
+    if (daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadObservedDaemonState", StringComparison.Ordinal) ||
+        daemonObserver.Contains(".ReadAsync(client.State)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaDaemonObserver still spelunks observed daemon state through the runtime file reader instead of the Verse client.");
+            "AetheriaDaemonObserver still spelunks observed daemon state through a one-shot reader instead of the reactive Verse client documents.");
     }
 
     if (daemonObserver.Contains("ObserveAsync()", StringComparison.Ordinal))
