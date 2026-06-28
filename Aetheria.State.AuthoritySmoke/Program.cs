@@ -240,7 +240,7 @@ internal sealed class AuthoritySmokeChecks
                 FixedDeltaSeconds = 0.02,
                 ObservedCommands = Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
                 PreRejectedCommandIds = [command.CommandId],
-                PublishWitnesses = false
+                BuildPublications = false
             });
 
         Require(result.Frame.RejectedCommandIds.Contains(command.CommandId), "pre-rejected command should enter frame rejection receipts");
@@ -807,7 +807,7 @@ internal sealed class AuthoritySmokeChecks
             policy,
             [ravenByRaven, hostileByRaven]).ConfigureAwait(false);
         await RunDaemonOnceAsync(ravenStatePath, "raven-local", rtsPort: 41076).ConfigureAwait(false);
-        var ravenFrame = ReadPublishedFrame(ravenStatePath);
+        var ravenFrame = await ReadPublishedFrameAsync(ravenStatePath, "raven-local").ConfigureAwait(false);
 
         Require(ravenFrame.AppliedCommandIds.Contains(ravenByRaven.CommandId), "raven daemon should apply Raven-authored Raven movement");
         Require(ravenFrame.RejectedCommandIds.Contains(hostileByRaven.CommandId), "raven daemon should reject Raven-authored hostile movement");
@@ -823,7 +823,7 @@ internal sealed class AuthoritySmokeChecks
             policy,
             [ravenByStarfire, hostileByStarfire]).ConfigureAwait(false);
         await RunDaemonOnceAsync(starfireStatePath, "starfire-local", rtsPort: 41077).ConfigureAwait(false);
-        var starfireFrame = ReadPublishedFrame(starfireStatePath);
+        var starfireFrame = await ReadPublishedFrameAsync(starfireStatePath, "starfire-local").ConfigureAwait(false);
 
         Require(starfireFrame.RejectedCommandIds.Contains(ravenByStarfire.CommandId), "starfire daemon should reject Starfire-authored Raven movement");
         Require(starfireFrame.AppliedCommandIds.Contains(hostileByStarfire.CommandId), "starfire daemon should apply Starfire-authored hostile movement");
@@ -1124,15 +1124,16 @@ internal sealed class AuthoritySmokeChecks
             await node.SubmitDaemonCommandAsync(command).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
-        AetheriaRuntimeDaemonFrameStore.PublishFrame(
-            statePath,
-            AetheriaRuntimeDaemonFrameDocument.Create(
+        await node.LatestFrame()
+            .ReplaceAsync(AetheriaRuntimeDaemonFrameDocument.Create(
                 InitialCoopRun(),
                 runtimeId,
                 "authority-smoke",
                 frameId: -1,
                 simulationTimeSeconds: 0,
-                fixedDeltaSeconds: 0.02));
+                fixedDeltaSeconds: 0.02))
+            .ConfigureAwait(false);
+        await node.FlushAsync().ConfigureAwait(false);
     }
 
     private static async Task RunDaemonOnceAsync(
@@ -1415,7 +1416,8 @@ internal sealed class AuthoritySmokeChecks
         {
             try
             {
-                if (TryReadPublishedFrame(statePath, out var frame))
+                var frame = await TryReadPublishedFrameAsync(statePath, runtimeId).ConfigureAwait(false);
+                if (frame != null)
                 {
                     lastFrame = frame;
                     if (isReady(frame))
@@ -1437,16 +1439,27 @@ internal sealed class AuthoritySmokeChecks
             (lastError == null ? "" : $" Last error: {lastError.GetType().Name}: {lastError.Message}"));
     }
 
-    private static AetheriaRuntimeDaemonFrameDocument ReadPublishedFrame(string statePath)
+    private static async Task<AetheriaRuntimeDaemonFrameDocument> ReadPublishedFrameAsync(
+        string statePath,
+        string runtimeId)
     {
-        return AetheriaRuntimeDaemonFrameStore.ReadPublishedFrame(statePath);
+        var frame = await TryReadPublishedFrameAsync(statePath, runtimeId).ConfigureAwait(false);
+        if (frame == null)
+            throw new InvalidOperationException($"No managed latest daemon frame is published at {statePath}.");
+
+        return frame;
     }
 
-    private static bool TryReadPublishedFrame(
+    private static async Task<AetheriaRuntimeDaemonFrameDocument?> TryReadPublishedFrameAsync(
         string statePath,
-        out AetheriaRuntimeDaemonFrameDocument frame)
+        string runtimeId)
     {
-        return AetheriaRuntimeDaemonFrameStore.TryReadPublishedFrame(statePath, out frame);
+        await using var node = await AetheriaStateNode.OpenAsync(
+            statePath,
+            runtimeId,
+            startServer: false,
+            enableDurableShardLogs: false).ConfigureAwait(false);
+        return await node.LatestFrame().ReadAsync().ConfigureAwait(false);
     }
 
     private static string ProcessDiagnostics(IReadOnlyList<Process> childProcesses)
@@ -1518,7 +1531,7 @@ internal sealed class AuthoritySmokeChecks
                 FixedDeltaSeconds = 0.02,
                 ObservedCommands = authorizedCommands,
                 PreRejectedCommandIds = rejectedIds,
-                PublishWitnesses = false
+                BuildPublications = false
             });
 
         return result.Frame;

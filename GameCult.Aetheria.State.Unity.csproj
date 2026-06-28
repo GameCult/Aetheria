@@ -76,7 +76,6 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonStateRefs.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeMainMenuSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRenderSplatDocuments.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonPublicationStore.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInputSettingsSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeItemCategories.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeSettingsDocuments.cs" />
@@ -120,7 +119,6 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeLoadoutTemplateCommands.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseReplicaBridge.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonOperationClient.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonFrameStore.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonOperations.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCommittedFactImporter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInputSettingsCommands.cs" />

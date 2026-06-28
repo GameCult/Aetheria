@@ -1311,16 +1311,12 @@ static async Task EnsureVerseAuthorityPolicyAsync(
 {
     var existing = await node.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
     if (existing != null && string.Equals(existing.Schema, AetheriaRuntimeVerseAuthoritySchemas.Policy, StringComparison.Ordinal))
-    {
-        AetheriaRuntimeDaemonPublicationStore.PublishVerseAuthorityPolicy(node.StatePath, existing);
         return;
-    }
 
     var policy = AetheriaRuntimeVerseAuthorityPolicyDocument.TrustedCoop(options.VerseId, options.DaemonId);
     await node.VerseAuthorityPolicy()
         .ReplaceAsync(policy)
         .ConfigureAwait(false);
-    AetheriaRuntimeDaemonPublicationStore.PublishVerseAuthorityPolicy(node.StatePath, policy);
 }
 
 static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointAsync(AetheriaStateNode node)

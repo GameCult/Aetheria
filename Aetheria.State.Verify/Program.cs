@@ -8672,8 +8672,6 @@ static void RequireDaemonVersePublication(string root)
 {
     var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
-    var daemonFrameStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonFrameStore.cs");
-    var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
@@ -8697,8 +8695,6 @@ static void RequireDaemonVersePublication(string root)
     {
         daemonDocumentsPath,
         daemonTickRunnerPath,
-        daemonFrameStorePath,
-        daemonPublicationStorePath,
         daemonSoaDocumentsPath,
         daemonSoaFramePublisherPath,
         daemonStateRefsPath,
@@ -8731,8 +8727,6 @@ static void RequireDaemonVersePublication(string root)
 
     var daemonDocuments = File.ReadAllText(daemonDocumentsPath);
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
-    var daemonFrameStore = File.ReadAllText(daemonFrameStorePath);
-    var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
@@ -8869,12 +8863,18 @@ static void RequireDaemonVersePublication(string root)
             string.Join(", ", missingBoundarySymbols));
     }
 
-    var requiredStoreSymbols = new[]
+    var forbiddenPublicationStoreSymbols = new[]
     {
+        "WriteDaemonFrame(",
+        "ReadDaemonFrame(",
+        "WriteDaemonSoaView(",
+        "ReadDaemonSoaView(",
         "WriteDaemonProviderAdvertisement(",
         "ReadDaemonProviderAdvertisement(",
         "WriteDaemonHealth(",
         "ReadDaemonHealth(",
+        "WriteVerseAuthorityPolicy(",
+        "ReadVerseAuthorityPolicy(",
         "WriteDaemonCommandBoundary(",
         "ReadDaemonCommandBoundary(",
         "WriteStarbridgeSessionSummary(",
@@ -8883,28 +8883,6 @@ static void RequireDaemonVersePublication(string root)
         "ReadDaemonGameSurface(",
         "WriteDaemonEditorSurface(",
         "ReadDaemonEditorSurface(",
-        "PublishProviderAdvertisement(",
-        "PublishHealth(",
-        "PublishCommandBoundary(",
-        "PublishStarbridgeSessionSummary(",
-        "PublishGameSurface(",
-        "PublishGameTuiSurface(",
-        "PublishEditorSurface(",
-        "PublishEditorTuiSurface("
-    };
-    var storeSource = documentStore + "\n" + daemonPublicationStore;
-    var missingStoreSymbols = requiredStoreSymbols
-        .Where(symbol => !storeSource.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingStoreSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Daemon Verse publication store is incomplete: " +
-            string.Join(", ", missingStoreSymbols));
-    }
-
-    var forbiddenPublicationStoreSymbols = new[]
-    {
         "TryReadProviderAdvertisement(",
         "TryReadHealth(",
         "TryReadVerseAuthorityPolicy(",
@@ -8917,13 +8895,27 @@ static void RequireDaemonVersePublication(string root)
         "TryReadEditorTuiSurface("
     };
     var publicationStoreReaderHits = forbiddenPublicationStoreSymbols
-        .Where(symbol => daemonPublicationStore.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => documentStore.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (publicationStoreReaderHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon publication store still exposes file-backed readers instead of passing typed tick-result documents: " +
+            "Daemon latest publication still exposes file-backed sidecar helpers instead of managed typed documents: " +
             string.Join(", ", publicationStoreReaderHits));
+    }
+
+    var daemonFrameStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonFrameStore.cs");
+    if (File.Exists(daemonFrameStorePath))
+    {
+        throw new InvalidOperationException(
+            "Daemon latest frames must stay on managed CultMesh pointers; delete AetheriaRuntimeDaemonFrameStore.cs instead of reviving sidecar path writes.");
+    }
+
+    var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
+    if (File.Exists(daemonPublicationStorePath))
+    {
+        throw new InvalidOperationException(
+            "Daemon latest publications must stay on managed CultMesh pointers; delete AetheriaRuntimeDaemonPublicationStore.cs instead of reviving sidecar path writes.");
     }
 
     var daemonSoaViewStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaViewStore.cs");
@@ -8931,13 +8923,6 @@ static void RequireDaemonVersePublication(string root)
     {
         throw new InvalidOperationException(
             "Daemon SoA latest-view publication must stay on managed CultMesh pointers; delete AetheriaRuntimeDaemonSoaViewStore.cs instead of reviving sidecar path writes.");
-    }
-
-    if (daemonFrameStore.Contains("TryReadFrame(", StringComparison.Ordinal) ||
-        daemonFrameStore.Contains("ReadFrame(", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Daemon frame store still exposes file-backed readers; use tick-result documents or AetheriaClient managed observation.");
     }
 
     var requiredDaemonRegistrySymbols = new[]
@@ -9011,8 +8996,7 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException("Daemon Eve surface projector no longer lowers daemon surfaces into registered Eve surface state.");
     }
 
-    if (!daemonPublicationStore.Contains("GetCommandBoundaryPath(", StringComparison.Ordinal) ||
-        !daemonDocuments.Contains("AetheriaRuntimeDaemonCommandKinds", StringComparison.Ordinal))
+    if (!daemonDocuments.Contains("AetheriaRuntimeDaemonCommandKinds", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon command boundary no longer exposes typed daemon command metadata.");
@@ -9027,7 +9011,7 @@ static void RequireDaemonVersePublication(string root)
         ".daemon.pending",
         "ReadPending("
     };
-    var daemonQueueSource = daemonDocuments + "\n" + daemonTickRunner + "\n" + daemonPublicationStore + "\n" + tests;
+    var daemonQueueSource = daemonDocuments + "\n" + daemonTickRunner + "\n" + tests;
     var survivingDaemonQueueSymbols = forbiddenDaemonQueueSymbols
         .Where(symbol => daemonQueueSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
