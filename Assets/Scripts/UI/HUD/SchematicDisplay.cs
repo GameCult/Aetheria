@@ -72,10 +72,8 @@ public class SchematicDisplay : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
-    private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;
-    private float _currentEntityDocumentReadTime = float.NegativeInfinity;
-    private const float CurrentEntityHudRefreshIntervalSeconds = 0.1f;
 
     private bool _enemy;
     private Entity _player;
@@ -360,25 +358,22 @@ public class SchematicDisplay : MonoBehaviour
 
     private AetheriaRuntimeCurrentEntityHudStatus ResolveCurrentEntityHudStatus()
     {
-        if (_currentEntityDocument == null ||
-            Time.unscaledTime - _currentEntityDocumentReadTime >= CurrentEntityHudRefreshIntervalSeconds)
+        if (_currentEntity == null)
         {
             try
             {
-                _currentEntityDocument = ResolveClient()
+                _currentEntity = ResolveClient()
                     .Aetheria()
                     .Current
-                    .LatestEntity();
+                    .ReactiveEntity();
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"Failed to read Aetheria current entity HUD status: {ex.Message}");
+                Debug.LogWarning($"Failed to bind Aetheria current entity HUD status: {ex.Message}");
             }
-
-            _currentEntityDocumentReadTime = Time.unscaledTime;
         }
 
-        return _currentEntityDocument?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+        return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
     }
 
     private AetheriaClient ResolveClient()
@@ -425,10 +420,10 @@ public class SchematicDisplay : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
+        _currentEntity?.Dispose();
         _catalog = null;
         _playerSettings = null;
-        _currentEntityDocument = null;
-        _currentEntityDocumentReadTime = float.NegativeInfinity;
+        _currentEntity = null;
     }
 
     private void OnDestroy()

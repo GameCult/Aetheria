@@ -2543,11 +2543,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var requiredSchematicHudSymbols = new[]
     {
-        "private AetheriaRuntimeCurrentEntityDocument _currentEntityDocument;",
+        "private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;",
         "ResolveCurrentEntityHudStatus()",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".Current",
-        ".LatestEntity()",
+        ".ReactiveEntity()",
+        "_currentEntity?.Current?.Hud",
+        "_currentEntity?.Dispose()",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
         "hud.Heatstroke",
