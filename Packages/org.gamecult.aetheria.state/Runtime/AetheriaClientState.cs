@@ -221,6 +221,28 @@ namespace GameCult.Aetheria.State.Verse
             return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<AetheriaClientDockingSnapshot> LatestDockingStateAsync()
+        {
+            return DockingState.LatestAsync();
+        }
+
+        public AetheriaClientDockingSnapshot LatestDockingState()
+        {
+            return LatestDockingStateAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public Task<AetheriaClientReactiveDockingState> ReactiveDockingStateAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return DockingState.ReactiveAsync(options);
+        }
+
+        public AetheriaClientReactiveDockingState ReactiveDockingState(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ReactiveDockingStateAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Task<AetheriaRuntimeReactiveLoadoutSnapshotProjector> ReactiveLoadoutSnapshotProjectorAsync(
             CultMeshReactiveDocumentOptions? options = null)
         {
@@ -243,6 +265,17 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocumentOptions? options = null)
         {
             return ReactiveObservedDaemonAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
+        {
+            using var observed = await ReactiveObservedDaemonAsync().ConfigureAwait(false);
+            return observed.Current;
+        }
+
+        public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()
+        {
+            return LatestObservedDaemonAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public Task<AetheriaRuntimeLoadoutTemplatesDocument> LatestLoadoutTemplatesAsync()

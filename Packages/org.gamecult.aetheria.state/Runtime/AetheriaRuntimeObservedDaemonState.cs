@@ -33,10 +33,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            using var observed = await state
-                .ReactiveObservedDaemonAsync()
-                .ConfigureAwait(false);
-            return observed.Current;
+            return await state.LatestObservedDaemonAsync().ConfigureAwait(false);
         }
     }
 

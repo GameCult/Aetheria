@@ -171,7 +171,7 @@ public class MenuPanel : MonoBehaviour
 
     private AetheriaClientDockingSnapshot ResolveCurrentDocking()
     {
-        _dockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        _dockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
         if (_dockingState.TryCurrent(out var docking))
             return docking;
 

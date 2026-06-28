@@ -541,7 +541,7 @@ public class TradeMenu : MonoBehaviour
         if (_dockingState != null)
             return _dockingState;
 
-        _reactiveDockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        _reactiveDockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
         if (!_reactiveDockingState.TryCurrent(out _dockingState))
         {
             Debug.LogWarning("Failed to read Aetheria docking state for trade menu.");

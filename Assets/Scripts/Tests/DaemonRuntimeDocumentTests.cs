@@ -203,19 +203,15 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
-        var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State)
-            .GetAwaiter()
-            .GetResult();
+        var observed = client.State.LatestObservedDaemon();
         var observedAuthoritativeFrame = client.State.Daemon.LatestFrameDocument();
         var gameSurface = client.State.Daemon.LatestGameSurface();
         var gameTuiSurface = client.State.Daemon.LatestGameTuiSurface();
         var editorSurface = client.State.Daemon.LatestEditorSurface();
         var editorTuiSurface = client.State.Daemon.LatestEditorTuiSurface();
         var authorityStatus = client.State.Daemon.LatestAuthorityPolicy();
-        var dockingState = client.Aetheria()
-            .DockingState
-            .Latest();
+        var dockingState = client.State.LatestDockingState();
+        using var reactiveDockingState = client.State.ReactiveDockingState();
 
         Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
         Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
@@ -296,6 +292,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, dockingState.CurrentEntityKey);
+        Assert.AreEqual(currentEntity.EntityKey, reactiveDockingState.Current.CurrentEntityKey);
         Assert.AreEqual("", dockingState.DockParentEntityKey);
         Assert.AreEqual(-1, dockingState.DockingBayIndex);
         Assert.IsTrue(client.State.Current.Entity.Sources.Any(source =>
@@ -2163,10 +2160,7 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State)
-            .GetAwaiter()
-            .GetResult();
+        var observed = client.State.LatestObservedDaemon();
 
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);
@@ -2257,10 +2251,7 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = AetheriaRuntimeObservedDaemonState
-            .ReadAsync(client.State)
-            .GetAwaiter()
-            .GetResult();
+        var observed = client.State.LatestObservedDaemon();
 
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);

@@ -4700,8 +4700,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "ResolveVisibleTabs(",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "ResolveCurrentDocking()?.IsDocked == true",
         "AetheriaClient",
@@ -4817,8 +4816,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeLocalStoryCommandKind.Continue",
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
         "new AetheriaRuntimeLocalStoryChoiceState(",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "unity-runtime-local-story"
     };
@@ -4937,8 +4935,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "?.CurrentEntity"
     };
@@ -5649,8 +5646,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "SetTargetCargo(",
         "selection.EntityKey",
@@ -6210,8 +6206,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "_observedEntityIndex.TryResolveEntityByRecordKey",
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "LoadoutRestoreOptions"
     };
@@ -6284,8 +6279,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
 
     if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".DockingState", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains(".Reactive()", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
         !inventoryMenu.Contains(".TryCurrent(", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
@@ -6946,6 +6940,8 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     var clientState = File.ReadAllText(clientStatePath);
     var requiredClientSymbols = new[]
     {
+        "public AetheriaClientDockingSnapshot LatestDockingState()",
+        "public AetheriaClientReactiveDockingState ReactiveDockingState(",
         "public AetheriaClientReactiveDockingState Reactive(",
         "public sealed class AetheriaClientReactiveDockingState : IDisposable",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
@@ -6995,8 +6991,9 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
             Compact = CompactSource(entry.Source)
         })
         .Where(entry =>
-            !entry.Source.Contains(".DockingState.Reactive()", StringComparison.Ordinal) ||
+            !entry.Source.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
             !entry.Source.Contains(".TryCurrent(", StringComparison.Ordinal) ||
+            entry.Source.Contains(".DockingState.Reactive()", StringComparison.Ordinal) ||
             entry.Compact.Contains(CompactSource(".DockingState.Latest()"), StringComparison.Ordinal) ||
             entry.Compact.Contains(CompactSource(".DockingState.TryLatest("), StringComparison.Ordinal))
         .Select(entry => Path.GetRelativePath(root, entry.Path))
@@ -7005,7 +7002,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (offenders.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking state must read through AetheriaClientDockingState.Reactive instead of latest wrappers: " +
+            "Unity menu docking state must read through AetheriaClientState.ReactiveDockingState instead of nested latest/reactive wrappers: " +
             string.Join(", ", offenders));
     }
 
@@ -7598,6 +7595,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
+        "public AetheriaClientDockingSnapshot LatestDockingState()",
+        "public AetheriaClientReactiveDockingState ReactiveDockingState(",
+        "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
+        "public AetheriaRuntimeReactiveObservedDaemonState ReactiveObservedDaemon(",
         "public AetheriaRuntimeReactiveLoadoutSnapshotProjector ReactiveLoadoutSnapshotProjector(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
@@ -7641,8 +7642,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
     var requiredObservedSymbols = new[]
     {
-        ".ReactiveObservedDaemonAsync()",
-        "return observed.Current;"
+        "return await state.LatestObservedDaemonAsync().ConfigureAwait(false);"
     };
     var missingObservedSymbols = requiredObservedSymbols
         .Where(symbol => !observedDaemonState.Contains(symbol, StringComparison.Ordinal))
@@ -7650,12 +7650,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (missingObservedSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed daemon state must read managed typed daemon documents through named AetheriaClientState accessors: " +
+            "Observed daemon state compatibility reads must delegate to named AetheriaClientState accessors: " +
             string.Join(", ", missingObservedSymbols));
     }
 
     if (observedDaemonState.Contains("state.LatestDaemonFrameAsync()", StringComparison.Ordinal) ||
         observedDaemonState.Contains("state.LatestDaemonSoaViewAsync()", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("state.ReactiveObservedDaemonAsync()", StringComparison.Ordinal) ||
         observedDaemonState.Contains("TryReadLatestSoaViewAsync", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -7677,6 +7678,9 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         ".Aetheria().Details.Zone(",
         ".Aetheria().Details.Inventory(",
         ".Aetheria().Starbridge.PlayerSeat(",
+        ".Aetheria().DockingState.Latest(",
+        ".Aetheria().DockingState.Reactive(",
+        "AetheriaRuntimeObservedDaemonState.ReadAsync(",
         ".State.Daemon.LatestFrame.LatestAsync()",
         ".State.Daemon.LatestSoaView.LatestAsync()",
         ".State.Daemon.AuthorityPolicy.LatestAsync()",
@@ -12088,8 +12092,7 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
         ".Aetheria()",
-        ".DockingState",
-        ".Reactive()",
+        ".ReactiveDockingState()",
         ".TryCurrent(",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
@@ -14864,8 +14867,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(",
         "AetheriaClientState state",
-        ".ReactiveObservedDaemonAsync()",
-        "return observed.Current;",
+        "return await state.LatestObservedDaemonAsync().ConfigureAwait(false);",
         "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
         "public sealed class AetheriaRuntimeReactiveObservedDaemonState",
         "public static async Task<AetheriaRuntimeReactiveObservedDaemonState> CreateAsync(",
@@ -16828,7 +16830,7 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     }
 
     if (!inventoryPanel.Contains("TryResolveCurrentEntityKey(out var currentEntityKey)", StringComparison.Ordinal) ||
-        !inventoryPanel.Contains(".DockingState", StringComparison.Ordinal) ||
+        !inventoryPanel.Contains(".ReactiveDockingState()", StringComparison.Ordinal) ||
         !inventoryPanel.Contains("snapshot?.CurrentEntityKey", StringComparison.Ordinal) ||
         inventoryPanel.Contains("GameManager.CurrentEntity", StringComparison.Ordinal))
     {

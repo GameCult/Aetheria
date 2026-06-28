@@ -1167,7 +1167,7 @@ private void Update()
 
     private AetheriaClientDockingSnapshot ResolveDockingState()
     {
-        _reactiveDockingState ??= ResolveClient().Aetheria().DockingState.Reactive();
+        _reactiveDockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
         if (_reactiveDockingState.TryCurrent(out var docking))
             return docking;
 

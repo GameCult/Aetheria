@@ -164,7 +164,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         snapshot = null;
         try
         {
-            _dockingState ??= _resolveClient()?.Aetheria().DockingState.Reactive();
+            _dockingState ??= _resolveClient()?.Aetheria().ReactiveDockingState();
             return _dockingState?.TryCurrent(out snapshot) == true;
         }
         catch
