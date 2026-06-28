@@ -8704,15 +8704,7 @@ static void RequireDaemonVersePublication(string root)
         "PublishGameSurface(",
         "PublishGameTuiSurface(",
         "PublishEditorSurface(",
-        "PublishEditorTuiSurface(",
-        "TryReadProviderAdvertisement(",
-        "TryReadHealth(",
-        "TryReadCommandBoundary(",
-        "TryReadStarbridgeSessionSummary(",
-        "TryReadGameSurface(",
-        "TryReadGameTuiSurface(",
-        "TryReadEditorSurface(",
-        "TryReadEditorTuiSurface("
+        "PublishEditorTuiSurface("
     };
     var storeSource = documentStore + "\n" + daemonPublicationStore;
     var missingStoreSymbols = requiredStoreSymbols
@@ -8723,6 +8715,29 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon Verse publication store is incomplete: " +
             string.Join(", ", missingStoreSymbols));
+    }
+
+    var forbiddenPublicationStoreSymbols = new[]
+    {
+        "TryReadProviderAdvertisement(",
+        "TryReadHealth(",
+        "TryReadVerseAuthorityPolicy(",
+        "TryReadCommandBoundary(",
+        "TryReadAssetManifest(",
+        "TryReadStarbridgeSessionSummary(",
+        "TryReadGameSurface(",
+        "TryReadGameTuiSurface(",
+        "TryReadEditorSurface(",
+        "TryReadEditorTuiSurface("
+    };
+    var publicationStoreReaderHits = forbiddenPublicationStoreSymbols
+        .Where(symbol => daemonPublicationStore.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (publicationStoreReaderHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon publication store still exposes file-backed readers instead of passing typed tick-result documents: " +
+            string.Join(", ", publicationStoreReaderHits));
     }
 
     var requiredDaemonRegistrySymbols = new[]
@@ -9205,13 +9220,13 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredTestSymbols = new[]
     {
-        "TryReadProviderAdvertisement(",
-        "TryReadHealth(",
-        "TryReadCommandBoundary(",
-        "TryReadGameSurface(",
-        "TryReadEditorSurface(",
-        "TryReadGameTuiSurface(",
-        "TryReadEditorTuiSurface(",
+        "var providerAdvertisement = result.ProviderAdvertisement",
+        "var health = result.Health",
+        "var commandBoundary = result.CommandBoundary",
+        "var gameSurface = result.GameSurface",
+        "var editorSurface = result.EditorSurface",
+        "var gameTuiSurface = result.GameTuiSurface",
+        "var editorTuiSurface = result.EditorTuiSurface",
         "AetheriaRuntimeDaemonSchemas.ProviderAdvertisement",
         "AetheriaRuntimeDaemonSchemas.CommandBoundary",
         "AetheriaRuntimeDaemonSchemas.Health",

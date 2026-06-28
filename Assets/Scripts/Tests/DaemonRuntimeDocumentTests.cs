@@ -456,9 +456,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetGameTuiSurfacePath(statePath), result.GameTuiSurfacePath);
         Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetEditorSurfacePath(statePath), result.EditorSurfacePath);
         Assert.AreEqual(AetheriaRuntimeDaemonPublicationStore.GetEditorTuiSurfacePath(statePath), result.EditorTuiSurfacePath);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadProviderAdvertisement(
-            statePath,
-            out var providerAdvertisement));
+        var providerAdvertisement = result.ProviderAdvertisement;
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement, providerAdvertisement.Schema);
         Assert.AreEqual("aetheria.test", providerAdvertisement.VerseId);
         Assert.AreEqual("aetheria.daemon", providerAdvertisement.ProviderId);
@@ -489,7 +487,7 @@ public class DaemonRuntimeDocumentTests
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.CommandBoundary);
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.GameSurface);
         CollectionAssert.Contains(providerAdvertisement.PublishedSchemas, AetheriaRuntimeDaemonSchemas.EditorSurface);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadHealth(statePath, out var health));
+        var health = result.Health;
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Health, health.Schema);
         Assert.AreEqual("test-daemon", health.DaemonId);
         Assert.AreEqual("aetheria.test", health.VerseId);
@@ -499,9 +497,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(0, health.RejectedCommandCount);
         Assert.AreEqual("daemon-published", health.PublicationSource);
         Assert.AreEqual("cultcache-witness", health.Transport);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadCommandBoundary(
-            statePath,
-            out var commandBoundary));
+        var commandBoundary = result.CommandBoundary;
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommandBoundary, commandBoundary.Schema);
         Assert.AreEqual("aetheria.daemon.commands", commandBoundary.BoundaryId);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Command, commandBoundary.CommandSchema);
@@ -510,7 +506,7 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(commandBoundary.Commands.Any(entry =>
             entry.Kind == AetheriaRuntimeDaemonCommandKinds.TransferCargoItem &&
             entry.CommandBody == nameof(AetheriaRuntimeCargoTransferCommand)));
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadGameSurface(statePath, out var gameSurface));
+        var gameSurface = result.GameSurface;
         Assert.AreEqual("aetheria.daemon", gameSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, gameSurface.Surface.Id);
@@ -543,12 +539,12 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
             out var resolvedTargetName));
         Assert.AreEqual("Target", resolvedTargetName);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadGameTuiSurface(statePath, out var gameTuiSurface));
+        var gameTuiSurface = result.GameTuiSurface;
         Assert.AreEqual("aetheria.daemon", gameTuiSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameTuiSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, gameTuiSurface.Surface.Id);
         Assert.AreEqual(42, gameTuiSurface.Version);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadEditorSurface(statePath, out var editorSurface));
+        var editorSurface = result.EditorSurface;
         Assert.AreEqual("aetheria.daemon", editorSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, editorSurface.Surface.Id);
@@ -564,7 +560,7 @@ public class DaemonRuntimeDocumentTests
             command.Transport == "cultmesh"));
         Assert.IsFalse(editorSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.TransferCargoItem"));
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadEditorTuiSurface(statePath, out var editorTuiSurface));
+        var editorTuiSurface = result.EditorTuiSurface;
         Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, editorTuiSurface.Surface.Id);
@@ -827,10 +823,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(0, result.OperationResult.RejectedCommandIds.Count);
         Assert.AreEqual(-1, run.Zones[0].Entities[0].TargetEntityIndex);
         CollectionAssert.Contains(result.Frame.AccountedCommandIds, targetCommand.CommandId);
-        Assert.IsTrue(AetheriaRuntimeDaemonPublicationStore.TryReadHealth(statePath, out var health));
-        Assert.AreEqual(1, health.ObservedCommandCount);
-        Assert.AreEqual(0, health.AppliedCommandCount);
-        Assert.AreEqual(0, health.RejectedCommandCount);
+        Assert.AreEqual(1, result.Health.ObservedCommandCount);
+        Assert.AreEqual(0, result.Health.AppliedCommandCount);
+        Assert.AreEqual(0, result.Health.RejectedCommandCount);
     }
 
     [Test]
