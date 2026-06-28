@@ -87,7 +87,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public void ResetObservation()
     {
         _cursor.Reset();
-        DisposeObservedDaemonSession();
+        DisposeObservedDaemonDocuments();
         DisposeSoaMemoryMap();
         LastObservedState = null;
         LastObservation = null;
@@ -95,7 +95,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void OnDisable()
     {
-        DisposeObservedDaemonSession();
+        DisposeObservedDaemonDocuments();
         DisposeSoaMemoryMap();
     }
 
@@ -120,7 +120,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void EnsureObservedDaemonDocuments()
     {
-        if (_daemonFrame != null && _zoneRender != null)
+        if (_daemonFrame != null && _daemonSoaView != null && _zoneRender != null)
         {
             return;
         }
@@ -197,7 +197,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         _soaMemoryMap = null;
     }
 
-    private void DisposeObservedDaemonSession()
+    private void DisposeObservedDaemonDocuments()
     {
         _daemonFrame?.Dispose();
         _daemonFrame = null;

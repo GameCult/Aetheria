@@ -15916,7 +15916,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !daemonObserver.Contains("_daemonSoaView ??= TryReactiveDaemonSoaView(state);", StringComparison.Ordinal) ||
         !daemonObserver.Contains("_zoneRender ??= state.ReactiveZoneRender();", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeObservedDaemonState.TryCreateCurrent(", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("DisposeObservedDaemonSession()", StringComparison.Ordinal))
+        !daemonObserver.Contains("DisposeObservedDaemonDocuments()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "AetheriaDaemonObserver must sample observed daemon state through direct managed reactive daemon documents.");
@@ -15930,6 +15930,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         daemonObserver.Contains("AetheriaRuntimeObservedDaemonSession", StringComparison.Ordinal) ||
         daemonObserver.Contains(".ObserveDaemon()", StringComparison.Ordinal) ||
         daemonObserver.Contains("return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);", StringComparison.Ordinal) ||
+        daemonObserver.Contains("DisposeObservedDaemonSession()", StringComparison.Ordinal) ||
         daemonObserver.Contains("DisposeReactiveObservedDaemonDocuments()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
