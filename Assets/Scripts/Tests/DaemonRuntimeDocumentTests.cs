@@ -164,7 +164,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var currentEntity = client.State.Current.LatestEntity();
+        var currentEntity = client.State.Latest<AetheriaRuntimeCurrentEntityDocument>();
         var latestFrame = client.State.LatestDaemonFrame();
         var catalog = client.State.LatestCatalog();
         var playerSettings = client.State.Settings.LatestPlayer();
@@ -213,9 +213,9 @@ public class DaemonRuntimeDocumentTests
         using var playerSettingsReactive = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         using var verseHostSettingsReactive = client.State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
         using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
-        using var currentZoneReactive = client.State.Current.ReactiveZone();
-        using var currentEntityDocumentReactive = client.State.Current.ReactiveEntity();
-        using var currentDockingReactive = client.State.Current.ReactiveDocking();
+        using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
+        using var currentEntityDocumentReactive = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        using var currentDockingReactive = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
         using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
         using var zoneDetailsReactive = client.State.Details.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
         using var selectedObjectReactive = client.State.Details.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
@@ -226,7 +226,7 @@ public class DaemonRuntimeDocumentTests
         using var renderSplatsViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
         using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
-        using var playerHudEntity = client.State.Current.ReactiveEntity();
+        using var playerHudEntity = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
         var gameSurface = client.State.LatestGameSurface();
         var gameTuiSurface = client.State.LatestGameTuiSurface();
         var editorSurface = client.State.LatestEditorSurface();
@@ -404,7 +404,7 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var aetheria = verse.Aetheria();
-        var currentEntity = aetheria.Current.LatestEntity();
+        var currentEntity = aetheria.Latest<AetheriaRuntimeCurrentEntityDocument>();
         var latestFrameDocument = verse.Document<AetheriaRuntimeDaemonFrameDocument>(
             AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
         using var latestFrameReactive = latestFrameDocument.Reactive();

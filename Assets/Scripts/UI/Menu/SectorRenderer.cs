@@ -323,8 +323,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         {
             _currentZone ??= ResolveClient()
                 .State
-                .Current
-                .ReactiveZone();
+                .Reactive<AetheriaRuntimeCurrentZoneDocument>();
         }
         catch (Exception ex)
         {

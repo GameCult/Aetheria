@@ -234,8 +234,8 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeObservedDockingState? CurrentDocking(
             CultMeshReactiveDocumentOptions? options = null)
         {
-            using var entity = Current.ReactiveEntity(options);
-            using var docking = Current.ReactiveDocking(options);
+            using var entity = Reactive<AetheriaRuntimeCurrentEntityDocument>(options);
+            using var docking = Reactive<AetheriaRuntimeCurrentDockingDocument>(options);
             using var refit = Reactive<AetheriaRuntimeStationRefitDocument>(options);
             return AetheriaRuntimeObservedDockingState.TryCreateCurrent(entity, docking, refit, out var current)
                 ? current
@@ -714,72 +714,6 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> Entity { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }
-
-        public Task<AetheriaRuntimeCurrentZoneDocument> LatestZoneAsync()
-        {
-            return Zone.LatestAsync();
-        }
-
-        public AetheriaRuntimeCurrentZoneDocument LatestZone()
-        {
-            return LatestZoneAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Zone.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Zone.Reactive(options);
-        }
-
-        public Task<AetheriaRuntimeCurrentEntityDocument> LatestEntityAsync()
-        {
-            return Entity.LatestAsync();
-        }
-
-        public AetheriaRuntimeCurrentEntityDocument LatestEntity()
-        {
-            return LatestEntityAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Entity.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Entity.Reactive(options);
-        }
-
-        public Task<AetheriaRuntimeCurrentDockingDocument> LatestDockingAsync()
-        {
-            return Docking.LatestAsync();
-        }
-
-        public AetheriaRuntimeCurrentDockingDocument LatestDocking()
-        {
-            return LatestDockingAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Docking.ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return Docking.Reactive(options);
-        }
 
     }
 

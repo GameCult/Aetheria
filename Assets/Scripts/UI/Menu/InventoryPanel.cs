@@ -1505,8 +1505,7 @@ private void Update()
         {
             _currentEntity = ResolveClient()
                 .State
-                .Current
-                .ReactiveEntity();
+                .Reactive<AetheriaRuntimeCurrentEntityDocument>();
         }
         catch (Exception ex)
         {

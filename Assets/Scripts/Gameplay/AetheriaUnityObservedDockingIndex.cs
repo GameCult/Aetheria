@@ -171,8 +171,8 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
             if (state == null)
                 return false;
 
-            var currentEntity = state.Current.LatestEntity();
-            var currentDocking = state.Current.LatestDocking();
+            var currentEntity = state.Latest<AetheriaRuntimeCurrentEntityDocument>();
+            var currentDocking = state.Latest<AetheriaRuntimeCurrentDockingDocument>();
             var stationRefit = state.LatestStationRefit();
             if (currentDocking == null || stationRefit == null)
                 return false;

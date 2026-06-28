@@ -966,8 +966,7 @@ public class InventoryMenu : MonoBehaviour
         {
             _currentEntity = ResolveClient()
                 .State
-                .Current
-                .ReactiveEntity();
+                .Reactive<AetheriaRuntimeCurrentEntityDocument>();
         }
         catch (Exception ex)
         {

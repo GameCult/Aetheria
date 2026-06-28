@@ -359,7 +359,7 @@ public class SchematicDisplay : MonoBehaviour
         {
             try
             {
-                _currentEntity = ResolveClient().State.Current.ReactiveEntity();
+                _currentEntity = ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
             }
             catch (Exception ex)
             {

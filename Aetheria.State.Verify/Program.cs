@@ -2564,7 +2564,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
-        "ResolveClient().State.Current.ReactiveEntity()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
         "return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
         "_currentEntity?.Dispose()",
         "hud.OverrideShutdown",
@@ -4585,7 +4585,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeCurrentZoneDocument",
         "_currentZone",
-        ".ReactiveZone()",
+        ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
         "AetheriaRuntimeCurrentZoneSession",
         ".ObserveZone()");
     RequireReactiveTypedDocumentAccess(
@@ -4769,7 +4769,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeCurrentDockingDocument",
-        "ResolveClient().State.Current.LatestDocking()",
+        "ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()",
         "docking.IsDocked",
         "AetheriaClient",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
@@ -5731,7 +5731,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeCurrentDockingDocument",
-        "ResolveClient().State.Current.LatestDocking()",
+        "ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()",
         "ResolveClient().State.LatestStationRefit()",
         "SetTargetCargo(",
         "selection.EntityKey",
@@ -7024,7 +7024,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     }
 
     var clientState = File.ReadAllText(clientStatePath);
-    if (!clientState.Contains("public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(", StringComparison.Ordinal) ||
+    if (!clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal))
     {
@@ -7043,7 +7043,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var requiredSymbols = new[]
         {
             "ResolveCurrentEntity()",
-            ".ReactiveEntity()",
+            ".Reactive<AetheriaRuntimeCurrentEntityDocument>()",
             "ResolveStationRefitDocument()",
             ".Reactive<AetheriaRuntimeStationRefitDocument>()",
             "ResolveInventory(entityIndex)",
@@ -7091,7 +7091,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             name,
             "AetheriaRuntimeCurrentEntityDocument",
             "_currentEntity",
-            ".ReactiveEntity()",
+            ".Reactive<AetheriaRuntimeCurrentEntityDocument>()",
             "AetheriaRuntimeCurrentEntitySession",
             ".ObserveEntity()");
         RequireReactiveTypedDocumentAccess(
@@ -7132,8 +7132,8 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         "public AetheriaClientCurrentState Current { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
-        "public AetheriaRuntimeCurrentDockingDocument LatestDocking()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
+        "public TDocument Latest<TDocument>()",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -7215,7 +7215,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 static bool HasManagedDockingSnapshotAccess(string source)
 {
     if (source.Contains("AetheriaRuntimeCurrentDockingDocument", StringComparison.Ordinal) &&
-        source.Contains("ResolveClient().State.Current.LatestDocking()", StringComparison.Ordinal) &&
+        source.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
         !source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
         !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal))
@@ -7225,8 +7225,8 @@ static bool HasManagedDockingSnapshotAccess(string source)
 
     if (source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
         source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
-        source.Contains("state.Current.LatestEntity()", StringComparison.Ordinal) &&
-        source.Contains("state.Current.LatestDocking()", StringComparison.Ordinal) &&
+        source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
+        source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
         source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
         !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
         !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
@@ -7249,8 +7249,8 @@ static bool HasManagedDockingSnapshotAccess(string source)
     return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
            source.Contains("AetheriaRuntimeObservedDockingState", StringComparison.Ordinal) &&
            source.Contains("var state = _resolveClient()?.State;", StringComparison.Ordinal) &&
-           source.Contains("state.Current.LatestEntity()", StringComparison.Ordinal) &&
-           source.Contains("state.Current.LatestDocking()", StringComparison.Ordinal) &&
+           source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
+           source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
            source.Contains("state.LatestStationRefit()", StringComparison.Ordinal) &&
            !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
            !source.Contains(".State.CurrentDocking()", StringComparison.Ordinal) &&
@@ -7283,12 +7283,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public AetheriaRuntimePlayerSettingsDocument LatestPlayer()",
         "public Task<AetheriaRuntimeVerseHostSettingsDocument> LatestVerseHostAsync()",
         "public AetheriaRuntimeVerseHostSettingsDocument LatestVerseHost()",
-        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument>> ReactiveZoneAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(",
-        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>> ReactiveEntityAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveEntity(",
-        "public Task<CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>> ReactiveDockingAsync(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveDocking(",
+        "public Task<TDocument> LatestAsync<TDocument>()",
+        "public TDocument Latest<TDocument>()",
+        "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
@@ -7405,7 +7403,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
-        "ResolveClient().State.Current.ReactiveEntity()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_currentEntity?.Dispose()",
@@ -7755,7 +7753,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         ".Current",
-        ".ReactiveZone()",
+        ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
         ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
         "_sectorMap?.Dispose()",
         "_currentZone?.Dispose()",
@@ -7785,7 +7783,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeCurrentZoneDocument",
         "_currentZone",
-        ".ReactiveZone()",
+        ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
         "AetheriaRuntimeCurrentZoneSession",
         ".ObserveZone()");
     RequireReactiveTypedDocumentAccess(
@@ -7906,9 +7904,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     {
         "public AetheriaRuntimeSectorMapDocument LatestSectorMap()",
         "public AetheriaRuntimeZoneContactsDocument LatestZoneContacts()",
-        "public AetheriaRuntimeCurrentZoneDocument LatestZone()",
-        "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveZone(",
-        "public AetheriaRuntimeCurrentEntityDocument LatestEntity()",
+        "public TDocument Latest<TDocument>()",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
@@ -8265,6 +8262,36 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         throw new InvalidOperationException(
             "AetheriaClientDetailState must use generic parameterized document access instead of named latest/reactive wrappers: " +
             string.Join(", ", survivingDetailConvenienceWrappers));
+    }
+
+    var currentState = clientState.Split(
+        "public sealed class AetheriaClientCurrentState",
+        StringSplitOptions.None).Last().Split(
+        "public sealed class AetheriaClientSettingsState",
+        StringSplitOptions.None)[0];
+    var forbiddenCurrentConvenienceWrappers = new[]
+    {
+        "LatestZone(",
+        "LatestZoneAsync(",
+        "ReactiveZone(",
+        "ReactiveZoneAsync(",
+        "LatestEntity(",
+        "LatestEntityAsync(",
+        "ReactiveEntity(",
+        "ReactiveEntityAsync(",
+        "LatestDocking(",
+        "LatestDockingAsync(",
+        "ReactiveDocking(",
+        "ReactiveDockingAsync("
+    };
+    var survivingCurrentConvenienceWrappers = forbiddenCurrentConvenienceWrappers
+        .Where(symbol => currentState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingCurrentConvenienceWrappers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientCurrentState must use top-level generic document access instead of named latest/reactive wrappers: " +
+            string.Join(", ", survivingCurrentConvenienceWrappers));
     }
 
     var observedDaemonState = File.ReadAllText(observedDaemonStatePath);
@@ -12909,8 +12936,8 @@ static void RequireMainMenuContinueRunState(string root)
         "public sealed class AetheriaUnityObservedDockingIndex",
         "AetheriaRuntimeObservedDockingState",
         "var state = _resolveClient()?.State;",
-        "state.Current.LatestEntity()",
-        "state.Current.LatestDocking()",
+        "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
+        "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
         "state.LatestStationRefit()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
@@ -12935,8 +12962,8 @@ static void RequireMainMenuContinueRunState(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
         "State?.CurrentDocking()",
         ".State.CurrentDocking()",
-        "state.ReactiveEntity()",
-        "state.ReactiveDocking()",
+        "ReactiveEntity()",
+        "ReactiveDocking()",
         "state.Reactive<AetheriaRuntimeStationRefitDocument>()"
     };
     var observedDockingHits = forbiddenObservedDockingSymbols

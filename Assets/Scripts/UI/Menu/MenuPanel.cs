@@ -175,7 +175,7 @@ public class MenuPanel : MonoBehaviour
         docking = null;
         try
         {
-            docking = ResolveClient().State.Current.LatestDocking();
+            docking = ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>();
             return docking != null;
         }
         catch (Exception ex)
