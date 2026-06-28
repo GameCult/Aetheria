@@ -8514,8 +8514,10 @@ static void RequireDaemonVersePublication(string root)
 {
     var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
+    var daemonFrameStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonFrameStore.cs");
     var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
+    var daemonSoaViewStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaViewStore.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
@@ -8538,8 +8540,10 @@ static void RequireDaemonVersePublication(string root)
     {
         daemonDocumentsPath,
         daemonTickRunnerPath,
+        daemonFrameStorePath,
         daemonPublicationStorePath,
         daemonSoaDocumentsPath,
+        daemonSoaViewStorePath,
         daemonSoaFramePublisherPath,
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
@@ -8571,8 +8575,10 @@ static void RequireDaemonVersePublication(string root)
 
     var daemonDocuments = File.ReadAllText(daemonDocumentsPath);
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
+    var daemonFrameStore = File.ReadAllText(daemonFrameStorePath);
     var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
+    var daemonSoaViewStore = File.ReadAllText(daemonSoaViewStorePath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
@@ -8738,6 +8744,15 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon publication store still exposes file-backed readers instead of passing typed tick-result documents: " +
             string.Join(", ", publicationStoreReaderHits));
+    }
+
+    if (daemonFrameStore.Contains("TryReadFrame(", StringComparison.Ordinal) ||
+        daemonFrameStore.Contains("ReadFrame(", StringComparison.Ordinal) ||
+        daemonSoaViewStore.Contains("TryReadView(", StringComparison.Ordinal) ||
+        daemonSoaViewStore.Contains("ReadView(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon frame/SoA stores still expose file-backed readers; use tick-result documents or AetheriaClient managed observation.");
     }
 
     var requiredDaemonRegistrySymbols = new[]

@@ -96,7 +96,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void FrameStorePublishesLatestDaemonFrame()
+    public void FrameStorePublishesLatestDaemonFrameWitness()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -117,31 +117,17 @@ public class DaemonRuntimeDocumentTests
             0.016);
 
         var framePath = AetheriaRuntimeDaemonFrameStore.PublishFrame(statePath, frame);
-        var read = AetheriaRuntimeDaemonFrameStore.TryReadFrame(statePath, out var stored);
 
-        Assert.IsTrue(read);
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonFramePath(statePath), framePath);
-        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, stored.Schema);
-        Assert.AreEqual("aetheria-daemon", stored.DaemonId);
-        Assert.AreEqual("session-3", stored.SessionId);
-        Assert.AreEqual(123, stored.FrameId);
-        Assert.IsTrue(stored.IsAuthoritative);
-        Assert.AreEqual("daemon", stored.StateSource);
-        Assert.AreEqual("run-2", stored.Run.RunId);
-        Assert.AreEqual(7, stored.Run.CurrentZoneIndex);
-        Assert.AreEqual("entity:ship", stored.Run.CurrentEntityKey);
-    }
-
-    [Test]
-    public void FrameStoreReportsMissingFrame()
-    {
-        var statePath = Path.Combine(
-            Path.GetTempPath(),
-            "aetheria-daemon-frame-store-tests",
-            Path.GetRandomFileName(),
-            "missing-state.cc");
-
-        Assert.IsFalse(AetheriaRuntimeDaemonFrameStore.TryReadFrame(statePath, out _));
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, frame.Schema);
+        Assert.AreEqual("aetheria-daemon", frame.DaemonId);
+        Assert.AreEqual("session-3", frame.SessionId);
+        Assert.AreEqual(123, frame.FrameId);
+        Assert.IsTrue(frame.IsAuthoritative);
+        Assert.AreEqual("daemon", frame.StateSource);
+        Assert.AreEqual("run-2", frame.Run.RunId);
+        Assert.AreEqual(7, frame.Run.CurrentZoneIndex);
+        Assert.AreEqual("entity:ship", frame.Run.CurrentEntityKey);
     }
 
     [Test]
@@ -427,8 +413,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("zone.0.entity.0", result.Intents.Movement.ActorEntityKey);
         Assert.AreEqual(1.0, result.Intents.Movement.DirectionX, 0.0001);
         Assert.AreEqual(12.5, result.Run.Zones[0].SimulationTimeSeconds, 0.0001);
-        Assert.IsTrue(AetheriaRuntimeDaemonFrameStore.TryReadFrame(statePath, out var frame));
         Assert.AreEqual(result.FramePath, AetheriaRuntimeDaemonFrameStore.GetFramePath(statePath));
+        var frame = result.Frame;
         Assert.AreEqual("test-daemon", frame.DaemonId);
         Assert.AreEqual("session-tick", frame.SessionId);
         Assert.AreEqual(42, frame.FrameId);
@@ -2003,23 +1989,21 @@ public class DaemonRuntimeDocumentTests
             });
 
         var viewPath = AetheriaRuntimeDaemonSoaViewStore.PublishView(statePath, view);
-        var read = AetheriaRuntimeDaemonSoaViewStore.TryReadView(statePath, out var stored);
 
-        Assert.IsTrue(read);
         Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), viewPath);
-        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, stored.Schema);
-        Assert.AreEqual("aetheria-daemon", stored.DaemonId);
-        Assert.AreEqual("session-soa-store", stored.SessionId);
-        Assert.AreEqual(123, stored.FrameId);
-        Assert.AreEqual(456, stored.Generation);
-        Assert.IsTrue(stored.IsAuthoritative);
-        Assert.AreEqual(1, stored.Buffers.Count);
-        Assert.AreEqual("entity-hot-0", stored.Buffers[0].BufferId);
-        Assert.IsFalse(stored.Buffers[0].ObserverWritable);
-        Assert.AreEqual(1, stored.Columns.Count);
-        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Heat, stored.Columns[0].Kind);
-        Assert.AreEqual(1, stored.DirtyRanges.Count);
-        Assert.AreEqual(256, stored.DirtyRanges[0].Count);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, view.Schema);
+        Assert.AreEqual("aetheria-daemon", view.DaemonId);
+        Assert.AreEqual("session-soa-store", view.SessionId);
+        Assert.AreEqual(123, view.FrameId);
+        Assert.AreEqual(456, view.Generation);
+        Assert.IsTrue(view.IsAuthoritative);
+        Assert.AreEqual(1, view.Buffers.Count);
+        Assert.AreEqual("entity-hot-0", view.Buffers[0].BufferId);
+        Assert.IsFalse(view.Buffers[0].ObserverWritable);
+        Assert.AreEqual(1, view.Columns.Count);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Heat, view.Columns[0].Kind);
+        Assert.AreEqual(1, view.DirtyRanges.Count);
+        Assert.AreEqual(256, view.DirtyRanges[0].Count);
     }
 
     [Test]
@@ -2086,24 +2070,22 @@ public class DaemonRuntimeDocumentTests
             0.02);
 
         var view = AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(statePath, frame);
-        Assert.IsTrue(AetheriaRuntimeDaemonSoaViewStore.TryReadView(statePath, out var stored));
-        Assert.AreEqual(view.Generation, stored.Generation);
-        Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, stored.Backend);
-        Assert.AreEqual(1, stored.Buffers.Count);
-        Assert.IsFalse(stored.Buffers[0].ObserverWritable);
-        Assert.AreEqual(11, stored.Columns.Count);
-        Assert.AreEqual(1, stored.RenderGroups.Count);
-        Assert.AreEqual(2, stored.RenderGroups[0].InstanceCount);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, view.Backend);
+        Assert.AreEqual(1, view.Buffers.Count);
+        Assert.IsFalse(view.Buffers[0].ObserverWritable);
+        Assert.AreEqual(11, view.Columns.Count);
+        Assert.AreEqual(1, view.RenderGroups.Count);
+        Assert.AreEqual(2, view.RenderGroups[0].InstanceCount);
 
-        var index = AetheriaRuntimeDaemonSoaViewIndex.Build(stored);
+        var index = AetheriaRuntimeDaemonSoaViewIndex.Build(view);
         Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, out var entityIndex));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Position, out var position));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Velocity, out var velocity));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility, out var visibility));
 
-        using var memory = MemoryMappedFile.OpenExisting(stored.Buffers[0].Location, MemoryMappedFileRights.Read);
-        using var accessor = memory.CreateViewAccessor(0, stored.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
+        using var memory = MemoryMappedFile.OpenExisting(view.Buffers[0].Location, MemoryMappedFileRights.Read);
+        using var accessor = memory.CreateViewAccessor(0, view.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
         Assert.AreEqual(3, accessor.ReadInt32(entityIndex.AbsoluteByteOffset));
         Assert.AreEqual(7, accessor.ReadInt32(entityIndex.AbsoluteByteOffset + entityIndex.Column.ElementStride));
         Assert.AreEqual(-2f, accessor.ReadSingle(position.AbsoluteByteOffset), 0.0001f);
@@ -2113,18 +2095,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(6f, accessor.ReadSingle(velocity.AbsoluteByteOffset + velocity.Column.ElementStride + 8), 0.0001f);
         Assert.AreEqual(0, accessor.ReadByte(visibility.AbsoluteByteOffset));
         Assert.AreEqual(1, accessor.ReadByte(visibility.AbsoluteByteOffset + visibility.Column.ElementStride));
-    }
-
-    [Test]
-    public void SoaViewStoreReportsMissingView()
-    {
-        var statePath = Path.Combine(
-            Path.GetTempPath(),
-            "aetheria-daemon-soa-view-store-tests",
-            Path.GetRandomFileName(),
-            "missing-state.cc");
-
-        Assert.IsFalse(AetheriaRuntimeDaemonSoaViewStore.TryReadView(statePath, out _));
     }
 
     [Test]

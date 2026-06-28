@@ -28,31 +28,5 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCultCacheDocumentStore.WriteDaemonFrame(framePath, frame);
             return framePath;
         }
-
-        public static bool TryReadFrame(string stateFilePath, out AetheriaRuntimeDaemonFrameDocument frame)
-        {
-            var framePath = GetFramePath(stateFilePath);
-            if (!File.Exists(framePath))
-            {
-                frame = new AetheriaRuntimeDaemonFrameDocument();
-                return false;
-            }
-
-            try
-            {
-                frame = AetheriaRuntimeCultCacheDocumentStore.ReadDaemonFrame(framePath);
-                return true;
-            }
-            catch (Exception)
-            {
-                frame = new AetheriaRuntimeDaemonFrameDocument();
-                return false;
-            }
-        }
-
-        public static AetheriaRuntimeDaemonFrameDocument ReadFrame(string stateFilePath)
-        {
-            return AetheriaRuntimeCultCacheDocumentStore.ReadDaemonFrame(GetFramePath(stateFilePath));
-        }
     }
 }
