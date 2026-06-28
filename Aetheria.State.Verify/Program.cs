@@ -12987,7 +12987,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay,
         ["Assets/Scripts/UI/Menu/TradeMenu.cs"] = tradeMenu,
         ["Assets/Scripts/UI/Menu/InventoryMenu.cs"] = inventoryMenu,
-        ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = inventoryPanel
+        ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = inventoryPanel,
+        ["Assets/Scripts/UI/MainMenu.cs"] = mainMenu
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>

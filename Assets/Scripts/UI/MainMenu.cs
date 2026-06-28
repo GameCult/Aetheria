@@ -17,7 +17,6 @@ public class MainMenu : MonoBehaviour
     public bool InGame;
 
     private UIDocument _menuSurfaceDocument;
-    private AetheriaClient _client;
     private string _clientStatePath;
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private Func<bool> _canOpenRuntimeInputScreen;
@@ -496,36 +495,22 @@ public class MainMenu : MonoBehaviour
     private AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot)
     {
         var statePath = stateBoot.StateFilePath;
-        if (_client != null && string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
+        if (!string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
         {
-            return _client;
+            _clientStatePath = statePath;
+            ClearClientCaches();
         }
 
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenAsync(
-                statePath,
-                "unity-main-menu",
-                "local",
-                startServer: false,
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = statePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-main-menu");
     }
 
-    private void DisposeClient()
+    private void ClearClientCaches()
     {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = null;
         _catalog = null;
     }
 
     private void OnDestroy()
     {
-        DisposeClient();
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);
