@@ -7107,6 +7107,36 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingSchematicDisplaySymbols));
     }
 
+    var tradeMenu = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "Menu",
+        "TradeMenu.cs"));
+    var requiredTradeMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_catalog?.Current",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingTradeMenuSharedDocumentSymbols = requiredTradeMenuSharedDocumentSymbols
+        .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTradeMenuSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu should bind shared catalog/settings through managed reactive Aetheria documents with menu lifetime disposal: " +
+            string.Join(", ", missingTradeMenuSharedDocumentSymbols));
+    }
+
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",
