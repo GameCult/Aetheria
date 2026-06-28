@@ -10970,9 +10970,7 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "public sealed class AetheriaUnityObservedFrameApplier",
         "public bool ApplyLatestZoneRender()",
-        ".Aetheria()",
-        ".ZoneRender",
-        ".LatestAsync()",
+        "observer.LastObservedState?.ZoneRender",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
@@ -11826,9 +11824,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "public sealed class AetheriaUnityObservedFrameApplier",
         "public bool ApplyLatestZoneRender()",
-        ".Aetheria()",
-        ".ZoneRender",
-        ".LatestAsync()",
+        "observer.LastObservedState?.ZoneRender",
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "AetheriaUnityDaemonEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
         "AetheriaUnityDaemonEntitySnapshotProjector.EntityIndexFromRecordKey(entity.RecordKey)",
@@ -13770,9 +13766,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!observedFrameApplier.Contains("private AetheriaRuntimeZoneRenderDocument _lastZoneRender;", StringComparison.Ordinal) ||
         !observedFrameApplier.Contains("ApplyLatestZoneRender()", StringComparison.Ordinal) ||
-        !observedFrameApplier.Contains(".Aetheria()", StringComparison.Ordinal) ||
-        !observedFrameApplier.Contains(".ZoneRender", StringComparison.Ordinal) ||
-        !observedFrameApplier.Contains(".LatestAsync()", StringComparison.Ordinal))
+        !observedFrameApplier.Contains("observer.LastObservedState?.ZoneRender", StringComparison.Ordinal) ||
+        !observedDaemonState.Contains("public AetheriaRuntimeZoneRenderDocument ZoneRender { get; }", StringComparison.Ordinal) ||
+        !observedDaemonState.Contains("ZoneRender = zoneRender ?? AetheriaRuntimeRtsProjection.ProjectZoneRender(Frame);", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed zone-render state acquisition must live behind AetheriaUnityObservedFrameApplier.");

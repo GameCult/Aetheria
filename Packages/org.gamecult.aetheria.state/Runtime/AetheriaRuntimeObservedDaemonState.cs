@@ -10,16 +10,19 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeObservedDaemonState(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeDaemonSoaViewDocument? soaView)
+            AetheriaRuntimeDaemonSoaViewDocument? soaView,
+            AetheriaRuntimeZoneRenderDocument? zoneRender = null)
         {
             Frame = frame ?? throw new ArgumentNullException(nameof(frame));
             SoaView = soaView;
             SoaIndex = AetheriaRuntimeDaemonSoaViewIndex.Build(soaView);
+            ZoneRender = zoneRender ?? AetheriaRuntimeRtsProjection.ProjectZoneRender(Frame);
         }
 
         public AetheriaRuntimeDaemonFrameDocument Frame { get; }
         public AetheriaRuntimeDaemonSoaViewDocument? SoaView { get; }
         public AetheriaRuntimeDaemonSoaViewIndex SoaIndex { get; }
+        public AetheriaRuntimeZoneRenderDocument ZoneRender { get; }
         public bool HasSoaView => SoaView != null && SoaIndex.IsValid;
         public bool IsAuthoritative => Frame.IsAuthoritative;
         public AetheriaRuntimeRunCheckpointCommit Run => Frame.Run;

@@ -2179,6 +2179,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("daemon-run", observed.Run.RunId);
         Assert.AreEqual("entity:observer-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(300, observed.Frame.FrameId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, observed.ZoneRender.Schema);
+        Assert.AreEqual(300, observed.ZoneRender.FrameId);
+        Assert.AreEqual("daemon-run", observed.ZoneRender.RunId);
+        Assert.AreEqual("entity:observer-target", observed.ZoneRender.CurrentEntityKey);
         Assert.AreEqual(301, observed.SoaView.Generation);
         Assert.IsFalse(observed.SoaView.Buffers[0].ObserverWritable);
     }
@@ -2222,6 +2226,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("daemon-frame-only-run", observed.Run.RunId);
         Assert.AreEqual("entity:frame-only-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(301, observed.Frame.FrameId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneRender, observed.ZoneRender.Schema);
+        Assert.AreEqual(301, observed.ZoneRender.FrameId);
+        Assert.AreEqual("daemon-frame-only-run", observed.ZoneRender.RunId);
+        Assert.AreEqual("entity:frame-only-target", observed.ZoneRender.CurrentEntityKey);
     }
 
     [Test]

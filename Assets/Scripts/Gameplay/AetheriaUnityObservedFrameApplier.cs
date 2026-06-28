@@ -60,31 +60,13 @@ public sealed class AetheriaUnityObservedFrameApplier
             return false;
         }
 
-        var render = ReadLatestZoneRender(observer);
+        var render = observer.LastObservedState?.ZoneRender;
         if (render == null)
         {
             return false;
         }
 
         return TryRestoreEntityGraphFromZoneRender(render);
-    }
-
-    private AetheriaRuntimeZoneRenderDocument ReadLatestZoneRender(AetheriaDaemonObserver observer)
-    {
-        try
-        {
-            return observer.Client
-                .Aetheria()
-                .ZoneRender
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception ex)
-        {
-            _logWarning($"Failed to read Aetheria zone-render feed from local Verse state: {ex.Message}");
-            return null;
-        }
     }
 
     private bool TryRestoreEntityGraphFromZoneRender(AetheriaRuntimeZoneRenderDocument render)
@@ -148,6 +130,8 @@ public sealed class AetheriaUnityObservedFrameApplier
             zoneRenderer?.ApplyZoneRender(render);
             zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render);
             _lastAppliedZoneRenderFrameId = render.FrameId;
+            _lastAppliedZoneRenderRunId = runId;
+            _lastAppliedZoneRenderZoneIndex = render.ZoneIndex;
             _lastZoneRender = render;
             return true;
         }

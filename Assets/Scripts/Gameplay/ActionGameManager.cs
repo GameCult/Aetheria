@@ -65,13 +65,7 @@ public class ActionGameManager : MonoBehaviour
             SetCurrentEntity = entity => CurrentEntity = entity,
             GetViewDirection = () => _viewDirection,
             SetViewDirection = direction => _viewDirection = direction,
-            ResolveZoneRender = () => ResolveDaemonObserver()
-                ?.Client
-                ?.Aetheria()
-                .ZoneRender
-                .LatestAsync()
-                .GetAwaiter()
-                .GetResult(),
+            ResolveZoneRender = () => ResolveDaemonObserver()?.LastObservedState?.ZoneRender,
             ApplyActionBarBindings = ActionBarBindings.ApplyBindings,
             EnablePlayerInput = EnablePlayerInput,
             DisablePlayerInput = DisablePlayerInput,
