@@ -7449,11 +7449,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "TradeMenu.cs"));
     var requiredTradeMenuSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "ResolveClient().State.ReactiveCatalog()",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        "ResolveClient().State.ObserveCatalog()",
         ".Settings",
-        ".ReactivePlayer()",
+        ".ObservePlayer()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_catalog?.Current",
@@ -7468,6 +7468,23 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "TradeMenu should bind shared catalog/settings through managed reactive Aetheria documents with menu lifetime disposal: " +
             string.Join(", ", missingTradeMenuSharedDocumentSymbols));
+    }
+
+    var forbiddenTradeMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().State.ReactiveCatalog()",
+        ".ReactivePlayer()"
+    };
+    var tradeMenuRawDocumentHits = forbiddenTradeMenuSharedDocumentSymbols
+        .Where(symbol => tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (tradeMenuRawDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still owns raw catalog/settings CultMesh documents instead of managed sessions: " +
+            string.Join(", ", tradeMenuRawDocumentHits));
     }
 
     var inventoryMenu = File.ReadAllText(Path.Combine(
