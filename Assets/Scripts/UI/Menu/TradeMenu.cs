@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -36,7 +35,6 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
     private UIDocument _tradeItemSurfaceDocument;
-    private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
@@ -611,29 +609,18 @@ public class TradeMenu : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
+        }
 
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-trade",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-trade");
     }
 
-    private void DisposeClient()
+    private void ClearClientCaches()
     {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
         _catalog = null;
         _playerSettings = null;
         _dockingState = null;
@@ -1305,8 +1292,6 @@ public class TradeMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        DisposeClient();
-
         if (_cargoSelectorSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_cargoSelectorSurfaceDocument);

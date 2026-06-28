@@ -12864,6 +12864,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var sectorRenderer = File.Exists(sectorRendererPath)
         ? File.ReadAllText(sectorRendererPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; SectorRenderer.cs is missing.");
+    var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
+    var tradeMenu = File.Exists(tradeMenuPath)
+        ? File.ReadAllText(tradeMenuPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; TradeMenu.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12972,7 +12976,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/SectorMap.cs"] = sectorMap,
         ["Assets/Scripts/UI/Menu/LocalMenu.cs"] = localMenu,
         ["Assets/Scripts/UI/Menu/SectorRenderer.cs"] = sectorRenderer,
-        ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay
+        ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay,
+        ["Assets/Scripts/UI/Menu/TradeMenu.cs"] = tradeMenu
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>
