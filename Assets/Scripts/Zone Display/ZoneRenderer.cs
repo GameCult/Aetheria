@@ -82,6 +82,7 @@ public class ZoneRenderer : MonoBehaviour
     private PlanetObject _root;
     private bool _rootFound;
     private Entity _perspectiveEntity;
+    private AetheriaDaemonObserver _daemonObserver;
     private PlanetObject[] _suns;
     private bool _showAsteroidUI;
     private string _daemonCurrentEntityKey = "";
@@ -890,21 +891,24 @@ public class ZoneRenderer : MonoBehaviour
     {
         _daemonPresentationEntityIndices.Clear();
         var viewport = ResolveDaemonRenderViewport();
-        try
+        if (!TryCollectDaemonPresentationEntityIndicesFromSoa(viewport))
         {
-            var objects = ResolveClient()
-                .Aetheria()
-                .Viewports
-                .LatestObjects(ToViewportBounds(viewport));
-            foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
+            try
             {
-                if (entity != null && entity.EntityIndex >= 0)
-                    _daemonPresentationEntityIndices.Add(entity.EntityIndex);
+                var objects = ResolveClient()
+                    .Aetheria()
+                    .Viewports
+                    .LatestObjects(ToViewportBounds(viewport));
+                foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
+                {
+                    if (entity != null && entity.EntityIndex >= 0)
+                        _daemonPresentationEntityIndices.Add(entity.EntityIndex);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria objects viewport for zone renderer presentation: {ex.Message}");
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to read Aetheria objects viewport for zone renderer presentation: {ex.Message}");
+            }
         }
 
         _daemonPresentationEntityIndices.Sort();
@@ -930,6 +934,47 @@ public class ZoneRenderer : MonoBehaviour
             if (!_daemonPresentationEntityIndicesSet.Contains(pair.Key))
                 UnloadEntity(pair.Value.Entity);
         }
+    }
+
+    private bool TryCollectDaemonPresentationEntityIndicesFromSoa(AetheriaRuntimeXzRect viewport)
+    {
+        var observer = ResolveDaemonObserver();
+        if (observer == null || !observer.HasRenderNativeView)
+            return false;
+
+        var view = observer.LastRenderNativeView;
+        if (!view.IsCreated || !view.HasEntityIndex)
+            return false;
+
+        var minX = (float)Math.Min(viewport.MinX, viewport.MaxX);
+        var maxX = (float)Math.Max(viewport.MinX, viewport.MaxX);
+        var minZ = (float)Math.Min(viewport.MinZ, viewport.MaxZ);
+        var maxZ = (float)Math.Max(viewport.MinZ, viewport.MaxZ);
+        var count = Math.Min(view.Count, Math.Min(view.EntityIndex.Length, view.Position.Length));
+        for (var i = 0; i < count; i++)
+        {
+            if (view.HasRenderVisibility && view.RenderVisibility[i] == 0)
+                continue;
+
+            var position = view.Position[i];
+            if (position.x < minX || position.x > maxX || position.z < minZ || position.z > maxZ)
+                continue;
+
+            var entityIndex = view.EntityIndex[i];
+            if (entityIndex >= 0)
+                _daemonPresentationEntityIndices.Add(entityIndex);
+        }
+
+        return true;
+    }
+
+    private AetheriaDaemonObserver ResolveDaemonObserver()
+    {
+        if (_daemonObserver != null)
+            return _daemonObserver;
+
+        _daemonObserver = FindAnyObjectByType<AetheriaDaemonObserver>();
+        return _daemonObserver;
     }
 
     private void RefreshDaemonContactRows()
