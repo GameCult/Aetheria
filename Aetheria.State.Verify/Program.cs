@@ -7137,6 +7137,36 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingTradeMenuSharedDocumentSymbols));
     }
 
+    var inventoryMenu = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "UI",
+        "Menu",
+        "InventoryMenu.cs"));
+    var requiredInventoryMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
+        "ResolveClient().Aetheria().ReactiveCatalog()",
+        ".Settings",
+        ".ReactivePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_catalog?.Current",
+        "_playerSettings?.Current",
+        "private void OnDestroy()"
+    };
+    var missingInventoryMenuSharedDocumentSymbols = requiredInventoryMenuSharedDocumentSymbols
+        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingInventoryMenuSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu should bind shared catalog/settings through managed reactive Aetheria documents with menu lifetime disposal: " +
+            string.Join(", ", missingInventoryMenuSharedDocumentSymbols));
+    }
+
     var volumeCloudRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",
