@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Mesh;
@@ -267,27 +268,32 @@ namespace GameCult.Aetheria.State.Verse
             return ReactiveDockingStateAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public Task<AetheriaRuntimeReactiveObservedDaemonState> ReactiveObservedDaemonAsync(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return AetheriaRuntimeReactiveObservedDaemonState.CreateAsync(this, options);
-        }
-
-        public AetheriaRuntimeReactiveObservedDaemonState ReactiveObservedDaemon(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            return ReactiveObservedDaemonAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
         {
-            using var observed = await ReactiveObservedDaemonAsync().ConfigureAwait(false);
-            return observed.Current;
+            var frame = await LatestDaemonFrameAsync().ConfigureAwait(false);
+            var soaView = await TryLatestDaemonSoaViewAsync().ConfigureAwait(false);
+            var zoneRender = await LatestZoneRenderAsync().ConfigureAwait(false);
+            return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);
         }
 
         public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()
         {
             return LatestObservedDaemonAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        private async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryLatestDaemonSoaViewAsync()
+        {
+            try
+            {
+                var soaView = await LatestDaemonSoaViewAsync().ConfigureAwait(false);
+                return string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal)
+                    ? soaView
+                    : null;
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
         }
 
         public Task<AetheriaRuntimeDaemonProviderAdvertisementDocument> LatestProviderAdvertisementAsync()
