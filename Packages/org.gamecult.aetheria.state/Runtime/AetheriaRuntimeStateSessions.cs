@@ -40,4 +40,22 @@ namespace GameCult.Aetheria.State.Verse
             _playerSettings.Dispose();
         }
     }
+
+    public sealed class AetheriaRuntimeZoneContactsSession : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
+
+        public AetheriaRuntimeZoneContactsSession(
+            CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> zoneContacts)
+        {
+            _zoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
+        }
+
+        public AetheriaRuntimeZoneContactsDocument? Current => _zoneContacts.Current;
+
+        public void Dispose()
+        {
+            _zoneContacts.Dispose();
+        }
+    }
 }

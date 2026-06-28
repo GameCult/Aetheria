@@ -7189,6 +7189,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionBarSlot.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "InputScreen", "InputDisplayLayout.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs"),
@@ -7309,6 +7310,66 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "SchematicDisplay still owns raw player HUD CultMesh documents instead of AetheriaRuntimePlayerHudSession: " +
             string.Join(", ", schematicDisplayHits));
+    }
+
+    var volumeCloudRenderer = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Zone Display",
+        "VolumeCloudRenderer.cs"));
+    var requiredVolumeCloudSymbols = new[]
+    {
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
+        ".ObservePlayer()",
+        "_playerSettings?.Dispose()",
+        "_playerSettings?.Current"
+    };
+    var missingVolumeCloudSymbols = requiredVolumeCloudSymbols
+        .Where(symbol => !volumeCloudRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingVolumeCloudSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "VolumeCloudRenderer should read player settings through AetheriaRuntimePlayerSettingsSession: " +
+            string.Join(", ", missingVolumeCloudSymbols));
+    }
+
+    if (volumeCloudRenderer.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains(".ReactivePlayer()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "VolumeCloudRenderer still owns the raw player-settings CultMesh document instead of AetheriaRuntimePlayerSettingsSession.");
+    }
+
+    var observedTargetQuery = File.ReadAllText(Path.Combine(
+        root,
+        "Assets",
+        "Scripts",
+        "Gameplay",
+        "AetheriaUnityObservedTargetQuery.cs"));
+    var requiredObservedTargetSymbols = new[]
+    {
+        "AetheriaRuntimeZoneContactsSession _zoneContacts",
+        ".ObserveZoneContacts()",
+        "_zoneContacts?.Dispose()",
+        "_zoneContacts?.Current"
+    };
+    var missingObservedTargetSymbols = requiredObservedTargetSymbols
+        .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingObservedTargetSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedTargetQuery should read contacts through AetheriaRuntimeZoneContactsSession: " +
+            string.Join(", ", missingObservedTargetSymbols));
+    }
+
+    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedTargetQuery still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
     }
 
     var mapRenderer = File.ReadAllText(Path.Combine(
@@ -7527,30 +7588,6 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
     }
 
-    var volumeCloudRenderer = File.ReadAllText(Path.Combine(
-        root,
-        "Assets",
-        "Scripts",
-        "Zone Display",
-        "VolumeCloudRenderer.cs"));
-    var requiredVolumeCloudSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        ".Settings",
-        ".ReactivePlayer()",
-        "_playerSettings?.Dispose()",
-        "_playerSettings?.Current"
-    };
-    var missingVolumeCloudSymbols = requiredVolumeCloudSymbols
-        .Where(symbol => !volumeCloudRenderer.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingVolumeCloudSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "VolumeCloudRenderer should bind player settings through the managed reactive Aetheria settings document: " +
-            string.Join(", ", missingVolumeCloudSymbols));
-    }
-
     Console.WriteLine("Shared document accessors: Unity shared catalog/settings reads use named managed Aetheria client accessors");
 }
 
@@ -7749,6 +7786,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public AetheriaRuntimeCatalogSession ObserveCatalog(",
+        "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
         "public AetheriaRuntimePlayerHudSession ObservePlayerHud(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
@@ -12324,7 +12362,7 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedTargetQuerySymbols = new[]
     {
         "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        "AetheriaRuntimeZoneContactsSession _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -12334,7 +12372,7 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".ReactiveZoneContacts()",
+        ".ObserveZoneContacts()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -12347,6 +12385,13 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "Observed Unity target/contact query lowering must live in AetheriaUnityObservedTargetQuery instead of ActionGameManager: " +
             string.Join(", ", missingObservedTargetQuerySymbols));
+    }
+
+    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Observed Unity target/contact query still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
     }
 
     var forbiddenManagerTargetQuerySymbols = new[]
@@ -13321,7 +13366,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredObservedTargetQuerySymbols = new[]
     {
         "public sealed class AetheriaUnityObservedTargetQuery : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        "AetheriaRuntimeZoneContactsSession _zoneContacts",
         "public Entity GetObservedTarget(Entity observer)",
         "public float GetObservedInfoGathered(Entity observer, Entity target)",
         "public bool IsObservedHostileContact(Entity observer, Entity target)",
@@ -13331,7 +13376,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".ReactiveZoneContacts()",
+        ".ObserveZoneContacts()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -13344,6 +13389,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Unity observer target/contact projection must live in AetheriaUnityObservedTargetQuery instead of ActionGameManager: " +
             string.Join(", ", missingObservedTargetQuerySymbols));
+    }
+
+    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts", StringComparison.Ordinal) ||
+        observedTargetQuery.Contains(".ReactiveZoneContacts()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity observer target/contact projection still owns the raw zone-contacts CultMesh document instead of AetheriaRuntimeZoneContactsSession.");
     }
 
     var forbiddenManagerTargetQuerySymbols = new[]
@@ -15193,6 +15245,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(",
         "public AetheriaRuntimeObservedDaemonSession ObserveDaemon(",
         "public AetheriaRuntimeCatalogSession ObserveCatalog(",
+        "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
         "public AetheriaRuntimePlayerSettingsSession ObservePlayer("
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols

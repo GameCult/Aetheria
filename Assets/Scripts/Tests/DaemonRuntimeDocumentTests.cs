@@ -207,6 +207,7 @@ public class DaemonRuntimeDocumentTests
         var observedAuthoritativeFrame = client.State.LatestDaemonFrame();
         using var catalogSession = client.State.ObserveCatalog();
         using var playerSettingsSession = client.State.Settings.ObservePlayer();
+        using var zoneContactsSession = client.State.ObserveZoneContacts();
         using var playerHud = client.State.ObservePlayerHud();
         var gameSurface = client.State.LatestGameSurface();
         var gameTuiSurface = client.State.LatestGameTuiSurface();
@@ -286,6 +287,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettingsSession.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettings.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneContacts, zoneContactsSession.Current.Schema);
         Assert.AreEqual("Player", objectsViewport.Objects.FirstOrDefault()?.DisplayName);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ZoneDetails, zoneDetails.Schema);
         Assert.AreEqual(0, zoneDetails.ZoneIndex);

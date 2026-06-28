@@ -548,6 +548,12 @@ namespace GameCult.Aetheria.State.Verse
             return ZoneContacts.Reactive(options);
         }
 
+        public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return new AetheriaRuntimeZoneContactsSession(ReactiveZoneContacts(options));
+        }
+
         public Task<AetheriaRuntimeStationRefitDocument> LatestStationRefitAsync()
         {
             return StationRefit.LatestAsync();

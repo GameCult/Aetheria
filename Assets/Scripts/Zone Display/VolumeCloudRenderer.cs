@@ -3,7 +3,6 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -54,7 +53,7 @@ public class VolumeCloudRenderer : EffectBase
     // The index of 4x4 pixels.
     private int frameIndex = 0;
     private bool firstFrame = true;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private AetheriaRuntimePlayerSettingsSession _playerSettings;
 
     [SerializeField]
     private Shader cloudShader;
@@ -104,7 +103,7 @@ public class VolumeCloudRenderer : EffectBase
             _playerSettings = ResolveClient()
                 .State
                 .Settings
-                .ReactivePlayer();
+                .ObservePlayer();
         }
         catch (Exception ex)
         {
