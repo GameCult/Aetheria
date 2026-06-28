@@ -320,8 +320,7 @@ public class MapRenderer : MonoBehaviour
         {
             _playerSettings ??= ResolveClient()
                 .State
-                .Settings
-                .ReactivePlayer();
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)

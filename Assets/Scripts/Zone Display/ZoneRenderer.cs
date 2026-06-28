@@ -1208,7 +1208,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -1225,7 +1225,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _zoneContacts = ResolveClient().State.ReactiveZoneContacts();
+            _zoneContacts = ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>();
         }
         catch (Exception ex)
         {

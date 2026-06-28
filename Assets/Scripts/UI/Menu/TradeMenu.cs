@@ -626,7 +626,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -645,8 +645,7 @@ public class TradeMenu : MonoBehaviour
         {
             _playerSettings = ResolveClient()
                 .State
-                .Settings
-                .ReactivePlayer();
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {

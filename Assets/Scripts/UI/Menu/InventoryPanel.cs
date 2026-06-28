@@ -1525,7 +1525,7 @@ private void Update()
         {
             _stationRefit = ResolveClient()
                 .State
-                .ReactiveStationRefit();
+                .Reactive<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
@@ -1592,7 +1592,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -1611,8 +1611,7 @@ private void Update()
         {
             _playerSettings = ResolveClient()
                 .State
-                .Settings
-                .ReactivePlayer();
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {

@@ -394,8 +394,7 @@ public class InputDisplayLayout : MonoBehaviour
         {
             _playerSettings = ResolveClient()
                 .State
-                .Settings
-                .ReactivePlayer();
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {

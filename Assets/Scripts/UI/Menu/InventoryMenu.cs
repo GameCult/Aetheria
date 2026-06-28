@@ -986,7 +986,7 @@ public class InventoryMenu : MonoBehaviour
         {
             _stationRefit = ResolveClient()
                 .State
-                .ReactiveStationRefit();
+                .Reactive<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
@@ -1078,7 +1078,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.ReactiveCatalog();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -1097,8 +1097,7 @@ public class InventoryMenu : MonoBehaviour
         {
             _playerSettings = ResolveClient()
                 .State
-                .Settings
-                .ReactivePlayer();
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {
