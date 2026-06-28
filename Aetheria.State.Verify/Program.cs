@@ -12872,6 +12872,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; InventoryMenu.cs is missing.");
+    var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryPanel = File.Exists(inventoryPanelPath)
+        ? File.ReadAllText(inventoryPanelPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; InventoryPanel.cs is missing.");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
@@ -12982,7 +12986,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/SectorRenderer.cs"] = sectorRenderer,
         ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay,
         ["Assets/Scripts/UI/Menu/TradeMenu.cs"] = tradeMenu,
-        ["Assets/Scripts/UI/Menu/InventoryMenu.cs"] = inventoryMenu
+        ["Assets/Scripts/UI/Menu/InventoryMenu.cs"] = inventoryMenu,
+        ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = inventoryPanel
     };
     var directClientOpenHits = providerOwnedClientAccessSources
         .Where(pair =>

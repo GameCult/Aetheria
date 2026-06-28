@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -101,7 +100,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
-    private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
@@ -1492,30 +1490,18 @@ private void Update()
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
+        }
 
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
-
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-inventory",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-inventory");
     }
 
-    private void DisposeClient()
+    private void ClearClientCaches()
     {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
         _catalog = null;
         _playerSettings = null;
     }
@@ -1631,8 +1617,6 @@ private void Update()
 
     private void OnDestroy()
     {
-        DisposeClient();
-
         if (_dropdownSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_dropdownSurfaceDocument);
