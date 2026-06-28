@@ -5,7 +5,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -31,7 +30,6 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
-    private AetheriaClient _client;
     private string _clientStatePath = "";
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private AetheriaRuntimePlayerSettingsDocument _playerSettings;
@@ -957,29 +955,18 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaClient ResolveClient()
     {
-        var gameDataDirectory = new DirectoryInfo(Path.Combine(Application.dataPath, "..", "GameData"));
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(gameDataDirectory);
-        if (_client != null && string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-            return _client;
+        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
+        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
+        {
+            _clientStatePath = stateBoot.StateFilePath;
+            ClearClientCaches();
+        }
 
-        DisposeClient();
-        _client = AetheriaClient
-            .OpenLocalAsync(
-                gameDataDirectory,
-                "unity-inventory-menu",
-                "local",
-                pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        _clientStatePath = stateBoot.StateFilePath;
-        return _client;
+        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-inventory-menu");
     }
 
-    private void DisposeClient()
+    private void ClearClientCaches()
     {
-        _client?.Dispose();
-        _client = null;
-        _clientStatePath = "";
         _catalog = null;
         _playerSettings = null;
     }
@@ -1129,8 +1116,6 @@ public class InventoryMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        DisposeClient();
-
         if (_shipSettingsSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_shipSettingsSurfaceDocument);
