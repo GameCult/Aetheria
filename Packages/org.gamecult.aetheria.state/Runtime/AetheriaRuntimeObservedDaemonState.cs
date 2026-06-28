@@ -1,4 +1,5 @@
 using System;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -26,9 +27,9 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeRunCheckpointCommit Run => Frame.Run;
 
         public static bool TryCreateCurrent(
-            AetheriaRuntimeDaemonFrameSession frame,
-            AetheriaRuntimeDaemonSoaViewSession? soaView,
-            AetheriaRuntimeZoneRenderSession zoneRender,
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame,
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView,
+            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender,
             out AetheriaRuntimeObservedDaemonState? observed)
         {
             observed = null;
@@ -59,14 +60,14 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeObservedDaemonSession : IDisposable
     {
-        private readonly AetheriaRuntimeDaemonFrameSession _frame;
-        private readonly AetheriaRuntimeDaemonSoaViewSession? _soaView;
-        private readonly AetheriaRuntimeZoneRenderSession _zoneRender;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _soaView;
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
 
         public AetheriaRuntimeObservedDaemonSession(
-            AetheriaRuntimeDaemonFrameSession frame,
-            AetheriaRuntimeDaemonSoaViewSession? soaView,
-            AetheriaRuntimeZoneRenderSession zoneRender)
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame,
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView,
+            CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender)
         {
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
             _soaView = soaView;

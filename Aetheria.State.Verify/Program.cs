@@ -15462,10 +15462,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var observedDaemonState = File.Exists(observedDaemonStatePath)
         ? File.ReadAllText(observedDaemonStatePath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaRuntimeObservedDaemonState.cs is missing.");
-    var runtimeStateSessionsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateSessions.cs");
-    var runtimeStateSessions = File.Exists(runtimeStateSessionsPath)
-        ? File.ReadAllText(runtimeStateSessionsPath)
-        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaRuntimeStateSessions.cs is missing.");
     var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
         ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
@@ -15620,7 +15616,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !observedFrameApplier.Contains("ApplyLatestZoneRender()", StringComparison.Ordinal) ||
         !observedFrameApplier.Contains("observer.LastObservedState?.ZoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("public AetheriaRuntimeZoneRenderDocument ZoneRender { get; }", StringComparison.Ordinal) ||
-        !observedDaemonState.Contains("AetheriaRuntimeZoneRenderSession zoneRender", StringComparison.Ordinal) ||
+        !observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("var currentZoneRender = zoneRender?.Current;", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender)", StringComparison.Ordinal) ||
         !aetheriaClientState.Contains("var zoneRender = await LatestZoneRenderAsync().ConfigureAwait(false);", StringComparison.Ordinal) ||
@@ -15696,16 +15692,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(",
-        "public AetheriaRuntimeObservedDaemonSession ObserveDaemon(",
-        "public AetheriaRuntimeCatalogSession ObserveCatalog(",
-        "public AetheriaRuntimeZoneContactsSession ObserveZoneContacts(",
-        "public AetheriaRuntimePlayerSettingsSession ObservePlayer(",
-        "public AetheriaRuntimeVerseHostSettingsSession ObserveVerseHost(",
-        "public AetheriaRuntimeSectorMapSession ObserveSectorMap(",
-        "public AetheriaRuntimeObjectsViewportSession ObserveObjects(",
-        "public AetheriaRuntimeRenderSplatsViewportSession ObserveRenderSplats(",
-        "public AetheriaRuntimeCurrentZoneSession ObserveZone(",
-        "public AetheriaRuntimeZoneDetailsSession ObserveZone("
+        "public AetheriaRuntimeObservedDaemonSession ObserveDaemon("
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
@@ -15713,50 +15700,21 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (missingManagedStateAccessSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose managed typed document access instead of AetheriaClient forwarding shortcuts: " +
+            "AetheriaClientState must expose direct managed typed document access instead of AetheriaClient forwarding shortcuts or per-document session wrappers: " +
             string.Join(", ", missingManagedStateAccessSymbols));
-    }
-
-    var requiredRuntimeStateSessionSymbols = new[]
-    {
-        "public abstract class AetheriaRuntimeReactiveSession<TDocument> : IDisposable",
-        "private readonly CultMeshReactiveDocument<TDocument> _document;",
-        "public TDocument? Current => _document.Current;",
-        "public sealed class AetheriaRuntimeCatalogSession",
-        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeCatalogSnapshot>",
-        "public sealed class AetheriaRuntimeZoneRenderSession",
-        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeZoneRenderDocument>",
-        "public sealed class AetheriaRuntimeStarbridgePlayerSeatSession",
-        ": AetheriaRuntimeReactiveSession<AetheriaRuntimeStarbridgePlayerSeatDocument>"
-    };
-    var missingRuntimeStateSessionSymbols = requiredRuntimeStateSessionSymbols
-        .Where(symbol => !runtimeStateSessions.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingRuntimeStateSessionSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Runtime state sessions must keep named typed accessors over the shared managed reactive session base: " +
-            string.Join(", ", missingRuntimeStateSessionSymbols));
-    }
-
-    if (runtimeStateSessions.Contains("private readonly CultMeshReactiveDocument<AetheriaRuntime", StringComparison.Ordinal) ||
-        runtimeStateSessions.Contains("private readonly CultMeshReactiveDocument<global::Aetheria", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Runtime state sessions reintroduced per-document reactive fields instead of sharing AetheriaRuntimeReactiveSession<TDocument>.");
     }
 
     var requiredManagedObservedDaemonSymbols = new[]
     {
         "public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(",
         "public AetheriaRuntimeObservedDaemonSession ObserveDaemon(",
-        "using var frame = ObserveDaemonFrame(options);",
-        "using var soaView = TryObserveDaemonSoaView(options);",
-        "using var zoneRender = ObserveZoneRender(options);",
+        "using var frame = ReactiveDaemonFrame(options);",
+        "using var soaView = TryReactiveDaemonSoaView(options);",
+        "using var zoneRender = ReactiveZoneRender(options);",
         "AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)",
-        "var frame = ObserveDaemonFrame(options);",
-        "AetheriaRuntimeDaemonSoaViewSession? soaView = null;",
-        "AetheriaRuntimeZoneRenderSession? zoneRender = null;",
+        "var frame = ReactiveDaemonFrame(options);",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView = null;",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>? zoneRender = null;",
         "return new AetheriaRuntimeObservedDaemonSession(frame, soaView, zoneRender);"
     };
     var missingManagedObservedDaemonSymbols = requiredManagedObservedDaemonSymbols
@@ -15781,16 +15739,16 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "AetheriaRuntimeDaemonSoaViewIndex.Build(soaView)",
         "public static bool TryCreateCurrent(",
-        "AetheriaRuntimeDaemonFrameSession frame",
-        "AetheriaRuntimeDaemonSoaViewSession? soaView",
-        "AetheriaRuntimeZoneRenderSession zoneRender",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView",
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender",
         "var currentFrame = frame?.Current;",
         "var currentZoneRender = zoneRender?.Current;",
         "new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender)",
         "public sealed class AetheriaRuntimeObservedDaemonSession",
-        "private readonly AetheriaRuntimeDaemonFrameSession _frame;",
-        "private readonly AetheriaRuntimeDaemonSoaViewSession? _soaView;",
-        "private readonly AetheriaRuntimeZoneRenderSession _zoneRender;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _soaView;",
+        "private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;",
         "public AetheriaRuntimeObservedDaemonState? Current =>",
         "_frame.Dispose();",
         "_soaView?.Dispose();",
@@ -15806,14 +15764,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingObservedDaemonStateSymbols));
     }
 
-    if (observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>", StringComparison.Ordinal) ||
-        observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>", StringComparison.Ordinal) ||
-        observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>", StringComparison.Ordinal) ||
-        observedDaemonState.Contains("using GameCult.Mesh;", StringComparison.Ordinal) ||
-        aetheriaClientState.Contains("TryReactiveDaemonSoaView(options)", StringComparison.Ordinal))
+    if (observedDaemonState.Contains("AetheriaRuntimeDaemonFrameSession", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("AetheriaRuntimeDaemonSoaViewSession", StringComparison.Ordinal) ||
+        observedDaemonState.Contains("AetheriaRuntimeZoneRenderSession", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("TryObserveDaemonSoaView(options)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Observed daemon state must compose named managed sessions instead of owning raw reactive CultMesh documents.");
+            "Observed daemon state still composes legacy session wrappers instead of direct reactive CultMesh documents.");
     }
 
     var forbiddenObservedDaemonStateSymbols = new[]
