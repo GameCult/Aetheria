@@ -23,7 +23,6 @@ namespace GameCult.Aetheria.State.Verse
         private const string LoadoutTemplateSchema = "aetheria.loadout_template";
         private const string RunStateSchema = "aetheria.run_state";
         private const string ZoneStateSchema = "aetheria.zone_state";
-        private const string EntitySnapshotSchema = "aetheria.entity_snapshot";
         private const string TradeValuePolicyKey = "global:aetheria.trade_value_policy.v1";
         private const string PlayerSettingsKey = "global:aetheria.player_settings.v1";
         private const string VerseHostSettingsKey = "global:aetheria.verse_host_settings.v1";
@@ -396,25 +395,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return zones.OrderBy(zone => zone.Name, StringComparer.Ordinal).ToArray();
-        }
-
-        public static IReadOnlyList<AetheriaRuntimeEntitySnapshot> ReadEntitySnapshots(string stateFilePath)
-        {
-            if (string.IsNullOrWhiteSpace(stateFilePath))
-                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
-
-            var catalog = ReadSchemaCatalog(stateFilePath);
-            var entities = new List<AetheriaRuntimeEntitySnapshot>();
-            foreach (var record in ReadRecords(stateFilePath))
-            {
-                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) ||
-                    schemaName != EntitySnapshotSchema)
-                    continue;
-
-                entities.Add(ReadEntitySnapshotPayload(record.Key, record.Payload));
-            }
-
-            return entities.OrderBy(entity => entity.Name, StringComparer.Ordinal).ToArray();
         }
 
         private static Dictionary<string, string> ReadSchemaCatalog(string stateFilePath)
@@ -1253,81 +1233,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return pickups;
-        }
-
-        private static AetheriaRuntimeEntitySnapshot ReadEntitySnapshotPayload(string recordKey, byte[] payload)
-        {
-            var reader = new MessagePackReader(payload);
-            var fields = reader.ReadArrayHeader();
-            var name = ReadFieldString(ref reader, fields, 0);
-            var kind = ReadFieldString(ref reader, fields, 1);
-            var position = ReadFieldVector3(ref reader, fields, 2);
-            var direction = ReadFieldVector2(ref reader, fields, 3);
-            var factionKey = ReadFieldString(ref reader, fields, 4);
-            var hullItemKey = ReadFieldString(ref reader, fields, 5);
-            var equipment = ReadFieldEntityItemSlots(ref reader, fields, 6);
-            var cargoBays = ReadFieldEntityItemSlots(ref reader, fields, 7);
-            var dockingBays = ReadFieldEntityItemSlots(ref reader, fields, 8);
-            var childEntityKeys = ReadFieldStringArray(ref reader, fields, 9);
-            var weaponGroups = ReadFieldEntityWeaponGroups(ref reader, fields, 10);
-            var statGrids = ReadFieldEntityStatGrids(ref reader, fields, 11);
-            var velocity = ReadFieldVector2(ref reader, fields, 12);
-            var targetEntityKey = ReadFieldString(ref reader, fields, 13);
-            var isActive = ReadFieldBool(ref reader, fields, 14);
-            var heatsinksEnabled = ReadFieldBool(ref reader, fields, 15);
-            var overrideShutdown = ReadFieldBool(ref reader, fields, 16);
-            var tractorPower = ReadFieldDouble(ref reader, fields, 17);
-            var heatstroke = ReadFieldDouble(ref reader, fields, 18);
-            var hypothermia = ReadFieldDouble(ref reader, fields, 19);
-            var activeConsumables = ReadFieldActiveConsumables(ref reader, fields, 20);
-            var behaviorProgress = ReadFieldBehaviorProgress(ref reader, fields, 21);
-            var weaponStates = ReadFieldWeaponStates(ref reader, fields, 22);
-            var behaviorStates = ReadFieldBehaviorStates(ref reader, fields, 23);
-            var cargoContents = ReadFieldCargoBayLoadouts(ref reader, fields, 24);
-            var dockingBayContents = ReadFieldCargoBayLoadouts(ref reader, fields, 25);
-            var dockingBayAssignments = ReadFieldInt32Array(ref reader, fields, 26);
-            var visibility = ReadFieldDouble(ref reader, fields, 27);
-            var visibilitySourceCount = ReadFieldInt32(ref reader, fields, 28);
-            var contacts = ReadFieldEntityContacts(ref reader, fields, 29);
-            var shutdownPerformance = ReadFieldDouble(ref reader, fields, 30);
-            SkipRemaining(ref reader, fields, 31);
-            return new AetheriaRuntimeEntitySnapshot(
-                recordKey,
-                name,
-                kind,
-                position.X,
-                position.Y,
-                position.Z,
-                direction.X,
-                direction.Y,
-                factionKey,
-                hullItemKey,
-                equipment,
-                cargoBays,
-                dockingBays,
-                childEntityKeys,
-                weaponGroups,
-                statGrids,
-                velocity.X,
-                velocity.Y,
-                targetEntityKey,
-                isActive,
-                heatsinksEnabled,
-                overrideShutdown,
-                tractorPower,
-                heatstroke,
-                hypothermia,
-                activeConsumables,
-                behaviorProgress,
-                weaponStates,
-                behaviorStates,
-                cargoContents,
-                dockingBayContents,
-                dockingBayAssignments,
-                visibility,
-                visibilitySourceCount,
-                contacts,
-                shutdownPerformance);
         }
 
         private static IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> ReadFieldEntityContacts(ref MessagePackReader reader, int fields, int index)

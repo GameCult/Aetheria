@@ -10895,8 +10895,7 @@ static void RequireMainMenuContinueRunState(string root)
 
     var requiredPackageSymbols = new[]
     {
-        "public string RecordKey",
-        "ReadEntitySnapshotPayload(record.Key, record.Payload)"
+        "public string RecordKey"
     };
 
     var missingPackageSymbols = requiredPackageSymbols
@@ -12811,7 +12810,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ReadLoadoutTemplates",
         "ReadRunStates",
         "ReadZoneStates",
-        "ReadEntitySnapshots",
         "ReadEveSurface",
         "TryReadDaemonGameSurface",
         "TryReadDaemonGameTuiSurface",
@@ -12854,6 +12852,24 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Shared runtime state reader is incomplete: " +
             string.Join(", ", missingReaderSymbols));
+    }
+
+    if (runtimeStateReader.Contains("ReadEntitySnapshots", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader still exposes file-backed entity snapshot reads; use daemon zone-render EntitySnapshots documents.");
+    }
+
+    var runtimeCatalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
+    var runtimeCatalogStore = File.Exists(runtimeCatalogStorePath)
+        ? File.ReadAllText(runtimeCatalogStorePath)
+        : throw new InvalidOperationException("Cannot verify deleted entity snapshot catalog reader; AetheriaRuntimeCatalogStore.cs is missing.");
+    if (runtimeCatalogStore.Contains("ReadEntitySnapshots", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadEntitySnapshotPayload", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("EntitySnapshotSchema", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime catalog store still exposes file-backed entity snapshot projection; daemon zone-render EntitySnapshots owns runtime entity lowering.");
     }
 
     if (!unityPackageProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))

@@ -47,11 +47,6 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeCatalogStore.ReadZoneStates(stateFilePath);
         }
 
-        public static IReadOnlyList<AetheriaRuntimeEntitySnapshot> ReadEntitySnapshots(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadEntitySnapshots(stateFilePath);
-        }
-
         public static bool TryReadDaemonFrame(string stateFilePath, out AetheriaRuntimeDaemonFrameDocument frame)
         {
             return AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out frame);
