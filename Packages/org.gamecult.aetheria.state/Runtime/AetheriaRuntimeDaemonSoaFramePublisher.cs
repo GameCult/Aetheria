@@ -24,7 +24,7 @@ namespace GameCult.Aetheria.State.Verse
             new Dictionary<string, RetainedMappedBuffer>(StringComparer.Ordinal);
         private static long RetainedBufferUseSequence;
 
-        public static AetheriaRuntimeDaemonSoaViewDocument PublishCurrentZoneEntities(
+        public static AetheriaRuntimeDaemonSoaViewDocument BuildCurrentZoneEntities(
             string stateFilePath,
             AetheriaRuntimeDaemonFrameDocument frame)
         {
@@ -74,7 +74,6 @@ namespace GameCult.Aetheria.State.Verse
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
                 renderGroups: CreateRenderGroups(entities));
 
-            AetheriaRuntimeDaemonSoaViewStore.PublishView(stateFilePath, view);
             return view;
         }
 

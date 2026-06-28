@@ -1941,11 +1941,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void SoaViewStorePublishesLatestDaemonView()
+    public void ManagedLatestSoaViewPublishesLatestDaemonView()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-daemon-soa-view-store-tests",
+            "aetheria-managed-soa-view-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
@@ -1991,22 +1991,32 @@ public class DaemonRuntimeDocumentTests
                 }
             });
 
-        var viewPath = AetheriaRuntimeDaemonSoaViewStore.PublishView(statePath, view);
+        PublishLatestSoaViewThroughVerseClient(statePath, view);
 
-        Assert.AreEqual(AetheriaRuntimeStateBoundary.GetDaemonSoaViewPath(statePath), viewPath);
+        using var client = AetheriaRuntimeVerseClient
+            .OpenAsync(statePath, "daemon-soa-store-read-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var published = client.LatestSoaView()
+            .ReadAsync()
+            .GetAwaiter()
+            .GetResult();
+
+        Assert.IsNotNull(published);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, view.Schema);
-        Assert.AreEqual("aetheria-daemon", view.DaemonId);
-        Assert.AreEqual("session-soa-store", view.SessionId);
-        Assert.AreEqual(123, view.FrameId);
-        Assert.AreEqual(456, view.Generation);
-        Assert.IsTrue(view.IsAuthoritative);
-        Assert.AreEqual(1, view.Buffers.Count);
-        Assert.AreEqual("entity-hot-0", view.Buffers[0].BufferId);
-        Assert.IsFalse(view.Buffers[0].ObserverWritable);
-        Assert.AreEqual(1, view.Columns.Count);
-        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Heat, view.Columns[0].Kind);
-        Assert.AreEqual(1, view.DirtyRanges.Count);
-        Assert.AreEqual(256, view.DirtyRanges[0].Count);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, published.Schema);
+        Assert.AreEqual("aetheria-daemon", published.DaemonId);
+        Assert.AreEqual("session-soa-store", published.SessionId);
+        Assert.AreEqual(123, published.FrameId);
+        Assert.AreEqual(456, published.Generation);
+        Assert.IsTrue(published.IsAuthoritative);
+        Assert.AreEqual(1, published.Buffers.Count);
+        Assert.AreEqual("entity-hot-0", published.Buffers[0].BufferId);
+        Assert.IsFalse(published.Buffers[0].ObserverWritable);
+        Assert.AreEqual(1, published.Columns.Count);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Heat, published.Columns[0].Kind);
+        Assert.AreEqual(1, published.DirtyRanges.Count);
+        Assert.AreEqual(256, published.DirtyRanges[0].Count);
     }
 
     [Test]
@@ -2072,7 +2082,7 @@ public class DaemonRuntimeDocumentTests
             1.0,
             0.02);
 
-        var view = AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(statePath, frame);
+        var view = AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(statePath, frame);
         Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, view.Backend);
         Assert.AreEqual(1, view.Buffers.Count);
         Assert.IsFalse(view.Buffers[0].ObserverWritable);

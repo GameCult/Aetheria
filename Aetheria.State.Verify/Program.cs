@@ -8675,7 +8675,6 @@ static void RequireDaemonVersePublication(string root)
     var daemonFrameStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonFrameStore.cs");
     var daemonPublicationStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonPublicationStore.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
-    var daemonSoaViewStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaViewStore.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
@@ -8701,7 +8700,6 @@ static void RequireDaemonVersePublication(string root)
         daemonFrameStorePath,
         daemonPublicationStorePath,
         daemonSoaDocumentsPath,
-        daemonSoaViewStorePath,
         daemonSoaFramePublisherPath,
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
@@ -8736,7 +8734,6 @@ static void RequireDaemonVersePublication(string root)
     var daemonFrameStore = File.ReadAllText(daemonFrameStorePath);
     var daemonPublicationStore = File.ReadAllText(daemonPublicationStorePath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
-    var daemonSoaViewStore = File.ReadAllText(daemonSoaViewStorePath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
@@ -8822,7 +8819,7 @@ static void RequireDaemonVersePublication(string root)
     var requiredSoaFramePublisherSymbols = new[]
     {
         "public static class AetheriaRuntimeDaemonSoaFramePublisher",
-        "PublishCurrentZoneEntities(",
+        "BuildCurrentZoneEntities(",
         "AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile",
         "MemoryMappedFile.CreateOrOpen(",
         "ObserverWritable = false",
@@ -8831,8 +8828,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonSoaColumnKinds.Velocity",
         "AetheriaRuntimeDaemonSoaColumnKinds.PhysicsBodyRadius",
         "AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility",
-        "AetheriaRuntimeDaemonSoaColumnKinds.RenderGroupId",
-        "AetheriaRuntimeDaemonSoaViewStore.PublishView(stateFilePath, view)"
+        "AetheriaRuntimeDaemonSoaColumnKinds.RenderGroupId"
     };
     var missingSoaFramePublisherSymbols = requiredSoaFramePublisherSymbols
         .Where(symbol => !daemonSoaFramePublisher.Contains(symbol, StringComparison.Ordinal))
@@ -8930,13 +8926,18 @@ static void RequireDaemonVersePublication(string root)
             string.Join(", ", publicationStoreReaderHits));
     }
 
-    if (daemonFrameStore.Contains("TryReadFrame(", StringComparison.Ordinal) ||
-        daemonFrameStore.Contains("ReadFrame(", StringComparison.Ordinal) ||
-        daemonSoaViewStore.Contains("TryReadView(", StringComparison.Ordinal) ||
-        daemonSoaViewStore.Contains("ReadView(", StringComparison.Ordinal))
+    var daemonSoaViewStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaViewStore.cs");
+    if (File.Exists(daemonSoaViewStorePath))
     {
         throw new InvalidOperationException(
-            "Daemon frame/SoA stores still expose file-backed readers; use tick-result documents or AetheriaClient managed observation.");
+            "Daemon SoA latest-view publication must stay on managed CultMesh pointers; delete AetheriaRuntimeDaemonSoaViewStore.cs instead of reviving sidecar path writes.");
+    }
+
+    if (daemonFrameStore.Contains("TryReadFrame(", StringComparison.Ordinal) ||
+        daemonFrameStore.Contains("ReadFrame(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon frame store still exposes file-backed readers; use tick-result documents or AetheriaClient managed observation.");
     }
 
     var requiredDaemonRegistrySymbols = new[]
@@ -9111,7 +9112,7 @@ static void RequireDaemonVersePublication(string root)
         "VerseId",
         "CultMeshAddress",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
-        "AetheriaRuntimeDaemonSoaFramePublisher.PublishCurrentZoneEntities(stateFilePath, frame)",
+        "AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
         "AetheriaRuntimeDaemonPublicationStore.PublishCommandBoundary",
         "AetheriaRuntimeDaemonPublicationStore.PublishProviderAdvertisement",
@@ -9227,7 +9228,7 @@ static void RequireDaemonVersePublication(string root)
         ? daemonHostSource.Substring(apiPublicationStart, apiPublicationEnd - apiPublicationStart)
         : "";
     if (apiPublicationBlock.Contains("AetheriaRuntimeDaemonPublicationStore.TryRead", StringComparison.Ordinal) ||
-        apiPublicationBlock.Contains("AetheriaRuntimeDaemonSoaViewStore.TryRead", StringComparison.Ordinal))
+        apiPublicationBlock.Contains("SoaViewStore.TryRead", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon API document publication must use typed tick result documents instead of reopening witness files.");
@@ -13857,7 +13858,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "FramePath",
         "SoaViewPath",
         "AetheriaRuntimeDaemonFrameStore.GetFramePath",
-        "AetheriaRuntimeDaemonSoaViewStore.GetViewPath"
+        "SoaViewStore.GetViewPath"
     };
     var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
         .Where(symbol => observedDaemonState.Contains(symbol, StringComparison.Ordinal))
