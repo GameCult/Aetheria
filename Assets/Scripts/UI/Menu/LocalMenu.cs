@@ -27,11 +27,17 @@ public class LocalMenu : MonoBehaviour
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private string _clientStatePath = "";
-    private AetheriaClientReactiveDockingState _dockingState;
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
         _observedEntityIndex = observedEntityIndex;
     }
 
@@ -203,27 +209,12 @@ public class LocalMenu : MonoBehaviour
         return "Local";
     }
 
-    private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)
-    {
-        _dockingState ??= ResolveClient().Aetheria().ReactiveDockingState();
-        var resolved = _dockingState.TryCurrent(out dockingState);
-        if (!resolved)
-            Debug.LogWarning("Failed to read Aetheria docking state for local story surface.");
-        return resolved;
-    }
-
     private bool TryResolveDockedLocalStory(out LocationStory story)
     {
         story = null;
         if (_observedEntityIndex == null ||
-            !TryResolveDockingState(out var dockingState) ||
-            dockingState?.IsDocked != true ||
-            string.IsNullOrWhiteSpace(dockingState.DockParentEntityKey) ||
-            dockingState.DockingBayIndex < 0 ||
-            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
-                dockingState.DockParentEntityKey,
-                dockingState.DockingBayIndex,
-                out var dockingBay) ||
+            !TryResolveObservedDockingIndex(out var dockingIndex) ||
+            !dockingIndex.TryResolveCurrentDockingBay(out var dockingBay) ||
             dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory })
         {
             return false;
@@ -233,14 +224,24 @@ public class LocalMenu : MonoBehaviour
         return true;
     }
 
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    {
+        dockingIndex = null;
+        if (_observedEntityIndex == null)
+            return false;
+
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        return true;
+    }
+
     private AetheriaClient ResolveClient()
     {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
         if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
         {
             _clientStatePath = stateBoot.StateFilePath;
-            _dockingState?.Dispose();
-            _dockingState = null;
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
         }
 
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-local-story");
@@ -266,8 +267,8 @@ public class LocalMenu : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
             _surfaceDocument = null;
         }
-        _dockingState?.Dispose();
-        _dockingState = null;
+        _observedDockingIndex?.Dispose();
+        _observedDockingIndex = null;
     }
 
     // Update is called once per frame

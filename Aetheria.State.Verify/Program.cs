@@ -4820,12 +4820,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     var requiredDockedStoryObserverSymbols = new[]
     {
         "TryResolveDockedLocalStory(out _currentLocation)",
-        "private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)",
         "private bool TryResolveDockedLocalStory(out LocationStory story)",
+        "private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "_observedEntityIndex.TryResolveDockingBayByRecordKey(",
-        "dockingState.DockParentEntityKey",
-        "dockingState.DockingBayIndex",
+        "dockingIndex.TryResolveCurrentDockingBay(out var dockingBay)",
         "dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory }",
         "AetheriaRuntimeLocalStorySurfaceBuilder.Build(ProjectStorySurface())",
         "AetheriaRuntimeLocalStorySurfaceBuilder.Project(",
@@ -4833,8 +4831,6 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "AetheriaRuntimeLocalStoryCommandKind.Continue",
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
         "new AetheriaRuntimeLocalStoryChoiceState(",
-        ".ReactiveDockingState()",
-        ".TryCurrent(",
         "unity-runtime-local-story"
     };
     var dockedStoryObserverCorpus = localMenu;
@@ -4850,6 +4846,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
 
     if (source.Contains("GameManager.DockedEntity != null", StringComparison.Ordinal) ||
         source.Contains("GameManager.DockedEntity as OrbitalEntity", StringComparison.Ordinal) ||
+        localMenu.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) ||
+        localMenu.Contains("private bool TryResolveDockingState(out AetheriaClientDockingSnapshot dockingState)", StringComparison.Ordinal) ||
         localMenu.Contains("ActionGameManager.Instance.DockedEntity", StringComparison.Ordinal) ||
         localMenu.Contains("TryGetObservedDockedLocalStory", StringComparison.Ordinal) ||
         actionGameManager.Contains("TryGetObservedDockedLocalStory", StringComparison.Ordinal) ||
