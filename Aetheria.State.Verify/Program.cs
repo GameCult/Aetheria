@@ -7592,6 +7592,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         "public AetheriaRuntimeDaemonFrameDocument LatestDaemonFrame()",
         "public AetheriaRuntimeDaemonSoaViewDocument LatestDaemonSoaView()",
+        "public AetheriaRuntimeReactiveLoadoutSnapshotProjector ReactiveLoadoutSnapshotProjector(",
         "public AetheriaRuntimeLoadoutTemplatesDocument LatestLoadoutTemplates()",
         "public AetheriaRuntimeStationRefitDocument LatestStationRefit()",
         "public AetheriaRuntimeZoneRenderDocument LatestZoneRender()",
@@ -16333,8 +16334,10 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        "AetheriaRuntimeLoadoutSnapshotProjector",
-        ".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)",
+        "AetheriaRuntimeReactiveLoadoutSnapshotProjector _loadoutSnapshotProjector",
+        "ResolveLoadoutSnapshotProjector().ProjectLoadoutTemplate(targetEntityKey)",
+        ".ReactiveLoadoutSnapshotProjector()",
+        "_loadoutSnapshotProjector?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
@@ -16347,19 +16350,23 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
             string.Join(", ", missingInventoryPanelSymbols));
     }
 
-    if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal))
+    if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still asks AetheriaClient for a document-specific loadout template helper instead of composing from managed typed state.");
+            "InventoryPanel still asks a one-shot compatibility helper for loadout templates instead of caching the managed reactive loadout projector.");
     }
 
     var requiredLoadoutSnapshotProjectorSymbols = new[]
     {
         "ProjectLoadoutTemplateAsync(",
         "AetheriaClientState state",
-        "state.Daemon.LatestFrame.LatestAsync()",
+        "public sealed class AetheriaRuntimeReactiveLoadoutSnapshotProjector",
+        "state.Daemon.LatestFrame.ReactiveAsync(options)",
+        "public AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string entityKey)",
         "ProjectLoadoutTemplate(",
-        "frame.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
+        "frame.Run ?? new AetheriaRuntimeRunCheckpointCommit()",
+        "public void Dispose()"
     };
     var missingLoadoutSnapshotProjectorSymbols = requiredLoadoutSnapshotProjectorSymbols
         .Where(symbol => !loadoutSnapshotProjector.Contains(symbol, StringComparison.Ordinal))
@@ -16369,6 +16376,12 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         throw new InvalidOperationException(
             "Loadout template save payloads must be composed from managed typed daemon frame documents: " +
             string.Join(", ", missingLoadoutSnapshotProjectorSymbols));
+    }
+
+    if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Loadout template save payloads still perform one-shot daemon frame reads instead of using a reactive typed frame document.");
     }
 
     var forbiddenActionSymbols = new[]

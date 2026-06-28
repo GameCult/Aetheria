@@ -108,6 +108,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
     private AetheriaClientReactiveDockingState _reactiveDockingState;
+    private AetheriaRuntimeReactiveLoadoutSnapshotProjector _loadoutSnapshotProjector;
     private int _inventoryEntityIndex = -1;
     private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
@@ -1084,10 +1085,7 @@ private void Update()
         try
         {
             var client = ResolveClient();
-            var loadout = AetheriaRuntimeLoadoutSnapshotProjector
-                .ProjectLoadoutTemplateAsync(client.State, targetEntityKey)
-                .GetAwaiter()
-                .GetResult();
+            var loadout = ResolveLoadoutSnapshotProjector().ProjectLoadoutTemplate(targetEntityKey);
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
 
@@ -1497,6 +1495,7 @@ private void Update()
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
         _reactiveDockingState?.Dispose();
+        _loadoutSnapshotProjector?.Dispose();
         _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
@@ -1504,6 +1503,7 @@ private void Update()
         _currentEntity = null;
         _stationRefit = null;
         _reactiveDockingState = null;
+        _loadoutSnapshotProjector = null;
         _observedDockingIndex = null;
         _inventory = null;
         _inventoryEntityIndex = -1;
@@ -1546,6 +1546,17 @@ private void Update()
         }
 
         return _stationRefit?.Current;
+    }
+
+    private AetheriaRuntimeReactiveLoadoutSnapshotProjector ResolveLoadoutSnapshotProjector()
+    {
+        if (_loadoutSnapshotProjector != null)
+            return _loadoutSnapshotProjector;
+
+        _loadoutSnapshotProjector = ResolveClient()
+            .Aetheria()
+            .ReactiveLoadoutSnapshotProjector();
+        return _loadoutSnapshotProjector;
     }
 
     private AetheriaRuntimeInventoryDocument ResolveInventory(int entityIndex)

@@ -220,6 +220,18 @@ namespace GameCult.Aetheria.State.Verse
             return LatestDaemonSoaViewAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
+        public Task<AetheriaRuntimeReactiveLoadoutSnapshotProjector> ReactiveLoadoutSnapshotProjectorAsync(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return AetheriaRuntimeReactiveLoadoutSnapshotProjector.CreateAsync(this, options);
+        }
+
+        public AetheriaRuntimeReactiveLoadoutSnapshotProjector ReactiveLoadoutSnapshotProjector(
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return ReactiveLoadoutSnapshotProjectorAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public Task<AetheriaRuntimeReactiveObservedDaemonState> ReactiveObservedDaemonAsync(
             CultMeshReactiveDocumentOptions? options = null)
         {

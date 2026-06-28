@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -15,13 +16,10 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var frame = await state.Daemon.LatestFrame.LatestAsync().ConfigureAwait(false);
-            if (frame == null)
-                return new AetheriaRuntimeLoadoutTemplateCommit();
-
-            return ProjectLoadoutTemplate(
-                frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
-                entityKey ?? "");
+            using var projector = await state
+                .ReactiveLoadoutSnapshotProjectorAsync()
+                .ConfigureAwait(false);
+            return projector.ProjectLoadoutTemplate(entityKey);
         }
 
         public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(
@@ -250,6 +248,50 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return zoneIndex >= 0 && entityIndex >= 0;
+        }
+    }
+
+    public sealed class AetheriaRuntimeReactiveLoadoutSnapshotProjector : IDisposable
+    {
+        private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
+
+        private AetheriaRuntimeReactiveLoadoutSnapshotProjector(
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame)
+        {
+            _frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        }
+
+        public static async Task<AetheriaRuntimeReactiveLoadoutSnapshotProjector> CreateAsync(
+            AetheriaClientState state,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+
+            var frame = await state.Daemon.LatestFrame.ReactiveAsync(options).ConfigureAwait(false);
+            return new AetheriaRuntimeReactiveLoadoutSnapshotProjector(frame);
+        }
+
+        public static AetheriaRuntimeReactiveLoadoutSnapshotProjector Create(
+            AetheriaClientState state,
+            CultMeshReactiveDocumentOptions? options = null)
+        {
+            return CreateAsync(state, options).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
+        public AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string entityKey)
+        {
+            var frame = _frame.Current;
+            if (frame == null)
+                return new AetheriaRuntimeLoadoutTemplateCommit();
+
+            return AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(
+                frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
+                entityKey ?? "");
+        }
+
+        public void Dispose()
+        {
+            _frame.Dispose();
         }
     }
 }
