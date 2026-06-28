@@ -52,7 +52,7 @@ public sealed class AetheriaUnityGameplayBootShell
             ? Settings.TutorialBackgroundSettings
             : Settings.SectorBackgroundSettings;
         backgroundSettings.NoisePosition = sectorMap.GenerationSeed == 0 ? 1 : sectorMap.GenerationSeed;
-        var observedGalaxy = AetheriaUnityObservedRunProjection.Project(
+        var observedGalaxy = global::Galaxy.ProjectObservedSectorMap(
             sectorMap,
             backgroundSettings,
             runtimeCatalog,

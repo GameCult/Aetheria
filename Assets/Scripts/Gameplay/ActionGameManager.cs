@@ -96,7 +96,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
-            zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex),
+            ResolveObservedGalaxyZone,
             () => Zone,
             zone => Zone = zone,
             _observedEntityIndex,
@@ -368,6 +368,20 @@ public class ActionGameManager : MonoBehaviour
     private bool IsCurrentEntityObservedUndocked()
     {
         return ObservedDocking.IsEntityUndocked(CurrentEntity);
+    }
+
+    private GalaxyZone ResolveObservedGalaxyZone(int daemonZoneIndex)
+    {
+        if (daemonZoneIndex < 0 || ObservedGalaxy?.Zones == null)
+            return null;
+
+        foreach (var zone in ObservedGalaxy.Zones)
+        {
+            if (zone != null && zone.ZoneIndex == daemonZoneIndex)
+                return zone;
+        }
+
+        return null;
     }
 
     // public void ToggleEditMode()

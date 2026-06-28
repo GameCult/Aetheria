@@ -11786,7 +11786,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
         "private Galaxy ObservedGalaxy { get; set; }",
         "ObservedGalaxy = boot.ObservedGalaxy",
-        "zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex)",
+        "ResolveObservedGalaxyZone",
         "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
@@ -12767,7 +12767,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
         "private Galaxy ObservedGalaxy { get; set; }",
         "ObservedGalaxy = boot.ObservedGalaxy",
-        "zoneIndex => AetheriaUnityObservedRunProjection.FindZone(ObservedGalaxy, zoneIndex)",
+        "ResolveObservedGalaxyZone",
         "private AetheriaUnityObservedZoneContextProjector ObservedZoneContextProjector =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityEntityConstructionBlueprintProjector EntityConstructionBlueprintProjector =>",
@@ -15123,7 +15123,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "runtimeCatalogDocument.Current",
         ".ReactiveSectorMap()",
         "sectorMapDocument.Current",
-        "AetheriaUnityObservedRunProjection.Project(",
+        "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
         "sectorMap.GenerationSeed",
         "new AetheriaUnityGameplayBootResult(",
@@ -15140,31 +15140,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     var observedRunProjectionPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedRunProjection.cs");
-    var observedRunProjection = File.Exists(observedRunProjectionPath)
-        ? File.ReadAllText(observedRunProjectionPath)
-        : throw new InvalidOperationException("Cannot verify observed run projection ownership; AetheriaUnityObservedRunProjection.cs is missing.");
-    if (observedRunProjection.Contains("public static Galaxy Galaxy", StringComparison.Ordinal) ||
-        observedRunProjection.Contains("private set;", StringComparison.Ordinal))
+    if (File.Exists(observedRunProjectionPath))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityObservedRunProjection must be a pure projector; observed galaxy ownership belongs to gameplay boot state.");
-    }
-
-    var forbiddenObservedRunProjectionSymbols = new[]
-    {
-        "AetheriaRuntimeDaemonFrameDocument",
-        "AetheriaRuntimeRunCheckpointCommit",
-        "ProjectObservedDaemonRun",
-        "FindZoneSnapshot"
-    };
-    var observedRunProjectionHits = forbiddenObservedRunProjectionSymbols
-        .Where(symbol => observedRunProjection.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (observedRunProjectionHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "AetheriaUnityObservedRunProjection still accepts daemon-frame/run-checkpoint inputs; gameplay boot must use the managed sector-map document: " +
-            string.Join(", ", observedRunProjectionHits));
+            "AetheriaUnityObservedRunProjection is legacy projection chaff; gameplay boot should project the managed sector-map document directly.");
     }
 
     var forbiddenMainMenuReaderSymbols = new[]
