@@ -31,7 +31,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string ResetShutdownThreshold = "aetheria.inventory.current_ship_settings.shutdown.reset";
         public const string Close = "aetheria.inventory.current_ship_settings.close";
 
-        public static AetheriaRuntimeShipSettingsSurfaceState Project(
+        public static AetheriaRuntimeShipSettingsSurfaceState Compose(
             string shipName,
             float shutdownPerformance,
             Func<float, string> formatShutdownPerformance,
@@ -75,7 +75,7 @@ namespace GameCult.Aetheria.State.Verse
                                 state.ShutdownPerformance),
                             Text(
                                 $"{SurfaceId}.note",
-                                "The observing client projects selected ship state; shutdown changes are sent as daemon operations."),
+                                "The observing client supplies selected ship state; shutdown changes are sent as daemon operations."),
                             ButtonRow(
                                 $"{SurfaceId}.shutdown.buttons",
                                 Button($"{SurfaceId}.shutdown.decrement", "Threshold -", DecrementShutdownThreshold),

@@ -118,7 +118,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string SurfaceId = "aetheria.inventory.cargo_item_details";
         public const string Close = "aetheria.inventory.cargo_item_details.close";
 
-        public static AetheriaRuntimeCargoItemDetailsSurfaceState Project(
+        public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(
             AetheriaRuntimeCatalogItem typedItem,
             AetheriaRuntimeCargoItemObservation item,
             string manufacturer,

@@ -159,7 +159,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string SetTargetTemperature = "aetheria.inventory.equipped_item_details.target_temperature.set";
         public const string ToggleWeaponGroup = "aetheria.inventory.equipped_item_details.weapon_group.toggle";
 
-        public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(
+        public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(
             AetheriaRuntimeCatalogItem typedItem,
             AetheriaRuntimeEquippedItemObservation item,
             string title,
@@ -242,7 +242,7 @@ namespace GameCult.Aetheria.State.Verse
                             : state.Description),
                     Text(
                         $"{SurfaceId}.note",
-                        "The observing client projects the selected equipment; the shared runtime surface owns equipped-item inspection layout and commands."),
+                        "The observing client supplies selected equipment; the shared runtime surface owns equipped-item inspection layout and commands."),
                     Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
                     Metric($"{SurfaceId}.mass", "Mass", state.Mass)),
                 Card(

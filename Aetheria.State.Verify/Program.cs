@@ -4945,8 +4945,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "HandleCurrentShipSettingsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument)",
-        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurface(",
-        "AetheriaRuntimeShipSettingsSurfaceBuilder.Project(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ComposeCurrentShipSettingsSurface(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Compose(",
         "AetheriaRuntimeShipSettingsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
@@ -5006,7 +5006,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "var entity = _shipSettingsEntity;",
         "entity == null || !IsCurrentEntity(entity)",
         "entity.Settings.ShutdownPerformance",
-        "new AetheriaRuntimeShipSettingsSurfaceState("
+        "new AetheriaRuntimeShipSettingsSurfaceState(",
+        "ProjectCurrentShipSettingsSurface(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Project("
     };
 
     var hits = forbiddenSymbols
@@ -5033,7 +5035,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "public static class AetheriaRuntimeShipSettingsSurfaceCommands",
         "public static bool TryRead(",
         "AetheriaRuntimeShipSettingsSurfaceState",
-        "public static AetheriaRuntimeShipSettingsSurfaceState Project(",
+        "public static AetheriaRuntimeShipSettingsSurfaceState Compose(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "public static float ResolveShutdownPerformance(",
         "public static float ClampShutdownPerformance("
@@ -5128,9 +5130,9 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "HandleCargoItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_cargoItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurface(",
-        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project(",
-        "ProjectCargoItemObservation(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ComposeCargoItemDetailsSurface(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Compose(",
+        "ComposeCargoItemObservation(",
         "AetheriaRuntimeCargoItemDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeCargoItemDetailsCommandKind.Close"
     };
@@ -5222,7 +5224,10 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "new AetheriaRuntimeCargoItemDetailsSurfaceState(",
         "ProjectCargoItemDetailsSurfaceState(",
         "ProjectCargoItemBehaviorSections(",
-        "ProjectCargoItemBehaviorMetric("
+        "ProjectCargoItemBehaviorMetric(",
+        "ProjectCargoItemDetailsSurface(",
+        "ProjectCargoItemObservation(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project("
     };
     var hits = forbiddenSymbols
         .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
@@ -5247,7 +5252,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeCargoItemObservation",
         "AetheriaRuntimeCargoItemSection",
         "AetheriaRuntimeCargoItemMetric",
-        "public static AetheriaRuntimeCargoItemDetailsSurfaceState Project(",
+        "public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build("
@@ -5301,11 +5306,11 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "HandleEquippedItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_equippedItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurface(",
-        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project(",
-        "ProjectEquippedItemObservation(",
-        "ProjectEquippedItemTemperatureControls(",
-        "ProjectEquippedItemWeaponGroupControls(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ComposeEquippedItemDetailsSurface(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Compose(",
+        "ComposeEquippedItemObservation(",
+        "ComposeEquippedItemTemperatureControls(",
+        "ComposeEquippedItemWeaponGroupControls(",
         "AetheriaRuntimeEquippedItemDetailsSurfaceCommands.TryRead(request, out var command)",
         "switch (command.Kind)",
         "AetheriaRuntimeEquippedItemDetailsCommandKind.Close",
@@ -5364,7 +5369,12 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "private static EveSurfaceComponent Node(",
         "TryReadPayloadInt(",
         "TryReadPayloadFloat(",
-        "request.Payload"
+        "request.Payload",
+        "ProjectEquippedItemDetailsSurface(",
+        "ProjectEquippedItemObservation(",
+        "ProjectEquippedItemTemperatureControls(",
+        "ProjectEquippedItemWeaponGroupControls(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project("
     };
     var forbiddenHits = forbiddenSymbols
         .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
@@ -5420,7 +5430,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "public const string ToggleOverrideShutdown = \"aetheria.inventory.equipped_item_details.override_shutdown.toggle\"",
         "public const string SetTargetTemperature = \"aetheria.inventory.equipped_item_details.target_temperature.set\"",
         "public const string ToggleWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.toggle\"",
-        "public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(",
+        "public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(",

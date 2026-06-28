@@ -213,7 +213,7 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _shipSettingsSurfaceDocument,
             "Aetheria Inventory Ship Settings Surface",
-            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ProjectCurrentShipSettingsSurface(currentEntity)),
+            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ComposeCurrentShipSettingsSurface(currentEntity)),
             HandleCurrentShipSettingsSurfaceCommand,
             _shipSettingsSurfaceChrome);
     }
@@ -268,10 +268,10 @@ public class InventoryMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument);
     }
 
-    private AetheriaRuntimeShipSettingsSurfaceState ProjectCurrentShipSettingsSurface(
+    private AetheriaRuntimeShipSettingsSurfaceState ComposeCurrentShipSettingsSurface(
         AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        return AetheriaRuntimeShipSettingsSurfaceBuilder.Project(
+        return AetheriaRuntimeShipSettingsSurfaceBuilder.Compose(
             currentEntity?.Entity?.DisplayName ?? "",
             (float)(currentEntity?.ShutdownPerformance ?? 0),
             FormatValue);
@@ -289,7 +289,7 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _cargoItemDetailsSurfaceDocument,
             "Aetheria Inventory Cargo Item Details Surface",
-            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ProjectCargoItemDetailsSurface(item, typedItem)),
+            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ComposeCargoItemDetailsSurface(item, typedItem)),
             HandleCargoItemDetailsSurfaceCommand,
             _cargoItemDetailsSurfaceChrome,
             sortingOrder: 1001);
@@ -331,7 +331,7 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _equippedItemDetailsSurfaceDocument,
             "Aetheria Inventory Equipped Item Details Surface",
-            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ProjectEquippedItemDetailsSurface(item, typedItem)),
+            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ComposeEquippedItemDetailsSurface(item, typedItem)),
             HandleEquippedItemDetailsSurfaceCommand,
             _equippedItemDetailsSurfaceChrome,
             sortingOrder: 1002);
@@ -416,24 +416,24 @@ public class InventoryMenu : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeEquippedItemDetailsSurfaceState ProjectEquippedItemDetailsSurface(
+    private AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeEquippedItemDetailsSurface(
         EquippedItem item,
         AetheriaRuntimeCatalogItem typedItem)
     {
         var hasWeapon = item.GetBehavior<Weapon>() != null;
 
-        return AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project(
+        return AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Compose(
             typedItem,
-            ProjectEquippedItemObservation(item),
+            ComposeEquippedItemObservation(item),
             BuildEquippedItemTitle(item, typedItem),
             ResolveManufacturerName(typedItem),
             FormatValue,
             FormatTemperature,
-            ProjectEquippedItemTemperatureControls(item).ToArray(),
-            hasWeapon ? ProjectEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>());
+            ComposeEquippedItemTemperatureControls(item).ToArray(),
+            hasWeapon ? ComposeEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>());
     }
 
-    private static AetheriaRuntimeEquippedItemObservation ProjectEquippedItemObservation(EquippedItem item)
+    private static AetheriaRuntimeEquippedItemObservation ComposeEquippedItemObservation(EquippedItem item)
     {
         var equippableItem = item?.EquippableItem;
         return new AetheriaRuntimeEquippedItemObservation(
@@ -444,7 +444,7 @@ public class InventoryMenu : MonoBehaviour
             equippableItem != null && equippableItem.OverrideShutdown);
     }
 
-    private IEnumerable<AetheriaRuntimeEquippedItemTemperatureControl> ProjectEquippedItemTemperatureControls(
+    private IEnumerable<AetheriaRuntimeEquippedItemTemperatureControl> ComposeEquippedItemTemperatureControls(
         EquippedItem item)
     {
         for (var i = 0; i < (item.Behaviors?.Length ?? 0); i++)
@@ -461,7 +461,7 @@ public class InventoryMenu : MonoBehaviour
         }
     }
 
-    private IEnumerable<AetheriaRuntimeEquippedItemControl> ProjectEquippedItemWeaponGroupControls(
+    private IEnumerable<AetheriaRuntimeEquippedItemControl> ComposeEquippedItemWeaponGroupControls(
         EquippedItem item)
     {
         return Enumerable.Range(0, item.Entity?.WeaponGroups?.Length ?? 0)
@@ -473,20 +473,20 @@ public class InventoryMenu : MonoBehaviour
                     ("group", groupIndex.ToString(CultureInfo.InvariantCulture)))));
     }
 
-    private AetheriaRuntimeCargoItemDetailsSurfaceState ProjectCargoItemDetailsSurface(
+    private AetheriaRuntimeCargoItemDetailsSurfaceState ComposeCargoItemDetailsSurface(
         ItemInstance item,
         AetheriaRuntimeCatalogItem typedItem)
     {
-        return AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Project(
+        return AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Compose(
             typedItem,
-            ProjectCargoItemObservation(item),
+            ComposeCargoItemObservation(item),
             ResolveManufacturerName(typedItem),
             item is EquippableItem equippableItem ? FormatItemTier(typedItem, equippableItem) : "",
             FormatValue,
             FormatTemperature);
     }
 
-    private static AetheriaRuntimeCargoItemObservation ProjectCargoItemObservation(ItemInstance item)
+    private static AetheriaRuntimeCargoItemObservation ComposeCargoItemObservation(ItemInstance item)
     {
         var equippableItem = item as EquippableItem;
         return new AetheriaRuntimeCargoItemObservation(
