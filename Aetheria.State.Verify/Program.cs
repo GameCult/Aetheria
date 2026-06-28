@@ -2791,8 +2791,7 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
     var checkedFiles = new[]
     {
         Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs"),
-        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
-        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")
     };
 
     var forbiddenSymbols = new[]
@@ -2835,50 +2834,26 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
             "public string ParentOrbitKey { get; set; } = \"\";",
             "public string BodyKey { get; set; } = \"\";"
         },
-        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")] = new[]
         {
-            "public AetheriaRuntimeOrbitSnapshot(string orbitKey, string parentOrbitKey",
-            "OrbitKey = orbitKey;",
-            "ParentOrbitKey = parentOrbitKey;",
-            "public string OrbitKey { get; }",
-            "public string ParentOrbitKey { get; }",
-            "BodyKey = bodyKey;",
-            "OrbitKey = orbitKey;",
-            "public string BodyKey { get; }",
-            "public string OrbitKey { get; }",
-            "GravityInfluenceCenterX = gravityInfluenceCenterX;",
-            "GravityInfluenceCenterZ = gravityInfluenceCenterZ;",
-            "GravityInfluenceRadius = gravityInfluenceRadius;",
-            "GravityWellDepth = gravityWellDepth;",
-            "GravityWaveRadius = gravityWaveRadius;",
-            "GravityWaveDepth = gravityWaveDepth;",
-            "GravityWaveSpeed = gravityWaveSpeed;",
-            "GravityTerrainRadius = gravityTerrainRadius;",
-            "GravityTerrainDepth = gravityTerrainDepth;",
-            "GravityTerrainDepthExponent = gravityTerrainDepthExponent;",
-            "GravityTerrainBoundaryFog = gravityTerrainBoundaryFog;",
-            "GravityTerrainWaveFrequency = gravityTerrainWaveFrequency;"
-        },
-        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
-        {
-            "var orbitKey = ReadFieldString(ref reader, orbitFields, 0);",
-            "var parentOrbitKey = ReadFieldString(ref reader, orbitFields, 1);",
-            "var bodyKey = ReadFieldString(ref reader, bodyFields, 0);",
-            "var orbitKey = ReadFieldString(ref reader, bodyFields, 3);",
-            "var gravityInfluenceCenterX = ReadFieldDouble(ref reader, bodyFields, 13, double.NaN);",
-            "var gravityInfluenceCenterZ = ReadFieldDouble(ref reader, bodyFields, 14, double.NaN);",
-            "var gravityInfluenceRadius = ReadFieldDouble(ref reader, bodyFields, 15);",
-            "var gravityWellDepth = ReadFieldDouble(ref reader, bodyFields, 16);",
-            "var gravityWaveRadius = ReadFieldDouble(ref reader, bodyFields, 17);",
-            "var gravityWaveDepth = ReadFieldDouble(ref reader, bodyFields, 18);",
-            "var gravityWaveSpeed = ReadFieldDouble(ref reader, bodyFields, 19);",
-            "var gravityTerrainRadius = ReadFieldDouble(ref reader, fields, 9);",
-            "var gravityTerrainDepth = ReadFieldDouble(ref reader, fields, 10);",
-            "var gravityTerrainDepthExponent = ReadFieldDouble(ref reader, fields, 11, 1.0);",
-            "var gravityTerrainBoundaryFog = ReadFieldDouble(ref reader, fields, 12);",
-            "var gravityTerrainWaveFrequency = ReadFieldDouble(ref reader, fields, 13, 1.0);",
-            "new AetheriaRuntimeOrbitSnapshot(",
-            "new AetheriaRuntimeBodySnapshot("
+            "public sealed class AetheriaRuntimeZoneSnapshotCommit",
+            "public sealed class AetheriaRuntimeOrbitSnapshotCommit",
+            "public sealed class AetheriaRuntimeBodySnapshotCommit",
+            "public string OrbitKey { get; set; } = \"\";",
+            "public string ParentOrbitKey { get; set; } = \"\";",
+            "public string BodyKey { get; set; } = \"\";",
+            "public double GravityInfluenceCenterX { get; set; }",
+            "public double GravityInfluenceCenterZ { get; set; }",
+            "public double GravityInfluenceRadius { get; set; }",
+            "public double GravityWellDepth { get; set; }",
+            "public double GravityWaveRadius { get; set; }",
+            "public double GravityWaveDepth { get; set; }",
+            "public double GravityWaveSpeed { get; set; }",
+            "public double GravityTerrainRadius { get; set; }",
+            "public double GravityTerrainDepth { get; set; }",
+            "public double GravityTerrainDepthExponent { get; set; }",
+            "public double GravityTerrainBoundaryFog { get; set; }",
+            "public double GravityTerrainWaveFrequency { get; set; }"
         }
     };
 
@@ -2896,7 +2871,7 @@ static void RequireTypedZoneStateSnapshotKeys(string root)
     if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Typed zone-state documents and runtime catalog readers must expose orbit/body key ownership explicitly: " +
+            "Typed zone-state documents and managed runtime snapshot commits must expose orbit/body key ownership explicitly: " +
             string.Join("; ", missingSymbols));
     }
 }
@@ -12808,8 +12783,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ReadPlayerSettings",
         "ReadVerseHostSettings",
         "ReadLoadoutTemplates",
-        "ReadRunStates",
-        "ReadZoneStates",
         "ReadEveSurface",
         "TryReadDaemonGameSurface",
         "TryReadDaemonGameTuiSurface",
@@ -12860,16 +12833,34 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Shared runtime state reader still exposes file-backed entity snapshot reads; use daemon zone-render EntitySnapshots documents.");
     }
 
+    if (runtimeStateReader.Contains("ReadRunStates", StringComparison.Ordinal) ||
+        runtimeStateReader.Contains("ReadZoneStates", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime state reader still exposes file-backed run/zone snapshot reads; use managed daemon frame and zone-render documents.");
+    }
+
     var runtimeCatalogStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
     var runtimeCatalogStore = File.Exists(runtimeCatalogStorePath)
         ? File.ReadAllText(runtimeCatalogStorePath)
-        : throw new InvalidOperationException("Cannot verify deleted entity snapshot catalog reader; AetheriaRuntimeCatalogStore.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify deleted file-backed runtime catalog readers; AetheriaRuntimeCatalogStore.cs is missing.");
     if (runtimeCatalogStore.Contains("ReadEntitySnapshots", StringComparison.Ordinal) ||
         runtimeCatalogStore.Contains("ReadEntitySnapshotPayload", StringComparison.Ordinal) ||
         runtimeCatalogStore.Contains("EntitySnapshotSchema", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Runtime catalog store still exposes file-backed entity snapshot projection; daemon zone-render EntitySnapshots owns runtime entity lowering.");
+    }
+
+    if (runtimeCatalogStore.Contains("ReadRunStates", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadZoneStates", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadRunStatePayload", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadZoneStatePayload", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("RunStateSchema", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ZoneStateSchema", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime catalog store still exposes file-backed run/zone snapshot projection; managed daemon checkpoint and zone-render documents own runtime state lowering.");
     }
 
     if (!unityPackageProject.Contains("AetheriaRuntimeStateReader.cs", StringComparison.Ordinal))
@@ -14430,19 +14421,11 @@ static void RequireDroppedPickupCheckpointState(string root)
             "DroppedPickups",
             "public double Temperature { get; set; }"
         },
-        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs")] = new[]
+        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs")] = new[]
         {
-            "ReadZoneStatePayload(record.Key, record.Payload)",
-            "ReadFieldDroppedPickups",
-            "AetheriaRuntimeDroppedPickupSnapshot",
-            "var temperature = ReadFieldDouble(ref reader"
-        },
-        [Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs")] = new[]
-        {
-            "public string RecordKey",
-            "AetheriaRuntimeDroppedPickupSnapshot",
-            "public IReadOnlyList<AetheriaRuntimeDroppedPickupSnapshot> DroppedPickups",
-            "public double Temperature { get; }"
+            "AetheriaRuntimeDroppedPickupCommit",
+            "public IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> DroppedPickups",
+            "public double Temperature { get; set; }"
         },
         [Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs")] = new[]
         {

@@ -37,16 +37,6 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(stateFilePath);
         }
 
-        public static IReadOnlyList<AetheriaRuntimeRunStateSnapshot> ReadRunStates(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadRunStates(stateFilePath);
-        }
-
-        public static IReadOnlyList<AetheriaRuntimeZoneStateSnapshot> ReadZoneStates(string stateFilePath)
-        {
-            return AetheriaRuntimeCatalogStore.ReadZoneStates(stateFilePath);
-        }
-
         public static bool TryReadDaemonFrame(string stateFilePath, out AetheriaRuntimeDaemonFrameDocument frame)
         {
             return AetheriaRuntimeDaemonFrameStore.TryReadFrame(stateFilePath, out frame);
