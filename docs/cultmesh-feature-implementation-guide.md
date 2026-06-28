@@ -5,19 +5,51 @@ Date: 2026-06-28
 This guide describes the target developer experience for adding Aetheria state
 with CultMesh. If the workflow grows into a chain of facades, sessions,
 projectors, adapters, and surface builders, stop and simplify the state API.
+That chain is heretek now: it means the feature is compensating for a missing
+typed document, query, operation, pointer, native view, or generated handle.
 
 The rule is blunt:
 
 ```text
 small UI-only value: derive it inline from already accessible typed state
 named UI-only projection: define the projected document, then read it
-simulation feature: define simulation state, publish typed state, consume it
+simulation feature: define one canonical typed document, let daemon authority mutate it, consume the same document everywhere
 hot rendering/physics: use SoA, not object-graph UI documents
 ```
 
 CultMesh owns document identity, sync, prediction, reconciliation, and reactive
 access. Aetheria code should read like it is using game state, not walking
 protocol layers.
+
+## Canonical Document Rule
+
+The default shape is one shared typed document contract.
+
+```text
+AetheriaRuntimeFooDocument
+  -> daemon authority mutates/publishes it
+  -> Unity/Electron/tools read the same document type
+  -> authorized clients write intent or predictions through the managed handle
+```
+
+Do not split a feature into "daemon truth" and a separate "CultMesh typed
+state" unless the second shape is intentionally different. The assembly is
+shared, so the document the daemon owns is also the document clients receive.
+Across runtimes, callers should feel like they are grabbing a handle on typed
+state and either reading it for display or writing to it for client input.
+
+A second document is justified only when it earns a distinct job:
+
+- hidden-information filtering;
+- expensive or shared derived state;
+- viewport/windowed selection;
+- SoA/native render or physics layout;
+- lossy presentation summaries;
+- UI surface documents;
+- compatibility mirrors with a named removal stage.
+
+Projection is not the normal way to make state client-visible. Projection is an
+exception for a different shape.
 
 ## The Ergonomic Bar
 
@@ -27,7 +59,7 @@ Use one step when the value is small and already derivable from state the caller
 has:
 
 ```csharp
-var currentDocking = client.State.Current.ReactiveDocking();
+var currentDocking = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
 var bayName = currentDocking.Current?.DockingBayName ?? "";
 ```
 
@@ -35,16 +67,16 @@ Use two steps when the projection is shared, non-trivial, or should have a
 stable schema:
 
 ```text
-1. Define the daemon-projected typed document.
+1. Define the typed projected document.
 2. Read it from Unity as a managed reactive typed document.
 ```
 
 Simulation state should take two or three steps:
 
 ```text
-1. Put the simulation data and rules in the daemon-owned domain model.
-2. Publish the useful client-facing shape as typed CultMesh state.
-3. Read that state from Unity and send typed operations back when input mutates truth.
+1. Define the canonical typed document in the shared runtime package.
+2. Let the daemon mutate/publish that document as the authority for the Verse.
+3. Read or modify the same managed document from clients according to authority policy.
 ```
 
 Anything beyond that needs a clear reason. Performance-sensitive entity
@@ -86,7 +118,11 @@ daemon document -> session -> facade -> projector -> adapter -> surface builder 
 ```
 
 That shape preserves reconstruction-era scaffolding. It does not express the
-game.
+game. At most, one boundary adapter may exist at an actual boundary: Unity
+GameObject presentation, Eve/CultUI lowering, legacy import, persistence, or
+native view ownership. If two or more layers appear in a row just to obtain one
+domain value, stop and move the missing primitive into CultMesh/CultLib or the
+generated Aetheria handle surface.
 
 ## Choosing The State Shape
 
@@ -105,18 +141,21 @@ Use a projected typed document when:
 - the result needs a stable schema or cross-runtime binding;
 - the projection should update reactively as daemon state changes.
 
-Use daemon-owned simulation state when:
+Use a canonical simulation document when:
 
 - the value affects game rules;
 - input can mutate it;
 - it needs authority, replay, persistence, or reconciliation;
 - the daemon must validate operations before publishing the next state.
 
+Use a projected typed document when the caller needs a different state shape,
+not merely because a client needs to see daemon-owned state.
+
 Use SoA/native views when:
 
 - Unity jobs, Burst, Ymir, or rendering need large columnar data;
 - row count and per-frame access make object graphs the wrong format;
-- the data is a hot view over daemon truth rather than a UI document.
+- the data is a hot view over canonical simulation state rather than a UI document.
 
 ## One-Step UI Derivation
 
@@ -140,7 +179,8 @@ public sealed class DockingBadge : IDisposable
     {
         get
         {
-            _docking ??= _client.State.Current.ReactiveDocking();
+            _docking ??= _client.State
+                .Reactive<AetheriaRuntimeCurrentDockingDocument>();
             var current = _docking.Current;
             return current?.IsDocked == true ? current.DockingBayName : "";
         }
@@ -161,6 +201,11 @@ document.
 
 Use this for shared presentation state such as player HUD, docking summary,
 commander wave status, station service summary, or Starbridge support alerts.
+
+Before adding this projection, ask whether the UI can read the canonical
+simulation document directly. If it can, do that. The projection exists only
+when the UI shape is genuinely derived, filtered, windowed, or shared enough to
+deserve its own schema.
 
 ### Step 1: Define The Projected Document
 
@@ -195,20 +240,17 @@ public sealed class AetheriaRuntimeZoneDefenseStatusDocument
 }
 ```
 
-Then expose it as a named projection from `AetheriaClientState`:
+Then make it available through generic managed state access:
 
 ```csharp
-public CultMeshReactiveDocument<AetheriaRuntimeZoneDefenseStatusDocument>
-    ReactiveZoneDefenseStatus()
-{
-    return Mesh.Reactive<AetheriaRuntimeZoneDefenseStatusDocument>(
-        AetheriaRuntimeDaemonDocuments.ZoneDefenseStatus);
-}
+using var status =
+    client.State.Reactive<AetheriaRuntimeZoneDefenseStatusDocument>();
 ```
 
 The exact registration/publishing code belongs in the runtime plumbing. It
 should be generated or centralized. The feature author should not have to write
-five separate access classes for one projected state shape.
+five separate access classes, wrapper methods, sessions, or facades for one
+projected state shape.
 
 ### Step 2: Read It From Unity
 
@@ -230,7 +272,8 @@ public sealed class ZoneDefenseHud : IDisposable
 
     public void Refresh()
     {
-        _status ??= _client.State.ReactiveZoneDefenseStatus();
+        _status ??= _client.State
+            .Reactive<AetheriaRuntimeZoneDefenseStatusDocument>();
         var status = _status.Current;
         if (status == null)
             return;
@@ -256,25 +299,10 @@ Use this when the feature changes gameplay: heat support, repair drones,
 station construction, scenario progression, commander infrastructure, or wave
 director state.
 
-### Step 1: Put Truth In The Daemon
+### Step 1: Define The Canonical Document
 
-Simulation truth lives with the daemon domain model and tick/apply logic.
-
-```csharp
-public sealed class StationSupportState
-{
-    public double CoolingReserve { get; set; }
-    public double RepairNaniteReserve { get; set; }
-    public int ActiveSupportDrones { get; set; }
-}
-```
-
-The daemon mutates this state during ticks and command application. Unity does
-not own gameplay truth.
-
-### Step 2: Publish Typed CultMesh State
-
-Expose the client-facing shape as a typed document.
+Simulation truth is the shared typed document. The daemon owns authority over
+that document, but the document contract is not daemon-private.
 
 ```csharp
 [MessagePackObject]
@@ -292,21 +320,26 @@ public sealed class AetheriaRuntimeStationSupportDocument
 }
 ```
 
-The daemon publishes this document from its current truth. CultMesh handles sync.
-If the client has prediction authority, local changes to the managed document
-are predictions; reconciliation corrects them without requiring feature code to
+### Step 2: Let The Daemon Own Authority
+
+The daemon validates operations, applies ticks, and publishes the canonical
+document into the Verse. Unity does not own gameplay truth, but Unity does not
+need a separate client-facing copy either. CultMesh handles sync. If the client
+has prediction authority, local changes to the managed document are
+predictions; reconciliation corrects them without requiring feature code to
 manually shuttle deltas.
 
-### Step 3: Read State And Submit Typed Operations
+### Step 3: Read Or Mutate Through The Managed Handle
 
-Unity reads state through the managed typed document:
+Unity reads the same document through the managed typed handle:
 
 ```csharp
-var support = client.State.ReactiveStationSupport();
+var support = client.State.Reactive<AetheriaRuntimeStationSupportDocument>();
 var cooling = support.Current?.CoolingReserve ?? 0;
 ```
 
-Unity asks the daemon to mutate truth through a typed operation:
+When the client does not have direct simulation authority, it submits a typed
+operation:
 
 ```csharp
 client.Operations.Submit(new AetheriaRuntimeDeploySupportDroneOperation
@@ -319,6 +352,11 @@ client.Operations.Submit(new AetheriaRuntimeDeploySupportDroneOperation
 
 The daemon validates and applies the operation. The next published document is
 the authoritative result.
+
+When the client has prediction or simulation authority, the ergonomic target is
+even simpler: modifying the managed reactive document records a prediction,
+debounced by the update frame, and CultMesh routes/reconciles it according to
+the Verse authority policy.
 
 ## SoA For Hot Paths
 
@@ -340,9 +378,9 @@ Bad SoA candidates:
 - player settings;
 - station service summary.
 
-SoA should be a named high-performance view over daemon truth. It should not
-force ordinary presentation code to understand frame slabs, column handles, or
-native buffer ownership.
+SoA should be a named high-performance view over canonical simulation state. It
+should not force ordinary presentation code to understand frame slabs, column
+handles, or native buffer ownership.
 
 ## Reconnection
 
@@ -373,13 +411,13 @@ For projected UI documents, test:
 - projection from representative daemon state;
 - empty/default state;
 - reactive update after source state changes;
-- Unity caller reads the projected document directly.
+- Unity caller reads the typed document directly.
 
 For simulation features, test:
 
-- daemon tick/application mutates truth;
+- daemon tick/application mutates the canonical typed document;
 - typed operation validation accepts and rejects correctly;
-- published document reflects daemon truth;
+- clients read the same shared document type the daemon publishes;
 - prediction/reconciliation behavior when the runtime supports local authority;
 - reconnect can reconstruct the required player state.
 
@@ -401,8 +439,9 @@ Good verifier expectations:
 ```text
 Unity caller owns CultMeshReactiveDocument<TDocument>
 Unity caller reads .Current
-Unity caller uses client.State.ReactiveFeatureName()
+Unity caller uses client.State.Reactive<TDocument>()
 Unity caller submits typed operations for mutations
+authorized caller mutates managed typed state as prediction/input
 hot renderer uses named SoA view
 ```
 
@@ -413,6 +452,7 @@ Unity caller owns AetheriaRuntime*Session for one document
 Unity caller calls ObserveFeatureName() wrapper only to read Current
 UI caller reads raw daemon frames and joins rows
 feature adds facade/projector/adapter/surface-builder chain
+feature introduces multiple translation layers to get one typed value
 ```
 
 The verifier should make the codebase harder to regress into ceremony, not
@@ -425,8 +465,8 @@ Before calling a CultMesh feature ergonomic, answer these questions:
 - Can a UI-only inline value be implemented in one local derivation?
 - Can a shared UI projection be implemented by defining the document and reading
   it from Unity?
-- Can a simulation feature be explained as daemon truth, typed state, typed
-  operation?
+- Can a simulation feature be explained as one canonical typed document plus
+  authority policy and typed operations?
 - Does Unity code read domain state instead of protocol plumbing?
 - Is SoA reserved for hot paths?
 - Did the verifier protect the clean path instead of the old wrappers?

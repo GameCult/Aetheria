@@ -103,6 +103,16 @@ The project already has the first layer of primitive sugar:
 
 The remaining problem is that the sugar is not yet the only obvious path. There are still public or semi-public seams where clients can fall back into raw envelopes, record keys, ad hoc frame projection, manual state resolution, locality-specific wiring, and renderer-side facade adaptation.
 
+The architectural correction is simple and strict: a normal gameplay feature has
+one canonical typed document. The daemon may be the authority for that document,
+but daemon authority is not a second state model. The shared runtime assembly
+defines the document, the daemon mutates/publishes it, and every runtime grabs a
+managed handle to that same type for display, input, prediction, or testing.
+Projection documents exist only when the state shape is intentionally different:
+hidden-information filtering, expensive aggregation, viewport/windowing,
+SoA/native layout, lossy UI summaries, Eve/CultUI surfaces, or compatibility
+bridges with a removal stage.
+
 The worst current pattern is not one bad helper. It is a repeated protocol walk:
 
 1. read one projected document;
@@ -113,6 +123,12 @@ The worst current pattern is not one bad helper. It is a repeated protocol walk:
 6. wire manual refresh or blocking reads around the whole path.
 
 That entire stack must collapse behind one typed CultMesh document, collection, query, or operation handle. If a client wants current docking, current inventory, current target, current stats, zone contacts, station refit state, or visible render objects, the caller should make one semantic CultMesh call and receive a typed reactive value. CultMesh owns cache hydration, routing, sync, invalidation, watch lifetimes, schema binding, derived-state execution, and locality choice.
+
+The facade/projector/adapter/surface-builder chain is no longer an acceptable
+style. A single adapter at a real boundary can be honest; a chain of translation
+objects to recover one domain value is heretek architecture. Replace it with a
+canonical document handle, a generated typed query/operation handle, a state
+pointer, or a native view descriptor.
 
 ## Migration Rules
 
@@ -125,6 +141,9 @@ That entire stack must collapse behind one typed CultMesh document, collection, 
 7. The browser/RTS client and Unity client must use the same semantic Verse facade, even when their locality/runtime routes differ.
 8. Client code must not manually compose state access from multiple protocol layers. A semantic state read is one CultMesh call from the caller's point of view.
 9. Renderer-local object facades are presentation caches. They are not the API for game state, inventory, docking, targeting, or station services.
+10. Do not split "daemon truth" from "CultMesh typed state" for ordinary gameplay. Use one canonical document, then let authority policy decide who can mutate, predict, or only observe it.
+11. Add projections only for a distinct derived/filter/window/native/UI shape. "A client needs to read it" is not a projection justification.
+12. Do not add facade/projector/adapter/surface-builder chains. One real boundary adapter is allowed; stacked translation layers are a missing CultMesh primitive.
 
 ## Stage 0: Freeze The Vocabulary
 
@@ -153,6 +172,11 @@ Gates:
 - No new public API may introduce `Apply(command, payload)` style call sites.
 - No new client API may require a caller to know transport record keys or raw schema slots.
 - No new client API may require a caller to join projected documents, frame rows, record keys, and renderer-local facades to obtain one domain value.
+- No new feature guide, example, or verifier rule may describe separate daemon
+  truth and client typed state when one canonical document would work.
+- No verifier may require a facade/projector/adapter/surface-builder chain as
+  proof of correctness. It should require the semantic typed handle and reject
+  the translation chain.
 - All new examples in docs must use the North Star shape.
 
 ## Stage 1: Harden Shared CultMesh Primitives
@@ -235,7 +259,11 @@ npm run check:rts-bindings
 
 Status: partially started; local projection still leaks.
 
-Goal: clients ask the daemon for typed projections. They do not reconstruct world truth from frames unless they are inside a generated/internal query executor.
+Goal: clients ask CultMesh for typed query surfaces or projected documents when
+the requested shape is derived, filtered, windowed, or native-layout-specific.
+They do not reconstruct world truth from frames unless they are inside a
+generated/internal query executor, and they do not add projections for canonical
+state that a typed document handle can expose directly.
 
 Targets:
 

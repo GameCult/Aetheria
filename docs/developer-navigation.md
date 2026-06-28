@@ -10,8 +10,9 @@ ambushed by half-finished architecture.
 The short version: Unity is being reduced to a renderer, input surface, and
 editor environment. Durable game state and portable gameplay facts now live in
 typed CultCache/CultNet/CultMesh records under `Aetheria.State`. The daemon is
-the simulation owner. Unity and the Electron RTS client are clients of the same
-typed Verse state.
+the authority over canonical shared documents, not a private truth source that
+exports a second client copy. Unity and the Electron RTS client are clients of
+the same typed Verse state.
 
 ## Start Here
 
@@ -29,8 +30,9 @@ Read these in this order:
 5. `docs/aetheria-verse-client-contract.md`
    Intended client contract: use typed Verse state, not daemon internals.
 6. `docs/cultmesh-feature-implementation-guide.md`
-   Step-by-step guide for adding daemon-owned typed state, publishing it through
-   CultMesh, and consuming/interacting with it from Unity.
+   Step-by-step guide for adding canonical typed state once, letting daemon
+   authority own mutation, and consuming/interacting with the same document from
+   Unity and other clients.
 7. `Aetheria.State/docs/verse-authority-implementation-plan.md`
    Authority and Starbridge staged implementation map.
 
@@ -186,8 +188,12 @@ Expected recurring warnings:
 
 ### State Owner
 
-Typed CultCache/CultNet/CultMesh documents are the state owner. The primary
-world file is:
+Typed CultCache/CultNet/CultMesh documents are the state owner. For normal
+gameplay features, define one canonical shared document and let authority policy
+decide who may write or predict it. Do not create "daemon truth" plus a separate
+client-facing copy unless the second document is intentionally filtered,
+aggregated, windowed, lossy, SoA/native, or a named compatibility bridge. The
+primary world file is:
 
 ```text
 GameData/aetheria-world.cc
@@ -220,14 +226,15 @@ Use `AetheriaClient` first:
 Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs
 ```
 
-It exposes named reads such as current entity, current docking, station/refit,
-sector map, viewport, Starbridge summary, health, authority policy, and SoA
-views. It also exposes typed controls through `AetheriaControl` and typed UI
-surface helpers through `AetheriaUi`.
+It exposes generic managed document reads such as `State.Latest<TDocument>()`
+and `State.Reactive<TDocument>()`, parameterized handles for viewport/detail
+documents, Starbridge seat handles, typed controls through `AetheriaControl`,
+and typed UI surface helpers through `AetheriaUi`.
 
-If a Unity panel or Electron surface needs a fact, prefer adding or extending a
-named facade read. Avoid handing callers raw daemon frames unless the caller is
-a transitional projection layer.
+If a Unity panel or Electron surface needs a fact, prefer the generic managed
+document call first. Add a named facade only when it carries semantic identity,
+parameters, operation policy, or a distinct derived/native shape. Avoid handing
+callers raw daemon frames unless the caller is a transitional projection layer.
 
 ### Unity Shell
 
@@ -373,6 +380,12 @@ Work on Ymir/physics:
    Git preserves history. The migration should delete dead shims when the typed
    replacement exists and tests prove it.
 
+8. Treat facade/projector/adapter/surface-builder chains as a design failure.
+   One adapter at a true boundary is fine. Stacked translation layers used to
+   recover one typed value mean the code is missing a CultMesh primitive,
+   generated handle, canonical document, query, operation, pointer, or native
+   view.
+
 ## Known Transitional Debt
 
 These are not surprises; they are known pressure points.
@@ -407,9 +420,13 @@ Use this checklist before writing code:
    Add or extend a MessagePack/CultNet document in the runtime package. Use
    explicit `[Key]` slots and stable names.
 
-3. Add a facade read or operation.
-   Prefer `AetheriaClient`, `AetheriaControl`, or `AetheriaUi` over direct
-   low-level Verse calls in client code.
+3. Add the simplest access path.
+   Prefer `AetheriaClient.State.Latest<TDocument>()` or
+   `AetheriaClient.State.Reactive<TDocument>()` for canonical documents. Add a
+   named handle only when type alone cannot identify the document, such as
+   parameterized viewport/detail state or multiple documents sharing one CLR
+   type. Use `AetheriaControl` or `AetheriaUi` for typed operations and UI
+   commands.
 
 4. Lower Unity and Electron through the same semantics.
    Unity and RTS do not need identical UI, but they should observe the same
@@ -498,8 +515,9 @@ The useful way to look at it is:
 When in doubt, follow the typed state:
 
 ```text
-document -> facade -> client presentation
-command document -> daemon apply -> projected result
+canonical document -> managed CultMesh handle -> client presentation/input
+typed operation -> daemon authority -> same canonical document
+projection/native view -> only when the shape is intentionally different
 ```
 
 If a path does not fit that shape, it is probably transitional debt or a bug.

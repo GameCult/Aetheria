@@ -1,10 +1,11 @@
 # Aetheria Verse Client Contract
 
 Aetheria clients should enter the runtime through CultMesh typed state, not through
-daemon internals. The daemon owns simulation authority and publishes daemon state
-as Verse records. Unity, tools, test harnesses, and later non-Unity clients open
-the same state store with the same runtime document registry and read/write typed
-documents through CultNet.
+daemon internals. The daemon owns simulation authority over canonical shared
+documents; it does not own a separate private truth that is then copied into
+client state. Unity, tools, test harnesses, and later non-Unity clients open the
+same state store with the same runtime document registry and read/write the same
+typed documents through CultMesh/CultNet according to authority policy.
 
 The ergonomic contract is stricter than "typed records are available
 somewhere." A client must be able to ask CultMesh for the domain state it wants
@@ -13,6 +14,14 @@ result, operation handle, or native view. The caller should not manually walk
 through daemon frames, projected rows, record keys, schema slots, state refs,
 renderer-local facade indexes, or transport route decisions to reconstruct one
 gameplay value.
+
+The default implementation contract is one canonical document type per gameplay
+state concept. If `AetheriaRuntimeFooDocument` is the gameplay state, that is
+the document the daemon mutates/publishes and the document clients receive from
+the shared assembly. A separate projected document exists only when the shape is
+intentionally different: hidden-info filtering, expensive aggregation, viewport
+windowing, SoA/native layout, lossy UI summaries, surface documents, or a named
+compatibility bridge. "The client needs to see it" is not a projection reason.
 
 The shared entrypoint is `AetheriaRuntimeVerseClient` in the runtime state
 package. It opens a local `CultMeshNode` with the runtime-only Aetheria contract
@@ -55,11 +64,11 @@ handles:
 using var verse = await AetheriaRuntimeVerseClient.OpenAsync(statePath, "tool-client");
 var aetheria = verse.Aetheria();
 
-using var inventory = aetheria.Current.Inventory.Watch(RenderInventory);
-using var docking = aetheria.Current.Docking.Watch(RenderDocking);
-using var dockingBay = aetheria.Current.DockingBay.Watch(RenderDockingBay);
+using var inventory = aetheria.State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+using var docking = aetheria.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+using var support = aetheria.State.Reactive<AetheriaRuntimeStationSupportDocument>();
 
-var stationRefit = await aetheria.Station.Refit.LatestAsync();
+var stationRefit = await aetheria.State.LatestAsync<AetheriaRuntimeStationRefitDocument>();
 var visibleObjects = await aetheria.Zone(currentZoneId)
     .Objects
     .VisibleToCurrentPlayer()
@@ -72,6 +81,13 @@ execute a derived query against the latest daemon frame, subscribe to a remote
 Verse, bind an Eve state pointer, or expose a native slab view. That decision is
 CultMesh infrastructure. The caller gets a typed domain value and diagnostics
 when it asks for them.
+
+Client input follows the same rule. When a runtime has authority or prediction
+rights, mutating the managed typed document is the ergonomic target; CultMesh
+debounces, routes, records the prediction, and reconciles against canonical
+state. When a runtime does not have direct write authority, it submits a typed
+operation handle that the daemon validates and applies to the same canonical
+document.
 
 Unity should treat the client as its Aetheria-facing runtime surface. It can
 still use Burst, DOTS rendering, and native views for presentation, but the state

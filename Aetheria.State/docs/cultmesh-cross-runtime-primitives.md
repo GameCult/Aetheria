@@ -32,6 +32,28 @@ compiles down to the fastest safe path the runtime can prove.
 6. Native views expose zero-copy or near-zero-copy slices when safe, with the same state semantics as remote query/subscription fallbacks.
 7. Schema evolution is part of the developer experience. Bindings and migration manifests come from one source instead of hand-maintained slot maps.
 
+## Canonical State Before Projection
+
+CultMesh should make one canonical typed document feel native everywhere. If a
+feature's game state is `AetheriaRuntimeFooDocument`, the daemon, Unity,
+Electron, browser, tools, and future Rust clients should all hold managed
+handles to that document type. Authority, prediction, debouncing,
+reconciliation, quorum, locality, and transport are handle/runtime behavior,
+not reasons for each application to create a private "truth" object and then a
+client projection copy.
+
+A projection is a different state shape, not the normal visibility mechanism.
+Use projected documents or query surfaces for hidden-information filtering,
+derived aggregation, viewport/windowing, SoA/native memory layout, lossy UI
+summaries, Eve/CultUI surfaces, or temporary compatibility bridges. Do not
+project merely because a client needs to read daemon-owned state.
+
+This rule is cross-runtime. C#, Rust, TypeScript, Unity, browser/WASM, and tool
+hosts should all express the same intent: grab a typed document/collection/query
+handle, read it for display, or mutate/submit through it when authority policy
+allows. CultMesh supplies the managed access conventions and generated handles
+that make that simple.
+
 ## Ownership Boundary
 
 | Belongs in CultMesh/CultLib | Belongs in Aetheria |

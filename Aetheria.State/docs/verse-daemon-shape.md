@@ -6,7 +6,18 @@ Aetheria should follow the Odin/VoidBot daemon shape instead of growing a privat
 
 Odin is the all-seer, not the owner. It discovers Aetheria's provider advertisement and interface bindings, indexes the schema/catalog surface, and gives agents a registry overview. Idunn keeps the daemon alive from daemon-published health and command-boundary records. Bifrost hosts the MCP crossing for Codex and other xeno agents. Eve/CultUI defines presentation shape. The Aetheria daemon remains the side-effect owner.
 
-The daemon owns Aetheria simulation state, typed command application, health publication, command boundaries, provider advertisement, and provider-owned Eve GUI/TUI surfaces. Unity is a renderer and input lowerer. A browser, a terminal, Blender, or another runtime should see the same daemon-owned Verse through the same typed publications.
+The daemon owns authority over Aetheria simulation state, typed command
+application, health publication, command boundaries, provider advertisement,
+and provider-owned Eve GUI/TUI surfaces. Authority does not imply a private
+daemon truth plus a separate client state copy. Wherever possible, the daemon
+mutates and publishes the canonical shared typed document, and Unity, a browser,
+a terminal, Blender, or another runtime grabs a managed handle to that same
+document type through CultMesh.
+
+Projection documents are for different shapes: hidden-information filtering,
+derived aggregation, viewport/windowing, SoA/native render layout, lossy UI
+summaries, Eve/CultUI surfaces, and named compatibility bridges. A projection is
+not required merely because a non-daemon runtime needs to read state.
 
 Witness-authoritative networking sharpens this rule. Unity should not be a dumb terminal; it may hold local projection caches, prediction state, render-native SoA views, and eventually immutable witness observations for facts it could actually observe under the active Verse rules. Those local records are admissible testimony, not committed truth. Observation, prediction, consensus candidates, and committed facts are separate stages. Unity can lower input documents, predict local presentation, and publish typed witness documents through CultMesh, but it must not mutate canonical Aetheria state or promote a local projection cache into authority.
 

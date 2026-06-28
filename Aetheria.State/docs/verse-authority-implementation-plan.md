@@ -1370,7 +1370,7 @@ Current staged work order:
 
 | Order | Build now | Code surface | Verifier | Demolition rule |
 | --- | --- | --- | --- | --- |
-| 1 | Finish S2 station/refit read parity. `current_entity`, `current_docking`, inventory rows, source slot identity, and loadout templates are already moving; split remaining station stock, docked ship, cargo, equipment, pricing, and refit eligibility reads into named projections. | `AetheriaRuntimeRtsProjection`, `AetheriaRuntimeRtsViewportDocuments`, `AetheriaClient`, Unity inventory/trade menus, generated TS bindings. | `verify-stage7d-unity-parity.ps1`, `Aetheria.State.Verify`, `AuthoritySmoke`, `npm run check:rts-bindings`, Unity compile. | Menu logic may adapt Unity controls, but station/refit truth may not come from manager-global observed cargo, docked ship, catalog, pricing, or loadout caches. |
+| 1 | Finish S2 station/refit read parity. `current_entity`, `current_docking`, inventory rows, source slot identity, and loadout templates are already moving; split remaining station stock, docked ship, cargo, equipment, pricing, and refit eligibility reads into canonical typed documents or derived projections as appropriate. | `AetheriaRuntimeRtsProjection`, `AetheriaRuntimeRtsViewportDocuments`, `AetheriaClient`, Unity inventory/trade menus, generated TS bindings. | `verify-stage7d-unity-parity.ps1`, `Aetheria.State.Verify`, `AuthoritySmoke`, `npm run check:rts-bindings`, Unity compile. | Menu logic may adapt Unity controls, but station/refit truth may not come from manager-global observed cargo, docked ship, catalog, pricing, or loadout caches. |
 | 2 | Add S2 typed refit operation parity. Dock, undock, select docked ship, equip, store, transfer, restore loadout, and purchase/refit become named operations with typed receipts. | `AetheriaRuntimeDaemonOperationClient`, `AetheriaRuntimeVerseClient`, generated TS operation bindings, Unity/Electron facade methods, daemon operation validation. | Cross-client operation smoke: one runtime issues an allowed refit operation, the other observes the committed result through local Verse state. | Delete or quarantine any public client path that mutates inventory/loadout through operation strings, raw item bags, UI-local rules, or Unity checkpoint rewrites. |
 | 3 | Contract Unity to a render/input shell for S2. Inventory/trade UI can remain Unity UI, but every gameplay read/write goes through typed state. | `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `ActionGameManager`, `ZoneRenderer` shims. | Stage 7D verifier rejects direct manager-global refit reads, public manager gameplay reads, new command buses, and Unity-only command paths. | Remaining facade-object bridges must validate daemon keys against typed projections and name the Stage 8 projection/native slab that deletes them. |
 | 4 | Prove 7E.1 two-client local Verse parity. Raven Unity and Starfire Electron are peers with separate local Verse nodes, not one runtime viewing another runtime's projection. | launch harness, scoped peer sync, committed facts, session/refit/authority projections, diagnostics. | Raven/Starfire smoke: both clients see the same session, station/refit state, controlled entities, policy id, and fact receipts through local Verse state. | No test may prove co-op by reading a remote viewport or one daemon's debug projection as gameplay state. |
@@ -1406,11 +1406,19 @@ Implementation discipline:
 - Treat every Starbridge feature as either `state`, `projection`, `operation`,
   `policy`, or `presentation`. If it does not fit one of those boxes, stop and
   define the missing typed primitive first.
+- Start with one canonical shared typed document for gameplay state wherever
+  possible. Daemon authority mutates/publishes that document; clients receive
+  the same document type from the shared assembly and read or write it through a
+  managed CultMesh handle according to authority policy.
+- Add a projection only when the shape is intentionally different: hidden-info
+  filtering, aggregation, viewport/windowing, SoA/native layout, UI summaries,
+  Eve/CultUI surfaces, or a named compatibility bridge.
 - Build vertical proof slices, not horizontal subsystems. A slice is better
   when it proves one designer-visible verb end to end than when it creates ten
   unused abstractions.
-- Prefer small daemon-owned facts plus local projections over broad documents
-  that become the next viewport-shaped dumping ground.
+- Prefer small canonical facts over broad documents that become the next
+  viewport-shaped dumping ground. Use local projections for derived views, not
+  merely to make canonical state visible to clients.
 - Every UI feature must name the typed state it reads and the typed operation it
   submits. A button without that contract is not ready to implement.
 - Every temporary Unity facade bridge must validate daemon keys against a typed
@@ -1745,7 +1753,10 @@ Progress:
   status, station stock, wave forecast, and runtime roles from daemon frame plus
   optional scenario/session documents without going through an RTS viewport.
 - `AetheriaClient.StarbridgeSessionSummaryAsync` exposes that projection as a
-  named facade read for Unity, Electron, and future clients.
+  semantic managed read for Unity, Electron, and future clients. New canonical
+  state should prefer generic typed document handles; named reads are justified
+  when they carry derived/query identity rather than single-document wrapper
+  convenience.
 - `AetheriaRuntimeVerseClient` now owns latest Starbridge scenario/session
   record keys plus typed put/read/watch helpers; the facade resolves those local
   Verse records automatically when callers ask for a session summary.
