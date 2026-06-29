@@ -9,12 +9,12 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.PostProcessing;
 using static Unity.Mathematics.math;
 
-public sealed class AetheriaUnityPilotFrameAdapter
+public sealed class AetheriaUnityPilotFrameController
 {
     private float2 _entityYawPitch;
     private readonly Action<float3> _setViewDirection;
 
-    public AetheriaUnityPilotFrameAdapter(Action<float3> setViewDirection)
+    public AetheriaUnityPilotFrameController(Action<float3> setViewDirection)
     {
         _setViewDirection = setViewDirection ?? (_ => { });
     }

@@ -2027,10 +2027,10 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var targetPresentation = File.Exists(targetPresentationPath)
         ? File.ReadAllText(targetPresentationPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityTargetPresentation.cs is missing.");
-    var pilotFrameAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameAdapter.cs");
-    var pilotFrameAdapter = File.Exists(pilotFrameAdapterPath)
-        ? File.ReadAllText(pilotFrameAdapterPath)
-        : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityPilotFrameAdapter.cs is missing.");
+    var pilotFrameControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameController.cs");
+    var pilotFrameController = File.Exists(pilotFrameControllerPath)
+        ? File.ReadAllText(pilotFrameControllerPath)
+        : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityPilotFrameController.cs is missing.");
     var gameplayInputShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayInputShell.cs");
     var gameplayInputShell = File.Exists(gameplayInputShellPath)
         ? File.ReadAllText(gameplayInputShellPath)
@@ -2047,7 +2047,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityGameplayBootShell.cs is missing.");
-    var unityRenderPresentation = actionGameManager + "\n" + targetPresentation + "\n" + pilotFrameAdapter + "\n" + gameplayInputShell + "\n" + renderSettingsBridge + "\n" + cockpitHudShell + "\n" + gameplayBootShell;
+    var unityRenderPresentation = actionGameManager + "\n" + targetPresentation + "\n" + pilotFrameController + "\n" + gameplayInputShell + "\n" + renderSettingsBridge + "\n" + cockpitHudShell + "\n" + gameplayBootShell;
 
     var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
     var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
@@ -4478,7 +4478,7 @@ static void RequireActionGameManagerInputScreenUsesSharedFullscreenPrimitive(str
         "public AetheriaUnityMenuShell MenuShell { get; set; }",
         "Input.Global.InputScreen.performed += context => MenuShell.ToggleFullscreenMenu(MenuShell.HelpScreen);",
         "Input.Global.ZoneMap.performed += context =>",
-        "Input.Player.TargetNearest.performed += context => PilotOperationAdapter.RequestTargetNearest();",
+        "Input.Player.TargetNearest.performed += context => PilotOperationController.RequestTargetNearest();",
         "private void RegisterActionBarInput()",
         "DragSession.RegisterTarget(dragAction => ActionBarPresentation.RequestBinding(slot, dragAction));"
     };
@@ -10153,7 +10153,7 @@ static void RequireTypedDaemonCommandPayloads(string root)
     if (unityDocumentSubmitHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity daemon operation adapters still fill command documents instead of delegating to typed runtime operations: " +
+            "Unity daemon operation controllers still fill command documents instead of delegating to typed runtime operations: " +
             string.Join(", ", unityDocumentSubmitHits));
     }
 
@@ -12760,10 +12760,10 @@ static void RequireMainMenuContinueRunState(string root)
     var observedFrameApplier = File.Exists(observedFrameApplierPath)
         ? File.ReadAllText(observedFrameApplierPath)
         : throw new InvalidOperationException("Cannot verify Continue frame application; AetheriaUnityObservedFrameApplier.cs is missing.");
-    var pilotFrameAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameAdapter.cs");
-    var pilotFrameAdapter = File.Exists(pilotFrameAdapterPath)
-        ? File.ReadAllText(pilotFrameAdapterPath)
-        : throw new InvalidOperationException("Cannot verify Continue pilot frame adapter; AetheriaUnityPilotFrameAdapter.cs is missing.");
+    var pilotFrameControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameController.cs");
+    var pilotFrameController = File.Exists(pilotFrameControllerPath)
+        ? File.ReadAllText(pilotFrameControllerPath)
+        : throw new InvalidOperationException("Cannot verify Continue pilot frame controller; AetheriaUnityPilotFrameController.cs is missing.");
     var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
     if (File.Exists(legacyUnityDaemonEntitySnapshotProjectorPath))
     {
@@ -12844,8 +12844,8 @@ static void RequireMainMenuContinueRunState(string root)
         "private AetheriaUnityCurrentEntityBinder CurrentEntityBinder =>",
         "private readonly AetheriaUnityCurrentEntityPresentation _currentEntityPresentation",
         "CurrentEntityPresentation = _currentEntityPresentation",
-        "private AetheriaUnityPilotFrameAdapter PilotFrameAdapter =>",
-        "PilotFrameAdapter = PilotFrameAdapter",
+        "private AetheriaUnityPilotFrameController PilotFrameController =>",
+        "PilotFrameController = PilotFrameController",
         "SceneWiring.ConfigureCurrentEntityPresentation(_currentEntityPresentation, boot.RuntimeCatalog)",
         "SceneWiring.ConfigureTargetPresentation("
     };
@@ -13301,9 +13301,9 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", missingTargetPresentationSymbols));
     }
 
-    var requiredPilotFrameAdapterSymbols = new[]
+    var requiredPilotFrameControllerSymbols = new[]
     {
-        "public sealed class AetheriaUnityPilotFrameAdapter",
+        "public sealed class AetheriaUnityPilotFrameController",
         "public void Tick(Entity currentEntity, float deltaTime, float timeSeconds)",
         "TargetPresentation?.Tick(currentEntity, timeSeconds)",
         "Input.Player.Look.ReadValue<Vector2>()",
@@ -13315,14 +13315,14 @@ static void RequireMainMenuContinueRunState(string root)
         "Input.Player.TractorBeam.ReadValue<float>()",
         "PilotCommands.RequestTractorPower(Saturate("
     };
-    var missingPilotFrameAdapterSymbols = requiredPilotFrameAdapterSymbols
-        .Where(symbol => !pilotFrameAdapter.Contains(symbol, StringComparison.Ordinal))
+    var missingPilotFrameControllerSymbols = requiredPilotFrameControllerSymbols
+        .Where(symbol => !pilotFrameController.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingPilotFrameAdapterSymbols.Length > 0)
+    if (missingPilotFrameControllerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Undocked pilot-frame input/presentation policy must live in AetheriaUnityPilotFrameAdapter instead of ActionGameManager: " +
-            string.Join(", ", missingPilotFrameAdapterSymbols));
+            "Undocked pilot-frame input/presentation policy must live in AetheriaUnityPilotFrameController instead of ActionGameManager: " +
+            string.Join(", ", missingPilotFrameControllerSymbols));
     }
 
     var forbiddenManagerPilotFrameSymbols = new[]
@@ -13342,7 +13342,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (managerPilotFrameHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager still owns undocked pilot-frame input/presentation internals instead of delegating to AetheriaUnityPilotFrameAdapter: " +
+            "ActionGameManager still owns undocked pilot-frame input/presentation internals instead of delegating to AetheriaUnityPilotFrameController: " +
             string.Join(", ", managerPilotFrameHits));
     }
 
@@ -13534,7 +13534,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CurrentEntity.VisibleFriendlies.ObserveAdd()",
         "CurrentEntity.VisibleFriendlies.ObserveRemove()",
         "_currentEntityPresentation.Tick(Time.deltaTime);",
-        "PilotFrameAdapter.Tick(CurrentEntity, Time.deltaTime, Time.time)",
+        "PilotFrameController.Tick(CurrentEntity, Time.deltaTime, Time.time)",
         "_targetPresentation.UpdateTargetIndicators(",
         "foreach (var hostile in CurrentEntity.VisibleEnemies)",
         "foreach (var friendly in CurrentEntity.VisibleFriendlies)",
@@ -13694,8 +13694,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
     var pilotCommandSenderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotCommandSender.cs");
-    var pilotFrameAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameAdapter.cs");
-    var pilotOperationAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationAdapter.cs");
+    var pilotFrameControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameController.cs");
+    var pilotOperationControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationController.cs");
+    var legacyPilotFrameAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameAdapter.cs");
+    var legacyPilotOperationAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationAdapter.cs");
     var observedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
     var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
@@ -13734,12 +13736,20 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var pilotCommandSender = File.Exists(pilotCommandSenderPath)
         ? File.ReadAllText(pilotCommandSenderPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityPilotCommandSender.cs is missing.");
-    var pilotFrameAdapter = File.Exists(pilotFrameAdapterPath)
-        ? File.ReadAllText(pilotFrameAdapterPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityPilotFrameAdapter.cs is missing.");
-    var pilotOperationAdapter = File.Exists(pilotOperationAdapterPath)
-        ? File.ReadAllText(pilotOperationAdapterPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityPilotOperationAdapter.cs is missing.");
+    var pilotFrameController = File.Exists(pilotFrameControllerPath)
+        ? File.ReadAllText(pilotFrameControllerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityPilotFrameController.cs is missing.");
+    var pilotOperationController = File.Exists(pilotOperationControllerPath)
+        ? File.ReadAllText(pilotOperationControllerPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityPilotOperationController.cs is missing.");
+    if (File.Exists(legacyPilotFrameAdapterPath) ||
+        File.Exists(legacyPilotOperationAdapterPath) ||
+        actionGameManager.Contains("AetheriaUnityPilotFrameAdapter", StringComparison.Ordinal) ||
+        actionGameManager.Contains("AetheriaUnityPilotOperationAdapter", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity pilot control must be owned by named controllers; adapter-shaped pilot access is obsolete.");
+    }
     var observedTargetQuery = File.Exists(observedTargetQueryPath)
         ? File.ReadAllText(observedTargetQueryPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedTargetQuery.cs is missing.");
@@ -13849,9 +13859,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "EntityBlueprintMaterializer.MaterializeObservedEntity",
         "_loadoutItemFactory.CreateLoadoutItem",
         "private AetheriaUnityPilotCommandSender PilotCommands =>",
-        "private AetheriaUnityPilotFrameAdapter PilotFrameAdapter =>",
-        "PilotFrameAdapter = PilotFrameAdapter",
-        "private AetheriaUnityPilotOperationAdapter PilotOperationAdapter =>",
+        "private AetheriaUnityPilotFrameController PilotFrameController =>",
+        "PilotFrameController = PilotFrameController",
+        "private AetheriaUnityPilotOperationController PilotOperationController =>",
         "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
         "SceneWiring.ConfigureTargetPresentation("
     };
@@ -14025,9 +14035,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", managerFrameApplicationHits));
     }
 
-    var requiredPilotFrameAdapterSymbols = new[]
+    var requiredPilotFrameControllerSymbols = new[]
     {
-        "public sealed class AetheriaUnityPilotFrameAdapter",
+        "public sealed class AetheriaUnityPilotFrameController",
         "public void Tick(Entity currentEntity, float deltaTime, float timeSeconds)",
         "TargetPresentation?.Tick(currentEntity, timeSeconds)",
         "Input.Player.Look.ReadValue<Vector2>()",
@@ -14039,14 +14049,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "Input.Player.TractorBeam.ReadValue<float>()",
         "PilotCommands.RequestTractorPower(Saturate("
     };
-    var missingPilotFrameAdapterSymbols = requiredPilotFrameAdapterSymbols
-        .Where(symbol => !pilotFrameAdapter.Contains(symbol, StringComparison.Ordinal))
+    var missingPilotFrameControllerSymbols = requiredPilotFrameControllerSymbols
+        .Where(symbol => !pilotFrameController.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingPilotFrameAdapterSymbols.Length > 0)
+    if (missingPilotFrameControllerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity observer pilot-frame input and presentation policy must live in AetheriaUnityPilotFrameAdapter instead of ActionGameManager: " +
-            string.Join(", ", missingPilotFrameAdapterSymbols));
+            "Unity observer pilot-frame input and presentation policy must live in AetheriaUnityPilotFrameController instead of ActionGameManager: " +
+            string.Join(", ", missingPilotFrameControllerSymbols));
     }
 
     var forbiddenManagerPilotFrameSymbols = new[]
@@ -14070,9 +14080,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", managerPilotFrameHits));
     }
 
-    var requiredPilotOperationAdapterSymbols = new[]
+    var requiredPilotOperationControllerSymbols = new[]
     {
-        "public sealed class AetheriaUnityPilotOperationAdapter",
+        "public sealed class AetheriaUnityPilotOperationController",
         "public void RequestInteract()",
         "public void RequestTargetSelection(Entity target)",
         "public void RequestTargetReticle()",
@@ -14094,14 +14104,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "operations => operations.Undock()",
         "_resolvePilotCommands()?.TrySubmit(submit, label)"
     };
-    var missingPilotOperationAdapterSymbols = requiredPilotOperationAdapterSymbols
-        .Where(symbol => !pilotOperationAdapter.Contains(symbol, StringComparison.Ordinal))
+    var missingPilotOperationControllerSymbols = requiredPilotOperationControllerSymbols
+        .Where(symbol => !pilotOperationController.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingPilotOperationAdapterSymbols.Length > 0)
+    if (missingPilotOperationControllerSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity pilot operation lowering must live in AetheriaUnityPilotOperationAdapter instead of ActionGameManager: " +
-            string.Join(", ", missingPilotOperationAdapterSymbols));
+            "Unity pilot operation lowering must live in AetheriaUnityPilotOperationController instead of ActionGameManager: " +
+            string.Join(", ", missingPilotOperationControllerSymbols));
     }
 
     var forbiddenManagerOperationLoweringSymbols = new[]
@@ -14127,7 +14137,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     if (managerOperationLoweringHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager still owns typed daemon operation lowering instead of delegating to AetheriaUnityPilotOperationAdapter: " +
+            "ActionGameManager still owns typed daemon operation lowering instead of delegating to AetheriaUnityPilotOperationController: " +
             string.Join(", ", managerOperationLoweringHits));
     }
 
@@ -14592,15 +14602,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredDockingLoweringSymbols = new[]
     {
-        "private AetheriaUnityPilotOperationAdapter PilotOperationAdapter =>",
-        "PilotOperationAdapter = PilotOperationAdapter",
-        "public sealed class AetheriaUnityPilotOperationAdapter",
+        "private AetheriaUnityPilotOperationController PilotOperationController =>",
+        "PilotOperationController = PilotOperationController",
+        "public sealed class AetheriaUnityPilotOperationController",
         "operations => operations.DockNearest()",
         "operations => operations.Undock()",
         "operations => operations.Interact()"
     };
 
-    var dockingLoweringSource = actionGameManager + "\n" + pilotOperationAdapter;
+    var dockingLoweringSource = actionGameManager + "\n" + pilotOperationController;
     var missingDockingLoweringSymbols = requiredDockingLoweringSymbols
         .Where(symbol => !dockingLoweringSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -14623,7 +14633,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private void RequestUndock()",
         "private void RequestInteract()",
         "private void RequestTowToStation()",
-        "PilotOperationAdapter.RequestTowToStation(_towingStation)",
+        "PilotOperationController.RequestTowToStation(_towingStation)",
         "public void RequestTowToStation(Entity towingStation)",
         "_towingStation",
         "UpdateTowingStation",
@@ -14738,7 +14748,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredShieldToggleSymbols = new[]
     {
-        "PilotOperationAdapter.RequestShieldToggle()",
+        "PilotOperationController.RequestShieldToggle()",
         "operations => operations.ToggleShieldEnabled()",
         "AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled",
         "ApplyToggleEquipmentBehaviorItem(run, command, \"Shield\""
@@ -14747,7 +14757,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var gameplayInputShell = File.Exists(gameplayInputShellPath)
         ? File.ReadAllText(gameplayInputShellPath)
         : throw new InvalidOperationException("Cannot verify Unity shield input lowering; AetheriaUnityGameplayInputShell.cs is missing.");
-    var unityPilotOperationSources = actionGameManager + "\n" + pilotOperationAdapter + "\n" + gameplayInputShell;
+    var unityPilotOperationSources = actionGameManager + "\n" + pilotOperationController + "\n" + gameplayInputShell;
     var missingShieldToggleSymbols = requiredShieldToggleSymbols
         .Where(symbol =>
             !unityPilotOperationSources.Contains(symbol, StringComparison.Ordinal) &&
@@ -14826,7 +14836,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "operations => operations.TargetPrevious()",
         "operations => operations.TargetReticle("
     };
-    var unityTargetRequestSources = actionGameManager + "\n" + pilotOperationAdapter + "\n" + daemonOperations;
+    var unityTargetRequestSources = actionGameManager + "\n" + pilotOperationController + "\n" + daemonOperations;
     var missingUnityTargetRequestSymbols = requiredUnityTargetRequestSymbols
         .Where(symbol => !unityTargetRequestSources.Contains(symbol, StringComparison.Ordinal))
         .ToArray();

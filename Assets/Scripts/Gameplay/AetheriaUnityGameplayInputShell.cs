@@ -32,7 +32,7 @@ public sealed class AetheriaUnityGameplayInputShell : IDisposable
     public AetheriaUnityMenuShell MenuShell { get; set; }
     public AetheriaUnityDragSession DragSession { get; set; }
     public AetheriaUnityActionBarPresentation ActionBarPresentation { get; set; }
-    public AetheriaUnityPilotOperationAdapter PilotOperationAdapter { get; set; }
+    public AetheriaUnityPilotOperationController PilotOperationController { get; set; }
     public Func<Entity> ResolveCurrentEntity { get; set; }
     public Action<AetheriaInput> SetInput { get; set; }
 
@@ -120,7 +120,7 @@ public sealed class AetheriaUnityGameplayInputShell : IDisposable
                 return;
             }
 
-            PilotOperationAdapter.RequestInteract();
+            PilotOperationController.RequestInteract();
         };
 
         Input.Global.MainMenu.performed += context =>
@@ -153,21 +153,21 @@ public sealed class AetheriaUnityGameplayInputShell : IDisposable
         {
             var currentEntity = ResolveCurrentEntity?.Invoke();
             if (currentEntity != null)
-                PilotOperationAdapter.RequestOverrideShutdown(!currentEntity.OverrideShutdown);
+                PilotOperationController.RequestOverrideShutdown(!currentEntity.OverrideShutdown);
         };
 
-        Input.Player.Ping.performed += context => PilotOperationAdapter.RequestSensorPing();
+        Input.Player.Ping.performed += context => PilotOperationController.RequestSensorPing();
         Input.Player.ToggleHeatsinks.performed += context =>
         {
             var currentEntity = ResolveCurrentEntity?.Invoke();
             if (currentEntity != null)
-                PilotOperationAdapter.RequestHeatsinksEnabled(!currentEntity.HeatsinksEnabled);
+                PilotOperationController.RequestHeatsinksEnabled(!currentEntity.HeatsinksEnabled);
         };
-        Input.Player.ToggleShield.performed += context => PilotOperationAdapter.RequestShieldToggle();
-        Input.Player.TargetReticle.performed += context => PilotOperationAdapter.RequestTargetReticle();
-        Input.Player.TargetNearest.performed += context => PilotOperationAdapter.RequestTargetNearest();
-        Input.Player.TargetNext.performed += context => PilotOperationAdapter.RequestTargetNext();
-        Input.Player.TargetPrevious.performed += context => PilotOperationAdapter.RequestTargetPrevious();
+        Input.Player.ToggleShield.performed += context => PilotOperationController.RequestShieldToggle();
+        Input.Player.TargetReticle.performed += context => PilotOperationController.RequestTargetReticle();
+        Input.Player.TargetNearest.performed += context => PilotOperationController.RequestTargetNearest();
+        Input.Player.TargetNext.performed += context => PilotOperationController.RequestTargetNext();
+        Input.Player.TargetPrevious.performed += context => PilotOperationController.RequestTargetPrevious();
     }
 
     private void RegisterActionBarInput()

@@ -20,8 +20,8 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedEntityRestorer _observedEntityRestorer;
     private AetheriaUnityCurrentEntityBinder _currentEntityBinder;
     private AetheriaUnityObservedZoneContextFactory _observedZoneContextFactory;
-    private AetheriaUnityPilotFrameAdapter _pilotFrameAdapter;
-    private AetheriaUnityPilotOperationAdapter _pilotOperationAdapter;
+    private AetheriaUnityPilotFrameController _pilotFrameController;
+    private AetheriaUnityPilotOperationController _pilotOperationController;
     private AetheriaUnityObservedTargetQuery _observedTargetQuery;
     private AetheriaUnityObservedFrameApplier _observedFrameApplier;
     private AetheriaUnityEntityBlueprintMaterializer _entityBlueprintMaterializer;
@@ -71,8 +71,8 @@ public class ActionGameManager : MonoBehaviour
             PlayMusic = PlayMusic,
             UpdateTargetPanel = target => CockpitHudShell.UpdateTarget(target, CurrentEntity)
         };
-    private AetheriaUnityPilotFrameAdapter PilotFrameAdapter =>
-        _pilotFrameAdapter ??= new AetheriaUnityPilotFrameAdapter(direction => _viewDirection = direction)
+    private AetheriaUnityPilotFrameController PilotFrameController =>
+        _pilotFrameController ??= new AetheriaUnityPilotFrameController(direction => _viewDirection = direction)
         {
             ZoneRenderer = ZoneRenderer,
             Input = Input,
@@ -82,8 +82,8 @@ public class ActionGameManager : MonoBehaviour
             SevereHeatstrokePost = SevereHeatstrokePost,
             Sensitivity = Sensitivity
         };
-    private AetheriaUnityPilotOperationAdapter PilotOperationAdapter =>
-        _pilotOperationAdapter ??= new AetheriaUnityPilotOperationAdapter(
+    private AetheriaUnityPilotOperationController PilotOperationController =>
+        _pilotOperationController ??= new AetheriaUnityPilotOperationController(
             () => PilotCommands,
             _observedEntityIndex,
             () => _viewDirection,
@@ -141,7 +141,7 @@ public class ActionGameManager : MonoBehaviour
             MenuShell = MenuShell,
             DragSession = _dragSession,
             ActionBarPresentation = _actionBarPresentation,
-            PilotOperationAdapter = PilotOperationAdapter,
+            PilotOperationController = PilotOperationController,
             ResolveCurrentEntity = () => CurrentEntity,
             SetInput = input => Input = input
         };
@@ -161,7 +161,7 @@ public class ActionGameManager : MonoBehaviour
             IsCurrentEntityUndocked = IsCurrentEntityObservedUndocked,
             ApplyLatestZoneRender = () => ObservedFrameApplier.ApplyLatestZoneRender(),
             CurrentEntityPresentation = _currentEntityPresentation,
-            PilotFrameAdapter = PilotFrameAdapter,
+            PilotFrameController = PilotFrameController,
             TargetPresentation = _targetPresentation
         };
     private AetheriaUnityGameplayBootShell GameplayBootShell =>

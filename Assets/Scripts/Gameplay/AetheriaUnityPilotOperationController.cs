@@ -6,14 +6,14 @@ using System;
 using GameCult.Aetheria.State.Verse;
 using Unity.Mathematics;
 
-public sealed class AetheriaUnityPilotOperationAdapter
+public sealed class AetheriaUnityPilotOperationController
 {
     private readonly Func<AetheriaUnityPilotCommandSender> _resolvePilotCommands;
     private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private readonly Func<float3> _resolveViewDirection;
     private readonly Func<Entity> _resolveCurrentEntity;
 
-    public AetheriaUnityPilotOperationAdapter(
+    public AetheriaUnityPilotOperationController(
         Func<AetheriaUnityPilotCommandSender> resolvePilotCommands,
         AetheriaUnityObservedEntityIndex observedEntityIndex,
         Func<float3> resolveViewDirection,

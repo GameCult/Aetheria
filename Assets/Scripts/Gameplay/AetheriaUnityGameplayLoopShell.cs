@@ -11,7 +11,7 @@ public sealed class AetheriaUnityGameplayLoopShell
     public Func<bool> IsCurrentEntityUndocked { get; set; }
     public Action ApplyLatestZoneRender { get; set; }
     public AetheriaUnityCurrentEntityPresentation CurrentEntityPresentation { get; set; }
-    public AetheriaUnityPilotFrameAdapter PilotFrameAdapter { get; set; }
+    public AetheriaUnityPilotFrameController PilotFrameController { get; set; }
     public AetheriaUnityTargetPresentation TargetPresentation { get; set; }
 
     public void Tick(float deltaTime, float time)
@@ -22,7 +22,7 @@ public sealed class AetheriaUnityGameplayLoopShell
         ApplyLatestZoneRender?.Invoke();
         CurrentEntityPresentation?.Tick(deltaTime);
         if (IsCurrentEntityUndocked?.Invoke() == true)
-            PilotFrameAdapter?.Tick(ResolveCurrentEntity?.Invoke(), deltaTime, time);
+            PilotFrameController?.Tick(ResolveCurrentEntity?.Invoke(), deltaTime, time);
     }
 
     public void LateTick()
