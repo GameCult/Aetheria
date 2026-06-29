@@ -174,7 +174,7 @@ public class SchematicDisplay : MonoBehaviour
         {
             if (!_enemy)
             {
-                var hud = ResolveCurrentEntityHudStatus();
+                var hud = CurrentEntityHudStatus();
                 OverrideIcon.SetActive(hud.OverrideShutdown && cos(Time.time * OverrideIconBlinkSpeed) > 0);
                 ShieldIcon.SetActive(hud.ShieldActive);
                 if (hud.RadiatorCount == 1)
@@ -244,7 +244,7 @@ public class SchematicDisplay : MonoBehaviour
 
             if (!_enemy)
             {
-                var hud = ResolveCurrentEntityHudStatus();
+                var hud = CurrentEntityHudStatus();
                 if(VisibilityLabel)
                     VisibilityLabel.text = ((int)hud.Visibility).ToString();
 
@@ -315,13 +315,13 @@ public class SchematicDisplay : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedItem(ItemInstance item)
     {
-        return ResolveCatalog()?.Current?.FindItem(item, x => x.ItemKey);
+        return CatalogSnapshot()?.FindItem(item, x => x.ItemKey);
     }
 
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ResolveCatalog()
+    private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
         if (_catalog != null)
-            return _catalog;
+            return _catalog.Current;
 
         try
         {
@@ -333,10 +333,10 @@ public class SchematicDisplay : MonoBehaviour
             Debug.LogWarning($"Failed to bind Aetheria runtime catalog for schematic display: {ex.Message}");
         }
 
-        return _catalog;
+        return _catalog?.Current;
     }
 
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
         if (_playerSettings == null)
         {
@@ -354,7 +354,7 @@ public class SchematicDisplay : MonoBehaviour
         return _playerSettings?.Current;
     }
 
-    private AetheriaRuntimeCurrentEntityHudStatus ResolveCurrentEntityHudStatus()
+    private AetheriaRuntimeCurrentEntityHudStatus CurrentEntityHudStatus()
     {
         if (_currentEntity == null)
         {
@@ -374,7 +374,7 @@ public class SchematicDisplay : MonoBehaviour
 
     private string FormatValue(float value)
     {
-        var settings = ResolvePlayerSettings();
+        var settings = PlayerSettingsSnapshot();
         var significantDigits = settings?.SignificantDigits ?? 3;
         var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
         var digits = significantDigits - magnitude;
@@ -391,7 +391,7 @@ public class SchematicDisplay : MonoBehaviour
 
     private string FormatTemperature(float value)
     {
-        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        var unit = PlayerSettingsSnapshot()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
         if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
             return $"{FormatValue(value)} K";
         if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))

@@ -2563,8 +2563,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "ResolveCatalog()",
-        "ResolveCurrentEntityHudStatus()",
+        "CatalogSnapshot()",
+        "CurrentEntityHudStatus()",
         ".ReactiveCatalogSnapshot(\"unity-schematic-display\")",
         ".ReactivePlayerSettingsDocument(\"unity-schematic-display\")",
         ".ReactiveCurrentEntity(\"unity-schematic-display\")",
@@ -7671,7 +7671,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_currentEntity?.Dispose()",
-        "ResolveCatalog()?.Current?.FindItem(item, x => x.ItemKey)",
+        "CatalogSnapshot()?.FindItem(item, x => x.ItemKey)",
+        "private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()",
+        "private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()",
+        "private AetheriaRuntimeCurrentEntityHudStatus CurrentEntityHudStatus()",
         "return _playerSettings?.Current;",
         "private void OnDestroy()"
     };
@@ -7683,6 +7686,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         throw new InvalidOperationException(
             "SchematicDisplay should bind shared catalog/settings/current-entity HUD through managed reactive typed documents: " +
             string.Join(", ", missingSchematicDisplaySymbols));
+    }
+    if (schematicDisplay.Contains("ResolveCatalog()?.Current?.FindItem", StringComparison.Ordinal) ||
+        schematicDisplay.Contains("private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ResolveCatalog()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "SchematicDisplay should expose catalog values through CatalogSnapshot() instead of returning reactive document plumbing to callers.");
     }
 
     var forbiddenSchematicDisplaySymbols = new[]
