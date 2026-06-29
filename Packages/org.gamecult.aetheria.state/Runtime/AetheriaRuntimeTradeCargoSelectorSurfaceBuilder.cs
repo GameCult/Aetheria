@@ -98,17 +98,18 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeTradeCargoSelectorSurfaceModel
     {
         public AetheriaRuntimeTradeCargoSelectorSurfaceModel(
-            AetheriaRuntimeTradeCargoSelectorSurfaceState state,
+            AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> selections)
         {
-            State = state ?? new AetheriaRuntimeTradeCargoSelectorSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeCargoTargetOption>(),
-                "");
+            Document = document ?? AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(
+                new AetheriaRuntimeTradeCargoSelectorSurfaceState(
+                    "",
+                    Array.Empty<AetheriaRuntimeTradeCargoTargetOption>(),
+                    ""));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeCargoSelection>(StringComparer.Ordinal);
         }
 
-        public AetheriaRuntimeTradeCargoSelectorSurfaceState State { get; }
+        public AetheriaRuntimeSurfaceDocument Document { get; }
         public IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> Selections { get; }
 
         public bool TryResolve(string command, out AetheriaRuntimeTradeCargoSelection selection)
@@ -128,7 +129,7 @@ namespace GameCult.Aetheria.State.Verse
             return $"{SurfaceId}.ship_{shipIndex}_bay_{bayIndex}";
         }
 
-        public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(
+        public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Build(
             string currentTarget,
             IEnumerable<AetheriaRuntimeTradeCargoModelOption> targets,
             string updatedAtUtc)
@@ -165,12 +166,12 @@ namespace GameCult.Aetheria.State.Verse
                     target.BayIndex);
             }
 
-            return new AetheriaRuntimeTradeCargoSelectorSurfaceModel(
-                new AetheriaRuntimeTradeCargoSelectorSurfaceState(
-                    currentTarget,
-                    options,
-                    updatedAtUtc),
-                selections);
+            var state = new AetheriaRuntimeTradeCargoSelectorSurfaceState(
+                currentTarget,
+                options,
+                updatedAtUtc);
+
+            return new AetheriaRuntimeTradeCargoSelectorSurfaceModel(Build(state), selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(

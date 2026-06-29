@@ -1136,13 +1136,13 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderCargoSelectorSurface()
     {
-        _cargoSelectorSurfaceModel = ComposeTradeCargoSelectorSurface();
+        _cargoSelectorSurfaceModel = BuildTradeCargoSelectorSurfaceModel();
 
         _cargoSelectorSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _cargoSelectorSurfaceDocument,
             "Aetheria Trade Cargo Selector Surface",
-            AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceModel.State),
+            _cargoSelectorSurfaceModel.Document,
             HandleCargoSelectorSurfaceCommand,
             _cargoSelectorSurfaceChrome);
     }
@@ -1200,7 +1200,7 @@ public class TradeMenu : MonoBehaviour
         };
     }
 
-    private AetheriaRuntimeTradeCargoSelectorSurfaceModel ComposeTradeCargoSelectorSurface()
+    private AetheriaRuntimeTradeCargoSelectorSurfaceModel BuildTradeCargoSelectorSurfaceModel()
     {
         var targets = new List<AetheriaRuntimeTradeCargoModelOption>();
         var stationRefit = ResolveStationRefit();
@@ -1228,7 +1228,7 @@ public class TradeMenu : MonoBehaviour
                 target.BayIndex,
                 IsTargetCargoBayKey(target.EntityKey, target.BayIndex))));
 
-        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(
+        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(
             _targetCargoLabel ?? "",
             targets,
             DateTime.UtcNow.ToString("O"));

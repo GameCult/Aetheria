@@ -5787,13 +5787,13 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
     var requiredSymbols = new[]
     {
         "RenderCargoSelectorSurface(",
-        "_cargoSelectorSurfaceModel = ComposeTradeCargoSelectorSurface();",
+        "_cargoSelectorSurfaceModel = BuildTradeCargoSelectorSurfaceModel();",
         "HandleCargoSelectorSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_cargoSelectorSurfaceDocument)",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(_cargoSelectorSurfaceModel.State)",
-        "ComposeTradeCargoSelectorSurface(",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(",
+        "_cargoSelectorSurfaceModel.Document",
+        "BuildTradeCargoSelectorSurfaceModel(",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(",
         "_cargoSelectorSurfaceModel?.TryResolve(command.Command, out var selection) == true",
         "ApplyCargoSelection(",
         "new AetheriaRuntimeTradeCargoModelOption(",
@@ -5847,6 +5847,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "BuildCargoSelectionCommands(",
         "ProjectTradeCargoSelectorSurfaceState(",
         "ProjectTradeCargoSelectorSurface(",
+        "ComposeTradeCargoSelectorSurface(",
+        "_cargoSelectorSurfaceModel.State",
+        "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(",
         "_cargoSelectorSurfaceProjection",
         "AetheriaRuntimeObservedDockingState",
         "ResolveClient().State.CurrentDocking()",
@@ -5906,8 +5909,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoTargetKind",
         "AetheriaRuntimeTradeCargoSelection",
         "AetheriaRuntimeTradeCargoSelectorSurfaceModel",
+        "public AetheriaRuntimeSurfaceDocument Document { get; }",
         "public static string ShipBayCommand(",
-        "public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(",
+        "public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Build(",
         "public bool TryResolve(string command, out AetheriaRuntimeTradeCargoSelection selection)",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
@@ -5921,6 +5925,13 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime trade cargo selector surface builder no longer owns the trade cargo-selector shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (tradeCargoSelectorSurfaceBuilder.Contains("public AetheriaRuntimeTradeCargoSelectorSurfaceState State { get; }", StringComparison.Ordinal) ||
+        tradeCargoSelectorSurfaceBuilder.Contains("public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade cargo selector builder must return a model with a finished surface document; do not re-expose Compose or a public State handoff.");
     }
 }
 
