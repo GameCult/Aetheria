@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -69,9 +68,6 @@ public class SchematicDisplay : MonoBehaviour
     private EquippedCargoBay[] _cargoBays;
     private SchematicDisplayItem[] _schematicItems;
     private AetherDrive _aetherDrive;
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
 
     private bool _enemy;
@@ -320,56 +316,51 @@ public class SchematicDisplay : MonoBehaviour
 
     private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
-        if (_catalog != null)
-            return _catalog.Current;
-
         try
         {
-            _catalog = AetheriaUnityRuntimeClientProvider
-                .ReactiveCatalogSnapshot("unity-schematic-display");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-schematic-display")
+                .CurrentCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for schematic display: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for schematic display: {ex.Message}");
         }
 
-        return _catalog?.Current;
+        return null;
     }
 
     private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
-        if (_playerSettings == null)
+        try
         {
-            try
-            {
-                _playerSettings = AetheriaUnityRuntimeClientProvider
-                    .ReactivePlayerSettingsDocument("unity-schematic-display");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to bind Aetheria player settings for schematic display: {ex.Message}");
-            }
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-schematic-display")
+                .CurrentPlayerSettings();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria player settings for schematic display: {ex.Message}");
         }
 
-        return _playerSettings?.Current;
+        return null;
     }
 
     private AetheriaRuntimeCurrentEntityHudStatus CurrentEntityHudStatus()
     {
-        if (_currentEntity == null)
+        try
         {
-            try
-            {
-                _currentEntity = AetheriaUnityRuntimeClientProvider
-                    .ReactiveCurrentEntity("unity-schematic-display");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to bind Aetheria current entity for schematic display: {ex.Message}");
-            }
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-schematic-display")
+                .CurrentEntityState()
+                ?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current entity for schematic display: {ex.Message}");
         }
 
-        return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+        return new AetheriaRuntimeCurrentEntityHudStatus();
     }
 
     private string FormatValue(float value)
@@ -400,18 +391,4 @@ public class SchematicDisplay : MonoBehaviour
         return $"{FormatValue(value - 273.15f)} C";
     }
 
-    private void ClearClientCaches()
-    {
-        _catalog?.Dispose();
-        _catalog = null;
-        _playerSettings?.Dispose();
-        _playerSettings = null;
-        _currentEntity?.Dispose();
-        _currentEntity = null;
-    }
-
-    private void OnDestroy()
-    {
-        ClearClientCaches();
-    }
 }

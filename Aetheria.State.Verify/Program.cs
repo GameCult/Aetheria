@@ -2560,16 +2560,13 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var requiredSchematicHudSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "CatalogSnapshot()",
         "CurrentEntityHudStatus()",
-        ".ReactiveCatalogSnapshot(\"unity-schematic-display\")",
-        ".ReactivePlayerSettingsDocument(\"unity-schematic-display\")",
-        ".ReactiveCurrentEntity(\"unity-schematic-display\")",
-        "return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
-        "_currentEntity?.Dispose()",
+        ".RuntimeState(\"unity-schematic-display\")",
+        ".CurrentCatalog()",
+        ".CurrentPlayerSettings()",
+        ".CurrentEntityState()",
+        "?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
         "hud.Heatstroke",
@@ -2589,6 +2586,15 @@ static void RequireDaemonRenderQueryAuthority(string root)
 
     var forbiddenSchematicHudSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
+        ".ReactiveCatalogSnapshot(\"unity-schematic-display\")",
+        ".ReactivePlayerSettingsDocument(\"unity-schematic-display\")",
+        ".ReactiveCurrentEntity(\"unity-schematic-display\")",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_currentEntity?.Dispose()",
         "_entity.OverrideShutdown",
         "_entity.HeatsinksEnabled",
         "_entity.Heatstroke",
@@ -7664,21 +7670,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "AetheriaRuntimePlayerHudState.cs");
     var requiredSchematicDisplaySymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        ".ReactiveCatalogSnapshot(\"unity-schematic-display\")",
-        ".ReactivePlayerSettingsDocument(\"unity-schematic-display\")",
-        ".ReactiveCurrentEntity(\"unity-schematic-display\")",
-        "_catalog?.Dispose()",
-        "_playerSettings?.Dispose()",
-        "_currentEntity?.Dispose()",
+        ".RuntimeState(\"unity-schematic-display\")",
+        ".CurrentCatalog()",
+        ".CurrentPlayerSettings()",
+        ".CurrentEntityState()",
         "CatalogSnapshot()?.FindItem(item, x => x.ItemKey)",
         "private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()",
         "private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()",
         "private AetheriaRuntimeCurrentEntityHudStatus CurrentEntityHudStatus()",
-        "return _playerSettings?.Current;",
-        "private void OnDestroy()"
+        "?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();"
     };
     var missingSchematicDisplaySymbols = requiredSchematicDisplaySymbols
         .Where(symbol => !schematicDisplay.Contains(symbol, StringComparison.Ordinal))
@@ -7686,7 +7686,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingSchematicDisplaySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "SchematicDisplay should bind shared catalog/settings/current-entity HUD through managed reactive typed documents: " +
+            "SchematicDisplay should sample shared catalog/settings/current-entity HUD through named current typed documents: " +
             string.Join(", ", missingSchematicDisplaySymbols));
     }
     if (schematicDisplay.Contains("ResolveCatalog()?.Current?.FindItem", StringComparison.Ordinal) ||
@@ -7698,6 +7698,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
 
     var forbiddenSchematicDisplaySymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
+        ".ReactiveCatalogSnapshot(\"unity-schematic-display\")",
+        ".ReactivePlayerSettingsDocument(\"unity-schematic-display\")",
+        ".ReactiveCurrentEntity(\"unity-schematic-display\")",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()",
+        "_currentEntity?.Dispose()",
         "AetheriaRuntimePlayerHudSession _playerHud",
         "ResolvePlayerHud()",
         "ResolveClient().State.ObservePlayerHud()",
@@ -7711,7 +7720,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (schematicDisplayHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "SchematicDisplay still routes through AetheriaRuntimePlayerHudSession instead of direct managed reactive typed documents: " +
+            "SchematicDisplay still routes through legacy HUD/reactive wrappers instead of named current typed documents: " +
             string.Join(", ", schematicDisplayHits));
     }
 
