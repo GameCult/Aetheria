@@ -203,7 +203,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             var nextZoneDetails = ResolveClient()
-                .State.Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex));
+                .State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex);
             _zoneDetails?.Dispose();
             _zoneDetailsIndex = zoneIndex;
             _zoneDetails = nextZoneDetails;

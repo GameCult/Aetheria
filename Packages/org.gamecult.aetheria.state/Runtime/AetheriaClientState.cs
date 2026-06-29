@@ -13,32 +13,6 @@ namespace GameCult.Aetheria.State.Verse
         EditorTui
     }
 
-    public readonly struct AetheriaClientZone
-    {
-        public AetheriaClientZone(int zoneIndex)
-        {
-            if (zoneIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(zoneIndex), zoneIndex, "Zone index must be non-negative.");
-
-            ZoneIndex = zoneIndex;
-        }
-
-        public int ZoneIndex { get; }
-    }
-
-    public readonly struct AetheriaClientEntity
-    {
-        public AetheriaClientEntity(int entityIndex)
-        {
-            if (entityIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(entityIndex), entityIndex, "Entity index must be non-negative.");
-
-            EntityIndex = entityIndex;
-        }
-
-        public int EntityIndex { get; }
-    }
-
     public sealed class AetheriaClientState : IDisposable
     {
         private readonly CultMeshDocumentCatalog _documents;
@@ -267,48 +241,27 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>(viewport).Reactive();
         }
 
-        public static AetheriaClientZone Zone(int zoneIndex)
-        {
-            return new AetheriaClientZone(zoneIndex);
-        }
-
-        public static AetheriaClientEntity Entity(int entityIndex)
-        {
-            return new AetheriaClientEntity(entityIndex);
-        }
-
-        public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)
+        public CultMeshDocumentHandle<TDocument> Document<TDocument>(int index)
             where TDocument : class
         {
+            if (index < 0)
+                throw new ArgumentOutOfRangeException(nameof(index), index, "Aetheria document index must be non-negative.");
+
             if (typeof(TDocument) == typeof(AetheriaRuntimeZoneDetailsDocument))
-                return (CultMeshDocumentHandle<TDocument>)(object)_zoneDetails(zone.ZoneIndex);
-
-            throw new NotSupportedException(
-                $"Aetheria typed state does not expose a zone-scoped document for {typeof(TDocument).FullName}.");
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientZone zone)
-            where TDocument : class
-        {
-            return Document<TDocument>(zone).Reactive();
-        }
-
-        public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)
-            where TDocument : class
-        {
+                return (CultMeshDocumentHandle<TDocument>)(object)_zoneDetails(index);
             if (typeof(TDocument) == typeof(AetheriaRuntimeSelectedObjectDocument))
-                return (CultMeshDocumentHandle<TDocument>)(object)_selectedObject(entity.EntityIndex);
+                return (CultMeshDocumentHandle<TDocument>)(object)_selectedObject(index);
             if (typeof(TDocument) == typeof(AetheriaRuntimeInventoryDocument))
-                return (CultMeshDocumentHandle<TDocument>)(object)_inventory(entity.EntityIndex);
+                return (CultMeshDocumentHandle<TDocument>)(object)_inventory(index);
 
             throw new NotSupportedException(
-                $"Aetheria typed state does not expose an entity-scoped document for {typeof(TDocument).FullName}.");
+                $"Aetheria typed state does not expose an indexed document for {typeof(TDocument).FullName}.");
         }
 
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEntity entity)
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int index)
             where TDocument : class
         {
-            return Document<TDocument>(entity).Reactive();
+            return Document<TDocument>(index).Reactive();
         }
 
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)
