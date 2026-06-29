@@ -6,23 +6,6 @@ using GameCult.Eve.Surface;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeShipSettingsSurfaceState
-    {
-        public AetheriaRuntimeShipSettingsSurfaceState(
-            string shipName,
-            string shutdownPerformance,
-            string updatedAtUtc)
-        {
-            ShipName = shipName ?? "";
-            ShutdownPerformance = shutdownPerformance ?? "";
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string ShipName { get; }
-        public string ShutdownPerformance { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public static class AetheriaRuntimeShipSettingsSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.inventory.current_ship_settings";
@@ -38,44 +21,19 @@ namespace GameCult.Aetheria.State.Verse
             DateTime updatedAtUtc = default(DateTime),
             long version = 1)
         {
-            return Build(
-                ComposeState(
-                    shipName,
-                    shutdownPerformance,
-                    formatShutdownPerformance,
-                    updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeShipSettingsSurfaceState ComposeState(
-            string shipName,
-            float shutdownPerformance,
-            Func<float, string> formatShutdownPerformance,
-            DateTime updatedAtUtc = default(DateTime))
-        {
             if (updatedAtUtc == default(DateTime))
                 updatedAtUtc = DateTime.UtcNow;
 
-            return new AetheriaRuntimeShipSettingsSurfaceState(
-                shipName,
-                formatShutdownPerformance == null
-                    ? shutdownPerformance.ToString("0.###", CultureInfo.InvariantCulture)
-                    : formatShutdownPerformance(shutdownPerformance),
-                updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeShipSettingsSurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeShipSettingsSurfaceState("", "", "");
+            var formattedShutdownPerformance = formatShutdownPerformance == null
+                ? shutdownPerformance.ToString("0.###", CultureInfo.InvariantCulture)
+                : formatShutdownPerformance(shutdownPerformance);
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
                 providerKind: "inventory.menu",
                 title: "Current Ship Settings",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc.ToString("O", CultureInfo.InvariantCulture),
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(
@@ -84,11 +42,11 @@ namespace GameCult.Aetheria.State.Verse
                         Array.Empty<(string Key, string Value)>(),
                         Card(
                             $"{SurfaceId}.card",
-                            state.ShipName,
+                            shipName,
                             Metric(
                                 $"{SurfaceId}.shutdown.metric",
                                 "Shutdown Threshold",
-                                state.ShutdownPerformance),
+                                formattedShutdownPerformance),
                             Text(
                                 $"{SurfaceId}.note",
                                 "The observing client supplies selected ship state; shutdown changes are sent as daemon operations."),

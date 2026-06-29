@@ -5130,9 +5130,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeShipSettingsCommand",
         "public static class AetheriaRuntimeShipSettingsSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeShipSettingsSurfaceState",
         "public static AetheriaRuntimeSurfaceDocument Build(",
-        "private static AetheriaRuntimeShipSettingsSurfaceState ComposeState(",
+        "var formattedShutdownPerformance = formatShutdownPerformance == null",
+        "updatedAtUtc.ToString(\"O\", CultureInfo.InvariantCulture)",
         "public static float ResolveShutdownPerformance(",
         "public static float ClampShutdownPerformance("
     };
@@ -5147,10 +5147,12 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
     }
 
     if (shipSettingsSurfaceBuilder.Contains("public static AetheriaRuntimeShipSettingsSurfaceState Compose(", StringComparison.Ordinal) ||
-        shipSettingsSurfaceBuilder.Contains("public static AetheriaRuntimeShipSettingsSurfaceState Project(", StringComparison.Ordinal))
+        shipSettingsSurfaceBuilder.Contains("public static AetheriaRuntimeShipSettingsSurfaceState Project(", StringComparison.Ordinal) ||
+        shipSettingsSurfaceBuilder.Contains("AetheriaRuntimeShipSettingsSurfaceState", StringComparison.Ordinal) ||
+        shipSettingsSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime ship settings composition must stay behind Build(...); do not re-expose Compose/Project as the public ship settings surface path.");
+            "Runtime ship settings composition must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 
