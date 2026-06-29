@@ -223,6 +223,56 @@ namespace GameCult.Aetheria.State.Verse
             return ZoneRenderDocument().Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplatesDocument()
+        {
+            return LoadoutTemplates;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates()
+        {
+            return LoadoutTemplatesDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> SectorMapDocument()
+        {
+            return SectorMap;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap()
+        {
+            return SectorMapDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> CurrentZoneDocument()
+        {
+            return CurrentZone;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone()
+        {
+            return CurrentZoneDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContactsDocument()
+        {
+            return ZoneContacts;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts()
+        {
+            return ZoneContactsDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHostSettingsDocument()
+        {
+            return VerseHostSettings;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings()
+        {
+            return VerseHostSettingsDocument().Reactive();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking()
         {
             return CurrentDockingDocument;

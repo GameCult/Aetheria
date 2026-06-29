@@ -169,7 +169,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _sectorMap ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeSectorMapDocument>("unity-sector-renderer");
+                .ReactiveSectorMap("unity-sector-renderer");
             var sectorMap = _sectorMap?.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
@@ -301,7 +301,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _currentZone ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCurrentZoneDocument>("unity-sector-renderer");
+                .ReactiveCurrentZone("unity-sector-renderer");
         }
         catch (Exception ex)
         {

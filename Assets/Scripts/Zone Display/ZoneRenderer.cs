@@ -1226,7 +1226,7 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             _zoneContacts = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeZoneContactsDocument>("unity-zone-renderer");
+                .ReactiveZoneContacts("unity-zone-renderer");
         }
         catch (Exception ex)
         {

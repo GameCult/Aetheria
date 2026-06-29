@@ -170,7 +170,7 @@ public class DaemonRuntimeDocumentTests
         var latestFrame = ReadLatest(client.State.DaemonFrameDocument());
         var catalog = ReadLatest(client.State.Document<AetheriaRuntimeCatalogSnapshot>());
         var playerSettings = ReadLatest(client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        var verseHostSettings = ReadLatest(client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        var verseHostSettings = ReadLatest(client.State.VerseHostSettingsDocument());
         var currentEntityByType = client.State
             .Document<AetheriaRuntimeCurrentEntityDocument>()
             .LatestAsync()
@@ -211,12 +211,12 @@ public class DaemonRuntimeDocumentTests
             daemonSoaViewReactive,
             zoneRenderReactive,
             out var observed));
-        using var loadoutTemplatesReactive = client.State.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
-        using var sectorMapReactive = client.State.Reactive<AetheriaRuntimeSectorMapDocument>();
+        using var loadoutTemplatesReactive = client.State.ReactiveLoadoutTemplates();
+        using var sectorMapReactive = client.State.ReactiveSectorMap();
         using var playerSettingsReactive = client.State.ReactivePlayerSettingsDocument();
-        using var verseHostSettingsReactive = client.State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
-        using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
-        using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
+        using var verseHostSettingsReactive = client.State.ReactiveVerseHostSettings();
+        using var zoneContactsReactive = client.State.ReactiveZoneContacts();
+        using var currentZoneReactive = client.State.ReactiveCurrentZone();
         using var currentEntityDocumentReactive = client.State.ReactiveCurrentEntity();
         using var currentDockingReactive = client.State.ReactiveCurrentDocking();
         using var stationRefitReactive = client.State.ReactiveStationRefit();
@@ -270,9 +270,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
         Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
         Assert.AreSame(client.State.PlayerSettings, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.VerseHostSettings, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.VerseHostSettings, client.State.VerseHostSettingsDocument());
         Assert.AreSame(client.State.CurrentEntity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
-        Assert.AreSame(client.State.ZoneContacts, client.State.Document<AetheriaRuntimeZoneContactsDocument>());
+        Assert.AreSame(client.State.ZoneContacts, client.State.ZoneContactsDocument());
         Assert.AreEqual(
             typeof(AetheriaRuntimeCurrentEntityDocument),
             client.State.Document<AetheriaRuntimeCurrentEntityDocument>().DocumentType);
@@ -362,7 +362,7 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var player = ReadLatest(client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        var verseHost = ReadLatest(client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        var verseHost = ReadLatest(client.State.VerseHostSettingsDocument());
         var catalog = ReadLatest(client.State.Document<AetheriaRuntimeCatalogSnapshot>());
 
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
@@ -372,7 +372,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("", player.PlayerName);
         Assert.AreEqual("", verseHost.VerseId);
         Assert.AreSame(client.State.PlayerSettings, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.VerseHostSettings, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.VerseHostSettings, client.State.VerseHostSettingsDocument());
     }
 
     [Test]

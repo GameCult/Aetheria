@@ -40,7 +40,7 @@ public sealed class AetheriaUnityGameplayBootShell
         var runtimeCatalog = runtimeCatalogDocument.Current;
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
-        using var sectorMapDocument = runtimeState.Reactive<AetheriaRuntimeSectorMapDocument>();
+        using var sectorMapDocument = runtimeState.ReactiveSectorMap();
         var sectorMap = sectorMapDocument.Current;
         if (sectorMap == null)
             throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");

@@ -95,7 +95,7 @@ public sealed class AetheriaUnityObservedTargetQuery : IDisposable
         try
         {
             _zoneContacts = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeZoneContactsDocument>("unity-observed-target-query");
+                .ReactiveZoneContacts("unity-observed-target-query");
             return _zoneContacts?.Current;
         }
         catch

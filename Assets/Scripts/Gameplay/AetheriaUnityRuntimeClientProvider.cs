@@ -215,6 +215,71 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).ReactiveZoneRender();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveLoadoutTemplates();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveLoadoutTemplates();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveSectorMap();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveSectorMap();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveCurrentZone();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveCurrentZone();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveZoneContacts();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveZoneContacts();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveVerseHostSettings();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveVerseHostSettings();
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")

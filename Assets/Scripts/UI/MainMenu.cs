@@ -151,7 +151,7 @@ public class MainMenu : MonoBehaviour
         {
             PrepareDocumentAccess(stateBoot);
             _sectorMap ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeSectorMapDocument>(stateBoot, "unity-main-menu");
+                .ReactiveSectorMap(stateBoot, "unity-main-menu");
             return _sectorMap?.Current;
         }
         catch (Exception ex)
@@ -189,7 +189,7 @@ public class MainMenu : MonoBehaviour
         {
             PrepareDocumentAccess(stateBoot);
             _verseHostSettings ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeVerseHostSettingsDocument>(stateBoot, "unity-main-menu");
+                .ReactiveVerseHostSettings(stateBoot, "unity-main-menu");
             return _verseHostSettings?.Current;
         }
         catch (Exception ex)
