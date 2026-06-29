@@ -4817,12 +4817,12 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeMenuTabModelOption(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "AetheriaRuntimeCurrentDocking",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")",
-        "docking = _currentDocking.Current",
+        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
+        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
+        "dockingIndex.TryResolveCurrentDocking(out var docking)",
         "docking.IsDocked",
+        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
+        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
         "GetTabLabel(",
         "ToRuntimeTabKey(",
         "AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString())",
@@ -4876,6 +4876,9 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new EveUiToolkitSurfaceLowerer()",
         "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
         "ResolveClient().State.CurrentDocking()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
+        ".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")",
+        "docking = _currentDocking.Current",
         "AetheriaRuntimeObservedDockingState",
         "ComposeTabSurface(",
         "ProjectTabSurfaceState(",
@@ -5837,13 +5840,12 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "AetheriaRuntimeCurrentDocking",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        ".ReactiveCurrentDocking(\"unity-trade\")",
-        "docking = _currentDocking.Current",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
-        ".ReactiveStationRefit(\"unity-trade\")",
-        "return _stationRefit?.Current",
+        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
+        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
+        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
+        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
+        "dockingIndex.StationRefitSnapshot()",
+        "dockingIndex.TryResolveCurrentDocking(out docking)",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -5887,6 +5889,12 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "_cargoSelectorSurfaceProjection",
         "AetheriaRuntimeObservedDockingState",
         "ResolveClient().State.CurrentDocking()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
+        ".ReactiveCurrentDocking(\"unity-trade\")",
+        "docking = _currentDocking.Current",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
+        ".ReactiveStationRefit(\"unity-trade\")",
+        "return _stationRefit?.Current",
         "docking.Refit",
         "GameManager.DockedEntity.Children",
         "GameManager.CurrentEntity.Parent.Children",
@@ -7442,17 +7450,20 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     var menuPanel = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs"));
     var tradeMenu = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"));
     var directDockingOffenders = new List<string>();
-    if (!menuPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
-        !menuPanel.Contains(".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")", StringComparison.Ordinal) ||
-        !menuPanel.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
+    if (menuPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
+        menuPanel.Contains(".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")", StringComparison.Ordinal) ||
+        menuPanel.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
         menuPanel.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
     {
         directDockingOffenders.Add("Assets/Scripts/UI/Menu/MenuPanel.cs");
     }
 
-    if (!tradeMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
-        !tradeMenu.Contains(".ReactiveCurrentDocking(\"unity-trade\")", StringComparison.Ordinal) ||
-        !tradeMenu.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
+    if (tradeMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
+        tradeMenu.Contains(".ReactiveCurrentDocking(\"unity-trade\")", StringComparison.Ordinal) ||
+        tradeMenu.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
+        tradeMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) ||
+        tradeMenu.Contains(".ReactiveStationRefit(\"unity-trade\")", StringComparison.Ordinal) ||
+        tradeMenu.Contains("return _stationRefit?.Current", StringComparison.Ordinal) ||
         tradeMenu.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
     {
         directDockingOffenders.Add("Assets/Scripts/UI/Menu/TradeMenu.cs");
@@ -7461,7 +7472,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (directDockingOffenders.Count > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking reads must hold the managed reactive typed docking document and sample Current directly: " +
+            "Unity menu docking reads must share AetheriaUnityObservedDockingIndex instead of owning duplicate reactive docking/refit documents: " +
             string.Join(", ", directDockingOffenders));
     }
 
@@ -16538,7 +16549,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     var missingProviderClientAccess = providerOwnedClientAccessSources
-        .Where(pair => !pair.Value.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal))
+        .Where(pair =>
+            !pair.Value.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
+            !pair.Value.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal))
         .Select(pair => pair.Key)
         .ToArray();
     if (missingProviderClientAccess.Length > 0)

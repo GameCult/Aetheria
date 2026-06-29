@@ -8,7 +8,6 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,12 +31,20 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     
     public MenuTab CurrentTab { get; private set; }
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
+        _observedEntityIndex = observedEntityIndex;
     }
 
     public void ShowTab(MenuTab tab)
@@ -100,8 +107,8 @@ public class MenuPanel : MonoBehaviour
             _tabSurfaceDocument = null;
         }
 
-        _currentDocking?.Dispose();
-        _currentDocking = null;
+        _observedDockingIndex?.Dispose();
+        _observedDockingIndex = null;
     }
 
     private void RenderTabSurface()
@@ -159,7 +166,9 @@ public class MenuPanel : MonoBehaviour
 
     private MenuTabBinding[] ResolveVisibleTabs()
     {
-        var isDocked = TryResolveCurrentDocking(out var docking) && docking.IsDocked;
+        var isDocked = TryResolveObservedDockingIndex(out var dockingIndex) &&
+                       dockingIndex.TryResolveCurrentDocking(out var docking) &&
+                       docking.IsDocked;
         return _tabs.Values
             .Where(tabBinding => !tabBinding.RequireDock || isDocked)
             .Where(tabBinding => tabBinding.Tab != MenuTab.Local || isDocked)
@@ -167,21 +176,14 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
     {
-        docking = null;
-        try
-        {
-            _currentDocking ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveCurrentDocking("unity-runtime-menu-tabs");
-            docking = _currentDocking.Current;
-            return docking != null;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria current docking for runtime menu tabs: {ex.Message}");
+        dockingIndex = null;
+        if (_observedEntityIndex == null)
             return false;
-        }
+
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
+        return true;
     }
 
     private static string GetTabLabel(MenuTabBinding tabBinding)

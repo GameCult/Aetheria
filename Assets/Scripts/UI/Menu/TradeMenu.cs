@@ -39,8 +39,8 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _tradeItemSurfaceDocument;
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
-    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
+    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -56,7 +56,13 @@ public class TradeMenu : MonoBehaviour
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        InvalidateStationRefit();
+        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
+        {
+            _observedDockingIndex?.Dispose();
+            _observedDockingIndex = null;
+        }
+
+        _observedEntityIndex = observedEntityIndex;
     }
     
     private void OnEnable()
@@ -512,43 +518,26 @@ public class TradeMenu : MonoBehaviour
 
     private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
-        if (_stationRefit != null)
-            return _stationRefit.Current;
-
-        try
-        {
-            _stationRefit = AetheriaUnityRuntimeClientProvider
-                .ReactiveStationRefit("unity-trade");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to bind Aetheria station refit state for trade menu: {ex.Message}");
-        }
-
-        return _stationRefit?.Current;
+        return TryResolveObservedDockingIndex(out var dockingIndex)
+            ? dockingIndex.StationRefitSnapshot()
+            : null;
     }
 
     private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
-        try
-        {
-            _currentDocking ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveCurrentDocking("unity-trade");
-            docking = _currentDocking.Current;
-            return docking != null;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria docking state for trade menu: {ex.Message}");
-            return false;
-        }
+        return TryResolveObservedDockingIndex(out var dockingIndex) &&
+               dockingIndex.TryResolveCurrentDocking(out docking);
     }
 
-    private void InvalidateStationRefit()
+    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
     {
-        _stationRefit?.Dispose();
-        _stationRefit = null;
+        dockingIndex = null;
+        if (_observedEntityIndex == null)
+            return false;
+
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
+        return true;
     }
 
     private bool TryResolveStationRefitCargoTarget(
@@ -587,7 +576,6 @@ public class TradeMenu : MonoBehaviour
         try
         {
             submit(AetheriaUnityRuntimeClientProvider.Control("unity-trade"));
-            InvalidateStationRefit();
             return true;
         }
         catch (Exception ex)
@@ -601,12 +589,10 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
-        _currentDocking?.Dispose();
-        _stationRefit?.Dispose();
+        _observedDockingIndex?.Dispose();
         _catalog = null;
         _playerSettings = null;
-        _currentDocking = null;
-        _stationRefit = null;
+        _observedDockingIndex = null;
     }
 
     private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
