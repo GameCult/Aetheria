@@ -4781,9 +4781,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "HandleTabSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument)",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(ComposeTabSurface())",
-        "ComposeTabSurface(",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Compose(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(",
         "new AetheriaRuntimeMenuTabModelOption(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
@@ -4848,8 +4846,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
         "ResolveClient().State.CurrentDocking()",
         "AetheriaRuntimeObservedDockingState",
+        "ComposeTabSurface(",
         "ProjectTabSurfaceState(",
         "ProjectTabSurface(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder.Compose(",
         "AetheriaRuntimeMenuTabsSurfaceBuilder.Project(",
         "new AetheriaRuntimeMenuTabProjectionOption(",
         "new AetheriaRuntimeMenuTabSurfaceEntry(",
@@ -4880,7 +4880,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     {
         "public sealed class AetheriaRuntimeMenuTabModelOption",
         "public static string NormalizeTabKey(string tabKey)",
-        "public static AetheriaRuntimeMenuTabsSurfaceState Compose(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeMenuTabsSurfaceState ComposeState(",
         "public int Order { get; }",
         ".OrderBy(tab => tab.Order)",
         "new AetheriaRuntimeMenuTabSurfaceEntry(",
@@ -4894,6 +4895,13 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime menu tab surface builder no longer owns tab projection semantics: " +
             string.Join(", ", missingProjectionBuilderSymbols));
+    }
+
+    if (menuTabsSurfaceBuilder.Contains("public static AetheriaRuntimeMenuTabsSurfaceState Compose(", StringComparison.Ordinal) ||
+        menuTabsSurfaceBuilder.Contains("public static AetheriaRuntimeMenuTabsSurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime menu tab composition must stay behind Build(...); do not re-expose Compose/Project as the public tab surface path.");
     }
 
     var requiredDockedStoryObserverSymbols = new[]

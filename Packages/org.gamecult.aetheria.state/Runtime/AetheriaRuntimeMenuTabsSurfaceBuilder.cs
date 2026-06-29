@@ -66,7 +66,18 @@ namespace GameCult.Aetheria.State.Verse
             return $"aetheria.runtime_menu.tab.{NormalizeTabKey(tabKey)}";
         }
 
-        public static AetheriaRuntimeMenuTabsSurfaceState Compose(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            string currentTabKey,
+            IEnumerable<AetheriaRuntimeMenuTabModelOption> visibleTabs,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return Build(
+                ComposeState(currentTabKey, visibleTabs, updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeMenuTabsSurfaceState ComposeState(
             string currentTabKey,
             IEnumerable<AetheriaRuntimeMenuTabModelOption> visibleTabs,
             string updatedAtUtc)
