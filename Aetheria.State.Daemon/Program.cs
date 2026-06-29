@@ -780,19 +780,19 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
     if (result.GameSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameSurface))
+            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.GameSurface))
             .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.GameTuiSurface))
             .ConfigureAwait(false);
     if (result.EditorSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorSurface))
+            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.EditorSurface))
             .ConfigureAwait(false);
     if (result.EditorTuiSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.EditorTuiSurface))
             .ConfigureAwait(false);
 }
 

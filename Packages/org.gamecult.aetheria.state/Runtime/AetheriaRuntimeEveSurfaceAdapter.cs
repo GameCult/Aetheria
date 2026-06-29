@@ -11,6 +11,36 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeEveSurfaceAdapter
     {
+        public static EveSurfaceState ToEveSurfaceState(AetheriaRuntimeSurfaceDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            return new EveSurfaceState
+            {
+                ProviderId = document.ProviderId,
+                ProviderKind = document.ProviderKind,
+                Title = document.Title,
+                Version = document.Version,
+                UpdatedAtUtc = document.UpdatedAtUtc,
+                Surface = ToEveSurfaceState(document.Surface),
+                Commands = document.Commands
+                    .Select(command =>
+                    {
+                        var record = CultMesh.OperationBindingRecord(command.Operation);
+                        return new global::Aetheria.State.Documents.EveCommandTemplate
+                        {
+                            Command = record.OperationId,
+                            Label = record.Label,
+                            Transport = record.RouteDescription,
+                            SchemaId = record.SchemaId,
+                            RouteKind = record.RouteKind,
+                            RouteDescription = record.RouteDescription
+                        };
+                    })
+                    .ToArray()
+            };
+        }
+
         public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
         {
             return ToEveSurfaceDocument(document, null);
@@ -132,6 +162,53 @@ namespace GameCult.Aetheria.State.Verse
                 props,
                 component.Children.Select(ToEveSurfaceComponent).ToArray(),
                 component.StateBindings.Select(ToCultMeshStateBinding).ToArray());
+        }
+
+        private static global::Aetheria.State.Documents.EveSurface ToEveSurfaceState(
+            AetheriaRuntimeSurfaceTree surface)
+        {
+            return new global::Aetheria.State.Documents.EveSurface
+            {
+                Id = surface.Id,
+                Root = ToEveSurfaceState(surface.Root),
+                Styles = surface.Styles
+                    .Select(style => new global::Aetheria.State.Documents.EveStyleToken
+                    {
+                        Name = style.Name,
+                        Value = style.Value
+                    })
+                    .ToArray()
+            };
+        }
+
+        private static global::Aetheria.State.Documents.EveSurfaceComponent ToEveSurfaceState(
+            AetheriaRuntimeSurfaceComponent component)
+        {
+            var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
+            AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
+
+            return new global::Aetheria.State.Documents.EveSurfaceComponent
+            {
+                Id = component.Id,
+                Kind = component.Kind,
+                Props = props,
+                Children = component.Children.Select(ToEveSurfaceState).ToArray(),
+                StateBindings = component.StateBindings
+                    .Select(binding =>
+                    {
+                        var record = CultMesh.StateBindingRecord(binding);
+                        return new global::Aetheria.State.Documents.EveSurfaceStateBinding
+                        {
+                            TargetProp = record.TargetProp,
+                            PointerId = record.PointerId,
+                            SourceId = record.SourceId,
+                            SchemaId = record.SchemaId,
+                            RouteKind = record.RouteKind,
+                            RouteDescription = record.RouteDescription
+                        };
+                    })
+                    .ToArray()
+            };
         }
 
         private static EveSurfaceComponent ToEveSurfaceComponent(global::Aetheria.State.Documents.EveSurfaceComponent component)

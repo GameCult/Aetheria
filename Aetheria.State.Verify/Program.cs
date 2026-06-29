@@ -725,10 +725,6 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeCultCacheDocumentStore.cs");
-    var runtimeSurfaceStateProjectorPath = Path.Combine(
-        root,
-        "Aetheria.State",
-        "AetheriaRuntimeEveSurfaceStateProjector.cs");
     var playerSettingsSurfaceProjectorPath = Path.Combine(
         root,
         "Aetheria.State",
@@ -772,9 +768,6 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var runtimeCultCacheDocumentStore = File.Exists(runtimeCultCacheDocumentStorePath)
         ? File.ReadAllText(runtimeCultCacheDocumentStorePath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaRuntimeCultCacheDocumentStore.cs is missing.");
-    var runtimeSurfaceStateProjector = File.Exists(runtimeSurfaceStateProjectorPath)
-        ? File.ReadAllText(runtimeSurfaceStateProjectorPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaRuntimeEveSurfaceStateProjector.cs is missing.");
     var playerSettingsSurfaceProjector = File.Exists(playerSettingsSurfaceProjectorPath)
         ? File.ReadAllText(playerSettingsSurfaceProjectorPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaPlayerSettingsSurfaceProjector.cs is missing.");
@@ -896,9 +889,19 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
             "Aetheria runtime surfaces reintroduced local state binding flattening; state binding persistence belongs to CultMesh.StateBindingRecord.");
     }
 
+    var deletedRuntimeSurfaceStateProjectorPath = Path.Combine(
+        root,
+        "Aetheria.State",
+        "AetheriaRuntimeEveSurfaceStateProjector.cs");
+    if (File.Exists(deletedRuntimeSurfaceStateProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeEveSurfaceStateProjector is dead conversion chaff; AetheriaRuntimeEveSurfaceAdapter owns runtime surface to Eve state lowering.");
+    }
+
     var surfaceCommandProjectors = string.Join(
         "\n",
-        runtimeSurfaceStateProjector,
+        runtimeAdapter,
         playerSettingsSurfaceProjector,
         catalogSurfaceProjector,
         operationsSurfaceProjector);
@@ -907,6 +910,8 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         !runtimeCultCacheDocumentStore.Contains("routeDescription).ToBinding()", StringComparison.Ordinal) ||
         !runtimeAdapter.Contains("CultMesh.OperationBindingRecord(", StringComparison.Ordinal) ||
         !runtimeAdapter.Contains("command.SchemaId", StringComparison.Ordinal) ||
+        !runtimeAdapter.Contains("public static EveSurfaceState ToEveSurfaceState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
+        !runtimeAdapter.Contains("global::Aetheria.State.Documents.EveSurfaceComponent ToEveSurfaceState(", StringComparison.Ordinal) ||
         !surfaceCommandProjectors.Contains("CultMesh.OperationBindingRecord(", StringComparison.Ordinal) ||
         runtimeCultCacheDocumentStore.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal) ||
         runtimeAdapter.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal))
@@ -10508,7 +10513,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
-    var daemonSurfaceProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeEveSurfaceStateProjector.cs");
+    var runtimeEveSurfaceAdapterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceAdapter.cs");
     var providerAdvertisementPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
     var documentStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCultCacheDocumentStore.cs");
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
@@ -10534,7 +10539,7 @@ static void RequireDaemonVersePublication(string root)
         daemonHostProgramPath,
         documentRegistryPath,
         stateNodePath,
-        daemonSurfaceProjectorPath,
+        runtimeEveSurfaceAdapterPath,
         providerAdvertisementPath,
         documentStorePath,
         boundaryPath,
@@ -10569,7 +10574,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
     var stateNode = File.ReadAllText(stateNodePath);
-    var daemonSurfaceProjector = File.ReadAllText(daemonSurfaceProjectorPath);
+    var runtimeEveSurfaceAdapter = File.ReadAllText(runtimeEveSurfaceAdapterPath);
     var providerAdvertisement = File.ReadAllText(providerAdvertisementPath);
     var documentStore = File.ReadAllText(documentStorePath);
     var boundary = File.ReadAllText(boundaryPath);
@@ -10842,11 +10847,18 @@ static void RequireDaemonVersePublication(string root)
             string.Join(", ", survivingDaemonNodeSymbols));
     }
 
-    if (!daemonSurfaceProjector.Contains("public static EveSurfaceState ToState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
-        !daemonSurfaceProjector.Contains("EveCommandTemplate", StringComparison.Ordinal) ||
-        !daemonSurfaceProjector.Contains("EveSurfaceComponent", StringComparison.Ordinal))
+    var deletedDaemonSurfaceProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeEveSurfaceStateProjector.cs");
+    if (File.Exists(deletedDaemonSurfaceProjectorPath))
     {
-        throw new InvalidOperationException("Daemon Eve surface projector no longer lowers daemon surfaces into registered Eve surface state.");
+        throw new InvalidOperationException(
+            "Daemon Eve surface state lowering still lives in Aetheria.State projector chaff instead of the runtime Eve surface adapter.");
+    }
+
+    if (!runtimeEveSurfaceAdapter.Contains("public static EveSurfaceState ToEveSurfaceState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("EveCommandTemplate", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("global::Aetheria.State.Documents.EveSurfaceComponent", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("Runtime Eve surface adapter no longer lowers daemon surfaces into registered Eve surface state.");
     }
 
     if (!daemonDocuments.Contains("AetheriaRuntimeDaemonCommandKinds", StringComparison.Ordinal))
@@ -11482,7 +11494,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaClient UI submission did not appear as a typed Eve state record.",
         "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
         "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)",
-        ".ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface))",
+        ".ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(daemonGameSurface))",
         "reopened.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
         "reopened.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
         "reopened.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
