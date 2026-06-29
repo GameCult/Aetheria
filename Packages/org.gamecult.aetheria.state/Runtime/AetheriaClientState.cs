@@ -187,6 +187,12 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose a projected document for {typeof(TDocument).FullName}.");
         }
 
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>()
+            where TDocument : class
+        {
+            return Document<TDocument>().Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
             where TDocument : class
         {
@@ -203,6 +209,12 @@ namespace GameCult.Aetheria.State.Verse
                 _ => throw new ArgumentOutOfRangeException(nameof(surface), surface, null)
             };
             return (CultMeshDocumentHandle<TDocument>)(object)document;
+        }
+
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEveSurface surface)
+            where TDocument : class
+        {
+            return Document<TDocument>(surface).Reactive();
         }
 
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
@@ -223,6 +235,12 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose a viewport document for {typeof(TDocument).FullName}.");
         }
 
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
+            where TDocument : class
+        {
+            return Document<TDocument>(viewport).Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)
             where TDocument : class
         {
@@ -237,6 +255,12 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose an indexed document for {typeof(TDocument).FullName}.");
         }
 
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int entityOrZoneIndex)
+            where TDocument : class
+        {
+            return Document<TDocument>(entityOrZoneIndex).Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)
             where TDocument : class
         {
@@ -249,12 +273,18 @@ namespace GameCult.Aetheria.State.Verse
             return (CultMeshDocumentHandle<TDocument>)(object)_starbridgePlayerSeat(seatId);
         }
 
+        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string seatId)
+            where TDocument : class
+        {
+            return Document<TDocument>(seatId).Reactive();
+        }
+
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
-            _eveStateRefFrame ??= Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
-            _eveStateRefHealth ??= Document<AetheriaRuntimeDaemonHealthDocument>().Reactive();
-            _eveStateRefCommandBoundary ??= Document<AetheriaRuntimeDaemonCommandBoundaryDocument>().Reactive();
-            _eveStateRefCatalog ??= Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+            _eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>();
+            _eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>();
+            _eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>();
 
             return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
                 () => _eveStateRefFrame.Current,

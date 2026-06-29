@@ -222,7 +222,7 @@ public class SectorMap : MonoBehaviour
     private void EnsureSectorMapLoaded()
     {
         _sectorMapDocument ??= ResolveClient()
-            .State.Document<AetheriaRuntimeSectorMapDocument>().Reactive();
+            .State.Reactive<AetheriaRuntimeSectorMapDocument>();
         _sectorMap = _sectorMapDocument?.Current;
 
         if (_sectorMapLoaded)

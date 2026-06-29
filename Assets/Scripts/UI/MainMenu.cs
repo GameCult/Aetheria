@@ -151,7 +151,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _sectorMap ??= ResolveClient(stateBoot)
-                .State.Document<AetheriaRuntimeSectorMapDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimeSectorMapDocument>();
             return _sectorMap?.Current;
         }
         catch (Exception ex)
@@ -169,7 +169,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _playerSettings ??= ResolveClient(stateBoot)
-                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
             return _playerSettings?.Current;
         }
         catch (Exception ex)
@@ -187,7 +187,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             _verseHostSettings ??= ResolveClient(stateBoot)
-                .State.Document<AetheriaRuntimeVerseHostSettingsDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
             return _verseHostSettings?.Current;
         }
         catch (Exception ex)

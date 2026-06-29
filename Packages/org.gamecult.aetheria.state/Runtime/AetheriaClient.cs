@@ -180,7 +180,7 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             try
             {
-                _daemonFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+                _daemonFrame ??= State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
                 return _daemonFrame.Current;
             }
             catch

@@ -326,7 +326,7 @@ public class SchematicDisplay : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -342,7 +342,7 @@ public class SchematicDisplay : MonoBehaviour
         {
             try
             {
-                _playerSettings = ResolveClient().State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+                _playerSettings = ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
             }
             catch (Exception ex)
             {
@@ -359,7 +359,7 @@ public class SchematicDisplay : MonoBehaviour
         {
             try
             {
-                _currentEntity = ResolveClient().State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
+                _currentEntity = ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
             }
             catch (Exception ex)
             {

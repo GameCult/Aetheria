@@ -180,7 +180,7 @@ public class MenuPanel : MonoBehaviour
         docking = null;
         try
         {
-            _currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive();
+            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
             docking = _currentDocking.Current;
             return docking != null;
         }

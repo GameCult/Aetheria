@@ -2438,8 +2438,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "FindAnyObjectByType<AetheriaDaemonObserver>()",
         "ResolveObjectsViewport(viewport)",
         "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
-        ".Document<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
-        ".Reactive();",
+        ".State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
         "_objectsViewport?.Current",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
@@ -2458,7 +2457,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
         ".State",
-        ".Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -2567,9 +2566,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "ResolveCatalog()",
         "ResolveCurrentEntityHudStatus()",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
-        "ResolveClient().State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
-        "ResolveClient().State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
+        "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
         "return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
         "_currentEntity?.Dispose()",
         "hud.OverrideShutdown",
@@ -3219,10 +3218,10 @@ static void RequireEveRuntimeBootstrap(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
-        "client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game).Reactive()",
-        "client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui).Reactive()",
-        "client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor).Reactive()",
-        "client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui).Reactive()",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor)",
+        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui)",
         "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
@@ -4251,7 +4250,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "InputDisplayLayout",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -4559,9 +4558,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "ProjectZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
-        ".Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
-        ".Reactive();",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+        ".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
         "_zoneDetails?.Current",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
@@ -4584,7 +4582,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeSectorMapDocument",
         "_sectorMap",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "AetheriaRuntimeSectorMapSession",
         ".ObserveSectorMap()");
     RequireReactiveTypedDocumentAccess(
@@ -4592,7 +4590,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeCurrentZoneDocument",
         "_currentZone",
-        ".Document<AetheriaRuntimeCurrentZoneDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
         "AetheriaRuntimeCurrentZoneSession",
         ".ObserveZone()");
     RequireReactiveTypedDocumentAccess(
@@ -4600,7 +4598,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeZoneDetailsDocument",
         "_zoneDetails",
-        ".Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex).Reactive()",
+        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
         "AetheriaRuntimeZoneDetailsSession",
         ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
@@ -4608,7 +4606,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
     RequireReactiveTypedDocumentAccess(
@@ -4616,7 +4614,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -4777,7 +4775,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeCurrentDockingDocument",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "_currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()",
+        "_currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
         "docking = _currentDocking.Current",
         "docking.IsDocked",
         "AetheriaClient",
@@ -5741,10 +5739,10 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "AetheriaRuntimeCurrentDockingDocument",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "_currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()",
+        "_currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
         "docking = _currentDocking.Current",
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
-        "_stationRefit = ResolveClient().State.Document<AetheriaRuntimeStationRefitDocument>().Reactive()",
+        "_stationRefit = ResolveClient().State.Reactive<AetheriaRuntimeStationRefitDocument>()",
         "return _stationRefit?.Current",
         "SetTargetCargo(",
         "selection.EntityKey",
@@ -7053,10 +7051,11 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     var clientState = File.ReadAllText(clientStatePath);
     if (!clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>()", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)", StringComparison.Ordinal) ||
-        clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal))
+        !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int entityOrZoneIndex)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose typed document handles for current entity, station refit, and indexed inventory documents while leaving reactivity to CultMesh handles.");
+            "AetheriaClientState must expose native typed document handles and native reactive typed documents for current entity, station refit, and indexed inventory documents.");
     }
 
     var sources = new Dictionary<string, string>
@@ -7079,9 +7078,9 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             .ToArray();
         var requiredCompactedSymbols = new[]
         {
-            ".Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()",
-            ".Document<AetheriaRuntimeStationRefitDocument>().Reactive()",
-            ".Document<AetheriaRuntimeInventoryDocument>(entityIndex).Reactive()"
+            ".Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+            ".Reactive<AetheriaRuntimeStationRefitDocument>()",
+            ".Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)"
         };
         missingSymbols = missingSymbols
             .Concat(requiredCompactedSymbols.Where(symbol => !compact.Contains(symbol, StringComparison.Ordinal)))
@@ -7124,7 +7123,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             name,
             "AetheriaRuntimeCurrentEntityDocument",
             "_currentEntity",
-            ".Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()",
+            ".Reactive<AetheriaRuntimeCurrentEntityDocument>()",
             "AetheriaRuntimeCurrentEntitySession",
             ".ObserveEntity()");
         RequireReactiveTypedDocumentAccess(
@@ -7132,7 +7131,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             name,
             "AetheriaRuntimeStationRefitDocument",
             "_stationRefit",
-            ".Document<AetheriaRuntimeStationRefitDocument>().Reactive()",
+            ".Reactive<AetheriaRuntimeStationRefitDocument>()",
             "AetheriaRuntimeStationRefitSession",
             ".ObserveStationRefit()");
         RequireReactiveTypedDocumentAccess(
@@ -7140,7 +7139,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             name,
             "AetheriaRuntimeInventoryDocument",
             "_inventory",
-            ".Document<AetheriaRuntimeInventoryDocument>(entityIndex).Reactive()",
+            ".Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)",
             "AetheriaRuntimeInventorySession",
             ".ObserveInventory(entityIndex)");
     }
@@ -7251,7 +7250,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     var tradeMenu = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"));
     var directDockingOffenders = new List<string>();
     if (!menuPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
-        !menuPanel.Contains("_currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()", StringComparison.Ordinal) ||
+        !menuPanel.Contains("_currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) ||
         !menuPanel.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
         menuPanel.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
     {
@@ -7259,7 +7258,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     }
 
     if (!tradeMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) ||
-        !tradeMenu.Contains("_currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()", StringComparison.Ordinal) ||
+        !tradeMenu.Contains("_currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) ||
         !tradeMenu.Contains("docking = _currentDocking.Current", StringComparison.Ordinal) ||
         tradeMenu.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
     {
@@ -7280,7 +7279,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
 {
     if (source.Contains("AetheriaRuntimeCurrentDockingDocument", StringComparison.Ordinal) &&
         source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
-        source.Contains("State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()", StringComparison.Ordinal) &&
+        source.Contains("State.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
         source.Contains("_currentDocking.Current", StringComparison.Ordinal) &&
         !source.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
     {
@@ -7309,9 +7308,9 @@ static bool HasManagedDockingSnapshotAccess(string source)
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
            source.Contains("TryReadCurrentDockingDocuments(", StringComparison.Ordinal) &&
-           source.Contains("state.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()", StringComparison.Ordinal) &&
-           source.Contains("state.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()", StringComparison.Ordinal) &&
-           source.Contains("state.Document<AetheriaRuntimeStationRefitDocument>().Reactive()", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
+           source.Contains("state.Reactive<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
            source.Contains("_currentDocking?.Current", StringComparison.Ordinal) &&
            source.Contains("_stationRefit?.Current", StringComparison.Ordinal) &&
            !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
@@ -7353,11 +7352,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must not expose generic latest/reactive/watch shortcuts; callers should hold Document<TDocument>() handles and call CultMesh handle APIs.");
+            "AetheriaClientState must not expose latest/watch/session wrappers; callers should hold native Document<TDocument>() handles or native Reactive<TDocument>() documents.");
     }
 
     var unityPaths = new[]
@@ -7421,7 +7419,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     {
         "public abstract class ActionBarBinding : IDisposable",
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "Client.State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "Client.State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
         "binding?.Dispose()",
         "private void OnDestroy()"
@@ -7461,9 +7459,9 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
-        "ResolveClient().State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
-        "ResolveClient().State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
+        "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_currentEntity?.Dispose()",
@@ -7517,7 +7515,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredVolumeCloudSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "_playerSettings?.Dispose()",
         "_playerSettings?.Current"
     };
@@ -7547,7 +7545,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredObservedTargetSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        ".Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current"
     };
@@ -7593,8 +7591,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     missingMapRendererSharedDocumentSymbols = missingMapRendererSharedDocumentSymbols
         .Concat(new[]
         {
-            ".Document<AetheriaRuntimeObjectsViewportDocument>(viewport).Reactive()",
-            ".Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()"
+            ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport)",
+            ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)"
         }.Where(symbol => !compactMapRenderer.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingMapRendererSharedDocumentSymbols.Length > 0)
@@ -7609,7 +7607,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer",
         "AetheriaRuntimeObjectsViewportDocument",
         "_objectsViewport",
-        ".Document<AetheriaRuntimeObjectsViewportDocument>(viewport).Reactive()",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport)",
         "AetheriaRuntimeObjectsViewportSession",
         ".ObserveObjects(viewport)");
     RequireReactiveTypedDocumentAccess(
@@ -7617,7 +7615,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer",
         "AetheriaRuntimeRenderSplatsViewportDocument",
         "_renderSplatsViewport",
-        ".Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()",
+        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)",
         "AetheriaRuntimeRenderSplatsViewportSession",
         ".ObserveRenderSplats(viewport)");
     RequireReactiveTypedDocumentAccess(
@@ -7625,7 +7623,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7677,7 +7675,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimeSectorMapDocument",
         "_sectorMap",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "AetheriaRuntimeSectorMapSession",
         ".ObserveSectorMap()");
     RequireReactiveTypedDocumentAccess(
@@ -7685,7 +7683,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
     RequireReactiveTypedDocumentAccess(
@@ -7693,7 +7691,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimeVerseHostSettingsDocument",
         "_verseHostSettings",
-        ".Document<AetheriaRuntimeVerseHostSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
         "AetheriaRuntimeVerseHostSettingsSession",
         ".ObserveVerseHost()");
 
@@ -7720,7 +7718,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "TradeMenu",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
     RequireReactiveTypedDocumentAccess(
@@ -7728,7 +7726,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "TradeMenu",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7755,7 +7753,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryMenu",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
     RequireReactiveTypedDocumentAccess(
@@ -7763,7 +7761,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryMenu",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7793,7 +7791,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryPanel",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
     RequireReactiveTypedDocumentAccess(
@@ -7801,7 +7799,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "InventoryPanel",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7830,9 +7828,9 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     missingSectorRendererSharedDocumentSymbols = missingSectorRendererSharedDocumentSymbols
         .Concat(new[]
         {
-            ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
-            ".Document<AetheriaRuntimeCurrentZoneDocument>().Reactive()",
-            ".Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex).Reactive()"
+            ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+            ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
+            ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)"
         }.Where(symbol => !compactSectorRenderer.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingSectorRendererSharedDocumentSymbols.Length > 0)
@@ -7847,7 +7845,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeSectorMapDocument",
         "_sectorMap",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "AetheriaRuntimeSectorMapSession",
         ".ObserveSectorMap()");
     RequireReactiveTypedDocumentAccess(
@@ -7855,7 +7853,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeCurrentZoneDocument",
         "_currentZone",
-        ".Document<AetheriaRuntimeCurrentZoneDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
         "AetheriaRuntimeCurrentZoneSession",
         ".ObserveZone()");
     RequireReactiveTypedDocumentAccess(
@@ -7863,7 +7861,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeZoneDetailsDocument",
         "_zoneDetails",
-        ".Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex).Reactive()",
+        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
         "AetheriaRuntimeZoneDetailsSession",
         ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
@@ -7871,7 +7869,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
     RequireReactiveTypedDocumentAccess(
@@ -7879,7 +7877,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7910,7 +7908,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        "ResolveClient().State.Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current",
         "private void OnDestroy()"
@@ -7930,7 +7928,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer",
         "AetheriaRuntimeZoneContactsDocument",
         "_zoneContacts",
-        "ResolveClient().State.Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "AetheriaRuntimeZoneContactsSession",
         "ResolveClient().State.ObserveZoneContacts()");
     RequireReactiveTypedDocumentAccess(
@@ -7938,7 +7936,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
 
@@ -8052,11 +8050,11 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         .Where(symbol => !renderSplatViewportSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(renderSplatViewportSource).Contains(
-        ".Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()",
+        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)",
         StringComparison.Ordinal))
     {
         missingRenderSplatViewportSourceSymbols = missingRenderSplatViewportSourceSymbols
-            .Concat(new[] { ".Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()" })
+            .Concat(new[] { ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)" })
             .ToArray();
     }
     if (missingRenderSplatViewportSourceSymbols.Length > 0 ||
@@ -8079,7 +8077,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "AetheriaUnityRenderSplatViewportSource",
         "AetheriaRuntimeRenderSplatsViewportDocument",
         "_renderSplatsViewport",
-        ".Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()",
+        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)",
         "AetheriaRuntimeRenderSplatsViewportSession",
         ".ObserveRenderSplats(viewport)");
 
@@ -8099,11 +8097,11 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(zoneRenderer).Contains(
-        ".Document<AetheriaRuntimeObjectsViewportDocument>(viewportBounds).Reactive()",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
         StringComparison.Ordinal))
     {
         missingZoneRendererViewportSymbols = missingZoneRendererViewportSymbols
-            .Concat(new[] { ".Document<AetheriaRuntimeObjectsViewportDocument>(viewportBounds).Reactive()" })
+            .Concat(new[] { ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)" })
             .ToArray();
     }
     if (missingZoneRendererViewportSymbols.Length > 0 ||
@@ -8126,7 +8124,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "ZoneRenderer",
         "AetheriaRuntimeObjectsViewportDocument",
         "_objectsViewport",
-        ".Document<AetheriaRuntimeObjectsViewportDocument>(viewportBounds).Reactive()",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
         "AetheriaRuntimeObjectsViewportSession",
         ".ObserveObjects(viewportBounds)");
 
@@ -8187,7 +8185,12 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)"
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>()",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEveSurface surface)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int entityOrZoneIndex)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string seatId)"
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8202,11 +8205,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must not reintroduce generic latest/reactive/watch shortcuts; callers should sample explicit document handles or CultMesh reactive documents.");
+            "AetheriaClientState must not reintroduce generic latest/watch shortcuts; callers should sample native typed document handles or native reactive typed documents.");
     }
 
     var forbiddenFixedReactiveWrappers = new[]
@@ -8574,7 +8576,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
-            ".Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId).Reactive()",
+            ".Reactive<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
             StringComparison.Ordinal) ||
         !checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
             ".Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
@@ -9138,9 +9140,9 @@ static void RequireClientTargetBootAuthority(string root)
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "runtimeCatalogDocument.Current",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "sectorMapDocument.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
@@ -9198,7 +9200,7 @@ static void RequireClientTargetBootAuthority(string root)
         "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaClient",
         ".State",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
@@ -11877,11 +11879,11 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "AetheriaRuntimeLoadoutTemplatesDocument",
         "ProjectStarbridgeSummaryAsync",
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? managedDaemonFrame = null;",
-        "managedDaemonFrame = state.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();",
-        "managedCatalog = state.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();",
-        "managedLoadoutTemplates = state.Document<AetheriaRuntimeLoadoutTemplatesDocument>().Reactive();",
-        "managedStarbridgeScenario = state.Document<AetheriaRuntimeStarbridgeScenarioDocument>().Reactive();",
-        "managedStarbridgeSession = state.Document<AetheriaRuntimeStarbridgeSessionDocument>().Reactive();",
+        "managedDaemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();",
+        "managedCatalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();",
+        "managedLoadoutTemplates = state.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();",
+        "managedStarbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();",
+        "managedStarbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();",
         "AetheriaRuntimeDaemonFrameDocument RequireManagedFrame()",
         "RequireManagedFrame()",
         "RequireManagedCatalog()",
@@ -12045,10 +12047,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonHealthDocument>? _eveStateRefHealth",
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>? _eveStateRefCommandBoundary",
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _eveStateRefCatalog",
-        "_eveStateRefFrame ??= Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()",
-        "_eveStateRefHealth ??= Document<AetheriaRuntimeDaemonHealthDocument>().Reactive()",
-        "_eveStateRefCommandBoundary ??= Document<AetheriaRuntimeDaemonCommandBoundaryDocument>().Reactive()",
-        "_eveStateRefCatalog ??= Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        "_eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>()",
+        "_eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>()",
+        "_eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>()",
+        "_eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "() => _eveStateRefFrame.Current",
         "() => _eveStateRefHealth.Current",
         "() => _eveStateRefCommandBoundary.Current",
@@ -12819,7 +12821,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     var requiredMainMenuSymbols = new[]
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".Document<AetheriaRuntimeVerseHostSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -12958,7 +12960,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ResolveSectorMap",
         "AetheriaClient",
         ".State",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -13293,7 +13295,7 @@ static void RequireMainMenuContinueRunState(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -13342,9 +13344,9 @@ static void RequireMainMenuContinueRunState(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
         "TryReadCurrentDockingDocuments(",
-        "state.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive()",
-        "state.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive()",
-        "state.Document<AetheriaRuntimeStationRefitDocument>().Reactive()",
+        "state.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+        "state.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
+        "state.Reactive<AetheriaRuntimeStationRefitDocument>()",
         "_currentDocking?.Current",
         "_stationRefit?.Current",
         "public bool IsEntityUndocked(Entity entity)",
@@ -14345,7 +14347,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
         ".State",
-        ".Document<AetheriaRuntimeZoneContactsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -14484,17 +14486,17 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var compactSectorRenderer = CompactSource(sectorRenderer);
     var compactSectorMap = CompactSource(sectorMap);
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".State.Document<AetheriaRuntimeObjectsViewportDocument>(viewport).Reactive()", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".State.Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive()", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(".State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport)", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(".State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(".State.Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".State.Document<AetheriaRuntimeSectorMapDocument>().Reactive()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".State.Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex).Reactive()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains("ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains("ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
-        !compactSectorMap.Contains(".State.Document<AetheriaRuntimeSectorMapDocument>().Reactive()", StringComparison.Ordinal) ||
+        !compactSectorMap.Contains(".State.Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -14513,7 +14515,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "SectorMap",
         "AetheriaRuntimeSectorMapDocument",
         "_sectorMapDocument",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "AetheriaRuntimeSectorMapSession",
         ".ObserveSectorMap()");
 
@@ -15151,7 +15153,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryStartDaemonObservedGame",
         "ResolveSectorMap(stateBoot)",
         ".State",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -16053,9 +16055,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
         ".State",
-        ".Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "runtimeCatalogDocument.Current",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "sectorMapDocument.Current",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
@@ -16098,7 +16100,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "RuntimeClients[cacheKey] = runtimeClient",
         "AetheriaClient",
         ".State",
-        ".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
         "_playerSettingsDocument.Current",
         "_playerSettingsDocument?.Dispose()",
         "OpenAsync(",
@@ -16230,7 +16232,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaClientState State => _state;",
         "var frame = CurrentDaemonFrame();",
         "private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _daemonFrame;",
-        "_daemonFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();"
+        "_daemonFrame ??= State.Reactive<AetheriaRuntimeDaemonFrameDocument>();"
     };
     var missingManagedClientConnectionSymbols = requiredManagedClientConnectionSymbols
         .Where(symbol => !aetheriaClient.Contains(symbol, StringComparison.Ordinal))
@@ -16279,12 +16281,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         aetheriaClientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        aetheriaClientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("DocumentBySchema(", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("TryGetDocumentBySchema(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState still exposes generic latest/reactive/watch or schema-string shortcuts instead of direct typed CultMesh document handles.");
+            "AetheriaClientState still exposes generic latest/watch or schema-string shortcuts instead of direct typed CultMesh document handles.");
     }
 
     if (aetheriaClientState.Contains("public AetheriaRuntimeDaemonRenderView? CurrentObservedDaemon(", StringComparison.Ordinal) ||
@@ -16297,7 +16298,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredManagedCommandFrameSymbols = new[]
     {
         "internal AetheriaRuntimeDaemonFrameDocument? CurrentDaemonFrame()",
-        "_daemonFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();",
+        "_daemonFrame ??= State.Reactive<AetheriaRuntimeDaemonFrameDocument>();",
         "return _daemonFrame.Current;",
         "Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeDaemonFrameDocument?, AetheriaRuntimeDaemonCommandEnvelope> submit",
         "frame?.SessionId ?? _sessionId"
@@ -16313,9 +16314,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (!daemonRuntimeDocumentTests.Contains("ManagedStateSamplesCurrentDaemonRenderViewFromReactiveDocuments()", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();", StringComparison.Ordinal) ||
-        !daemonRuntimeDocumentTests.Contains("using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();", StringComparison.Ordinal) ||
+        !daemonRuntimeDocumentTests.Contains("using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();", StringComparison.Ordinal) ||
         !daemonRuntimeDocumentTests.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal) ||
         daemonRuntimeDocumentTests.Contains("client.State.CurrentObservedDaemon()", StringComparison.Ordinal))
     {
@@ -16536,9 +16537,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame", StringComparison.Ordinal) ||
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView", StringComparison.Ordinal) ||
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_daemonFrame ??= state.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_daemonFrame ??= state.Reactive<AetheriaRuntimeDaemonFrameDocument>();", StringComparison.Ordinal) ||
         !daemonObserver.Contains("_daemonSoaView ??= TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(state);", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_zoneRender ??= state.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_zoneRender ??= state.Reactive<AetheriaRuntimeZoneRenderDocument>();", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal) ||
         !daemonObserver.Contains("DisposeRenderViewDocuments()", StringComparison.Ordinal))
     {
@@ -16570,8 +16571,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
         !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
         !mainMenu.Contains(".State", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".Document<AetheriaRuntimeSectorMapDocument>().Reactive()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".Document<AetheriaRuntimePlayerSettingsDocument>().Reactive()", StringComparison.Ordinal))
+        !mainMenu.Contains(".Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");
@@ -16598,9 +16599,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredGameplayBootSymbols = new[]
     {
-        ".Document<AetheriaRuntimeCatalogSnapshot>().Reactive()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "runtimeCatalogDocument.Current",
-        ".Document<AetheriaRuntimeSectorMapDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
         "sectorMapDocument.Current",
         "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
@@ -17441,8 +17442,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryResolveTypedInventoryRows(",
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
-        ".Document<AetheriaRuntimeInventoryDocument>(entityIndex)",
-        ".Reactive()",
+        ".State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
@@ -17995,7 +17995,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
         "CreateLoadoutTemplate(targetEntityKey)",
         ".CreateLoadoutTemplate(targetEntityKey ?? \"\")",
-        ".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
         "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
@@ -18021,7 +18021,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "InventoryPanel",
         "AetheriaRuntimeDaemonFrameDocument",
         "_loadoutFrame",
-        ".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()",
+        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
         "AetheriaRuntimeDaemonFrameSession",
         ".ObserveDaemonFrame()");
 
@@ -18062,7 +18062,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
 
     if (snapshotDocuments.Contains("ProjectLoadoutTemplateAsync(", StringComparison.Ordinal) ||
         snapshotDocuments.Contains("AetheriaClientState state", StringComparison.Ordinal) ||
-        snapshotDocuments.Contains(".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains(".Reactive<AetheriaRuntimeDaemonFrameDocument>()", StringComparison.Ordinal) ||
         snapshotDocuments.Contains("frame.Current?.Run", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

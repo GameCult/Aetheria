@@ -102,7 +102,7 @@ public class VolumeCloudRenderer : EffectBase
         try
         {
             _playerSettings = ResolveClient()
-                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {

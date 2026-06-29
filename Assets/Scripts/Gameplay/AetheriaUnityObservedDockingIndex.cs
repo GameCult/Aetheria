@@ -212,9 +212,9 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         if (state == null)
             return;
 
-        _currentEntity ??= state.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
-        _currentDocking ??= state.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive();
-        _stationRefit ??= state.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
+        _currentEntity ??= state.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        _currentDocking ??= state.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+        _stationRefit ??= state.Reactive<AetheriaRuntimeStationRefitDocument>();
     }
 
     public void Dispose()

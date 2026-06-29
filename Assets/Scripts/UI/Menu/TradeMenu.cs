@@ -518,7 +518,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _stationRefit = ResolveClient().State.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
+            _stationRefit = ResolveClient().State.Reactive<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
@@ -533,7 +533,7 @@ public class TradeMenu : MonoBehaviour
         docking = null;
         try
         {
-            _currentDocking ??= ResolveClient().State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive();
+            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
             docking = _currentDocking.Current;
             return docking != null;
         }
@@ -627,7 +627,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -645,7 +645,7 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {

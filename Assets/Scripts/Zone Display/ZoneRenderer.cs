@@ -1208,7 +1208,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -1225,7 +1225,7 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _zoneContacts = ResolveClient().State.Document<AetheriaRuntimeZoneContactsDocument>().Reactive();
+            _zoneContacts = ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>();
         }
         catch (Exception ex)
         {
@@ -1244,9 +1244,7 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             var nextObjectsViewport = ResolveClient()
-                .State
-                .Document<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)
-                .Reactive();
+                .State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds);
             _objectsViewport?.Dispose();
             _objectsViewportBounds = viewportBounds;
             _objectsViewport = nextObjectsViewport;

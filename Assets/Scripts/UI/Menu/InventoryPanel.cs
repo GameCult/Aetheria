@@ -1504,7 +1504,7 @@ private void Update()
         try
         {
             _currentEntity = ResolveClient()
-                .State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
         }
         catch (Exception ex)
         {
@@ -1522,7 +1522,7 @@ private void Update()
         try
         {
             _stationRefit = ResolveClient()
-                .State.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
@@ -1547,7 +1547,7 @@ private void Update()
         try
         {
             _loadoutFrame = ResolveClient()
-                .State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
         }
         catch (Exception ex)
         {
@@ -1565,9 +1565,7 @@ private void Update()
         try
         {
             var nextInventory = ResolveClient()
-                .State
-                .Document<AetheriaRuntimeInventoryDocument>(entityIndex)
-                .Reactive();
+                .State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1587,7 +1585,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         }
         catch (Exception ex)
         {
@@ -1605,7 +1603,7 @@ private void Update()
         try
         {
             _playerSettings = ResolveClient()
-                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         }
         catch (Exception ex)
         {
