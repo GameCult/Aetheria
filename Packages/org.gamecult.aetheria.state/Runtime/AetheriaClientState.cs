@@ -170,22 +170,6 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
 
-        public bool TryGetDocumentBySchema(
-            string schemaVersion,
-            out ICultMeshDocumentHandle document)
-        {
-            return _documents.TryGetDocumentBySchema(schemaVersion, out document);
-        }
-
-        public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)
-        {
-            if (TryGetDocumentBySchema(schemaVersion, out var document))
-                return document;
-
-            throw new NotSupportedException(
-                $"Aetheria typed state does not expose a projected document for schema '{schemaVersion}'.");
-        }
-
         public bool TryGetDocument<TDocument>(
             out CultMeshDocumentHandle<TDocument> document)
             where TDocument : class

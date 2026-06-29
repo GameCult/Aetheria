@@ -257,9 +257,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(
             client.State.StarbridgeSummary,
             client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>());
-        Assert.AreSame(
-            client.State.StarbridgeSummary,
-            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(client.State.LatestSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>()));
@@ -267,7 +264,7 @@ public class DaemonRuntimeDocumentTests
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>()));
         Assert.AreSame(
             client.State.Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(),
-            client.State.DocumentBySchema(AetheriaRuntimeVerseAuthoritySchemas.Policy));
+            client.State.AuthorityPolicy);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, reactiveGameSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, reactiveGameTuiSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, reactiveEditorSurface.Current.Surface.Id);
@@ -276,21 +273,13 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
         Assert.AreSame(client.State.PlayerSettings, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
         Assert.AreSame(client.State.VerseHostSettings, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
-        Assert.AreSame(
-            client.State.CurrentEntity,
-            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
-        Assert.AreSame(
-            client.State.ZoneContacts,
-            client.State.DocumentBySchema("gamecult.aetheria.zone_contacts"));
+        Assert.AreSame(client.State.CurrentEntity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
+        Assert.AreSame(client.State.ZoneContacts, client.State.Document<AetheriaRuntimeZoneContactsDocument>());
         Assert.AreEqual(
             typeof(AetheriaRuntimeCurrentEntityDocument),
-            client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity).DocumentType);
+            client.State.Document<AetheriaRuntimeCurrentEntityDocument>().DocumentType);
         Assert.IsTrue(client.State.TryGetDocument<AetheriaRuntimeSectorMapDocument>(out var sectorMapDocument));
         Assert.AreSame(client.State.SectorMap, sectorMapDocument);
-        Assert.IsTrue(client.State.TryGetDocumentBySchema(
-            AetheriaRuntimeDaemonSchemas.SectorMap,
-            out var sectorMapBySchema));
-        Assert.AreSame(client.State.SectorMap, sectorMapBySchema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);

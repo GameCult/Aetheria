@@ -8583,13 +8583,10 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (!clientState.Contains("StarbridgeSummary", StringComparison.Ordinal) ||
         !checkedSources["DaemonRuntimeDocumentTests.cs"].Contains(
             "client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>()",
-            StringComparison.Ordinal) ||
-        !checkedSources["DaemonRuntimeDocumentTests.cs"].Contains(
-            "client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary)",
             StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Starbridge summary must be registered in the managed Aetheria document catalog for typed and schema lookups.");
+            "Starbridge summary must be registered in managed Aetheria typed document access.");
     }
 
     if (!checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
@@ -16158,7 +16155,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredManagedStateAccessSymbols = new[]
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
-        "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
@@ -16178,10 +16174,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         aetheriaClientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        aetheriaClientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal))
+        aetheriaClientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("DocumentBySchema(", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("TryGetDocumentBySchema(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState still exposes generic latest/reactive/watch shortcuts instead of direct CultMesh document handles.");
+            "AetheriaClientState still exposes generic latest/reactive/watch or schema-string shortcuts instead of direct typed CultMesh document handles.");
     }
 
     if (aetheriaClientState.Contains("public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(", StringComparison.Ordinal) ||
@@ -16385,7 +16383,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
-        "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
         "public Observable<TDocument> Watch<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
