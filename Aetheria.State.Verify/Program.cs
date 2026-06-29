@@ -7621,12 +7621,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ActionBarSlot.cs"));
     var requiredActionBarSymbols = new[]
     {
-        "public abstract class ActionBarBinding : IDisposable",
-        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
+        "public abstract class ActionBarBinding",
         "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveCatalogSnapshot(\"unity-action-bar\")",
-        "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
-        "binding?.Dispose()",
+        ".RuntimeState()",
+        ".CurrentCatalog()",
+        ".FindItem(item, x => x.ItemKey)",
         "private void OnDestroy()"
     };
     var missingActionBarSymbols = requiredActionBarSymbols
@@ -7640,11 +7639,16 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     }
 
     if (actionBarSlot.Contains("AetheriaRuntimeCatalogSession _catalog", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog", StringComparison.Ordinal) ||
+        actionBarSlot.Contains(".ReactiveCatalogSnapshot(\"unity-action-bar\")", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("_catalog?.Current?.FindItem", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("binding?.Dispose()", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("public virtual void Dispose()", StringComparison.Ordinal) ||
         actionBarSlot.Contains("Client.State.ObserveCatalog()", StringComparison.Ordinal) ||
         actionBarSlot.Contains("Client.State.ReactiveCatalogSnapshot()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionBarSlot still routes through client/session catalog plumbing instead of its managed reactive typed catalog document.");
+            "ActionBarSlot still routes through client/session/reactive catalog plumbing instead of reading the named current catalog from typed client state.");
     }
 
     var schematicDisplay = File.ReadAllText(Path.Combine(
@@ -8408,55 +8412,79 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }",
         "public CultMeshReactiveDocument<AetheriaRuntimeVerseAuthorityPolicyDocument> ReactiveAuthorityPolicy()",
         "public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrame { get; }",
+        "public AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame()",
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame()",
         "public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaView { get; }",
+        "public AetheriaRuntimeDaemonSoaViewDocument CurrentDaemonSoaView()",
         "public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView()",
         "public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }",
+        "public AetheriaRuntimeZoneRenderDocument CurrentZoneRender()",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender()",
         "public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates { get; }",
+        "public AetheriaRuntimeLoadoutTemplatesDocument CurrentLoadoutTemplates()",
         "public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates()",
         "public CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> SectorMap { get; }",
+        "public AetheriaRuntimeSectorMapDocument CurrentSectorMap()",
         "public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap()",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> CurrentZone { get; }",
+        "public AetheriaRuntimeCurrentZoneDocument CurrentZoneState()",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone()",
         "public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContacts { get; }",
+        "public AetheriaRuntimeZoneContactsDocument CurrentZoneContacts()",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts()",
         "public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHostSettings { get; }",
+        "public AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings()",
         "public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings()",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking { get; }",
+        "public AetheriaRuntimeCurrentDockingDocument CurrentDockingState()",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking()",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> CurrentEntity { get; }",
+        "public AetheriaRuntimeCurrentEntityDocument CurrentEntityState()",
         "public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity()",
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
+        "public AetheriaRuntimeStationRefitDocument CurrentStationRefit()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit()",
         "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }",
+        "public AetheriaRuntimeCatalogSnapshot CurrentCatalog()",
         "public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot()",
         "public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettings { get; }",
+        "public AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings()",
         "public CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument()",
         "public static bool TryResolveEveSurface(",
         "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState>? EveSurfaceDocument(",
         "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ReactiveEveSurface(",
         "public CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument> RtsViewport(",
+        "public AetheriaRuntimeRtsViewportDocument CurrentRtsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(",
+        "public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> GravityViewport(",
+        "public AetheriaRuntimeGravityViewportDocument CurrentGravityViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(",
+        "public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> ZoneDetails(",
+        "public AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(",
         "public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(",
+        "public AetheriaRuntimeSelectedObjectDocument CurrentSelectedObject(",
         "public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(",
         "public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(",
+        "public AetheriaRuntimeInventoryDocument CurrentInventory(",
         "public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario { get; }",
+        "public AetheriaRuntimeStarbridgeScenarioDocument CurrentStarbridgeScenario()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveStarbridgeScenario()",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession { get; }",
+        "public AetheriaRuntimeStarbridgeSessionDocument CurrentStarbridgeSession()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveStarbridgeSession()",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummary { get; }",
+        "public AetheriaRuntimeStarbridgeSessionSummaryDocument CurrentStarbridgeSummary()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveStarbridgeSummary()",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument> StarbridgePlayerSeat(",
+        "public AetheriaRuntimeStarbridgePlayerSeatDocument CurrentStarbridgePlayerSeat(",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactiveStarbridgePlayerSeat("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -8471,6 +8499,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
 
     if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
+        clientState.Contains("public TDocument Current<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("TryGetDocument<TDocument>", StringComparison.Ordinal) ||

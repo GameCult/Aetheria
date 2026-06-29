@@ -126,11 +126,31 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrame { get; }
 
+        public AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame()
+        {
+            return DaemonFrame.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaView { get; }
+
+        public AetheriaRuntimeDaemonSoaViewDocument CurrentDaemonSoaView()
+        {
+            return DaemonSoaView.Latest();
+        }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }
 
+        public AetheriaRuntimeCatalogSnapshot CurrentCatalog()
+        {
+            return Catalog.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates { get; }
+
+        public AetheriaRuntimeLoadoutTemplatesDocument CurrentLoadoutTemplates()
+        {
+            return LoadoutTemplates.Latest();
+        }
 
         public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface { get; }
 
@@ -142,15 +162,45 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettings { get; }
 
+        public AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings()
+        {
+            return PlayerSettings.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHostSettings { get; }
+
+        public AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings()
+        {
+            return VerseHostSettings.Latest();
+        }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> CurrentZone { get; }
 
+        public AetheriaRuntimeCurrentZoneDocument CurrentZoneState()
+        {
+            return CurrentZone.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> CurrentEntity { get; }
+
+        public AetheriaRuntimeCurrentEntityDocument CurrentEntityState()
+        {
+            return CurrentEntity.Latest();
+        }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking { get; }
 
+        public AetheriaRuntimeCurrentDockingDocument CurrentDockingState()
+        {
+            return CurrentDocking.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario { get; }
+
+        public AetheriaRuntimeStarbridgeScenarioDocument CurrentStarbridgeScenario()
+        {
+            return StarbridgeScenario.Latest();
+        }
 
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveStarbridgeScenario()
         {
@@ -159,12 +209,22 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession { get; }
 
+        public AetheriaRuntimeStarbridgeSessionDocument CurrentStarbridgeSession()
+        {
+            return StarbridgeSession.Latest();
+        }
+
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveStarbridgeSession()
         {
             return StarbridgeSession.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummary { get; }
+
+        public AetheriaRuntimeStarbridgeSessionSummaryDocument CurrentStarbridgeSummary()
+        {
+            return StarbridgeSummary.Latest();
+        }
 
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveStarbridgeSummary()
         {
@@ -173,11 +233,31 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContacts { get; }
 
+        public AetheriaRuntimeZoneContactsDocument CurrentZoneContacts()
+        {
+            return ZoneContacts.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }
+
+        public AetheriaRuntimeStationRefitDocument CurrentStationRefit()
+        {
+            return StationRefit.Latest();
+        }
 
         public CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> SectorMap { get; }
 
+        public AetheriaRuntimeSectorMapDocument CurrentSectorMap()
+        {
+            return SectorMap.Latest();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
+
+        public AetheriaRuntimeZoneRenderDocument CurrentZoneRender()
+        {
+            return ZoneRender.Latest();
+        }
 
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame()
         {
@@ -304,6 +384,11 @@ namespace GameCult.Aetheria.State.Verse
             return _mapViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
+        public AetheriaRuntimeRtsViewportDocument CurrentRtsViewport(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return RtsViewport(viewport).Latest();
+        }
+
         public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(
             AetheriaRuntimeRtsViewportBounds viewport)
         {
@@ -314,6 +399,11 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _objectsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return ObjectsViewport(viewport).Latest();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(
@@ -328,6 +418,11 @@ namespace GameCult.Aetheria.State.Verse
             return _gravityViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
         }
 
+        public AetheriaRuntimeGravityViewportDocument CurrentGravityViewport(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return GravityViewport(viewport).Latest();
+        }
+
         public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(
             AetheriaRuntimeRtsViewportBounds viewport)
         {
@@ -338,6 +433,11 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRtsViewportBounds viewport)
         {
             return _renderSplatsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport(AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return RenderSplatsViewport(viewport).Latest();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(
@@ -354,6 +454,11 @@ namespace GameCult.Aetheria.State.Verse
             return _zoneDetails(zoneIndex);
         }
 
+        public AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex)
+        {
+            return ZoneDetails(zoneIndex).Latest();
+        }
+
         public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(int zoneIndex)
         {
             return ZoneDetails(zoneIndex).Reactive();
@@ -365,6 +470,11 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ArgumentOutOfRangeException(nameof(zoneIndex), zoneIndex, "Aetheria zone index must be non-negative.");
 
             return _selectedObject(zoneIndex);
+        }
+
+        public AetheriaRuntimeSelectedObjectDocument CurrentSelectedObject(int zoneIndex)
+        {
+            return SelectedObject(zoneIndex).Latest();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(int zoneIndex)
@@ -380,6 +490,11 @@ namespace GameCult.Aetheria.State.Verse
             return _inventory(entityIndex);
         }
 
+        public AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex)
+        {
+            return Inventory(entityIndex).Latest();
+        }
+
         public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(int entityIndex)
         {
             return Inventory(entityIndex).Reactive();
@@ -391,6 +506,11 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ArgumentException("Seat id must be non-empty.", nameof(seatId));
 
             return _starbridgePlayerSeat(seatId);
+        }
+
+        public AetheriaRuntimeStarbridgePlayerSeatDocument CurrentStarbridgePlayerSeat(string seatId)
+        {
+            return StarbridgePlayerSeat(seatId).Latest();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactiveStarbridgePlayerSeat(

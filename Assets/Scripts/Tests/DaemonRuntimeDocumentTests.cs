@@ -188,6 +188,11 @@ public class DaemonRuntimeDocumentTests
             MaxX = 100,
             MaxY = 100
         };
+        var currentCatalog = client.State.CurrentCatalog();
+        var currentPlayerSettings = client.State.CurrentPlayerSettings();
+        var currentFrame = client.State.CurrentDaemonFrame();
+        var currentEntityState = client.State.CurrentEntityState();
+        var currentObjectsViewport = client.State.CurrentObjectsViewport(viewport);
         var objectsViewport = ReadLatest(client.State.ObjectsViewport(viewport));
         var zoneDetails = ReadLatest(client.State.ZoneDetails(0));
         var inventory = ReadLatest(client.State.Inventory(0));
@@ -288,6 +293,11 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.GreaterOrEqual(catalog.Items.Count, 0);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettings.Schema);
+        Assert.AreSame(catalog, currentCatalog);
+        Assert.AreEqual(playerSettings.Schema, currentPlayerSettings.Schema);
+        Assert.AreEqual(latestFrame.FrameId, currentFrame.FrameId);
+        Assert.AreEqual(currentEntity.EntityKey, currentEntityState.EntityKey);
+        Assert.AreEqual(objectsViewport.Schema, currentObjectsViewport.Schema);
         Assert.AreSame(catalog, catalogReactive.Current);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, daemonFrameReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, daemonSoaViewReactive.Current.Schema);
