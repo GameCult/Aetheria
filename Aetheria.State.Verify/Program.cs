@@ -5077,7 +5077,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
+        ".RuntimeState(\"unity-inventory-menu\")",
+        ".CurrentEntityState()",
         "CurrentEntitySnapshot()",
         "currentEntity = CurrentEntitySnapshot();"
     };
@@ -6620,7 +6621,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryMenu must resolve typed current entity/refit state through managed sessions before adapting docking state to Unity objects.");
+            "InventoryMenu must resolve typed current entity/refit state through managed current documents before adapting docking state to Unity objects.");
     }
 
     var requiredBuilderSymbols = new[]
@@ -7254,28 +7255,36 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     foreach (var (name, source) in sources)
     {
         var compact = CompactSource(source);
+        var currentEntityAccess = name == "InventoryMenu.cs"
+            ? ".RuntimeState(\"unity-inventory-menu\").CurrentEntityState()"
+            : ".ReactiveCurrentEntity(\"unity-inventory\")";
+        var stationRefitAccess = name == "InventoryMenu.cs"
+            ? ".RuntimeState(\"unity-inventory-menu\").CurrentStationRefit()"
+            : ".ReactiveStationRefit(\"unity-inventory\")";
+        var inventoryAccess = name == "InventoryMenu.cs"
+            ? ".RuntimeState(\"unity-inventory-menu\").CurrentInventory(entityIndex)"
+            : ".ReactiveInventory(entityIndex)";
         var requiredSymbols = new[]
         {
             "CurrentEntitySnapshot()",
             "StationRefitSnapshot",
-            "InventorySnapshot(entityIndex)",
-            "_inventory?.Current"
+            "InventorySnapshot(entityIndex)"
         };
         var missingSymbols = requiredSymbols
             .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
             .ToArray();
-        var currentEntityAccess = name == "InventoryMenu.cs"
-            ? ".ReactiveCurrentEntity(\"unity-inventory-menu\")"
-            : ".ReactiveCurrentEntity(\"unity-inventory\")";
-        var stationRefitAccess = name == "InventoryMenu.cs"
-            ? ".ReactiveStationRefit(\"unity-inventory-menu\")"
-            : ".ReactiveStationRefit(\"unity-inventory\")";
         var requiredCompactedSymbols = new[]
         {
             currentEntityAccess,
             stationRefitAccess,
-            ".ReactiveInventory(entityIndex)"
+            inventoryAccess
         };
+        if (name == "InventoryPanel.cs")
+        {
+            missingSymbols = missingSymbols
+                .Concat(new[] { "_inventory?.Current" }.Where(symbol => !source.Contains(symbol, StringComparison.Ordinal)))
+                .ToArray();
+        }
         missingSymbols = missingSymbols
             .Concat(requiredCompactedSymbols.Where(symbol => !compact.Contains(symbol, StringComparison.Ordinal)))
             .ToArray();
@@ -7312,30 +7321,54 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
                 $"{name} still routes inventory validation through session wrappers instead of direct managed reactive typed documents.");
         }
 
-        RequireReactiveTypedDocumentAccess(
-            source,
-            name,
-            "AetheriaRuntimeCurrentEntityDocument",
-            "_currentEntity",
-            currentEntityAccess,
-            "AetheriaRuntimeCurrentEntitySession",
-            ".ObserveEntity()");
-        RequireReactiveTypedDocumentAccess(
-            source,
-            name,
-            "AetheriaRuntimeStationRefitDocument",
-            "_stationRefit",
-            stationRefitAccess,
-            "AetheriaRuntimeStationRefitSession",
-            ".ObserveStationRefit()");
-        RequireReactiveTypedDocumentAccess(
-            source,
-            name,
-            "AetheriaRuntimeInventoryDocument",
-            "_inventory",
-            ".ReactiveInventory(entityIndex)",
-            "AetheriaRuntimeInventorySession",
-            ".ObserveInventory(entityIndex)");
+        if (name == "InventoryMenu.cs")
+        {
+            var forbiddenMenuSymbols = new[]
+            {
+                "CultMeshReactiveDocument<",
+                ".ReactiveCurrentEntity(\"unity-inventory-menu\")",
+                ".ReactiveStationRefit(\"unity-inventory-menu\")",
+                ".ReactiveInventory(entityIndex)",
+                "_currentEntity?.Dispose()",
+                "_stationRefit?.Dispose()",
+                "_inventory?.Dispose()"
+            }
+                .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+                .ToArray();
+            if (forbiddenMenuSymbols.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    "InventoryMenu should sample inventory validation state through current typed documents instead of owning reactive handles: " +
+                    string.Join(", ", forbiddenMenuSymbols));
+            }
+        }
+        else
+        {
+            RequireReactiveTypedDocumentAccess(
+                source,
+                name,
+                "AetheriaRuntimeCurrentEntityDocument",
+                "_currentEntity",
+                currentEntityAccess,
+                "AetheriaRuntimeCurrentEntitySession",
+                ".ObserveEntity()");
+            RequireReactiveTypedDocumentAccess(
+                source,
+                name,
+                "AetheriaRuntimeStationRefitDocument",
+                "_stationRefit",
+                stationRefitAccess,
+                "AetheriaRuntimeStationRefitSession",
+                ".ObserveStationRefit()");
+            RequireReactiveTypedDocumentAccess(
+                source,
+                name,
+                "AetheriaRuntimeInventoryDocument",
+                "_inventory",
+                ".ReactiveInventory(entityIndex)",
+                "AetheriaRuntimeInventorySession",
+                ".ObserveInventory(entityIndex)");
+        }
     }
 
     Console.WriteLine("Inventory validation: cargo/equipment checks read managed typed client documents instead of manual handle walks");
@@ -7967,33 +8000,44 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "InventoryMenu.cs"));
-    var requiredInventoryMenuSharedDocumentSymbols = new[] { "private void OnDestroy()" };
+    var compactInventoryMenu = CompactSource(inventoryMenu);
+    var requiredInventoryMenuSharedDocumentSymbols = new[]
+    {
+        ".RuntimeState(\"unity-inventory-menu\").CurrentCatalog()",
+        ".RuntimeState(\"unity-inventory-menu\").CurrentPlayerSettings()",
+        "private void OnDestroy()"
+    };
     var missingInventoryMenuSharedDocumentSymbols = requiredInventoryMenuSharedDocumentSymbols
-        .Where(symbol => !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !compactInventoryMenu.Contains(symbol, StringComparison.Ordinal) &&
+                         !inventoryMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingInventoryMenuSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryMenu should bind shared catalog/settings through managed reactive Aetheria documents with menu lifetime disposal: " +
+            "InventoryMenu should sample shared catalog/settings through named current typed Aetheria documents: " +
             string.Join(", ", missingInventoryMenuSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        inventoryMenu,
-        "InventoryMenu",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
+    var forbiddenInventoryMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<",
         ".ReactiveCatalogSnapshot(\"unity-inventory-menu\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-    RequireReactiveTypedDocumentAccess(
-        inventoryMenu,
-        "InventoryMenu",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
         ".ReactivePlayerSettingsDocument(\"unity-inventory-menu\")",
+        "AetheriaRuntimeCatalogSession",
         "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObservePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()"
+    }
+        .Where(symbol => inventoryMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenInventoryMenuSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryMenu still routes catalog/settings through wrapper/session/reactive handles instead of current typed documents: " +
+            string.Join(", ", forbiddenInventoryMenuSharedDocumentSymbols));
+    }
 
     var inventoryPanel = File.ReadAllText(Path.Combine(
         root,
@@ -17925,7 +17969,6 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryResolveTypedInventoryRows(",
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
-        ".ReactiveInventory(entityIndex)",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
@@ -17944,6 +17987,19 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         throw new InvalidOperationException(
             "Inventory cargo/equipment submissions must validate Unity inventory items against typed inventory document slot identity: " +
             string.Join(", ", missingTypedSlotValidationSymbols));
+    }
+    var requiredMenuInventoryAccess = ".CurrentInventory(entityIndex)";
+    var requiredPanelInventoryAccess = ".ReactiveInventory(entityIndex)";
+    if (!inventoryMenu.Contains(requiredMenuInventoryAccess, StringComparison.Ordinal) ||
+        !inventoryPanel.Contains(requiredPanelInventoryAccess, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Inventory cargo/equipment submissions must read typed inventory slot identity through the appropriate managed document access: " +
+            string.Join(", ", new[]
+            {
+                inventoryMenu.Contains(requiredMenuInventoryAccess, StringComparison.Ordinal) ? null : requiredMenuInventoryAccess,
+                inventoryPanel.Contains(requiredPanelInventoryAccess, StringComparison.Ordinal) ? null : requiredPanelInventoryAccess
+            }.Where(symbol => symbol != null)));
     }
 
     var forbiddenUnknownOriginSymbols = new[] { "int.MinValue" };

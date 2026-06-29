@@ -9,7 +9,6 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
@@ -31,12 +30,6 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-    private int _inventoryEntityIndex = -1;
-    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private AetheriaUnityObservedDockingIndex _observedDockingIndex;
@@ -903,76 +896,52 @@ public class InventoryMenu : MonoBehaviour
 
     private void ClearClientCaches()
     {
-        _catalog?.Dispose();
-        _playerSettings?.Dispose();
-        _currentEntity?.Dispose();
-        _stationRefit?.Dispose();
-        _inventory?.Dispose();
-        _catalog = null;
-        _playerSettings = null;
-        _currentEntity = null;
-        _stationRefit = null;
         _observedDockingIndex = null;
-        _inventory = null;
-        _inventoryEntityIndex = -1;
     }
 
     private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
     {
-        if (_currentEntity != null)
-            return _currentEntity.Current;
-
         try
         {
-            _currentEntity = AetheriaUnityRuntimeClientProvider
-                .ReactiveCurrentEntity("unity-inventory-menu");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory-menu")
+                .CurrentEntityState();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria current entity for inventory menu: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria current entity for inventory menu: {ex.Message}");
+            return null;
         }
-
-        return _currentEntity?.Current;
     }
 
     private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
-        if (_stationRefit != null)
-            return _stationRefit.Current;
-
         try
         {
-            _stationRefit = AetheriaUnityRuntimeClientProvider
-                .ReactiveStationRefit("unity-inventory-menu");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory-menu")
+                .CurrentStationRefit();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria station refit for inventory menu: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria station refit for inventory menu: {ex.Message}");
+            return null;
         }
-
-        return _stationRefit?.Current;
     }
 
     private AetheriaRuntimeInventoryDocument InventorySnapshot(int entityIndex)
     {
-        if (_inventory != null && _inventoryEntityIndex == entityIndex)
-            return _inventory.Current;
-
         try
         {
-            var nextInventory = AetheriaUnityRuntimeClientProvider
+            return AetheriaUnityRuntimeClientProvider
                 .RuntimeState("unity-inventory-menu")
-                .ReactiveInventory(entityIndex);
-            _inventory?.Dispose();
-            _inventoryEntityIndex = entityIndex;
-            _inventory = nextInventory;
+                .CurrentInventory(entityIndex);
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
+            return null;
         }
-
-        return _inventory?.Current;
     }
 
     void Update()
@@ -1029,38 +998,32 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
-        if (_catalog != null)
-            return _catalog.Current;
-
         try
         {
-            _catalog = AetheriaUnityRuntimeClientProvider
-                .ReactiveCatalogSnapshot("unity-inventory-menu");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory-menu")
+                .CurrentCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for inventory menu: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for inventory menu: {ex.Message}");
+            return null;
         }
-
-        return _catalog?.Current;
     }
 
     private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
-        if (_playerSettings != null)
-            return _playerSettings.Current;
-
         try
         {
-            _playerSettings = AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument("unity-inventory-menu");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory-menu")
+                .CurrentPlayerSettings();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria player settings for inventory menu: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria player settings for inventory menu: {ex.Message}");
+            return null;
         }
-
-        return _playerSettings?.Current;
     }
 
     private float ResolveDefaultShutdownPerformance()
