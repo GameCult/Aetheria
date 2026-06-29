@@ -220,8 +220,7 @@ public class SectorMap : MonoBehaviour
     private void EnsureSectorMapLoaded()
     {
         _sectorMap = AetheriaUnityRuntimeClientProvider
-            .RuntimeState("unity-sector-map")
-            .CurrentSectorMap();
+            .CurrentSectorMap("unity-sector-map");
 
         if (_sectorMapLoaded)
             return;

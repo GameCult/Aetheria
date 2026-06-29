@@ -4590,12 +4590,11 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "zoneFacts.Bodies",
         "zoneFacts.Entities",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState(\"unity-sector-renderer\")",
-        ".CurrentSectorMap()",
-        ".CurrentZoneDetails(zoneIndex)",
-        ".CurrentCatalog()",
-        ".CurrentPlayerSettings()",
-        ".CurrentZoneState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentSectorMap(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, \"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneState(\"unity-sector-renderer\")",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -5038,8 +5037,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
-        ".RuntimeState(\"unity-inventory-menu\")",
-        ".CurrentEntityState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentEntityState(\"unity-inventory-menu\")",
         "CurrentEntitySnapshot()",
         "currentEntity = CurrentEntitySnapshot();"
     };
@@ -7223,9 +7221,9 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var runtimeId = name == "InventoryMenu.cs"
             ? "unity-inventory-menu"
             : "unity-inventory";
-        var currentEntityAccess = $".RuntimeState(\"{runtimeId}\").CurrentEntityState()";
-        var stationRefitAccess = $".RuntimeState(\"{runtimeId}\").CurrentStationRefit()";
-        var inventoryAccess = $".RuntimeState(\"{runtimeId}\").CurrentInventory(entityIndex)";
+        var currentEntityAccess = $"AetheriaUnityRuntimeClientProvider.CurrentEntityState(\"{runtimeId}\")";
+        var stationRefitAccess = $"AetheriaUnityRuntimeClientProvider.CurrentStationRefit(\"{runtimeId}\")";
+        var inventoryAccess = $"AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, \"{runtimeId}\")";
         var requiredSymbols = new[]
         {
             "CurrentEntitySnapshot()",
@@ -7240,7 +7238,9 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             currentEntityAccess,
             stationRefitAccess,
             inventoryAccess
-        };
+        }
+            .Select(CompactSource)
+            .ToArray();
         missingSymbols = missingSymbols
             .Concat(requiredCompactedSymbols.Where(symbol => !compact.Contains(symbol, StringComparison.Ordinal)))
             .ToArray();
@@ -7435,6 +7435,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
 {
     if (source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
         (source.Contains("CurrentDockingState(\"", StringComparison.Ordinal) ||
+            source.Contains("CurrentStationRefit(\"", StringComparison.Ordinal) ||
             source.Contains(".CurrentStationRefit()", StringComparison.Ordinal)) &&
         !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) &&
         !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) &&
@@ -7901,8 +7902,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var compactInventoryMenu = CompactSource(inventoryMenu);
     var requiredInventoryMenuSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(\"unity-inventory-menu\").CurrentCatalog()",
-        ".RuntimeState(\"unity-inventory-menu\").CurrentPlayerSettings()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-inventory-menu\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-inventory-menu\")",
         "private void OnDestroy()"
     };
     var missingInventoryMenuSharedDocumentSymbols = requiredInventoryMenuSharedDocumentSymbols
@@ -7947,8 +7948,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var compactInventoryPanel = CompactSource(inventoryPanel);
     var requiredInventoryPanelSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(\"unity-inventory\").CurrentCatalog()",
-        ".RuntimeState(\"unity-inventory\").CurrentPlayerSettings()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-inventory\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-inventory\")",
         "private void OnDestroy()"
     };
     var missingInventoryPanelSharedDocumentSymbols = requiredInventoryPanelSharedDocumentSymbols
@@ -7993,12 +7994,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var compactSectorRenderer = CompactSource(sectorRenderer);
     var requiredSectorRendererSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(\"unity-sector-renderer\").CurrentSectorMap()",
-        ".RuntimeState(\"unity-sector-renderer\").CurrentZoneState()",
-        ".RuntimeState(\"unity-sector-renderer\").CurrentZoneDetails(zoneIndex)",
-        ".RuntimeState(\"unity-sector-renderer\").CurrentCatalog()",
-        ".RuntimeState(\"unity-sector-renderer\").CurrentPlayerSettings()"
+        "AetheriaUnityRuntimeClientProvider.CurrentSectorMap(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneState(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, \"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-sector-renderer\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-sector-renderer\")"
     }
+        .Select(CompactSource)
         .Where(symbol => !compactSectorRenderer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (requiredSectorRendererSharedDocumentSymbols.Length > 0)
@@ -14825,13 +14827,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !compactMapRenderer.Contains(".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".RuntimeState(\"unity-map-renderer\").CurrentPlayerSettings()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentSectorMap()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentZoneDetails(zoneIndex)", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentCatalog()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentPlayerSettings()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentZoneState()", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentSectorMap(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, \"unity-sector-renderer\")", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
+        !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentZoneState(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !compactSectorMap.Contains(".RuntimeState(\"unity-sector-map\").CurrentSectorMap()", StringComparison.Ordinal) ||
+        !sectorMap.Contains(".CurrentSectorMap(\"unity-sector-map\")", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -16462,7 +16464,14 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(string runtimeId = \"\")",
         "public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = \"\")",
+        "public static AetheriaRuntimeCurrentZoneDocument CurrentZoneState(string runtimeId = \"\")",
         "public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = \"\")",
+        "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(string runtimeId = \"\")",
+        "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(",
+        "public static AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex, string runtimeId = \"\")",
+        "public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = \"\")",
+        "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = \"\")",
+        "public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
         "public static AetheriaUi Ui(",
@@ -17882,8 +17891,10 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
             "Inventory cargo/equipment submissions must validate Unity inventory items against typed inventory document slot identity: " +
             string.Join(", ", missingTypedSlotValidationSymbols));
     }
-    var requiredMenuInventoryAccess = ".CurrentInventory(entityIndex)";
-    var requiredPanelInventoryAccess = ".CurrentInventory(entityIndex)";
+    var requiredMenuInventoryAccess =
+        "AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, \"unity-inventory-menu\")";
+    var requiredPanelInventoryAccess =
+        "AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, \"unity-inventory\")";
     if (!inventoryMenu.Contains(requiredMenuInventoryAccess, StringComparison.Ordinal) ||
         !inventoryPanel.Contains(requiredPanelInventoryAccess, StringComparison.Ordinal))
     {
@@ -18432,8 +18443,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
         .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
-        .Concat(new[] { ".RuntimeState(\"unity-inventory\").CurrentDaemonFrame()" }
-            .Where(symbol => !CompactSource(inventoryPanel).Contains(symbol, StringComparison.Ordinal)))
+        .Concat(new[] { "AetheriaUnityRuntimeClientProvider.CurrentDaemonFrame(\"unity-inventory\")" }
+            .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingInventoryPanelSymbols.Length > 0)
     {

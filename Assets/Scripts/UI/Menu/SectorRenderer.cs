@@ -161,9 +161,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            var sectorMap = AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-sector-renderer")
-                .CurrentSectorMap();
+            var sectorMap = AetheriaUnityRuntimeClientProvider.CurrentSectorMap("unity-sector-renderer");
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
         }
@@ -186,9 +184,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-sector-renderer")
-                .CurrentZoneDetails(zoneIndex);
+            return AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, "unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -207,9 +203,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-sector-renderer")
-                .CurrentCatalog();
+            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -222,9 +216,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-sector-renderer")
-                .CurrentPlayerSettings();
+            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -267,9 +259,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-sector-renderer")
-                .CurrentZoneState();
+            return AetheriaUnityRuntimeClientProvider.CurrentZoneState("unity-sector-renderer");
         }
         catch (Exception ex)
         {

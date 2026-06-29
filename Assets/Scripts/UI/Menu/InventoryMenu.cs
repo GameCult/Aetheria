@@ -890,9 +890,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory-menu")
-                .CurrentEntityState();
+            return AetheriaUnityRuntimeClientProvider.CurrentEntityState("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -905,9 +903,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory-menu")
-                .CurrentStationRefit();
+            return AetheriaUnityRuntimeClientProvider.CurrentStationRefit("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -920,9 +916,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory-menu")
-                .CurrentInventory(entityIndex);
+            return AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, "unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -987,9 +981,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory-menu")
-                .CurrentCatalog();
+            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -1002,9 +994,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory-menu")
-                .CurrentPlayerSettings();
+            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-inventory-menu");
         }
         catch (Exception ex)
         {

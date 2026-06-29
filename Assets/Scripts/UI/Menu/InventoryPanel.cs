@@ -1444,9 +1444,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentEntityState();
+            return AetheriaUnityRuntimeClientProvider.CurrentEntityState("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1459,9 +1457,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentStationRefit();
+            return AetheriaUnityRuntimeClientProvider.CurrentStationRefit("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1481,9 +1477,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentDaemonFrame();
+            return AetheriaUnityRuntimeClientProvider.CurrentDaemonFrame("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1496,9 +1490,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentInventory(entityIndex);
+            return AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, "unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1511,9 +1503,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentCatalog();
+            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1526,9 +1516,7 @@ private void Update()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-inventory")
-                .CurrentPlayerSettings();
+            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-inventory");
         }
         catch (Exception ex)
         {

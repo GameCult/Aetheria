@@ -121,9 +121,48 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).CurrentEntityState();
     }
 
+    public static AetheriaRuntimeCurrentZoneDocument CurrentZoneState(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentZoneState();
+    }
+
     public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentStationRefit();
+    }
+
+    public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentSectorMap();
+    }
+
+    public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentSectorMap();
+    }
+
+    public static AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex, string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentZoneDetails(zoneIndex);
+    }
+
+    public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentInventory(entityIndex);
+    }
+
+    public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentDaemonFrame();
+    }
+
+    public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentVerseHostSettings();
     }
 
     public static AetheriaControl Control(string runtimeId = "")
