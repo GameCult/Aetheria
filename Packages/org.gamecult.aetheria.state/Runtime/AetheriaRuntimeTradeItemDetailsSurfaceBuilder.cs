@@ -37,44 +37,6 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeTradeItemMetric> Metrics { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeItemDetailsSurfaceState
-    {
-        public AetheriaRuntimeTradeItemDetailsSurfaceState(
-            string itemName,
-            string description,
-            string manufacturer,
-            string mass,
-            int price,
-            string durability,
-            string thermalRange,
-            IReadOnlyList<AetheriaRuntimeTradeItemSection> behaviorSections,
-            string updatedAtUtc)
-        {
-            ItemName = itemName ?? "";
-            Description = description ?? "";
-            Manufacturer = manufacturer ?? "";
-            Mass = mass ?? "";
-            Price = price;
-            Durability = durability ?? "";
-            ThermalRange = thermalRange ?? "";
-            BehaviorSections = behaviorSections ?? Array.Empty<AetheriaRuntimeTradeItemSection>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string ItemName { get; }
-        public string Description { get; }
-        public string Manufacturer { get; }
-        public string Mass { get; }
-        public int Price { get; }
-        public string Durability { get; }
-        public string ThermalRange { get; }
-        public IReadOnlyList<AetheriaRuntimeTradeItemSection> BehaviorSections { get; }
-        public string UpdatedAtUtc { get; }
-        public bool HasEquipmentStatus => !string.IsNullOrWhiteSpace(Durability) ||
-                                          !string.IsNullOrWhiteSpace(ThermalRange) ||
-                                          BehaviorSections.Count > 0;
-    }
-
     public static class AetheriaRuntimeTradeItemDetailsSurfaceBuilder
     {
         public const string SurfaceId = "aetheria.trade.item_details";
@@ -88,105 +50,56 @@ namespace GameCult.Aetheria.State.Verse
             DateTime updatedAtUtc = default(DateTime),
             long version = 1)
         {
-            return Build(
-                ComposeState(
-                    item,
-                    manufacturer,
-                    formatValue,
-                    formatTemperature,
-                    updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeTradeItemDetailsSurfaceState ComposeState(
-            AetheriaRuntimeCatalogItem item,
-            string manufacturer,
-            Func<float, string> formatValue,
-            Func<float, string> formatTemperature,
-            DateTime updatedAtUtc = default(DateTime))
-        {
             if (updatedAtUtc == default(DateTime))
                 updatedAtUtc = DateTime.UtcNow;
 
-            if (item == null)
-            {
-                return new AetheriaRuntimeTradeItemDetailsSurfaceState(
-                    "",
-                    "",
-                    manufacturer ?? "",
-                    "",
-                    0,
-                    "",
-                    "",
-                    Array.Empty<AetheriaRuntimeTradeItemSection>(),
-                    updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
-            }
-
+            var itemName = item?.Name ?? "";
+            var description = item?.Description ?? "";
+            manufacturer ??= "";
+            var mass = item == null ? "" : FormatValue(item.Mass, formatValue);
+            var price = item?.Price ?? 0;
             var durability = "";
             var thermalRange = "";
             var behaviorSections = Array.Empty<AetheriaRuntimeTradeItemSection>();
-            if (!string.IsNullOrWhiteSpace(item.HardpointType))
+            if (!string.IsNullOrWhiteSpace(item?.HardpointType))
             {
                 durability = FormatValue(item.Durability, formatValue);
                 thermalRange = FormatTemperatureRange(item, formatTemperature);
                 behaviorSections = ProjectBehaviorSections(item, formatValue, formatTemperature).ToArray();
             }
-
-            return new AetheriaRuntimeTradeItemDetailsSurfaceState(
-                item.Name,
-                item.Description ?? "",
-                manufacturer ?? "",
-                FormatValue(item.Mass, formatValue),
-                item.Price,
-                durability,
-                thermalRange,
-                behaviorSections,
-                updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeTradeItemDetailsSurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeTradeItemDetailsSurfaceState(
-                "",
-                "",
-                "",
-                "",
-                0,
-                "",
-                "",
-                Array.Empty<AetheriaRuntimeTradeItemSection>(),
-                "");
+            var hasEquipmentStatus = !string.IsNullOrWhiteSpace(durability) ||
+                                     !string.IsNullOrWhiteSpace(thermalRange) ||
+                                     behaviorSections.Length > 0;
+            var updated = updatedAtUtc.ToString("O", CultureInfo.InvariantCulture);
 
             var children = new List<AetheriaRuntimeSurfaceComponent>
             {
                 Card(
                     $"{SurfaceId}.summary",
-                    state.ItemName,
+                    itemName,
                     Text(
                         $"{SurfaceId}.description",
-                        string.IsNullOrWhiteSpace(state.Description)
+                        string.IsNullOrWhiteSpace(description)
                             ? "No typed item description is available."
-                            : state.Description),
+                            : description),
                     Text(
                         $"{SurfaceId}.note",
                         "The observing client supplies the selected market row; the shared runtime surface owns trade item inspection layout."),
-                    Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
-                    Metric($"{SurfaceId}.mass", "Mass", state.Mass),
-                    Metric($"{SurfaceId}.price", "Price", state.Price.ToString("N0")))
+                    Metric($"{SurfaceId}.manufacturer", "Manufacturer", manufacturer),
+                    Metric($"{SurfaceId}.mass", "Mass", mass),
+                    Metric($"{SurfaceId}.price", "Price", price.ToString("N0")))
             };
 
-            if (state.HasEquipmentStatus)
+            if (hasEquipmentStatus)
             {
                 children.Add(Card(
                     $"{SurfaceId}.durability.card",
                     "Durability",
-                    Metric($"{SurfaceId}.durability", "Max Durability", state.Durability),
-                    Metric($"{SurfaceId}.temperature_range", "Thermal Range", state.ThermalRange)));
+                    Metric($"{SurfaceId}.durability", "Max Durability", durability),
+                    Metric($"{SurfaceId}.temperature_range", "Thermal Range", thermalRange)));
             }
 
-            foreach (var section in state.BehaviorSections)
+            foreach (var section in behaviorSections)
             {
                 if (section?.Metrics == null || section.Metrics.Count == 0)
                     continue;
@@ -210,7 +123,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "trade.menu",
                 title: "Trade Item Details",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updated,
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(

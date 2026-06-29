@@ -6176,7 +6176,6 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "private static EveSurfaceComponent",
         "new EveSurfaceComponent(",
         "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close",
-        "new AetheriaRuntimeTradeItemDetailsSurfaceState(",
         "ProjectTradeItemDetailsSurface(",
         "ProjectTradeItemDetailsSurfaceState(",
         "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(",
@@ -6204,10 +6203,11 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeTradeItemDetailsCommand",
         "public static class AetheriaRuntimeTradeItemDetailsSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeTradeItemDetailsSurfaceState",
         "AetheriaRuntimeTradeItemSection",
         "AetheriaRuntimeTradeItemMetric",
-        "private static AetheriaRuntimeTradeItemDetailsSurfaceState ComposeState(",
+        "var itemName = item?.Name ?? \"\"",
+        "var behaviorSections = Array.Empty<AetheriaRuntimeTradeItemSection>()",
+        "var hasEquipmentStatus = !string.IsNullOrWhiteSpace(durability)",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
@@ -6224,13 +6224,15 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(", StringComparison.Ordinal) ||
+    if (tradeItemDetailsSurfaceBuilder.Contains("AetheriaRuntimeTradeItemDetailsSurfaceState", StringComparison.Ordinal) ||
+        tradeItemDetailsSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(", StringComparison.Ordinal) ||
         tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
         tradeItemDetailsSurfaceBuilder.Contains("private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(", StringComparison.Ordinal) ||
         tradeItemDetailsSurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime trade item detail composition must stay behind Build(...); do not re-expose Project/Compose or restore ProjectState handoffs.");
+            "Runtime trade item details must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 
