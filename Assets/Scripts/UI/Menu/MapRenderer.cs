@@ -128,9 +128,9 @@ public class MapRenderer : MonoBehaviour
             var viewport = ResolveViewportBounds();
             ClearViewportCaches();
             _objectsViewport = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport, "unity-map-renderer");
+                .ReactiveObjectsViewport(viewport, "unity-map-renderer");
             _renderSplatsViewport = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport, "unity-map-renderer");
+                .ReactiveRenderSplatsViewport(viewport, "unity-map-renderer");
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)

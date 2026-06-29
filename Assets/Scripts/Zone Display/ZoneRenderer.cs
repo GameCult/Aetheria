@@ -1245,7 +1245,7 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             var nextObjectsViewport = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeObjectsViewportDocument>(
+                .ReactiveObjectsViewport(
                     viewportBounds,
                     "unity-zone-renderer");
             _objectsViewport?.Dispose();

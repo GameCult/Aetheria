@@ -969,7 +969,7 @@ public class InventoryMenu : MonoBehaviour
         {
             var nextInventory = AetheriaUnityRuntimeClientProvider
                 .RuntimeState("unity-inventory-menu")
-                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+                .ReactiveInventory(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;

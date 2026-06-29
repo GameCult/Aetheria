@@ -417,6 +417,54 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>(viewport).Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument> RtsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _mapViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return RtsViewport(viewport).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _objectsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return ObjectsViewport(viewport).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> GravityViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _gravityViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return GravityViewport(viewport).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return _renderSplatsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return RenderSplatsViewport(viewport).Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(int index)
             where TDocument : class
         {
@@ -440,6 +488,45 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>(index).Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> ZoneDetails(int zoneIndex)
+        {
+            if (zoneIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(zoneIndex), zoneIndex, "Aetheria zone index must be non-negative.");
+
+            return _zoneDetails(zoneIndex);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(int zoneIndex)
+        {
+            return ZoneDetails(zoneIndex).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int zoneIndex)
+        {
+            if (zoneIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(zoneIndex), zoneIndex, "Aetheria zone index must be non-negative.");
+
+            return _selectedObject(zoneIndex);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(int zoneIndex)
+        {
+            return SelectedObject(zoneIndex).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
+        {
+            if (entityIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(entityIndex), entityIndex, "Aetheria entity index must be non-negative.");
+
+            return _inventory(entityIndex);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(int entityIndex)
+        {
+            return Inventory(entityIndex).Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)
             where TDocument : class
         {
@@ -456,6 +543,20 @@ namespace GameCult.Aetheria.State.Verse
             where TDocument : class
         {
             return Document<TDocument>(seatId).Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument> StarbridgePlayerSeat(string seatId)
+        {
+            if (string.IsNullOrWhiteSpace(seatId))
+                throw new ArgumentException("Seat id must be non-empty.", nameof(seatId));
+
+            return _starbridgePlayerSeat(seatId);
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactiveStarbridgePlayerSeat(
+            string seatId)
+        {
+            return StarbridgePlayerSeat(seatId).Reactive();
         }
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
